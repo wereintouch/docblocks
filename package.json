@@ -1,0 +1,39 @@
+{
+  "name": "docblocks-monorepo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "docblocks — headless CRDT document engine (monorepo: docblocks-core + docblocks-react-ui)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test",
+    "build": "npm run build -w packages/core && npm run build -w packages/react-ui",
+    "check": "npm run lint && npm run format:check && npm run build && npm run typecheck && npm run test && npm run test:e2e",
+    "changeset": "changeset"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^3.0.3",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
+    "@trivago/prettier-plugin-sort-imports": "^6.0.2",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.9.9",
+    "tsdown": "^0.23.0",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.1",
+    "vitest": "^5.0.3"
+  }
+}

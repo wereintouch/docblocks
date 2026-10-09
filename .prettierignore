@@ -1,0 +1,8 @@
+dist
+node_modules
+package-lock.json
+coverage
+test-results
+playwright-report
+.scratch-editor-spec
+CHANGELOG.md

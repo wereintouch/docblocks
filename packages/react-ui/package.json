@@ -1,0 +1,35 @@
+{
+  "name": "docblocks-react-ui",
+  "version": "0.0.0",
+  "description": "React rendering + editing layer for docblocks: hooks, block renderers, caret/selection, keyboard, clipboard.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "docblocks-core": "*",
+    "react": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "@types/react": "^19.3.0",
+    "docblocks-core": "*",
+    "react": "^19.3.0"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  }
+}
