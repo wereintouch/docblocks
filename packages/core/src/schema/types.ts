@@ -185,8 +185,20 @@ type Block =
 /** Block type discriminator. */
 type BlockType = Block["type"];
 
+/** Attribute type of the block with the given type; `undefined` for types without attrs. */
+type AttrsFor<T extends BlockType> = "attrs" extends keyof Extract<Block, { type: T }>
+  ? Extract<Block, { type: T }>["attrs"]
+  : undefined;
+
+/** Partial attribute patch accepted by `updateBlock` (any v1 attribute key). */
+type BlockAttrsPatch = Partial<
+  HeadingAttrs & ListItemAttrs & CalloutAttrs & CodeAttrs & LatexAttrs & TableAttrs & ImageAttrs
+>;
+
 export type {
+  AttrsFor,
   Block,
+  BlockAttrsPatch,
   BlockContent,
   BlockId,
   BlockType,

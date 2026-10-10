@@ -7,13 +7,47 @@
 /** Stable package marker (useful for diagnostics). */
 const PACKAGE = "docblocks-core" as const;
 
-export * from "./core";
+export { Doc, createDoc, fromJSON, loadDoc } from "./core";
+export {
+  DetachedBlockError,
+  DestroyedViewError,
+  DocBlocksError,
+  InvalidAttrsError,
+  InvalidChildError,
+  InvalidMarkError,
+  InvalidOperationError,
+  InvalidRangeError,
+  InvalidSelectionError,
+  InvalidSnapshotError,
+  SelectionView,
+  UnknownBlockError,
+  UnknownBlockTypeError,
+  createSelection,
+} from "./core";
+export type {
+  Change,
+  CreateDocOptions,
+  InsertBlockArgs,
+  InsertBlockPosition,
+  MarkInput,
+  Selection,
+  TextPoint,
+} from "./core";
 export * from "./sync";
 
-export { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY, validateDoc } from "./schema";
+export {
+  BLOCK_REGISTRY,
+  LEAF_BLOCK_TYPES,
+  MARK_REGISTRY,
+  validateBlockAttrs,
+  validateDoc,
+  validateMarkSet,
+} from "./schema";
 export { PACKAGE };
 export type {
+  AttrsFor,
   Block,
+  BlockAttrsPatch,
   BlockContent,
   BlockId,
   BlockSpec,

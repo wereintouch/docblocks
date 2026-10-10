@@ -4,10 +4,12 @@
  */
 export { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY } from "./registry";
 export type { AttrSpec, BlockSpec, MarkSpec } from "./registry";
-export { validateDoc } from "./validate";
+export { validateBlockAttrs, validateDoc, validateMarkSet } from "./validate";
 export type { ValidationError } from "./validate";
 export type {
+  AttrsFor,
   Block,
+  BlockAttrsPatch,
   BlockContent,
   BlockId,
   BlockType,

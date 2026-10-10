@@ -413,5 +413,27 @@ function validateDoc(json: unknown): ValidationError[] {
   return errors;
 }
 
-export { validateDoc };
+/**
+ * Validates block attrs against the registry rules of the type: unknown
+ * keys, missing required attrs, and value rules. `undefined` is valid only
+ * for types without attrs. An empty result means the attrs are valid.
+ */
+function validateBlockAttrs(type: BlockType, attrs: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
+  validateAttrs(type, BLOCK_REGISTRY[type], attrs, "attrs", errors);
+  return errors;
+}
+
+/**
+ * Validates a mark set for a run of the given block type: known marks with
+ * well-formed values, no marks in a code block, no coexistence with an
+ * exclusive mark. An empty result means the marks are valid.
+ */
+function validateMarkSet(blockType: BlockType, marks: unknown): ValidationError[] {
+  const errors: ValidationError[] = [];
+  validateMarks(blockType, marks, "marks", errors);
+  return errors;
+}
+
+export { validateBlockAttrs, validateDoc, validateMarkSet };
 export type { ValidationError };

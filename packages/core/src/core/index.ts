@@ -2,4 +2,24 @@
  * core — Doc: Y.Doc + semantic commands + transactions + undo + fine-grained
  * reactivity. The only path for normal document editing.
  */
-export {};
+export {
+  DetachedBlockError,
+  DestroyedViewError,
+  DocBlocksError,
+  InvalidAttrsError,
+  InvalidChildError,
+  InvalidMarkError,
+  InvalidOperationError,
+  InvalidRangeError,
+  InvalidSelectionError,
+  InvalidSnapshotError,
+  UnknownBlockError,
+  UnknownBlockTypeError,
+} from "./errors";
+export type { InsertBlockArgs, InsertBlockPosition } from "./commands/blocks";
+export type { MarkInput } from "./commands/marks";
+export type { Change } from "./events";
+export { Doc, createDoc, fromJSON, loadDoc } from "./doc";
+export type { CreateDocOptions } from "./doc";
+export { SelectionView, createSelection } from "./selection";
+export type { Selection, TextPoint } from "./selection";
