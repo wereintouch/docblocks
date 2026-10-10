@@ -3,7 +3,7 @@
  * inspector, presence panel and chaos controls land with the engine
  * implementation.
  */
-export default function App() {
+function App() {
   return (
     <main style={{ fontFamily: "system-ui, sans-serif", padding: 24 }}>
       <h1>docblocks playground</h1>
@@ -14,3 +14,5 @@ export default function App() {
     </main>
   );
 }
+
+export { App };

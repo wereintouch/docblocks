@@ -52,6 +52,14 @@ docblocks/
 └─ test/e2e               # Playwright specs
 ```
 
+## Compatibility
+
+Documents carry the format major version (`v`). Additive changes within a
+major — new block types, new marks, new optional attributes — never break
+readers of the same major: a reader tolerates unknown block types, marks,
+and attributes. Semantic changes introduce a new major version plus a
+migration helper.
+
 ## Releases
 
 Independent versions via changesets (`npx changeset`, `npx changeset
