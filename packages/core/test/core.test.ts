@@ -12,7 +12,7 @@ const CREATED_AT = "2026-01-01T00:00:00Z";
 
 const makeDocJSON = (blocks: DocJSON["blocks"]): DocJSON => ({
   v: 1,
-  id: "d1",
+  id: "r",
   title: "",
   createdAt: CREATED_AT,
   blocks,
@@ -87,6 +87,19 @@ describe("fromJSON / toJSON round-trip", () => {
     expect(Array.isArray(thrown)).toBe(true);
     expect(thrown).toEqual(errors);
   });
+
+  it("throws for a root block keyed differently from the document id", () => {
+    const invalid = makeDocJSON({ other: { type: "root", children: [] } });
+    let thrown: unknown;
+    try {
+      fromJSON(invalid);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toEqual([
+      { path: "blocks.other", message: 'The root block must be keyed by the document id "r" (got "other").' },
+    ]);
+  });
 });
 
 describe("encoding", () => {
@@ -117,7 +130,7 @@ describe("encoding", () => {
     // Single-client lineage: the empty-page state, extended in place with the
     // fixture blocks; the holder of the earlier state receives only the diff.
     const yFull = new Y.Doc();
-    writeDocument(yFull, { ...fixture, blocks: { b00: { type: "root", children: [] } } });
+    writeDocument(yFull, { ...fixture, blocks: { [fixture.id]: { type: "root", children: [] } } });
     const state1 = Y.encodeStateAsUpdate(yFull);
     writeDocument(yFull, fixture);
     const holder = new Y.Doc();

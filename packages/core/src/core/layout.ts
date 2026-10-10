@@ -212,14 +212,11 @@ function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
     const rootOrder = rootOrderOf(ydoc);
     for (const [id, block] of Object.entries(json.blocks)) {
       const writable = block as WritableBlock;
-      if (writable.type !== "root") {
-        writeBlock(blocks, id, writable);
-        continue;
+      // The root's children go to the registered rootOrder array, not the entry.
+      if (writable.type === "root") {
+        for (const childId of writable.children ?? []) rootOrder.push([childId]);
       }
-      // The root entry is keyed by the doc id; its children go to the
-      // registered rootOrder array, not to the entry.
-      writeBlock(blocks, json.id, { type: "root" });
-      for (const childId of writable.children ?? []) rootOrder.push([childId]);
+      writeBlock(blocks, id, writable);
     }
   }, loadOriginOf(ydoc));
 }

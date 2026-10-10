@@ -8,7 +8,7 @@ const run = (text: string, marks: MarkSet = {}): TextRun => ({ text, marks });
 function makeDoc(overrides: Partial<DocJSON> = {}): DocJSON {
   return {
     v: 1,
-    id: "doc1",
+    id: "r",
     title: "T",
     createdAt: "2026-10-08T10:00:00Z",
     blocks: { r: { type: "root", children: [] } },
@@ -258,6 +258,20 @@ describe("block structure", () => {
 
   it("requires a children array on the root block", () => {
     expectError({ ...makeDoc(), blocks: { r: { type: "root" } } }, "blocks.r.children", "must have a children array");
+  });
+
+  it("accepts a root block keyed by the document id", () => {
+    expectValid({
+      v: 1,
+      id: "d1",
+      title: "T",
+      createdAt: "2026-10-08T10:00:00Z",
+      blocks: { d1: { type: "root", children: [] } },
+    });
+  });
+
+  it("rejects a root block keyed differently from the document id", () => {
+    expectError({ ...makeDoc(), id: "doc1" }, "blocks.r", 'keyed by the document id "doc1"');
   });
 
   it("rejects non-array content and children", () => {

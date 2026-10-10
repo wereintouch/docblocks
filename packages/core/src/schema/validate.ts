@@ -298,6 +298,13 @@ function validateDoc(json: unknown): ValidationError[] {
     const spec = BLOCK_REGISTRY[blockType];
 
     if (blockType === "root") {
+      // An invalid or missing id is reported on the meta field already.
+      if (typeof json.id === "string" && id !== json.id) {
+        errors.push({
+          path: `blocks.${id}`,
+          message: `The root block must be keyed by the document id "${json.id}" (got "${id}").`,
+        });
+      }
       if (rootId !== undefined) {
         errors.push({
           path: `blocks.${id}`,
