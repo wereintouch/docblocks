@@ -13,7 +13,7 @@ const fixture: DocJSON = {
   createdAt: "2026-10-08T10:00:00Z",
 
   blocks: {
-    b00: { type: "root", children: ["b01", "b02", "b03", "b04", "b05", "b06", "b07", "b08"] },
+    d_8f3a2c: { type: "root", children: ["b01", "b02", "b03", "b04", "b05", "b06", "b07", "b08"] },
 
     b01: { type: "heading", attrs: { level: 1 }, content: [{ text: "Migration", marks: {} }] },
 

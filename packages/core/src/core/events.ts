@@ -3,13 +3,15 @@ import * as Y from "yjs";
 import type { Block, BlockId } from "@docblocks-core/schema";
 
 import { findParent } from "./commands/blocks";
+import { rootBlockIdOf } from "./layout";
 import { readBlock, readText } from "./read";
 
 /**
  * Fine-grained reactivity: one emission per Yjs transaction (local or
- * remote). The observer is attached to the root Y.Map — this Yjs build
- * has no observeDeep on Y.Doc — so event paths are relative to it:
- * ["meta", ...] and ["blocks", blockId, ...].
+ * remote). This Yjs build has no observeDeep on Y.Doc, so one observer per
+ * registered top-level type (meta, blocks, rootOrder) merges its events
+ * into a per-transaction change; the doc's afterTransaction hook — which
+ * fires after all type observers ran — emits the merged change once.
  *
  * Emission order within a transaction: onChange listeners first, then
  * per-block onBlock / observeText.
@@ -32,9 +34,23 @@ type BlockHandler = (block: Block) => void;
 type TextHandler = (text: string) => void;
 type DeepObserver = (events: Y.YEvent<Y.AbstractType<unknown>>[]) => void;
 
+/** The merged change of the in-flight transaction; null between transactions. */
+interface PendingChange {
+  blockIds: Set<BlockId>;
+  metaChanged: boolean;
+}
+
+/** The attached observers, kept stable for unobserve*; null while detached. */
+interface Observers {
+  meta: DeepObserver;
+  blocks: DeepObserver;
+  rootOrder: () => void;
+  afterTransaction: () => void;
+}
+
 interface Hub {
-  /** Attached observer; null while detached. Kept stable for unobserveDeep. */
-  observer: DeepObserver | null;
+  observers: Observers | null;
+  pending: PendingChange | null;
   changeHandlers: Set<ChangeHandler>;
   blockHandlers: Map<BlockId, Set<BlockHandler>>;
   textHandlers: Map<BlockId, Set<TextHandler>>;
@@ -45,58 +61,69 @@ const hubs = new WeakMap<Y.Doc, Hub>();
 function getHub(ydoc: Y.Doc): Hub {
   let hub = hubs.get(ydoc);
   if (hub === undefined) {
-    hub = { observer: null, changeHandlers: new Set(), blockHandlers: new Map(), textHandlers: new Map() };
+    hub = {
+      observers: null,
+      pending: null,
+      changeHandlers: new Set(),
+      blockHandlers: new Map(),
+      textHandlers: new Map(),
+    };
     hubs.set(ydoc, hub);
   }
   return hub;
 }
 
-function getRoot(ydoc: Y.Doc): Y.Map<unknown> {
-  const root = ydoc.getMap("root");
-  if (!(root instanceof Y.Map)) {
-    throw new Error("docblocks: broken Yjs layout (root map missing)");
-  }
-  return root;
+/** The in-flight transaction's merged change (created on the first type event). */
+function pendingOf(hub: Hub): PendingChange {
+  if (hub.pending === null) hub.pending = { blockIds: new Set(), metaChanged: false };
+  return hub.pending;
 }
 
-/**
- * Assemble the Change of one transaction, or null when nothing user-visible
- * changed. `metaChanged` tracks the title only: the Yjs-only `updatedAt`
- * bookkeeping field is not part of the JSON and never counts.
- */
-function buildChange(ydoc: Y.Doc, events: Y.YEvent<Y.AbstractType<unknown>>[]): Change | null {
-  const blockIds = new Set<BlockId>();
-  let metaChanged = false;
-
+/** The meta observer: the title only; the Yjs-only `updatedAt` never counts. */
+function observeMeta(hub: Hub, events: Y.YEvent<Y.AbstractType<unknown>>[]): void {
+  const pending = pendingOf(hub);
   for (const event of events) {
     const path = event.path;
-    if (path[0] === "meta") {
-      if (path.length > 1 && path[1] === "title") {
-        metaChanged = true;
-      } else if (path.length === 1 && event.keys.has("title")) {
-        metaChanged = true;
-      }
-      continue;
+    // Paths are relative to the meta map: [] is the map itself, [title] the Y.Text.
+    if (path.length === 0) {
+      if (event.keys.has("title")) pending.metaChanged = true;
+    } else if (path[0] === "title") {
+      pending.metaChanged = true;
     }
-    if (path[0] !== "blocks") continue;
+  }
+}
 
-    if (path.length === 1) {
+/** The blocks observer: paths are relative to the blocks map ([blockId, ...]). */
+function observeBlocks(ydoc: Y.Doc, hub: Hub, events: Y.YEvent<Y.AbstractType<unknown>>[]): void {
+  const pending = pendingOf(hub);
+  for (const event of events) {
+    const path = event.path;
+    if (path.length === 0) {
       // The blocks map itself: the affected ids live in the event keys.
       event.keys.forEach((_change, blockId) => {
-        blockIds.add(blockId);
+        pending.blockIds.add(blockId);
         // The parent's children list changed too.
         const parent = findParent(ydoc, blockId);
-        if (parent !== null) blockIds.add(parent);
+        if (parent !== null) pending.blockIds.add(parent);
       });
-      continue;
+      return;
     }
-
-    const blockId = path[1];
-    if (typeof blockId === "string") blockIds.add(blockId);
+    const blockId = path[0];
+    if (typeof blockId === "string") pending.blockIds.add(blockId);
   }
+}
 
-  if (blockIds.size === 0 && !metaChanged) return null;
-  return { blockIds: [...blockIds], metaChanged };
+/** The rootOrder observer: any event is a change of the root block's children. */
+function observeRootOrder(ydoc: Y.Doc, hub: Hub): void {
+  pendingOf(hub).blockIds.add(rootBlockIdOf(ydoc));
+}
+
+/** Emit the in-flight transaction's merged change, if anything user-visible changed. */
+function emitPending(ydoc: Y.Doc, hub: Hub): void {
+  const pending = hub.pending;
+  hub.pending = null;
+  if (pending === null || (pending.blockIds.size === 0 && !pending.metaChanged)) return;
+  emitChange(ydoc, { blockIds: [...pending.blockIds], metaChanged: pending.metaChanged });
 }
 
 function emitChange(ydoc: Y.Doc, change: Change): void {
@@ -123,20 +150,29 @@ function emitChange(ydoc: Y.Doc, change: Change): void {
 }
 
 function attach(ydoc: Y.Doc, hub: Hub): void {
-  if (hub.observer !== null) return; // already attached
-  hub.observer = (events) => {
-    const change = buildChange(ydoc, events);
-    if (change !== null) emitChange(ydoc, change);
+  if (hub.observers !== null) return; // already attached
+  hub.observers = {
+    meta: (events) => observeMeta(hub, events),
+    blocks: (events) => observeBlocks(ydoc, hub, events),
+    rootOrder: () => observeRootOrder(ydoc, hub),
+    afterTransaction: () => emitPending(ydoc, hub),
   };
-  getRoot(ydoc).observeDeep(hub.observer);
+  ydoc.getMap("meta").observeDeep(hub.observers.meta);
+  ydoc.getMap("blocks").observeDeep(hub.observers.blocks);
+  ydoc.getArray("rootOrder").observe(hub.observers.rootOrder);
+  ydoc.on("afterTransaction", hub.observers.afterTransaction);
 }
 
-/** Detach the observer when the last subscription is gone. */
+/** Detach the observers when the last subscription is gone. */
 function release(ydoc: Y.Doc, hub: Hub): void {
   const empty = hub.changeHandlers.size === 0 && hub.blockHandlers.size === 0 && hub.textHandlers.size === 0;
-  if (empty && hub.observer !== null) {
-    getRoot(ydoc).unobserveDeep(hub.observer);
-    hub.observer = null;
+  const observers = hub.observers;
+  if (empty && observers !== null) {
+    ydoc.getMap("meta").unobserveDeep(observers.meta);
+    ydoc.getMap("blocks").unobserveDeep(observers.blocks);
+    ydoc.getArray("rootOrder").unobserve(observers.rootOrder);
+    ydoc.off("afterTransaction", observers.afterTransaction);
+    hub.observers = null;
   }
 }
 

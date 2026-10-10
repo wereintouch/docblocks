@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
 import type { Block, BlockId, BlockType, DocJSON, DocMeta, MarkSet, TextRun } from "@docblocks-core/schema";
 
+import { rootBlockIdOf, rootOrderOf } from "./layout";
 import { normalizeRuns } from "./normalize";
 
 /**
@@ -12,9 +13,7 @@ import { normalizeRuns } from "./normalize";
  */
 
 function getBlockMap(ydoc: Y.Doc, id: string): Y.Map<unknown> | null {
-  const root = ydoc.getMap("root");
-  const blocks = root.get("blocks");
-  if (!(blocks instanceof Y.Map)) return null;
+  const blocks = ydoc.getMap("blocks");
   const block = blocks.get(id);
   return block instanceof Y.Map ? block : null;
 }
@@ -24,14 +23,16 @@ function isKnownBlockType(value: unknown): value is BlockType {
 }
 
 function readMeta(ydoc: Y.Doc): DocMeta {
-  const meta = ydoc.getMap("root").get("meta");
-  const title = meta instanceof Y.Map ? meta.get("title") : undefined;
+  const meta = ydoc.getMap("meta");
+  const id = meta.get("id");
+  const title = meta.get("title");
+  const createdAt = meta.get("createdAt");
   return {
     v: 1,
-    id: meta instanceof Y.Map ? (meta.get("id") as string) : "",
+    id: typeof id === "string" ? id : "",
     // Yjs-only `updatedAt` is deliberately excluded from the JSON meta.
     title: title instanceof Y.Text ? title.toString() : typeof title === "string" ? title : "",
-    createdAt: meta instanceof Y.Map ? (meta.get("createdAt") as string) : "",
+    createdAt: typeof createdAt === "string" ? createdAt : "",
   };
 }
 
@@ -75,6 +76,12 @@ function readChildren(ydoc: Y.Doc, id: string): BlockId[] {
   if (!yblock) return [];
   const type = yblock.get("type");
   if (!isKnownBlockType(type) || !BLOCK_REGISTRY[type].children) return [];
+  // The root block's order lives in the registered rootOrder array.
+  if (id === rootBlockIdOf(ydoc)) {
+    return rootOrderOf(ydoc)
+      .toArray()
+      .filter((childId): childId is string => typeof childId === "string");
+  }
   const children = yblock.get("children");
   if (!(children instanceof Y.Array)) return [];
   return children.toArray().filter((childId): childId is string => typeof childId === "string");
@@ -158,13 +165,11 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
 function toDocJSON(ydoc: Y.Doc): DocJSON {
   const meta = readMeta(ydoc);
   const blocks: Record<string, Block> = {};
-  const blocksMap = ydoc.getMap("root").get("blocks");
-  if (blocksMap instanceof Y.Map) {
-    blocksMap.forEach((_, id) => {
-      const block = readBlock(ydoc, id);
-      if (block) blocks[id] = block;
-    });
-  }
+  const blocksMap = ydoc.getMap("blocks");
+  blocksMap.forEach((_, id) => {
+    const block = readBlock(ydoc, id);
+    if (block) blocks[id] = block;
+  });
   return { ...meta, blocks };
 }
 

@@ -20,9 +20,9 @@ import { getBlockMap } from "../commands/structure";
  * change region whose old × new character product exceeds the cap falls
  * back to a single delete + insert hunk instead of the LCS table.
  *
- * One deep observer on the root map (the same technique as the events hub)
- * delivers the changes; the tracker keeps the previous flattened text as
- * its only state.
+ * One deep observer on the registered blocks map (the same technique as the
+ * events hub) delivers the changes; the tracker keeps the previous flattened
+ * text as its only state.
  */
 
 /** One text change at old position `pos`. */
@@ -66,7 +66,7 @@ function flatten(content: Y.Array<Y.Map<unknown>>): string {
  * references the block; unbind when it no longer does.
  */
 function trackBlockText(ydoc: Y.Doc, blockId: BlockId, fn: (deltas: BlockTextDelta) => void): () => void {
-  const root = ydoc.getMap("root");
+  const blocks = ydoc.getMap("blocks");
   const initial = getContent(ydoc, blockId);
   let previous = initial === null ? "" : flatten(initial);
 
@@ -74,16 +74,11 @@ function trackBlockText(ydoc: Y.Doc, blockId: BlockId, fn: (deltas: BlockTextDel
     // Any event under the block except its string-inert fields (attrs,
     // children, type): a replaced content array or run text still changes
     // the flattened string. The string comparison below stays the gate.
+    // Paths are relative to the blocks map: [blockId, field, ...].
     let relevant = false;
     for (const event of events) {
       const path = event.path;
-      if (
-        path[0] === "blocks" &&
-        path[1] === blockId &&
-        path[2] !== "attrs" &&
-        path[2] !== "children" &&
-        path[2] !== "type"
-      ) {
+      if (path[0] === blockId && path[1] !== "attrs" && path[1] !== "children" && path[1] !== "type") {
         relevant = true;
         break;
       }
@@ -100,9 +95,9 @@ function trackBlockText(ydoc: Y.Doc, blockId: BlockId, fn: (deltas: BlockTextDel
     if (entries.length > 0) fn(entries);
   };
 
-  root.observeDeep(handler);
+  blocks.observeDeep(handler);
   return () => {
-    root.unobserveDeep(handler);
+    blocks.unobserveDeep(handler);
   };
 }
 

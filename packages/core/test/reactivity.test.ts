@@ -76,6 +76,30 @@ describe("onChange", () => {
     off();
   });
 
+  it("merges a local and a remote change in one Yjs transaction into a single emission", () => {
+    const base = withParagraph();
+    const state = base.encode();
+    const doc = loadDoc(state);
+    const peer = loadDoc(state);
+    // The peer diverges on its own; its diff is the remote half of one local transaction.
+    const remoteBlock = peer.insertBlock("paragraph");
+    peer.insertText(remoteBlock, 0, "remote");
+    const remote = peer.encodeUpdate(Y.encodeStateVector(doc.raw));
+    const changes: Change[] = [];
+    const off = doc.onChange((change) => changes.push(change));
+    let localBlock = "";
+
+    doc.transact(() => {
+      localBlock = doc.insertBlock("paragraph");
+      doc.applyUpdate(remote);
+    });
+
+    expect(changes).toHaveLength(1);
+    expect(changes[0]!.metaChanged).toBe(false);
+    expect(idsOf(changes[0]!)).toEqual(new Set(["d1", localBlock, remoteBlock]));
+    off();
+  });
+
   it("lists the new block and its parent for an insertion under a parent", () => {
     const doc = withParagraph();
     const changes: Change[] = [];

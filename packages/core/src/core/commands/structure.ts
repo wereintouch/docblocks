@@ -8,9 +8,11 @@ import * as Y from "yjs";
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
 import type { BlockId, BlockType } from "@docblocks-core/schema";
 
+import { rootBlockIdOf, rootOrderOf } from "../layout";
+
 /** The blocks map of the document (throws on a broken layout). */
 function getBlocks(ydoc: Y.Doc): Y.Map<unknown> {
-  const blocks = ydoc.getMap("root").get("blocks");
+  const blocks = ydoc.getMap("blocks");
   if (!(blocks instanceof Y.Map)) throw new Error("docblocks: broken Yjs layout (blocks map missing)");
   return blocks;
 }
@@ -29,8 +31,12 @@ function blockTypeOf(ydoc: Y.Doc, id: string): BlockType | null {
   return typeof type === "string" && type in BLOCK_REGISTRY ? (type as BlockType) : null;
 }
 
-/** The block's raw children array; null when the block has none. */
+/**
+ * The block's raw children array; null when the block has none. The root
+ * block's children are the registered rootOrder array, not an entry field.
+ */
 function childrenOf(ydoc: Y.Doc, id: string): Y.Array<string> | null {
+  if (id === rootBlockIdOf(ydoc)) return rootOrderOf(ydoc);
   const block = getBlockMap(ydoc, id);
   if (!block) return null;
   const children = block.get("children");
@@ -49,13 +55,16 @@ function readCols(ydoc: Y.Doc, id: string): number | null {
 
 /** The container whose children list holds `id`; null for orphans. */
 function findParent(ydoc: Y.Doc, id: string): BlockId | null {
-  const blocks = ydoc.getMap("root").get("blocks");
-  if (!(blocks instanceof Y.Map)) return null;
+  // Top level first (the root's order is the registered array, and the root
+  // entry carries no children field), then each entry's children; the first
+  // match wins.
+  if (rootOrderOf(ydoc).toArray().includes(id)) return rootBlockIdOf(ydoc);
+  const blocks = getBlocks(ydoc);
   let parent: BlockId | null = null;
   blocks.forEach((block, blockId) => {
     if (parent !== null || !(block instanceof Y.Map)) return;
     const children = block.get("children");
-    if (children instanceof Y.Array && children.toArray().includes(id)) parent = blockId;
+    if (children instanceof Y.Array && (children as Y.Array<string>).toArray().includes(id)) parent = blockId;
   });
   return parent;
 }

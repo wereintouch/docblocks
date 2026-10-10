@@ -278,8 +278,7 @@ function removeBlock(ydoc: Y.Doc, id: string): void {
 /** Replaces the whole document title. */
 function setTitle(ydoc: Y.Doc, text: string): void {
   localTransact(ydoc, () => {
-    const meta = ydoc.getMap("root").get("meta");
-    if (!(meta instanceof Y.Map)) return;
+    const meta = ydoc.getMap("meta");
     const title = meta.get("title");
     if (title instanceof Y.Text) {
       title.delete(0, title.length);
