@@ -5,7 +5,7 @@
   "printWidth": 120,
   "bracketSpacing": true,
   "arrowParens": "always",
-  "importOrder": ["^react(/.*)?$", "^docblocks-core(/.*)?$", "^[./]"],
+  "importOrder": ["^react(/.*)?$", "^docblocks-core(/.*)?$", "^@docblocks-core(/.*)?$", "^[./]"],
   "importOrderSeparation": true,
   "importOrderSortSpecifiers": true,
   "plugins": ["@trivago/prettier-plugin-sort-imports"]

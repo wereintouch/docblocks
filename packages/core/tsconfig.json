@@ -2,7 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
-    "types": []
+    "types": [],
+    "paths": {
+      "@docblocks-core/schema": ["./src/schema/index.ts"],
+      "@docblocks-core/core": ["./src/core/index.ts"]
+    }
   },
   "include": ["src", "test", "tsdown.config.ts", "vitest.config.ts"]
 }
