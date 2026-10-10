@@ -19,6 +19,8 @@ export {
 export type { InsertBlockArgs, InsertBlockPosition } from "./commands/blocks";
 export type { MarkInput } from "./commands/marks";
 export type { Change } from "./events";
+export { localOriginOf } from "./layout";
+export { undoManagerOf } from "./history";
 export { Doc, createDoc, fromJSON, loadDoc } from "./doc";
 export type { CreateDocOptions } from "./doc";
 export { SelectionView, createSelection } from "./selection";

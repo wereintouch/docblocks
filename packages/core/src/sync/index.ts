@@ -1,5 +1,7 @@
 /**
- * sync — SyncProvider interface, WsSyncProvider (y-protocols over WebSocket)
- * and attach() glue.
+ * sync — document sync transport: the SyncProvider interface, the presence
+ * wire types, and the attach() glue that routes a document to a provider.
  */
-export {};
+export { attach } from "./attach";
+export type { SyncSession } from "./attach";
+export type { PresenceSelection, PresenceState, SyncProvider, Unsubscribe } from "./provider";

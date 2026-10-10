@@ -33,7 +33,14 @@ export type {
   Selection,
   TextPoint,
 } from "./core";
-export * from "./sync";
+export { attach } from "./sync";
+export type {
+  PresenceSelection,
+  PresenceState,
+  SyncProvider,
+  SyncSession,
+  Unsubscribe,
+} from "./sync";
 
 export {
   BLOCK_REGISTRY,
