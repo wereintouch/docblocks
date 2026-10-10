@@ -33,13 +33,15 @@ export type {
   Selection,
   TextPoint,
 } from "./core";
-export { attach } from "./sync";
+export { attach, WsSyncProvider } from "./sync";
 export type {
   PresenceSelection,
   PresenceState,
   SyncProvider,
   SyncSession,
   Unsubscribe,
+  WsLike,
+  WsSyncOptions,
 } from "./sync";
 
 export {
