@@ -53,7 +53,11 @@ test("the remote caret renders inside the peer's block and clears on blur", asyn
     .poll(async () => {
       if ((await b.locator('[data-slot="docblocks/presence-caret"]').count()) !== 1) return false;
       const barBox = (await b.locator('[data-slot="docblocks/presence-caret"]').first().boundingBox()) ?? undefined;
-      const blockBox = (await b.locator(`[data-block-id="${blockId}"]`).boundingBox()) ?? undefined;
+      // The wrapper and the inner editable both carry the block id; the
+      // geometry anchor is the block's wrapper.
+      const blockBox =
+        (await b.locator(`[data-block-id="${blockId}"]:not([data-slot="docblocks/block-content"])`).boundingBox()) ??
+        undefined;
       if (barBox === undefined || blockBox === undefined) return false;
       const barCenterX = barBox.x + barBox.width / 2;
       const barCenterY = barBox.y + barBox.height / 2;

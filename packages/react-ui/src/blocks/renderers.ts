@@ -11,9 +11,15 @@ interface BlockRendererProps {
 /**
  * A consumer renderer for a block type; resolved in place of the built-in
  * renderer. Replacing a text-editable type swaps the whole block view,
- * including the contenteditable element and its editing affordance — a
- * renderer that needs editing drives the core commands through the hooks
- * (the consumer builds its own UI on top of them).
+ * including the wrapper, the contenteditable element, and its editing
+ * affordance — a renderer that needs editing drives the core commands
+ * through the hooks (the consumer builds its own UI on top of them).
+ *
+ * The built-in text renderers read the per-block context (the parent and
+ * siblings) for the keyboard gestures; a consumer renderer does not read
+ * it — the context is part of the built-in rendering, not of the
+ * renderer contract. A replaced list item renders its nested children by
+ * itself (they are the `block.children` ids).
  *
  * A renderer is a plain render function, not a component: it is invoked
  * during the block view's render, so it must not call hooks itself —

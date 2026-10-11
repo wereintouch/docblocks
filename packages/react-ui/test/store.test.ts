@@ -92,6 +92,28 @@ describe("createEditorStore", () => {
     expect(after.rootChildren).toEqual([p1]);
   });
 
+  it("re-reads every reported block when a structural and a text edit share one transaction", () => {
+    const { doc, store } = setup();
+    const p1 = doc.insertBlock("paragraph");
+    doc.insertText(p1, 0, "hello world");
+    const before = store.getState();
+    const refP1 = before.blocks[p1];
+
+    // One transaction that adds a block AND trims p1's text: the change
+    // report must list both, and the store must update p1's snapshot.
+    doc.transact(() => {
+      doc.insertBlock("paragraph", undefined, { parent: doc.meta.id, after: p1 });
+      doc.deleteText(p1, 6, 11);
+    });
+
+    const after = store.getState();
+    expect(after.blocks[p1]).not.toBe(refP1);
+    expect(after.blocks[p1]).toMatchObject({
+      type: "paragraph",
+      content: [{ text: "hello ", marks: {} }],
+    });
+  });
+
   it("keeps selection and presence as independent slices", () => {
     const { doc, store } = setup();
     const p1 = doc.insertBlock("paragraph");

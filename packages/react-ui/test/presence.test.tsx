@@ -80,10 +80,12 @@ describe("awareness publishing (EditorProvider)", () => {
       );
       expect(published).toHaveLength(0);
 
-      // A caret inside the block.
+      // A caret inside the block (the inner editable holds the text).
       const el = document.querySelector<HTMLElement>(`[data-block-id="${p}"]`);
       expect(el).not.toBeNull();
-      const textNode = el!.firstChild;
+      const inner = el!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+      expect(inner).not.toBeNull();
+      const textNode = inner!.firstChild;
       expect(textNode?.nodeType).toBe(Node.TEXT_NODE);
       const range = document.createRange();
       range.setStart(textNode!, 2);
@@ -208,8 +210,9 @@ describe("awareness publishing (EditorProvider)", () => {
       // self-echo re-emits the same remote list and must not re-render the
       // consumer (no slice identity churn).
       const el = document.querySelector<HTMLElement>(`[data-block-id="${p}"]`)!;
+      const inner = el.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]')!;
       const range = document.createRange();
-      range.setStart(el.firstChild!, 1);
+      range.setStart(inner.firstChild!, 1);
       range.collapse(true);
       window.getSelection()!.removeAllRanges();
       window.getSelection()!.addRange(range);

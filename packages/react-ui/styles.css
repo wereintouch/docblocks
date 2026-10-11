@@ -15,9 +15,10 @@
  * properties inherit, so no consumer CSS is needed.
  *
  * Structural hooks: `data-slot` (docblocks/editor, docblocks/block,
- * docblocks/list, docblocks/list-item, docblocks/placeholder,
- * docblocks/presence-caret) + `data-block-type` / `data-list` /
- * `data-variant` / `data-checked`.
+ * docblocks/block-content, docblocks/gutter, docblocks/list,
+ * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret)
+ * + `data-block-type` / `data-list` / `data-variant` / `data-checked`
+ * / `data-selected`.
  */
 
 :root {
@@ -43,6 +44,13 @@
   /* Layout. */
   --docblocks-block-spacing: 8px;
   --docblocks-radius: 6px;
+  --docblocks-list-nested-margin: 0;
+
+  /* Block selection. */
+  --docblocks-selected-background: rgba(9, 105, 218, 0.08);
+  --docblocks-gutter-size: 10px;
+  --docblocks-gutter-color: #8b949e;
+  --docblocks-gutter-offset: 4px;
 
   /* Headings. */
   --docblocks-heading-font-weight: 600;
@@ -95,15 +103,57 @@
   color: var(--docblocks-text-color);
 }
 
+/* A block wrapper: the spacing anchor and the gutter positioning box. */
+[data-slot="docblocks/block"],
+[data-slot="docblocks/list-item"] {
+  position: relative;
+  outline: none;
+}
+
 [data-slot="docblocks/block"] {
   margin: var(--docblocks-block-spacing) 0;
 }
 
-/* An empty editable keeps a line box (and a caret target) via a
-   zero-width space; the pseudo-element content is not text content. */
-[data-slot="docblocks/block"]:empty::after,
-[data-slot="docblocks/list-item"]:empty::after {
+/* The inner editable: the flat text diff is scoped to it, so it carries
+   no vertical spacing. An empty editable keeps a line box (and a caret
+   target) via a zero-width space; the pseudo-element content is not text
+   content. */
+[data-slot="docblocks/block-content"] {
+  margin: 0;
+  outline: none;
+}
+
+[data-slot="docblocks/block-content"]:empty::after {
   content: "\200b";
+}
+
+/* The gutter handle: a small dot in the left margin, revealed on hover
+   or while the block is selected. */
+[data-slot="docblocks/gutter"] {
+  position: absolute;
+  top: 50%;
+  left: calc(-1 * (var(--docblocks-gutter-size) + var(--docblocks-gutter-offset)));
+  width: var(--docblocks-gutter-size);
+  height: var(--docblocks-gutter-size);
+  transform: translateY(-50%);
+  margin: 0;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--docblocks-gutter-color);
+  opacity: 0;
+  cursor: pointer;
+}
+
+[data-slot="docblocks/block"]:hover [data-slot="docblocks/gutter"],
+[data-slot="docblocks/list-item"]:hover [data-slot="docblocks/gutter"],
+[data-selected="true"] [data-slot="docblocks/gutter"] {
+  opacity: 1;
+}
+
+/* The selected block (a blocks selection). */
+[data-block-id][data-selected="true"] {
+  background: var(--docblocks-selected-background);
 }
 
 [data-slot="docblocks/editor"] [data-block-type="heading"] {
@@ -125,6 +175,11 @@
 [data-slot="docblocks/list"] {
   margin: var(--docblocks-block-spacing) 0;
   padding-left: var(--docblocks-list-padding-left);
+}
+
+/* A list nested inside a list item: no block spacing of its own. */
+[data-slot="docblocks/list-item"] [data-slot="docblocks/list"] {
+  margin: var(--docblocks-list-nested-margin);
 }
 
 [data-slot="docblocks/list"][data-list="bullet"] {
@@ -167,22 +222,20 @@
   padding: var(--docblocks-inline-code-padding);
 }
 
-/* Code and latex blocks: mono, no wrapping, horizontal scroll. */
-[data-slot="docblocks/editor"] pre[data-block-type="code"],
-[data-slot="docblocks/editor"] code[data-block-type="latex"] {
+/* Code and latex blocks: mono. */
+pre[data-block-type="code"] [data-slot="docblocks/block-content"],
+div[data-block-type="latex"] [data-slot="docblocks/block-content"] {
   font-family: var(--docblocks-mono-font-family);
-  white-space: pre;
-  overflow-x: auto;
+}
+
+pre[data-block-type="code"] [data-slot="docblocks/block-content"] {
+  white-space: pre-wrap;
 }
 
 pre[data-block-type="code"] {
   background: var(--docblocks-code-background);
   padding: var(--docblocks-code-padding);
   border-radius: var(--docblocks-radius);
-}
-
-code[data-block-type="latex"] {
-  display: block;
 }
 
 hr[data-slot="docblocks/divider"] {
@@ -248,6 +301,7 @@ img[data-slot="docblocks/image"] {
   --docblocks-code-background: rgba(110, 118, 129, 0.35);
   --docblocks-divider-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-table-border-color: rgba(110, 118, 129, 0.65);
+  --docblocks-selected-background: rgba(56, 139, 253, 0.15);
 
   --docblocks-callout-border-color-info: #58a6ff;
   --docblocks-callout-background-info: rgba(56, 139, 253, 0.15);

@@ -1,4 +1,7 @@
+import { useStore } from "zustand";
+
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 
 import type { Block, BlockId, TextRun } from "docblocks-core";
 
@@ -7,6 +10,7 @@ import { caretOffsetIn, restoreSelection, selectionInside } from "../editing/dom
 import { useBlockInput } from "../editing/input-safety";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { renderRunsInto } from "../text/runs-dom";
+import { useBlockContext } from "./block-context";
 
 /** The six text-editable block types (the wrapper tag and data attrs are props). */
 type EditableBlock = Extract<Block, { type: "paragraph" | "heading" | "callout" | "list-item" | "code" | "latex" }>;
@@ -14,7 +18,9 @@ type EditableBlock = Extract<Block, { type: "paragraph" | "heading" | "callout" 
 interface TextBlockProps {
   id: BlockId;
   block: EditableBlock;
-  tag: "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "aside" | "li" | "pre" | "code";
+  tag: "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "aside" | "li" | "pre";
+  /** The nested child blocks (list-item only), rendered inside the wrapper after the editable. */
+  nested?: ReactNode;
 }
 
 const EMPTY_RUNS: TextRun[] = [];
@@ -26,33 +32,46 @@ function textOf(runs: TextRun[] | undefined): string {
 }
 
 /**
- * The editable content of a text block.
+ * A text block: a structural wrapper (tag and data attrs, the gutter
+ * handle, the nested children) around one inner contenteditable element.
  *
- * The block element is a contentEditable wrapper; React renders only the
- * wrapper (tag and data attributes) — the text DOM is managed
- * imperatively from the store runs, because a React-managed child tree
- * cannot be reconciled over a DOM the browser edits. While the DOM
- * selection is inside the block (the block is focused) the browser owns
- * the text DOM: every input is committed to the doc immediately, and the
- * store (the doc's projection) follows synchronously, so the DOM and the
- * doc always agree. A store text change that reaches the block while the
- * selection is inside (a remote or undo change — the previous store text
- * equals the DOM text) rebuilds the text DOM from the new runs and
- * restores the selection rebased across the store-text delta. When the
- * selection leaves the block, the text DOM is re-synced from the store
- * (the doc is the source of truth; a lagging DOM — e.g. after an undo
- * while editing — is discarded, never committed back). Enter/Shift+Enter
- * and paste are guarded (useBlockInput): the line-split default is
- * suppressed, and paste commits plain text through doc commands. Known v1
- * limitations: CJK IME composition is not tracked (composition commits
- * character by character), and mark-only changes are not re-rendered
- * while the caret is inside the block.
+ * The wrapper is never contenteditable: a nested list item must not hold
+ * other blocks' text inside its own editable, or the flat text diff would
+ * flatten the nested text into the parent block. React renders only the
+ * two elements; the inner text DOM is managed imperatively from the store
+ * runs, because a React-managed child tree cannot be reconciled over a DOM
+ * the browser edits. While the DOM selection is inside the inner element
+ * (the block is focused) the browser owns the text DOM: every input is
+ * committed to the doc immediately, and the store (the doc's projection)
+ * follows synchronously, so the DOM and the doc always agree. A store
+ * text change that reaches the block while the selection is inside (a
+ * remote or undo change — the previous store text equals the DOM text)
+ * rebuilds the text DOM from the new runs and restores the selection
+ * rebased across the store-text delta. When the selection leaves the
+ * block, the text DOM is re-synced from the store (the doc is the source
+ * of truth; a lagging DOM — e.g. after an undo while editing — is
+ * discarded, never committed back). Enter/Shift+Enter, Backspace-at-0,
+ * Tab/Shift+Tab, and paste are guarded (useBlockInput): the line-split
+ * default is suppressed, the gestures issue doc commands, and paste
+ * commits plain text. Known v1 limitations: CJK IME composition is not
+ * tracked (composition commits character by character), and mark-only
+ * changes are not re-rendered while the caret is inside the block.
  */
-function TextBlock({ id, block, tag }: TextBlockProps) {
-  const { doc, store } = useEditorContext();
-  const { onKeyDown, onPaste } = useBlockInput(id);
+function TextBlock({ id, block, tag, nested }: TextBlockProps) {
+  const { doc, store, selection: selectionRef } = useEditorContext();
+  const blockContext = useBlockContext();
+  const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
 
-  const contentRef = useRef<HTMLElement | null>(null);
+  const wrapperRef = useRef<HTMLElement | null>(null);
+  const innerRef = useRef<HTMLElement | null>(null);
+  const { onKeyDown, onPaste } = useBlockInput({
+    id,
+    blockType: block.type,
+    context: blockContext,
+    innerRef,
+    wrapperRef,
+  });
+
   /** The last store block snapshot applied to the text DOM. */
   const appliedRef = useRef<Block | null>(null);
   /** A store text change pending for the post-render rebuild (selection inside). */
@@ -62,7 +81,7 @@ function TextBlock({ id, block, tag }: TextBlockProps) {
 
   /** Commit the DOM text as a delta over the store text (one undo step). */
   const commitDomDelta = useCallback(() => {
-    const el = contentRef.current;
+    const el = innerRef.current;
     if (el === null) return;
     const current = store.getState().blocks[id];
     if (current === undefined) return;
@@ -87,7 +106,7 @@ function TextBlock({ id, block, tag }: TextBlockProps) {
       const prevText = prevBlock !== undefined && "content" in prevBlock ? textOf(prevBlock.content) : "";
       if (nextText === prevText) return; // mark/attr-only change: the text DOM stands
 
-      const el = contentRef.current;
+      const el = innerRef.current;
       const selection = window.getSelection();
       if (el === null || selection === null || selection.rangeCount === 0) return;
       const range = selection.getRangeAt(0);
@@ -116,7 +135,7 @@ function TextBlock({ id, block, tag }: TextBlockProps) {
   // is read from the live DOM selection at apply time, never from a stale
   // focus flag.
   useLayoutEffect(() => {
-    const el = contentRef.current;
+    const el = innerRef.current;
     if (el === null) return;
     const pending = pendingRef.current;
     if (pending !== null) {
@@ -136,14 +155,48 @@ function TextBlock({ id, block, tag }: TextBlockProps) {
     }
   });
 
-  const setRef = useCallback((element: HTMLElement | null) => {
-    contentRef.current = element;
+  const setRefs = useCallback((element: HTMLElement | null) => {
+    wrapperRef.current = element;
+  }, []);
+  const setInnerRef = useCallback((element: HTMLElement | null) => {
+    innerRef.current = element;
+  }, []);
+
+  /** Gutter click: a blocks selection on this block (Shift extends from the previous anchor). */
+  const onGutterClick = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      const view = selectionRef.view;
+      if (view === null) return;
+      const current = view.get();
+      if (event.shiftKey && current.kind === "blocks") {
+        const siblings = doc.getChildren(blockContext.parentId);
+        const anchorIndex = siblings.indexOf(current.anchorId);
+        const hereIndex = siblings.indexOf(id);
+        // Same parent only; a cross-parent range is a v1.1 feature.
+        if (anchorIndex !== -1 && hereIndex !== -1) {
+          const [low, high] = anchorIndex <= hereIndex ? [anchorIndex, hereIndex] : [hereIndex, anchorIndex];
+          view.set({ kind: "blocks", ids: siblings.slice(low, high + 1), anchorId: current.anchorId });
+        } else {
+          view.set({ kind: "blocks", ids: [id], anchorId: id });
+        }
+      } else {
+        view.set({ kind: "blocks", ids: [id], anchorId: id });
+      }
+      wrapperRef.current?.focus();
+    },
+    [blockContext, doc, id, selectionRef]
+  );
+
+  /** Keep the gutter mousedown from moving the text caret. */
+  const onGutterMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
   }, []);
 
   const Tag = tag;
   return (
     <Tag
-      ref={setRef}
+      ref={setRefs}
       data-slot={tag === "li" ? "docblocks/list-item" : "docblocks/block"}
       data-block-type={block.type}
       data-block-id={id}
@@ -152,13 +205,29 @@ function TextBlock({ id, block, tag }: TextBlockProps) {
       data-variant={block.type === "callout" ? block.attrs?.variant : undefined}
       data-language={block.type === "code" ? block.attrs?.language : undefined}
       data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
-      contentEditable
-      suppressContentEditableWarning
-      spellCheck={false}
-      onInput={commitDomDelta}
+      data-selected={selected ? "true" : undefined}
+      tabIndex={0}
       onKeyDown={onKeyDown}
-      onPaste={onPaste}
-    />
+    >
+      <button
+        type="button"
+        data-slot="docblocks/gutter"
+        aria-label="Select block"
+        onClick={onGutterClick}
+        onMouseDown={onGutterMouseDown}
+      />
+      <div
+        ref={setInnerRef}
+        contentEditable
+        suppressContentEditableWarning
+        spellCheck={false}
+        data-slot="docblocks/block-content"
+        data-block-id={id}
+        onInput={commitDomDelta}
+        onPaste={onPaste}
+      />
+      {nested}
+    </Tag>
   );
 }
 

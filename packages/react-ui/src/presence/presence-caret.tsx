@@ -85,7 +85,13 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
       const next: CaretBar[] = [];
       for (const peer of presence) {
         for (const point of caretPointsOf(peer.selection)) {
-          const block = root.querySelector<HTMLElement>(`[data-block-id="${point.blockId}"]`);
+          // A text-editable block measures inside its inner editable (a
+          // nested list's text must not corrupt the flat offset); a
+          // non-text block falls back to the wrapper element.
+          const block =
+            root.querySelector<HTMLElement>(
+              `[data-block-id="${point.blockId}"][data-slot="docblocks/block-content"]`
+            ) ?? root.querySelector<HTMLElement>(`[data-block-id="${point.blockId}"]`);
           if (block === null) continue;
           const geometry = caretGeometry(root, block, point.offset);
           next.push({
@@ -95,12 +101,30 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
           });
         }
       }
-      setBars(next);
+      // Skip the state update when the geometry is unchanged (a remeasure
+      // pass can land with identical bars — no overlay re-render then).
+      setBars((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    };
+
+    // The measurement needs settled layout: a store-triggered recompute can
+    // land mid-rebuild (a rebased text DOM), so every trigger also remeasures
+    // on the next frame, after React has applied the rebuild.
+    let frame = 0;
+    const scheduleRecompute = (): void => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        recompute();
+      });
     };
 
     recompute();
-    window.addEventListener("resize", recompute);
-    return () => window.removeEventListener("resize", recompute);
+    scheduleRecompute();
+    window.addEventListener("resize", scheduleRecompute);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", scheduleRecompute);
+    };
   }, [presence, blocks, rootRef]);
 
   return (

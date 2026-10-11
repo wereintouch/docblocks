@@ -28,17 +28,24 @@ function renderParagraph(text = "hello") {
   return doc;
 }
 
-/** The rendered paragraph element. */
+/** The rendered paragraph wrapper element. */
 function paragraphEl(): HTMLElement {
   const el = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]`);
   expect(el, "the paragraph should be rendered").not.toBeNull();
   return el!;
 }
 
-/** Place the DOM caret at `offset` of the paragraph's first text node. */
+/** The paragraph's inner editable (the contenteditable element). */
+function innerEl(): HTMLElement {
+  const inner = paragraphEl().querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+  expect(inner, "the wrapper should carry the inner editable").not.toBeNull();
+  return inner!;
+}
+
+/** Place the DOM caret at `offset` of the inner editable's first text node. */
 function caretAt(el: HTMLElement, offset: number): void {
   const textNode = Array.from(el.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
-  expect(textNode, "the paragraph should have a text node").not.toBeNull();
+  expect(textNode, "the inner editable should have a text node").not.toBeNull();
   const range = document.createRange();
   range.setStart(textNode!, offset);
   range.collapse(true);
@@ -68,53 +75,60 @@ afterEach(() => {
 });
 
 describe("text input safety", () => {
-  it("Enter does not split the block: no new block, the DOM stays a single text node", () => {
+  it("Enter with no caret in the block is a no-op: prevented, no new block", () => {
     const doc = renderParagraph();
-    const el = paragraphEl();
+    const wrapper = paragraphEl();
+    const inner = innerEl();
     const before = blockCount(doc);
-    expect(el.childNodes.length).toBe(1);
+    expect(inner.childNodes.length).toBe(1);
 
-    // preventDefault is observable as dispatchEvent returning false.
+    // No DOM selection: the Enter gesture has no caret to split at. The
+    // browser line split is still suppressed (dispatchEvent returns false).
     let prevented = true;
     act(() => {
-      prevented = el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+      prevented = wrapper.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true })
+      );
     });
 
     expect(prevented).toBe(false);
     expect(blockCount(doc)).toBe(before);
-    expect(el.querySelectorAll("br, div").length).toBe(0);
-    expect(el.childNodes.length).toBe(1);
-    expect(el.firstChild!.nodeType).toBe(Node.TEXT_NODE);
-    expect(el.textContent).toBe("hello");
+    expect(inner.querySelectorAll("br, div").length).toBe(0);
+    expect(inner.childNodes.length).toBe(1);
+    expect(inner.firstChild!.nodeType).toBe(Node.TEXT_NODE);
+    expect(inner.textContent).toBe("hello");
   });
 
   it("Shift+Enter does not split the block either", () => {
     const doc = renderParagraph();
-    const el = paragraphEl();
+    const wrapper = paragraphEl();
+    const inner = innerEl();
     const before = blockCount(doc);
 
     act(() => {
-      el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true, cancelable: true }));
+      wrapper.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", shiftKey: true, bubbles: true, cancelable: true })
+      );
     });
 
     expect(blockCount(doc)).toBe(before);
-    expect(el.querySelectorAll("br, div").length).toBe(0);
-    expect(el.textContent).toBe("hello");
+    expect(inner.querySelectorAll("br, div").length).toBe(0);
+    expect(inner.textContent).toBe("hello");
   });
 
   it("paste inserts plain text at the caret offset and keeps a single text node", () => {
     const doc = renderParagraph();
-    const el = paragraphEl();
-    caretAt(el, 2);
+    const inner = innerEl();
+    caretAt(inner, 2);
 
     act(() => {
-      dispatchPaste(el, "xy");
+      dispatchPaste(inner, "xy");
     });
 
     expect(doc.getText(paragraphId)).toBe("hexyllo");
-    expect(el.querySelectorAll("br, div").length).toBe(0);
-    expect(el.childNodes.length).toBe(1);
-    expect(el.textContent).toBe("hexyllo");
+    expect(inner.querySelectorAll("br, div").length).toBe(0);
+    expect(inner.childNodes.length).toBe(1);
+    expect(inner.textContent).toBe("hexyllo");
     // The caret rebased across the doc-driven rebuild: an insertion exactly
     // at the offset does not move it (the core point rule).
     const selection = window.getSelection()!;
@@ -124,8 +138,8 @@ describe("text input safety", () => {
 
   it("paste over a selection replaces the selected range", () => {
     const doc = renderParagraph();
-    const el = paragraphEl();
-    const textNode = el.firstChild!;
+    const inner = innerEl();
+    const textNode = inner.firstChild!;
     const range = document.createRange();
     range.setStart(textNode, 1);
     range.setEnd(textNode, 4); // "ell"
@@ -134,11 +148,11 @@ describe("text input safety", () => {
     selection.addRange(range);
 
     act(() => {
-      dispatchPaste(el, "X");
+      dispatchPaste(inner, "X");
     });
 
     expect(doc.getText(paragraphId)).toBe("hXo");
-    expect(el.textContent).toBe("hXo");
+    expect(inner.textContent).toBe("hXo");
   });
 
   it("paste with the selection spanning marked runs (multiple text nodes) replaces the range", () => {
@@ -146,9 +160,9 @@ describe("text input safety", () => {
     act(() => {
       doc.setMark(paragraphId, 0, 3, { type: "bold" });
     });
-    const el = paragraphEl();
-    const strong = el.querySelector("strong");
-    const outer = Array.from(el.childNodes).find((n) => n.nodeType === Node.TEXT_NODE);
+    const inner = innerEl();
+    const strong = inner.querySelector("strong");
+    const outer = Array.from(inner.childNodes).find((n) => n.nodeType === Node.TEXT_NODE);
     expect(strong).not.toBeNull();
     expect(outer).not.toBeUndefined();
     // Flat offsets 1..4 across the two text nodes ("hel" + "l").
@@ -160,7 +174,7 @@ describe("text input safety", () => {
     selection.addRange(range);
 
     act(() => {
-      dispatchPaste(el, "X");
+      dispatchPaste(inner, "X");
     });
 
     expect(doc.getText(paragraphId)).toBe("hXo");
@@ -168,11 +182,11 @@ describe("text input safety", () => {
 
   it("paste is a single undo step", () => {
     const doc = renderParagraph();
-    const el = paragraphEl();
-    caretAt(el, 5);
+    const inner = innerEl();
+    caretAt(inner, 5);
 
     act(() => {
-      dispatchPaste(el, "!!");
+      dispatchPaste(inner, "!!");
     });
     expect(doc.getText(paragraphId)).toBe("hello!!");
 
@@ -182,11 +196,11 @@ describe("text input safety", () => {
 
   it("ignores a paste with no selection", () => {
     const doc = renderParagraph();
-    const el = paragraphEl();
+    const inner = innerEl();
     window.getSelection()!.removeAllRanges();
 
     act(() => {
-      dispatchPaste(el, "xy");
+      dispatchPaste(inner, "xy");
     });
 
     expect(doc.getText(paragraphId)).toBe("hello");
@@ -194,11 +208,11 @@ describe("text input safety", () => {
 
   it("ignores an empty plain-text paste", () => {
     const doc = renderParagraph();
-    const el = paragraphEl();
-    caretAt(el, 2);
+    const inner = innerEl();
+    caretAt(inner, 2);
 
     act(() => {
-      dispatchPaste(el, "");
+      dispatchPaste(inner, "");
     });
 
     expect(doc.getText(paragraphId)).toBe("hello");

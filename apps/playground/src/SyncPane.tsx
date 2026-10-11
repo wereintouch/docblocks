@@ -54,15 +54,26 @@ function presenceLine(letter: string, peer: PresenceState): string | null {
 }
 
 /**
+ * The editable element of a block: the inner block-content when the block
+ * has one, the wrapper otherwise. Harness-only: the page hosts exactly
+ * one pane per doc id, so a document-global query is safe.
+ */
+function editableOf(blockId: string): HTMLElement | null {
+  return (
+    document.querySelector<HTMLElement>(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`) ??
+    document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`)
+  );
+}
+
+/**
  * Place the real DOM caret at the end of a block — what a keystroke in
  * the editor would leave behind — so the editor owns the selection and
  * the provider's awareness reflects it. Runs in a frame after the store
- * applied the change and the text DOM caught up. Harness-only: the page
- * hosts exactly one pane per doc id, so a document-global query is safe.
+ * applied the change and the text DOM caught up.
  */
 function caretAtEndOf(blockId: string): void {
   requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    const el = editableOf(blockId);
     if (el === null) return;
     const range = document.createRange();
     range.selectNodeContents(el);
@@ -76,12 +87,11 @@ function caretAtEndOf(blockId: string): void {
 
 /**
  * Focus a fresh (empty) block and place the caret at its start, so the
- * editor owns the selection for the new block. Harness-only: the page
- * hosts exactly one pane per doc id, so a document-global query is safe.
+ * editor owns the selection for the new block.
  */
 function focusBlockStart(blockId: string): void {
   requestAnimationFrame(() => {
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    const el = editableOf(blockId);
     if (el === null) return;
     el.focus();
     // An empty block has no text node to anchor on: set the range
@@ -160,11 +170,14 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
   // The pane labels the rendered blocks for the e2e specs: a testid per
   // block and `data-current` on the pane's current block (the editor
   // renders the real blocks; the pane adds these harness attributes).
+  // Text-editable blocks carry the id on the wrapper and the inner
+  // editable — only the wrapper is labeled.
   useEffect(() => {
     const container = docAreaRef.current;
     if (container === null) return;
     const ids = new Set(blocks.map((block) => block.id));
     for (const el of Array.from(container.querySelectorAll<HTMLElement>("[data-block-id]"))) {
+      if (el.getAttribute("data-slot") === "docblocks/block-content") continue;
       const id = el.getAttribute("data-block-id");
       el.removeAttribute("data-testid");
       el.removeAttribute("data-current");

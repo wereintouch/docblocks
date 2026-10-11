@@ -53,8 +53,9 @@ describe("built-in renderers: table", () => {
     expect(table!.querySelectorAll("tr").length).toBe(2);
     expect(table!.querySelectorAll("td").length).toBe(4);
     expect(screen.getByText("cell 0-1").closest("td")).not.toBeNull();
-    // Every cell paragraph is a contenteditable paragraph (the TextBlock path).
-    expect(table!.querySelectorAll("td [contenteditable='true'][data-block-type='paragraph']").length).toBe(4);
+    // Every cell paragraph is editable (the inner editable of the TextBlock
+    // path).
+    expect(table!.querySelectorAll("td [data-slot='docblocks/block-content']").length).toBe(4);
 
     // Editing a cell paragraph commits to that cell's paragraph.
     const cellIds = doc.getChildren(doc.getChildren(tableId)[0]!);
@@ -95,7 +96,7 @@ describe("built-in renderers: image", () => {
 });
 
 describe("built-in renderers: code and latex", () => {
-  it("renders a code block as a mono <pre> and stays editable", () => {
+  it("renders a code block as a mono <pre> wrapper with an editable inner", () => {
     let codeId = "";
     const doc = renderDoc((d) => {
       codeId = d.insertBlock("code", { language: "ts" });
@@ -105,30 +106,34 @@ describe("built-in renderers: code and latex", () => {
     const pre = document.querySelector<HTMLElement>("pre[data-block-type='code']");
     expect(pre).not.toBeNull();
     expect(pre!.getAttribute("data-language")).toBe("ts");
-    expect(pre!.getAttribute("contenteditable")).toBe("true");
-    expect(pre!.textContent).toBe("const x = 1;");
+    const inner = pre!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+    expect(inner).not.toBeNull();
+    expect(inner!.getAttribute("contenteditable")).toBe("true");
+    expect(inner!.textContent).toBe("const x = 1;");
 
     // Typing commits through the existing input path (DOM text node edited
     // in place, then the input event commits the diff to the doc).
-    const textNode = pre!.firstChild!;
+    const textNode = inner!.firstChild!;
     act(() => {
       textNode.nodeValue = "const x = 2;";
-      pre!.dispatchEvent(new Event("input", { bubbles: true }));
+      inner!.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(doc.getText(codeId)).toBe("const x = 2;");
   });
 
-  it("renders a latex block as a contenteditable <code> with the tex source", () => {
+  it("renders a latex block as a div wrapper with a contenteditable inner carrying the tex source", () => {
     renderDoc((d) => {
       const l = d.insertBlock("latex", { display: true });
       d.insertText(l, 0, "e^{i\\pi} + 1");
     });
 
-    const el = document.querySelector<HTMLElement>("code[data-block-type='latex']");
+    const el = document.querySelector<HTMLElement>("div[data-block-type='latex']");
     expect(el).not.toBeNull();
     expect(el!.getAttribute("data-display")).toBe("true");
-    expect(el!.getAttribute("contenteditable")).toBe("true");
-    expect(el!.textContent).toBe("e^{i\\pi} + 1");
+    const inner = el!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+    expect(inner).not.toBeNull();
+    expect(inner!.getAttribute("contenteditable")).toBe("true");
+    expect(inner!.textContent).toBe("e^{i\\pi} + 1");
   });
 
   it("renders a divider as a styled <hr>", () => {

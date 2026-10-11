@@ -44,17 +44,25 @@ function renderDoc(prepare: (doc: TestDoc) => void) {
   return doc;
 }
 
-/** The (single) paragraph element of the rendered editor. */
+/** The (single) paragraph wrapper element of the rendered editor. */
 function paragraphOf(doc: TestDoc): HTMLElement {
   const el = document.querySelector(`[data-block-id="${paragraphIdOf(doc)}"]`);
   expect(el, "the paragraph should be rendered").not.toBeNull();
   return el as HTMLElement;
 }
 
-/** Place the DOM caret at `offset` of the paragraph's first text node. */
+/** The inner editable of a block wrapper (the contenteditable element). */
+function innerOf(wrapper: HTMLElement): HTMLElement {
+  const inner = wrapper.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+  expect(inner, "the wrapper should carry the inner editable").not.toBeNull();
+  return inner as HTMLElement;
+}
+
+/** Place the DOM caret at `offset` of the inner editable's first text node. */
 function caretAt(el: HTMLElement, offset: number): void {
-  const textNode = Array.from(el.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
-  expect(textNode, "the paragraph should have a text node").not.toBeNull();
+  const inner = innerOf(el);
+  const textNode = Array.from(inner.childNodes).find((node) => node.nodeType === Node.TEXT_NODE);
+  expect(textNode, "the inner editable should have a text node").not.toBeNull();
   const range = document.createRange();
   range.setStart(textNode!, offset);
   range.collapse(true);
@@ -85,18 +93,23 @@ afterEach(() => {
 });
 
 describe("TextBlock contenteditable editing", () => {
-  it("renders the block text in a contenteditable element", () => {
+  it("renders the block text in an inner contenteditable of a wrapper", () => {
     const doc = renderDoc((d) => {
       const id = d.insertBlock("paragraph");
       d.insertText(id, 0, "hello world");
     });
 
-    const el = paragraphOf(doc);
-    expect(el.tagName).toBe("P");
-    expect(el.textContent).toBe("hello world");
-    expect(el.getAttribute("contenteditable")).toBe("true");
-    expect(el.getAttribute("spellcheck")).toBe("false");
-    expect(el.getAttribute("data-block-type")).toBe("paragraph");
+    const wrapper = paragraphOf(doc);
+    expect(wrapper.tagName).toBe("DIV");
+    expect(wrapper.getAttribute("contenteditable")).toBeNull();
+    expect(wrapper.getAttribute("data-block-type")).toBe("paragraph");
+    expect(wrapper.getAttribute("data-slot")).toBe("docblocks/block");
+    const inner = innerOf(wrapper);
+    expect(inner.getAttribute("contenteditable")).toBe("true");
+    expect(inner.getAttribute("spellcheck")).toBe("false");
+    expect(inner.getAttribute("data-slot")).toBe("docblocks/block-content");
+    expect(inner.getAttribute("data-block-id")).toBe(paragraphIdOf(doc));
+    expect(inner.textContent).toBe("hello world");
   });
 
   it("applies a simulated input as a doc edit and undo restores it", () => {
@@ -105,18 +118,19 @@ describe("TextBlock contenteditable editing", () => {
       d.insertText(id, 0, "hello");
     });
     const id = paragraphIdOf(doc);
-    const el = paragraphOf(doc);
-    const textNode = el.firstChild!;
+    const wrapper = paragraphOf(doc);
+    const inner = innerOf(wrapper);
+    const textNode = inner.firstChild!;
 
     // Simulate typing: the browser edits the text node in place and fires
     // a bubbling input event (React's onInput picks it up).
     act(() => {
       textNode.nodeValue = "hello world";
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+      inner.dispatchEvent(new Event("input", { bubbles: true }));
     });
 
     expect(doc.getText(id)).toBe("hello world");
-    expect(el.textContent).toBe("hello world");
+    expect(inner.textContent).toBe("hello world");
     expect(doc.canUndo).toBe(true);
 
     act(() => {
@@ -124,7 +138,7 @@ describe("TextBlock contenteditable editing", () => {
     });
     expect(doc.getText(id)).toBe("hello");
     // No selection inside the block: the text DOM re-syncs from the store.
-    expect(el.textContent).toBe("hello");
+    expect(inner.textContent).toBe("hello");
   });
 
   it("commits typing into an empty block", () => {
@@ -132,17 +146,17 @@ describe("TextBlock contenteditable editing", () => {
       d.insertBlock("paragraph");
     });
     const id = paragraphIdOf(doc);
-    const el = paragraphOf(doc);
-    expect(el.textContent).toBe("");
+    const inner = innerOf(paragraphOf(doc));
+    expect(inner.textContent).toBe("");
 
     // Simulate the browser creating the first text node on the first
     // keystroke.
     act(() => {
-      el.appendChild(document.createTextNode("x"));
-      el.dispatchEvent(new Event("input", { bubbles: true }));
+      inner.appendChild(document.createTextNode("x"));
+      inner.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(doc.getText(id)).toBe("x");
-    expect(el.textContent).toBe("x");
+    expect(inner.textContent).toBe("x");
   });
 
   it("maps the DOM selection to the core selection view", () => {
@@ -155,9 +169,10 @@ describe("TextBlock contenteditable editing", () => {
     const el = paragraphOf(doc);
 
     // Two runs: <strong>he</strong>llo — flat offsets cross the inlines.
-    const strong = el.querySelector("strong");
+    const inner = innerOf(el);
+    const strong = inner.querySelector("strong");
     expect(strong).not.toBeNull();
-    const plain = el.childNodes[1]!;
+    const plain = inner.childNodes[1]!;
     expect(plain.nodeType).toBe(Node.TEXT_NODE);
 
     const range = document.createRange();

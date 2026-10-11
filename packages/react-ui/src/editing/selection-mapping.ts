@@ -56,7 +56,11 @@ function mapBlocksSelection(
   const range = domSelection.getRangeAt(0);
   const ids: BlockId[] = [];
   for (const element of Array.from(root.querySelectorAll<HTMLElement>("[data-block-id]"))) {
-    if (range.intersectsNode(element)) ids.push(element.dataset.blockId as BlockId);
+    const blockId = element.dataset.blockId as BlockId;
+    // A text-editable block carries the id on both the wrapper and the
+    // inner editable: count each block once, in document order.
+    if (ids.includes(blockId)) continue;
+    if (range.intersectsNode(element)) ids.push(blockId);
   }
   if (ids.length === 0) return { kind: "none" };
   const anchorId = anchorBlock !== null ? (anchorBlock.dataset.blockId as BlockId) : ids[0]!;

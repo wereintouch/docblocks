@@ -62,12 +62,13 @@ describe("block renderer registry", () => {
 
     // The consumer renderer wins for divider...
     expect(screen.getByTestId("custom-divider")).toBeDefined();
-    // ...and the paragraph keeps its built-in contenteditable.
+    // ...and the paragraph keeps its built-in contenteditable inner.
     const p = doc.toJSON().blocks;
     const paragraphId = Object.keys(p).find((key) => p[key]?.type === "paragraph")!;
     const el = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]`);
+    const inner = el?.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(el?.textContent).toBe("hello");
-    expect(el?.getAttribute("contenteditable")).toBe("true");
+    expect(inner?.getAttribute("contenteditable")).toBe("true");
   });
 
   it("an unknown type renders the placeholder", () => {
