@@ -1,4 +1,5 @@
 import { Editor, EditorProvider } from "docblocks-react-ui";
+import { MotionEditor } from "docblocks-react-ui/motion";
 
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
@@ -112,9 +113,12 @@ function focusBlockStart(blockId: string): void {
  * The doc area is the real editor (EditorProvider + Editor on the same
  * doc/provider instance): the pane's awareness is published by the
  * provider from the real DOM selection, the pane only renders the remote
- * peers and drives the editor with doc commands.
+ * peers and drives the editor with doc commands. `motion` renders the
+ * animated editor from the `docblocks-react-ui/motion` subpath instead of
+ * the base `Editor` (the harness attributes and helpers target the block
+ * wrappers, which the motion layer keeps).
  */
-function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
+function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: string; motion: boolean }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
   const docAreaRef = useRef<HTMLDivElement | null>(null);
@@ -240,7 +244,7 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
       >
         {runtime !== null && (
           <EditorProvider doc={runtime.doc} provider={runtime.provider} blobResolver={blobResolver}>
-            <Editor />
+            {motion ? <MotionEditor /> : <Editor />}
           </EditorProvider>
         )}
       </div>

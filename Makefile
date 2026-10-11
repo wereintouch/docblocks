@@ -55,7 +55,7 @@ test-core: ## Unit tests: docblocks-core
 test-ui: ## Unit tests: docblocks-react-ui
 	npm test $(UI)
 
-e2e: ## Playwright E2E (starts the playground dev server)
+e2e: ## Playwright E2E (playground consumes react-ui from dist — make build first)
 	npm run test:e2e
 
 ## Gates
@@ -67,7 +67,7 @@ full: ## Full local gate: lint -> format -> build -> typecheck -> test -> e2e
 
 ## Dev and cleanup
 
-dev: ## Playground dev server (Vite)
+dev: ## Playground dev server (Vite; consumes react-ui from dist — make build first)
 	npm run dev $(PG)
 
 clean: ## Remove build artifacts (dist, test reports)

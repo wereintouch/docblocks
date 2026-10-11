@@ -47,15 +47,18 @@ export default defineConfig({
   // Exact match only — deep imports are forbidden by the boundary gate. The
   // layer aliases mirror packages/core/tsconfig.json (vite does not read
   // tsconfig paths); they are needed to resolve core's internal imports.
+  //
+  // docblocks-react-ui has no alias: it resolves through the workspace
+  // symlink + exports map to the built dist, the same way a consumer sees
+  // it. That is the only shape where the `./motion` subpath works — a
+  // source alias for the base entry would give the `EditorProvider`
+  // context a second, dist-side copy inside the motion entry, and a
+  // React context is only shared between modules compiled from one file.
   resolve: {
     alias: [
       {
         find: /^docblocks-core$/,
         replacement: fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
-      },
-      {
-        find: /^docblocks-react-ui$/,
-        replacement: fileURLToPath(new URL("../../packages/react-ui/src/index.ts", import.meta.url)),
       },
       {
         find: /^@docblocks-core\/schema$/,

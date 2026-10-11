@@ -134,4 +134,4 @@ const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
   }
 });
 
-export { BlockGroups, BlockView };
+export { BlockGroups, BlockView, groupChildren };

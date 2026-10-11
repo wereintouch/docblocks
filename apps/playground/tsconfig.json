@@ -9,7 +9,6 @@
     "allowImportingTsExtensions": true,
     "paths": {
       "docblocks-core": ["../../packages/core/src"],
-      "docblocks-react-ui": ["../../packages/react-ui/src/index.ts"],
       "@docblocks-core/schema": ["../../packages/core/src/schema/index.ts"],
       "@docblocks-core/core": ["../../packages/core/src/core/index.ts"]
     }
