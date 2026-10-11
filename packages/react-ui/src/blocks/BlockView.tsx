@@ -19,34 +19,13 @@ const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
 
   switch (block.type) {
     case "paragraph":
-      return <TextBlock id={id} block={block} tag="p" dataAttrs={{ "data-block-type": "paragraph" }} />;
+      return <TextBlock id={id} block={block} tag="p" />;
     case "heading":
-      return (
-        <TextBlock
-          id={id}
-          block={block}
-          tag={HEADING_TAGS[block.attrs.level]}
-          dataAttrs={{ "data-block-type": "heading" }}
-        />
-      );
+      return <TextBlock id={id} block={block} tag={HEADING_TAGS[block.attrs.level]} />;
     case "callout":
-      return (
-        <TextBlock
-          id={id}
-          block={block}
-          tag="aside"
-          dataAttrs={{ "data-block-type": "callout", "data-variant": block.attrs?.variant }}
-        />
-      );
+      return <TextBlock id={id} block={block} tag="aside" />;
     case "list-item":
-      return (
-        <TextBlock
-          id={id}
-          block={block}
-          tag="li"
-          dataAttrs={{ "data-list": block.attrs.list, "data-checked": block.attrs.checked }}
-        />
-      );
+      return <TextBlock id={id} block={block} tag="li" />;
     default:
       return <PlaceholderBlock type={block.type} />;
   }

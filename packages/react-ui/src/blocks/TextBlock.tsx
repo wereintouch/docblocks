@@ -14,12 +14,6 @@ interface TextBlockProps {
   id: BlockId;
   block: EditableBlock;
   tag: "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "aside" | "li";
-  dataAttrs?: {
-    "data-block-type"?: string;
-    "data-list"?: string;
-    "data-checked"?: boolean;
-    "data-variant"?: string;
-  };
 }
 
 const EMPTY_RUNS: TextRun[] = [];
@@ -51,7 +45,7 @@ function textOf(runs: TextRun[] | undefined): string {
  * character by character), and mark-only changes are not re-rendered
  * while the caret is inside the block.
  */
-function TextBlock({ id, block, tag, dataAttrs }: TextBlockProps) {
+function TextBlock({ id, block, tag }: TextBlockProps) {
   const { doc, store } = useEditorContext();
 
   const contentRef = useRef<HTMLElement | null>(null);
@@ -146,8 +140,11 @@ function TextBlock({ id, block, tag, dataAttrs }: TextBlockProps) {
   return (
     <Tag
       ref={setRef}
-      {...dataAttrs}
+      data-block-type={block.type}
       data-block-id={id}
+      data-list={block.type === "list-item" ? block.attrs.list : undefined}
+      data-checked={block.type === "list-item" ? block.attrs.checked : undefined}
+      data-variant={block.type === "callout" ? block.attrs?.variant : undefined}
       contentEditable
       suppressContentEditableWarning
       spellCheck={false}
