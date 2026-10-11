@@ -1,18 +1,24 @@
 import { type BlockRendererMap, Editor, EditorProvider } from "docblocks-react-ui";
+import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { type Doc, type PresenceState, WsSyncProvider, attach } from "docblocks-core";
+import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach } from "docblocks-core";
 
 import { MarkToolbar } from "./MarkToolbar";
-import { seedPaneDoc } from "./catalog";
+import { DOC_ID, seedPaneDoc } from "./catalog";
 import { INSERTABLE_TYPES, blobResolver, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
+import { CATALOG_MASTER_ID, createMasterRuntime, destroyMasterRuntime } from "./master";
+import type { MasterRuntime } from "./master";
+import { currentBlockOf, readBlocks } from "./pane-blocks";
+import type { PaneBlock } from "./pane-blocks";
+import { useBlockLabels } from "./useBlockLabels";
 
 /** The wire log keeps the last N events. */
 const WIRE_CAP = 50;
@@ -30,52 +36,30 @@ const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
 const TABS = ["json", "wire", "presence"] as const;
 type InspectTab = (typeof TABS)[number];
 
-/** A rendered block: id, type, and flattened text. */
-interface PaneBlock {
-  id: string;
-  type: string;
-  text: string;
-}
-
 /** The pane's live doc + provider pair; null before the mount effect ran. */
 interface Runtime {
   doc: Doc;
   provider: WsSyncProvider;
+  /** The pane's master (the sync-embed target) and its relay client. */
+  master: MasterRuntime;
   /** Unix ms of the runtime mount; the wire/presence stamps are relative to it. */
   mountedAt: number;
 }
 
-/** The non-root blocks in reading order, as a plain snapshot. */
-function readBlocks(doc: Doc): PaneBlock[] {
-  const json = doc.toJSON();
-  const root = json.blocks[json.id];
-  const ids = root !== undefined && root.type === "root" ? root.children : [];
-  return ids.map((id) => {
-    const block = json.blocks[id];
-    return { id, type: block === undefined ? "missing" : block.type, text: doc.getText(id) };
-  });
-}
-
-/** The pane's current block: the last paragraph in reading order. */
-function currentBlockOf(blocks: PaneBlock[]): string | null {
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    const block = blocks[i]!;
-    if (block.type === "paragraph") return block.id;
-  }
-  return null;
-}
-
 /**
- * One sync client pane. Both panes create the same document and attach one
- * WsSyncProvider each, so edits and carets converge through the relay.
- * The doc area is the real editor (EditorProvider + Editor on the same
- * doc/provider instance): typing is the real editor, the pane's awareness
- * is published by the provider from the real DOM selection.
+ * One sync client pane. Both panes create the same document and the same
+ * master doc (the sync-embed target, shared through the `<room>-master`
+ * room) and attach one WsSyncProvider each, so edits and carets converge
+ * through the relay. The doc area is the real editor (EditorProvider +
+ * Editor on the same doc/provider instance): typing is the real editor,
+ * the pane's awareness is published by the provider from the real DOM
+ * selection, and the pane's sync-embed resolver points at its master.
  * `motion` renders the animated editor from the `docblocks-react-ui/motion`
- * subpath (the harness helpers target the block wrappers the motion layer keeps).
- * `catalog` builds the deterministic v1 catalog document (catalog.ts)
- * instead of seeding a paragraph: the visual regression goldens come from
- * this mode, the live doc exposed on `window.__catalogDoc`.
+ * subpath (the harness helpers target the block wrappers the motion layer
+ * keeps); `catalog` builds the deterministic v1 catalog document
+ * (catalog.ts) instead of seeding a paragraph (the goldens' fixture; the
+ * live doc on `window.__catalogDoc`); `cycle` seeds the master with a
+ * sync-embed referencing the outer doc (the cycle-guard e2e case).
  *
  * Below the editor the pane shows its inspectors (JSON / Wire / Presence
  * tabs): all three stay mounted, the tabs only toggle visibility — the
@@ -87,11 +71,13 @@ function SyncPane({
   syncUrl,
   motion,
   catalog,
+  cycle,
 }: {
   client: "a" | "b";
   syncUrl: string;
   motion: boolean;
   catalog: boolean;
+  cycle: boolean;
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
@@ -107,6 +93,19 @@ function SyncPane({
   const [tab, setTab] = useState<InspectTab>("json");
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
 
+  // The pane's master id: deterministic per room; the catalog pane's master
+  // has a fixed id (the catalog's JSON golden is byte-stable), and the
+  // sync-embed resolver: the pane's master for the master id, null for any
+  // other docId (a stable reference per runtime — the provider reads it per
+  // render).
+  const room = syncUrl.split("/").pop() ?? syncUrl;
+  const masterDocId = catalog ? CATALOG_MASTER_ID : `master-${room}`;
+  const syncEmbedResolver = useMemo<SyncEmbedResolver | undefined>(() => {
+    const master = runtime?.master;
+    if (master === undefined) return undefined;
+    return (ref: SyncEmbedRef) => (ref.docId === masterDocId ? master.doc : null);
+  }, [runtime, masterDocId]);
+
   // One provider per mount. StrictMode's dev double-mount is safe: the first
   // instance's bytes are only buffered (the socket opens after cleanup) and
   // are dropped by destroy() before reaching the wire.
@@ -114,6 +113,9 @@ function SyncPane({
     const doc = seedPaneDoc(catalog);
     const provider = new WsSyncProvider(syncUrl);
     const mountedAt = Date.now();
+    // The pane's master (the sync-embed target): pane a seeds it, pane b
+    // joins it empty — both share the `<room>-master` room.
+    const master = createMasterRuntime(masterDocId, syncUrl, cycle ? DOC_ID : null, client === "a");
 
     const addWire = (dir: "out" | "in", bytes: number): void => {
       wireSeq.current += 1;
@@ -158,7 +160,7 @@ function SyncPane({
       .connect()
       .then(() => setConnected(true))
       .catch(() => setConnected(false));
-    setRuntime({ doc, provider, mountedAt });
+    setRuntime({ doc, provider, master, mountedAt });
 
     return () => {
       unsubscribeDoc();
@@ -166,6 +168,7 @@ function SyncPane({
       unsubscribeWire();
       session.detach();
       provider.destroy();
+      destroyMasterRuntime(master);
       docRef.current = null;
       providerRef.current = null;
       window.__catalogDoc = null;
@@ -175,28 +178,9 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog]);
+  }, [syncUrl, catalog, cycle, masterDocId, client]);
 
-  // The pane labels the rendered blocks for the e2e specs: a testid per
-  // block and `data-current` on the pane's current block (the editor
-  // renders the real blocks; the pane adds these harness attributes).
-  // Text-editable blocks carry the id on the wrapper and the inner
-  // editable — only the wrapper is labeled.
-  useEffect(() => {
-    const container = docAreaRef.current;
-    if (container === null) return;
-    const ids = new Set(blocks.map((block) => block.id));
-    for (const el of Array.from(container.querySelectorAll<HTMLElement>("[data-block-id]"))) {
-      if (el.getAttribute("data-slot") === "docblocks/block-content") continue;
-      const id = el.getAttribute("data-block-id");
-      el.removeAttribute("data-testid");
-      el.removeAttribute("data-current");
-      if (id !== null && ids.has(id)) {
-        el.setAttribute("data-testid", `block-${client}-${id}`);
-        if (id === currentId) el.setAttribute("data-current", "true");
-      }
-    }
-  }, [blocks, currentId, client]);
+  useBlockLabels(docAreaRef, blocks, currentId, client);
 
   const onAddBlock = () => {
     const doc = docRef.current;
@@ -208,7 +192,7 @@ function SyncPane({
   const onInsertBlock = () => {
     const doc = docRef.current;
     if (doc === null) return;
-    insertBlockOf(insertType, doc);
+    insertBlockOf(insertType, doc, masterDocId);
   };
 
   const onReconnect = () => {
@@ -245,6 +229,7 @@ function SyncPane({
             provider={runtime.provider}
             blobResolver={blobResolver}
             blockRenderers={BLOCK_RENDERERS}
+            syncEmbedResolver={syncEmbedResolver}
           >
             <MarkToolbar client={client} />
             {motion ? <MotionEditor /> : <Editor />}

@@ -1,7 +1,16 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY } from "../src/schema";
-import type { AttrsFor, BlockType, EmbedAttrs, HeadingAttrs, ImageAttrs, MarkSet } from "../src/schema";
+import type {
+  AttrsFor,
+  BlockType,
+  EmbedAttrs,
+  HeadingAttrs,
+  ImageAttrs,
+  MarkSet,
+  SyncEmbedAttrs,
+  SyncEmbedRef,
+} from "../src/schema";
 
 describe("block registry", () => {
   it("covers exactly the v1 block types", () => {
@@ -16,6 +25,7 @@ describe("block registry", () => {
       "list-item",
       "paragraph",
       "root",
+      "sync-embed",
       "table",
       "table-cell",
       "table-row",
@@ -39,6 +49,7 @@ describe("block registry", () => {
       "latex",
       "list-item",
       "paragraph",
+      "sync-embed",
       "table",
     ]);
   });
@@ -53,6 +64,7 @@ describe("block registry", () => {
       "image",
       "latex",
       "paragraph",
+      "sync-embed",
     ]);
     expect(BLOCK_REGISTRY["table-cell"].childrenTypes).toEqual(LEAF_BLOCK_TYPES);
   });
@@ -98,7 +110,7 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["math"]>().toEqualTypeOf<{ tex: string } | undefined>();
   });
 
-  it("exposes the 13-type block union", () => {
+  it("exposes the 14-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
@@ -112,6 +124,7 @@ describe("type shapes", () => {
       | "table-cell"
       | "image"
       | "embed"
+      | "sync-embed"
       | "divider"
     >();
   });
@@ -121,5 +134,11 @@ describe("type shapes", () => {
     expectTypeOf<EmbedAttrs["src"]>().toEqualTypeOf<string>();
     expectTypeOf<EmbedAttrs["title"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<AttrsFor<"embed">>().toEqualTypeOf<EmbedAttrs>();
+  });
+
+  it("sync-embed attrs: required ref with required docId, optional blockId", () => {
+    expectTypeOf<SyncEmbedRef["docId"]>().toEqualTypeOf<string>();
+    expectTypeOf<SyncEmbedRef["blockId"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<AttrsFor<"sync-embed">>().toEqualTypeOf<SyncEmbedAttrs>();
   });
 });

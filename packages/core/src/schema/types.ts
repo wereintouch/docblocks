@@ -177,6 +177,27 @@ interface EmbedBlock {
   attrs: EmbedAttrs;
 }
 
+/**
+ * A sync-embed reference: the master document, optionally narrowed to a
+ * block subtree inside it (the subtree's entry list renders).
+ */
+interface SyncEmbedRef {
+  /** The master document id; the consumer resolves the doc from their own store. */
+  docId: string;
+  /** A subtree root block of the master; absent — the whole master document. */
+  blockId?: string;
+}
+
+interface SyncEmbedAttrs {
+  /** The reference to the master document. */
+  ref: SyncEmbedRef;
+}
+
+interface SyncEmbedBlock {
+  type: "sync-embed";
+  attrs: SyncEmbedAttrs;
+}
+
 interface DividerBlock {
   type: "divider";
 }
@@ -195,6 +216,7 @@ type Block =
   | TableCellBlock
   | ImageBlock
   | EmbedBlock
+  | SyncEmbedBlock
   | DividerBlock;
 
 /** Block type discriminator. */
@@ -207,7 +229,15 @@ type AttrsFor<T extends BlockType> = "attrs" extends keyof Extract<Block, { type
 
 /** Partial attribute patch accepted by `updateBlock` (any v1 attribute key). */
 type BlockAttrsPatch = Partial<
-  HeadingAttrs & ListItemAttrs & CalloutAttrs & CodeAttrs & LatexAttrs & TableAttrs & ImageAttrs & EmbedAttrs
+  HeadingAttrs &
+    ListItemAttrs &
+    CalloutAttrs &
+    CodeAttrs &
+    LatexAttrs &
+    TableAttrs &
+    ImageAttrs &
+    EmbedAttrs &
+    SyncEmbedAttrs
 >;
 
 export type {
@@ -242,5 +272,8 @@ export type {
   TableBlock,
   TableCellBlock,
   TableRowBlock,
+  SyncEmbedAttrs,
+  SyncEmbedBlock,
+  SyncEmbedRef,
   TextRun,
 };

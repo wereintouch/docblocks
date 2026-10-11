@@ -100,9 +100,11 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   const doc = editor(page);
 
   // Every data-block-type value the catalog carries (table-row / table-cell
-  // render as structural <tr>/<td>, not data-block-type elements).
-  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(7);
-  expect(await doc.locator('[data-block-type="heading"]').count()).toBe(6);
+  // render as structural <tr>/<td>, not data-block-type elements). The
+  // catalog's sync-embed resolves its master (fixed docId, deterministic
+  // seed), so the master's blocks (one h1 + three paragraphs) count too.
+  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(10);
+  expect(await doc.locator('[data-block-type="heading"]').count()).toBe(7);
   expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(7);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
   expect(await doc.locator('[data-block-type="code"]').count()).toBe(2);
@@ -117,8 +119,9 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="embed"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="divider"]').count()).toBe(1);
 
-  // Headings 1..6 as their own tags.
-  for (const tag of ["h1", "h2", "h3", "h4", "h5", "h6"]) {
+  // Headings 1..6 as their own tags; the master's h1 adds a second h1.
+  expect(await doc.locator('h1[data-block-type="heading"]').count()).toBe(2);
+  for (const tag of ["h2", "h3", "h4", "h5", "h6"]) {
     expect(await doc.locator(`${tag}[data-block-type="heading"]`).count()).toBe(1);
   }
 
@@ -156,6 +159,15 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await embed.count()).toBe(1);
   expect((await embed.getAttribute("src")) ?? "").toContain("data:text/html");
   expect(await doc.locator('[data-block-type="embed"][data-kind="iframe"]').count()).toBe(1);
+
+  // Sync-embed: the resolved master content renders inside the wrapper
+  // (the outer JSON carries the ref only, pinned by the JSON golden).
+  const syncEmbed = doc.locator('[data-block-type="sync-embed"]');
+  expect(await syncEmbed.count()).toBe(1);
+  expect(await syncEmbed.locator('[data-slot="docblocks/sync-embed-body"]').count()).toBe(1);
+  expect((await syncEmbed.getAttribute("data-doc-id")) ?? "").toBe("master-catalog");
+  expect(await syncEmbed.locator('h1[data-block-type="heading"]').count()).toBe(1);
+  expect(await syncEmbed.locator('[data-block-type="paragraph"]').count()).toBe(3);
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);

@@ -17,6 +17,9 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null): Cor
   const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
   if (anchorNode === null || focusNode === null) return { kind: "none" };
   if (!root.contains(anchorNode) || !root.contains(focusNode)) return { kind: "none" };
+  // A selection inside a nested editor (a sync-embed) belongs to that
+  // editor's own scope; this root maps it to `none`.
+  if (!ownScopeOf(anchorNode, root) || !ownScopeOf(focusNode, root)) return { kind: "none" };
 
   const anchorBlock = textBlockOf(anchorNode, root);
   if (anchorBlock !== null && textBlockOf(focusNode, root) === anchorBlock) {
@@ -65,6 +68,17 @@ function mapBlocksSelection(
   if (ids.length === 0) return { kind: "none" };
   const anchorId = anchorBlock !== null ? (anchorBlock.dataset.blockId as BlockId) : ids[0]!;
   return { kind: "blocks", ids, anchorId: ids.includes(anchorId) ? anchorId : ids[0]! };
+}
+
+/**
+ * Whether the node sits in the editor root's own scope: inside a deeper
+ * nested editor root (a sync-embed rendering another doc) the node
+ * belongs to that editor, not this one.
+ */
+function ownScopeOf(node: Node, root: HTMLElement): boolean {
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  const nearest = element?.closest('[data-slot="docblocks/editor"]') ?? null;
+  return nearest === root;
 }
 
 /**

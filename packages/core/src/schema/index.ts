@@ -38,5 +38,8 @@ export type {
   TableBlock,
   TableCellBlock,
   TableRowBlock,
+  SyncEmbedAttrs,
+  SyncEmbedBlock,
+  SyncEmbedRef,
   TextRun,
 } from "./types";

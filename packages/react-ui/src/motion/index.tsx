@@ -137,10 +137,10 @@ function EntryItem({ entry, register, onDragStart, onDragEnd }: EntryItemProps) 
 }
 
 function MotionEditor() {
-  const { doc, store } = useEditorContext();
+  const { doc, store, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const blocks = useStore(store, (state) => state.blocks);
-  const rootContext = useMemo(() => ({ parentId: doc.meta.id, siblings: rootChildren }), [doc, rootChildren]);
+  const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
   const { rootRef, onKeyDown } = useEditing();
   const groups = useMemo(() => groupChildren(rootChildren, blocks), [rootChildren, blocks]);
   const entries = useMemo<Entry[]>(
@@ -217,7 +217,7 @@ function MotionEditor() {
       const target = moveTargetForReorder(store.getState().rootChildren, newIds, key);
       if (target !== null) {
         doc.transact(() => {
-          doc.moveBlock(key, doc.meta.id, target);
+          doc.moveBlock(key, rootBlockId, target);
         });
       }
     }
@@ -228,7 +228,7 @@ function MotionEditor() {
     const state = store.getState();
     const keys = keysOf(state.rootChildren, state.blocks);
     setOrder((prev) => (sameKeys(prev, keys) ? prev : keys));
-  }, [doc, entriesByKey, store]);
+  }, [doc, entriesByKey, rootBlockId, store]);
 
   return (
     <div

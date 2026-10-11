@@ -9,15 +9,16 @@ import { useEditing } from "./editing/useEditing";
 import { PresenceCaretOverlay } from "./presence/presence-caret";
 
 /**
- * Renders the document's top-level blocks in reading order. The root is
- * the editor's focus/keyboard scope: the undo/redo hotkeys only fire for
- * keys targeted inside it. The root block context (the doc id and the
- * root children) is provided for every top-level block.
+ * Renders the document's entry list in reading order (the document root's
+ * children, or a single subtree block when the provider got a
+ * `rootBlockId`). The root is the editor's focus/keyboard scope: the
+ * undo/redo hotkeys only fire for keys targeted inside it. The root block
+ * context (the entry root and its children) is provided for every entry.
  */
 function Editor() {
-  const { doc, store } = useEditorContext();
+  const { store, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
-  const rootContext = useMemo(() => ({ parentId: doc.meta.id, siblings: rootChildren }), [doc, rootChildren]);
+  const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
   const { rootRef, onKeyDown } = useEditing();
 
   return (

@@ -18,6 +18,7 @@ const LEAF_BLOCK_TYPES: readonly BlockType[] = [
   "latex",
   "image",
   "embed",
+  "sync-embed",
   "divider",
 ];
 
@@ -32,14 +33,17 @@ const PAGE_BLOCK_TYPES: readonly BlockType[] = [
   "table",
   "image",
   "embed",
+  "sync-embed",
   "divider",
 ];
 
 /** Structural description of a block attribute. */
 interface AttrSpec {
-  kind: "boolean" | "string" | "number" | "nullable-number" | "enum";
+  kind: "boolean" | "string" | "number" | "nullable-number" | "enum" | "object";
   /** Allowed values for `enum`. */
   values?: readonly (string | number)[];
+  /** `object`: the nested field specs, each validated as its own AttrSpec. */
+  fields?: Record<string, AttrSpec>;
   /** Must be present in `attrs`. */
   required?: boolean;
   /** `number`: must be an integer. */
@@ -121,6 +125,20 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       kind: { kind: "enum", values: ["iframe", "github", "figma", "loom", "html"], required: true },
       src: { kind: "string", nonEmpty: true, required: true },
       title: { kind: "string" },
+    },
+  },
+  "sync-embed": {
+    content: false,
+    children: false,
+    attrs: {
+      ref: {
+        kind: "object",
+        required: true,
+        fields: {
+          docId: { kind: "string", nonEmpty: true, required: true },
+          blockId: { kind: "string", nonEmpty: true },
+        },
+      },
     },
   },
   divider: { content: false, children: false },

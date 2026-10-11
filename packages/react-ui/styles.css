@@ -17,10 +17,11 @@
  * Structural hooks: `data-slot` (docblocks/editor, docblocks/block,
  * docblocks/block-content, docblocks/gutter, docblocks/list,
  * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret,
- * docblocks/mermaid),
+ * docblocks/mermaid, docblocks/sync-embed-body,
+ * docblocks/sync-embed-placeholder),
  * plus the per-block elements (docblocks/image, docblocks/embed, …);
  * + `data-block-type` / `data-list` / `data-variant` / `data-checked`
- * / `data-kind` / `data-selected`.
+ * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
  */
 
 :root {
@@ -92,6 +93,9 @@
 
   /* Embed. */
   --docblocks-embed-height: 300px;
+
+  /* Sync-embed. */
+  --docblocks-sync-embed-max-height: 200px;
 
   /* Presence. */
   --docblocks-presence-caret-width: 2px;
@@ -308,6 +312,31 @@ iframe[data-slot="docblocks/embed"] {
   margin: var(--docblocks-block-spacing) 0;
   padding: var(--docblocks-code-padding);
   text-align: center;
+}
+
+/* Sync-embed: the wrapper frame follows the table border tokens (which
+   have the light + dark values); the body scrolls, since a master
+   document can be long. */
+[data-slot="docblocks/block"][data-block-type="sync-embed"] {
+  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
+  border-radius: var(--docblocks-radius);
+}
+
+[data-slot="docblocks/sync-embed-body"] {
+  max-height: var(--docblocks-sync-embed-max-height);
+  overflow-y: auto;
+}
+
+/* The broken / cycle placeholders: a muted structural box; the broken
+   hint uses the danger token (no new color tokens). */
+[data-slot="docblocks/sync-embed-placeholder"] {
+  border: var(--docblocks-table-border-width) dashed var(--docblocks-table-border-color);
+  padding: var(--docblocks-code-padding);
+  text-align: center;
+}
+
+[data-slot="docblocks/sync-embed-placeholder"][data-state="broken"] {
+  color: var(--docblocks-callout-border-color-danger);
 }
 
 [data-slot="docblocks/editor"] ::selection {

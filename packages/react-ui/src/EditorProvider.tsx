@@ -1,11 +1,17 @@
 import { type ReactNode, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { createSelection, presenceSelectionOf } from "docblocks-core";
-import type { Doc, Selection, SelectionView, SyncProvider } from "docblocks-core";
+import type { BlockId, Doc, Selection, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
 
 import type { BlockRendererMap } from "./blocks/renderers";
 import { createEditorStore } from "./state/store";
 import type { EditorStore } from "./state/store";
+
+/**
+ * Resolves a sync-embed ref to the master doc the consumer holds; null when
+ * the master is unknown to the consumer (the block renders its broken state).
+ */
+type SyncEmbedResolver = (ref: SyncEmbedRef) => Doc | null;
 
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
 interface SelectionRef {
@@ -21,6 +27,14 @@ interface EditorContextValue {
   renderers: BlockRendererMap;
   /** The image blob-key to src resolver; null when none was supplied. */
   blobResolver: ((key: string) => string) | null;
+  /** The sync-embed master-doc resolver; null when none was supplied. */
+  syncEmbedResolver: SyncEmbedResolver | null;
+  /** The entry-list root: the document root by default, a subtree block otherwise. */
+  rootBlockId: BlockId;
+  /** The enclosing providers' doc ids, outermost first (the sync-embed cycle visited-set). */
+  ancestorDocIds: readonly string[];
+  /** The number of enclosing editor renders (the sync-embed cycle depth bound). */
+  embedDepth: number;
 }
 
 /** Debounce between a selection change and its awareness publish. */
@@ -60,6 +74,25 @@ interface EditorProviderProps {
    * context does not churn on every provider render.
    */
   blobResolver?: (key: string) => string;
+  /**
+   * Optional resolver of a sync-embed's ref to the master Doc (the consumer
+   * holds the master in its own store); without it the built-in renderer
+   * renders the broken state for every sync-embed.
+   *
+   * The value is read per render into the provider context (like
+   * `blockRenderers`): pass a stable reference. A provider nested inside
+   * another inherits the enclosing resolver when it supplies none (a
+   * sync-embed inside a rendered master must resolve too).
+   */
+  syncEmbedResolver?: SyncEmbedResolver;
+  /**
+   * Optional entry-list root: render the entry list of this block instead
+   * of the document root (the subtree view — the block itself plus its own
+   * subtree). Defaults to the document root: behavior unchanged.
+   *
+   * Like `doc`, the value must not change after mount.
+   */
+  rootBlockId?: BlockId;
   children: ReactNode;
 }
 
@@ -67,14 +100,30 @@ interface EditorProviderProps {
  * Owns the per-instance editor lifecycle: the zustand store (projection of
  * the doc), the selection view, and the subscriptions that keep them in
  * sync, and the per-instance customization context (consumer block
- * renderers, blob resolver). Multiple providers may coexist, each with its
- * own doc and state. Safe under StrictMode double-mount: the cleanup
- * detaches every subscription and destroys the view between the two mounts.
+ * renderers, blob and sync-embed resolvers, the entry-list root). Multiple
+ * providers may coexist, each with its own doc and state; a nested provider
+ * inherits the enclosing renderers, resolvers, and the ancestor-doc chain
+ * (the sync-embed cycle guards) when it supplies none of its own. Safe
+ * under StrictMode double-mount: the cleanup detaches every subscription
+ * and destroys the view between the two mounts.
  */
-function EditorProvider({ doc, provider, blockRenderers, blobResolver, children }: EditorProviderProps) {
-  const [store] = useState(() => createEditorStore(doc));
+function EditorProvider({
+  doc,
+  provider,
+  blockRenderers,
+  blobResolver,
+  syncEmbedResolver,
+  rootBlockId,
+  children,
+}: EditorProviderProps) {
+  const rootId = rootBlockId ?? doc.meta.id;
+  const [store] = useState(() => createEditorStore(doc, rootId));
   const docRef = useRef(doc);
+  const rootIdRef = useRef(rootId);
   const selectionRef = useRef<SelectionRef>({ view: null });
+  // The raw enclosing context (nullable): the inheritance source for the
+  // renderers, resolvers, and the cycle-guard chain/depth.
+  const parentContext = useContext(EditorContext);
 
   useEffect(() => {
     if (docRef.current !== doc) {
@@ -97,6 +146,18 @@ function EditorProvider({ doc, provider, blockRenderers, blobResolver, children 
       view.destroy();
     };
   }, [doc, store]);
+
+  // The store captures the entry root at creation (the useState
+  // initializer), so a rootBlockId change after mount desyncs the entry
+  // list silently — the guard runs in its own effect (rootId is not a dep
+  // of the mount effect). Remount via a `key` change is the sanctioned
+  // way to switch roots.
+  useEffect(() => {
+    if (rootIdRef.current !== rootId) {
+      throw new Error("EditorProvider: the rootBlockId must not change after mount.");
+    }
+    rootIdRef.current = rootId;
+  }, [rootId]);
 
   useEffect(() => {
     if (provider === undefined) return;
@@ -167,19 +228,23 @@ function EditorProvider({ doc, provider, blockRenderers, blobResolver, children 
     };
   }, [provider, store]);
 
-  const value = useMemo(
-    () => ({
+  const value = useMemo(() => {
+    const parent = parentContext;
+    return {
       store,
       doc,
       selection: selectionRef.current,
-      renderers: blockRenderers ?? {},
-      blobResolver: blobResolver ?? null,
-    }),
-    [store, doc, blockRenderers, blobResolver]
-  );
+      renderers: blockRenderers ?? parent?.renderers ?? {},
+      blobResolver: blobResolver ?? parent?.blobResolver ?? null,
+      syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
+      rootBlockId: rootId,
+      ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
+      embedDepth: parent === null ? 0 : parent.embedDepth + 1,
+    };
+  }, [store, doc, blockRenderers, blobResolver, syncEmbedResolver, rootId, parentContext]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }
 
 export { EditorProvider, useEditorContext };
-export type { EditorContextValue, EditorProviderProps };
+export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver };

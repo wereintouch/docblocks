@@ -111,6 +111,47 @@ function validateAttrValue(
         });
       }
       break;
+    case "object":
+      if (!isPlainObject(value)) {
+        errors.push({ path, message: `Attribute "${name}" must be a plain object (got ${show(value)}).` });
+        return;
+      }
+      validateObjectFields(name, spec, value, path, errors);
+      break;
+  }
+}
+
+/**
+ * The fields of an `object` attr: required fields present, no unknown
+ * fields, each field value validated by its own spec (the standard
+ * messages apply per field).
+ */
+function validateObjectFields(
+  name: string,
+  spec: AttrSpec,
+  value: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): void {
+  const fields = spec.fields ?? {};
+  for (const [fieldName, fieldSpec] of Object.entries(fields)) {
+    if (fieldSpec.required && !(fieldName in value)) {
+      errors.push({
+        path: `${path}.${fieldName}`,
+        message: `Field "${fieldName}" of attribute "${name}" is required.`,
+      });
+    }
+  }
+  for (const [fieldName, fieldValue] of Object.entries(value)) {
+    const fieldSpec = fields[fieldName];
+    if (fieldSpec === undefined) {
+      errors.push({
+        path: `${path}.${fieldName}`,
+        message: `Unknown field "${fieldName}" for attribute "${name}".`,
+      });
+      continue;
+    }
+    validateAttrValue(fieldName, fieldSpec, fieldValue, `${path}.${fieldName}`, errors);
   }
 }
 

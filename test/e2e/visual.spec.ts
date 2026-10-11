@@ -21,9 +21,9 @@ async function openCatalogPane(page: Page): Promise<void> {
   await expect(page.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
 }
 
-/** The pane's editor root — the screenshot scope (the harness chrome stays out). */
+/** The pane's editor root — the screenshot scope (the harness chrome stays out). The direct-child scope keeps the nested editor root (the catalog's sync-embed) out of the match. */
 function editor(page: Page) {
-  return page.locator('[data-slot="docblocks/editor"]');
+  return page.locator('[data-testid="doc-a"] > [data-slot="docblocks/editor"]');
 }
 
 /** No caret in the golden: blur the focus and clear the DOM selection. */

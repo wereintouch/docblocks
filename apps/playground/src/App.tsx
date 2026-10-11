@@ -11,8 +11,10 @@ const DEFAULT_SYNC_URL = "ws://localhost:5199/doc-1";
  * animated editor from the `docblocks-react-ui/motion` subpath instead of
  * the base `Editor`; `?catalog=1` builds the deterministic v1 catalog
  * document (the visual regression fixture, see catalog.ts) instead of the
- * empty seed. The shared chaos bar above the pane drives the relay's
- * per-room frame chaos for the `?syncUrl=` room.
+ * empty seed; `?cycle=1` seeds the pane's master doc with a sync-embed
+ * referencing the outer doc (the cycle-guard e2e case). The shared chaos
+ * bar above the pane drives the relay's per-room frame chaos for the
+ * `?syncUrl=` room.
  */
 function App() {
   const params = new URLSearchParams(window.location.search);
@@ -20,10 +22,11 @@ function App() {
   const syncUrl = params.get("syncUrl") ?? DEFAULT_SYNC_URL;
   const motion = params.get("motion") === "1";
   const catalog = params.get("catalog") === "1";
+  const cycle = params.get("cycle") === "1";
   return (
     <>
       <ChaosBar syncUrl={syncUrl} />
-      <SyncPane client={client} syncUrl={syncUrl} motion={motion} catalog={catalog} />
+      <SyncPane client={client} syncUrl={syncUrl} motion={motion} catalog={catalog} cycle={cycle} />
     </>
   );
 }

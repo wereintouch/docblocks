@@ -40,6 +40,13 @@ function useEditing(): EditingHandle {
   }, [selectionRef]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // Keys typed inside a nested editor (a sync-embed) bubble up to this
+    // root; that editor's own hotkeys handle them, so this root must not
+    // double-fire undo/redo.
+    const root = rootRef.current;
+    const target = event.target instanceof Element ? event.target : null;
+    const nearest = target?.closest('[data-slot="docblocks/editor"]') ?? null;
+    if (root !== null && nearest !== null && nearest !== root) return;
     const mod = event.metaKey || event.ctrlKey;
     if (!mod) return;
     const key = event.key.toLowerCase();

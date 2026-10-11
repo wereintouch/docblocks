@@ -32,7 +32,8 @@
         "c0034",
         "c0035",
         "c0036",
-        "c0037"
+        "c0037",
+        "c0038"
       ]
     },
     "c0001": {
@@ -371,6 +372,14 @@
       }
     },
     "c0036": {
+      "type": "sync-embed",
+      "attrs": {
+        "ref": {
+          "docId": "master-catalog"
+        }
+      }
+    },
+    "c0037": {
       "type": "paragraph",
       "content": [
         {
@@ -448,7 +457,7 @@
         }
       ]
     },
-    "c0037": {
+    "c0038": {
       "type": "paragraph",
       "content": [
         {

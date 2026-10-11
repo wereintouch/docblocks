@@ -14,7 +14,7 @@ import type { Block, BlockId, Change, Doc, DocMeta, PresenceState, Selection } f
 interface EditorState {
   /** Block snapshots keyed by id; a block keeps its reference while its JSON is unchanged. */
   blocks: Record<BlockId, Block>;
-  /** Top-level block ids in reading order. */
+  /** The entry-list block ids: the document root's children, or a single subtree root. */
   rootChildren: BlockId[];
   /** Document meta; replaced only when the title changed. */
   meta: DocMeta;
@@ -62,9 +62,16 @@ function deepEqual(a: unknown, b: unknown): boolean {
  * Create the editor store for one Doc. The store is seeded with the doc's
  * current snapshot; afterwards it only advances through `applyChange` and
  * the presence/selection setters. One store per editor instance.
+ *
+ * `rootId` is the entry-list root: the document root by default (its
+ * children are the entry list), or a subtree block — the entry list is the
+ * block itself, whose own renderers carry its descendants.
  */
-function createEditorStore(doc: Doc): EditorStore {
+function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
   const { blocks: initialBlocks, ...initialMeta } = doc.toJSON();
+  const entryRootId = rootId ?? doc.meta.id;
+  const isDocRoot = entryRootId === doc.meta.id;
+  const initialRootChildren = isDocRoot ? doc.getChildren(entryRootId) : [entryRootId];
 
   const applyChange: EditorActions["applyChange"] = (change) => {
     const state = store.getState();
@@ -91,9 +98,10 @@ function createEditorStore(doc: Doc): EditorStore {
       }
       if (blocksChanged) patch.blocks = blocks;
 
-      const rootId = doc.meta.id;
-      if (change.blockIds.includes(rootId)) {
-        const children = doc.getChildren(rootId);
+      // Only the document root's entry list is dynamic: a subtree entry is
+      // the fixed [rootId] (descendants track through the block snapshots).
+      if (isDocRoot && change.blockIds.includes(entryRootId)) {
+        const children = doc.getChildren(entryRootId);
         if (!deepEqual(state.rootChildren, children)) patch.rootChildren = children;
       }
     }
@@ -107,7 +115,7 @@ function createEditorStore(doc: Doc): EditorStore {
 
   const store = createStore<EditorState & EditorActions>(() => ({
     blocks: initialBlocks,
-    rootChildren: doc.getChildren(doc.meta.id),
+    rootChildren: initialRootChildren,
     meta: initialMeta,
     selection: { kind: "none" },
     presence: [],

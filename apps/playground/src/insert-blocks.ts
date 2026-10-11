@@ -1,5 +1,7 @@
 import type { BlockId, Doc } from "docblocks-core";
 
+import { MASTER_SUBTREE_BLOCK_ID } from "./master";
+
 /** The v1 page block types the harness insert control offers (top level). */
 const INSERTABLE_TYPES = [
   "paragraph",
@@ -12,6 +14,9 @@ const INSERTABLE_TYPES = [
   "table",
   "image",
   "embed",
+  "sync-embed",
+  "sync-embed-subtree",
+  "sync-embed-broken",
   "divider",
 ] as const;
 
@@ -25,6 +30,9 @@ const EMBED_SRC = "data:text/html," + encodeURIComponent("<html><body><p>embedde
 
 /** The seed diagram the harness inserts with a mermaid code block (harness convenience; the user edits it in the block). */
 const MERMAID_SEED = "graph TD\n A --> B";
+
+/** The fixed unknown docId the broken sync-embed option references. */
+const MISSING_MASTER_ID = "missing-master";
 
 /** Fixed key -> inline data: URL (a small SVG data URI). */
 const BLOB_SOURCES: Record<string, string> = {
@@ -44,11 +52,13 @@ function blobResolver(key: string): string {
  * Insert one block of `type` at the root with the harness attrs (heading
  * level 2, list-item bullet, code language "ts", code-mermaid a code block
  * with language "mermaid" and the seed diagram, latex display, image the
- * fixed key, embed the fixed data: URL; a table comes prebuilt 2x2 with a
- * paragraph in every cell). The insert is one transaction: one undo step
- * and one wire update.
+ * fixed key, embed the fixed data: URL, sync-embed the ref to the pane's
+ * master doc (the subtree variant narrows it to the seeded subtree
+ * paragraph, the broken one a fixed unknown docId); a table comes
+ * prebuilt 2x2 with a paragraph in every cell). The insert is one
+ * transaction: one undo step and one wire update.
  */
-function insertBlockOf(type: InsertableType, doc: Doc): BlockId {
+function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): BlockId {
   let id = "";
   doc.transact(() => {
     switch (type) {
@@ -73,6 +83,15 @@ function insertBlockOf(type: InsertableType, doc: Doc): BlockId {
         break;
       case "embed":
         id = doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
+        break;
+      case "sync-embed":
+        id = doc.insertBlock("sync-embed", { ref: { docId: masterDocId } });
+        break;
+      case "sync-embed-subtree":
+        id = doc.insertBlock("sync-embed", { ref: { docId: masterDocId, blockId: MASTER_SUBTREE_BLOCK_ID } });
+        break;
+      case "sync-embed-broken":
+        id = doc.insertBlock("sync-embed", { ref: { docId: MISSING_MASTER_ID } });
         break;
       case "table": {
         const tableId = doc.insertBlock("table", { cols: 2 });

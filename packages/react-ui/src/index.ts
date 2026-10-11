@@ -8,7 +8,8 @@
 export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./blocks/renderers";
 export { Editor } from "./Editor";
 export { EditorProvider, useEditorContext } from "./EditorProvider";
-export type { EditorContextValue, EditorProviderProps } from "./EditorProvider";
+export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver } from "./EditorProvider";
+export type { SyncEmbedRef } from "docblocks-core";
 export { useBlock, useDoc, useMeta, usePresence, useSelection, useSelectionView, useText } from "./hooks";
 export { markToggleAction } from "./editing/keyboard";
 export type { FormatMark } from "./editing/keyboard";

@@ -9,6 +9,7 @@ import { useBlock } from "../hooks";
 import { EmbedBlock } from "./EmbedBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
+import { SyncEmbedBlock } from "./SyncEmbedBlock";
 import { TableBlock } from "./TableBlock";
 import { TextBlock } from "./TextBlock";
 import { BlockContext, useBlockContextValue } from "./block-context";
@@ -128,6 +129,8 @@ const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
       return <ImageBlock id={id} block={block} />;
     case "embed":
       return <EmbedBlock id={id} block={block} />;
+    case "sync-embed":
+      return <SyncEmbedBlock id={id} block={block} />;
     case "table":
       return <TableBlock id={id} block={block} />;
     default:

@@ -1,6 +1,7 @@
 import { type Doc, type MarkSet, createDoc } from "docblocks-core";
 
 import { EMBED_SRC } from "./insert-blocks";
+import { CATALOG_MASTER_ID } from "./master";
 
 /** The fixed pane doc identity (the e2e room/doc conventions rely on it). */
 const DOC_ID = "d1";
@@ -121,6 +122,10 @@ function buildCatalogDoc(doc: Doc): void {
     // Embed: the fixed harness src (the data: URL renders a tiny inline page).
     doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
 
+    // Sync-embed: the catalog's master (seeded deterministically, fixed id)
+    // renders its content inside; the outer JSON carries the ref only.
+    doc.insertBlock("sync-embed", { ref: { docId: CATALOG_MASTER_ID } });
+
     // The marks paragraph: the fixed run layout, one run at a time.
     const marks = doc.insertBlock("paragraph");
     let offset = 0;
@@ -150,4 +155,4 @@ function seedPaneDoc(catalog: boolean): Doc {
   return doc;
 }
 
-export { buildCatalogDoc, deterministicIdGenerator, seedPaneDoc };
+export { buildCatalogDoc, deterministicIdGenerator, DOC_ID, seedPaneDoc };
