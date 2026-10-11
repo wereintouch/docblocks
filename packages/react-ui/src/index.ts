@@ -5,6 +5,7 @@
  * projection, hooks, and block renderers. Builds strictly on the public
  * API of docblocks-core — direct yjs imports are forbidden (ESLint gate).
  */
+export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./blocks/renderers";
 export { Editor } from "./Editor";
 export { EditorProvider, useEditorContext } from "./EditorProvider";
 export type { EditorContextValue, EditorProviderProps } from "./EditorProvider";

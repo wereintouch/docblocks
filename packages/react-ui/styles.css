@@ -60,6 +60,26 @@
   /* Inline code. */
   --docblocks-inline-code-padding: 0.15em 0.35em;
 
+  /* Mono font (code and latex blocks). */
+  --docblocks-mono-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Code block. */
+  --docblocks-code-background: rgba(175, 184, 193, 0.15);
+  --docblocks-code-padding: 8px 12px;
+
+  /* Divider. */
+  --docblocks-divider-border-color: rgba(175, 184, 193, 0.4);
+  --docblocks-divider-border-width: 1px;
+  --docblocks-divider-margin: 16px 0;
+
+  /* Table. */
+  --docblocks-table-border-color: rgba(175, 184, 193, 0.4);
+  --docblocks-table-border-width: 1px;
+  --docblocks-table-cell-padding: 4px 8px;
+
+  /* Image. */
+  --docblocks-image-radius: 0;
+
   /* Presence. */
   --docblocks-presence-caret-width: 2px;
   --docblocks-presence-caret-saturation: 70%;
@@ -147,6 +167,55 @@
   padding: var(--docblocks-inline-code-padding);
 }
 
+/* Code and latex blocks: mono, no wrapping, horizontal scroll. */
+[data-slot="docblocks/editor"] pre[data-block-type="code"],
+[data-slot="docblocks/editor"] code[data-block-type="latex"] {
+  font-family: var(--docblocks-mono-font-family);
+  white-space: pre;
+  overflow-x: auto;
+}
+
+pre[data-block-type="code"] {
+  background: var(--docblocks-code-background);
+  padding: var(--docblocks-code-padding);
+  border-radius: var(--docblocks-radius);
+}
+
+code[data-block-type="latex"] {
+  display: block;
+}
+
+hr[data-slot="docblocks/divider"] {
+  border: none;
+  border-top: var(--docblocks-divider-border-width) solid var(--docblocks-divider-border-color);
+  margin: var(--docblocks-divider-margin);
+}
+
+table[data-slot="docblocks/table"] {
+  border-collapse: collapse;
+  margin: var(--docblocks-block-spacing) 0;
+}
+
+td[data-slot="docblocks/table-cell"] {
+  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
+  padding: var(--docblocks-table-cell-padding);
+  vertical-align: top;
+}
+
+img[data-slot="docblocks/image"] {
+  display: block;
+  max-width: 100%;
+  border-radius: var(--docblocks-image-radius);
+}
+
+/* A structural box standing in for an image with no resolved src. */
+[data-slot="docblocks/image-placeholder"] {
+  border: var(--docblocks-table-border-width) dashed var(--docblocks-table-border-color);
+  margin: var(--docblocks-block-spacing) 0;
+  padding: var(--docblocks-code-padding);
+  text-align: center;
+}
+
 [data-slot="docblocks/editor"] ::selection {
   background: var(--docblocks-selection-background);
 }
@@ -175,6 +244,10 @@
   --docblocks-link-color: #58a6ff;
   --docblocks-selection-background: rgba(56, 139, 253, 0.4);
   --docblocks-inline-code-background: rgba(110, 118, 129, 0.4);
+
+  --docblocks-code-background: rgba(110, 118, 129, 0.35);
+  --docblocks-divider-border-color: rgba(110, 118, 129, 0.65);
+  --docblocks-table-border-color: rgba(110, 118, 129, 0.65);
 
   --docblocks-callout-border-color-info: #58a6ff;
   --docblocks-callout-background-info: rgba(56, 139, 253, 0.15);

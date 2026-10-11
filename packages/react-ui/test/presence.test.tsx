@@ -60,7 +60,7 @@ describe("structural data-slot attributes", () => {
     expect(document.querySelectorAll('[data-slot="docblocks/list-item"]').length).toBe(2);
     expect(document.querySelector('[data-slot="docblocks/list"][data-list="bullet"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="docblocks/list"][data-list="number"]')).not.toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/placeholder"][data-block-type="divider"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/divider"][data-block-type="divider"]')).not.toBeNull();
   });
 });
 

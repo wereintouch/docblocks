@@ -4,16 +4,17 @@ import type { Block, BlockId, TextRun } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { caretOffsetIn, restoreSelection, selectionInside } from "../editing/dom-offset";
+import { useBlockInput } from "../editing/input-safety";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { renderRunsInto } from "../text/runs-dom";
 
-/** The four text-editable block types (the wrapper tag and data attrs are props). */
-type EditableBlock = Extract<Block, { type: "paragraph" | "heading" | "callout" | "list-item" }>;
+/** The six text-editable block types (the wrapper tag and data attrs are props). */
+type EditableBlock = Extract<Block, { type: "paragraph" | "heading" | "callout" | "list-item" | "code" | "latex" }>;
 
 interface TextBlockProps {
   id: BlockId;
   block: EditableBlock;
-  tag: "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "aside" | "li";
+  tag: "p" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "aside" | "li" | "pre" | "code";
 }
 
 const EMPTY_RUNS: TextRun[] = [];
@@ -40,13 +41,16 @@ function textOf(runs: TextRun[] | undefined): string {
  * restores the selection rebased across the store-text delta. When the
  * selection leaves the block, the text DOM is re-synced from the store
  * (the doc is the source of truth; a lagging DOM — e.g. after an undo
- * while editing — is discarded, never committed back). Known v1
+ * while editing — is discarded, never committed back). Enter/Shift+Enter
+ * and paste are guarded (useBlockInput): the line-split default is
+ * suppressed, and paste commits plain text through doc commands. Known v1
  * limitations: CJK IME composition is not tracked (composition commits
  * character by character), and mark-only changes are not re-rendered
  * while the caret is inside the block.
  */
 function TextBlock({ id, block, tag }: TextBlockProps) {
   const { doc, store } = useEditorContext();
+  const { onKeyDown, onPaste } = useBlockInput(id);
 
   const contentRef = useRef<HTMLElement | null>(null);
   /** The last store block snapshot applied to the text DOM. */
@@ -146,10 +150,14 @@ function TextBlock({ id, block, tag }: TextBlockProps) {
       data-list={block.type === "list-item" ? block.attrs.list : undefined}
       data-checked={block.type === "list-item" ? block.attrs.checked : undefined}
       data-variant={block.type === "callout" ? block.attrs?.variant : undefined}
+      data-language={block.type === "code" ? block.attrs?.language : undefined}
+      data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
       contentEditable
       suppressContentEditableWarning
       spellCheck={false}
       onInput={commitDomDelta}
+      onKeyDown={onKeyDown}
+      onPaste={onPaste}
     />
   );
 }

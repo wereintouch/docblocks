@@ -4,6 +4,9 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { type Doc, type PresenceState, WsSyncProvider, attach, createDoc } from "docblocks-core";
 
+import { INSERTABLE_TYPES, blobResolver, insertBlockOf } from "./insert-blocks";
+import type { InsertableType } from "./insert-blocks";
+
 /** Both panes open the same document, so edits and carets converge. */
 const DOC_ID = "d1";
 const DOC_CREATED_AT = "2026-01-01T00:00:00Z";
@@ -109,6 +112,7 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
   const [connected, setConnected] = useState(false);
   const [blocks, setBlocks] = useState<PaneBlock[]>([]);
   const [presence, setPresence] = useState<PresenceState[]>([]);
+  const [insertType, setInsertType] = useState<InsertableType>("paragraph");
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
   const currentIdRef = useRef<string | null>(null);
   currentIdRef.current = currentId;
@@ -186,6 +190,13 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
     focusBlockStart(doc.insertBlock("paragraph")); // the onChange refresh makes it current
   };
 
+  /** Insert the selected v1 type at the root (harness attrs; see insert-blocks.ts). */
+  const onInsertBlock = () => {
+    const doc = docRef.current;
+    if (doc === null) return;
+    insertBlockOf(insertType, doc);
+  };
+
   const onReconnect = () => {
     const provider = providerRef.current;
     if (provider === null) return;
@@ -215,7 +226,7 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
         style={{ border: "1px solid #ccc", padding: 8, minHeight: 40 }}
       >
         {runtime !== null && (
-          <EditorProvider doc={runtime.doc} provider={runtime.provider}>
+          <EditorProvider doc={runtime.doc} provider={runtime.provider} blobResolver={blobResolver}>
             <Editor />
           </EditorProvider>
         )}
@@ -229,6 +240,22 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
         />
         <button data-testid={`block-btn-${client}`} onClick={onAddBlock}>
           + block
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
+        <select
+          data-testid={`block-type-select-${client}`}
+          value={insertType}
+          onChange={(event) => setInsertType(event.target.value as InsertableType)}
+        >
+          {INSERTABLE_TYPES.map((type) => (
+            <option key={type} value={type}>
+              {type}
+            </option>
+          ))}
+        </select>
+        <button data-testid={`block-type-btn-${client}`} onClick={onInsertBlock}>
+          + insert
         </button>
       </div>
       <div>

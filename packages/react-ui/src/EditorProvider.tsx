@@ -3,6 +3,7 @@ import { type ReactNode, createContext, useContext, useEffect, useMemo, useRef, 
 import { createSelection, presenceSelectionOf } from "docblocks-core";
 import type { Doc, Selection, SelectionView, SyncProvider } from "docblocks-core";
 
+import type { BlockRendererMap } from "./blocks/renderers";
 import { createEditorStore } from "./state/store";
 import type { EditorStore } from "./state/store";
 
@@ -11,11 +12,15 @@ interface SelectionRef {
   view: SelectionView | null;
 }
 
-/** Per-instance editor context: the store, the doc, and the live selection view handle. */
+/** Per-instance editor context: the store, the doc, the selection handle, and the customization values. */
 interface EditorContextValue {
   store: EditorStore;
   doc: Doc;
   selection: SelectionRef;
+  /** Consumer renderers by block type; empty when none were supplied. */
+  renderers: BlockRendererMap;
+  /** The image blob-key to src resolver; null when none was supplied. */
+  blobResolver: ((key: string) => string) | null;
 }
 
 /** Debounce between a selection change and its awareness publish. */
@@ -35,17 +40,38 @@ interface EditorProviderProps {
   doc: Doc;
   /** Optional sync transport for presence (awareness); the doc's own changes are always tracked. */
   provider?: SyncProvider;
+  /**
+   * Optional per-instance block renderers: a consumer renderer for a type
+   * replaces the built-in one (view-layer customization). Replacing a
+   * text-editable type replaces the whole block view, including its
+   * editing affordance; a renderer that needs editing drives the core
+   * commands through the hooks. Pass a stable reference for the map
+   * (module-level or memoized): it is read into the provider context per
+   * render, so a fresh inline object would churn the context value and
+   * re-render every context consumer.
+   */
+  blockRenderers?: BlockRendererMap;
+  /**
+   * Optional resolver of an image's blob key to an img src; without it the
+   * image renders a placeholder.
+   *
+   * Like `blockRenderers`, the value is read per render into the provider
+   * context: pass a stable reference (module-level or memoized) so the
+   * context does not churn on every provider render.
+   */
+  blobResolver?: (key: string) => string;
   children: ReactNode;
 }
 
 /**
  * Owns the per-instance editor lifecycle: the zustand store (projection of
  * the doc), the selection view, and the subscriptions that keep them in
- * sync. Multiple providers may coexist, each with its own doc and state.
- * Safe under StrictMode double-mount: the cleanup detaches every
- * subscription and destroys the view between the two mounts.
+ * sync, and the per-instance customization context (consumer block
+ * renderers, blob resolver). Multiple providers may coexist, each with its
+ * own doc and state. Safe under StrictMode double-mount: the cleanup
+ * detaches every subscription and destroys the view between the two mounts.
  */
-function EditorProvider({ doc, provider, children }: EditorProviderProps) {
+function EditorProvider({ doc, provider, blockRenderers, blobResolver, children }: EditorProviderProps) {
   const [store] = useState(() => createEditorStore(doc));
   const docRef = useRef(doc);
   const selectionRef = useRef<SelectionRef>({ view: null });
@@ -141,7 +167,16 @@ function EditorProvider({ doc, provider, children }: EditorProviderProps) {
     };
   }, [provider, store]);
 
-  const value = useMemo(() => ({ store, doc, selection: selectionRef.current }), [store, doc]);
+  const value = useMemo(
+    () => ({
+      store,
+      doc,
+      selection: selectionRef.current,
+      renderers: blockRenderers ?? {},
+      blobResolver: blobResolver ?? null,
+    }),
+    [store, doc, blockRenderers, blobResolver]
+  );
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }
