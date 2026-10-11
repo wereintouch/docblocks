@@ -46,6 +46,23 @@ const makeClient = (relay: WsRelay): Client => {
 const caret = (blockId: string, offset: number) => ({ blockId, offset });
 
 describe("presence round-trip", () => {
+  it("a late subscriber receives the current peer list at subscribe time", async () => {
+    const relay = new WsRelay();
+    const a = makeClient(relay);
+    const b = makeClient(relay);
+    await a.provider.connect();
+    await b.provider.connect();
+    await relay.deliver();
+
+    a.provider.setAwareness({ selection: caret("b0", 3), updatedAt: 1234 });
+    await relay.deliver();
+
+    // B subscribes only now — the current list must arrive synchronously.
+    let delivered: PresenceState[] | null = null;
+    b.provider.onAwareness((peers) => (delivered = [...peers]));
+    expect(delivered).not.toBeNull();
+    expect(delivered![0]!.selection).toEqual(caret("b0", 3));
+  });
   it("a peer's state arrives mapped to PresenceState; each side sees only the other", async () => {
     const relay = new WsRelay();
     const a = makeClient(relay);

@@ -152,9 +152,14 @@ class WsSyncProvider implements SyncProvider {
     this.#awareness.setLocalState(state);
   }
 
-  /** Subscribe to remote peer states (full list per change). Returns unsubscribe. */
+  /**
+   * Subscribe to remote peer states (full list per change). The current
+   * list is delivered once at subscribe time, then on every change.
+   * Returns unsubscribe.
+   */
   onAwareness(cb: (peers: PresenceState[]) => void): Unsubscribe {
     this.#awarenessListeners.add(cb);
+    cb(this.#remotePeers());
     return () => {
       this.#awarenessListeners.delete(cb);
     };
