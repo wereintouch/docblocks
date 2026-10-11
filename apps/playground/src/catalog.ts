@@ -97,6 +97,10 @@ function buildCatalogDoc(doc: Doc): void {
 
     const code = doc.insertBlock("code", { language: "ts" });
     doc.insertText(code, 0, "const catalog: number = 1;");
+    // Mermaid: a small 2-node graph (the harness renders it as a diagram
+    // via the ./mermaid subpath — the renderer is registered on every pane).
+    const mermaidCode = doc.insertBlock("code", { language: "mermaid" });
+    doc.insertText(mermaidCode, 0, "graph TD\n A --> B");
     const latex = doc.insertBlock("latex", { display: true });
     doc.insertText(latex, 0, "E = mc^2");
 

@@ -31,4 +31,19 @@ describe("subpath split (built artifacts)", () => {
   it("ships the motion entry importing framer-motion", () => {
     expect(readFileSync(join(DIST, "motion/index.mjs"), "utf8")).toContain('from "framer-motion"');
   });
+
+  it("keeps mermaid out of the base entry", () => {
+    expect(readFileSync(join(DIST, "index.mjs"), "utf8")).not.toContain("mermaid");
+    expect(readFileSync(join(DIST, "index.d.mts"), "utf8")).not.toContain("mermaid");
+  });
+
+  it("keeps the mermaid subpath the only mermaid consumer in dist", () => {
+    const withMermaid = filesOf(DIST).filter((file) => readFileSync(file, "utf8").includes('from "mermaid"'));
+    // The shared chunk and every type file stay mermaid-free as well.
+    expect(withMermaid).toEqual([join(DIST, "mermaid/index.mjs")]);
+  });
+
+  it("ships the mermaid entry importing mermaid", () => {
+    expect(readFileSync(join(DIST, "mermaid/index.mjs"), "utf8")).toContain('from "mermaid"');
+  });
 });

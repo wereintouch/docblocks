@@ -20,7 +20,11 @@ interface TextBlockProps {
   id: BlockId;
   block: EditableBlock;
   tag: "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "aside" | "li" | "pre";
-  /** The nested child blocks (list-item only), rendered inside the wrapper after the editable. */
+  /**
+   * Content rendered inside the wrapper after the editable: the nested
+   * child blocks (list-item) or a custom trailing region (the mermaid
+   * diagram preview).
+   */
   nested?: ReactNode;
 }
 
@@ -252,5 +256,5 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   );
 }
 
-export { TextBlock };
+export { TextBlock, textOf };
 export type { EditableBlock, TextBlockProps };

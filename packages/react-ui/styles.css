@@ -16,7 +16,8 @@
  *
  * Structural hooks: `data-slot` (docblocks/editor, docblocks/block,
  * docblocks/block-content, docblocks/gutter, docblocks/list,
- * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret),
+ * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret,
+ * docblocks/mermaid),
  * plus the per-block elements (docblocks/image, docblocks/embed, …);
  * + `data-block-type` / `data-list` / `data-variant` / `data-checked`
  * / `data-kind` / `data-selected`.
@@ -240,6 +241,26 @@ pre[data-block-type="code"] {
   background: var(--docblocks-code-background);
   padding: var(--docblocks-code-padding);
   border-radius: var(--docblocks-radius);
+}
+
+/* Mermaid diagram preview (the ./mermaid subpath): the preview sits below
+   the editable code inside the code wrapper. The loading and error states
+   get a dashed structural box (the table border tokens); the error
+   message uses the danger token. The diagram itself renders in mermaid's
+   default (light) theme — the tokens do not reach inside the svg. */
+[data-slot="docblocks/mermaid"] {
+  margin-top: var(--docblocks-block-spacing);
+}
+
+[data-slot="docblocks/mermaid"][data-state="loading"],
+[data-slot="docblocks/mermaid"][data-state="error"] {
+  border: var(--docblocks-table-border-width) dashed var(--docblocks-table-border-color);
+  padding: var(--docblocks-code-padding);
+}
+
+[data-slot="docblocks/mermaid-error-message"] {
+  display: block;
+  color: var(--docblocks-callout-border-color-danger);
 }
 
 hr[data-slot="docblocks/divider"] {

@@ -16,6 +16,9 @@ async function openCatalogPane(page: Page): Promise<void> {
   await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
   // The catalog is built locally on mount; the divider lands with it.
   await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1, SETTLE);
+  // The mermaid catalog block renders asynchronously (mermaid.render); the
+  // goldens must capture the diagram, not the loading placeholder.
+  await expect(page.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
 }
 
 /** The pane's editor root — the screenshot scope (the harness chrome stays out). */

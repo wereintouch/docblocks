@@ -7,6 +7,7 @@ const INSERTABLE_TYPES = [
   "callout",
   "list-item",
   "code",
+  "code-mermaid",
   "latex",
   "table",
   "image",
@@ -21,6 +22,9 @@ const IMAGE_KEY = "demo-image";
 
 /** The fixed embed src the harness inserts (a one-line html page). */
 const EMBED_SRC = "data:text/html," + encodeURIComponent("<html><body><p>embedded page</p></body></html>");
+
+/** The seed diagram the harness inserts with a mermaid code block (harness convenience; the user edits it in the block). */
+const MERMAID_SEED = "graph TD\n A --> B";
 
 /** Fixed key -> inline data: URL (a small SVG data URI). */
 const BLOB_SOURCES: Record<string, string> = {
@@ -38,7 +42,8 @@ function blobResolver(key: string): string {
 
 /**
  * Insert one block of `type` at the root with the harness attrs (heading
- * level 2, list-item bullet, code language "ts", latex display, image the
+ * level 2, list-item bullet, code language "ts", code-mermaid a code block
+ * with language "mermaid" and the seed diagram, latex display, image the
  * fixed key, embed the fixed data: URL; a table comes prebuilt 2x2 with a
  * paragraph in every cell). The insert is one transaction: one undo step
  * and one wire update.
@@ -55,6 +60,10 @@ function insertBlockOf(type: InsertableType, doc: Doc): BlockId {
         break;
       case "code":
         id = doc.insertBlock("code", { language: "ts" });
+        break;
+      case "code-mermaid":
+        id = doc.insertBlock("code", { language: "mermaid" });
+        doc.insertText(id, 0, MERMAID_SEED);
         break;
       case "latex":
         id = doc.insertBlock("latex", { display: true });

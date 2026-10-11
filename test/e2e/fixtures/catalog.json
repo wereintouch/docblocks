@@ -27,11 +27,12 @@
         "c0019",
         "c0020",
         "c0021",
-        "c0032",
+        "c0022",
         "c0033",
         "c0034",
         "c0035",
-        "c0036"
+        "c0036",
+        "c0037"
       ]
     },
     "c0001": {
@@ -259,6 +260,18 @@
       ]
     },
     "c0020": {
+      "type": "code",
+      "attrs": {
+        "language": "mermaid"
+      },
+      "content": [
+        {
+          "text": "graph TD\n A --> B",
+          "marks": {}
+        }
+      ]
+    },
+    "c0021": {
       "type": "latex",
       "attrs": {
         "display": true
@@ -270,23 +283,23 @@
         }
       ]
     },
-    "c0021": {
+    "c0022": {
       "type": "table",
       "attrs": {
         "cols": 2
       },
-      "children": ["c0022", "c0027"]
-    },
-    "c0022": {
-      "type": "table-row",
-      "children": ["c0023", "c0025"]
+      "children": ["c0023", "c0028"]
     },
     "c0023": {
-      "type": "table-cell",
-      "content": [],
-      "children": ["c0024"]
+      "type": "table-row",
+      "children": ["c0024", "c0026"]
     },
     "c0024": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0025"]
+    },
+    "c0025": {
       "type": "paragraph",
       "content": [
         {
@@ -295,12 +308,12 @@
         }
       ]
     },
-    "c0025": {
+    "c0026": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0026"]
+      "children": ["c0027"]
     },
-    "c0026": {
+    "c0027": {
       "type": "paragraph",
       "content": [
         {
@@ -309,16 +322,16 @@
         }
       ]
     },
-    "c0027": {
-      "type": "table-row",
-      "children": ["c0028", "c0030"]
-    },
     "c0028": {
-      "type": "table-cell",
-      "content": [],
-      "children": ["c0029"]
+      "type": "table-row",
+      "children": ["c0029", "c0031"]
     },
     "c0029": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0030"]
+    },
+    "c0030": {
       "type": "paragraph",
       "content": [
         {
@@ -327,12 +340,12 @@
         }
       ]
     },
-    "c0030": {
+    "c0031": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0031"]
+      "children": ["c0032"]
     },
-    "c0031": {
+    "c0032": {
       "type": "paragraph",
       "content": [
         {
@@ -341,23 +354,23 @@
         }
       ]
     },
-    "c0032": {
+    "c0033": {
       "type": "image",
       "attrs": {
         "src": "demo-image"
       }
     },
-    "c0033": {
+    "c0034": {
       "type": "divider"
     },
-    "c0034": {
+    "c0035": {
       "type": "embed",
       "attrs": {
         "kind": "iframe",
         "src": "data:text/html,%3Chtml%3E%3Cbody%3E%3Cp%3Eembedded%20page%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"
       }
     },
-    "c0035": {
+    "c0036": {
       "type": "paragraph",
       "content": [
         {
@@ -435,7 +448,7 @@
         }
       ]
     },
-    "c0036": {
+    "c0037": {
       "type": "paragraph",
       "content": [
         {

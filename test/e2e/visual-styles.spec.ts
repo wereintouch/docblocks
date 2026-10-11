@@ -105,7 +105,12 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="heading"]').count()).toBe(6);
   expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(7);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
-  expect(await doc.locator('[data-block-type="code"]').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="code"]').count()).toBe(2);
+  expect(await doc.locator('[data-block-type="code"][data-language="mermaid"]').count()).toBe(1);
+  // The mermaid block renders the diagram (not the plain code view): wait
+  // for the async render, then pin the preview state.
+  await expect(doc.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
+  await expect(doc.locator('[data-slot="docblocks/mermaid"][data-state="diagram"]')).toHaveCount(1);
   expect(await doc.locator('[data-block-type="latex"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="table"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="image"]').count()).toBe(1);
@@ -135,8 +140,9 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('td[data-slot="docblocks/table-cell"]').count()).toBe(4);
   await expect(doc.locator("td").first()).toHaveText("cell 1-1");
 
-  // Code block: the language attr and the mono font from the tokens.
-  const pre = doc.locator('pre[data-block-type="code"]');
+  // Code blocks: the language attrs (the ts block is the mono pin below; the
+  // mermaid block renders the diagram — waited for above).
+  const pre = doc.locator('pre[data-block-type="code"][data-language="ts"]');
   expect(await pre.getAttribute("data-language")).toBe("ts");
   expect((await styleProps(pre, "font-family"))["font-family"]).toContain("mono");
 

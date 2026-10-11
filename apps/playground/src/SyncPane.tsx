@@ -1,4 +1,5 @@
-import { Editor, EditorProvider } from "docblocks-react-ui";
+import { type BlockRendererMap, Editor, EditorProvider } from "docblocks-react-ui";
+import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -15,6 +16,15 @@ import { type WireEvent, WireLog } from "./inspect/WireLog";
 
 /** The wire log keeps the last N events. */
 const WIRE_CAP = 50;
+
+/**
+ * The pane's renderer map (the demo of the `./mermaid` subpath): a
+ * `code` block with `language: "mermaid"` renders the live diagram
+ * preview, every other code block falls through to the built-in
+ * rendering inside the renderer. Module-level: the provider reads the
+ * map per render, so the reference must be stable.
+ */
+const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
 
 /** The inspector tabs below the editor. */
 const TABS = ["json", "wire", "presence"] as const;
@@ -230,7 +240,12 @@ function SyncPane({
         style={{ border: "1px solid #ccc", padding: 8, minHeight: 40 }}
       >
         {runtime !== null && (
-          <EditorProvider doc={runtime.doc} provider={runtime.provider} blobResolver={blobResolver}>
+          <EditorProvider
+            doc={runtime.doc}
+            provider={runtime.provider}
+            blobResolver={blobResolver}
+            blockRenderers={BLOCK_RENDERERS}
+          >
             <MarkToolbar client={client} />
             {motion ? <MotionEditor /> : <Editor />}
           </EditorProvider>
