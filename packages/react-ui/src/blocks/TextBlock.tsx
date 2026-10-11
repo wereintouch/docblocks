@@ -1,13 +1,14 @@
 import { useStore } from "zustand";
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import type { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 
 import type { Block, BlockId, TextRun } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { caretOffsetIn, restoreSelection, selectionInside } from "../editing/dom-offset";
 import { useBlockInput } from "../editing/input-safety";
+import { useBlockKeyboard } from "../editing/keyboard";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { renderRunsInto } from "../text/runs-dom";
 import { useBlockContext } from "./block-context";
@@ -64,13 +65,33 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
 
   const wrapperRef = useRef<HTMLElement | null>(null);
   const innerRef = useRef<HTMLElement | null>(null);
-  const { onKeyDown, onPaste } = useBlockInput({
+  const { onKeyDown: onInputKeyDown, onPaste } = useBlockInput({
     id,
     blockType: block.type,
     context: blockContext,
     innerRef,
     wrapperRef,
   });
+  const { onKeyDown: onGestureKeyDown } = useBlockKeyboard({
+    id,
+    blockType: block.type,
+    context: blockContext,
+    innerRef,
+  });
+
+  /**
+   * The block's single keydown entry: the keyboard gestures first, then the
+   * input-safety guards (skipped when a gesture already handled the event,
+   * so preventDefault is never doubled).
+   */
+  const onKeydown = useCallback(
+    (event: KeyboardEvent<HTMLElement>) => {
+      onGestureKeyDown(event);
+      if (event.defaultPrevented) return;
+      onInputKeyDown(event);
+    },
+    [onGestureKeyDown, onInputKeyDown]
+  );
 
   /** The last store block snapshot applied to the text DOM. */
   const appliedRef = useRef<Block | null>(null);
@@ -207,7 +228,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
       data-selected={selected ? "true" : undefined}
       tabIndex={0}
-      onKeyDown={onKeyDown}
+      onKeyDown={onKeydown}
     >
       <button
         type="button"

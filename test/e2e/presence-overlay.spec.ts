@@ -23,8 +23,9 @@ async function twoPanes(
   const contextB = await browser.newContext();
   const a = await contextA.newPage();
   const b = await contextB.newPage();
-  await openPane(a, "a", room);
-  await openPane(b, "b", room);
+  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
+  await openPane(a, "a", uniqueRoom);
+  await openPane(b, "b", uniqueRoom);
   return {
     a,
     b,
@@ -70,9 +71,9 @@ test("the remote caret renders inside the peer's block and clears on blur", asyn
     }, SETTLE)
     .toBe(true);
 
-  // A blurs the editor (focus moves to the pane input, outside the editor
-  // root) → the selection is published as null → B's caret goes away.
-  await a.getByTestId("editor-a").click();
+  // A blurs the editor (focus moves to a non-editable pane element, outside
+  // the editor root) → the selection is published as null → B's caret goes away.
+  await a.getByTestId("status-a").click();
   await expect(b.locator('[data-slot="docblocks/presence-caret"]')).toHaveCount(0, SETTLE);
 
   await close();

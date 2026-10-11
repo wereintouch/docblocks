@@ -1,10 +1,11 @@
 import { Editor, EditorProvider } from "docblocks-react-ui";
 import { MotionEditor } from "docblocks-react-ui/motion";
 
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { type Doc, type PresenceState, WsSyncProvider, attach, createDoc } from "docblocks-core";
 
+import { MarkToolbar } from "./MarkToolbar";
 import { INSERTABLE_TYPES, blobResolver, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 
@@ -55,68 +56,15 @@ function presenceLine(letter: string, peer: PresenceState): string | null {
 }
 
 /**
- * The editable element of a block: the inner block-content when the block
- * has one, the wrapper otherwise. Harness-only: the page hosts exactly
- * one pane per doc id, so a document-global query is safe.
- */
-function editableOf(blockId: string): HTMLElement | null {
-  return (
-    document.querySelector<HTMLElement>(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`) ??
-    document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`)
-  );
-}
-
-/**
- * Place the real DOM caret at the end of a block — what a keystroke in
- * the editor would leave behind — so the editor owns the selection and
- * the provider's awareness reflects it. Runs in a frame after the store
- * applied the change and the text DOM caught up.
- */
-function caretAtEndOf(blockId: string): void {
-  requestAnimationFrame(() => {
-    const el = editableOf(blockId);
-    if (el === null) return;
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    const selection = window.getSelection();
-    if (selection === null) return;
-    selection.removeAllRanges();
-    selection.addRange(range);
-  });
-}
-
-/**
- * Focus a fresh (empty) block and place the caret at its start, so the
- * editor owns the selection for the new block.
- */
-function focusBlockStart(blockId: string): void {
-  requestAnimationFrame(() => {
-    const el = editableOf(blockId);
-    if (el === null) return;
-    el.focus();
-    // An empty block has no text node to anchor on: set the range
-    // explicitly at the element start.
-    const range = document.createRange();
-    range.setStart(el, 0);
-    range.collapse(true);
-    const selection = window.getSelection();
-    if (selection === null) return;
-    selection.removeAllRanges();
-    selection.addRange(range);
-  });
-}
-
-/**
  * One sync client pane. Both panes create the same document and attach one
  * WsSyncProvider each, so edits and carets converge through the relay.
  * The doc area is the real editor (EditorProvider + Editor on the same
- * doc/provider instance): the pane's awareness is published by the
- * provider from the real DOM selection, the pane only renders the remote
- * peers and drives the editor with doc commands. `motion` renders the
- * animated editor from the `docblocks-react-ui/motion` subpath instead of
- * the base `Editor` (the harness attributes and helpers target the block
- * wrappers, which the motion layer keeps).
+ * doc/provider instance): typing is the real editor, the pane's awareness
+ * is published by the provider from the real DOM selection, and the pane
+ * renders the remote peers and drives the editor with doc commands.
+ * `motion` renders the animated editor from the `docblocks-react-ui/motion`
+ * subpath instead of the base `Editor` (the harness attributes and helpers
+ * target the block wrappers, which the motion layer keeps).
  */
 function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: string; motion: boolean }) {
   const docRef = useRef<Doc | null>(null);
@@ -128,8 +76,6 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
   const [presence, setPresence] = useState<PresenceState[]>([]);
   const [insertType, setInsertType] = useState<InsertableType>("paragraph");
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
-  const currentIdRef = useRef<string | null>(null);
-  currentIdRef.current = currentId;
 
   // One provider per mount. StrictMode's dev double-mount is safe: the first
   // instance's bytes are only buffered (the socket opens after cleanup) and
@@ -192,19 +138,10 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
     }
   }, [blocks, currentId, client]);
 
-  const onEditorInput = (event: FormEvent<HTMLInputElement>) => {
-    const doc = docRef.current;
-    const id = currentIdRef.current;
-    const data = (event.nativeEvent as InputEvent).data ?? "";
-    if (doc === null || id === null || data === "") return;
-    doc.insertText(id, doc.getTextLength(id), data);
-    caretAtEndOf(id);
-  };
-
   const onAddBlock = () => {
     const doc = docRef.current;
     if (doc === null) return;
-    focusBlockStart(doc.insertBlock("paragraph")); // the onChange refresh makes it current
+    doc.insertBlock("paragraph");
   };
 
   /** Insert the selected v1 type at the root (harness attrs; see insert-blocks.ts). */
@@ -244,17 +181,12 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
       >
         {runtime !== null && (
           <EditorProvider doc={runtime.doc} provider={runtime.provider} blobResolver={blobResolver}>
+            <MarkToolbar client={client} />
             {motion ? <MotionEditor /> : <Editor />}
           </EditorProvider>
         )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <input
-          data-testid={`editor-${client}`}
-          onInput={onEditorInput}
-          placeholder="type to append"
-          style={{ flex: 1 }}
-        />
         <button data-testid={`block-btn-${client}`} onClick={onAddBlock}>
           + block
         </button>

@@ -101,11 +101,15 @@ test("A's text reaches B through the standard server", async ({ browser }) => {
   const contextB = await browser.newContext();
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
-  const url = paneUrl("a", "smoke-a2b");
+  const doc = `smoke-a2b-${Math.random().toString(36).slice(2, 8)}`;
+  const url = paneUrl("a", doc);
   await openPane(pageA, url, "a");
-  await openPane(pageB, paneUrl("b", "smoke-a2b"), "b");
+  await openPane(pageB, paneUrl("b", doc), "b");
 
-  await pageA.getByTestId("editor-a").pressSequentially("hello");
+  // Typing goes into the real editor (the first block in reading order).
+  const firstA = pageA.locator('[data-testid="doc-a"] [data-block-type="paragraph"]').first();
+  await firstA.click();
+  await pageA.keyboard.type("hello");
   await expectDocContains(pageB, "b", "hello");
 
   await contextA.close();
@@ -117,11 +121,14 @@ test("B's text reaches A through the standard server", async ({ browser }) => {
   const contextB = await browser.newContext();
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
-  const url = paneUrl("b", "smoke-b2a");
-  await openPane(pageA, paneUrl("a", "smoke-b2a"), "a");
+  const doc = `smoke-b2a-${Math.random().toString(36).slice(2, 8)}`;
+  const url = paneUrl("b", doc);
+  await openPane(pageA, paneUrl("a", doc), "a");
   await openPane(pageB, url, "b");
 
-  await pageB.getByTestId("editor-b").pressSequentially("world");
+  const firstB = pageB.locator('[data-testid="doc-b"] [data-block-type="paragraph"]').first();
+  await firstB.click();
+  await pageB.keyboard.type("world");
   await expectDocContains(pageA, "a", "world");
 
   await contextA.close();

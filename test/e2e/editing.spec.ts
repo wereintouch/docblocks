@@ -46,8 +46,9 @@ async function twoPanes(
   const contextB = await browser.newContext();
   const a = await contextA.newPage();
   const b = await contextB.newPage();
-  await openPane(a, "a", room);
-  await openPane(b, "b", room);
+  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
+  await openPane(a, "a", uniqueRoom);
+  await openPane(b, "b", uniqueRoom);
   return {
     a,
     b,
@@ -159,8 +160,9 @@ test("mod+z outside the editor does not undo the document", async ({ browser }) 
   await a.keyboard.type("ab");
   await expectDocContains(b, "b", "ab");
 
-  // Control+z typed in the pane's outer (non-editor) input must not undo.
-  await a.getByTestId("editor-a").click();
+  // Control+z typed on a non-editable pane element (focus lands on the
+  // document body, outside the editor root's keyboard scope) must not undo.
+  await a.getByTestId("status-a").click();
   await a.keyboard.press("Control+z");
   await a.waitForTimeout(500);
   await expect(paragraph(a, "a")).toHaveText("ab");

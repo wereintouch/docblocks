@@ -39,8 +39,9 @@ async function twoPanes(
   const contextB = await browser.newContext();
   const a = await contextA.newPage();
   const b = await contextB.newPage();
-  await openPane(a, "a", room, motionA);
-  await openPane(b, "b", room);
+  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
+  await openPane(a, "a", uniqueRoom, motionA);
+  await openPane(b, "b", uniqueRoom);
   return {
     a,
     b,

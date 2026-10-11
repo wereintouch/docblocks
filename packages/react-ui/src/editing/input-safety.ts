@@ -6,20 +6,22 @@ import type { BlockId, BlockType } from "docblocks-core";
 import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
 import { focusCaretIn, mergeWithPrevious, nestIntoPrevious, outdentFrom, splitAt } from "./block-commands";
-import { caretOffsetIn } from "./dom-offset";
+import { applyRichPaste } from "./clipboard";
+import { caretOffsetIn, restoreSelection } from "./dom-offset";
 
 /**
  * Input safety and the keyboard gestures of one editable block.
  *
  * The browser default for Enter, Shift+Enter, and paste is suppressed: an
  * unmanaged DOM mutation would leave the doc and the DOM diverged. Paste
- * commits plain text through doc commands at the DOM selection offset
- * (one transaction, one undo step). Enter splits the block at the caret,
- * Backspace at offset 0 merges with the previous sibling, and
- * Tab / Shift+Tab nest a list item. While a blocks selection is active
- * (the wrapper is focused from the gutter): Delete / Backspace remove the
- * selected blocks, the arrows move a single-block selection to the
- * previous / next sibling, Escape clears it.
+ * commits through doc commands at the DOM selection offset (one
+ * transaction, one undo step): a `text/html` payload is flattened over the
+ * clipboard whitelist (marks included), a plain-text payload is inserted
+ * as text. Enter splits the block at the caret, Backspace at offset 0
+ * merges with the previous sibling, and Tab / Shift+Tab nest a list item.
+ * While a blocks selection is active (the wrapper is focused from the
+ * gutter): Delete / Backspace remove the selected blocks, the arrows move
+ * a single-block selection to the previous / next sibling, Escape clears it.
  *
  * A text gesture runs only when the DOM selection is a caret inside the
  * block's inner editable; a cross-block or missing selection is a no-op.
@@ -42,8 +44,8 @@ function useBlockInput({
   const onPaste = useCallback(
     (event: ClipboardEvent<HTMLElement>) => {
       event.preventDefault();
+      const html = event.clipboardData.getData("text/html");
       const text = event.clipboardData.getData("text/plain");
-      if (text === "") return;
       const selection = window.getSelection();
       if (selection === null || selection.rangeCount === 0) return;
       const range = selection.getRangeAt(0);
@@ -53,6 +55,17 @@ function useBlockInput({
       const focus = caretOffsetIn(el, range.endContainer, range.endOffset);
       const from = Math.min(anchor, focus);
       const to = Math.max(anchor, focus);
+
+      // A rich payload: apply the whitelist-flattened runs as doc commands;
+      // the selection collapses to its end first, so the store-driven
+      // rebuild lands the caret after the inserted text (the rebase path).
+      if (html !== "") {
+        restoreSelection(el, to, null);
+        applyRichPaste(doc, id, from, to, html);
+        return;
+      }
+
+      if (text === "") return;
       doc.transact(() => {
         if (to > from) doc.deleteText(id, from, to);
         doc.insertText(id, from, text);

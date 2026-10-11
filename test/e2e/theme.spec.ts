@@ -4,7 +4,7 @@ import { expect, test } from "@playwright/test";
 const SETTLE = { timeout: 15_000 };
 
 test("the dark theme activates via the .dark class on an ancestor", async ({ page }) => {
-  await page.goto("/?syncUrl=ws://localhost:5199/theme");
+  await page.goto(`/?syncUrl=ws://localhost:5199/theme-${Math.random().toString(36).slice(2, 8)}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
   const editor = page.locator('[data-slot="docblocks/editor"]');
   await expect(editor).toBeVisible();
