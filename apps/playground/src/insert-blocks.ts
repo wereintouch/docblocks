@@ -10,6 +10,7 @@ const INSERTABLE_TYPES = [
   "latex",
   "table",
   "image",
+  "embed",
   "divider",
 ] as const;
 
@@ -17,6 +18,9 @@ type InsertableType = (typeof INSERTABLE_TYPES)[number];
 
 /** The fixed image key the harness inserts; its src is a small inline SVG. */
 const IMAGE_KEY = "demo-image";
+
+/** The fixed embed src the harness inserts (a one-line html page). */
+const EMBED_SRC = "data:text/html," + encodeURIComponent("<html><body><p>embedded page</p></body></html>");
 
 /** Fixed key -> inline data: URL (a small SVG data URI). */
 const BLOB_SOURCES: Record<string, string> = {
@@ -35,8 +39,9 @@ function blobResolver(key: string): string {
 /**
  * Insert one block of `type` at the root with the harness attrs (heading
  * level 2, list-item bullet, code language "ts", latex display, image the
- * fixed key; a table comes prebuilt 2x2 with a paragraph in every cell).
- * The insert is one transaction: one undo step and one wire update.
+ * fixed key, embed the fixed data: URL; a table comes prebuilt 2x2 with a
+ * paragraph in every cell). The insert is one transaction: one undo step
+ * and one wire update.
  */
 function insertBlockOf(type: InsertableType, doc: Doc): BlockId {
   let id = "";
@@ -57,6 +62,9 @@ function insertBlockOf(type: InsertableType, doc: Doc): BlockId {
       case "image":
         id = doc.insertBlock("image", { src: IMAGE_KEY });
         break;
+      case "embed":
+        id = doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
+        break;
       case "table": {
         const tableId = doc.insertBlock("table", { cols: 2 });
         for (let row = 0; row < 2; row++) {
@@ -76,5 +84,5 @@ function insertBlockOf(type: InsertableType, doc: Doc): BlockId {
   return id;
 }
 
-export { blobResolver, insertBlockOf, INSERTABLE_TYPES };
+export { blobResolver, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES };
 export type { InsertableType };

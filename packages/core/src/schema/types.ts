@@ -93,6 +93,15 @@ interface ImageAttrs {
   align?: "left" | "center" | "right";
 }
 
+interface EmbedAttrs {
+  /** Embed kind; a renderer hint (all kinds render as an iframe in v1). */
+  kind: "iframe" | "github" | "figma" | "loom" | "html";
+  /** The embedded page URL. */
+  src: string;
+  /** Accessible title; falls back to the kind in the renderer. */
+  title?: string;
+}
+
 interface RootBlock {
   type: "root";
   /** Top-level page blocks, in reading order. */
@@ -163,6 +172,11 @@ interface ImageBlock {
   attrs: ImageAttrs;
 }
 
+interface EmbedBlock {
+  type: "embed";
+  attrs: EmbedAttrs;
+}
+
 interface DividerBlock {
   type: "divider";
 }
@@ -180,6 +194,7 @@ type Block =
   | TableRowBlock
   | TableCellBlock
   | ImageBlock
+  | EmbedBlock
   | DividerBlock;
 
 /** Block type discriminator. */
@@ -192,7 +207,7 @@ type AttrsFor<T extends BlockType> = "attrs" extends keyof Extract<Block, { type
 
 /** Partial attribute patch accepted by `updateBlock` (any v1 attribute key). */
 type BlockAttrsPatch = Partial<
-  HeadingAttrs & ListItemAttrs & CalloutAttrs & CodeAttrs & LatexAttrs & TableAttrs & ImageAttrs
+  HeadingAttrs & ListItemAttrs & CalloutAttrs & CodeAttrs & LatexAttrs & TableAttrs & ImageAttrs & EmbedAttrs
 >;
 
 export type {
@@ -209,6 +224,8 @@ export type {
   DocJSON,
   DocMeta,
   DividerBlock,
+  EmbedAttrs,
+  EmbedBlock,
   HeadingAttrs,
   HeadingBlock,
   ImageAttrs,

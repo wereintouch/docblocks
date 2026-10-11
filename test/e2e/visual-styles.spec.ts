@@ -109,6 +109,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="latex"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="table"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="image"]').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="embed"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="divider"]').count()).toBe(1);
 
   // Headings 1..6 as their own tags.
@@ -143,6 +144,12 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   const img = doc.locator('img[data-slot="docblocks/image"]');
   expect(await img.count()).toBe(1);
   expect((await img.getAttribute("src")) ?? "").toContain("data:image/svg+xml");
+
+  // Embed: the fixed data: URL src and the kind on the wrapper.
+  const embed = doc.locator('iframe[data-slot="docblocks/embed"]');
+  expect(await embed.count()).toBe(1);
+  expect((await embed.getAttribute("src")) ?? "").toContain("data:text/html");
+  expect(await doc.locator('[data-block-type="embed"][data-kind="iframe"]').count()).toBe(1);
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);

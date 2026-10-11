@@ -10,7 +10,16 @@ import type { BlockType, MarkName } from "./types";
  */
 
 /** Leaf types (no `children` of their own): the only ones allowed in cells. */
-const LEAF_BLOCK_TYPES: readonly BlockType[] = ["paragraph", "heading", "callout", "code", "latex", "image", "divider"];
+const LEAF_BLOCK_TYPES: readonly BlockType[] = [
+  "paragraph",
+  "heading",
+  "callout",
+  "code",
+  "latex",
+  "image",
+  "embed",
+  "divider",
+];
 
 /** Top-level page blocks: everything except `root` and table internals. */
 const PAGE_BLOCK_TYPES: readonly BlockType[] = [
@@ -22,6 +31,7 @@ const PAGE_BLOCK_TYPES: readonly BlockType[] = [
   "latex",
   "table",
   "image",
+  "embed",
   "divider",
 ];
 
@@ -102,6 +112,15 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       src: { kind: "string", nonEmpty: true, required: true },
       width: { kind: "nullable-number", positive: true },
       align: { kind: "enum", values: ["left", "center", "right"] },
+    },
+  },
+  embed: {
+    content: false,
+    children: false,
+    attrs: {
+      kind: { kind: "enum", values: ["iframe", "github", "figma", "loom", "html"], required: true },
+      src: { kind: "string", nonEmpty: true, required: true },
+      title: { kind: "string" },
     },
   },
   divider: { content: false, children: false },

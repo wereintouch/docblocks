@@ -1,5 +1,7 @@
 import { type Doc, type MarkSet, createDoc } from "docblocks-core";
 
+import { EMBED_SRC } from "./insert-blocks";
+
 /** The fixed pane doc identity (the e2e room/doc conventions rely on it). */
 const DOC_ID = "d1";
 const DOC_CREATED_AT = "2026-01-01T00:00:00Z";
@@ -111,6 +113,9 @@ function buildCatalogDoc(doc: Doc): void {
 
     doc.insertBlock("image", { src: CATALOG_IMAGE_KEY });
     doc.insertBlock("divider");
+
+    // Embed: the fixed harness src (the data: URL renders a tiny inline page).
+    doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
 
     // The marks paragraph: the fixed run layout, one run at a time.
     const marks = doc.insertBlock("paragraph");

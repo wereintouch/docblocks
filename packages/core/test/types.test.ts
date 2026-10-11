@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY } from "../src/schema";
-import type { BlockType, HeadingAttrs, ImageAttrs, MarkSet } from "../src/schema";
+import type { AttrsFor, BlockType, EmbedAttrs, HeadingAttrs, ImageAttrs, MarkSet } from "../src/schema";
 
 describe("block registry", () => {
   it("covers exactly the v1 block types", () => {
@@ -9,6 +9,7 @@ describe("block registry", () => {
       "callout",
       "code",
       "divider",
+      "embed",
       "heading",
       "image",
       "latex",
@@ -32,6 +33,7 @@ describe("block registry", () => {
       "callout",
       "code",
       "divider",
+      "embed",
       "heading",
       "image",
       "latex",
@@ -46,6 +48,7 @@ describe("block registry", () => {
       "callout",
       "code",
       "divider",
+      "embed",
       "heading",
       "image",
       "latex",
@@ -95,7 +98,7 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["math"]>().toEqualTypeOf<{ tex: string } | undefined>();
   });
 
-  it("exposes the 12-type block union", () => {
+  it("exposes the 13-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
@@ -108,7 +111,15 @@ describe("type shapes", () => {
       | "table-row"
       | "table-cell"
       | "image"
+      | "embed"
       | "divider"
     >();
+  });
+
+  it("embed attrs: required kind enum and required src, optional title", () => {
+    expectTypeOf<EmbedAttrs["kind"]>().toEqualTypeOf<"iframe" | "github" | "figma" | "loom" | "html">();
+    expectTypeOf<EmbedAttrs["src"]>().toEqualTypeOf<string>();
+    expectTypeOf<EmbedAttrs["title"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<AttrsFor<"embed">>().toEqualTypeOf<EmbedAttrs>();
   });
 });

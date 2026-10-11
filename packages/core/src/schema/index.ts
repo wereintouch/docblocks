@@ -20,6 +20,8 @@ export type {
   DocJSON,
   DocMeta,
   DividerBlock,
+  EmbedAttrs,
+  EmbedBlock,
   HeadingAttrs,
   HeadingBlock,
   ImageAttrs,

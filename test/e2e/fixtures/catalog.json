@@ -30,7 +30,8 @@
         "c0032",
         "c0033",
         "c0034",
-        "c0035"
+        "c0035",
+        "c0036"
       ]
     },
     "c0001": {
@@ -350,6 +351,13 @@
       "type": "divider"
     },
     "c0034": {
+      "type": "embed",
+      "attrs": {
+        "kind": "iframe",
+        "src": "data:text/html,%3Chtml%3E%3Cbody%3E%3Cp%3Eembedded%20page%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"
+      }
+    },
+    "c0035": {
       "type": "paragraph",
       "content": [
         {
@@ -427,7 +435,7 @@
         }
       ]
     },
-    "c0035": {
+    "c0036": {
       "type": "paragraph",
       "content": [
         {

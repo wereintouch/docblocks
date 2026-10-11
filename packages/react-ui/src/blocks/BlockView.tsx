@@ -6,6 +6,7 @@ import type { Block, BlockId, ListItemAttrs, ListItemBlock } from "docblocks-cor
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
+import { EmbedBlock } from "./EmbedBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
 import { TableBlock } from "./TableBlock";
@@ -125,6 +126,8 @@ const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
       return <hr data-slot="docblocks/divider" data-block-type="divider" data-block-id={id} />;
     case "image":
       return <ImageBlock id={id} block={block} />;
+    case "embed":
+      return <EmbedBlock id={id} block={block} />;
     case "table":
       return <TableBlock id={id} block={block} />;
     default:
