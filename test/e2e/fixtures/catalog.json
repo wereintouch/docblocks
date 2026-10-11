@@ -1,0 +1,440 @@
+{
+  "v": 1,
+  "id": "d1",
+  "title": "Catalog",
+  "createdAt": "2026-01-01T00:00:00Z",
+  "blocks": {
+    "d1": {
+      "type": "root",
+      "children": [
+        "c0001",
+        "c0002",
+        "c0003",
+        "c0004",
+        "c0005",
+        "c0006",
+        "c0007",
+        "c0008",
+        "c0009",
+        "c0011",
+        "c0012",
+        "c0013",
+        "c0014",
+        "c0015",
+        "c0016",
+        "c0017",
+        "c0018",
+        "c0019",
+        "c0020",
+        "c0021",
+        "c0032",
+        "c0033",
+        "c0034",
+        "c0035"
+      ]
+    },
+    "c0001": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Catalog: all v1 blocks and marks",
+          "marks": {}
+        }
+      ]
+    },
+    "c0002": {
+      "type": "heading",
+      "attrs": {
+        "level": 1
+      },
+      "content": [
+        {
+          "text": "Heading 1",
+          "marks": {}
+        }
+      ]
+    },
+    "c0003": {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "Heading 2",
+          "marks": {}
+        }
+      ]
+    },
+    "c0004": {
+      "type": "heading",
+      "attrs": {
+        "level": 3
+      },
+      "content": [
+        {
+          "text": "Heading 3",
+          "marks": {}
+        }
+      ]
+    },
+    "c0005": {
+      "type": "heading",
+      "attrs": {
+        "level": 4
+      },
+      "content": [
+        {
+          "text": "Heading 4",
+          "marks": {}
+        }
+      ]
+    },
+    "c0006": {
+      "type": "heading",
+      "attrs": {
+        "level": 5
+      },
+      "content": [
+        {
+          "text": "Heading 5",
+          "marks": {}
+        }
+      ]
+    },
+    "c0007": {
+      "type": "heading",
+      "attrs": {
+        "level": 6
+      },
+      "content": [
+        {
+          "text": "Heading 6",
+          "marks": {}
+        }
+      ]
+    },
+    "c0008": {
+      "type": "list-item",
+      "attrs": {
+        "list": "bullet"
+      },
+      "content": [
+        {
+          "text": "bullet one",
+          "marks": {}
+        }
+      ]
+    },
+    "c0009": {
+      "type": "list-item",
+      "attrs": {
+        "list": "bullet"
+      },
+      "content": [
+        {
+          "text": "bullet two",
+          "marks": {}
+        }
+      ],
+      "children": ["c0010"]
+    },
+    "c0010": {
+      "type": "list-item",
+      "attrs": {
+        "list": "bullet"
+      },
+      "content": [
+        {
+          "text": "nested bullet",
+          "marks": {}
+        }
+      ]
+    },
+    "c0011": {
+      "type": "list-item",
+      "attrs": {
+        "list": "number"
+      },
+      "content": [
+        {
+          "text": "number one",
+          "marks": {}
+        }
+      ]
+    },
+    "c0012": {
+      "type": "list-item",
+      "attrs": {
+        "list": "number"
+      },
+      "content": [
+        {
+          "text": "number two",
+          "marks": {}
+        }
+      ]
+    },
+    "c0013": {
+      "type": "list-item",
+      "attrs": {
+        "list": "task"
+      },
+      "content": [
+        {
+          "text": "task open",
+          "marks": {}
+        }
+      ]
+    },
+    "c0014": {
+      "type": "list-item",
+      "attrs": {
+        "list": "task",
+        "checked": true
+      },
+      "content": [
+        {
+          "text": "task done",
+          "marks": {}
+        }
+      ]
+    },
+    "c0015": {
+      "type": "callout",
+      "content": [
+        {
+          "text": "callout (default)",
+          "marks": {}
+        }
+      ]
+    },
+    "c0016": {
+      "type": "callout",
+      "attrs": {
+        "variant": "info"
+      },
+      "content": [
+        {
+          "text": "callout info",
+          "marks": {}
+        }
+      ]
+    },
+    "c0017": {
+      "type": "callout",
+      "attrs": {
+        "variant": "warning"
+      },
+      "content": [
+        {
+          "text": "callout warning",
+          "marks": {}
+        }
+      ]
+    },
+    "c0018": {
+      "type": "callout",
+      "attrs": {
+        "variant": "danger"
+      },
+      "content": [
+        {
+          "text": "callout danger",
+          "marks": {}
+        }
+      ]
+    },
+    "c0019": {
+      "type": "code",
+      "attrs": {
+        "language": "ts"
+      },
+      "content": [
+        {
+          "text": "const catalog: number = 1;",
+          "marks": {}
+        }
+      ]
+    },
+    "c0020": {
+      "type": "latex",
+      "attrs": {
+        "display": true
+      },
+      "content": [
+        {
+          "text": "E = mc^2",
+          "marks": {}
+        }
+      ]
+    },
+    "c0021": {
+      "type": "table",
+      "attrs": {
+        "cols": 2
+      },
+      "children": ["c0022", "c0027"]
+    },
+    "c0022": {
+      "type": "table-row",
+      "children": ["c0023", "c0025"]
+    },
+    "c0023": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0024"]
+    },
+    "c0024": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "cell 1-1",
+          "marks": {}
+        }
+      ]
+    },
+    "c0025": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0026"]
+    },
+    "c0026": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "cell 1-2",
+          "marks": {}
+        }
+      ]
+    },
+    "c0027": {
+      "type": "table-row",
+      "children": ["c0028", "c0030"]
+    },
+    "c0028": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0029"]
+    },
+    "c0029": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "cell 2-1",
+          "marks": {}
+        }
+      ]
+    },
+    "c0030": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0031"]
+    },
+    "c0031": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "cell 2-2",
+          "marks": {}
+        }
+      ]
+    },
+    "c0032": {
+      "type": "image",
+      "attrs": {
+        "src": "demo-image"
+      }
+    },
+    "c0033": {
+      "type": "divider"
+    },
+    "c0034": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "plain ",
+          "marks": {}
+        },
+        {
+          "text": "bold ",
+          "marks": {
+            "bold": true
+          }
+        },
+        {
+          "text": "italic ",
+          "marks": {
+            "italic": true
+          }
+        },
+        {
+          "text": "strike ",
+          "marks": {
+            "strike": true
+          }
+        },
+        {
+          "text": "underline ",
+          "marks": {
+            "underline": true
+          }
+        },
+        {
+          "text": "link ",
+          "marks": {
+            "link": {
+              "href": "https://example.com"
+            }
+          }
+        },
+        {
+          "text": "color ",
+          "marks": {
+            "color": {
+              "value": "#cf222e"
+            }
+          }
+        },
+        {
+          "text": "highlight ",
+          "marks": {
+            "highlight": {
+              "value": "#ffdd00"
+            }
+          }
+        },
+        {
+          "text": "bold italic ",
+          "marks": {
+            "bold": true,
+            "italic": true
+          }
+        },
+        {
+          "text": "code ",
+          "marks": {
+            "code": true
+          }
+        },
+        {
+          "text": "x^2",
+          "marks": {
+            "math": {
+              "tex": "x^2"
+            }
+          }
+        }
+      ]
+    },
+    "c0035": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Trailing paragraph",
+          "marks": {}
+        }
+      ]
+    }
+  }
+}

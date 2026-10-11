@@ -3,18 +3,15 @@ import { MotionEditor } from "docblocks-react-ui/motion";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { type Doc, type PresenceState, WsSyncProvider, attach, createDoc } from "docblocks-core";
+import { type Doc, type PresenceState, WsSyncProvider, attach } from "docblocks-core";
 
 import { MarkToolbar } from "./MarkToolbar";
+import { seedPaneDoc } from "./catalog";
 import { INSERTABLE_TYPES, blobResolver, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
-
-/** Both panes open the same document, so edits and carets converge. */
-const DOC_ID = "d1";
-const DOC_CREATED_AT = "2026-01-01T00:00:00Z";
 
 /** The wire log keeps the last N events. */
 const WIRE_CAP = 50;
@@ -63,18 +60,29 @@ function currentBlockOf(blocks: PaneBlock[]): string | null {
  * WsSyncProvider each, so edits and carets converge through the relay.
  * The doc area is the real editor (EditorProvider + Editor on the same
  * doc/provider instance): typing is the real editor, the pane's awareness
- * is published by the provider from the real DOM selection, and the pane
- * renders the remote peers and drives the editor with doc commands.
+ * is published by the provider from the real DOM selection.
  * `motion` renders the animated editor from the `docblocks-react-ui/motion`
- * subpath instead of the base `Editor` (the harness attributes and helpers
- * target the block wrappers, which the motion layer keeps).
+ * subpath (the harness helpers target the block wrappers the motion layer keeps).
+ * `catalog` builds the deterministic v1 catalog document (catalog.ts)
+ * instead of seeding a paragraph: the visual regression goldens come from
+ * this mode, the live doc exposed on `window.__catalogDoc`.
  *
  * Below the editor the pane shows its inspectors (JSON / Wire / Presence
- * tabs): all three stay mounted and the tabs only toggle visibility — the
- * subscriptions live in the pane's runtime effect, so a hidden inspector
- * keeps updating and its testid stays queryable.
+ * tabs): all three stay mounted, the tabs only toggle visibility — the
+ * subscriptions live in the runtime effect, so a hidden inspector keeps
+ * updating and its testid stays queryable.
  */
-function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: string; motion: boolean }) {
+function SyncPane({
+  client,
+  syncUrl,
+  motion,
+  catalog,
+}: {
+  client: "a" | "b";
+  syncUrl: string;
+  motion: boolean;
+  catalog: boolean;
+}) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
   const docAreaRef = useRef<HTMLDivElement | null>(null);
@@ -93,7 +101,7 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
   // instance's bytes are only buffered (the socket opens after cleanup) and
   // are dropped by destroy() before reaching the wire.
   useEffect(() => {
-    const doc = createDoc({ id: DOC_ID, createdAt: DOC_CREATED_AT });
+    const doc = seedPaneDoc(catalog);
     const provider = new WsSyncProvider(syncUrl);
     const mountedAt = Date.now();
 
@@ -125,13 +133,16 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
 
     const refresh = () => setBlocks(readBlocks(doc));
     const unsubscribeDoc = doc.onChange(refresh);
+    // Initial read: the catalog is seeded before this subscription.
+    refresh();
     // The provider reports remote peers only (its own awareness state is
     // excluded by client id), so the list needs no self-filtering.
     const unsubscribePresence = provider.onAwareness((peers) => setPresence(peers));
 
-    // The pane's own first block; both clients may create one — the root
-    // order converges, and the caret follows the shared last paragraph.
-    doc.insertBlock("paragraph");
+    // The catalog pane exposes its live doc for the e2e JSON golden.
+    if (catalog) {
+      window.__catalogDoc = doc;
+    }
 
     void provider
       .connect()
@@ -147,13 +158,14 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
       provider.destroy();
       docRef.current = null;
       providerRef.current = null;
+      window.__catalogDoc = null;
       setConnected(false);
       setBlocks([]);
       setPresence([]);
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl]);
+  }, [syncUrl, catalog]);
 
   // The pane labels the rendered blocks for the e2e specs: a testid per
   // block and `data-current` on the pane's current block (the editor
