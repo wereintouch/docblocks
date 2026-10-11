@@ -1,0 +1,10 @@
+/*
+ * Playground harness styling only — the package's own stylesheet is a
+ * separate step. Empty editable blocks render at zero height (and are
+ * therefore unclickable in the e2e specs); a zero-width space gives them
+ * a line box with a caret target. Pseudo-element content is not part of
+ * the element's text content, so the text deltas see a truly empty block.
+ */
+[contenteditable="true"]:empty::after {
+  content: "\200b";
+}

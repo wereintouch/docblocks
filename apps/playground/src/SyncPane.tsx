@@ -1,3 +1,5 @@
+import { Editor, EditorProvider } from "docblocks-react-ui";
+
 import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { type Doc, type PresenceState, WsSyncProvider, attach, createDoc, presenceSelectionOf } from "docblocks-core";
@@ -11,6 +13,12 @@ interface PaneBlock {
   id: string;
   type: string;
   text: string;
+}
+
+/** The pane's live doc + provider pair; null before the mount effect ran. */
+interface Runtime {
+  doc: Doc;
+  provider: WsSyncProvider;
 }
 
 /** The non-root blocks in reading order, as a plain snapshot. */
@@ -45,11 +53,15 @@ function presenceLine(letter: string, peer: PresenceState): string | null {
 /**
  * One sync client pane. Both panes create the same document and attach one
  * WsSyncProvider each, so edits and carets converge through the relay.
- * The caret is published at the end of the current block (deterministic).
+ * The doc area is the real editor (EditorProvider + Editor on the same
+ * doc/provider instance); the pane's awareness still publishes a caret at
+ * the end of the current block (deterministic for the presence specs).
  */
 function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
+  const docAreaRef = useRef<HTMLDivElement | null>(null);
+  const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [connected, setConnected] = useState(false);
   const [blocks, setBlocks] = useState<PaneBlock[]>([]);
   const [presence, setPresence] = useState<PresenceState[]>([]);
@@ -107,6 +119,7 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
       .connect()
       .then(() => setConnected(true))
       .catch(() => setConnected(false));
+    setRuntime({ doc, provider });
 
     return () => {
       unsubscribeDoc();
@@ -118,8 +131,27 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
       setConnected(false);
       setBlocks([]);
       setPresence([]);
+      setRuntime(null);
     };
   }, [syncUrl, publishCaret]);
+
+  // The pane labels the rendered blocks for the e2e specs: a testid per
+  // block and `data-current` on the pane's current block (the editor
+  // renders the real blocks; the pane adds these harness attributes).
+  useEffect(() => {
+    const container = docAreaRef.current;
+    if (container === null) return;
+    const ids = new Set(blocks.map((block) => block.id));
+    for (const el of Array.from(container.querySelectorAll<HTMLElement>("[data-block-id]"))) {
+      const id = el.getAttribute("data-block-id");
+      el.removeAttribute("data-testid");
+      el.removeAttribute("data-current");
+      if (id !== null && ids.has(id)) {
+        el.setAttribute("data-testid", `block-${client}-${id}`);
+        if (id === currentId) el.setAttribute("data-current", "true");
+      }
+    }
+  }, [blocks, currentId, client]);
 
   // Caret publication on local selection changes too.
   useEffect(() => {
@@ -163,17 +195,16 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
           reconnect
         </button>
       </p>
-      <div data-testid={`doc-${client}`} style={{ border: "1px solid #ccc", padding: 8, minHeight: 40 }}>
-        {blocks.map((block) => (
-          <div
-            key={block.id}
-            data-testid={`block-${client}-${block.id}`}
-            data-current={block.id === currentId ? "true" : undefined}
-            style={{ padding: "2px 0", borderBottom: "1px dashed #ddd" }}
-          >
-            {block.text}
-          </div>
-        ))}
+      <div
+        data-testid={`doc-${client}`}
+        ref={docAreaRef}
+        style={{ border: "1px solid #ccc", padding: 8, minHeight: 40 }}
+      >
+        {runtime !== null && (
+          <EditorProvider doc={runtime.doc} provider={runtime.provider}>
+            <Editor />
+          </EditorProvider>
+        )}
       </div>
       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
         <input

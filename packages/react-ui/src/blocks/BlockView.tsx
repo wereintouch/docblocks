@@ -1,16 +1,12 @@
-import { type ReactNode, memo } from "react";
+import { memo } from "react";
 
-import type { BlockContent, BlockId } from "docblocks-core";
+import type { BlockId } from "docblocks-core";
 
 import { useBlock } from "../hooks";
-import { renderRuns } from "../text/runs";
 import { PlaceholderBlock } from "./PlaceholderBlock";
+import { TextBlock } from "./TextBlock";
 
 const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;
-
-function renderContent(content: BlockContent | undefined): ReactNode {
-  return content === undefined ? null : renderRuns(content);
-}
 
 /**
  * Renders one block by id. Memoized on the stable id: the block snapshot
@@ -23,22 +19,33 @@ const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
 
   switch (block.type) {
     case "paragraph":
-      return <p data-block-type="paragraph">{renderContent(block.content)}</p>;
-    case "heading": {
-      const Tag = HEADING_TAGS[block.attrs.level];
-      return <Tag data-block-type="heading">{renderContent(block.content)}</Tag>;
-    }
+      return <TextBlock id={id} block={block} tag="p" dataAttrs={{ "data-block-type": "paragraph" }} />;
+    case "heading":
+      return (
+        <TextBlock
+          id={id}
+          block={block}
+          tag={HEADING_TAGS[block.attrs.level]}
+          dataAttrs={{ "data-block-type": "heading" }}
+        />
+      );
     case "callout":
       return (
-        <aside data-block-type="callout" data-variant={block.attrs?.variant}>
-          {renderContent(block.content)}
-        </aside>
+        <TextBlock
+          id={id}
+          block={block}
+          tag="aside"
+          dataAttrs={{ "data-block-type": "callout", "data-variant": block.attrs?.variant }}
+        />
       );
     case "list-item":
       return (
-        <li data-list={block.attrs.list} data-checked={block.attrs.checked}>
-          {renderContent(block.content)}
-        </li>
+        <TextBlock
+          id={id}
+          block={block}
+          tag="li"
+          dataAttrs={{ "data-list": block.attrs.list, "data-checked": block.attrs.checked }}
+        />
       );
     default:
       return <PlaceholderBlock type={block.type} />;

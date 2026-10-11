@@ -6,6 +6,7 @@ import type { Block, BlockId, ListItemAttrs } from "docblocks-core";
 
 import { useEditorContext } from "./EditorProvider";
 import { BlockView } from "./blocks/BlockView";
+import { useEditing } from "./editing/useEditing";
 
 type ListKind = ListItemAttrs["list"];
 
@@ -42,16 +43,21 @@ function ListGroup({ tag, list, ids }: { tag: "ul" | "ol"; list: ListKind; ids: 
   );
 }
 
-/** Renders the document's top-level blocks in reading order. */
+/**
+ * Renders the document's top-level blocks in reading order. The root is
+ * the editor's focus/keyboard scope: the undo/redo hotkeys only fire for
+ * keys targeted inside it.
+ */
 function Editor() {
   const { store } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const blocks = useStore(store, (state) => state.blocks);
 
   const groups = useMemo(() => groupChildren(rootChildren, blocks), [rootChildren, blocks]);
+  const { rootRef, onKeyDown } = useEditing();
 
   return (
-    <div data-block-type="root">
+    <div ref={rootRef} data-slot="docblocks/editor" tabIndex={-1} onKeyDown={onKeyDown}>
       {groups.map((group) =>
         group.kind === "single" ? (
           <BlockView key={group.id} id={group.id} />

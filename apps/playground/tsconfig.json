@@ -3,11 +3,13 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["node"],
+    // vite/client provides the ambient declaration for the CSS import.
+    "types": ["node", "vite/client"],
     // Vite 8's native config loader imports the relay with a .ts extension.
     "allowImportingTsExtensions": true,
     "paths": {
       "docblocks-core": ["../../packages/core/src"],
+      "docblocks-react-ui": ["../../packages/react-ui/src/index.ts"],
       "@docblocks-core/schema": ["../../packages/core/src/schema/index.ts"],
       "@docblocks-core/core": ["../../packages/core/src/core/index.ts"]
     }

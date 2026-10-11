@@ -54,6 +54,10 @@ export default defineConfig({
         replacement: fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
       },
       {
+        find: /^docblocks-react-ui$/,
+        replacement: fileURLToPath(new URL("../../packages/react-ui/src/index.ts", import.meta.url)),
+      },
+      {
         find: /^@docblocks-core\/schema$/,
         replacement: fileURLToPath(new URL("../../packages/core/src/schema/index.ts", import.meta.url)),
       },
