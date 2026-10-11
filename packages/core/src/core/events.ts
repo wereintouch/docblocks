@@ -106,7 +106,7 @@ function observeBlocks(ydoc: Y.Doc, hub: Hub, events: Y.YEvent<Y.AbstractType<un
         const parent = findParent(ydoc, blockId);
         if (parent !== null) pending.blockIds.add(parent);
       });
-      return;
+      continue;
     }
     const blockId = path[0];
     if (typeof blockId === "string") pending.blockIds.add(blockId);

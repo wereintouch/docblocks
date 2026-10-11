@@ -112,6 +112,25 @@ describe("onChange", () => {
     off();
   });
 
+  it("reports every affected block of a mixed structural + text transaction", () => {
+    const doc = withParagraph();
+    const id = doc.insertBlock("paragraph", undefined, { after: "b0" }); // setup, before subscribing
+    const changes: Change[] = [];
+    const off = doc.onChange((change) => changes.push(change));
+
+    // One transaction: a structural event (blocks-map add) and a text edit
+    // of an unrelated block — both must reach the merged change.
+    doc.transact(() => {
+      doc.insertBlock("paragraph", undefined, { after: id });
+      doc.insertText("b0", 0, "x");
+    });
+
+    expect(changes).toHaveLength(1);
+    expect(idsOf(changes[0]).has("b0")).toBe(true);
+    expect(idsOf(changes[0]).has(doc.meta.id)).toBe(true); // parent of the added block
+    off();
+  });
+
   it("lists the removed block and its parent for a removal", () => {
     const doc = withParagraph();
     const changes: Change[] = [];
