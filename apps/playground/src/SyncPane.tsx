@@ -8,10 +8,20 @@ import { type Doc, type PresenceState, WsSyncProvider, attach, createDoc } from 
 import { MarkToolbar } from "./MarkToolbar";
 import { INSERTABLE_TYPES, blobResolver, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
+import { JsonInspector } from "./inspect/JsonInspector";
+import { PresencePanel } from "./inspect/PresencePanel";
+import { type WireEvent, WireLog } from "./inspect/WireLog";
 
 /** Both panes open the same document, so edits and carets converge. */
 const DOC_ID = "d1";
 const DOC_CREATED_AT = "2026-01-01T00:00:00Z";
+
+/** The wire log keeps the last N events. */
+const WIRE_CAP = 50;
+
+/** The inspector tabs below the editor. */
+const TABS = ["json", "wire", "presence"] as const;
+type InspectTab = (typeof TABS)[number];
 
 /** A rendered block: id, type, and flattened text. */
 interface PaneBlock {
@@ -24,6 +34,8 @@ interface PaneBlock {
 interface Runtime {
   doc: Doc;
   provider: WsSyncProvider;
+  /** Unix ms of the runtime mount; the wire/presence stamps are relative to it. */
+  mountedAt: number;
 }
 
 /** The non-root blocks in reading order, as a plain snapshot. */
@@ -46,15 +58,6 @@ function currentBlockOf(blocks: PaneBlock[]): string | null {
   return null;
 }
 
-/** One remote peer as `<letter>:<blockId>:<offset>`; null when the peer has no caret. */
-function presenceLine(letter: string, peer: PresenceState): string | null {
-  const selection = peer.selection;
-  if (selection === null) return null;
-  if ("blockId" in selection) return `${letter}:${selection.blockId}:${selection.offset}`;
-  if ("from" in selection) return `${letter}:${selection.from.blockId}:${selection.from.offset}`;
-  return null;
-}
-
 /**
  * One sync client pane. Both panes create the same document and attach one
  * WsSyncProvider each, so edits and carets converge through the relay.
@@ -65,16 +68,25 @@ function presenceLine(letter: string, peer: PresenceState): string | null {
  * `motion` renders the animated editor from the `docblocks-react-ui/motion`
  * subpath instead of the base `Editor` (the harness attributes and helpers
  * target the block wrappers, which the motion layer keeps).
+ *
+ * Below the editor the pane shows its inspectors (JSON / Wire / Presence
+ * tabs): all three stay mounted and the tabs only toggle visibility — the
+ * subscriptions live in the pane's runtime effect, so a hidden inspector
+ * keeps updating and its testid stays queryable.
  */
 function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: string; motion: boolean }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
   const docAreaRef = useRef<HTMLDivElement | null>(null);
+  /** The wire log's per-pane event counter (capped list, unique key). */
+  const wireSeq = useRef(0);
   const [runtime, setRuntime] = useState<Runtime | null>(null);
   const [connected, setConnected] = useState(false);
   const [blocks, setBlocks] = useState<PaneBlock[]>([]);
   const [presence, setPresence] = useState<PresenceState[]>([]);
+  const [wire, setWire] = useState<WireEvent[]>([]);
   const [insertType, setInsertType] = useState<InsertableType>("paragraph");
+  const [tab, setTab] = useState<InspectTab>("json");
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
 
   // One provider per mount. StrictMode's dev double-mount is safe: the first
@@ -83,9 +95,33 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
   useEffect(() => {
     const doc = createDoc({ id: DOC_ID, createdAt: DOC_CREATED_AT });
     const provider = new WsSyncProvider(syncUrl);
+    const mountedAt = Date.now();
+
+    const addWire = (dir: "out" | "in", bytes: number): void => {
+      wireSeq.current += 1;
+      // The event is built here, not inside the updater: the updater runs
+      // later (and twice under StrictMode), so it must be pure and read no
+      // mutable state — a burst of events would otherwise share the latest id.
+      const event: WireEvent = { id: wireSeq.current, at: Date.now() - mountedAt, dir, bytes };
+      setWire((prev) => [...prev, event].slice(-WIRE_CAP));
+    };
+    // Instance-level observation of outgoing updates: the attach glue calls
+    // provider.sendUpdate as an instance property at event time, so wrapping
+    // the method catches every outgoing update. The provider object is
+    // pane-owned, so the wrap only adds this pane's log entry and changes
+    // nothing about the transport. Installed before attach so the
+    // attach-time bootstrap update (the full-state send) is logged too.
+    const originalSendUpdate = provider.sendUpdate.bind(provider);
+    provider.sendUpdate = (bytes: Uint8Array): void => {
+      addWire("out", bytes.length);
+      originalSendUpdate(bytes);
+    };
+
     const session = attach(doc, provider);
     docRef.current = doc;
     providerRef.current = provider;
+
+    const unsubscribeWire = provider.onUpdate((bytes) => addWire("in", bytes.length));
 
     const refresh = () => setBlocks(readBlocks(doc));
     const unsubscribeDoc = doc.onChange(refresh);
@@ -101,11 +137,12 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
       .connect()
       .then(() => setConnected(true))
       .catch(() => setConnected(false));
-    setRuntime({ doc, provider });
+    setRuntime({ doc, provider, mountedAt });
 
     return () => {
       unsubscribeDoc();
       unsubscribePresence();
+      unsubscribeWire();
       session.detach();
       provider.destroy();
       docRef.current = null;
@@ -113,6 +150,7 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
       setConnected(false);
       setBlocks([]);
       setPresence([]);
+      setWire([]);
       setRuntime(null);
     };
   }, [syncUrl]);
@@ -207,15 +245,38 @@ function SyncPane({ client, syncUrl, motion }: { client: "a" | "b"; syncUrl: str
           + insert
         </button>
       </div>
-      <div>
-        presence:
-        <div data-testid={`presence-${client}`} style={{ marginLeft: 8 }}>
-          {presence.map((peer) => {
-            const line = presenceLine(peerLetter, peer);
-            return line === null ? null : <div key={peer.peerId}>{line}</div>;
-          })}
+      {runtime !== null && (
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            {TABS.map((name) => (
+              <button
+                key={name}
+                type="button"
+                data-testid={`inspecttab-${client}-${name}`}
+                aria-pressed={tab === name}
+                onClick={() => setTab(name)}
+                style={{
+                  padding: "2px 8px",
+                  fontSize: 12,
+                  border: "1px solid #ccc",
+                  background: tab === name ? "#dbeafe" : "#f6f8fa",
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <div style={{ display: tab === "json" ? undefined : "none" }}>
+            <JsonInspector client={client} doc={runtime.doc} />
+          </div>
+          <div style={{ display: tab === "wire" ? undefined : "none" }}>
+            <WireLog client={client} events={wire} />
+          </div>
+          <div style={{ display: tab === "presence" ? undefined : "none" }}>
+            <PresencePanel client={client} peerLabel={peerLetter} mountAt={runtime.mountedAt} peers={presence} />
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
