@@ -4,9 +4,13 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
     "types": ["node"],
+    // Vite 8's native config loader imports the relay with a .ts extension.
+    "allowImportingTsExtensions": true,
     "paths": {
-      "docblocks-core": ["../../packages/core/src"]
+      "docblocks-core": ["../../packages/core/src"],
+      "@docblocks-core/schema": ["../../packages/core/src/schema/index.ts"],
+      "@docblocks-core/core": ["../../packages/core/src/core/index.ts"]
     }
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "server", "vite.config.ts", "../test/e2e"]
 }

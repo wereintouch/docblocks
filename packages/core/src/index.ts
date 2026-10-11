@@ -33,7 +33,7 @@ export type {
   Selection,
   TextPoint,
 } from "./core";
-export { attach, WsSyncProvider } from "./sync";
+export { attach, presenceSelectionOf, WsSyncProvider } from "./sync";
 export type {
   PresenceSelection,
   PresenceState,

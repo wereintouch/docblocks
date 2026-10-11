@@ -1,18 +1,18 @@
+import { SyncPane } from "./SyncPane";
+
+/** The in-process dev relay (see vite.config.ts). */
+const DEFAULT_SYNC_URL = "ws://localhost:5199/doc-1";
+
 /**
- * Playground dev harness. Sync clients on the ws relay, live toJSON()
- * inspector, presence panel and chaos controls land with the engine
- * implementation.
+ * Playground page: one sync pane per tab. `?client=a|b` picks the pane's
+ * letter (default a); `?syncUrl=` overrides the relay URL (the E2E smoke
+ * spec points it at a real y-websocket server).
  */
 function App() {
-  return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24 }}>
-      <h1>docblocks playground</h1>
-      <p>
-        Scaffold. Sync clients, live <code>toJSON()</code> inspector and chaos controls land with the engine
-        implementation.
-      </p>
-    </main>
-  );
+  const params = new URLSearchParams(window.location.search);
+  const client = params.get("client") === "b" ? "b" : "a";
+  const syncUrl = params.get("syncUrl") ?? DEFAULT_SYNC_URL;
+  return <SyncPane client={client} syncUrl={syncUrl} />;
 }
 
 export { App };
