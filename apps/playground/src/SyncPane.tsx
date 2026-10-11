@@ -1,8 +1,8 @@
 import { Editor, EditorProvider } from "docblocks-react-ui";
 
-import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
-import { type Doc, type PresenceState, WsSyncProvider, attach, createDoc, presenceSelectionOf } from "docblocks-core";
+import { type Doc, type PresenceState, WsSyncProvider, attach, createDoc } from "docblocks-core";
 
 /** Both panes open the same document, so edits and carets converge. */
 const DOC_ID = "d1";
@@ -51,11 +51,55 @@ function presenceLine(letter: string, peer: PresenceState): string | null {
 }
 
 /**
+ * Place the real DOM caret at the end of a block — what a keystroke in
+ * the editor would leave behind — so the editor owns the selection and
+ * the provider's awareness reflects it. Runs in a frame after the store
+ * applied the change and the text DOM caught up. Harness-only: the page
+ * hosts exactly one pane per doc id, so a document-global query is safe.
+ */
+function caretAtEndOf(blockId: string): void {
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    if (el === null) return;
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+    const selection = window.getSelection();
+    if (selection === null) return;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+}
+
+/**
+ * Focus a fresh (empty) block and place the caret at its start, so the
+ * editor owns the selection for the new block. Harness-only: the page
+ * hosts exactly one pane per doc id, so a document-global query is safe.
+ */
+function focusBlockStart(blockId: string): void {
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"]`);
+    if (el === null) return;
+    el.focus();
+    // An empty block has no text node to anchor on: set the range
+    // explicitly at the element start.
+    const range = document.createRange();
+    range.setStart(el, 0);
+    range.collapse(true);
+    const selection = window.getSelection();
+    if (selection === null) return;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+}
+
+/**
  * One sync client pane. Both panes create the same document and attach one
  * WsSyncProvider each, so edits and carets converge through the relay.
  * The doc area is the real editor (EditorProvider + Editor on the same
- * doc/provider instance); the pane's awareness still publishes a caret at
- * the end of the current block (deterministic for the presence specs).
+ * doc/provider instance): the pane's awareness is published by the
+ * provider from the real DOM selection, the pane only renders the remote
+ * peers and drives the editor with doc commands.
  */
 function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
   const docRef = useRef<Doc | null>(null);
@@ -69,25 +113,6 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
   const currentIdRef = useRef<string | null>(null);
   currentIdRef.current = currentId;
 
-  /** This pane's awareness payload: a caret at the end of `blockId`. */
-  const awarenessOf = (doc: Doc, blockId: string) => ({
-    selection: presenceSelectionOf({
-      kind: "text",
-      from: { blockId, offset: doc.getTextLength(blockId) },
-      to: null,
-    }),
-    updatedAt: Date.now(),
-  });
-
-  /** Push the caret (end of the current block) as this pane's awareness state. */
-  const publishCaret = useCallback(() => {
-    const doc = docRef.current;
-    const provider = providerRef.current;
-    const id = currentIdRef.current;
-    if (doc === null || provider === null || id === null) return;
-    provider.setAwareness(awarenessOf(doc, id));
-  }, []);
-
   // One provider per mount. StrictMode's dev double-mount is safe: the first
   // instance's bytes are only buffered (the socket opens after cleanup) and
   // are dropped by destroy() before reaching the wire.
@@ -98,14 +123,7 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
     docRef.current = doc;
     providerRef.current = provider;
 
-    const refresh = () => {
-      const nextBlocks = readBlocks(doc);
-      setBlocks(nextBlocks);
-      // Publish with the fresh snapshot, not the (pre-render) current ref:
-      // doc changes must move the caret before React re-renders.
-      const current = currentBlockOf(nextBlocks);
-      if (current !== null) provider.setAwareness(awarenessOf(doc, current));
-    };
+    const refresh = () => setBlocks(readBlocks(doc));
     const unsubscribeDoc = doc.onChange(refresh);
     // The provider reports remote peers only (its own awareness state is
     // excluded by client id), so the list needs no self-filtering.
@@ -133,7 +151,7 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
       setPresence([]);
       setRuntime(null);
     };
-  }, [syncUrl, publishCaret]);
+  }, [syncUrl]);
 
   // The pane labels the rendered blocks for the e2e specs: a testid per
   // block and `data-current` on the pane's current block (the editor
@@ -153,23 +171,19 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
     }
   }, [blocks, currentId, client]);
 
-  // Caret publication on local selection changes too.
-  useEffect(() => {
-    document.addEventListener("selectionchange", publishCaret);
-    return () => document.removeEventListener("selectionchange", publishCaret);
-  }, [publishCaret]);
-
   const onEditorInput = (event: FormEvent<HTMLInputElement>) => {
     const doc = docRef.current;
     const id = currentIdRef.current;
     const data = (event.nativeEvent as InputEvent).data ?? "";
     if (doc === null || id === null || data === "") return;
     doc.insertText(id, doc.getTextLength(id), data);
-    publishCaret();
+    caretAtEndOf(id);
   };
 
   const onAddBlock = () => {
-    docRef.current?.insertBlock("paragraph"); // the onChange refresh makes it current
+    const doc = docRef.current;
+    if (doc === null) return;
+    focusBlockStart(doc.insertBlock("paragraph")); // the onChange refresh makes it current
   };
 
   const onReconnect = () => {
@@ -210,7 +224,6 @@ function SyncPane({ client, syncUrl }: { client: "a" | "b"; syncUrl: string }) {
         <input
           data-testid={`editor-${client}`}
           onInput={onEditorInput}
-          onFocus={publishCaret}
           placeholder="type to append"
           style={{ flex: 1 }}
         />

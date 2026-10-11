@@ -140,6 +140,7 @@ function TextBlock({ id, block, tag }: TextBlockProps) {
   return (
     <Tag
       ref={setRef}
+      data-slot={tag === "li" ? "docblocks/list-item" : "docblocks/block"}
       data-block-type={block.type}
       data-block-id={id}
       data-list={block.type === "list-item" ? block.attrs.list : undefined}

@@ -5,14 +5,18 @@
   "type": "module",
   "license": "UNLICENSED",
   "files": [
-    "dist"
+    "dist",
+    "styles.css"
   ],
-  "sideEffects": false,
+  "sideEffects": [
+    "**/*.css"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
-    }
+    },
+    "./styles.css": "./styles.css"
   },
   "publishConfig": {
     "access": "public"

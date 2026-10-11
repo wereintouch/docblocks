@@ -104,4 +104,4 @@ function selectionInside(root: HTMLElement): boolean {
   return root.contains(range.startContainer) && root.contains(range.endContainer);
 }
 
-export { caretOffsetIn, restoreSelection, selectionInside };
+export { caretOffsetIn, locatePosition, restoreSelection, selectionInside };

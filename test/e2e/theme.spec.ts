@@ -1,0 +1,23 @@
+import { expect, test } from "@playwright/test";
+
+// Its own room: a manually left-over tab must not pollute the sync specs.
+const SETTLE = { timeout: 15_000 };
+
+test("the dark theme activates via the .dark class on an ancestor", async ({ page }) => {
+  await page.goto("/?syncUrl=ws://localhost:5199/theme");
+  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  const editor = page.locator('[data-slot="docblocks/editor"]');
+  await expect(editor).toBeVisible();
+
+  // The token resolves to the light default from the package stylesheet.
+  const tokenOf = () => editor.evaluate((el) => getComputedStyle(el).getPropertyValue("--docblocks-text-color").trim());
+  await expect.poll(tokenOf, SETTLE).toBe("#1f2328");
+
+  // The class on any ancestor (here: <html>) switches the inherited token
+  // set to the shipped dark values — no consumer CSS involved.
+  await page.evaluate(() => document.documentElement.classList.add("dark"));
+  await expect.poll(tokenOf, SETTLE).toBe("#e6edf3");
+
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
+  await expect.poll(tokenOf, SETTLE).toBe("#1f2328");
+});

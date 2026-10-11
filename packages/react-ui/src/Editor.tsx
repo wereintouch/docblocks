@@ -7,6 +7,7 @@ import type { Block, BlockId, ListItemAttrs } from "docblocks-core";
 import { useEditorContext } from "./EditorProvider";
 import { BlockView } from "./blocks/BlockView";
 import { useEditing } from "./editing/useEditing";
+import { PresenceCaretOverlay } from "./presence/presence-caret";
 
 type ListKind = ListItemAttrs["list"];
 
@@ -35,7 +36,7 @@ function groupChildren(ids: BlockId[], blocks: Record<BlockId, Block>): ChildGro
 function ListGroup({ tag, list, ids }: { tag: "ul" | "ol"; list: ListKind; ids: BlockId[] }) {
   const Tag = tag;
   return (
-    <Tag data-list={list}>
+    <Tag data-slot="docblocks/list" data-list={list}>
       {ids.map((id) => (
         <BlockView key={id} id={id} />
       ))}
@@ -65,6 +66,7 @@ function Editor() {
           <ListGroup key={`list-${group.ids[0]}`} tag={group.tag} list={group.list} ids={group.ids} />
         )
       )}
+      <PresenceCaretOverlay rootRef={rootRef} />
     </div>
   );
 }

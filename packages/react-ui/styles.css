@@ -1,0 +1,185 @@
+/*
+ * docblocks-react-ui default stylesheet (tokens + structural rules).
+ *
+ * Override model: every visual value is read from a `--docblocks-*`
+ * custom property defined on `:root` below; the structural rules
+ * (positioning, box model, pseudo-elements) are plain CSS. A consumer
+ * overrides the tokens — or individual rules — in its own global
+ * stylesheet, which wins by source order and specificity. Styling of
+ * user content (run color / highlight) is data, not theme: the
+ * renderers apply it inline.
+ *
+ * Themes: `:root` carries the light defaults; the dark token set is
+ * activated by the `dark` class on the editor root or any ancestor
+ * element (typically `<html>`, the shadcn convention) — custom
+ * properties inherit, so no consumer CSS is needed.
+ *
+ * Structural hooks: `data-slot` (docblocks/editor, docblocks/block,
+ * docblocks/list, docblocks/list-item, docblocks/placeholder,
+ * docblocks/presence-caret) + `data-block-type` / `data-list` /
+ * `data-variant` / `data-checked`.
+ */
+
+:root {
+  /* Typography. */
+  --docblocks-font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --docblocks-font-size: 16px;
+  --docblocks-line-height: 1.6;
+
+  /* Color. */
+  --docblocks-text-color: #1f2328;
+  --docblocks-link-color: #0969da;
+  --docblocks-selection-background: #b6d7fe;
+  --docblocks-inline-code-background: rgba(175, 184, 193, 0.2);
+
+  /* Callout borders / backgrounds per variant. */
+  --docblocks-callout-border-color-info: #0969da;
+  --docblocks-callout-background-info: rgba(9, 105, 218, 0.08);
+  --docblocks-callout-border-color-warning: #9a6700;
+  --docblocks-callout-background-warning: rgba(187, 135, 0, 0.08);
+  --docblocks-callout-border-color-danger: #cf222e;
+  --docblocks-callout-background-danger: rgba(207, 34, 46, 0.08);
+
+  /* Layout. */
+  --docblocks-block-spacing: 8px;
+  --docblocks-radius: 6px;
+
+  /* Headings. */
+  --docblocks-heading-font-weight: 600;
+  --docblocks-heading-h1-font-size: 1.5em;
+  --docblocks-heading-h2-font-size: 1.25em;
+  --docblocks-heading-h3-font-size: 1.1em;
+
+  /* Lists. */
+  --docblocks-list-padding-left: 1.5em;
+
+  /* Callout. */
+  --docblocks-callout-border-width: 4px;
+  --docblocks-callout-padding: 8px 12px;
+
+  /* Inline code. */
+  --docblocks-inline-code-padding: 0.15em 0.35em;
+
+  /* Presence. */
+  --docblocks-presence-caret-width: 2px;
+  --docblocks-presence-caret-saturation: 70%;
+  --docblocks-presence-caret-lightness: 45%;
+}
+
+/* The editor root: the positioning anchor for presence carets. */
+[data-slot="docblocks/editor"] {
+  position: relative;
+  font-family: var(--docblocks-font-family);
+  font-size: var(--docblocks-font-size);
+  line-height: var(--docblocks-line-height);
+  color: var(--docblocks-text-color);
+}
+
+[data-slot="docblocks/block"] {
+  margin: var(--docblocks-block-spacing) 0;
+}
+
+/* An empty editable keeps a line box (and a caret target) via a
+   zero-width space; the pseudo-element content is not text content. */
+[data-slot="docblocks/block"]:empty::after,
+[data-slot="docblocks/list-item"]:empty::after {
+  content: "\200b";
+}
+
+[data-slot="docblocks/editor"] [data-block-type="heading"] {
+  font-weight: var(--docblocks-heading-font-weight);
+}
+
+[data-slot="docblocks/editor"] h1[data-block-type="heading"] {
+  font-size: var(--docblocks-heading-h1-font-size);
+}
+
+[data-slot="docblocks/editor"] h2[data-block-type="heading"] {
+  font-size: var(--docblocks-heading-h2-font-size);
+}
+
+[data-slot="docblocks/editor"] h3[data-block-type="heading"] {
+  font-size: var(--docblocks-heading-h3-font-size);
+}
+
+[data-slot="docblocks/list"] {
+  margin: var(--docblocks-block-spacing) 0;
+  padding-left: var(--docblocks-list-padding-left);
+}
+
+[data-slot="docblocks/list"][data-list="bullet"] {
+  list-style: disc;
+}
+
+[data-slot="docblocks/list"][data-list="number"] {
+  list-style: decimal;
+}
+
+[data-slot="docblocks/list"][data-list="task"] {
+  list-style: none;
+}
+
+/* Callout: the default (no variant) uses the info tokens. */
+[data-block-type="callout"] {
+  border-left: var(--docblocks-callout-border-width) solid var(--docblocks-callout-border-color-info);
+  background: var(--docblocks-callout-background-info);
+  padding: var(--docblocks-callout-padding);
+  border-radius: var(--docblocks-radius);
+}
+
+[data-block-type="callout"][data-variant="warning"] {
+  border-left-color: var(--docblocks-callout-border-color-warning);
+  background: var(--docblocks-callout-background-warning);
+}
+
+[data-block-type="callout"][data-variant="danger"] {
+  border-left-color: var(--docblocks-callout-border-color-danger);
+  background: var(--docblocks-callout-background-danger);
+}
+
+[data-slot="docblocks/editor"] a {
+  color: var(--docblocks-link-color);
+}
+
+[data-slot="docblocks/editor"] code {
+  background: var(--docblocks-inline-code-background);
+  border-radius: var(--docblocks-radius);
+  padding: var(--docblocks-inline-code-padding);
+}
+
+[data-slot="docblocks/editor"] ::selection {
+  background: var(--docblocks-selection-background);
+}
+
+/* The structural parts of a presence caret; the per-peer hue is set
+   inline as the --docblocks-presence-hue custom property, and
+   left/top/height come from the measured geometry (inline). */
+[data-slot="docblocks/presence-caret"] {
+  position: absolute;
+  pointer-events: none;
+  width: var(--docblocks-presence-caret-width);
+  background: hsl(
+    var(--docblocks-presence-hue, 200) var(--docblocks-presence-caret-saturation)
+      var(--docblocks-presence-caret-lightness)
+  );
+}
+
+/*
+ * Dark theme: overrides the color tokens only, activated by the `dark`
+ * class on the editor root or any ancestor (typically <html>). The
+ * structural rules above are theme-agnostic (they read the tokens, so
+ * they follow the active set).
+ */
+.dark {
+  --docblocks-text-color: #e6edf3;
+  --docblocks-link-color: #58a6ff;
+  --docblocks-selection-background: rgba(56, 139, 253, 0.4);
+  --docblocks-inline-code-background: rgba(110, 118, 129, 0.4);
+
+  --docblocks-callout-border-color-info: #58a6ff;
+  --docblocks-callout-background-info: rgba(56, 139, 253, 0.15);
+  --docblocks-callout-border-color-warning: #d29922;
+  --docblocks-callout-background-warning: rgba(210, 153, 34, 0.15);
+  --docblocks-callout-border-color-danger: #f85149;
+  --docblocks-callout-background-danger: rgba(248, 81, 73, 0.15);
+}
