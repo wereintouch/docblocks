@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
+import type { RootBlock } from "../src";
 import { createDoc, fromJSON, loadDoc } from "../src/core";
 import type { Doc } from "../src/core";
 import { fixture } from "./fixtures";
@@ -129,5 +130,37 @@ describe("independent createDoc peers converge", () => {
       expect(b.toJSON().blocks).toHaveProperty(pa);
       expect(b.toJSON().blocks).toHaveProperty(pb);
     }
+  });
+});
+
+/**
+ * A deterministic reseed against a persistent sync room: two peers seed the
+ * same deterministic document (the same id generator) and merge — the Yjs
+ * order array ends up holding the same id twice (one insert per peer).
+ * Reads are self-healing (the first occurrence wins), so getChildren and
+ * toJSON stay well-formed regardless of how many times the room was seeded.
+ */
+describe("deterministic reseed (duplicate order entries)", () => {
+  const seed = (doc: Doc): void => {
+    doc.transact(() => {
+      const heading = doc.insertBlock("heading", { level: 1 });
+      doc.insertText(heading, 0, "Heading");
+      doc.insertBlock("paragraph");
+      doc.insertBlock("divider");
+    });
+  };
+
+  it("dedupes the root order and the exported JSON after a merge", () => {
+    const a = createDoc({ id: "d1", createdAt: CREATED_AT, generateId: makeIds("c") });
+    const b = createDoc({ id: "d1", createdAt: CREATED_AT, generateId: makeIds("c") });
+    seed(a);
+    seed(b);
+    exchange(a, b);
+
+    const children = a.getChildren("d1");
+    expect(children).toEqual(["c0", "c1", "c2"]);
+    expect(new Set(children).size).toBe(children.length);
+    expect(a.toJSON()).toEqual(b.toJSON());
+    expect((a.toJSON().blocks.d1 as RootBlock).children).toEqual(["c0", "c1", "c2"]);
   });
 });

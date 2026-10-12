@@ -8,6 +8,9 @@ const CANVAS_SUB_TYPES: readonly BlockType[] = ["shape", "connector", "canvas-te
 /** The default size (px) of a canvas element without a geometry. */
 const DEFAULT_CANVAS_ITEM_SIZE = 100;
 
+/** The default size (px) of the page miniature when the root carries no geometry. */
+const DEFAULT_PAGE_SIZE = { w: 720, h: 960 } as const;
+
 function isCanvasSubType(type: BlockType): boolean {
   return CANVAS_SUB_TYPES.includes(type);
 }
@@ -60,4 +63,22 @@ function endpointOf(
   return { x: target.geometry?.x ?? 0, y: target.geometry?.y ?? 0 };
 }
 
-export { DEFAULT_CANVAS_ITEM_SIZE, canvasItemStyle, endpointOf, isCanvasSubType };
+/**
+ * The page miniature's positioned style (the canvas view): the same
+ * center-anchor placement as canvasItemStyle, but the size always applies
+ * — the root without a geometry gets the DEFAULT_PAGE_SIZE, so the page
+ * is always a box (the vertical page rectangle).
+ */
+function pageCardStyle(root: Block): CSSProperties {
+  const geometry = root.geometry;
+  return {
+    position: "absolute",
+    left: `calc(50% + ${geometry?.x ?? 0}px)`,
+    top: `calc(50% + ${geometry?.y ?? 0}px)`,
+    transform: `translate(-50%, -50%) rotate(${geometry?.rotation ?? 0}deg)`,
+    width: `${geometry?.w ?? DEFAULT_PAGE_SIZE.w}px`,
+    height: `${geometry?.h ?? DEFAULT_PAGE_SIZE.h}px`,
+  };
+}
+
+export { DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, canvasItemStyle, endpointOf, isCanvasSubType, pageCardStyle };

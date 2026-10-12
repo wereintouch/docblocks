@@ -71,6 +71,23 @@ function readRuns(ydoc: Y.Doc, blockId: string): TextRun[] {
 }
 
 /** Ordered child ids; [] for non-containers or missing blocks. */
+/**
+ * Read-side dedupe of an order array: duplicate entries can only arise from
+ * merging the same deterministic insert (re-seeding a persistent sync room
+ * with the same id generator); a well-formed writer never writes them.
+ * The first occurrence wins, so every read sees a well-formed order.
+ */
+function dedupeOrder(ids: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    out.push(id);
+  }
+  return out;
+}
+
 function readChildren(ydoc: Y.Doc, id: string): BlockId[] {
   const yblock = getBlockMap(ydoc, id);
   if (!yblock) return [];
@@ -78,13 +95,15 @@ function readChildren(ydoc: Y.Doc, id: string): BlockId[] {
   if (!isKnownBlockType(type) || !BLOCK_REGISTRY[type].children) return [];
   // The root block's order lives in the registered rootOrder array.
   if (id === rootBlockIdOf(ydoc)) {
-    return rootOrderOf(ydoc)
-      .toArray()
-      .filter((childId): childId is string => typeof childId === "string");
+    return dedupeOrder(
+      rootOrderOf(ydoc)
+        .toArray()
+        .filter((childId): childId is string => typeof childId === "string")
+    );
   }
   const children = yblock.get("children");
   if (!(children instanceof Y.Array)) return [];
-  return children.toArray().filter((childId): childId is string => typeof childId === "string");
+  return dedupeOrder(children.toArray().filter((childId): childId is string => typeof childId === "string"));
 }
 
 /** Flattened run text; "" for non-text types or missing blocks. */

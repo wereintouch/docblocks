@@ -49,8 +49,10 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import type { Block, BlockId, ListItemAttrs } from "docblocks-core";
 
+import type { EditorView } from "../Editor";
 import { useEditorContext } from "../EditorProvider";
 import { BlockView, groupChildren } from "../blocks/BlockView";
+import { CanvasView } from "../blocks/CanvasView";
 import { BlockContext } from "../blocks/block-context";
 import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
@@ -136,7 +138,7 @@ function EntryItem({ entry, register, onDragStart, onDragEnd }: EntryItemProps) 
   );
 }
 
-function MotionEditor() {
+function MotionEditor({ view = "page" }: { view?: EditorView }) {
   const { doc, store, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const blocks = useStore(store, (state) => state.blocks);
@@ -235,29 +237,34 @@ function MotionEditor() {
       ref={rootRef}
       data-slot="docblocks/editor"
       data-docblocks-motion=""
+      data-view={view}
       tabIndex={-1}
       onKeyDown={onKeyDown}
       onPointerDown={onHandlePointerDown}
     >
       <style>{HANDLE_GRAB_STYLE}</style>
       <BlockContext.Provider value={rootContext}>
-        <Reorder.Group as="div" axis="y" values={order} onReorder={onReorder}>
-          <AnimatePresence initial={false} mode="popLayout">
-            {order.map((key) => {
-              const entry = entriesByKey.get(key);
-              if (entry === undefined) return null;
-              return (
-                <EntryItem
-                  key={key}
-                  entry={entry}
-                  register={registerControls}
-                  onDragStart={onEntryDragStart}
-                  onDragEnd={finishDrag}
-                />
-              );
-            })}
-          </AnimatePresence>
-        </Reorder.Group>
+        {view === "canvas" ? (
+          <CanvasView />
+        ) : (
+          <Reorder.Group as="div" axis="y" values={order} onReorder={onReorder}>
+            <AnimatePresence initial={false} mode="popLayout">
+              {order.map((key) => {
+                const entry = entriesByKey.get(key);
+                if (entry === undefined) return null;
+                return (
+                  <EntryItem
+                    key={key}
+                    entry={entry}
+                    register={registerControls}
+                    onDragStart={onEntryDragStart}
+                    onDragEnd={finishDrag}
+                  />
+                );
+              })}
+            </AnimatePresence>
+          </Reorder.Group>
+        )}
         <PresenceCaretOverlay rootRef={rootRef} />
       </BlockContext.Provider>
     </div>

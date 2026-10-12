@@ -103,6 +103,14 @@
   --docblocks-canvas-shape-stroke: currentColor;
   --docblocks-frame-background: #ffffff;
 
+  /* Canvas view (the document-level canvas). */
+  --docblocks-canvas-view-height: 100%;
+  --docblocks-canvas-view-dot: rgba(175, 184, 193, 0.35);
+  --docblocks-canvas-view-grid: 24px;
+  --docblocks-page-card-background: #ffffff;
+  --docblocks-page-card-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
+  --docblocks-page-card-padding: 32px 40px;
+
   /* Presence. */
   --docblocks-presence-caret-width: 2px;
   --docblocks-presence-caret-saturation: 70%;
@@ -381,6 +389,40 @@ iframe[data-slot="docblocks/embed"] {
   border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
   border-radius: var(--docblocks-radius);
   background: var(--docblocks-frame-background);
+}
+
+/* The document's canvas view: the full container canvas (the shared
+   origin is the container center — the elements are positioned inline by
+   their geometry, the DOM order is the z-order), the dotted grid
+   background, and the clipping (pan/zoom is the interaction stage). The
+   canvas view needs a definite container height: the editor root in the
+   canvas view grows to fill a flex column container (the playground's doc
+   area); a consumer with a definite-height non-flex wrapper gets the same
+   via the 100% chain. */
+[data-slot="docblocks/editor"][data-view="canvas"] {
+  flex: 1;
+  min-height: 0;
+}
+
+[data-slot="docblocks/canvas-view"] {
+  position: relative;
+  height: var(--docblocks-canvas-view-height);
+  background: var(--docblocks-canvas-background);
+  background-image: radial-gradient(circle, var(--docblocks-canvas-view-dot) 1px, transparent 1px);
+  background-size: var(--docblocks-canvas-view-grid) var(--docblocks-canvas-view-grid);
+  overflow: hidden;
+}
+
+/* The page miniature (the canvas view): the vertical page rectangle with
+   the page content inside; it scrolls its own content (the page keeps
+   its natural height inside the fixed-size card). */
+[data-slot="docblocks/page-card"] {
+  box-sizing: border-box;
+  background: var(--docblocks-page-card-background);
+  border-radius: var(--docblocks-radius);
+  box-shadow: var(--docblocks-page-card-shadow);
+  padding: var(--docblocks-page-card-padding);
+  overflow: auto;
 }
 
 /* The broken / cycle placeholders: a muted structural box; the broken

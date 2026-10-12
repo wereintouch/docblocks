@@ -7,6 +7,7 @@
  */
 export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./blocks/renderers";
 export { Editor } from "./Editor";
+export type { EditorView } from "./Editor";
 export { EditorProvider, useEditorContext } from "./EditorProvider";
 export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver } from "./EditorProvider";
 export type { SyncEmbedRef } from "docblocks-core";

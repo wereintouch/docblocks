@@ -1,13 +1,15 @@
-import { type BlockRendererMap, Editor, EditorProvider } from "docblocks-react-ui";
+import { type BlockRendererMap, Editor, EditorProvider, type EditorView } from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 
 import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach } from "docblocks-core";
 
 import { MarkToolbar } from "./MarkToolbar";
+import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
 import { INSERTABLE_TYPES, blobResolver, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
@@ -78,12 +80,14 @@ function SyncPane({
   syncUrl,
   motion,
   catalog,
+  canvas,
   cycle,
 }: {
   client: "a" | "b";
   syncUrl: string;
   motion: boolean;
   catalog: boolean;
+  canvas: boolean;
   cycle: boolean;
 }) {
   const docRef = useRef<Doc | null>(null);
@@ -98,6 +102,8 @@ function SyncPane({
   const [wire, setWire] = useState<WireEvent[]>([]);
   const [insertType, setInsertType] = useState<InsertableType>("paragraph");
   const [tab, setTab] = useState<InspectTab>("json");
+  /** The view mode (page / canvas): view state only — switching writes nothing to the doc. */
+  const [view, setView] = useState<EditorView>(canvas ? "canvas" : "page");
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
 
   // The pane's master id: deterministic per room; the catalog pane's master
@@ -117,7 +123,9 @@ function SyncPane({
   // instance's bytes are only buffered (the socket opens after cleanup) and
   // are dropped by destroy() before reaching the wire.
   useEffect(() => {
-    const doc = seedPaneDoc(catalog);
+    // One seeder per room (the pane doc convention): client a seeds the
+    // deterministic canvas doc, client b joins empty.
+    const doc = canvas ? createCanvasDoc(client === "a") : seedPaneDoc(catalog);
     const provider = new WsSyncProvider(syncUrl);
     const mountedAt = Date.now();
     // The pane's master (the sync-embed target): pane a seeds it, pane b
@@ -196,7 +204,7 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog, cycle, masterDocId, client]);
+  }, [syncUrl, catalog, canvas, cycle, masterDocId, client]);
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
@@ -227,20 +235,60 @@ function SyncPane({
   // The harness runs exactly two clients, so a remote peer is the other one.
   const peerLetter = client === "a" ? "b" : "a";
 
+  const toggleStyle = (active: boolean): CSSProperties => ({
+    padding: "2px 10px",
+    fontSize: 13,
+    border: "1px solid #d0d7de",
+    borderRadius: 6,
+    background: active ? "#0969da" : "#f6f8fa",
+    color: active ? "#ffffff" : "#24292f",
+    cursor: "pointer",
+  });
+  const docAreaStyle: CSSProperties =
+    view === "canvas"
+      ? {
+          display: "flex",
+          flexDirection: "column",
+          height: "70vh",
+          border: "1px solid #d0d7de",
+          borderRadius: 8,
+          overflow: "hidden",
+          background: "#f6f8fa",
+        }
+      : { border: "1px solid #ccc", padding: 8, minHeight: 40 };
+
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: 720 }}>
-      <h1>docblocks sync — {client}</h1>
-      <p>
-        status: <span data-testid={`status-${client}`}>{connected ? "connected" : "disconnected"}</span>{" "}
-        <button data-testid={`reconnect-${client}`} onClick={onReconnect}>
-          reconnect
-        </button>
-      </p>
-      <div
-        data-testid={`doc-${client}`}
-        ref={docAreaRef}
-        style={{ border: "1px solid #ccc", padding: 8, minHeight: 40 }}
-      >
+    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: view === "canvas" ? 1100 : 720 }}>
+      <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — {client}</h1>
+        <div style={{ display: "flex", gap: 4 }}>
+          <button
+            type="button"
+            data-testid={`view-${client}-page`}
+            aria-pressed={view === "page"}
+            onClick={() => setView("page")}
+            style={toggleStyle(view === "page")}
+          >
+            page
+          </button>
+          <button
+            type="button"
+            data-testid={`view-${client}-canvas`}
+            aria-pressed={view === "canvas"}
+            onClick={() => setView("canvas")}
+            style={toggleStyle(view === "canvas")}
+          >
+            canvas
+          </button>
+        </div>
+        <span style={{ marginLeft: "auto", fontSize: 13, color: "#57606a" }}>
+          <span data-testid={`status-${client}`}>{connected ? "connected" : "disconnected"}</span>{" "}
+          <button data-testid={`reconnect-${client}`} onClick={onReconnect}>
+            reconnect
+          </button>
+        </span>
+      </header>
+      <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
         {runtime !== null && (
           <EditorProvider
             doc={runtime.doc}
@@ -250,7 +298,7 @@ function SyncPane({
             syncEmbedResolver={syncEmbedResolver}
           >
             <MarkToolbar client={client} />
-            {motion ? <MotionEditor /> : <Editor />}
+            {motion ? <MotionEditor view={view} /> : <Editor view={view} />}
           </EditorProvider>
         )}
       </div>

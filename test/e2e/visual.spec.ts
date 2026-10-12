@@ -21,7 +21,7 @@ async function openCatalogPane(page: Page): Promise<void> {
   await expect(page.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
 }
 
-/** The pane's editor root — the screenshot scope (the harness chrome stays out). The direct-child scope keeps the nested editor root (the catalog's sync-embed) out of the match. */
+/** The pane's editor root — the screenshot scope (the harness chrome stays out). The direct-child scope keeps the nested editor root (the catalog's sync-embed) out of the match. The element's top edge sits on a subpixel offset (the harness header's height), so a chrome change above the doc area can shift the integer clip height by 1px without any content change — regenerate the goldens in that case. */
 function editor(page: Page) {
   return page.locator('[data-testid="doc-a"] > [data-slot="docblocks/editor"]');
 }
