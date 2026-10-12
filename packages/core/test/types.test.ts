@@ -4,6 +4,9 @@ import { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY } from "../src/schema";
 import type {
   AttrsFor,
   BlockType,
+  DatabaseBlock,
+  DatabaseCellValue,
+  DatabaseColumn,
   EmbedAttrs,
   HeadingAttrs,
   ImageAttrs,
@@ -17,6 +20,7 @@ describe("block registry", () => {
     expect(Object.keys(BLOCK_REGISTRY).sort()).toEqual([
       "callout",
       "code",
+      "database",
       "divider",
       "embed",
       "heading",
@@ -42,6 +46,7 @@ describe("block registry", () => {
     expect([...(BLOCK_REGISTRY.root.childrenTypes ?? [])].sort()).toEqual([
       "callout",
       "code",
+      "database",
       "divider",
       "embed",
       "heading",
@@ -54,10 +59,20 @@ describe("block registry", () => {
     ]);
   });
 
+  it("marks the database as the only rows-carrying type (leaf, no children)", () => {
+    const rowsTypes = Object.entries(BLOCK_REGISTRY)
+      .filter(([, spec]) => spec.rows)
+      .map(([name]) => name);
+    expect(rowsTypes).toEqual(["database"]);
+    expect(BLOCK_REGISTRY.database.content).toBe(false);
+    expect(BLOCK_REGISTRY.database.children).toBe(false);
+  });
+
   it("allows leaf types only inside table cells", () => {
     expect([...LEAF_BLOCK_TYPES].sort()).toEqual([
       "callout",
       "code",
+      "database",
       "divider",
       "embed",
       "heading",
@@ -110,7 +125,7 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["math"]>().toEqualTypeOf<{ tex: string } | undefined>();
   });
 
-  it("exposes the 14-type block union", () => {
+  it("exposes the 15-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
@@ -126,6 +141,7 @@ describe("type shapes", () => {
       | "embed"
       | "sync-embed"
       | "divider"
+      | "database"
     >();
   });
 
@@ -140,5 +156,15 @@ describe("type shapes", () => {
     expectTypeOf<SyncEmbedRef["docId"]>().toEqualTypeOf<string>();
     expectTypeOf<SyncEmbedRef["blockId"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<AttrsFor<"sync-embed">>().toEqualTypeOf<SyncEmbedAttrs>();
+  });
+
+  it("database: the column type union, the cell value union, rows + rowOrder", () => {
+    expectTypeOf<DatabaseColumn["type"]>().toEqualTypeOf<
+      "text" | "number" | "checkbox" | "select" | "multi-select" | "date"
+    >();
+    expectTypeOf<DatabaseCellValue>().toEqualTypeOf<string | number | boolean | string[]>();
+    expectTypeOf<DatabaseBlock["rows"]>().toEqualTypeOf<Record<string, Record<string, DatabaseCellValue>>>();
+    expectTypeOf<DatabaseBlock["rowOrder"]>().toEqualTypeOf<string[]>();
+    expectTypeOf<AttrsFor<"database">["columns"]>().toEqualTypeOf<DatabaseColumn[]>();
   });
 });

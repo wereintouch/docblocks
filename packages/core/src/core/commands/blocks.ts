@@ -1,12 +1,12 @@
 /**
- * Block commands: insertBlock, updateBlock, moveBlock, removeBlock, setTitle.
- * A command validates first (typed errors, no silent no-ops) and then mutates
- * in one transaction with the local origin.
+ * Block structure commands: insertBlock, moveBlock, removeBlock.
+ * A command validates first (typed errors, no silent no-ops) and then
+ * mutates in one transaction with the local origin.
  */
 import * as Y from "yjs";
 
 import { BLOCK_REGISTRY, validateBlockAttrs } from "@docblocks-core/schema";
-import type { AttrsFor, BlockAttrsPatch, BlockId, BlockType } from "@docblocks-core/schema";
+import type { AttrsFor, BlockId, BlockType } from "@docblocks-core/schema";
 
 import {
   DetachedBlockError,
@@ -19,7 +19,8 @@ import {
   formatValidationErrors,
 } from "../errors";
 import { localTransact, writeAttrValue } from "../layout";
-import { readBlock, readMeta } from "../read";
+import { readMeta } from "../read";
+import { assertValidDatabaseInsert } from "./database";
 import { blockTypeOf, childrenOf, findParent, getBlockMap, getBlocks, isDescendant, readCols } from "./structure";
 
 /** Where to insert a new block: under `parent`, after the sibling `after`. */
@@ -59,6 +60,10 @@ function writeNewBlock(blocks: Y.Map<unknown>, id: string, type: BlockType, attr
 
   if (spec.content) yblock.set("content", new Y.Array<Y.Map<unknown>>());
   if (spec.children) yblock.set("children", new Y.Array<string>());
+  if (spec.rows) {
+    yblock.set("rows", new Y.Map<unknown>());
+    yblock.set("rowOrder", new Y.Array<string>());
+  }
   blocks.set(id, yblock);
 }
 
@@ -111,58 +116,19 @@ function insertBlock(
     }
   }
 
+  // The database's type-dependent column rules (the options presence, the
+  // duplicate ids) are block-level invariants, not per-attribute rules: they
+  // run on the post-insert block (an empty rows / rowOrder).
+  if (type === "database") {
+    assertValidDatabaseInsert(attrs);
+  }
+
   const id = generateId();
   localTransact(ydoc, () => {
     writeNewBlock(getBlocks(ydoc), id, type, attrs);
     children.insert(index, [id]);
   });
   return id;
-}
-
-/** Sets or overwrites the given attrs; other attrs stay, attrs are never removed. */
-function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
-  const type = blockTypeOf(ydoc, id);
-  if (type === null) throw new UnknownBlockError(`Unknown block "${id}".`);
-  if (BLOCK_REGISTRY[type].attrs === undefined) throw new InvalidAttrsError(`Block type "${type}" has no attributes.`);
-
-  const entries = Object.entries(patch).filter(([, value]) => value !== undefined);
-  if (entries.length === 0) return; // no-op
-
-  // Validate the post-patch attrs as a whole (current attrs + patch) so the
-  // registry rules and messages are reused as-is.
-  const snapshot = readBlock(ydoc, id);
-  const current = snapshot !== null && "attrs" in snapshot ? snapshot.attrs : undefined;
-  const merged: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(current ?? {})) merged[key] = value;
-  for (const [key, value] of entries) merged[key] = value;
-  const errors = validateBlockAttrs(type, merged);
-  if (errors.length > 0) {
-    throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);
-  }
-
-  // A table's `cols` must stay equal to every existing row's cell count; a
-  // table with no rows accepts any valid value.
-  if (type === "table" && patch.cols !== undefined) {
-    const rows = childrenOf(ydoc, id);
-    for (const rowId of rows !== null ? rows.toArray() : []) {
-      const cells = childrenOf(ydoc, rowId);
-      const count = cells !== null ? cells.toArray().length : 0;
-      if (count !== patch.cols) {
-        throw new InvalidOperationError(
-          `New cols ${patch.cols} does not match row "${rowId}" (it has ${count} cells).`
-        );
-      }
-    }
-  }
-
-  localTransact(ydoc, () => {
-    const block = getBlockMap(ydoc, id);
-    if (block === null) return;
-    const existing = block.get("attrs");
-    const attrsMap = existing instanceof Y.Map ? existing : new Y.Map<unknown>();
-    if (!(existing instanceof Y.Map)) block.set("attrs", attrsMap);
-    for (const [key, value] of entries) writeAttrValue(attrsMap, key, value);
-  });
 }
 
 /**
@@ -275,19 +241,5 @@ function removeBlock(ydoc: Y.Doc, id: string): void {
   });
 }
 
-/** Replaces the whole document title. */
-function setTitle(ydoc: Y.Doc, text: string): void {
-  localTransact(ydoc, () => {
-    const meta = ydoc.getMap("meta");
-    const title = meta.get("title");
-    if (title instanceof Y.Text) {
-      title.delete(0, title.length);
-      title.insert(0, text);
-    } else {
-      meta.set("title", new Y.Text(text));
-    }
-  });
-}
-
-export { blockTypeOf, childrenOf, findParent, getBlockMap, insertBlock, moveBlock, removeBlock, setTitle, updateBlock };
+export { blockTypeOf, childrenOf, findParent, getBlockMap, insertBlock, moveBlock, removeBlock };
 export type { InsertBlockArgs, InsertBlockPosition };

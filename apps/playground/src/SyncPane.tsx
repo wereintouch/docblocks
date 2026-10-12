@@ -23,6 +23,13 @@ import { useBlockLabels } from "./useBlockLabels";
 /** The wire log keeps the last N events. */
 const WIRE_CAP = 50;
 
+declare global {
+  interface Window {
+    /** Harness-only: the live docs of the mounted panes (per letter; null until the pane's effect ran); the e2e suite drives the command API through them. */
+    __paneDocs?: { a: Doc | null; b: Doc | null };
+  }
+}
+
 /**
  * The pane's renderer map (the demo of the `./mermaid` subpath): a
  * `code` block with `language: "mermaid"` renders the live diagram
@@ -156,6 +163,13 @@ function SyncPane({
       window.__catalogDoc = doc;
     }
 
+    // The pane's live doc (per letter) for the e2e command-API tests;
+    // the other letter keeps its own pane's doc (separate pages).
+    window.__paneDocs = {
+      a: client === "a" ? doc : (window.__paneDocs?.a ?? null),
+      b: client === "b" ? doc : (window.__paneDocs?.b ?? null),
+    };
+
     void provider
       .connect()
       .then(() => setConnected(true))
@@ -172,6 +186,10 @@ function SyncPane({
       docRef.current = null;
       providerRef.current = null;
       window.__catalogDoc = null;
+      window.__paneDocs = {
+        a: client === "a" ? null : (window.__paneDocs?.a ?? null),
+        b: client === "b" ? null : (window.__paneDocs?.b ?? null),
+      };
       setConnected(false);
       setBlocks([]);
       setPresence([]);

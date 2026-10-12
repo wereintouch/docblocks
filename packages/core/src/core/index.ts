@@ -7,6 +7,7 @@ export {
   DestroyedViewError,
   DocBlocksError,
   InvalidAttrsError,
+  InvalidCellValueError,
   InvalidChildError,
   InvalidMarkError,
   InvalidOperationError,
@@ -15,6 +16,8 @@ export {
   InvalidSnapshotError,
   UnknownBlockError,
   UnknownBlockTypeError,
+  UnknownColumnError,
+  UnknownRowError,
 } from "./errors";
 export type { InsertBlockArgs, InsertBlockPosition } from "./commands/blocks";
 export type { MarkInput } from "./commands/marks";

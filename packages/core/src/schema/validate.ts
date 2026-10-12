@@ -118,6 +118,18 @@ function validateAttrValue(
       }
       validateObjectFields(name, spec, value, path, errors);
       break;
+    case "array": {
+      if (!Array.isArray(value)) {
+        errors.push({ path, message: `Attribute "${name}" must be an array (got ${show(value)}).` });
+        return;
+      }
+      const itemSpec = spec.items;
+      if (itemSpec === undefined) break;
+      value.forEach((item, index) => {
+        validateAttrValue(name, itemSpec, item, `${path}[${index}]`, errors);
+      });
+      break;
+    }
   }
 }
 
@@ -165,6 +177,166 @@ function validateNumber(name: string, spec: AttrSpec, value: number, path: strin
   }
   if (spec.positive && value <= 0) {
     errors.push({ path, message: `Attribute "${name}" must be positive (got ${value}).` });
+  }
+}
+
+/**
+ * The cell value contract of a database column type (text / date: a
+ * non-empty string, date being a plain string in v1; number: a finite
+ * number; checkbox: a boolean; select: a string from the column options;
+ * multi-select: an array of the column options, possibly empty). Shared
+ * by the validator's database branch and the setCell command. Returns the
+ * violation clause, or null when the value is valid.
+ */
+function checkDatabaseCellValue(
+  columnType: string,
+  options: readonly string[] | undefined,
+  value: unknown
+): string | null {
+  const optionList = JSON.stringify(options ?? []);
+  switch (columnType) {
+    case "text":
+    case "date":
+      return typeof value === "string" && value.length > 0 ? null : "must be a non-empty string";
+    case "number":
+      return typeof value === "number" && Number.isFinite(value) ? null : "must be a finite number";
+    case "checkbox":
+      return typeof value === "boolean" ? null : "must be a boolean";
+    case "select":
+      return typeof value === "string" && (options?.includes(value) ?? false)
+        ? null
+        : `must be one of the column options ${optionList}`;
+    case "multi-select":
+      return Array.isArray(value) &&
+        value.every((item): item is string => typeof item === "string" && (options?.includes(item) ?? false))
+        ? null
+        : `must be an array of the column options ${optionList}`;
+    default:
+      return `cannot be checked (unknown column type ${show(columnType)})`;
+  }
+}
+
+/**
+ * The rows / rowOrder invariants of a database block (strict), over the
+ * block's plain JSON shape: each cell value matches its column type (a
+ * select / multi-select value is one of the column options), every cell
+ * key is a known column id, `rowOrder` is a string array whose set equals
+ * the rows' key set (no missing, extra, or duplicated row), and `options`
+ * is present exactly for the select / multi-select columns (the
+ * type-dependent presence is a database-level rule, like the table's
+ * `cols` row-count rule). The column shape itself is checked separately by
+ * the registry attrs spec (the `array` kind with per-column `object`
+ * items). Runs from validateDoc and from the updateBlock post-patch check.
+ */
+function validateDatabaseBlock(block: Record<string, unknown>, path: string, errors: ValidationError[]): void {
+  const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
+  const columns: Array<{ id: string; type: string; options?: string[] }> = [];
+  if (attrs !== undefined && Array.isArray(attrs.columns)) {
+    for (const column of attrs.columns) {
+      if (!isPlainObject(column)) continue; // the column shape is reported by the attrs spec
+      const id = typeof column.id === "string" ? column.id : "";
+      if (id.length === 0) continue;
+      if (columns.some((existing) => existing.id === id)) {
+        errors.push({ path: `${path}.attrs.columns`, message: `Duplicate column id "${id}".` });
+        continue;
+      }
+      const options = Array.isArray(column.options)
+        ? column.options.filter((option): option is string => typeof option === "string")
+        : undefined;
+      columns.push({ id, type: typeof column.type === "string" ? column.type : "", options });
+
+      // The type-dependent options presence: required for the option-based
+      // types (an empty option list would admit no valid value), absent for
+      // the rest.
+      const type = column.type;
+      if (type === "select" || type === "multi-select") {
+        if (!Array.isArray(column.options) || column.options.length === 0) {
+          errors.push({
+            path: `${path}.attrs.columns`,
+            message: `Column "${id}" of type "${type}" requires a non-empty options array.`,
+          });
+        }
+      } else if ("options" in column) {
+        errors.push({
+          path: `${path}.attrs.columns`,
+          message: `Column "${id}" of type "${show(type)}" must not carry options (select / multi-select only).`,
+        });
+      }
+    }
+  }
+
+  const rows = isPlainObject(block.rows) ? block.rows : undefined;
+  if (rows === undefined) {
+    errors.push({
+      path: `${path}.rows`,
+      message:
+        block.rows === undefined
+          ? `Missing required field "rows".`
+          : `rows must be a plain object (got ${show(block.rows)}).`,
+    });
+  }
+  for (const [rowId, cells] of Object.entries(rows ?? {})) {
+    if (!isPlainObject(cells)) {
+      errors.push({
+        path: `${path}.rows.${rowId}`,
+        message: `Row "${rowId}" must be a plain object of cell values (got ${show(cells)}).`,
+      });
+      continue;
+    }
+    for (const [colId, value] of Object.entries(cells)) {
+      const column = columns.find((entry) => entry.id === colId);
+      if (column === undefined) {
+        errors.push({
+          path: `${path}.rows.${rowId}.${colId}`,
+          message: `Unknown column id "${colId}" in row "${rowId}".`,
+        });
+        continue;
+      }
+      const violation = checkDatabaseCellValue(column.type, column.options, value);
+      if (violation !== null) {
+        errors.push({
+          path: `${path}.rows.${rowId}.${colId}`,
+          message: `Cell (row "${rowId}", column "${colId}") ${violation} (got ${show(value)}).`,
+        });
+      }
+    }
+  }
+
+  const rowOrder = block.rowOrder;
+  if (rowOrder === undefined) {
+    errors.push({ path: `${path}.rowOrder`, message: `Missing required field "rowOrder".` });
+    return;
+  }
+  if (!Array.isArray(rowOrder)) {
+    errors.push({ path: `${path}.rowOrder`, message: `rowOrder must be an array of row ids (got ${show(rowOrder)}).` });
+    return;
+  }
+  const orderIds: string[] = [];
+  rowOrder.forEach((rowId, index) => {
+    if (typeof rowId !== "string" || rowId.length === 0) {
+      errors.push({
+        path: `${path}.rowOrder[${index}]`,
+        message: `A row id must be a non-empty string (got ${show(rowId)}).`,
+      });
+      return;
+    }
+    orderIds.push(rowId);
+  });
+  const seen = new Set<string>();
+  for (const rowId of orderIds) {
+    if (seen.has(rowId))
+      errors.push({ path: `${path}.rowOrder`, message: `rowOrder lists row "${rowId}" more than once.` });
+    seen.add(rowId);
+  }
+  for (const rowId of Object.keys(rows ?? {})) {
+    if (!seen.has(rowId)) {
+      errors.push({ path: `${path}.rowOrder`, message: `rowOrder is missing row "${rowId}" (present in rows).` });
+    }
+  }
+  for (const rowId of orderIds) {
+    if (rows === undefined || !(rowId in rows)) {
+      errors.push({ path: `${path}.rowOrder`, message: `rowOrder lists row "${rowId}" (no cells entry in rows).` });
+    }
   }
 }
 
@@ -411,6 +583,14 @@ function validateDoc(json: unknown): ValidationError[] {
       }
     }
 
+    if (!spec.rows && "rows" in block) {
+      errors.push({ path: `blocks.${id}.rows`, message: `Block type "${blockType}" has no rows.` });
+    }
+    if (!spec.rows && "rowOrder" in block) {
+      errors.push({ path: `blocks.${id}.rowOrder`, message: `Block type "${blockType}" has no rowOrder.` });
+    }
+    if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors);
+
     validateAttrs(blockType, spec, block.attrs, `blocks.${id}.attrs`, errors);
   }
 
@@ -483,5 +663,5 @@ function validateMarkSet(blockType: BlockType, marks: unknown): ValidationError[
   return errors;
 }
 
-export { validateBlockAttrs, validateDoc, validateMarkSet };
+export { checkDatabaseCellValue, validateBlockAttrs, validateDatabaseBlock, validateDoc, validateMarkSet };
 export type { ValidationError };

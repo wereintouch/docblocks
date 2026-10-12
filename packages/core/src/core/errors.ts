@@ -71,6 +71,30 @@ class InvalidChildError extends DocBlocksError {
   }
 }
 
+/** The row id does not exist in the database's rows / rowOrder. */
+class UnknownRowError extends DocBlocksError {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnknownRowError";
+  }
+}
+
+/** The column id is not in the database's columns. */
+class UnknownColumnError extends DocBlocksError {
+  constructor(message: string) {
+    super(message);
+    this.name = "UnknownColumnError";
+  }
+}
+
+/** A cell value does not match the column type's value contract. */
+class InvalidCellValueError extends DocBlocksError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidCellValueError";
+  }
+}
+
 /** Mark input is structurally invalid. */
 class InvalidMarkError extends DocBlocksError {
   constructor(message: string) {
@@ -117,6 +141,7 @@ export {
   DestroyedViewError,
   DocBlocksError,
   InvalidAttrsError,
+  InvalidCellValueError,
   InvalidChildError,
   InvalidMarkError,
   InvalidOperationError,
@@ -125,5 +150,7 @@ export {
   InvalidSnapshotError,
   UnknownBlockError,
   UnknownBlockTypeError,
+  UnknownColumnError,
+  UnknownRowError,
   formatValidationErrors,
 };

@@ -46,9 +46,12 @@ describe("insertBlock", () => {
     const image = doc.insertBlock("image", { src: "blobs/x.png" });
     const embed = doc.insertBlock("embed", { kind: "iframe", src: "https://example.com" });
     const sync = doc.insertBlock("sync-embed", { ref: { docId: "master-1", blockId: "b9" } });
+    const database = doc.insertBlock("database", {
+      columns: [{ id: "name", name: "Name", type: "text" }],
+    });
     const divider = doc.insertBlock("divider");
 
-    expect(doc.getChildren("r")).toEqual([p, h, li, c, code, latex, table, image, embed, sync, divider]);
+    expect(doc.getChildren("r")).toEqual([p, h, li, c, code, latex, table, image, embed, sync, database, divider]);
     expect(doc.getChildren(table)).toEqual([row]);
     expect(doc.getChildren(row)).toEqual([c1, c2]);
     expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 1 } });
@@ -56,6 +59,12 @@ describe("insertBlock", () => {
     expect(doc.getBlock(image)).toEqual({ type: "image", attrs: { src: "blobs/x.png" } });
     expect(doc.getBlock(embed)).toEqual({ type: "embed", attrs: { kind: "iframe", src: "https://example.com" } });
     expect(doc.getBlock(sync)).toEqual({ type: "sync-embed", attrs: { ref: { docId: "master-1", blockId: "b9" } } });
+    expect(doc.getBlock(database)).toEqual({
+      type: "database",
+      attrs: { columns: [{ id: "name", name: "Name", type: "text" }] },
+      rows: {},
+      rowOrder: [],
+    });
     expect(doc.getBlock(divider)).toEqual({ type: "divider" });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
@@ -92,6 +101,11 @@ describe("insertBlock", () => {
     expect(() => doc.insertBlock("heading", undefined as unknown as HeadingAttrs)).toThrow(InvalidAttrsError);
     expect(() => doc.insertBlock("table", { cols: 0 })).toThrow(InvalidAttrsError);
     expect(() => doc.insertBlock("paragraph", {} as never)).toThrow(InvalidAttrsError);
+    expect(() =>
+      doc.insertBlock("database", {
+        columns: [{ id: "c", name: "C", type: "select" }],
+      })
+    ).toThrow(InvalidAttrsError); // select requires the options array
   });
 
   it("unknown parent -> UnknownBlockError; detached `after` -> DetachedBlockError", () => {

@@ -14,6 +14,8 @@ import type { BlockType, DocJSON, TextRun } from "@docblocks-core/schema";
  * │     "attrs":    Y.Map of primitives (only for types with attrs, when non-empty)
  * │     "content":  Y.Array of run Y.Maps { text: Y.Text, marks: Y.Map } (text types only)
  * │     "children": Y.Array<string> (container types only, except root)
+ * │     "rows":     Y.Map<rowId, Y.Map<colId, value>> (database only — rows are data, not blocks)
+ * │     "rowOrder": Y.Array<string> (database only — the row order)
  * └─ "rootOrder": Y.Array<string> — the root block's children (top-level order)
  * ```
  *
@@ -100,13 +102,20 @@ function writeMeta(ydoc: Y.Doc, id: string, title: string, createdAt: string): v
   meta.set("updatedAt", createdAt);
 }
 
-/** Primitive attr values are stored directly; plain objects become nested Y.Maps. */
+/** Primitive attr values are stored directly; plain objects become nested Y.Maps, and arrays become Y.Arrays (array elements are stored as-is — the schema keeps them plain). */
 function writeAttrValue(target: AnyMap, key: string, value: unknown): void {
   if (value === undefined) return;
   if (isPlainObject(value)) {
     const nested = new Y.Map<unknown>();
     for (const [nestedKey, nestedValue] of Object.entries(value)) writeAttrValue(nested, nestedKey, nestedValue);
     target.set(key, nested);
+  } else if (Array.isArray(value)) {
+    const array = new Y.Array<unknown>();
+    // Clone the elements: a Yjs array holds plain values by reference, so
+    // the caller's objects/arrays must not be aliased into the CRDT (a
+    // post-call mutation would change the doc outside any transaction).
+    for (const element of value) array.push([structuredClone(element)]);
+    target.set(key, array);
   } else {
     target.set(key, value);
   }
@@ -138,6 +147,8 @@ interface WritableBlock {
   attrs?: unknown;
   content?: readonly TextRun[];
   children?: readonly string[];
+  rows?: Record<string, Record<string, unknown>>;
+  rowOrder?: string[];
 }
 
 /**
@@ -175,6 +186,21 @@ function writeBlock(blocks: AnyMap, id: string, block: WritableBlock): void {
     const children = new Y.Array<string>();
     for (const childId of block.children ?? []) children.push([childId]);
     yblock.set("children", children);
+  }
+
+  // Database: the rows (row id -> the single-authored cell map) and the
+  // row order live on the block entry, like children.
+  if (spec.rows) {
+    const rows = new Y.Map<unknown>();
+    for (const [rowId, cells] of Object.entries(block.rows ?? {})) {
+      const row = new Y.Map<unknown>();
+      for (const [colId, value] of Object.entries(cells)) writeAttrValue(row, colId, value);
+      rows.set(rowId, row);
+    }
+    yblock.set("rows", rows);
+    const rowOrder = new Y.Array<string>();
+    for (const rowId of block.rowOrder ?? []) rowOrder.push([rowId]);
+    yblock.set("rowOrder", rowOrder);
   }
 
   blocks.set(id, yblock);

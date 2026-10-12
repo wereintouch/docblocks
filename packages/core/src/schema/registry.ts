@@ -20,6 +20,7 @@ const LEAF_BLOCK_TYPES: readonly BlockType[] = [
   "embed",
   "sync-embed",
   "divider",
+  "database",
 ];
 
 /** Top-level page blocks: everything except `root` and table internals. */
@@ -35,15 +36,21 @@ const PAGE_BLOCK_TYPES: readonly BlockType[] = [
   "embed",
   "sync-embed",
   "divider",
+  "database",
 ];
+
+/** The database cell value contracts (the column `type` values). */
+const DATABASE_CELL_TYPES = ["text", "number", "checkbox", "select", "multi-select", "date"] as const;
 
 /** Structural description of a block attribute. */
 interface AttrSpec {
-  kind: "boolean" | "string" | "number" | "nullable-number" | "enum" | "object";
+  kind: "boolean" | "string" | "number" | "nullable-number" | "enum" | "object" | "array";
   /** Allowed values for `enum`. */
   values?: readonly (string | number)[];
   /** `object`: the nested field specs, each validated as its own AttrSpec. */
   fields?: Record<string, AttrSpec>;
+  /** `array`: the item spec, each array element validated against it. */
+  items?: AttrSpec;
   /** Must be present in `attrs`. */
   required?: boolean;
   /** `number`: must be an integer. */
@@ -62,6 +69,8 @@ interface BlockSpec {
   content: boolean;
   /** The block carries child blocks. */
   children: boolean;
+  /** The block carries row data (the `rows` map + the `rowOrder` order). */
+  rows: boolean;
   /** Allowed child block types (present whenever `children` is true). */
   childrenTypes?: readonly BlockType[];
   /** Attribute schema; absent — the type has no attributes. */
@@ -70,16 +79,18 @@ interface BlockSpec {
 
 /** The v1 block registry. */
 const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
-  root: { content: false, children: true, childrenTypes: PAGE_BLOCK_TYPES },
-  paragraph: { content: true, children: false },
+  root: { content: false, children: true, rows: false, childrenTypes: PAGE_BLOCK_TYPES },
+  paragraph: { content: true, children: false, rows: false },
   heading: {
     content: true,
     children: false,
+    rows: false,
     attrs: { level: { kind: "enum", values: [1, 2, 3, 4, 5, 6], required: true } },
   },
   "list-item": {
     content: true,
     children: true,
+    rows: false,
     childrenTypes: ["list-item"],
     attrs: {
       list: { kind: "enum", values: ["bullet", "number", "task"], required: true },
@@ -89,29 +100,34 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   callout: {
     content: true,
     children: false,
+    rows: false,
     attrs: { variant: { kind: "enum", values: ["info", "warning", "danger"] } },
   },
   code: {
     content: true,
     children: false,
+    rows: false,
     attrs: { language: { kind: "string" } },
   },
   latex: {
     content: true,
     children: false,
+    rows: false,
     attrs: { display: { kind: "boolean", required: true } },
   },
   table: {
     content: false,
     children: true,
+    rows: false,
     childrenTypes: ["table-row"],
     attrs: { cols: { kind: "number", integer: true, min: 1, required: true } },
   },
-  "table-row": { content: false, children: true, childrenTypes: ["table-cell"] },
-  "table-cell": { content: true, children: true, childrenTypes: LEAF_BLOCK_TYPES },
+  "table-row": { content: false, children: true, rows: false, childrenTypes: ["table-cell"] },
+  "table-cell": { content: true, children: true, rows: false, childrenTypes: LEAF_BLOCK_TYPES },
   image: {
     content: false,
     children: false,
+    rows: false,
     attrs: {
       src: { kind: "string", nonEmpty: true, required: true },
       width: { kind: "nullable-number", positive: true },
@@ -121,6 +137,7 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   embed: {
     content: false,
     children: false,
+    rows: false,
     attrs: {
       kind: { kind: "enum", values: ["iframe", "github", "figma", "loom", "html"], required: true },
       src: { kind: "string", nonEmpty: true, required: true },
@@ -130,6 +147,7 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   "sync-embed": {
     content: false,
     children: false,
+    rows: false,
     attrs: {
       ref: {
         kind: "object",
@@ -141,7 +159,30 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       },
     },
   },
-  divider: { content: false, children: false },
+  divider: { content: false, children: false, rows: false },
+  database: {
+    content: false,
+    children: false,
+    rows: true,
+    attrs: {
+      columns: {
+        kind: "array",
+        required: true,
+        items: {
+          kind: "object",
+          fields: {
+            id: { kind: "string", nonEmpty: true, required: true },
+            name: { kind: "string", nonEmpty: true, required: true },
+            type: { kind: "enum", values: DATABASE_CELL_TYPES, required: true },
+            // The value contract itself (an array of non-empty strings);
+            // the type-dependent presence is checked by the validator's
+            // database branch.
+            options: { kind: "array", items: { kind: "string", nonEmpty: true } },
+          },
+        },
+      },
+    },
+  },
 };
 
 /** Structural description of a mark. */

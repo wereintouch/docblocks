@@ -1,4 +1,4 @@
-import type { BlockId, Doc } from "docblocks-core";
+import type { BlockId, DatabaseAttrs, Doc } from "docblocks-core";
 
 import { MASTER_SUBTREE_BLOCK_ID } from "./master";
 
@@ -17,6 +17,7 @@ const INSERTABLE_TYPES = [
   "sync-embed",
   "sync-embed-subtree",
   "sync-embed-broken",
+  "database",
   "divider",
 ] as const;
 
@@ -33,6 +34,27 @@ const MERMAID_SEED = "graph TD\n A --> B";
 
 /** The fixed unknown docId the broken sync-embed option references. */
 const MISSING_MASTER_ID = "missing-master";
+
+/** The database seed the harness inserts (harness convenience; the user edits it in the block). */
+const DATABASE_COLUMNS: DatabaseAttrs["columns"] = [
+  { id: "name", name: "Name", type: "text" },
+  { id: "done", name: "Done", type: "checkbox" },
+  { id: "status", name: "Status", type: "select", options: ["active", "done"] },
+];
+
+/** Seeds one database block (the seed columns + 2 rows with cell values) and returns its id. */
+function seedDatabase(doc: Doc): BlockId {
+  const id = doc.insertBlock("database", { columns: DATABASE_COLUMNS });
+  const r1 = doc.insertRow(id);
+  const r2 = doc.insertRow(id);
+  doc.setCell(id, r1, "name", "First task");
+  doc.setCell(id, r1, "done", false);
+  doc.setCell(id, r1, "status", "active");
+  doc.setCell(id, r2, "name", "Second task");
+  doc.setCell(id, r2, "done", true);
+  doc.setCell(id, r2, "status", "done");
+  return id;
+}
 
 /** Fixed key -> inline data: URL (a small SVG data URI). */
 const BLOB_SOURCES: Record<string, string> = {
@@ -93,6 +115,9 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
       case "sync-embed-broken":
         id = doc.insertBlock("sync-embed", { ref: { docId: MISSING_MASTER_ID } });
         break;
+      case "database":
+        id = seedDatabase(doc);
+        break;
       case "table": {
         const tableId = doc.insertBlock("table", { cols: 2 });
         for (let row = 0; row < 2; row++) {
@@ -112,5 +137,5 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
   return id;
 }
 
-export { blobResolver, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES };
+export { blobResolver, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedDatabase };
 export type { InsertableType };

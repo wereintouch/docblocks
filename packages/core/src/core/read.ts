@@ -120,13 +120,17 @@ interface BlockDraft {
   attrs?: unknown;
   content?: TextRun[];
   children?: BlockId[];
+  rows?: Record<string, Record<string, unknown>>;
+  rowOrder?: string[];
 }
 
 /**
  * Snapshot of one block, or null when missing. Export normalization:
  * `attrs` is omitted when empty; `content` is omitted when runs normalize
  * to empty, except `table-cell` (always emits content: an empty cell);
- * `children` is omitted when empty, except `root` (always emits children).
+ * `children` is omitted when empty, except `root` (always emits children);
+ * `rows` / `rowOrder` are always emitted for database blocks (possibly
+ * empty).
  */
 function readBlock(ydoc: Y.Doc, id: string): Block | null {
   const yblock = getBlockMap(ydoc, id);
@@ -156,6 +160,23 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
   if (spec.children) {
     const children = readChildren(ydoc, id);
     if (children.length > 0 || blockType === "root") block.children = children;
+  }
+
+  if (spec.rows) {
+    const rows: Record<string, Record<string, unknown>> = {};
+    const rowsMap = yblock.get("rows");
+    if (rowsMap instanceof Y.Map) {
+      rowsMap.forEach((row, rowId) => {
+        // readPlainValue of a Y.Map is a plain object of plain values.
+        rows[rowId] = row instanceof Y.Map ? (readPlainValue(row) as Record<string, unknown>) : {};
+      });
+    }
+    const rowOrder = yblock.get("rowOrder");
+    block.rows = rows;
+    block.rowOrder =
+      rowOrder instanceof Y.Array
+        ? rowOrder.toArray().filter((rowId): rowId is string => typeof rowId === "string")
+        : [];
   }
 
   return block as Block;

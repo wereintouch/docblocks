@@ -4,7 +4,13 @@
  */
 export { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY } from "./registry";
 export type { AttrSpec, BlockSpec, MarkSpec } from "./registry";
-export { validateBlockAttrs, validateDoc, validateMarkSet } from "./validate";
+export {
+  checkDatabaseCellValue,
+  validateBlockAttrs,
+  validateDatabaseBlock,
+  validateDoc,
+  validateMarkSet,
+} from "./validate";
 export type { ValidationError } from "./validate";
 export type {
   AttrsFor,
@@ -17,6 +23,11 @@ export type {
   CalloutBlock,
   CodeAttrs,
   CodeBlock,
+  DatabaseAttrs,
+  DatabaseBlock,
+  DatabaseCellType,
+  DatabaseCellValue,
+  DatabaseColumn,
   DocJSON,
   DocMeta,
   DividerBlock,

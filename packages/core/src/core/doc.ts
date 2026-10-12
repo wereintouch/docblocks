@@ -6,6 +6,7 @@ import type {
   BlockAttrsPatch,
   BlockId,
   BlockType,
+  DatabaseCellValue,
   DocJSON,
   DocMeta,
   MarkName,
@@ -13,14 +14,19 @@ import type {
   TextRun,
 } from "@docblocks-core/schema";
 
+import { setTitle as setTitleCommand, updateBlock as updateBlockCommand } from "./commands/attrs";
 import {
   insertBlock as insertBlockCommand,
   moveBlock as moveBlockCommand,
   removeBlock as removeBlockCommand,
-  setTitle as setTitleCommand,
-  updateBlock as updateBlockCommand,
 } from "./commands/blocks";
 import type { InsertBlockArgs } from "./commands/blocks";
+import {
+  insertRow as insertRowCommand,
+  moveRow as moveRowCommand,
+  removeRow as removeRowCommand,
+  setCell as setCellCommand,
+} from "./commands/database";
 import { setMark as setMarkCommand, unsetMark as unsetMarkCommand } from "./commands/marks";
 import type { MarkInput } from "./commands/marks";
 import { deleteText as deleteTextCommand, insertText as insertTextCommand } from "./commands/text";
@@ -164,6 +170,26 @@ class Doc {
   /** Replaces the document title. */
   setTitle(text: string): void {
     setTitleCommand(this.#ydoc, text);
+  }
+
+  /** Appends an empty row to a database block and returns its row id. */
+  insertRow(databaseId: BlockId): BlockId {
+    return insertRowCommand(this.#ydoc, this.#generateId, databaseId);
+  }
+
+  /** Sets the cell value of a database row, validated against the column type. */
+  setCell(databaseId: BlockId, rowId: string, colId: string, value: DatabaseCellValue | undefined): void {
+    setCellCommand(this.#ydoc, databaseId, rowId, colId, value);
+  }
+
+  /** Removes a database row: its cells entry and its rowOrder entry. */
+  removeRow(databaseId: BlockId, rowId: string): void {
+    removeRowCommand(this.#ydoc, databaseId, rowId);
+  }
+
+  /** Moves a database row to `toIndex` (pre-move index semantics). */
+  moveRow(databaseId: BlockId, rowId: string, toIndex: number): void {
+    moveRowCommand(this.#ydoc, databaseId, rowId, toIndex);
   }
 
   /** Inserts text at character offset `pos`, optionally carrying marks. */

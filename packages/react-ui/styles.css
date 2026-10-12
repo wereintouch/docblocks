@@ -306,6 +306,30 @@ iframe[data-slot="docblocks/embed"] {
   border: none;
 }
 
+/* Database: the placeholder card (v1 — the table UI is the consumer's
+   level). The frame follows the table border token (light + dark); the
+   header line carries the column names, the count line the row count. */
+[data-slot="docblocks/block"][data-block-type="database"] {
+  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
+  border-radius: var(--docblocks-radius);
+}
+
+[data-slot="docblocks/database"] {
+  padding: var(--docblocks-table-cell-padding);
+}
+
+[data-slot="docblocks/database-header"] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--docblocks-block-spacing);
+  font-weight: var(--docblocks-heading-font-weight);
+}
+
+[data-slot="docblocks/database-count"] {
+  margin-top: var(--docblocks-block-spacing);
+  opacity: 0.7;
+}
+
 /* A structural box standing in for an image with no resolved src. */
 [data-slot="docblocks/image-placeholder"] {
   border: var(--docblocks-table-border-width) dashed var(--docblocks-table-border-color);

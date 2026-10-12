@@ -1,6 +1,6 @@
 import { type Doc, type MarkSet, createDoc } from "docblocks-core";
 
-import { EMBED_SRC } from "./insert-blocks";
+import { EMBED_SRC, seedDatabase } from "./insert-blocks";
 import { CATALOG_MASTER_ID } from "./master";
 
 /** The fixed pane doc identity (the e2e room/doc conventions rely on it). */
@@ -125,6 +125,10 @@ function buildCatalogDoc(doc: Doc): void {
     // Sync-embed: the catalog's master (seeded deterministically, fixed id)
     // renders its content inside; the outer JSON carries the ref only.
     doc.insertBlock("sync-embed", { ref: { docId: CATALOG_MASTER_ID } });
+
+    // Database: the harness seed (the placeholder card in the goldens; the
+    // table UI is the consumer's level).
+    seedDatabase(doc);
 
     // The marks paragraph: the fixed run layout, one run at a time.
     const marks = doc.insertBlock("paragraph");

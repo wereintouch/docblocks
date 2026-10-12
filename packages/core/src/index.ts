@@ -13,6 +13,7 @@ export {
   DestroyedViewError,
   DocBlocksError,
   InvalidAttrsError,
+  InvalidCellValueError,
   InvalidChildError,
   InvalidMarkError,
   InvalidOperationError,
@@ -22,6 +23,8 @@ export {
   SelectionView,
   UnknownBlockError,
   UnknownBlockTypeError,
+  UnknownColumnError,
+  UnknownRowError,
   createSelection,
 } from "./core";
 export type {
@@ -65,6 +68,11 @@ export type {
   CalloutBlock,
   CodeAttrs,
   CodeBlock,
+  DatabaseAttrs,
+  DatabaseBlock,
+  DatabaseCellType,
+  DatabaseCellValue,
+  DatabaseColumn,
   DocJSON,
   DocMeta,
   DividerBlock,
