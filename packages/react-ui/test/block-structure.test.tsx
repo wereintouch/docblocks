@@ -220,3 +220,72 @@ describe("blocks selection (gutter)", () => {
     expect(doc.getChildren(doc.meta.id)).toEqual([p1, p2]);
   });
 });
+
+describe("per-level list markers (the rendered data-depth cycle)", () => {
+  /** The data-depth cycle index of every list element, in DOM order. */
+  function listDepths(): string[] {
+    return Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/list']")).map(
+      (el) => el.getAttribute("data-depth") ?? ""
+    );
+  }
+
+  /** A chain of `levels` nested list items of one kind (deepest last). */
+  function seedChain(d: TestDoc, list: "bullet" | "number", levels: number): void {
+    const ids: BlockId[] = [];
+    for (let level = 0; level < levels; level++) {
+      const id = d.insertBlock("list-item", { list }, level === 0 ? undefined : { parent: ids[level - 1]! });
+      d.insertText(id, 0, `level ${level + 1}`);
+      ids.push(id);
+    }
+  }
+
+  it("a 3-level nested bullet carries the cycle indices 1, 2, 3", () => {
+    renderDoc((d) => seedChain(d, "bullet", 3));
+    expect(listDepths()).toEqual(["1", "2", "3"]);
+  });
+
+  it("a 4-level nested bullet cycles back to 1", () => {
+    renderDoc((d) => seedChain(d, "bullet", 4));
+    expect(listDepths()).toEqual(["1", "2", "3", "1"]);
+  });
+
+  it("a 2-level nested number list carries the cycle indices 1, 2", () => {
+    renderDoc((d) => seedChain(d, "number", 2));
+    expect(listDepths()).toEqual(["1", "2"]);
+    expect(document.querySelectorAll("ol[data-slot='docblocks/list']").length).toBe(2);
+  });
+
+  it("a top-level list inside a table cell starts a fresh depth-1 context", () => {
+    // A list item is not cell-eligible (the cell holds the leaf set), so the
+    // list arrives as the embedded doc's top level inside the cell.
+    const master = createDoc({ id: "master-1", createdAt: CREATED_AT });
+    const item = master.insertBlock("list-item", { list: "bullet" });
+    master.insertText(item, 0, "in the cell");
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const table = doc.insertBlock("table", { cols: 1 });
+    const row = doc.insertBlock("table-row", undefined, { parent: table });
+    const cell = doc.insertBlock("table-cell", undefined, { parent: row });
+    doc.insertBlock("sync-embed", { ref: { docId: "master-1" } }, { parent: cell });
+    render(
+      <EditorProvider doc={doc} syncEmbedResolver={(ref) => (ref.docId === "master-1" ? master : null)}>
+        <Editor />
+      </EditorProvider>
+    );
+    const cellEl = document.querySelector<HTMLElement>("[data-slot='docblocks/table-cell']");
+    expect(cellEl, "the cell should be rendered").not.toBeNull();
+    const list = cellEl!.querySelector("[data-slot='docblocks/list']");
+    expect(list, "the embedded list should render inside the cell").not.toBeNull();
+    expect(list!.getAttribute("data-depth")).toBe("1");
+  });
+
+  it("the task list is untouched (the checkbox owns the marker slot)", () => {
+    renderDoc((d) => {
+      const id = d.insertBlock("list-item", { list: "task" });
+      d.insertText(id, 0, "a task");
+    });
+    const list = document.querySelector<HTMLElement>("ul[data-slot='docblocks/list'][data-list='task']");
+    expect(list).not.toBeNull();
+    expect(list!.getAttribute("data-depth")).toBe("1");
+    expect(list!.querySelector('[data-slot="docblocks/checkbox"]')).not.toBeNull();
+  });
+});

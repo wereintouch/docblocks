@@ -45,13 +45,17 @@ function groupChildren(ids: BlockId[], blocks: Record<BlockId, Block>): ChildGro
   return groups;
 }
 
-/** One list: consecutive list items of the same kind. */
-function ListGroup({ tag, list, ids }: { tag: "ul" | "ol"; list: ListKind; ids: BlockId[] }) {
+/**
+ * One list: consecutive list items of the same kind. `data-depth` carries
+ * the marker's cycle index (1|2|3, not the raw level): the nesting depth is
+ * unbounded and CSS cannot modulo it, so the renderer cycles it.
+ */
+function ListGroup({ tag, list, ids, depth }: { tag: "ul" | "ol"; list: ListKind; ids: BlockId[]; depth: number }) {
   const Tag = tag;
   return (
-    <Tag data-slot="docblocks/list" data-list={list}>
+    <Tag data-slot="docblocks/list" data-list={list} data-depth={((depth - 1) % 3) + 1}>
       {ids.map((childId) => (
-        <BlockView key={childId} id={childId} />
+        <BlockView key={childId} id={childId} depth={depth} />
       ))}
     </Tag>
   );
@@ -63,7 +67,7 @@ function ListGroup({ tag, list, ids }: { tag: "ul" | "ol"; list: ListKind; ids: 
  * provided by the container's own renderer (the editor root, a table row,
  * a cell, or the parent list item).
  */
-const BlockGroups = memo(function BlockGroups({ ids }: { ids: BlockId[] }) {
+const BlockGroups = memo(function BlockGroups({ ids, depth = 1 }: { ids: BlockId[]; depth?: number }) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
   const groups = useMemo(() => groupChildren(ids, blocks), [ids, blocks]);
@@ -71,9 +75,9 @@ const BlockGroups = memo(function BlockGroups({ ids }: { ids: BlockId[] }) {
     <>
       {groups.map((group) =>
         group.kind === "single" ? (
-          <BlockView key={group.id} id={group.id} />
+          <BlockView key={group.id} id={group.id} depth={depth} />
         ) : (
-          <ListGroup key={`list-${group.ids[0]}`} tag={group.tag} list={group.list} ids={group.ids} />
+          <ListGroup key={`list-${group.ids[0]}`} tag={group.tag} list={group.list} ids={group.ids} depth={depth} />
         )
       )}
     </>
@@ -86,7 +90,15 @@ const BlockGroups = memo(function BlockGroups({ ids }: { ids: BlockId[] }) {
  * item is their parent). Hidden (unmounted) while the item is collapsed
  * (view state: the text re-syncs from the store on the expand).
  */
-const ListItemChildren = memo(function ListItemChildren({ id, block }: { id: BlockId; block: ListItemBlock }) {
+const ListItemChildren = memo(function ListItemChildren({
+  id,
+  block,
+  depth,
+}: {
+  id: BlockId;
+  block: ListItemBlock;
+  depth: number;
+}) {
   const { store } = useEditorContext();
   const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
   const children = block.children ?? EMPTY_IDS;
@@ -94,7 +106,7 @@ const ListItemChildren = memo(function ListItemChildren({ id, block }: { id: Blo
   if (children.length === 0 || collapsed) return null;
   return (
     <BlockContext.Provider value={contextValue}>
-      <BlockGroups ids={children} />
+      <BlockGroups ids={children} depth={depth + 1} />
     </BlockContext.Provider>
   );
 });
@@ -108,7 +120,7 @@ const ListItemChildren = memo(function ListItemChildren({ id, block }: { id: Blo
  * then the built-in renderer, then the placeholder (unknown and future
  * types keep working).
  */
-const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
+const BlockView = memo(function BlockView({ id, depth = 1 }: { id: BlockId; depth?: number }) {
   const { renderers } = useEditorContext();
   const block = useBlock(id);
   if (block === undefined) return null;
@@ -124,7 +136,9 @@ const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
     case "callout":
       return <TextBlock id={id} block={block} tag="aside" />;
     case "list-item":
-      return <TextBlock id={id} block={block} tag="li" nested={<ListItemChildren id={id} block={block} />} />;
+      return (
+        <TextBlock id={id} block={block} tag="li" nested={<ListItemChildren id={id} block={block} depth={depth} />} />
+      );
     case "code":
       return <TextBlock id={id} block={block} tag="pre" />;
     case "latex":

@@ -332,7 +332,7 @@ describe("Collapse toggle", () => {
   });
 
   it("renders no toggle for a childless list item", () => {
-    const doc = renderDoc((d) => {
+    renderDoc((d) => {
       const id = d.insertBlock("list-item", { list: "bullet" });
       d.insertText(id, 0, "a leaf");
     });

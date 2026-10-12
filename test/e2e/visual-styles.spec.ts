@@ -233,3 +233,55 @@ test("the caret at known offsets is a real caret inside the block", async ({ pag
   // Offset 0 (Home) is strictly left of the line's end (the text is non-empty).
   expect(atStart.x).toBeLessThan(atEnd.x);
 });
+
+// The marker cycle (the pane renders the motion view, whose root run is
+// level 1): a 3-level nested run per kind gives disc → circle → square and
+// decimal → lower-alpha → lower-roman in the real browser (computed style —
+// jsdom cannot compute list-style). A unique room: the relay keeps rooms
+// for the dev server's lifetime, so a shared room would be polluted.
+test("the list markers cycle per nesting level", async ({ page }) => {
+  const room = `vreg01l-${Math.random().toString(36).slice(2, 8)}`;
+  await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
+  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+
+  // A 3-level nested run per kind, seeded through the pane's own doc
+  // commands (the established harness pattern).
+  const seeded = await page.evaluate(() => {
+    const d = window.__paneDocs?.a ?? null;
+    if (d === null) return false;
+    for (const list of ["bullet", "number"] as const) {
+      const ids: string[] = [];
+      for (let level = 0; level < 3; level++) {
+        const parent = ids[level - 1];
+        const id = d.insertBlock("list-item", { list }, parent === undefined ? undefined : { parent });
+        d.insertText(id, 0, `${list} level ${level + 1}`);
+        ids.push(id);
+      }
+    }
+    return true;
+  });
+  expect(seeded, "the pane's doc should be mounted").toBe(true);
+
+  // Settle: the motion view animates the root entries in (6 lists: three
+  // per kind, each run nesting one level deeper).
+  await expect
+    .poll(async () => page.locator('[data-testid="doc-a"] [data-slot="docblocks/list"]').count(), SETTLE)
+    .toBe(6);
+
+  /** Every list element of the kind in DOM order: the cycle index + the real computed marker. */
+  const markers = (kind: "bullet" | "number") =>
+    page.$$eval(`[data-testid="doc-a"] [data-slot="docblocks/list"][data-list="${kind}"]`, (els) =>
+      els.map((el) => ({ depth: el.getAttribute("data-depth"), style: getComputedStyle(el).listStyleType }))
+    );
+
+  expect(await markers("bullet")).toEqual([
+    { depth: "1", style: "disc" },
+    { depth: "2", style: "circle" },
+    { depth: "3", style: "square" },
+  ]);
+  expect(await markers("number")).toEqual([
+    { depth: "1", style: "decimal" },
+    { depth: "2", style: "lower-alpha" },
+    { depth: "3", style: "lower-roman" },
+  ]);
+});

@@ -22,7 +22,7 @@
  * docblocks/drag-line, docblocks/checkbox, docblocks/collapse,
  * docblocks/format-toolbar, docblocks/format-list-menu),
  * plus the per-block elements (docblocks/image, docblocks/embed, …);
- * + `data-block-type` / `data-list` / `data-variant` / `data-checked`
+ * + `data-block-type` / `data-list` / `data-depth` / `data-variant` / `data-checked`
  * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
  */
 
@@ -251,12 +251,31 @@
   margin: var(--docblocks-list-nested-margin);
 }
 
+/* Level markers: `data-depth` carries the marker's cycle index (1|2|3 —
+   the nesting depth is unbounded and CSS cannot modulo it), so a level 4+
+   list reuses the level-1 rule. */
 [data-slot="docblocks/list"][data-list="bullet"] {
   list-style: disc;
 }
 
+[data-slot="docblocks/list"][data-list="bullet"][data-depth="2"] {
+  list-style: circle;
+}
+
+[data-slot="docblocks/list"][data-list="bullet"][data-depth="3"] {
+  list-style: square;
+}
+
 [data-slot="docblocks/list"][data-list="number"] {
   list-style: decimal;
+}
+
+[data-slot="docblocks/list"][data-list="number"][data-depth="2"] {
+  list-style: lower-alpha;
+}
+
+[data-slot="docblocks/list"][data-list="number"][data-depth="3"] {
+  list-style: lower-roman;
 }
 
 [data-slot="docblocks/list"][data-list="task"] {

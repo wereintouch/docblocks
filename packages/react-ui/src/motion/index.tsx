@@ -139,7 +139,7 @@ function EntryItem({ entry, register, onDragStart, onDragEnd }: EntryItemProps) 
       {single ? (
         <BlockView id={entry.id} />
       ) : (
-        <entry.tag data-slot="docblocks/list" data-list={entry.list}>
+        <entry.tag data-slot="docblocks/list" data-list={entry.list} data-depth={1}>
           {entry.ids.map((childId) => (
             <BlockView key={childId} id={childId} />
           ))}
