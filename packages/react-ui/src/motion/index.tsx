@@ -54,6 +54,7 @@ import { useEditorContext } from "../EditorProvider";
 import { BlockView, groupChildren } from "../blocks/BlockView";
 import { CanvasView } from "../blocks/CanvasView";
 import { BlockContext } from "../blocks/block-context";
+import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
@@ -139,13 +140,20 @@ function EntryItem({ entry, register, onDragStart, onDragEnd }: EntryItemProps) 
   );
 }
 
-function MotionEditor({ view = "page" }: { view?: EditorView }) {
+function MotionEditor({
+  view = "page",
+  formatPalette = FORMAT_PALETTE,
+}: {
+  view?: EditorView;
+  formatPalette?: readonly string[];
+}) {
   const { doc, store, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const blocks = useStore(store, (state) => state.blocks);
   const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
   const { rootRef, onKeyDown } = useEditing();
   const slash = useSlashMenu(rootRef);
+  const format = useFormatToolbar(rootRef, formatPalette);
   const groups = useMemo(() => groupChildren(rootChildren, blocks), [rootChildren, blocks]);
   const entries = useMemo<Entry[]>(
     () =>
@@ -272,6 +280,7 @@ function MotionEditor({ view = "page" }: { view?: EditorView }) {
         </BlockContext.Provider>
       </SlashMenuContext.Provider>
       {slash.menuNode}
+      {format.toolbarNode}
     </div>
   );
 }

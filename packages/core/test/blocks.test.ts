@@ -132,7 +132,7 @@ describe("insertBlock", () => {
     expect(() => doc.insertBlock("heading", { level: 7 } as unknown as HeadingAttrs)).toThrow(InvalidAttrsError);
     expect(() => doc.insertBlock("heading", undefined as unknown as HeadingAttrs)).toThrow(InvalidAttrsError);
     expect(() => doc.insertBlock("table", { cols: 0 })).toThrow(InvalidAttrsError);
-    expect(() => doc.insertBlock("paragraph", {} as never)).toThrow(InvalidAttrsError);
+    expect(() => doc.insertBlock("divider", {} as never)).toThrow(InvalidAttrsError);
     expect(() =>
       doc.insertBlock("database", {
         columns: [{ id: "c", name: "C", type: "select" }],
@@ -221,6 +221,23 @@ describe("updateBlock", () => {
     const li = doc.insertBlock("list-item", { list: "task", checked: true });
     doc.updateBlock(li, { checked: false });
     expect(doc.getBlock(li)).toEqual({ type: "list-item", attrs: { list: "task", checked: false } });
+  });
+
+  it("sets the text align on the text block types (an attr-less paragraph gains an attrs object)", () => {
+    const doc = newDoc();
+    const p = doc.insertBlock("paragraph");
+    expect(doc.getBlock(p)).toEqual({ type: "paragraph" });
+    doc.updateBlock(p, { align: "center" });
+    expect(doc.getBlock(p)).toEqual({ type: "paragraph", attrs: { align: "center" } });
+    expect(doc.toJSON().blocks[p]).toEqual({ type: "paragraph", attrs: { align: "center" } });
+
+    const co = doc.insertBlock("callout", { variant: "info" });
+    doc.updateBlock(co, { align: "right" });
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "info", align: "right" } });
+
+    // A value outside the enum is rejected (and the block keeps its old attrs).
+    expect(() => doc.updateBlock(p, { align: "justify" } as unknown as BlockAttrsPatch)).toThrow(InvalidAttrsError);
+    expect(doc.getBlock(p)).toEqual({ type: "paragraph", attrs: { align: "center" } });
   });
 
   it("an empty patch is a no-op", () => {

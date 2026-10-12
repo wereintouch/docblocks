@@ -15,6 +15,9 @@ import type { MarkName } from "./types";
 /** The database cell value contracts (the column `type` values). */
 const DATABASE_CELL_TYPES = ["text", "number", "checkbox", "select", "multi-select", "date"] as const;
 
+/** The horizontal text alignment, shared by the text block types. */
+const ALIGN = { kind: "enum", values: ["left", "center", "right"] } as const;
+
 /** Structural description of a block attribute. */
 interface AttrSpec {
   kind: "boolean" | "string" | "number" | "nullable-number" | "enum" | "object" | "array";
@@ -55,12 +58,12 @@ interface BlockSpec {
 /** The v1 block registry. */
 const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   root: { content: false, children: true, rows: false, childrenTypes: PAGE_BLOCK_TYPES },
-  paragraph: { content: true, children: false, rows: false },
+  paragraph: { content: true, children: false, rows: false, attrs: { align: ALIGN } },
   heading: {
     content: true,
     children: false,
     rows: false,
-    attrs: { level: { kind: "enum", values: [1, 2, 3, 4, 5, 6], required: true } },
+    attrs: { level: { kind: "enum", values: [1, 2, 3, 4, 5, 6], required: true }, align: ALIGN },
   },
   "list-item": {
     content: true,
@@ -70,13 +73,14 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     attrs: {
       list: { kind: "enum", values: ["bullet", "number", "task"], required: true },
       checked: { kind: "boolean" },
+      align: ALIGN,
     },
   },
   callout: {
     content: true,
     children: false,
     rows: false,
-    attrs: { variant: { kind: "enum", values: ["info", "warning", "danger"] } },
+    attrs: { variant: { kind: "enum", values: ["info", "warning", "danger"] }, align: ALIGN },
   },
   code: {
     content: true,
@@ -88,7 +92,7 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     content: true,
     children: false,
     rows: false,
-    attrs: { display: { kind: "boolean", required: true } },
+    attrs: { display: { kind: "boolean", required: true }, align: ALIGN },
   },
   table: {
     content: false,
@@ -98,7 +102,13 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     attrs: { cols: { kind: "number", integer: true, min: 1, required: true } },
   },
   "table-row": { content: false, children: true, rows: false, childrenTypes: ["table-cell"] },
-  "table-cell": { content: true, children: true, rows: false, childrenTypes: LEAF_BLOCK_TYPES },
+  "table-cell": {
+    content: true,
+    children: true,
+    rows: false,
+    childrenTypes: LEAF_BLOCK_TYPES,
+    attrs: { align: ALIGN },
+  },
   image: {
     content: false,
     children: false,

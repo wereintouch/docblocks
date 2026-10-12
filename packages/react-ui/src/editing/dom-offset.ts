@@ -104,4 +104,18 @@ function selectionInside(root: HTMLElement): boolean {
   return root.contains(range.startContainer) && root.contains(range.endContainer);
 }
 
-export { caretOffsetIn, locatePosition, restoreSelection, selectionInside };
+/**
+ * Whether the current DOM selection is orphaned: it has a range whose
+ * start container is no longer connected to the document (a rebuild of
+ * the element's text detached the selection's nodes). An orphaned
+ * selection belongs to the element that was rebuilt — its restore is the
+ * recovery.
+ */
+function selectionOrphaned(): boolean {
+  const selection = window.getSelection();
+  if (selection === null || selection.rangeCount === 0) return false;
+  const node = selection.getRangeAt(0).startContainer;
+  return node !== document && !document.contains(node);
+}
+
+export { caretOffsetIn, locatePosition, restoreSelection, selectionInside, selectionOrphaned };

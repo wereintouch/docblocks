@@ -9,7 +9,6 @@ import type { CSSProperties } from "react";
 import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach } from "docblocks-core";
 
 import { ChaosBar } from "./ChaosBar";
-import { MarkToolbar } from "./MarkToolbar";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
 import { blobResolver, insertBlockOf } from "./insert-blocks";
@@ -315,7 +314,6 @@ function SyncPane({
               blockRenderers={BLOCK_RENDERERS}
               syncEmbedResolver={syncEmbedResolver}
             >
-              <MarkToolbar client={client} />
               {motion ? <MotionEditor view={view} /> : <Editor view={view} />}
             </EditorProvider>
           )}

@@ -45,7 +45,7 @@ describe("valid documents", () => {
           },
           h1: {
             type: "heading",
-            attrs: { level: 6 },
+            attrs: { level: 6, align: "center" },
             content: [run("H", { italic: true, underline: true, strike: true })],
           },
           l1: { type: "list-item", attrs: { list: "bullet" }, children: ["l2"] },
@@ -333,7 +333,7 @@ describe("attributes", () => {
       "blocks.h.attrs.foo",
       "Unknown attribute"
     );
-    expectError(withBlock("p", { type: "paragraph", attrs: {} }), "blocks.p.attrs", "has no attributes");
+    expectError(withBlock("d", { type: "divider", attrs: {} }), "blocks.d.attrs", "has no attributes");
   });
 
   it("validates attribute value kinds", () => {
@@ -350,6 +350,12 @@ describe("attributes", () => {
       "number or null"
     );
     expectError(withBlock("i", { type: "image", attrs: { src: "k", align: "up" } }), "blocks.i.attrs.align", "one of");
+    expectError(withBlock("p", { type: "paragraph", attrs: { align: "up" } }), "blocks.p.attrs.align", "one of");
+    expectError(
+      withBlock("l", { type: "list-item", attrs: { list: "bullet", align: "justify" } }),
+      "blocks.l.attrs.align",
+      "one of"
+    );
     expectError(
       withBlock("co", { type: "code", attrs: { language: 5 } }),
       "blocks.co.attrs.language",

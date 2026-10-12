@@ -34,12 +34,14 @@ import type {
   LatexBlock,
   ListItemAttrs,
   ListItemBlock,
+  ParagraphAttrs,
   ParagraphBlock,
   RootBlock,
   SyncEmbedAttrs,
   SyncEmbedBlock,
   TableAttrs,
   TableBlock,
+  TableCellAttrs,
   TableCellBlock,
   TableRowBlock,
 } from "./types";
@@ -81,7 +83,9 @@ type AttrsFor<T extends BlockType> = "attrs" extends keyof Extract<Block, { type
  * to never).
  */
 type BlockAttrsPatch = Partial<
-  HeadingAttrs &
+  ParagraphAttrs &
+    TableCellAttrs &
+    HeadingAttrs &
     ListItemAttrs &
     Omit<CalloutAttrs, "variant"> &
     CodeAttrs &

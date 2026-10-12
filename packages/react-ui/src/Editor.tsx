@@ -6,6 +6,7 @@ import { useEditorContext } from "./EditorProvider";
 import { BlockGroups } from "./blocks/BlockView";
 import { CanvasView } from "./blocks/CanvasView";
 import { BlockContext } from "./blocks/block-context";
+import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
 import { PresenceCaretOverlay } from "./presence/presence-caret";
@@ -18,6 +19,12 @@ import { PresenceCaretOverlay } from "./presence/presence-caret";
  */
 type EditorView = "page" | "canvas";
 
+interface EditorProps {
+  view?: EditorView;
+  /** The format toolbar's color palette (the default six colors). */
+  formatPalette?: readonly string[];
+}
+
 /**
  * Renders the document's entry list in reading order (the document root's
  * children, or a single subtree block when the provider got a
@@ -27,14 +34,17 @@ type EditorView = "page" | "canvas";
  *
  * The `view` prop selects the rendering: "page" (default) is the entry
  * list; "canvas" renders the document's page as a page miniature and the
- * root-level surfaces' elements on one canvas (see CanvasView).
+ * root-level surfaces' elements on one canvas (see CanvasView). The
+ * `formatPalette` prop overrides the floating format toolbar's color
+ * palette.
  */
-function Editor({ view = "page" }: { view?: EditorView }) {
+function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
   const { store, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
   const { rootRef, onKeyDown } = useEditing();
   const slash = useSlashMenu(rootRef);
+  const format = useFormatToolbar(rootRef, formatPalette);
 
   return (
     <div ref={rootRef} data-slot="docblocks/editor" data-view={view} tabIndex={-1} onKeyDown={onKeyDown}>
@@ -45,6 +55,7 @@ function Editor({ view = "page" }: { view?: EditorView }) {
       </SlashMenuContext.Provider>
       <PresenceCaretOverlay rootRef={rootRef} />
       {slash.menuNode}
+      {format.toolbarNode}
     </div>
   );
 }

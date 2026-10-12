@@ -117,6 +117,12 @@
   --docblocks-menu-active-background: rgba(9, 105, 218, 0.08);
   --docblocks-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
 
+  /* The floating format toolbar (the selection's formatting layer). */
+  --docblocks-formatbar-background: #ffffff;
+  --docblocks-formatbar-border-color: #d0d7de;
+  --docblocks-formatbar-active-background: rgba(9, 105, 218, 0.12);
+  --docblocks-formatbar-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+
   /* Presence. */
   --docblocks-presence-caret-width: 2px;
   --docblocks-presence-caret-saturation: 70%;
@@ -481,6 +487,88 @@ iframe[data-slot="docblocks/embed"] {
   opacity: 0.6;
 }
 
+/* Horizontal text alignment (the text blocks' `align` attr): the block's
+   content element takes the alignment; `left` is the default, so it has
+   no rule of its own. */
+[data-block-type][data-align="center"] > [data-slot="docblocks/block-content"] {
+  text-align: center;
+}
+
+[data-block-type][data-align="right"] > [data-slot="docblocks/block-content"] {
+  text-align: right;
+}
+
+/* The floating format toolbar: the editor root's floating layer, anchored
+   above the selection (inline top/left). The palette popover is anchored
+   at the highlight button (a relative wrapper inside the bar). */
+[data-slot="docblocks/format-toolbar"] {
+  position: absolute;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--docblocks-formatbar-background);
+  color: var(--docblocks-text-color);
+  border: 1px solid var(--docblocks-formatbar-border-color);
+  border-radius: var(--docblocks-radius);
+  box-shadow: var(--docblocks-formatbar-shadow);
+  font-size: 0.8125em;
+}
+
+[data-slot="docblocks/format-toolbar"] button {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+[data-slot="docblocks/format-toolbar"] button[aria-pressed="true"] {
+  background: var(--docblocks-formatbar-active-background);
+}
+
+[data-slot="docblocks/format-toolbar"] [data-slot="docblocks/format-separator"] {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--docblocks-formatbar-border-color);
+}
+
+[data-slot="docblocks/format-palette"] {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(3, 24px);
+  gap: 4px;
+  padding: 8px;
+  background: var(--docblocks-formatbar-background);
+  border: 1px solid var(--docblocks-formatbar-border-color);
+  border-radius: var(--docblocks-radius);
+  box-shadow: var(--docblocks-formatbar-shadow);
+}
+
+[data-slot="docblocks/format-palette"] [data-slot="docblocks/format-swatch"] {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--docblocks-formatbar-border-color);
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+}
+
+[data-slot="docblocks/format-palette"] button[aria-pressed="true"] {
+  outline: 2px solid var(--docblocks-text-color);
+  outline-offset: 1px;
+}
+
 /* The structural parts of a presence caret; the per-peer hue is set
    inline as the --docblocks-presence-hue custom property, and
    left/top/height come from the measured geometry (inline). */
@@ -525,4 +613,9 @@ iframe[data-slot="docblocks/embed"] {
   --docblocks-menu-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-menu-active-background: rgba(56, 139, 253, 0.15);
   --docblocks-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --docblocks-formatbar-background: #161b22;
+  --docblocks-formatbar-border-color: rgba(110, 118, 129, 0.65);
+  --docblocks-formatbar-active-background: rgba(56, 139, 253, 0.18);
+  --docblocks-formatbar-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }

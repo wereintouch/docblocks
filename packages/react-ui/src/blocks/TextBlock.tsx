@@ -6,7 +6,7 @@ import type { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "re
 import type { Block, BlockId, TextRun } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
-import { caretOffsetIn, restoreSelection, selectionInside } from "../editing/dom-offset";
+import { caretOffsetIn, restoreSelection, selectionInside, selectionOrphaned } from "../editing/dom-offset";
 import { useBlockInput } from "../editing/input-safety";
 import { useBlockKeyboard } from "../editing/keyboard";
 import { useSlashMenuApi } from "../editing/slash";
@@ -41,6 +41,16 @@ function textOf(runs: TextRun[] | undefined): string {
 }
 
 /**
+ * The horizontal text alignment for the data attribute (absent = left, the
+ * default). Code and canvas-text carry their own alignment model (none and
+ * the `textAlign` attr), so they never expose `data-align`.
+ */
+function alignOf(block: EditableBlock): "left" | "center" | "right" | undefined {
+  if (block.type === "code" || block.type === "canvas-text") return undefined;
+  return "attrs" in block ? block.attrs?.align : undefined;
+}
+
+/**
  * A text block: a structural wrapper (tag and data attrs, the gutter
  * handle, the nested children) around one inner contenteditable element.
  *
@@ -56,15 +66,17 @@ function textOf(runs: TextRun[] | undefined): string {
  * text change that reaches the block while the selection is inside (a
  * remote or undo change — the previous store text equals the DOM text)
  * rebuilds the text DOM from the new runs and restores the selection
- * rebased across the store-text delta. When the selection leaves the
+ * rebased across the store-text delta; a mark/attrs-only change
+ * re-renders the runs in place (the applied formatting is visible
+ * without leaving the block) and restores the selection as-is. When the
+ * selection leaves the
  * block, the text DOM is re-synced from the store (the doc is the source
  * of truth; a lagging DOM — e.g. after an undo while editing — is
  * discarded, never committed back). Enter/Shift+Enter, Backspace-at-0,
  * Tab/Shift+Tab, and paste are guarded (useBlockInput): the line-split
  * default is suppressed, the gestures issue doc commands, and paste
- * commits plain text. Known v1 limitations: CJK IME composition is not
- * tracked (composition commits character by character), and mark-only
- * changes are not re-rendered while the caret is inside the block.
+ * commits plain text. Known v1 limitation: CJK IME composition is not
+ * tracked (composition commits character by character).
  */
 function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   const { doc, store, selection: selectionRef } = useEditorContext();
@@ -125,10 +137,13 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
     });
   }, [doc, id, store]);
 
-  // Capture a store text change that reaches while the DOM selection is
+  // Capture a store block change that reaches while the DOM selection is
   // inside, before the render: zustand notifies synchronously in the doc
   // change handler, so the DOM still holds the text the selection was
-  // captured against here.
+  // captured against here. A text change rebases the captured selection
+  // across the delta; a mark/attrs-only change re-renders the runs in
+  // place (the applied formatting must be visible without leaving the
+  // block), restoring the selection as-is.
   useEffect(() => {
     const unsubscribe = store.subscribe((state, prevState) => {
       const nextBlock = state.blocks[id];
@@ -136,7 +151,6 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       if (nextBlock === prevBlock) return;
       const nextText = nextBlock !== undefined && "content" in nextBlock ? textOf(nextBlock.content) : "";
       const prevText = prevBlock !== undefined && "content" in prevBlock ? textOf(prevBlock.content) : "";
-      if (nextText === prevText) return; // mark/attr-only change: the text DOM stands
 
       const el = innerRef.current;
       const selection = window.getSelection();
@@ -146,6 +160,15 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
 
       const from = caretOffsetIn(el, range.startContainer, range.startOffset);
       const to = caretOffsetIn(el, range.endContainer, range.endOffset);
+      if (nextText === prevText) {
+        // Mark/attrs-only change: the text stands, the selection is
+        // restored in place (the offsets are valid against the same text).
+        pendingRef.current = {
+          runs: nextBlock !== undefined && "content" in nextBlock ? (nextBlock.content ?? EMPTY_RUNS) : EMPTY_RUNS,
+          restore: { from, to: to === from ? null : to },
+        };
+        return;
+      }
       if ((el.textContent ?? "") === nextText) return; // this block's own input: the DOM already holds the new text
 
       // A remote/undo change: rebuild from the new runs and rebase the
@@ -175,8 +198,10 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       renderRunsInto(pending.runs, el);
       appliedRef.current = block;
       // The selection may have left the block between the capture and
-      // this commit — then the rebuild alone is the convergence.
-      if (pending.restore !== null && selectionInside(el)) {
+      // this commit — then the rebuild alone is the convergence. An
+      // orphaned selection (its containers detached by the rebuild above)
+      // still belongs to this block: the restore is the recovery.
+      if (pending.restore !== null && (selectionInside(el) || selectionOrphaned())) {
         restoreSelection(el, pending.restore.from, pending.restore.to);
       }
       return;
@@ -237,6 +262,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       data-variant={block.type === "callout" ? block.attrs?.variant : undefined}
       data-language={block.type === "code" ? block.attrs?.language : undefined}
       data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
+      data-align={alignOf(block)}
       data-selected={selected ? "true" : undefined}
       tabIndex={0}
       onKeyDown={onKeydown}

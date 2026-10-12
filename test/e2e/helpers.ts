@@ -4,7 +4,27 @@ declare global {
   interface Window {
     /** The playground pane's insert hook (harness attrs; see apps/playground/src/insert-blocks.ts). */
     __insertBlock?: (client: "a" | "b", type: string) => string | null;
+    /** The playground panes' live docs (per letter; null until the pane is mounted) — the command API the e2e suite reads/drives. */
+    __paneDocs?: { a: PaneDoc | null; b: PaneDoc | null };
   }
+}
+
+/**
+ * The structural surface of the panes' live docs a spec may read (the
+ * mounted global is the full core `Doc` — this is a partial typing for
+ * the specs that declare it locally; the e2e project has no typecheck).
+ */
+interface PaneDoc {
+  toJSON(): {
+    id: string;
+    blocks: Record<string, { type: string; attrs?: Record<string, unknown>; children?: string[] }>;
+  };
+  getChildren(id: string): string[];
+  getBlock(id: string): {
+    type: string;
+    attrs?: Record<string, unknown>;
+    content?: { text: string; marks: Record<string, unknown> }[];
+  } | null;
 }
 
 /**

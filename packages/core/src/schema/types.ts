@@ -40,6 +40,9 @@ interface TextRun {
 /** Inline text content of a block: an array of runs. */
 type BlockContent = TextRun[];
 
+/** The horizontal alignment of a block's text content. */
+type TextAlign = "left" | "center" | "right";
+
 /** Document metadata. */
 interface DocMeta {
   /** Schema version. */
@@ -61,15 +64,22 @@ interface DocJSON extends DocMeta {
 interface HeadingAttrs {
   /** Heading level 1-6. */
   level: 1 | 2 | 3 | 4 | 5 | 6;
+  align?: TextAlign;
 }
 
 interface ListItemAttrs {
   list: "bullet" | "number" | "task";
   checked?: boolean;
+  align?: TextAlign;
+}
+
+interface ParagraphAttrs {
+  align?: TextAlign;
 }
 
 interface CalloutAttrs {
   variant?: "info" | "warning" | "danger";
+  align?: TextAlign;
 }
 
 interface CodeAttrs {
@@ -79,6 +89,11 @@ interface CodeAttrs {
 interface LatexAttrs {
   /** Display (block) formula vs inline. */
   display: boolean;
+  align?: TextAlign;
+}
+
+interface TableCellAttrs {
+  align?: TextAlign;
 }
 
 interface TableAttrs {
@@ -91,7 +106,7 @@ interface ImageAttrs {
   src: string;
   /** Width in px; `null` = natural width. */
   width?: number | null;
-  align?: "left" | "center" | "right";
+  align?: TextAlign;
 }
 
 interface EmbedAttrs {
@@ -111,6 +126,7 @@ interface RootBlock {
 
 interface ParagraphBlock {
   type: "paragraph";
+  attrs?: ParagraphAttrs;
   content?: BlockContent;
 }
 
@@ -162,6 +178,7 @@ interface TableRowBlock {
 
 interface TableCellBlock {
   type: "table-cell";
+  attrs?: TableCellAttrs;
   /** Empty content is a valid (empty) cell. */
   content?: BlockContent;
   /** Leaf block types only. */
@@ -225,12 +242,15 @@ export type {
   ListItemBlock,
   MarkName,
   MarkSet,
+  ParagraphAttrs,
   ParagraphBlock,
   RootBlock,
   TableAttrs,
   TableBlock,
+  TableCellAttrs,
   TableCellBlock,
   TableRowBlock,
+  TextAlign,
   SyncEmbedAttrs,
   SyncEmbedBlock,
   SyncEmbedRef,
