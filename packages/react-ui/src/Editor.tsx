@@ -6,6 +6,7 @@ import { useEditorContext } from "./EditorProvider";
 import { BlockGroups } from "./blocks/BlockView";
 import { CanvasView } from "./blocks/CanvasView";
 import { BlockContext } from "./blocks/block-context";
+import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
 import { PresenceCaretOverlay } from "./presence/presence-caret";
 
@@ -33,13 +34,17 @@ function Editor({ view = "page" }: { view?: EditorView }) {
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
   const { rootRef, onKeyDown } = useEditing();
+  const slash = useSlashMenu(rootRef);
 
   return (
     <div ref={rootRef} data-slot="docblocks/editor" data-view={view} tabIndex={-1} onKeyDown={onKeyDown}>
-      <BlockContext.Provider value={rootContext}>
-        {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
-      </BlockContext.Provider>
+      <SlashMenuContext.Provider value={slash.api}>
+        <BlockContext.Provider value={rootContext}>
+          {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
+        </BlockContext.Provider>
+      </SlashMenuContext.Provider>
       <PresenceCaretOverlay rootRef={rootRef} />
+      {slash.menuNode}
     </div>
   );
 }

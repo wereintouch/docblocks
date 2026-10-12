@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { insertBlockType } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -13,8 +15,7 @@ async function openPane(page: Page, client: "a" | "b", room: string): Promise<vo
 
 /** Insert one harness type at the root through the pane's insert control. */
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {
-  await page.getByTestId(`block-type-select-${client}`).selectOption(type);
-  await page.getByTestId(`block-type-btn-${client}`).click();
+  await insertBlockType(page, client, type);
 }
 
 async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {

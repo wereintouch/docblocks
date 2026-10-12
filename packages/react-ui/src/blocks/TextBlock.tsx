@@ -9,6 +9,7 @@ import { useEditorContext } from "../EditorProvider";
 import { caretOffsetIn, restoreSelection, selectionInside } from "../editing/dom-offset";
 import { useBlockInput } from "../editing/input-safety";
 import { useBlockKeyboard } from "../editing/keyboard";
+import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { renderRunsInto } from "../text/runs-dom";
 import { useBlockContext } from "./block-context";
@@ -72,6 +73,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
 
   const wrapperRef = useRef<HTMLElement | null>(null);
   const innerRef = useRef<HTMLElement | null>(null);
+  const slash = useSlashMenuApi();
   const { onKeyDown: onInputKeyDown, onPaste } = useBlockInput({
     id,
     blockType: block.type,
@@ -87,17 +89,19 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   });
 
   /**
-   * The block's single keydown entry: the keyboard gestures first, then the
-   * input-safety guards (skipped when a gesture already handled the event,
+   * The block's single keydown entry: the open slash menu first (it owns
+   * the keys while open), then the keyboard gestures, then the input-
+   * safety guards (skipped when a handler already prevented the default,
    * so preventDefault is never doubled).
    */
   const onKeydown = useCallback(
     (event: KeyboardEvent<HTMLElement>) => {
+      if (slash !== null && slash.onKeyDown(event, id)) return;
       onGestureKeyDown(event);
       if (event.defaultPrevented) return;
       onInputKeyDown(event);
     },
-    [onGestureKeyDown, onInputKeyDown]
+    [id, onGestureKeyDown, onInputKeyDown, slash]
   );
 
   /** The last store block snapshot applied to the text DOM. */

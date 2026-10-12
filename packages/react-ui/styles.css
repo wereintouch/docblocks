@@ -18,7 +18,7 @@
  * docblocks/block-content, docblocks/gutter, docblocks/list,
  * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret,
  * docblocks/mermaid, docblocks/sync-embed-body,
- * docblocks/sync-embed-placeholder),
+ * docblocks/sync-embed-placeholder, docblocks/slash-menu),
  * plus the per-block elements (docblocks/image, docblocks/embed, …);
  * + `data-block-type` / `data-list` / `data-variant` / `data-checked`
  * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
@@ -110,6 +110,12 @@
   --docblocks-page-card-background: #ffffff;
   --docblocks-page-card-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
   --docblocks-page-card-padding: 32px 40px;
+
+  /* Slash command menu. */
+  --docblocks-menu-background: #ffffff;
+  --docblocks-menu-border-color: #d0d7de;
+  --docblocks-menu-active-background: rgba(9, 105, 218, 0.08);
+  --docblocks-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
 
   /* Presence. */
   --docblocks-presence-caret-width: 2px;
@@ -441,6 +447,40 @@ iframe[data-slot="docblocks/embed"] {
   background: var(--docblocks-selection-background);
 }
 
+/* The slash command menu: the editor root's floating layer, anchored at
+   the triggering block (inline top/left); the items are the command list
+   filtered by the typed query. */
+[data-slot="docblocks/slash-menu"] {
+  position: absolute;
+  z-index: 40;
+  min-width: 190px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--docblocks-menu-background);
+  color: var(--docblocks-text-color);
+  border: 1px solid var(--docblocks-menu-border-color);
+  border-radius: var(--docblocks-radius);
+  box-shadow: var(--docblocks-menu-shadow);
+  font-size: 0.8125em;
+}
+
+[data-slot="docblocks/slash-menu"] [role="option"] {
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+[data-slot="docblocks/slash-menu"] [aria-selected="true"] {
+  background: var(--docblocks-menu-active-background);
+}
+
+[data-slot="docblocks/slash-menu"] [data-slot="docblocks/slash-empty"] {
+  padding: 6px 8px;
+  opacity: 0.6;
+}
+
 /* The structural parts of a presence caret; the per-peer hue is set
    inline as the --docblocks-presence-hue custom property, and
    left/top/height come from the measured geometry (inline). */
@@ -480,4 +520,9 @@ iframe[data-slot="docblocks/embed"] {
   --docblocks-callout-background-warning: rgba(210, 153, 34, 0.15);
   --docblocks-callout-border-color-danger: #f85149;
   --docblocks-callout-background-danger: rgba(248, 81, 73, 0.15);
+
+  --docblocks-menu-background: #161b22;
+  --docblocks-menu-border-color: rgba(110, 118, 129, 0.65);
+  --docblocks-menu-active-background: rgba(56, 139, 253, 0.15);
+  --docblocks-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }

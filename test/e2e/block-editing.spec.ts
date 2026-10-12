@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { insertBlockType } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -31,8 +33,7 @@ function topLis(page: Page, client: "a" | "b") {
 }
 
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {
-  await page.getByTestId(`block-type-select-${client}`).selectOption(type);
-  await page.getByTestId(`block-type-btn-${client}`).click();
+  await insertBlockType(page, client, type);
 }
 
 /**

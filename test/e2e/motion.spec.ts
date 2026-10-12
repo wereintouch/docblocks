@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { insertBlockType } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -58,7 +60,7 @@ test("an inserted block renders in the plain pane and settles in the motion pane
   // Both panes seed their own first paragraph, so the room starts with two.
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
 
-  await a.getByTestId("block-btn-a").click();
+  await insertBlockType(a, "a", "paragraph");
 
   // The plain pane renders the block as it arrives...
   await expect(wrappers(b, "b"), SETTLE).toHaveCount(3);

@@ -8,6 +8,7 @@ import type { BlockContextValue } from "../blocks/block-context";
 import { focusCaretIn, mergeWithPrevious, nestIntoPrevious, outdentFrom, splitAt } from "./block-commands";
 import { applyRichPaste } from "./clipboard";
 import { caretOffsetIn, restoreSelection } from "./dom-offset";
+import { useSlashMenuApi } from "./slash";
 
 /**
  * Input safety and the keyboard gestures of one editable block.
@@ -18,7 +19,9 @@ import { caretOffsetIn, restoreSelection } from "./dom-offset";
  * transaction, one undo step): a `text/html` payload is flattened over the
  * clipboard whitelist (marks included), a plain-text payload is inserted
  * as text. Enter splits the block at the caret, Backspace at offset 0
- * merges with the previous sibling, and Tab / Shift+Tab nest a list item.
+ * merges with the previous sibling, Tab / Shift+Tab nest a list item, and
+ * a "/" in an empty root-level block opens the slash command menu (the
+ * character is never inserted: the menu captures the filter query).
  * While a blocks selection is active (the wrapper is focused from the
  * gutter): Delete / Backspace remove the selected blocks, the arrows move
  * a single-block selection to the previous / next sibling, Escape clears it.
@@ -39,7 +42,8 @@ function useBlockInput({
   innerRef: RefObject<HTMLElement | null>;
   wrapperRef: RefObject<HTMLElement | null>;
 }) {
-  const { doc, selection: selectionRef } = useEditorContext();
+  const { doc, selection: selectionRef, store, rootBlockId } = useEditorContext();
+  const slash = useSlashMenuApi();
 
   const onPaste = useCallback(
     (event: ClipboardEvent<HTMLElement>) => {
@@ -114,6 +118,21 @@ function useBlockInput({
         return;
       }
 
+      // The slash trigger: a "/" with a collapsed caret in an empty,
+      // root-level block opens the command menu (the key is consumed — the
+      // character never reaches the doc). `content` is omitted from the
+      // empty block's snapshot, so its absence is the empty state too.
+      if (slash !== null && event.key === "/" && !event.nativeEvent.isComposing) {
+        const domSelection = window.getSelection();
+        if (domSelection === null || !domSelection.isCollapsed) return;
+        if (domSelection.anchorNode === null || !inner.contains(domSelection.anchorNode)) return;
+        const block = store.getState().blocks[id];
+        if (block === undefined) return;
+        const text = "content" in block ? (block.content ?? []).reduce((t, run) => t + run.text, "") : "";
+        if (text === "" && slash.onSlashKey(event, id, context.parentId, true, context.parentId === rootBlockId))
+          return;
+      }
+
       // isComposing: an Enter during an IME composition commits the
       // candidate text — suppressing it would strand CJK input.
       if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -156,7 +175,7 @@ function useBlockInput({
         if (acted) event.preventDefault();
       }
     },
-    [blockType, context, doc, id, innerRef, selectionRef, wrapperRef]
+    [blockType, context, doc, id, innerRef, rootBlockId, selectionRef, slash, store, wrapperRef]
   );
 
   return { onKeyDown, onPaste };

@@ -8,10 +8,11 @@ import type { CSSProperties } from "react";
 
 import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach } from "docblocks-core";
 
+import { ChaosBar } from "./ChaosBar";
 import { MarkToolbar } from "./MarkToolbar";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
-import { INSERTABLE_TYPES, blobResolver, insertBlockOf } from "./insert-blocks";
+import { blobResolver, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
@@ -29,6 +30,8 @@ declare global {
   interface Window {
     /** Harness-only: the live docs of the mounted panes (per letter; null until the pane's effect ran); the e2e suite drives the command API through them. */
     __paneDocs?: { a: Doc | null; b: Doc | null };
+    /** Harness-only: inserts a v1 block of `type` into the pane's doc with the harness attrs (see insert-blocks.ts) and returns its id (null if the pane is not mounted); the e2e suite's insert path in place of the removed insert controls. */
+    __insertBlock?: (client: "a" | "b", type: string) => string | null;
   }
 }
 
@@ -41,7 +44,7 @@ declare global {
  */
 const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
 
-/** The inspector tabs below the editor. */
+/** The inspector tabs in the pane's system panel. */
 const TABS = ["json", "wire", "presence"] as const;
 type InspectTab = (typeof TABS)[number];
 
@@ -70,10 +73,10 @@ interface Runtime {
  * live doc on `window.__catalogDoc`); `cycle` seeds the master with a
  * sync-embed referencing the outer doc (the cycle-guard e2e case).
  *
- * Below the editor the pane shows its inspectors (JSON / Wire / Presence
- * tabs): all three stay mounted, the tabs only toggle visibility — the
- * subscriptions live in the runtime effect, so a hidden inspector keeps
- * updating and its testid stays queryable.
+ * The pane's system panel (the right-hand column) shows its inspectors
+ * (JSON / Wire / Presence tabs): all three stay mounted, the tabs only
+ * toggle visibility — the subscriptions live in the runtime effect, so a
+ * hidden inspector keeps updating and its testid stays queryable.
  */
 function SyncPane({
   client,
@@ -100,7 +103,6 @@ function SyncPane({
   const [blocks, setBlocks] = useState<PaneBlock[]>([]);
   const [presence, setPresence] = useState<PresenceState[]>([]);
   const [wire, setWire] = useState<WireEvent[]>([]);
-  const [insertType, setInsertType] = useState<InsertableType>("paragraph");
   const [tab, setTab] = useState<InspectTab>("json");
   /** The view mode (page / canvas): view state only — switching writes nothing to the doc. */
   const [view, setView] = useState<EditorView>(canvas ? "canvas" : "page");
@@ -208,18 +210,20 @@ function SyncPane({
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
-  const onAddBlock = () => {
-    const doc = docRef.current;
-    if (doc === null) return;
-    doc.insertBlock("paragraph");
-  };
-
-  /** Insert the selected v1 type at the root (harness attrs; see insert-blocks.ts). */
-  const onInsertBlock = () => {
-    const doc = docRef.current;
-    if (doc === null) return;
-    insertBlockOf(insertType, doc, masterDocId);
-  };
+  /**
+   * The e2e insert path: inserts the v1 type into this pane's doc with the
+   * harness attrs (see insert-blocks.ts) and returns the block id.
+   */
+  useEffect(() => {
+    window.__insertBlock = (letter, type) => {
+      const doc = docRef.current;
+      if (letter !== client || doc === null || runtime === null) return null;
+      return insertBlockOf(type as InsertableType, doc, masterDocId);
+    };
+    return () => {
+      window.__insertBlock = undefined;
+    };
+  }, [client, runtime, masterDocId]);
 
   const onReconnect = () => {
     const provider = providerRef.current;
@@ -247,114 +251,130 @@ function SyncPane({
   const docAreaStyle: CSSProperties =
     view === "canvas"
       ? {
+          // A definite height (not flex-derived: main is content-height, so a
+          // flex:1 basis would collapse the canvas chain) for the editor's
+          // flex chain — the canvas view is a viewport-like surface.
+          minWidth: 0,
           display: "flex",
           flexDirection: "column",
-          height: "70vh",
+          height: "calc(100vh - 72px)",
           border: "1px solid #d0d7de",
           borderRadius: 8,
           overflow: "hidden",
           background: "#f6f8fa",
         }
-      : { border: "1px solid #ccc", padding: 8, minHeight: 40 };
+      : // The page flow keeps the visual-golden editor width (702: the doc area's
+        // content width the goldens were captured at).
+        { width: 702, maxWidth: "100%", border: "1px solid #ccc", padding: 8, minHeight: 40 };
 
+  // main must stay content-height (a viewport-pinned fixed height makes
+  // Chrome swallow the default Home/End caret moves inside the nested
+  // contenteditable); the canvas view carries its own definite height for
+  // the editor's flex chain.
   return (
-    <main style={{ fontFamily: "system-ui, sans-serif", padding: 24, maxWidth: view === "canvas" ? 1100 : 720 }}>
-      <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — {client}</h1>
-        <div style={{ display: "flex", gap: 4 }}>
-          <button
-            type="button"
-            data-testid={`view-${client}-page`}
-            aria-pressed={view === "page"}
-            onClick={() => setView("page")}
-            style={toggleStyle(view === "page")}
-          >
-            page
-          </button>
-          <button
-            type="button"
-            data-testid={`view-${client}-canvas`}
-            aria-pressed={view === "canvas"}
-            onClick={() => setView("canvas")}
-            style={toggleStyle(view === "canvas")}
-          >
-            canvas
-          </button>
+    <main
+      style={{
+        fontFamily: "system-ui, sans-serif",
+        padding: 16,
+        display: "flex",
+        gap: 16,
+        alignItems: "flex-start",
+      }}
+    >
+      {/* The component under test: the page flow or the document canvas. */}
+      <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+        <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — {client}</h1>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              type="button"
+              data-testid={`view-${client}-page`}
+              aria-pressed={view === "page"}
+              onClick={() => setView("page")}
+              style={toggleStyle(view === "page")}
+            >
+              page
+            </button>
+            <button
+              type="button"
+              data-testid={`view-${client}-canvas`}
+              aria-pressed={view === "canvas"}
+              onClick={() => setView("canvas")}
+              style={toggleStyle(view === "canvas")}
+            >
+              canvas
+            </button>
+          </div>
+        </header>
+        <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
+          {runtime !== null && (
+            <EditorProvider
+              doc={runtime.doc}
+              provider={runtime.provider}
+              blobResolver={blobResolver}
+              blockRenderers={BLOCK_RENDERERS}
+              syncEmbedResolver={syncEmbedResolver}
+            >
+              <MarkToolbar client={client} />
+              {motion ? <MotionEditor view={view} /> : <Editor view={view} />}
+            </EditorProvider>
+          )}
         </div>
-        <span style={{ marginLeft: "auto", fontSize: 13, color: "#57606a" }}>
-          <span data-testid={`status-${client}`}>{connected ? "connected" : "disconnected"}</span>{" "}
+      </section>
+      {/* The system panel: status, chaos, and the live inspectors. */}
+      <aside
+        style={{
+          width: 420,
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          borderLeft: "1px solid #d0d7de",
+          paddingLeft: 16,
+        }}
+      >
+        <div style={{ fontSize: 13, color: "#57606a", display: "flex", alignItems: "center", gap: 8 }}>
+          <span data-testid={`status-${client}`}>{connected ? "connected" : "disconnected"}</span>
           <button data-testid={`reconnect-${client}`} onClick={onReconnect}>
             reconnect
           </button>
-        </span>
-      </header>
-      <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
-        {runtime !== null && (
-          <EditorProvider
-            doc={runtime.doc}
-            provider={runtime.provider}
-            blobResolver={blobResolver}
-            blockRenderers={BLOCK_RENDERERS}
-            syncEmbedResolver={syncEmbedResolver}
-          >
-            <MarkToolbar client={client} />
-            {motion ? <MotionEditor view={view} /> : <Editor view={view} />}
-          </EditorProvider>
-        )}
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-        <button data-testid={`block-btn-${client}`} onClick={onAddBlock}>
-          + block
-        </button>
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "center" }}>
-        <select
-          data-testid={`block-type-select-${client}`}
-          value={insertType}
-          onChange={(event) => setInsertType(event.target.value as InsertableType)}
-        >
-          {INSERTABLE_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
-        <button data-testid={`block-type-btn-${client}`} onClick={onInsertBlock}>
-          + insert
-        </button>
-      </div>
-      {runtime !== null && (
-        <div style={{ marginTop: 8 }}>
-          <div style={{ display: "flex", gap: 4 }}>
-            {TABS.map((name) => (
-              <button
-                key={name}
-                type="button"
-                data-testid={`inspecttab-${client}-${name}`}
-                aria-pressed={tab === name}
-                onClick={() => setTab(name)}
-                style={{
-                  padding: "2px 8px",
-                  fontSize: 12,
-                  border: "1px solid #ccc",
-                  background: tab === name ? "#dbeafe" : "#f6f8fa",
-                }}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          <div style={{ display: tab === "json" ? undefined : "none" }}>
-            <JsonInspector client={client} doc={runtime.doc} />
-          </div>
-          <div style={{ display: tab === "wire" ? undefined : "none" }}>
-            <WireLog client={client} events={wire} />
-          </div>
-          <div style={{ display: tab === "presence" ? undefined : "none" }}>
-            <PresencePanel client={client} peerLabel={peerLetter} mountAt={runtime.mountedAt} peers={presence} />
-          </div>
         </div>
-      )}
+        <ChaosBar syncUrl={syncUrl} />
+        {runtime !== null && (
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            <div style={{ display: "flex", gap: 4 }}>
+              {TABS.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  data-testid={`inspecttab-${client}-${name}`}
+                  aria-pressed={tab === name}
+                  onClick={() => setTab(name)}
+                  style={{
+                    padding: "2px 8px",
+                    fontSize: 12,
+                    border: "1px solid #ccc",
+                    background: tab === name ? "#dbeafe" : "#f6f8fa",
+                  }}
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <div style={{ overflowY: "auto", maxHeight: "60vh", marginTop: 8 }}>
+              <div style={{ display: tab === "json" ? undefined : "none" }}>
+                <JsonInspector client={client} doc={runtime.doc} />
+              </div>
+              <div style={{ display: tab === "wire" ? undefined : "none" }}>
+                <WireLog client={client} events={wire} />
+              </div>
+              <div style={{ display: tab === "presence" ? undefined : "none" }}>
+                <PresencePanel client={client} peerLabel={peerLetter} mountAt={runtime.mountedAt} peers={presence} />
+              </div>
+            </div>
+          </div>
+        )}
+      </aside>
     </main>
   );
 }

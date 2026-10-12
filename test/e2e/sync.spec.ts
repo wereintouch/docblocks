@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { insertBlockType } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -74,10 +76,10 @@ test("presence tracks the remote caret and its new block", async ({ browser }) =
   const presenceLine = async () => (await b.getByTestId("presence-b").innerText()).trim();
   await expect.poll(presenceLine, SETTLE).toMatch(/^a:.+:\d+$/);
 
-  // A adds a block and moves the caret into it; B's line follows the
-  // caret's move to the new block id.
+  // A adds a block (the pane's insert hook) and moves the caret into it;
+  // B's line follows the caret's move to the new block id.
   const beforeId = ((await current.getAttribute("data-testid")) ?? "").slice("block-a-".length);
-  await a.getByTestId("block-btn-a").click();
+  await insertBlockType(a, "a", "paragraph");
   await current.locator('[data-slot="docblocks/block-content"]').first().click();
   // The line carries the bare block id (the testid prefix is not part of it).
   await expect

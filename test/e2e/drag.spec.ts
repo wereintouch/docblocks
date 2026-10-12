@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { insertBlockType } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -81,12 +83,12 @@ test("a gutter drag reorders the block, syncs to the plain pane, and undoes as o
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
   await expect(wrappers(b, "b"), SETTLE).toHaveCount(2);
 
-  // Two more paragraphs via the insert control (the inserted block is
+  // Two more paragraphs via the pane's insert hook (the inserted block is
   // current, so it is labeled), with unique texts for the assertions.
-  await a.getByTestId("block-btn-a").click();
+  await insertBlockType(a, "a", "paragraph");
   await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
   await a.keyboard.type("one");
-  await a.getByTestId("block-btn-a").click();
+  await insertBlockType(a, "a", "paragraph");
   await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
   await a.keyboard.type("two");
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(4);

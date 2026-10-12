@@ -54,6 +54,7 @@ import { useEditorContext } from "../EditorProvider";
 import { BlockView, groupChildren } from "../blocks/BlockView";
 import { CanvasView } from "../blocks/CanvasView";
 import { BlockContext } from "../blocks/block-context";
+import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
 import { moveTargetForReorder } from "./reorder";
@@ -144,6 +145,7 @@ function MotionEditor({ view = "page" }: { view?: EditorView }) {
   const blocks = useStore(store, (state) => state.blocks);
   const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
   const { rootRef, onKeyDown } = useEditing();
+  const slash = useSlashMenu(rootRef);
   const groups = useMemo(() => groupChildren(rootChildren, blocks), [rootChildren, blocks]);
   const entries = useMemo<Entry[]>(
     () =>
@@ -243,30 +245,33 @@ function MotionEditor({ view = "page" }: { view?: EditorView }) {
       onPointerDown={onHandlePointerDown}
     >
       <style>{HANDLE_GRAB_STYLE}</style>
-      <BlockContext.Provider value={rootContext}>
-        {view === "canvas" ? (
-          <CanvasView />
-        ) : (
-          <Reorder.Group as="div" axis="y" values={order} onReorder={onReorder}>
-            <AnimatePresence initial={false} mode="popLayout">
-              {order.map((key) => {
-                const entry = entriesByKey.get(key);
-                if (entry === undefined) return null;
-                return (
-                  <EntryItem
-                    key={key}
-                    entry={entry}
-                    register={registerControls}
-                    onDragStart={onEntryDragStart}
-                    onDragEnd={finishDrag}
-                  />
-                );
-              })}
-            </AnimatePresence>
-          </Reorder.Group>
-        )}
-        <PresenceCaretOverlay rootRef={rootRef} />
-      </BlockContext.Provider>
+      <SlashMenuContext.Provider value={slash.api}>
+        <BlockContext.Provider value={rootContext}>
+          {view === "canvas" ? (
+            <CanvasView />
+          ) : (
+            <Reorder.Group as="div" axis="y" values={order} onReorder={onReorder}>
+              <AnimatePresence initial={false} mode="popLayout">
+                {order.map((key) => {
+                  const entry = entriesByKey.get(key);
+                  if (entry === undefined) return null;
+                  return (
+                    <EntryItem
+                      key={key}
+                      entry={entry}
+                      register={registerControls}
+                      onDragStart={onEntryDragStart}
+                      onDragEnd={finishDrag}
+                    />
+                  );
+                })}
+              </AnimatePresence>
+            </Reorder.Group>
+          )}
+          <PresenceCaretOverlay rootRef={rootRef} />
+        </BlockContext.Provider>
+      </SlashMenuContext.Provider>
+      {slash.menuNode}
     </div>
   );
 }

@@ -81,7 +81,6 @@ function ChaosBar({ syncUrl }: { syncUrl: string }) {
         display: "flex",
         gap: 8,
         alignItems: "center",
-        padding: "16px 24px 0",
         fontFamily: "system-ui, sans-serif",
       }}
     >
