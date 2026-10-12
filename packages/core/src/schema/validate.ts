@@ -1,6 +1,7 @@
+import type { BlockType } from "./block-union";
 import { BLOCK_REGISTRY, MARK_REGISTRY } from "./registry";
 import type { AttrSpec, BlockSpec } from "./registry";
-import type { BlockType, MarkName } from "./types";
+import type { MarkName } from "./types";
 
 /** A single schema violation with its location in the document. */
 interface ValidationError {
@@ -175,8 +176,107 @@ function validateNumber(name: string, spec: AttrSpec, value: number, path: strin
   if (spec.min !== undefined && value < spec.min) {
     errors.push({ path, message: `Attribute "${name}" must be >= ${spec.min} (got ${value}).` });
   }
+  if (spec.max !== undefined && value > spec.max) {
+    errors.push({ path, message: `Attribute "${name}" must be <= ${spec.max} (got ${value}).` });
+  }
   if (spec.positive && value <= 0) {
     errors.push({ path, message: `Attribute "${name}" must be positive (got ${value}).` });
+  }
+}
+
+/** The known geometry fields (the strict shape rejects the rest). */
+const GEOMETRY_FIELDS = ["x", "y", "w", "h", "rotation"] as const;
+
+/**
+ * The strict shape of the optional `geometry` field of ANY block: a plain
+ * object with finite x/y (and rotation when present) and w/h > 0, where
+ * x/y/w/h are required and unknown fields are rejected. Runs from
+ * validateDoc for every block that carries a geometry field.
+ */
+function validateGeometry(geometry: unknown, path: string, errors: ValidationError[]): void {
+  if (!isPlainObject(geometry)) {
+    errors.push({ path, message: `geometry must be a plain object (got ${show(geometry)}).` });
+    return;
+  }
+  for (const field of ["x", "y", "w", "h"] as const) {
+    if (!(field in geometry)) {
+      errors.push({ path: `${path}.${field}`, message: `Field "${field}" of geometry is required.` });
+      continue;
+    }
+    const value = geometry[field];
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      errors.push({
+        path: `${path}.${field}`,
+        message: `geometry.${field} must be a finite number (got ${show(value)}).`,
+      });
+      continue;
+    }
+    if ((field === "w" || field === "h") && value <= 0) {
+      errors.push({ path: `${path}.${field}`, message: `geometry.${field} must be positive (got ${value}).` });
+    }
+  }
+  if ("rotation" in geometry) {
+    const value = geometry.rotation;
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+      errors.push({
+        path: `${path}.rotation`,
+        message: `geometry.rotation must be a finite number (got ${show(value)}).`,
+      });
+    }
+  }
+  for (const field of Object.keys(geometry)) {
+    if (!(GEOMETRY_FIELDS as readonly string[]).includes(field)) {
+      errors.push({ path: `${path}.${field}`, message: `Unknown field "${field}" for geometry.` });
+    }
+  }
+}
+
+/**
+ * The canvas block-level invariants of `shape` / `connector` (strict),
+ * over the block's plain JSON shape: the `points` attr is an array of
+ * [x, y] pairs of finite numbers (a tuple shape the AttrSpec array kind
+ * cannot express — the spec passes any array), and the connector's
+ * start/end weak refs each carry at least one of docId / blockId (the
+ * object spec cannot express "at least one of two"). The enums and the
+ * numeric bounds are checked by the registry attrs spec. Runs from
+ * validateDoc, and from the insertBlock / updateBlock command checks.
+ */
+function validateCanvasBlock(
+  type: BlockType,
+  block: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): void {
+  const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
+  if (attrs === undefined) return;
+
+  const points = attrs.points;
+  if (Array.isArray(points)) {
+    points.forEach((item, index) => {
+      const valid =
+        Array.isArray(item) &&
+        item.length === 2 &&
+        item.every((coordinate) => typeof coordinate === "number" && Number.isFinite(coordinate));
+      if (!valid) {
+        errors.push({
+          path: `${path}.attrs.points[${index}]`,
+          message: `A points entry must be a [x, y] pair of finite numbers (got ${show(item)}).`,
+        });
+      }
+    });
+  }
+
+  if (type === "connector") {
+    for (const key of ["start", "end"] as const) {
+      const ref = attrs[key];
+      if (!isPlainObject(ref)) continue; // a malformed ref is reported by the object spec
+      if (!("docId" in ref) && !("blockId" in ref)) {
+        errors.push({
+          path: `${path}.attrs.${key}`,
+          message: `Connector ref "${key}" must carry at least one of docId / blockId.`,
+        });
+      }
+    }
   }
 }
 
@@ -591,6 +691,11 @@ function validateDoc(json: unknown): ValidationError[] {
     }
     if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors);
 
+    if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors);
+    if (blockType === "shape" || blockType === "connector") {
+      validateCanvasBlock(blockType, block, `blocks.${id}`, errors);
+    }
+
     validateAttrs(blockType, spec, block.attrs, `blocks.${id}.attrs`, errors);
   }
 
@@ -663,5 +768,12 @@ function validateMarkSet(blockType: BlockType, marks: unknown): ValidationError[
   return errors;
 }
 
-export { checkDatabaseCellValue, validateBlockAttrs, validateDatabaseBlock, validateDoc, validateMarkSet };
+export {
+  checkDatabaseCellValue,
+  validateBlockAttrs,
+  validateCanvasBlock,
+  validateDatabaseBlock,
+  validateDoc,
+  validateMarkSet,
+};
 export type { ValidationError };

@@ -62,6 +62,11 @@ function insertSameTypeAfter(doc: Doc, block: Block, parent: BlockId, after: Blo
       );
     case "latex":
       return doc.insertBlock("latex", { display: block.attrs.display }, { parent, after });
+    case "canvas-text":
+      return doc.insertBlock("canvas-text", block.attrs !== undefined ? { ...block.attrs } : undefined, {
+        parent,
+        after,
+      });
     default:
       return doc.insertBlock("paragraph", undefined, { parent, after });
   }

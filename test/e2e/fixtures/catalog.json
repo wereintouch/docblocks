@@ -34,14 +34,15 @@
         "c0036",
         "c0037",
         "c0040",
-        "c0041"
+        "c0050",
+        "c0051"
       ]
     },
     "c0001": {
       "type": "paragraph",
       "content": [
         {
-          "text": "Catalog: all v1 blocks and marks",
+          "text": "Catalog: all v1 blocks, marks, and the v2 canvas",
           "marks": {}
         }
       ]
@@ -417,6 +418,123 @@
       "rowOrder": ["c0038", "c0039"]
     },
     "c0040": {
+      "type": "surface",
+      "geometry": {
+        "x": 0,
+        "y": 0,
+        "w": 900,
+        "h": 500
+      },
+      "children": ["c0041", "c0044", "c0045", "c0046", "c0047", "c0048", "c0049"]
+    },
+    "c0041": {
+      "type": "frame",
+      "geometry": {
+        "x": -180,
+        "y": -100,
+        "w": 280,
+        "h": 160
+      },
+      "children": ["c0042", "c0043"]
+    },
+    "c0042": {
+      "type": "heading",
+      "attrs": {
+        "level": 2
+      },
+      "content": [
+        {
+          "text": "Frame heading",
+          "marks": {}
+        }
+      ]
+    },
+    "c0043": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Frame paragraph on the canvas.",
+          "marks": {}
+        }
+      ]
+    },
+    "c0044": {
+      "type": "shape",
+      "attrs": {
+        "variant": "rect",
+        "fill": "rgba(9, 105, 218, 0.2)"
+      },
+      "geometry": {
+        "x": -120,
+        "y": 90,
+        "w": 160,
+        "h": 80
+      }
+    },
+    "c0045": {
+      "type": "shape",
+      "attrs": {
+        "variant": "ellipse"
+      },
+      "geometry": {
+        "x": 40,
+        "y": 90,
+        "w": 100,
+        "h": 80
+      }
+    },
+    "c0046": {
+      "type": "shape",
+      "attrs": {
+        "variant": "diamond"
+      },
+      "geometry": {
+        "x": 160,
+        "y": 40,
+        "w": 90,
+        "h": 90
+      }
+    },
+    "c0047": {
+      "type": "shape",
+      "attrs": {
+        "variant": "line"
+      },
+      "geometry": {
+        "x": 60,
+        "y": -60,
+        "w": 140,
+        "h": 60
+      }
+    },
+    "c0048": {
+      "type": "canvas-text",
+      "geometry": {
+        "x": 140,
+        "y": -140,
+        "w": 200,
+        "h": 40
+      },
+      "content": [
+        {
+          "text": "Canvas note",
+          "marks": {}
+        }
+      ]
+    },
+    "c0049": {
+      "type": "connector",
+      "attrs": {
+        "start": {
+          "blockId": "c0041"
+        },
+        "end": {
+          "blockId": "c0044"
+        },
+        "label": "relates to"
+      }
+    },
+    "c0050": {
       "type": "paragraph",
       "content": [
         {
@@ -494,7 +612,7 @@
         }
       ]
     },
-    "c0041": {
+    "c0051": {
       "type": "paragraph",
       "content": [
         {

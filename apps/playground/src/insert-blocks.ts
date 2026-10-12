@@ -18,6 +18,7 @@ const INSERTABLE_TYPES = [
   "sync-embed-subtree",
   "sync-embed-broken",
   "database",
+  "canvas",
   "divider",
 ] as const;
 
@@ -54,6 +55,37 @@ function seedDatabase(doc: Doc): BlockId {
   doc.setCell(id, r2, "done", true);
   doc.setCell(id, r2, "status", "done");
   return id;
+}
+
+/** The canvas demo scene the harness inserts (harness convenience): the fixed geometries, one surface with a frame (seeded with a heading + a paragraph), four shapes, a canvas-text, and a connector between the frame and the rect. */
+function seedCanvas(doc: Doc): BlockId {
+  const surface = doc.insertBlock("surface");
+  doc.setGeometry(surface, { x: 0, y: 0, w: 900, h: 500 });
+  const frame = doc.insertBlock("frame", undefined, { parent: surface });
+  doc.setGeometry(frame, { x: -180, y: -100, w: 280, h: 160 });
+  const heading = doc.insertBlock("heading", { level: 2 }, { parent: frame });
+  doc.insertText(heading, 0, "Frame heading");
+  const paragraph = doc.insertBlock("paragraph", undefined, { parent: frame });
+  doc.insertText(paragraph, 0, "Frame paragraph on the canvas.");
+  const rect = doc.insertBlock("shape", { variant: "rect", fill: "rgba(9, 105, 218, 0.2)" }, { parent: surface });
+  doc.setGeometry(rect, { x: -120, y: 90, w: 160, h: 80 });
+  const ellipse = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+  doc.setGeometry(ellipse, { x: 40, y: 90, w: 100, h: 80 });
+  const diamond = doc.insertBlock("shape", { variant: "diamond" }, { parent: surface });
+  doc.setGeometry(diamond, { x: 160, y: 40, w: 90, h: 90 });
+  const line = doc.insertBlock("shape", { variant: "line" }, { parent: surface });
+  doc.setGeometry(line, { x: 60, y: -60, w: 140, h: 60 });
+  const note = doc.insertBlock("canvas-text", undefined, { parent: surface });
+  doc.insertText(note, 0, "Canvas note");
+  doc.setGeometry(note, { x: 140, y: -140, w: 200, h: 40 });
+  // The connector is the topmost element (the z-order last): from the
+  // frame's center to the rect's center.
+  doc.insertBlock(
+    "connector",
+    { start: { blockId: frame }, end: { blockId: rect }, label: "relates to" },
+    { parent: surface }
+  );
+  return surface;
 }
 
 /** Fixed key -> inline data: URL (a small SVG data URI). */
@@ -118,6 +150,9 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
       case "database":
         id = seedDatabase(doc);
         break;
+      case "canvas":
+        id = seedCanvas(doc);
+        break;
       case "table": {
         const tableId = doc.insertBlock("table", { cols: 2 });
         for (let row = 0; row < 2; row++) {
@@ -137,5 +172,5 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
   return id;
 }
 
-export { blobResolver, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedDatabase };
+export { blobResolver, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedCanvas, seedDatabase };
 export type { InsertableType };

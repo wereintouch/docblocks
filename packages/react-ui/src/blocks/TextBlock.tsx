@@ -13,8 +13,11 @@ import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { renderRunsInto } from "../text/runs-dom";
 import { useBlockContext } from "./block-context";
 
-/** The six text-editable block types (the wrapper tag and data attrs are props). */
-type EditableBlock = Extract<Block, { type: "paragraph" | "heading" | "callout" | "list-item" | "code" | "latex" }>;
+/** The text-editable block types (the wrapper tag and data attrs are props). */
+type EditableBlock = Extract<
+  Block,
+  { type: "paragraph" | "heading" | "callout" | "list-item" | "code" | "latex" | "canvas-text" }
+>;
 
 interface TextBlockProps {
   id: BlockId;

@@ -118,6 +118,8 @@ function readPlainValue(value: unknown): unknown {
 interface BlockDraft {
   type: BlockType;
   attrs?: unknown;
+  /** The canvas geometry as a plain object of numbers (any block type). */
+  geometry?: unknown;
   content?: TextRun[];
   children?: BlockId[];
   rows?: Record<string, Record<string, unknown>>;
@@ -126,8 +128,9 @@ interface BlockDraft {
 
 /**
  * Snapshot of one block, or null when missing. Export normalization:
- * `attrs` is omitted when empty; `content` is omitted when runs normalize
- * to empty, except `table-cell` (always emits content: an empty cell);
+ * `attrs` is omitted when empty; `geometry` is omitted when absent (or
+ * holds no numeric fields); `content` is omitted when runs normalize to
+ * empty, except `table-cell` (always emits content: an empty cell);
  * `children` is omitted when empty, except `root` (always emits children);
  * `rows` / `rowOrder` are always emitted for database blocks (possibly
  * empty).
@@ -150,6 +153,13 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
       });
       block.attrs = plain;
     }
+  }
+
+  // The canvas geometry of any block: a plain copy of the nested Y.Map
+  // (the plainness contract extends to it — reads never leak Yjs types).
+  const geometry = yblock.get("geometry");
+  if (geometry instanceof Y.Map && geometry.size > 0) {
+    block.geometry = readPlainValue(geometry);
   }
 
   if (spec.content) {

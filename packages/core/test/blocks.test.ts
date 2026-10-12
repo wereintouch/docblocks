@@ -12,7 +12,7 @@ import {
   createDoc,
 } from "../src/core";
 import type { Doc } from "../src/core";
-import type { BlockAttrsPatch, BlockType, HeadingAttrs } from "../src/schema";
+import type { BlockAttrsPatch, BlockType, CanvasRef, HeadingAttrs, ShapeAttrs } from "../src/schema";
 import { validateDoc } from "../src/schema";
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -50,10 +50,34 @@ describe("insertBlock", () => {
       columns: [{ id: "name", name: "Name", type: "text" }],
     });
     const divider = doc.insertBlock("divider");
+    const surface = doc.insertBlock("surface");
+    const shape = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const connector = doc.insertBlock(
+      "connector",
+      { start: { blockId: surface }, end: { blockId: shape } },
+      { parent: surface }
+    );
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+    const canvasText = doc.insertBlock("canvas-text", undefined, { parent: surface });
 
-    expect(doc.getChildren("r")).toEqual([p, h, li, c, code, latex, table, image, embed, sync, database, divider]);
+    expect(doc.getChildren("r")).toEqual([
+      p,
+      h,
+      li,
+      c,
+      code,
+      latex,
+      table,
+      image,
+      embed,
+      sync,
+      database,
+      divider,
+      surface,
+    ]);
     expect(doc.getChildren(table)).toEqual([row]);
     expect(doc.getChildren(row)).toEqual([c1, c2]);
+    expect(doc.getChildren(surface)).toEqual([shape, connector, frame, canvasText]);
     expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 1 } });
     expect(doc.getBlock(li)).toEqual({ type: "list-item", attrs: { list: "bullet" } });
     expect(doc.getBlock(image)).toEqual({ type: "image", attrs: { src: "blobs/x.png" } });
@@ -66,6 +90,14 @@ describe("insertBlock", () => {
       rowOrder: [],
     });
     expect(doc.getBlock(divider)).toEqual({ type: "divider" });
+    expect(doc.getBlock(surface)).toEqual({ type: "surface", children: [shape, connector, frame, canvasText] });
+    expect(doc.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "rect" } });
+    expect(doc.getBlock(connector)).toEqual({
+      type: "connector",
+      attrs: { start: { blockId: surface }, end: { blockId: shape } },
+    });
+    expect(doc.getBlock(frame)).toEqual({ type: "frame" });
+    expect(doc.getBlock(canvasText)).toEqual({ type: "canvas-text" });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
@@ -106,6 +138,34 @@ describe("insertBlock", () => {
         columns: [{ id: "c", name: "C", type: "select" }],
       })
     ).toThrow(InvalidAttrsError); // select requires the options array
+    // The canvas set: the shape variant enum, the opacity range, the
+    // freehand points tuple shape, and the connector refs (at least one field)
+    // — inside a surface (the canvas types are not allowed at the page root).
+    const surface = doc.insertBlock("surface");
+    expect(() =>
+      doc.insertBlock("shape", { variant: "hexagon" } as unknown as ShapeAttrs, { parent: surface })
+    ).toThrow(InvalidAttrsError);
+    expect(() => doc.insertBlock("shape", { variant: "rect", opacity: 2 }, { parent: surface })).toThrow(
+      InvalidAttrsError
+    );
+    expect(() => doc.insertBlock("shape", { variant: "rect", strokeWidth: 0 }, { parent: surface })).toThrow(
+      InvalidAttrsError
+    );
+    expect(() =>
+      doc.insertBlock("shape", { variant: "rect", points: [[1, 2, 3]] } as unknown as ShapeAttrs, {
+        parent: surface,
+      })
+    ).toThrow(InvalidAttrsError);
+    expect(() =>
+      doc.insertBlock(
+        "connector",
+        { start: {} as unknown as CanvasRef, end: { blockId: surface } },
+        {
+          parent: surface,
+        }
+      )
+    ).toThrow(InvalidAttrsError); // an empty ref
+    expect(() => doc.insertBlock("canvas-text", { fontSize: -1 }, { parent: surface })).toThrow(InvalidAttrsError);
   });
 
   it("unknown parent -> UnknownBlockError; detached `after` -> DetachedBlockError", () => {
@@ -127,6 +187,22 @@ describe("insertBlock", () => {
     const table = doc.insertBlock("table", { cols: 1 });
     expect(() => doc.insertBlock("paragraph", undefined, { parent: table })).toThrow(InvalidChildError);
     expect(() => doc.insertBlock("table-cell", undefined, { parent: "r" })).toThrow(InvalidChildError);
+    // The canvas set: a shape at the page root, a nested surface, a frame
+    // inside a frame, and a canvas type inside a table cell are all rejected.
+    expect(() => doc.insertBlock("shape", { variant: "rect" })).toThrow(InvalidChildError);
+    expect(() => doc.insertBlock("connector", { start: { blockId: "r" }, end: { blockId: "r" } })).toThrow(
+      InvalidChildError
+    );
+    expect(() => doc.insertBlock("surface", undefined, { parent: doc.insertBlock("surface") })).toThrow(
+      InvalidChildError
+    );
+    const frame = doc.insertBlock("frame", undefined, { parent: doc.insertBlock("surface") });
+    expect(() => doc.insertBlock("frame", undefined, { parent: frame })).toThrow(InvalidChildError);
+    const cell = doc.insertBlock("table-cell", undefined, {
+      parent: doc.insertBlock("table-row", undefined, { parent: table }),
+    });
+    expect(() => doc.insertBlock("shape", { variant: "rect" }, { parent: cell })).toThrow(InvalidChildError);
+    expect(() => doc.insertBlock("canvas-text", undefined, { parent: cell })).toThrow(InvalidChildError);
   });
 });
 

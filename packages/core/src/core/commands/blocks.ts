@@ -5,8 +5,8 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, validateBlockAttrs } from "@docblocks-core/schema";
-import type { AttrsFor, BlockId, BlockType } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import type { AttrsFor, BlockId, BlockType, ValidationError } from "@docblocks-core/schema";
 
 import {
   DetachedBlockError,
@@ -80,6 +80,17 @@ function insertBlock(
   const attrErrors = validateBlockAttrs(type, attrs);
   if (attrErrors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${formatValidationErrors(attrErrors)}`);
+  }
+
+  // The canvas's block-level attrs invariants (the points tuples, the
+  // connector refs) are checked on the post-insert attrs (the registry
+  // attrs spec expresses only the per-attr rules).
+  if (type === "shape" || type === "connector") {
+    const canvasErrors: ValidationError[] = [];
+    validateCanvasBlock(type, { type, attrs }, "blocks.new", canvasErrors);
+    if (canvasErrors.length > 0) {
+      throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${formatValidationErrors(canvasErrors)}`);
+    }
   }
 
   const parentId = at?.parent ?? readMeta(ydoc).id;

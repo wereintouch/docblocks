@@ -5,8 +5,8 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, validateBlockAttrs } from "@docblocks-core/schema";
-import type { BlockAttrsPatch } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import type { BlockAttrsPatch, ValidationError } from "@docblocks-core/schema";
 
 import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatValidationErrors } from "../errors";
 import { localTransact, writeAttrValue } from "../layout";
@@ -54,6 +54,17 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   // the existing rows (like a table's cols against its row cell counts).
   if (type === "database" && patch.columns !== undefined) {
     assertValidDatabasePatch(snapshot, merged, id);
+  }
+
+  // A canvas type's post-patch attrs must keep the block-level invariants
+  // (the points tuples, the connector refs) — like the database's patch
+  // check against its existing rows.
+  if (type === "shape" || type === "connector") {
+    const canvasErrors: ValidationError[] = [];
+    validateCanvasBlock(type, { type, attrs: merged }, `blocks.${id}`, canvasErrors);
+    if (canvasErrors.length > 0) {
+      throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(canvasErrors)}`);
+    }
   }
 
   localTransact(ydoc, () => {

@@ -9,6 +9,7 @@ export {
   InvalidAttrsError,
   InvalidCellValueError,
   InvalidChildError,
+  InvalidGeometryError,
   InvalidMarkError,
   InvalidOperationError,
   InvalidRangeError,

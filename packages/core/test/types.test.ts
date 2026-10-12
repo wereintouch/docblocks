@@ -3,32 +3,42 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 import { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY } from "../src/schema";
 import type {
   AttrsFor,
+  Block,
   BlockType,
+  CanvasRef,
+  ConnectorAttrs,
   DatabaseBlock,
   DatabaseCellValue,
   DatabaseColumn,
   EmbedAttrs,
+  Geometry,
   HeadingAttrs,
   ImageAttrs,
   MarkSet,
+  ShapeAttrs,
   SyncEmbedAttrs,
   SyncEmbedRef,
 } from "../src/schema";
 
 describe("block registry", () => {
-  it("covers exactly the v1 block types", () => {
+  it("covers exactly the block types (v1 + the v2 canvas set)", () => {
     expect(Object.keys(BLOCK_REGISTRY).sort()).toEqual([
       "callout",
+      "canvas-text",
       "code",
+      "connector",
       "database",
       "divider",
       "embed",
+      "frame",
       "heading",
       "image",
       "latex",
       "list-item",
       "paragraph",
       "root",
+      "shape",
+      "surface",
       "sync-embed",
       "table",
       "table-cell",
@@ -42,7 +52,42 @@ describe("block registry", () => {
     expect([...(BLOCK_REGISTRY["table-row"].childrenTypes ?? [])].sort()).toEqual(["table-cell"]);
   });
 
-  it("keeps table internals out of the top level", () => {
+  it("pins the canvas child sets: surface (no nested surface), frame (page blocks only)", () => {
+    expect([...(BLOCK_REGISTRY.surface.childrenTypes ?? [])].sort()).toEqual([
+      "callout",
+      "canvas-text",
+      "code",
+      "connector",
+      "database",
+      "divider",
+      "embed",
+      "frame",
+      "heading",
+      "image",
+      "latex",
+      "list-item",
+      "paragraph",
+      "shape",
+      "sync-embed",
+      "table",
+    ]);
+    expect([...(BLOCK_REGISTRY.frame.childrenTypes ?? [])].sort()).toEqual([
+      "callout",
+      "code",
+      "database",
+      "divider",
+      "embed",
+      "heading",
+      "image",
+      "latex",
+      "list-item",
+      "paragraph",
+      "sync-embed",
+      "table",
+    ]);
+  });
+
+  it("keeps table internals out of the top level (the root accepts the surface)", () => {
     expect([...(BLOCK_REGISTRY.root.childrenTypes ?? [])].sort()).toEqual([
       "callout",
       "code",
@@ -54,6 +99,7 @@ describe("block registry", () => {
       "latex",
       "list-item",
       "paragraph",
+      "surface",
       "sync-embed",
       "table",
     ]);
@@ -68,7 +114,7 @@ describe("block registry", () => {
     expect(BLOCK_REGISTRY.database.children).toBe(false);
   });
 
-  it("allows leaf types only inside table cells", () => {
+  it("allows leaf types only inside table cells (the canvas types are not cell-eligible)", () => {
     expect([...LEAF_BLOCK_TYPES].sort()).toEqual([
       "callout",
       "code",
@@ -125,7 +171,7 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["math"]>().toEqualTypeOf<{ tex: string } | undefined>();
   });
 
-  it("exposes the 15-type block union", () => {
+  it("exposes the 20-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
@@ -142,7 +188,41 @@ describe("type shapes", () => {
       | "sync-embed"
       | "divider"
       | "database"
+      | "surface"
+      | "shape"
+      | "connector"
+      | "frame"
+      | "canvas-text"
     >();
+  });
+
+  it("geometry: the center-anchor shape, optional on every block", () => {
+    expectTypeOf<Geometry>().toEqualTypeOf<{
+      x: number;
+      y: number;
+      w: number;
+      h: number;
+      rotation?: number | undefined;
+    }>();
+    // Extract keeps working per member and carries the geometry.
+    type Shape = Extract<Block, { type: "shape" }>;
+    expectTypeOf<Shape["geometry"]>().toEqualTypeOf<Geometry | undefined>();
+    expectTypeOf<AttrsFor<"surface">>().toEqualTypeOf<undefined>();
+    expectTypeOf<AttrsFor<"frame">>().toEqualTypeOf<undefined>();
+  });
+
+  it("shape attrs: required variant enum, the optional paint attrs, the freehand points", () => {
+    expectTypeOf<ShapeAttrs["variant"]>().toEqualTypeOf<"rect" | "ellipse" | "diamond" | "line">();
+    expectTypeOf<ShapeAttrs["opacity"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<ShapeAttrs["points"]>().toEqualTypeOf<[number, number][] | undefined>();
+    expectTypeOf<AttrsFor<"shape">>().toEqualTypeOf<ShapeAttrs | undefined>();
+  });
+
+  it("connector attrs: the required weak refs (at least one field each), the optional label", () => {
+    expectTypeOf<CanvasRef>().toEqualTypeOf<{ docId?: string | undefined; blockId?: string | undefined }>();
+    expectTypeOf<ConnectorAttrs["start"]>().toEqualTypeOf<CanvasRef>();
+    expectTypeOf<ConnectorAttrs["label"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<AttrsFor<"connector">>().toEqualTypeOf<ConnectorAttrs>();
   });
 
   it("embed attrs: required kind enum and required src, optional title", () => {

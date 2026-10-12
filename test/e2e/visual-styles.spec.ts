@@ -102,9 +102,10 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // Every data-block-type value the catalog carries (table-row / table-cell
   // render as structural <tr>/<td>, not data-block-type elements). The
   // catalog's sync-embed resolves its master (fixed docId, deterministic
-  // seed), so the master's blocks (one h1 + three paragraphs) count too.
-  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(10);
-  expect(await doc.locator('[data-block-type="heading"]').count()).toBe(7);
+  // seed), so the master's blocks (one h1 + three paragraphs) count too,
+  // and so does the canvas scene (a frame paragraph + a frame heading).
+  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(11);
+  expect(await doc.locator('[data-block-type="heading"]').count()).toBe(8);
   expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(7);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
   expect(await doc.locator('[data-block-type="code"]').count()).toBe(2);
@@ -119,9 +120,11 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="embed"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="divider"]').count()).toBe(1);
 
-  // Headings 1..6 as their own tags; the master's h1 adds a second h1.
+  // Headings 1..6 as their own tags; the master's h1 adds a second h1, the
+  // canvas frame's heading a second h2.
   expect(await doc.locator('h1[data-block-type="heading"]').count()).toBe(2);
-  for (const tag of ["h2", "h3", "h4", "h5", "h6"]) {
+  expect(await doc.locator('h2[data-block-type="heading"]').count()).toBe(2);
+  for (const tag of ["h3", "h4", "h5", "h6"]) {
     expect(await doc.locator(`${tag}[data-block-type="heading"]`).count()).toBe(1);
   }
 
@@ -168,6 +171,14 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect((await syncEmbed.getAttribute("data-doc-id")) ?? "").toBe("master-catalog");
   expect(await syncEmbed.locator('h1[data-block-type="heading"]').count()).toBe(1);
   expect(await syncEmbed.locator('[data-block-type="paragraph"]').count()).toBe(3);
+
+  // Canvas (v2): the seeded demo scene — the surface viewport, the four
+  // shape SVGs, the frame box, the canvas-text, the connector line.
+  expect(await doc.locator('[data-block-type="surface"]').count()).toBe(1);
+  await expect(doc.locator('[data-slot="docblocks/shape"]'), SETTLE).toHaveCount(4);
+  expect(await doc.locator('[data-slot="docblocks/frame"]').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="canvas-text"]').count()).toBe(1);
+  await expect(doc.locator('[data-slot="docblocks/connector-layer"] line'), SETTLE).toHaveCount(1);
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);

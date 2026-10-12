@@ -1,4 +1,7 @@
-import type { BlockType, MarkName } from "./types";
+import { LEAF_BLOCK_TYPES, PAGE_BLOCK_TYPES } from "./block-type-lists";
+import type { BlockType } from "./block-union";
+import { CANVAS_BLOCK_SPECS } from "./canvas-registry";
+import type { MarkName } from "./types";
 
 /**
  * Block and marks registries v1.
@@ -8,36 +11,6 @@ import type { BlockType, MarkName } from "./types";
  * type names. Adding a type or a mark is an additive change (minor
  * version).
  */
-
-/** Leaf types (no `children` of their own): the only ones allowed in cells. */
-const LEAF_BLOCK_TYPES: readonly BlockType[] = [
-  "paragraph",
-  "heading",
-  "callout",
-  "code",
-  "latex",
-  "image",
-  "embed",
-  "sync-embed",
-  "divider",
-  "database",
-];
-
-/** Top-level page blocks: everything except `root` and table internals. */
-const PAGE_BLOCK_TYPES: readonly BlockType[] = [
-  "paragraph",
-  "heading",
-  "list-item",
-  "callout",
-  "code",
-  "latex",
-  "table",
-  "image",
-  "embed",
-  "sync-embed",
-  "divider",
-  "database",
-];
 
 /** The database cell value contracts (the column `type` values). */
 const DATABASE_CELL_TYPES = ["text", "number", "checkbox", "select", "multi-select", "date"] as const;
@@ -57,6 +30,8 @@ interface AttrSpec {
   integer?: boolean;
   /** `number`: inclusive lower bound. */
   min?: number;
+  /** `number`: inclusive upper bound. */
+  max?: number;
   /** `number`: must be > 0. */
   positive?: boolean;
   /** `string`: must be non-empty. */
@@ -183,6 +158,10 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       },
     },
   },
+  // The canvas (v2, option A: canvas elements are blocks of the SAME
+  // document). `surface` is the canvas container: a document may hold page
+  // blocks AND a surface (page + canvas at once).
+  ...CANVAS_BLOCK_SPECS,
 };
 
 /** Structural description of a mark. */

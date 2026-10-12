@@ -97,6 +97,12 @@
   /* Sync-embed. */
   --docblocks-sync-embed-max-height: 200px;
 
+  /* Canvas (surface). */
+  --docblocks-canvas-height: 500px;
+  --docblocks-canvas-background: rgba(175, 184, 193, 0.08);
+  --docblocks-canvas-shape-stroke: currentColor;
+  --docblocks-frame-background: #ffffff;
+
   /* Presence. */
   --docblocks-presence-caret-width: 2px;
   --docblocks-presence-caret-saturation: 70%;
@@ -351,6 +357,32 @@ iframe[data-slot="docblocks/embed"] {
   overflow-y: auto;
 }
 
+/* Canvas (surface): the relative viewport — the height, the border
+   (the table border token), and the background tokens; the elements are
+   positioned inline by their geometry (the wrapper left/top/transform),
+   and the DOM order is the z-order. The viewport clips its elements
+   (pan/zoom is the interaction stage). */
+[data-slot="docblocks/canvas"] {
+  position: relative;
+  height: var(--docblocks-canvas-height);
+  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
+  border-radius: var(--docblocks-radius);
+  background: var(--docblocks-canvas-background);
+  overflow: hidden;
+}
+
+/* A frame: a positioned box (the border and background tokens) holding
+   the nested page blocks; the nested editor fills the box. The frame
+   does not clip in v1 (overflow visible). */
+[data-slot="docblocks/frame"] {
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
+  border-radius: var(--docblocks-radius);
+  background: var(--docblocks-frame-background);
+}
+
 /* The broken / cycle placeholders: a muted structural box; the broken
    hint uses the danger token (no new color tokens). */
 [data-slot="docblocks/sync-embed-placeholder"] {
@@ -396,6 +428,9 @@ iframe[data-slot="docblocks/embed"] {
   --docblocks-divider-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-table-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-selected-background: rgba(56, 139, 253, 0.15);
+
+  --docblocks-canvas-background: rgba(110, 118, 129, 0.15);
+  --docblocks-frame-background: #161b22;
 
   --docblocks-callout-border-color-info: #58a6ff;
   --docblocks-callout-background-info: rgba(56, 139, 253, 0.15);

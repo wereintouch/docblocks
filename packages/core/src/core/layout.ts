@@ -12,6 +12,7 @@ import type { BlockType, DocJSON, TextRun } from "@docblocks-core/schema";
  * ├─ "blocks":    Y.Map<blockId, Y.Map>
  * │  └─ { "type": string }
  * │     "attrs":    Y.Map of primitives (only for types with attrs, when non-empty)
+ * │     "geometry": Y.Map of numbers (only on blocks that carry the canvas geometry)
  * │     "content":  Y.Array of run Y.Maps { text: Y.Text, marks: Y.Map } (text types only)
  * │     "children": Y.Array<string> (container types only, except root)
  * │     "rows":     Y.Map<rowId, Y.Map<colId, value>> (database only — rows are data, not blocks)
@@ -145,6 +146,8 @@ function writeRun(runs: Y.Array<AnyMap>, run: TextRun): void {
 interface WritableBlock {
   type: BlockType;
   attrs?: unknown;
+  /** The canvas geometry: a plain object of numbers (any block type). */
+  geometry?: unknown;
   content?: readonly TextRun[];
   children?: readonly string[];
   rows?: Record<string, Record<string, unknown>>;
@@ -171,6 +174,21 @@ function writeBlock(blocks: AnyMap, id: string, block: WritableBlock): void {
       const attrs = new Y.Map<unknown>();
       for (const [key, value] of attrEntries) writeAttrValue(attrs, key, value);
       yblock.set("attrs", attrs);
+    }
+  }
+
+  // The canvas geometry of any block: a single-authored nested Y.Map of
+  // numbers, present only on blocks that carry it (the JSON object and the
+  // Y.Map are isomorphic). Non-numeric entries are dropped: the layout
+  // contract is numbers only.
+  if (isPlainObject(block.geometry)) {
+    const entries = Object.entries(block.geometry).filter(
+      ([, value]) => typeof value === "number" && Number.isFinite(value)
+    );
+    if (entries.length > 0) {
+      const geometry = new Y.Map<unknown>();
+      for (const [key, value] of entries) geometry.set(key, value);
+      yblock.set("geometry", geometry);
     }
   }
 

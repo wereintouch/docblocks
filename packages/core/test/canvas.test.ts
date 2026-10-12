@@ -1,0 +1,338 @@
+import { describe, expect, it } from "vitest";
+import * as Y from "yjs";
+
+import { createDoc, fromJSON } from "../src/core";
+import type { Doc } from "../src/core";
+import type { DocJSON } from "../src/schema";
+import { validateDoc } from "../src/schema";
+
+/**
+ * The canvas block types (v2, option A: canvas elements are blocks of the
+ * SAME document): surface / shape / connector / frame / canvas-text. The
+ * validation boundary (the strict validator: the registry-driven enums and
+ * bounds + the canvas branch for the points tuples, the connector refs,
+ * and the geometry shape; the lenient reader over the raw + applyUpdate
+ * path), the z-order semantics (the surface's children order IS the
+ * paint order), and the structural rules. setGeometry is geometry.test.ts.
+ */
+
+const CREATED_AT = "2026-01-01T00:00:00Z";
+
+const newDoc = (): Doc => createDoc({ id: "r", createdAt: CREATED_AT });
+
+/** The full canvas scene (the strict validator's happy path). */
+const canvasDoc = (): DocJSON => ({
+  v: 1,
+  id: "d1",
+  title: "",
+  createdAt: CREATED_AT,
+  blocks: {
+    d1: { type: "root", children: ["s1", "p1"] },
+    // A page block with a geometry (the double mode: the block flows in the
+    // page view, the geometry is ignored there).
+    p1: { type: "paragraph", geometry: { x: 5, y: -5, w: 100, h: 40 }, content: [{ text: "page", marks: {} }] },
+    s1: { type: "surface", children: ["f1", "sh1", "sh2", "c1", "t1", "e1"] },
+    f1: { type: "frame", children: ["fh1", "fp1"], geometry: { x: -80, y: -40, w: 200, h: 100 } },
+    fh1: { type: "heading", attrs: { level: 2 }, content: [{ text: "frame", marks: {} }] },
+    fp1: { type: "paragraph", content: [{ text: "inside the frame", marks: {} }] },
+    sh1: {
+      type: "shape",
+      attrs: {
+        variant: "rect",
+        stroke: "#0969da",
+        fill: "rgba(9, 105, 218, 0.2)",
+        strokeWidth: 2,
+        strokeStyle: "dash",
+        opacity: 0.5,
+        points: [
+          [1, 2],
+          [3, 4],
+        ],
+      },
+      geometry: { x: 60, y: 0, w: 80, h: 60 },
+    },
+    sh2: { type: "shape", attrs: { variant: "line" } },
+    c1: {
+      type: "connector",
+      attrs: {
+        start: { blockId: "f1" },
+        end: { blockId: "sh1" },
+        points: [[0, 30]],
+        label: "link",
+        strokeStyle: "dot",
+      },
+    },
+    // A cross-doc connector ref (docId): valid data; the renderer resolves
+    // blockId-only within the surface in v1 (the docId ref is skipped).
+    e1: { type: "connector", attrs: { start: { docId: "master-1" }, end: { docId: "master-2", blockId: "b9" } } },
+    t1: {
+      type: "canvas-text",
+      attrs: { fontSize: 14, textAlign: "center" },
+      content: [{ text: "canvas", marks: {} }],
+    },
+  },
+});
+
+/** A scene variant: the base scene with one block entry replaced. */
+const withBlock = (id: string, block: unknown): DocJSON => {
+  const scene = canvasDoc();
+  return { ...scene, blocks: { ...scene.blocks, [id]: block as DocJSON["blocks"][string] } };
+};
+
+describe("strict validation (validateDoc)", () => {
+  it("accepts the full canvas scene", () => {
+    expect(validateDoc(canvasDoc())).toEqual([]);
+  });
+
+  it("rejects the shape variant enum and the paint bounds (registry-driven)", () => {
+    const variant = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "hexagon" } }));
+    expect(variant.some((e) => e.path === "blocks.sh1.attrs.variant")).toBe(true);
+    const noVariant = validateDoc(withBlock("sh1", { type: "shape", attrs: {} }));
+    expect(noVariant.some((e) => e.path === "blocks.sh1.attrs.variant")).toBe(true);
+    const opacity = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", opacity: 1.5 } }));
+    expect(opacity.some((e) => e.path === "blocks.sh1.attrs.opacity")).toBe(true);
+    const negativeOpacity = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", opacity: -0.1 } }));
+    expect(negativeOpacity.some((e) => e.path === "blocks.sh1.attrs.opacity")).toBe(true);
+    const strokeWidth = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", strokeWidth: 0 } }));
+    expect(strokeWidth.some((e) => e.path === "blocks.sh1.attrs.strokeWidth")).toBe(true);
+    const fontSize = validateDoc(withBlock("t1", { type: "canvas-text", attrs: { fontSize: -1 } }));
+    expect(fontSize.some((e) => e.path === "blocks.t1.attrs.fontSize")).toBe(true);
+  });
+
+  it("rejects malformed points tuples (the canvas branch)", () => {
+    const triple = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", points: [[1, 2, 3]] } }));
+    expect(triple.some((e) => e.path === "blocks.sh1.attrs.points[0]")).toBe(true);
+    const single = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", points: [[1]] } }));
+    expect(single.some((e) => e.path === "blocks.sh1.attrs.points[0]")).toBe(true);
+    const mixed = validateDoc(
+      withBlock("sh1", {
+        type: "shape",
+        attrs: {
+          variant: "rect",
+          points: [
+            [1, 2],
+            [3, "a"],
+          ],
+        },
+      })
+    );
+    expect(mixed.some((e) => e.path === "blocks.sh1.attrs.points[1]")).toBe(true);
+    const nan = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", points: [[Number.NaN, 1]] } }));
+    expect(nan.some((e) => e.path === "blocks.sh1.attrs.points[0]")).toBe(true);
+    // The connector's points get the same tuple check.
+    const conn = validateDoc(
+      withBlock("c1", {
+        type: "connector",
+        attrs: { start: { blockId: "f1" }, end: { blockId: "sh1" }, points: [["x"]] },
+      })
+    );
+    expect(conn.some((e) => e.path === "blocks.c1.attrs.points[0]")).toBe(true);
+  });
+
+  it("rejects the connector refs without at least one field (the canvas branch)", () => {
+    const emptyStart = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: {}, end: { blockId: "sh1" } } })
+    );
+    expect(emptyStart.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
+    const emptyEnd = validateDoc(withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1" }, end: {} } }));
+    expect(emptyEnd.some((e) => e.path === "blocks.c1.attrs.end")).toBe(true);
+    // Unknown fields in a ref stay rejected by the object spec.
+    const unknownField = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1", bogus: 1 }, end: { blockId: "sh1" } } })
+    );
+    expect(unknownField.some((e) => e.path === "blocks.c1.attrs.start.bogus")).toBe(true);
+    // The refs are required.
+    const noRefs = validateDoc(withBlock("c1", { type: "connector" }));
+    expect(noRefs.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
+    expect(noRefs.some((e) => e.path === "blocks.c1.attrs.end")).toBe(true);
+  });
+
+  it("rejects a malformed geometry of any block (the strict shape)", () => {
+    const withGeometry = (geometry: unknown) =>
+      withBlock("p1", { type: "paragraph", geometry, content: [{ text: "page", marks: {} }] });
+    const missing = validateDoc(withGeometry({ x: 1, y: 2 }));
+    expect(missing.some((e) => e.path === "blocks.p1.geometry.w")).toBe(true);
+    const zero = validateDoc(withGeometry({ x: 1, y: 2, w: 0, h: 10 }));
+    expect(zero.some((e) => e.path === "blocks.p1.geometry.w")).toBe(true);
+    const nonNumeric = validateDoc(withGeometry({ x: "1", y: 2, w: 10, h: 10 }));
+    expect(nonNumeric.some((e) => e.path === "blocks.p1.geometry.x")).toBe(true);
+    const nanRotation = validateDoc(withGeometry({ x: 1, y: 2, w: 10, h: 10, rotation: Number.NaN }));
+    expect(nanRotation.some((e) => e.path === "blocks.p1.geometry.rotation")).toBe(true);
+    const unknownField = validateDoc(withGeometry({ x: 1, y: 2, w: 10, h: 10, z: 0 }));
+    expect(unknownField.some((e) => e.path === "blocks.p1.geometry.z")).toBe(true);
+    const notAnObject = validateDoc(withGeometry([1, 2, 3, 4]));
+    expect(notAnObject.some((e) => e.path === "blocks.p1.geometry")).toBe(true);
+    // The geometry is allowed on any block type (including non-canvas ones).
+    const onShape = validateDoc(
+      withBlock("sh2", { type: "shape", attrs: { variant: "line" }, geometry: { x: 1, y: 2, w: 5, h: 5 } })
+    );
+    expect(onShape).toEqual([]);
+  });
+
+  it("enforces the child-type rules: no canvas types at the page root, no nested surface, no frame-in-frame, no canvas types in cells", () => {
+    const scene = canvasDoc();
+
+    const shapeAtRoot = validateDoc({
+      ...scene,
+      blocks: {
+        ...scene.blocks,
+        d1: { type: "root", children: ["s1", "p1", "sh9"] },
+        sh9: { type: "shape", attrs: { variant: "rect" } },
+      },
+    });
+    expect(shapeAtRoot.some((e) => e.message.includes('not allowed as a child of "root"'))).toBe(true);
+
+    const nestedSurface = validateDoc({
+      ...scene,
+      blocks: {
+        ...scene.blocks,
+        s1: { type: "surface", children: ["f1", "sh1", "sh2", "c1", "t1", "e1", "s2"] },
+        s2: { type: "surface", children: [] },
+      },
+    });
+    expect(nestedSurface.some((e) => e.path === "blocks.s1.children[6]")).toBe(true);
+
+    const frameInFrame = validateDoc({
+      ...scene,
+      blocks: {
+        ...scene.blocks,
+        f1: { type: "frame", children: ["fh1", "fp1", "f2"], geometry: { x: -80, y: -40, w: 200, h: 100 } },
+        f2: { type: "frame", children: [] },
+      },
+    });
+    expect(frameInFrame.some((e) => e.path === "blocks.f1.children[2]")).toBe(true);
+
+    const surfaceInFrame = validateDoc({
+      ...scene,
+      blocks: {
+        ...scene.blocks,
+        f1: { type: "frame", children: ["fh1", "fp1", "s2"] },
+        s2: { type: "surface", children: [] },
+      },
+    });
+    expect(surfaceInFrame.some((e) => e.path === "blocks.f1.children[2]")).toBe(true);
+
+    const tableScene: DocJSON = {
+      v: 1,
+      id: "d2",
+      title: "",
+      createdAt: CREATED_AT,
+      blocks: {
+        d2: { type: "root", children: ["t1"] },
+        t1: { type: "table", attrs: { cols: 1 }, children: ["r1"] },
+        r1: { type: "table-row", children: ["c1", "sh1"] },
+        c1: { type: "table-cell", content: [] },
+        sh1: { type: "shape", attrs: { variant: "rect" } },
+      },
+    };
+    const inCell = validateDoc(tableScene);
+    expect(inCell.some((e) => e.message.includes('not allowed as a child of "table-row"'))).toBe(true);
+  });
+});
+
+describe("structure (commands)", () => {
+  it("the surface holds the canvas element set; moveBlock within the children is the z-order change", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const shape = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const text = doc.insertBlock("canvas-text", undefined, { parent: surface });
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+
+    expect(doc.getChildren(surface)).toEqual([shape, text, frame]);
+    // The z-order: move the first element to the back (the pre-move index
+    // semantics, like any other parent: toIndex === toLength appends).
+    doc.moveBlock(shape, surface, 3);
+    expect(doc.getChildren(surface)).toEqual([text, frame, shape]);
+    doc.moveBlock(frame, surface, 0);
+    expect(doc.getChildren(surface)).toEqual([frame, text, shape]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("removeBlock cascades the whole canvas subtree (the frame's page blocks included)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+    const heading = doc.insertBlock("heading", { level: 1 }, { parent: frame });
+    const shape = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+
+    doc.removeBlock(surface);
+    for (const id of [surface, frame, heading, shape]) expect(doc.getBlock(id)).toBeNull();
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("canvas-text is a text block: runs live in its content", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const text = doc.insertBlock("canvas-text", undefined, { parent: surface });
+    doc.insertText(text, 0, "hello canvas");
+    doc.setMark(text, 0, 5, { type: "bold" });
+
+    expect(doc.getText(text)).toBe("hello canvas");
+    const block = doc.getBlock(text);
+    expect(block).not.toBeNull();
+    expect(block?.type).toBe("canvas-text");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("the frame holds page blocks (a nested list-item included)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+    const item = doc.insertBlock("list-item", { list: "bullet" }, { parent: frame });
+    const nested = doc.insertBlock("list-item", { list: "bullet" }, { parent: item });
+    doc.insertText(item, 0, "item");
+    doc.insertText(nested, 0, "nested");
+
+    expect(doc.getChildren(frame)).toEqual([item]);
+    expect(doc.getChildren(item)).toEqual([nested]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+});
+
+describe("round-trip", () => {
+  it("the canvas scene round-trips: toJSON -> fromJSON -> toJSON is identical", () => {
+    const source = fromJSON(canvasDoc());
+    const before = source.toJSON();
+    const restored = fromJSON(before);
+    expect(restored.toJSON()).toEqual(before);
+  });
+});
+
+describe("lenient reader (newer-minor data)", () => {
+  it("reads an unknown shape variant as-is; the validator flags it", () => {
+    const source = newDoc();
+    const surface = source.insertBlock("surface");
+    const shape = source.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    // A variant this core's enum does not know, written at the CRDT level:
+    // the way newer-minor data arrives (over the wire, not via the commands).
+    source.raw.transact(() => {
+      const block = source.raw.getMap("blocks").get(shape) as Y.Map<unknown>;
+      (block.get("attrs") as Y.Map<unknown>).set("variant", "hexagon");
+    });
+
+    const target = newDoc();
+    target.applyUpdate(source.encode()); // the CRDT level applies remote data without validation
+
+    expect(target.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "hexagon" } });
+    const error = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${shape}.attrs.variant`);
+    expect(error?.message).toContain("hexagon");
+  });
+
+  it("reads an unknown geometry field as-is; the validator flags it", () => {
+    const source = newDoc();
+    const p = source.insertBlock("paragraph");
+    source.setGeometry(p, { x: 1, y: 2, w: 3, h: 4 });
+    // A newer-minor geometry field, written at the CRDT level.
+    source.raw.transact(() => {
+      const block = source.raw.getMap("blocks").get(p) as Y.Map<unknown>;
+      (block.get("geometry") as Y.Map<unknown>).set("z", 7);
+    });
+
+    const target = newDoc();
+    target.applyUpdate(source.encode());
+
+    expect(target.getBlock(p)).toEqual({ type: "paragraph", geometry: { x: 1, y: 2, w: 3, h: 4, z: 7 } });
+    const error = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${p}.geometry.z`);
+    expect(error?.message).toContain("z");
+  });
+});

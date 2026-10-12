@@ -9,6 +9,7 @@ import type {
   DatabaseCellValue,
   DocJSON,
   DocMeta,
+  Geometry,
   MarkName,
   MarkSet,
   TextRun,
@@ -27,6 +28,7 @@ import {
   removeRow as removeRowCommand,
   setCell as setCellCommand,
 } from "./commands/database";
+import { setGeometry as setGeometryCommand } from "./commands/geometry";
 import { setMark as setMarkCommand, unsetMark as unsetMarkCommand } from "./commands/marks";
 import type { MarkInput } from "./commands/marks";
 import { deleteText as deleteTextCommand, insertText as insertTextCommand } from "./commands/text";
@@ -190,6 +192,16 @@ class Doc {
   /** Moves a database row to `toIndex` (pre-move index semantics). */
   moveRow(databaseId: BlockId, rowId: string, toIndex: number): void {
     moveRowCommand(this.#ydoc, databaseId, rowId, toIndex);
+  }
+
+  /**
+   * Sets the canvas geometry of a block: a partial patch merges with the
+   * existing geometry (the result must be complete — x/y/w/h present),
+   * `null` removes the geometry. InvalidGeometryError on a bad value or an
+   * incomplete merge; an equal-value set is a no-op.
+   */
+  setGeometry(id: BlockId, geometry: Partial<Geometry> | null): void {
+    setGeometryCommand(this.#ydoc, id, geometry);
   }
 
   /** Inserts text at character offset `pos`, optionally carrying marks. */

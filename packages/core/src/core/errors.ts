@@ -95,6 +95,18 @@ class InvalidCellValueError extends DocBlocksError {
   }
 }
 
+/**
+ * A geometry value is structurally invalid: a non-finite number, a
+ * non-positive size, or a partial merge that would leave a geometry
+ * incomplete.
+ */
+class InvalidGeometryError extends DocBlocksError {
+  constructor(message: string) {
+    super(message);
+    this.name = "InvalidGeometryError";
+  }
+}
+
 /** Mark input is structurally invalid. */
 class InvalidMarkError extends DocBlocksError {
   constructor(message: string) {
@@ -143,6 +155,7 @@ export {
   InvalidAttrsError,
   InvalidCellValueError,
   InvalidChildError,
+  InvalidGeometryError,
   InvalidMarkError,
   InvalidOperationError,
   InvalidRangeError,

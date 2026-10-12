@@ -8,8 +8,10 @@ import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
 import { DatabaseBlock } from "./DatabaseBlock";
 import { EmbedBlock } from "./EmbedBlock";
+import { FrameBlock } from "./FrameBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
+import { SurfaceBlock } from "./SurfaceBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
 import { TableBlock } from "./TableBlock";
 import { TextBlock } from "./TextBlock";
@@ -136,6 +138,23 @@ const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
       return <SyncEmbedBlock id={id} block={block} />;
     case "table":
       return <TableBlock id={id} block={block} />;
+    case "surface":
+      return <SurfaceBlock id={id} block={block} />;
+    case "frame":
+      // The frame renders through FrameBlock in every context: inside a
+      // surface (the box + the nested provider) and as a provider entry
+      // root (its own nested provider renders the content). A stray one
+      // at the page root (lenient data) renders its content in place
+      // (the container posture, like a stray table).
+      return <FrameBlock id={id} />;
+    case "shape":
+    case "connector":
+    case "canvas-text":
+      // The canvas element types render ONLY inside a surface (the
+      // CanvasItem dispatch). A stray one at the page root (lenient data
+      // — the registry forbids it) falls to the placeholder (the
+      // unknown-kind posture).
+      return <PlaceholderBlock type={block.type} />;
     default:
       // table-row / table-cell render inside TableBlock; unknown types
       // fall through to the placeholder.

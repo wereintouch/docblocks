@@ -1,6 +1,6 @@
 import { type Doc, type MarkSet, createDoc } from "docblocks-core";
 
-import { EMBED_SRC, seedDatabase } from "./insert-blocks";
+import { EMBED_SRC, seedCanvas, seedDatabase } from "./insert-blocks";
 import { CATALOG_MASTER_ID } from "./master";
 
 /** The fixed pane doc identity (the e2e room/doc conventions rely on it). */
@@ -63,7 +63,7 @@ function buildCatalogDoc(doc: Doc): void {
     doc.setTitle("Catalog");
 
     const intro = doc.insertBlock("paragraph");
-    doc.insertText(intro, 0, "Catalog: all v1 blocks and marks");
+    doc.insertText(intro, 0, "Catalog: all v1 blocks, marks, and the v2 canvas");
 
     for (const level of HEADING_LEVELS) {
       const heading = doc.insertBlock("heading", { level });
@@ -129,6 +129,11 @@ function buildCatalogDoc(doc: Doc): void {
     // Database: the harness seed (the placeholder card in the goldens; the
     // table UI is the consumer's level).
     seedDatabase(doc);
+
+    // Canvas (v2): the harness demo scene (the same seeded surface the
+    // insert control offers — the deterministic ids continue the c00xx
+    // sequence).
+    seedCanvas(doc);
 
     // The marks paragraph: the fixed run layout, one run at a time.
     const marks = doc.insertBlock("paragraph");
