@@ -19,7 +19,8 @@ import type { StructuralFacts } from "./rebase";
  *
  * Never in the JSON, never in document updates, never in the document's
  * undo history — the one exception: undo/redo RESTORES the local selection
- * (ProseMirror semantics): each captured local edit snapshots the selection
+ * (the standard editor undo-selection semantics): each captured local edit
+ * snapshots the selection
  * it started from, and undo/redo overwrite the selection with that snapshot
  * after the rebase has run (restoration wins). Remote changes only rebase;
  * they never restore. A document can host several independent views;

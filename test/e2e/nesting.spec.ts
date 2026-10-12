@@ -2,7 +2,7 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 
 import { insertBlockType } from "./helpers";
 
-// Tab / Shift+Tab nesting of arbitrary blocks (Affine-style). Every
+// Tab / Shift+Tab nesting of arbitrary blocks. Every
 // text block holds the full page set as children; Tab indents a block
 // under its previous sibling (a registry container), Shift+Tab outdents
 // it to right after its parent. The code block keeps the typewriter Tab.

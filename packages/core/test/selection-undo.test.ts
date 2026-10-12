@@ -5,8 +5,8 @@ import { createDoc, createSelection, loadDoc } from "../src/core";
 import type { Doc, Selection } from "../src/core";
 
 /**
- * Undo/redo restores the local selection (spec selection-v1 §5,
- * ProseMirror semantics): each captured local edit snapshots the selection
+ * Undo/redo restores the local selection (the standard editor
+ * undo-selection semantics): each captured local edit snapshots the selection
  * it started from; undo/redo overwrite the rebased selection with that
  * snapshot (restoration wins). Remote changes never restore — rebase only.
  */

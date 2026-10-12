@@ -1,7 +1,7 @@
 # docblocks
 
-Headless CRDT document engine — a data-layer analog of BlockSuite built on
-Yjs, designed to be reused across projects.
+Headless CRDT document engine built on Yjs, designed to be reused
+across projects.
 
 **Status:** monorepo scaffold (package manifests, tooling, boundary gates);
 engine implementation in progress.
