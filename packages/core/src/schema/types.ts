@@ -128,12 +128,16 @@ interface ParagraphBlock {
   type: "paragraph";
   attrs?: ParagraphAttrs;
   content?: BlockContent;
+  /** Optional nested content: the full page block set. */
+  children?: BlockId[];
 }
 
 interface HeadingBlock {
   type: "heading";
   attrs: HeadingAttrs;
   content?: BlockContent;
+  /** Optional nested content: the full page block set. */
+  children?: BlockId[];
 }
 
 interface ListItemBlock {
@@ -148,12 +152,16 @@ interface CalloutBlock {
   type: "callout";
   attrs?: CalloutAttrs;
   content?: BlockContent;
+  /** Optional nested content: the full page block set. */
+  children?: BlockId[];
 }
 
 interface CodeBlock {
   type: "code";
   attrs?: CodeAttrs;
   content?: BlockContent;
+  /** Optional nested content: the full page block set. */
+  children?: BlockId[];
 }
 
 interface LatexBlock {
@@ -161,6 +169,8 @@ interface LatexBlock {
   attrs: LatexAttrs;
   /** Text is the LaTeX source. */
   content?: BlockContent;
+  /** Optional nested content: the full page block set. */
+  children?: BlockId[];
 }
 
 interface TableBlock {

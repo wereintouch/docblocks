@@ -31,6 +31,7 @@ import { useEffect, useState } from "react";
 
 import type { BlockId, CodeBlock } from "docblocks-core";
 
+import { childrenSlot } from "../blocks/BlockView";
 import { TextBlock, textOf } from "../blocks/TextBlock";
 import type { BlockRendererProps } from "../blocks/renderers";
 
@@ -107,10 +108,23 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
  * every other code block is the plain built-in code rendering.
  */
 function MermaidCodeBlock({ id, block }: { id: BlockId; block: CodeBlock }) {
+  const nested = childrenSlot(id, block.children);
   if (block.attrs?.language !== "mermaid") {
-    return <TextBlock id={id} block={block} tag="pre" />;
+    return <TextBlock id={id} block={block} tag="pre" nested={nested} />;
   }
-  return <TextBlock id={id} block={block} tag="pre" nested={<MermaidDiagram id={id} text={textOf(block.content)} />} />;
+  return (
+    <TextBlock
+      id={id}
+      block={block}
+      tag="pre"
+      nested={
+        <>
+          <MermaidDiagram id={id} text={textOf(block.content)} />
+          {nested}
+        </>
+      }
+    />
+  );
 }
 
 /**

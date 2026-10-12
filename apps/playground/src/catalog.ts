@@ -145,6 +145,16 @@ function buildCatalogDoc(doc: Doc): void {
 
     const trailing = doc.insertBlock("paragraph");
     doc.insertText(trailing, 0, "Trailing paragraph");
+
+    // Nested under text (the v1.1 extension): a paragraph holding the full
+    // page set — an indented paragraph + an indented list (the
+    // docblocks/nested render slot, the CSS indent).
+    const nestedUnder = doc.insertBlock("paragraph");
+    doc.insertText(nestedUnder, 0, "Nested under text");
+    const nestedParagraph = doc.insertBlock("paragraph", undefined, { parent: nestedUnder });
+    doc.insertText(nestedParagraph, 0, "Indented paragraph");
+    const nestedList = doc.insertBlock("list-item", { list: "bullet" }, { parent: nestedUnder });
+    doc.insertText(nestedList, 0, "Indented list item");
   });
 }
 

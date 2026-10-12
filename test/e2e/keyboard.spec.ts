@@ -123,15 +123,21 @@ test("Shift+Enter inserts a line break in the run text (synced, not a new block)
   await expect.poll(() => firstText(b, "b"), SETTLE).toBe("line one\nline two");
 
   // The break renders as a real line break: the inner is pre-wrap and
-  // its box spans two text lines.
-  const box = await first.evaluate((el) => {
-    const style = getComputedStyle(el);
-    const height = el.getBoundingClientRect().height;
-    const line = parseFloat(style.lineHeight);
-    return { whiteSpace: style.whiteSpace, lines: height / line };
-  });
-  expect(box.whiteSpace).toBe("pre-wrap");
-  expect(box.lines).toBeCloseTo(2, 1);
+  // its box spans two text lines. The box read is polled: the DOM
+  // rebuild after the last keystroke reflows asynchronously, and a
+  // synchronous read right after the input can catch the pre-break box.
+  let box: { whiteSpace: string; lines: number } | undefined;
+  await expect
+    .poll(async () => {
+      box = await first.evaluate((el) => {
+        const style = getComputedStyle(el);
+        const line = parseFloat(style.lineHeight);
+        return { whiteSpace: style.whiteSpace, lines: el.getBoundingClientRect().height / line };
+      });
+      return box.lines;
+    }, SETTLE)
+    .toBeCloseTo(2, 1);
+  expect(box!.whiteSpace).toBe("pre-wrap");
 
   // Backspace across the break: deleting "line two" (8 chars) keeps the
   // break; one more deletes the break and merges to the previous line.

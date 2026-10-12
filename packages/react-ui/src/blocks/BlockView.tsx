@@ -1,6 +1,7 @@
 import { useStore } from "zustand";
 
 import { memo, useMemo } from "react";
+import type { ReactNode } from "react";
 
 import type { Block, BlockId, ListItemAttrs, ListItemBlock } from "docblocks-core";
 
@@ -112,6 +113,31 @@ const ListItemChildren = memo(function ListItemChildren({
 });
 
 /**
+ * The nested content of a text container (paragraph / heading / callout /
+ * code / latex): the children in reading order inside a rendered-only
+ * `docblocks/nested` wrapper (the CSS indent hook), with their own block
+ * context (the container is their parent). No collapse — collapse is a
+ * list-item affordance.
+ */
+const ContainerChildren = memo(function ContainerChildren({ id, children }: { id: BlockId; children: BlockId[] }) {
+  const contextValue = useBlockContextValue(id, children);
+  if (children.length === 0) return null;
+  return (
+    <div data-slot="docblocks/nested">
+      <BlockContext.Provider value={contextValue}>
+        <BlockGroups ids={children} />
+      </BlockContext.Provider>
+    </div>
+  );
+});
+
+/** The nested-content slot of a text container (the `nested` prop). */
+function childrenSlot(id: BlockId, children: BlockId[] | undefined): ReactNode {
+  if (children === undefined || children.length === 0) return undefined;
+  return <ContainerChildren id={id} children={children} />;
+}
+
+/**
  * Renders one block by id. Memoized on the stable id: the block snapshot
  * is store-driven by reference, so a change to a sibling block never
  * re-renders this component. A block removed by a peer renders nothing.
@@ -130,19 +156,26 @@ const BlockView = memo(function BlockView({ id, depth = 1 }: { id: BlockId; dept
 
   switch (block.type) {
     case "paragraph":
-      return <TextBlock id={id} block={block} tag="div" />;
+      return <TextBlock id={id} block={block} tag="div" nested={childrenSlot(id, block.children)} />;
     case "heading":
-      return <TextBlock id={id} block={block} tag={HEADING_TAGS[block.attrs.level]} />;
+      return (
+        <TextBlock
+          id={id}
+          block={block}
+          tag={HEADING_TAGS[block.attrs.level]}
+          nested={childrenSlot(id, block.children)}
+        />
+      );
     case "callout":
-      return <TextBlock id={id} block={block} tag="aside" />;
+      return <TextBlock id={id} block={block} tag="aside" nested={childrenSlot(id, block.children)} />;
     case "list-item":
       return (
         <TextBlock id={id} block={block} tag="li" nested={<ListItemChildren id={id} block={block} depth={depth} />} />
       );
     case "code":
-      return <TextBlock id={id} block={block} tag="pre" />;
+      return <TextBlock id={id} block={block} tag="pre" nested={childrenSlot(id, block.children)} />;
     case "latex":
-      return <TextBlock id={id} block={block} tag="div" />;
+      return <TextBlock id={id} block={block} tag="div" nested={childrenSlot(id, block.children)} />;
     case "divider":
       return <hr data-slot="docblocks/divider" data-block-type="divider" data-block-id={id} />;
     case "image":
@@ -179,4 +212,4 @@ const BlockView = memo(function BlockView({ id, depth = 1 }: { id: BlockId; dept
   }
 });
 
-export { BlockGroups, BlockView, groupChildren };
+export { BlockGroups, BlockView, childrenSlot, groupChildren };

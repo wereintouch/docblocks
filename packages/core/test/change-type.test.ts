@@ -113,16 +113,17 @@ describe("changeBlockType", () => {
     expect(doc.getText(p)).toBe("kept");
   });
 
-  it("rejects a container becoming a leaf while it has children", () => {
+  it("rejects a text container becoming a leaf while it has children", () => {
     const doc = newDoc();
-    const li = doc.insertBlock("list-item", { list: "bullet" });
-    const child = doc.insertBlock("list-item", { list: "bullet" }, { parent: li });
+    const p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "keep");
+    const child = doc.insertBlock("paragraph", undefined, { parent: p });
 
-    expectThrows(() => doc.changeBlockType(li, "paragraph"), InvalidOperationError);
+    expectThrows(() => doc.changeBlockType(p, "image", { src: "blobs/x.png" }), InvalidOperationError);
 
-    const block = doc.getBlock(li);
-    expect(block?.type).toBe("list-item");
-    expect(doc.getChildren(li)).toEqual([child]);
+    const block = doc.getBlock(p);
+    expect(block?.type).toBe("paragraph");
+    expect(doc.getChildren(p)).toEqual([child]);
   });
 
   it("rejects children the target cannot hold", () => {

@@ -250,8 +250,8 @@ describe("block structure", () => {
       "has no content"
     );
     expectError(
-      { ...makeDoc(), blocks: { r: { type: "root", children: ["p"] }, p: { type: "paragraph", children: [] } } },
-      "blocks.p.children",
+      { ...makeDoc(), blocks: { r: { type: "root", children: ["d"] }, d: { type: "divider", children: [] } } },
+      "blocks.d.children",
       "has no children"
     );
   });

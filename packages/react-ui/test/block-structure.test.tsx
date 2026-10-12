@@ -125,7 +125,7 @@ describe("Tab: list nesting", () => {
     expect(doc.getChildren(doc.meta.id)).toEqual([l1, l2]);
   });
 
-  it("does nothing without a previous list-item sibling", () => {
+  it("nests the list item under a previous paragraph (a text container holds the page set)", () => {
     let p: BlockId = "";
     let l1: BlockId = "";
     const doc = renderDoc((d) => {
@@ -138,8 +138,10 @@ describe("Tab: list nesting", () => {
     caretAtFlat(l1, 0);
     const prevented = key(wrapperOf(l1), "Tab");
 
-    expect(prevented).toBe(true); // not suppressed: the browser focus move runs
-    expect(doc.getChildren(doc.meta.id)).toEqual([p, l1]);
+    expect(prevented).toBe(false); // suppressed: the structural move ran
+    expect(doc.getChildren(doc.meta.id)).toEqual([p]);
+    const pJson = doc.toJSON().blocks[p]!;
+    expect("children" in pJson ? pJson.children : null).toEqual([l1]);
   });
 });
 

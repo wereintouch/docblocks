@@ -64,4 +64,23 @@ describe("MermaidCodeRenderer", () => {
     expect(container.querySelector('[data-slot="docblocks/mermaid"]')).toBeNull();
     expect(container.querySelector("svg")).toBeNull();
   });
+
+  it("keeps the children of a code block in the fallthrough rendering", () => {
+    const doc = createDoc({ id: "doc-3", createdAt: CREATED_AT });
+    const code = doc.insertBlock("code", { language: "ts" });
+    doc.insertText(code, 0, "const x = 1;");
+    const child = doc.insertBlock("paragraph", undefined, { parent: code });
+    doc.insertText(child, 0, "nested");
+    const { container } = render(
+      <EditorProvider doc={doc} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>
+    );
+    // The override renders the built-in code view WITH its nested content
+    // (the children slot is threaded through, not dropped).
+    const codeWrapper = container.querySelector<HTMLElement>(`[data-block-id="${code}"]`)!;
+    const nested = codeWrapper.querySelector<HTMLElement>("[data-slot='docblocks/nested']");
+    expect(nested, "the nested slot should be present").not.toBeNull();
+    expect(nested!.querySelector(`[data-block-id="${child}"]`), "the child renders inside").not.toBeNull();
+  });
 });

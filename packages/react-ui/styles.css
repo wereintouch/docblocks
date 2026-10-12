@@ -16,7 +16,8 @@
  *
  * Structural hooks: `data-slot` (docblocks/editor, docblocks/block,
  * docblocks/block-content, docblocks/gutter, docblocks/list,
- * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret,
+ * docblocks/list-item, docblocks/nested, docblocks/placeholder,
+ * docblocks/presence-caret,
  * docblocks/mermaid, docblocks/sync-embed-body,
  * docblocks/sync-embed-placeholder, docblocks/slash-menu,
  * docblocks/drag-line, docblocks/checkbox, docblocks/collapse,
@@ -66,6 +67,10 @@
 
   /* Lists. */
   --docblocks-list-padding-left: 1.5em;
+
+  /* Nested content of a text container (defaults to the list indent, so a
+     nest under a text block steps by the same amount as a list level). */
+  --docblocks-nested-indent: var(--docblocks-list-padding-left);
 
   /* Task checkbox (list-item with list: "task"). */
   --docblocks-checkbox-size: 14px;
@@ -249,6 +254,13 @@
 /* A list nested inside a list item: no block spacing of its own. */
 [data-slot="docblocks/list-item"] [data-slot="docblocks/list"] {
   margin: var(--docblocks-list-nested-margin);
+}
+
+/* Nested content of a text container (paragraph / heading / callout /
+   code / latex): indented like a list level (the block spacing of the
+   nested blocks stands). */
+[data-slot="docblocks/nested"] {
+  padding-left: var(--docblocks-nested-indent);
 }
 
 /* Level markers: `data-depth` carries the marker's cycle index (1|2|3 —

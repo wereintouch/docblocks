@@ -103,10 +103,12 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // render as structural <tr>/<td>, not data-block-type elements). The
   // catalog's sync-embed resolves its master (fixed docId, deterministic
   // seed), so the master's blocks (one h1 + three paragraphs) count too,
-  // and so does the canvas scene (a frame paragraph + a frame heading).
-  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(11);
+  // and so does the canvas scene (a frame paragraph + a frame heading) and
+  // the nested-under-text sample (a container + an indented paragraph + an
+  // indented list item).
+  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(13);
   expect(await doc.locator('[data-block-type="heading"]').count()).toBe(8);
-  expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(7);
+  expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(8);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
   expect(await doc.locator('[data-block-type="code"]').count()).toBe(2);
   expect(await doc.locator('[data-block-type="code"][data-language="mermaid"]').count()).toBe(1);
@@ -128,9 +130,10 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
     expect(await doc.locator(`${tag}[data-block-type="heading"]`).count()).toBe(1);
   }
 
-  // Lists: one list per variant, the nested level inside the second bullet;
-  // the task checkbox via data-checked.
-  expect(await doc.locator('[data-slot="docblocks/list"][data-list="bullet"]').count()).toBe(2);
+  // Lists: one list per variant, the nested level inside the second bullet
+  // (plus the nested sample's bullet under a paragraph), the task checkbox
+  // via data-checked.
+  expect(await doc.locator('[data-slot="docblocks/list"][data-list="bullet"]').count()).toBe(3);
   expect(await doc.locator('[data-slot="docblocks/list"][data-list="number"]').count()).toBe(1);
   expect(await doc.locator('[data-slot="docblocks/list"][data-list="task"]').count()).toBe(1);
   expect(await doc.locator('li[data-checked="true"]').count()).toBe(1);
@@ -182,12 +185,20 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);
+
+  // Nested under text: the docblocks/nested slot inside the sample's
+  // container (the CSS indent is pinned by test/e2e/nesting.spec.ts).
+  const nested = doc.locator('[data-slot="docblocks/nested"]');
+  expect(await nested.count()).toBe(1);
+  expect(await nested.locator('[data-block-type="paragraph"]').count()).toBe(1);
+  expect(await nested.locator('li[data-block-type="list-item"]').count()).toBe(1);
 });
 
 test("a live edit after the catalog reaches the render and the JSON", async ({ page }) => {
   await openCatalogPane(page);
-  // The pane's current block is the catalog's trailing paragraph (the last
-  // paragraph in reading order): the data-current label keeps working.
+  // The pane's current block is the last top-level paragraph (the
+  // catalog's nested-under-text container, after the trailing one): the
+  // data-current label keeps working.
   const current = page.locator('[data-testid="doc-a"] [data-current="true"]');
   await expect(current).toHaveCount(1);
   await expect(current).toHaveAttribute("data-block-type", "paragraph");

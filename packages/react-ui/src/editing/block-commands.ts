@@ -171,13 +171,13 @@ function splitAt(doc: Doc, id: BlockId, parentId: BlockId, offset: number): Bloc
  * non-text (divider, image, ...): the previous block is removed only.
  *
  * Returns the surviving block and the caret offset (the join point); null
- * for a no-op (no previous sibling, or the block has children — merging a
- * nested list is a structural merge, not a v1 gesture).
+ * for a no-op (no previous sibling, or the block has children — merging
+ * a container is a structural merge, not a v1 gesture).
  */
 function mergeWithPrevious(doc: Doc, id: BlockId, parentId: BlockId): { blockId: BlockId; offset: number } | null {
   const block = doc.getBlock(id);
   if (block === null || !BLOCK_REGISTRY[block.type].content) return null;
-  if (block.type === "list-item" && (block.children?.length ?? 0) > 0) return null;
+  if ("children" in block && (block.children?.length ?? 0) > 0) return null;
   const siblings = doc.getChildren(parentId);
   const index = siblings.indexOf(id);
   if (index <= 0) return null;
@@ -203,17 +203,23 @@ function mergeWithPrevious(doc: Doc, id: BlockId, parentId: BlockId): { blockId:
 }
 
 /**
- * Tab in a list item: nest under the previous sibling (a list item only).
- * True when the block moved.
+ * Tab in a text block: nest under the previous sibling when it is a
+ * registry container whose children set accepts this block's type (a
+ * list item nests under a list item; the page set nests under any text
+ * container). True when the block moved (one moveBlock in one transact).
  */
 function nestIntoPrevious(doc: Doc, id: BlockId, parentId: BlockId): boolean {
+  const block = doc.getBlock(id);
+  if (block === null) return false;
   const siblings = doc.getChildren(parentId);
   const index = siblings.indexOf(id);
   if (index <= 0) return false;
   const prevId = siblings[index - 1];
   if (prevId === undefined) return false;
   const prev = doc.getBlock(prevId);
-  if (prev === null || prev.type !== "list-item") return false;
+  if (prev === null) return false;
+  const allowed = BLOCK_REGISTRY[prev.type].childrenTypes;
+  if (allowed === undefined || !allowed.includes(block.type)) return false;
   doc.transact(() => {
     doc.moveBlock(id, prevId, doc.getChildren(prevId).length);
   });
@@ -221,14 +227,23 @@ function nestIntoPrevious(doc: Doc, id: BlockId, parentId: BlockId): boolean {
 }
 
 /**
- * Shift+Tab in a list item whose parent is a list item: outdent to right
- * after the parent. True when the block moved.
+ * Shift+Tab in a text block whose parent is a container: outdent to right
+ * after the parent (the top level — the parent is the root — has no
+ * outdent target). True when the block moved (one moveBlock in one
+ * transact).
  */
 function outdentFrom(doc: Doc, id: BlockId, parentId: BlockId): boolean {
+  if (parentId === doc.meta.id) return false;
   const parent = doc.getBlock(parentId);
-  if (parent === null || parent.type !== "list-item") return false;
+  if (parent === null || BLOCK_REGISTRY[parent.type].children !== true) return false;
+  const block = doc.getBlock(id);
+  if (block === null) return false;
   const grandParentId = findParentId(doc, parentId);
   if (grandParentId === null) return false;
+  const grandParent = doc.getBlock(grandParentId);
+  if (grandParent === null) return false;
+  const allowed = BLOCK_REGISTRY[grandParent.type].childrenTypes;
+  if (allowed === undefined || !allowed.includes(block.type)) return false;
   const grandChildren = doc.getChildren(grandParentId);
   const parentIndex = grandChildren.indexOf(parentId);
   if (parentIndex === -1) return false;

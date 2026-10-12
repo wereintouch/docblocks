@@ -58,11 +58,18 @@ interface BlockSpec {
 /** The v1 block registry. */
 const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   root: { content: false, children: true, rows: false, childrenTypes: PAGE_BLOCK_TYPES },
-  paragraph: { content: true, children: false, rows: false, attrs: { align: ALIGN } },
+  paragraph: {
+    content: true,
+    children: true,
+    rows: false,
+    childrenTypes: PAGE_BLOCK_TYPES,
+    attrs: { align: ALIGN },
+  },
   heading: {
     content: true,
-    children: false,
+    children: true,
     rows: false,
+    childrenTypes: PAGE_BLOCK_TYPES,
     attrs: { level: { kind: "enum", values: [1, 2, 3, 4, 5, 6], required: true }, align: ALIGN },
   },
   "list-item": {
@@ -78,20 +85,23 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   },
   callout: {
     content: true,
-    children: false,
+    children: true,
     rows: false,
+    childrenTypes: PAGE_BLOCK_TYPES,
     attrs: { variant: { kind: "enum", values: ["info", "warning", "danger"] }, align: ALIGN },
   },
   code: {
     content: true,
-    children: false,
+    children: true,
     rows: false,
+    childrenTypes: PAGE_BLOCK_TYPES,
     attrs: { language: { kind: "string" } },
   },
   latex: {
     content: true,
-    children: false,
+    children: true,
     rows: false,
+    childrenTypes: PAGE_BLOCK_TYPES,
     attrs: { display: { kind: "boolean", required: true }, align: ALIGN },
   },
   table: {

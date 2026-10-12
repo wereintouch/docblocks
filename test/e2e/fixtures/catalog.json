@@ -35,7 +35,8 @@
         "c0037",
         "c0040",
         "c0050",
-        "c0051"
+        "c0051",
+        "c0052"
       ]
     },
     "c0001": {
@@ -617,6 +618,37 @@
       "content": [
         {
           "text": "Trailing paragraph",
+          "marks": {}
+        }
+      ]
+    },
+    "c0052": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Nested under text",
+          "marks": {}
+        }
+      ],
+      "children": ["c0053", "c0054"]
+    },
+    "c0053": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "Indented paragraph",
+          "marks": {}
+        }
+      ]
+    },
+    "c0054": {
+      "type": "list-item",
+      "attrs": {
+        "list": "bullet"
+      },
+      "content": [
+        {
+          "text": "Indented list item",
           "marks": {}
         }
       ]

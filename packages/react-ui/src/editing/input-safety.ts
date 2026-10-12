@@ -21,7 +21,8 @@ import { useSlashMenuApi } from "./slash";
  * as text. Enter splits the block at the caret, Shift+Enter inserts a
  * line break (a `\n` in the run text, rendered through the inner's
  * `white-space: pre-wrap`), Backspace at offset 0 merges with the
- * previous sibling, Tab / Shift+Tab nest a list item, and a "/" in an
+ * previous sibling, Tab / Shift+Tab nest / outdent the block (the code
+ * block keeps the typewriter Tab: a `\t` at the caret), and a "/" in an
  * empty root-level block opens the slash command menu (the
  * character is never inserted: the menu captures the filter query).
  * While a blocks selection is active (the wrapper is focused from the
@@ -188,7 +189,30 @@ function useBlockInput({
         return;
       }
 
-      if (event.key === "Tab" && !event.nativeEvent.isComposing && blockType === "list-item") {
+      if (event.key === "Tab" && !event.nativeEvent.isComposing) {
+        if (blockType === "code") {
+          // The code block keeps the typewriter Tab: a "\t" at the caret
+          // (one insertText) instead of a structural move.
+          if (!event.shiftKey) {
+            const domSelection = window.getSelection();
+            if (
+              domSelection !== null &&
+              domSelection.rangeCount > 0 &&
+              domSelection.isCollapsed &&
+              domSelection.anchorNode !== null &&
+              inner.contains(domSelection.anchorNode)
+            ) {
+              const offset = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
+              event.preventDefault();
+              // The caret lands after the inserted tab — declared before
+              // the store update (the rebase rule keeps a caret at the
+              // insertion offset in place).
+              declareLocalCaret(offset + 1);
+              doc.insertText(id, offset, "\t");
+            }
+          }
+          return;
+        }
         const acted = event.shiftKey
           ? outdentFrom(doc, id, context.parentId)
           : nestIntoPrevious(doc, id, context.parentId);
