@@ -6,7 +6,13 @@ import type { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "re
 import type { Block, BlockId, TextRun } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
-import { caretOffsetIn, restoreSelection, selectionInside, selectionOrphaned } from "../editing/dom-offset";
+import {
+  caretOffsetIn,
+  logicalTextOf,
+  restoreSelection,
+  selectionInside,
+  selectionOrphaned,
+} from "../editing/dom-offset";
 import { useBlockInput } from "../editing/input-safety";
 import { useBlockKeyboard } from "../editing/keyboard";
 import { useSlashMenuApi } from "../editing/slash";
@@ -88,12 +94,23 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   const wrapperRef = useRef<HTMLElement | null>(null);
   const innerRef = useRef<HTMLElement | null>(null);
   const slash = useSlashMenuApi();
+  /**
+   * The caret a local gesture wants restored after the store-driven
+   * rebuild (a flat offset in the new text); consumed by the next
+   * post-render commit.
+   */
+  const localCaretRef = useRef<number | null>(null);
+  /** The local-caret declaration for the input gestures of this block. */
+  const declareLocalCaret = useCallback((offset: number) => {
+    localCaretRef.current = offset;
+  }, []);
   const { onKeyDown: onInputKeyDown, onPaste } = useBlockInput({
     id,
     blockType: block.type,
     context: blockContext,
     innerRef,
     wrapperRef,
+    declareLocalCaret,
   });
   const { onKeyDown: onGestureKeyDown } = useBlockKeyboard({
     id,
@@ -131,7 +148,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
     if (el === null) return;
     const current = store.getState().blocks[id];
     if (current === undefined) return;
-    const delta = diffTexts(textOf("content" in current ? current.content : undefined), el.textContent ?? "");
+    const delta = diffTexts(textOf("content" in current ? current.content : undefined), logicalTextOf(el));
     if (delta === null) return;
     doc.transact(() => {
       if (delta.deleteLen > 0) doc.deleteText(id, delta.from, delta.from + delta.deleteLen);
@@ -171,7 +188,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
         };
         return;
       }
-      if ((el.textContent ?? "") === nextText) return; // this block's own input: the DOM already holds the new text
+      if (logicalTextOf(el) === nextText) return; // this block's own input: the DOM already holds the new text
 
       // A remote/undo change: rebuild from the new runs and rebase the
       // captured selection across the store-text delta.
@@ -195,6 +212,8 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
     const el = innerRef.current;
     if (el === null) return;
     const pending = pendingRef.current;
+    const override = localCaretRef.current;
+    localCaretRef.current = null;
     if (pending !== null) {
       pendingRef.current = null;
       renderRunsInto(pending.runs, el);
@@ -202,9 +221,11 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       // The selection may have left the block between the capture and
       // this commit — then the rebuild alone is the convergence. An
       // orphaned selection (its containers detached by the rebuild above)
-      // still belongs to this block: the restore is the recovery.
+      // still belongs to this block: the restore is the recovery. A
+      // local-caret declaration replaces the rebased offsets (the caret
+      // is a collapsed point: no range).
       if (pending.restore !== null && (selectionInside(el) || selectionOrphaned())) {
-        restoreSelection(el, pending.restore.from, pending.restore.to);
+        restoreSelection(el, override ?? pending.restore.from, override !== null ? null : pending.restore.to);
       }
       return;
     }

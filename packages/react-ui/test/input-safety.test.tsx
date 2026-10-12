@@ -99,11 +99,12 @@ describe("text input safety", () => {
     expect(inner.textContent).toBe("hello");
   });
 
-  it("Shift+Enter does not split the block either", () => {
+  it("Shift+Enter inserts a line break in the run text without splitting", () => {
     const doc = renderParagraph();
     const wrapper = paragraphEl();
     const inner = innerEl();
     const before = blockCount(doc);
+    caretAt(inner, 2);
 
     act(() => {
       wrapper.dispatchEvent(
@@ -111,9 +112,16 @@ describe("text input safety", () => {
       );
     });
 
+    // One `\n` in the run text: the block is not split, the rebuilt DOM
+    // carries the break as a character (no <br>/<div>), the caret lands
+    // after it (offset 3 of "he\nllo").
     expect(blockCount(doc)).toBe(before);
+    expect(doc.getText(paragraphId)).toBe("he\nllo");
     expect(inner.querySelectorAll("br, div").length).toBe(0);
-    expect(inner.textContent).toBe("hello");
+    expect(inner.textContent).toBe("he\nllo");
+    const selection = window.getSelection();
+    expect(selection?.anchorNode?.nodeType).toBe(Node.TEXT_NODE);
+    expect(selection?.anchorOffset).toBe(3);
   });
 
   it("paste inserts plain text at the caret offset and keeps a single text node", () => {

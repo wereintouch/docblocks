@@ -1,5 +1,7 @@
 import type { BlockId, Doc, MarkSet, TextRun } from "docblocks-core";
 
+import { LINE_ANCHOR_SLOT } from "../text/runs-dom";
+
 /**
  * Rich clipboard: parsing of a pasted `text/html` payload into flat runs.
  *
@@ -108,6 +110,11 @@ function elementMarks(element: Element): MarkSet | null {
   }
 }
 
+/** Whether a pasted element is the editor's line-break anchor (never content). */
+function isLineAnchor(element: Element): boolean {
+  return element.getAttribute("data-slot") === LINE_ANCHOR_SLOT;
+}
+
 /** The flattened text a node contributes, ignoring marks and `br`. */
 function flattenedTextOf(node: Node): string {
   let text = "";
@@ -117,6 +124,7 @@ function flattenedTextOf(node: Node): string {
       return;
     }
     if (current.nodeType !== Node.ELEMENT_NODE) return;
+    if (isLineAnchor(current as Element)) return;
     const tag = current.nodeName.toUpperCase();
     if (tag === "BR" || tag === "SCRIPT" || tag === "STYLE") return;
     for (const child of Array.from(current.childNodes)) visit(child);
@@ -157,6 +165,7 @@ function htmlToRuns(html: string): TextRun[] {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const element = node as Element;
+    if (isLineAnchor(element)) return; // rendered-only caret seat, not content
     const tag = element.nodeName.toUpperCase();
     if (tag === "BR" || tag === "SCRIPT" || tag === "STYLE") return; // non-content
 

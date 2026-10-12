@@ -93,3 +93,53 @@ test("mod+b toggles the selected range bold in the other pane", async ({ browser
 
   await close();
 });
+
+test("Shift+Enter inserts a line break in the run text (synced, not a new block)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "ui04-softbreak");
+
+  // The store text of the first block (both panes seed the same room, so
+  // the first non-root block is shared). The DOM carries a rendered-only
+  // line anchor, so the store (not the raw textContent) is the assertion
+  // target.
+  const firstText = (page: Page, client: "a" | "b") =>
+    page.evaluate((c) => {
+      const d = window.__paneDocs?.[c];
+      if (d === null || d === undefined) throw new Error(`the ${c} pane's doc is not mounted`);
+      const firstId = d.getChildren(d.toJSON().id)[0];
+      const block = d.getBlock(firstId);
+      return (block?.content ?? []).map((r) => r.text).join("");
+    }, client);
+
+  const first = inners(a, "a").first();
+  await first.click();
+  await a.keyboard.type("line one");
+  await a.keyboard.press("Shift+Enter");
+  await a.keyboard.type("line two");
+
+  // The break is a \n inside the run text of the same block: the block
+  // count is unchanged and both panes carry the break in the store text.
+  await expect.poll(() => a.evaluate(() => Object.keys(window.__paneDocs.a.toJSON().blocks).length), SETTLE).toBe(3);
+  await expect.poll(() => firstText(a, "a"), SETTLE).toBe("line one\nline two");
+  await expect.poll(() => firstText(b, "b"), SETTLE).toBe("line one\nline two");
+
+  // The break renders as a real line break: the inner is pre-wrap and
+  // its box spans two text lines.
+  const box = await first.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const height = el.getBoundingClientRect().height;
+    const line = parseFloat(style.lineHeight);
+    return { whiteSpace: style.whiteSpace, lines: height / line };
+  });
+  expect(box.whiteSpace).toBe("pre-wrap");
+  expect(box.lines).toBeCloseTo(2, 1);
+
+  // Backspace across the break: deleting "line two" (8 chars) keeps the
+  // break; one more deletes the break and merges to the previous line.
+  for (let i = 0; i < 8; i++) await a.keyboard.press("Backspace");
+  await expect.poll(() => firstText(a, "a"), SETTLE).toBe("line one\n");
+  await a.keyboard.press("Backspace");
+  await expect.poll(() => firstText(a, "a"), SETTLE).toBe("line one");
+  await expect.poll(() => firstText(b, "b"), SETTLE).toBe("line one");
+
+  await close();
+});

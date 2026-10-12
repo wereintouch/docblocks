@@ -187,6 +187,9 @@
 [data-slot="docblocks/block-content"] {
   margin: 0;
   outline: none;
+  /* A \n in the run text (the Shift+Enter line break) renders as a line
+     break; typed spaces stay as typed. */
+  white-space: pre-wrap;
 }
 
 [data-slot="docblocks/block-content"]:empty::after {

@@ -18,9 +18,11 @@ import { useSlashMenuApi } from "./slash";
  * commits through doc commands at the DOM selection offset (one
  * transaction, one undo step): a `text/html` payload is flattened over the
  * clipboard whitelist (marks included), a plain-text payload is inserted
- * as text. Enter splits the block at the caret, Backspace at offset 0
- * merges with the previous sibling, Tab / Shift+Tab nest a list item, and
- * a "/" in an empty root-level block opens the slash command menu (the
+ * as text. Enter splits the block at the caret, Shift+Enter inserts a
+ * line break (a `\n` in the run text, rendered through the inner's
+ * `white-space: pre-wrap`), Backspace at offset 0 merges with the
+ * previous sibling, Tab / Shift+Tab nest a list item, and a "/" in an
+ * empty root-level block opens the slash command menu (the
  * character is never inserted: the menu captures the filter query).
  * While a blocks selection is active (the wrapper is focused from the
  * gutter): Delete / Backspace remove the selected blocks, the arrows move
@@ -35,12 +37,21 @@ function useBlockInput({
   context,
   innerRef,
   wrapperRef,
+  declareLocalCaret,
 }: {
   id: BlockId;
   blockType: BlockType;
   context: BlockContextValue;
   innerRef: RefObject<HTMLElement | null>;
   wrapperRef: RefObject<HTMLElement | null>;
+  /**
+   * Declare the caret the store-driven rebuild should restore (a flat
+   * offset in the NEW text). The rebase rule for a change at the caret
+   * is the remote-convergence rule (an insertion exactly at the offset
+   * does not move it); a local gesture whose caret must land after its
+   * own insertion declares it explicitly.
+   */
+  declareLocalCaret: (offset: number) => void;
 }) {
   const { doc, selection: selectionRef, store, rootBlockId } = useEditorContext();
   const slash = useSlashMenuApi();
@@ -137,7 +148,6 @@ function useBlockInput({
       // candidate text — suppressing it would strand CJK input.
       if (event.key === "Enter" && !event.nativeEvent.isComposing) {
         event.preventDefault();
-        if (event.shiftKey) return; // a soft line break is not a v1 feature
         const domSelection = window.getSelection();
         if (domSelection === null || domSelection.rangeCount === 0) return;
         if (domSelection.anchorNode === null || domSelection.focusNode === null) return;
@@ -150,6 +160,16 @@ function useBlockInput({
         )
           return;
         const offset = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
+        if (event.shiftKey) {
+          // Shift+Enter is a line break inside the block: one `\n` at the
+          // caret. The caret lands after the break — declared before the
+          // store update, since the rebase rule keeps a caret at the
+          // insertion offset in place and the post-render commit may run
+          // synchronously inside the command.
+          declareLocalCaret(offset + 1);
+          doc.insertText(id, offset, "\n");
+          return;
+        }
         const newId = splitAt(doc, id, context.parentId, offset);
         if (newId !== null) focusCaretIn(newId, 0);
         return;
@@ -175,7 +195,7 @@ function useBlockInput({
         if (acted) event.preventDefault();
       }
     },
-    [blockType, context, doc, id, innerRef, rootBlockId, selectionRef, slash, store, wrapperRef]
+    [blockType, context, declareLocalCaret, doc, id, innerRef, rootBlockId, selectionRef, slash, store, wrapperRef]
   );
 
   return { onKeyDown, onPaste };
