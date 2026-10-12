@@ -1,4 +1,4 @@
-import { type BlockRendererMap, Editor, EditorProvider, type EditorView } from "docblocks-react-ui";
+import { type BlockRendererMap, EditorProvider, type EditorView } from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
@@ -65,9 +65,10 @@ interface Runtime {
  * Editor on the same doc/provider instance): typing is the real editor,
  * the pane's awareness is published by the provider from the real DOM
  * selection, and the pane's sync-embed resolver points at its master.
- * `motion` renders the animated editor from the `docblocks-react-ui/motion`
- * subpath (the harness helpers target the block wrappers the motion layer
- * keeps); `catalog` builds the deterministic v1 catalog document
+ * The editor area always renders the animated editor from the
+ * `docblocks-react-ui/motion` subpath (the consumer demo; the harness
+ * helpers target the block wrappers the motion layer keeps);
+ * `catalog` builds the deterministic v1 catalog document
  * (catalog.ts) instead of seeding a paragraph (the goldens' fixture; the
  * live doc on `window.__catalogDoc`); `cycle` seeds the master with a
  * sync-embed referencing the outer doc (the cycle-guard e2e case).
@@ -80,14 +81,12 @@ interface Runtime {
 function SyncPane({
   client,
   syncUrl,
-  motion,
   catalog,
   canvas,
   cycle,
 }: {
   client: "a" | "b";
   syncUrl: string;
-  motion: boolean;
   catalog: boolean;
   canvas: boolean;
   cycle: boolean;
@@ -314,7 +313,7 @@ function SyncPane({
               blockRenderers={BLOCK_RENDERERS}
               syncEmbedResolver={syncEmbedResolver}
             >
-              {motion ? <MotionEditor view={view} /> : <Editor view={view} />}
+              <MotionEditor view={view} />
             </EditorProvider>
           )}
         </div>

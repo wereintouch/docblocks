@@ -28,8 +28,11 @@ function wrappers(page: Page, client: "a" | "b") {
 }
 
 /** The top-level list items (the list rendered directly under the editor root). */
+/** The pane's top-level list items (a list not nested inside a list item; the motion view wraps the root entries in entry divs). */
 function topLis(page: Page, client: "a" | "b") {
-  return pane(page, client).locator('[data-slot="docblocks/editor"] > ul[data-slot="docblocks/list"] > li');
+  return pane(page, client).locator(
+    '[data-slot="docblocks/editor"] ul[data-slot="docblocks/list"]:not(li ul[data-slot="docblocks/list"]) > li'
+  );
 }
 
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {

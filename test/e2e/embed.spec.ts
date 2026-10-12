@@ -69,7 +69,7 @@ test("an embed inserted in A renders in both panes and reaches the JSON", async 
 
 test("the catalog's embed renders in the motion pane (a non-text reorder target)", async ({ page }) => {
   const room = `ext01-motion-${Math.random().toString(36).slice(2, 8)}`;
-  await page.goto(`/?client=a&catalog=1&motion=1&syncUrl=${RELAY}/${room}`);
+  await page.goto(`/?client=a&catalog=1&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
 
   // The catalog embed is one of the root entries: it renders through the

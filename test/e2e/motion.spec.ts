@@ -8,9 +8,8 @@ import { insertBlockType } from "./helpers";
 const RELAY = "ws://localhost:5199";
 const SETTLE = { timeout: 15_000 };
 
-async function openPane(page: Page, client: "a" | "b", room: string, motion = false): Promise<void> {
-  const suffix = motion ? "&motion=1" : "";
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}${suffix}`);
+async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
+  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
 }
 
@@ -30,8 +29,7 @@ function currentWrapper(page: Page, client: "a" | "b") {
 
 async function twoPanes(
   browser: Browser,
-  room: string,
-  motionA = false
+  room: string
 ): Promise<{
   a: Page;
   b: Page;
@@ -42,7 +40,7 @@ async function twoPanes(
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom, motionA);
+  await openPane(a, "a", uniqueRoom);
   await openPane(b, "b", uniqueRoom);
   return {
     a,
@@ -54,18 +52,18 @@ async function twoPanes(
   };
 }
 
-test("an inserted block renders in the plain pane and settles in the motion pane", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "ui03c-insert", true);
+test("an inserted block reaches both panes and its enter animation settles", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "ui03c-insert");
 
   // Both panes seed their own first paragraph, so the room starts with two.
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
 
   await insertBlockType(a, "a", "paragraph");
 
-  // The plain pane renders the block as it arrives...
+  // Both panes (the motion editor) render the block as it arrives...
   await expect(wrappers(b, "b"), SETTLE).toHaveCount(3);
-  // ...and the motion pane shows it once the enter animation settles
-  // (the block is current after the insert, so it is labeled).
+  // ...and the enter animation settles in A (the block is current after
+  // the insert, so it is labeled).
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(3);
   await expect
     .poll(
@@ -79,7 +77,7 @@ test("an inserted block renders in the plain pane and settles in the motion pane
 });
 
 test("a gutter deletion disappears in both panes (the exit animation completes)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "ui03c-delete", true);
+  const { a, b, close } = await twoPanes(browser, "ui03c-delete");
 
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
   const before = 2;

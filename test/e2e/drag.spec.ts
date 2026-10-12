@@ -8,9 +8,8 @@ import { insertBlockType } from "./helpers";
 const RELAY = "ws://localhost:5199";
 const SETTLE = { timeout: 15_000 };
 
-async function openPane(page: Page, client: "a" | "b", room: string, motion = false): Promise<void> {
-  const suffix = motion ? "&motion=1" : "";
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}${suffix}`);
+async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
+  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
 }
 
@@ -40,8 +39,7 @@ async function wrapperId(page: Page, client: "a" | "b", index: number): Promise<
 
 async function twoPanes(
   browser: Browser,
-  room: string,
-  motionA = false
+  room: string
 ): Promise<{
   a: Page;
   b: Page;
@@ -52,7 +50,7 @@ async function twoPanes(
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom, motionA);
+  await openPane(a, "a", uniqueRoom);
   await openPane(b, "b", uniqueRoom);
   return {
     a,
@@ -76,8 +74,8 @@ async function dragGutter(page: Page, client: "a" | "b", index: number, toX: num
   await page.mouse.up();
 }
 
-test("a gutter drag reorders the block, syncs to the plain pane, and undoes as one step", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "ui04b-reorder", true);
+test("a gutter drag reorders the block, syncs to the other pane, and undoes as one step", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "ui04b-reorder");
 
   // Both panes seed their own first paragraph, so the room starts with two.
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
@@ -104,8 +102,8 @@ test("a gutter drag reorders the block, syncs to the plain pane, and undoes as o
   // viewport, so the drag does not trigger page auto-scroll).
   await dragGutter(a, "a", 3, lastBox.x + 20, firstBox.y + firstBox.height / 4);
 
-  // The order changed in A and reached B over the wire (the plain pane
-  // shows the new order as the update arrives).
+  // The order changed in A and reached B over the wire (B shows the new
+  // order as the update arrives).
   await expect(wrappers(a, "a").first(), SETTLE).toHaveAttribute("data-block-id", lastId);
   await expect(wrappers(b, "b").first(), SETTLE).toHaveAttribute("data-block-id", lastId);
 
@@ -119,7 +117,7 @@ test("a gutter drag reorders the block, syncs to the plain pane, and undoes as o
 });
 
 test("a drag back to the same position issues no command", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "ui04b-noop", true);
+  const { a, close } = await twoPanes(browser, "ui04b-noop");
 
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
   const firstId = await wrapperId(a, "a", 0);
