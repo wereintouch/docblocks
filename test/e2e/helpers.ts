@@ -25,6 +25,7 @@ interface PaneDoc {
     attrs?: Record<string, unknown>;
     content?: { text: string; marks: Record<string, unknown> }[];
   } | null;
+  insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string }): string;
 }
 
 /**

@@ -24,4 +24,40 @@ function moveTargetForReorder(oldIds: BlockId[], newIds: BlockId[], draggedId: B
   return at > from ? at + 1 : at;
 }
 
-export { moveTargetForReorder };
+/**
+ * The post-move parent order for a list item dropped into a slot of its
+ * own list run, or null when the drop is a no-op (the item lands in its
+ * own slot) or the order is stale (a remote update changed the children
+ * mid-drag — the drop is rejected).
+ *
+ * `anchorId` is the sibling the slot belongs to: with side "before" it is
+ * the item BELOW the slot, with "after" the item ABOVE it; null is the slot
+ * before the run's first item or after its last. The result is a
+ * permutation of `oldIds` (the dragged item moved, nothing else) that
+ * feeds `moveTargetForReorder`.
+ */
+function finalOrderAfterSlotDrop(
+  oldIds: BlockId[],
+  draggedId: BlockId,
+  anchorId: BlockId | null,
+  side: "before" | "after"
+): BlockId[] | null {
+  const from = oldIds.indexOf(draggedId);
+  if (from === -1) return null;
+  if (anchorId !== null && !oldIds.includes(anchorId)) return null;
+  const rest = oldIds.filter((id) => id !== draggedId);
+  const pos =
+    anchorId === null
+      ? side === "before"
+        ? 0
+        : rest.length
+      : side === "before"
+        ? rest.indexOf(anchorId)
+        : rest.indexOf(anchorId) + 1;
+  if (pos === -1) return null;
+  const next = [...rest];
+  next.splice(pos, 0, draggedId);
+  return next.every((id, i) => oldIds[i] === id) ? null : next;
+}
+
+export { finalOrderAfterSlotDrop, moveTargetForReorder };

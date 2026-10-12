@@ -54,6 +54,7 @@
   --docblocks-gutter-size: 10px;
   --docblocks-gutter-color: #8b949e;
   --docblocks-gutter-offset: 4px;
+  --docblocks-drag-line-color: #2563eb;
 
   /* Headings. */
   --docblocks-heading-font-weight: 600;
@@ -153,6 +154,26 @@
 
 [data-slot="docblocks/block"] {
   margin: var(--docblocks-block-spacing) 0;
+}
+
+/*
+ * The list-drag session (the motion view): the lifted item follows the
+ * pointer via an inline transform; the attrs below are set by the
+ * session, so the rules are inert outside a drag.
+ */
+[data-slot="docblocks/editor"] [data-docblocks-dragging] {
+  background: var(--docblocks-selected-background);
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+[data-slot="docblocks/editor"] [data-docblocks-drag-over="before"] {
+  box-shadow: 0 -2px 0 0 var(--docblocks-drag-line-color);
+}
+
+[data-slot="docblocks/editor"] [data-docblocks-drag-over="after"] {
+  box-shadow: 0 2px 0 0 var(--docblocks-drag-line-color);
 }
 
 /* The inner editable: the flat text diff is scoped to it, so it carries
@@ -639,6 +660,7 @@ iframe[data-slot="docblocks/embed"] {
   --docblocks-divider-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-table-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-selected-background: rgba(56, 139, 253, 0.15);
+  --docblocks-drag-line-color: #58a6ff;
 
   --docblocks-checkbox-border-color: #8b949e;
   --docblocks-checkbox-checked-background: #58a6ff;

@@ -19,22 +19,27 @@
  * group whose head is unchanged reflows without an item-level exit
  * animation; removing the head re-animates the whole group.
  *
- * Drag-reorder (v1 scope): a single (non-list) root block is dragged by
- * its gutter handle — the handle is the only drag trigger (a press
- * without movement stays the plain block selection), so root blocks
- * without a handle (image, divider, table) are reorder targets but not
- * drag sources. List groups are not draggable: each renders as a no-drag
- * `Reorder.Item` with a stable value, so a dragged block lands before or
- * after the whole group. One drag issues one `moveBlock` (one undo step,
- * one wire update): while the drag runs the entry order is local state
- * (`onReorder` keeps the layout live) and the pre-move target index is
- * computed from the old vs. new order on release — a drag that ends at
- * the same position issues no command.
+ * Drag-reorder: framer-motion's `Reorder` reorders the root entries — a
+ * single non-list block is dragged by its gutter handle (the handle is
+ * the only drag trigger; a press without movement stays the plain block
+ * selection, and root blocks without a handle — image, divider, table —
+ * are reorder targets but not drag sources). A list run is an atomic
+ * entry (a dragged block lands before or after the whole run), and its
+ * items drag through the custom list-drag session (list-drag): a list
+ * item lifts and follows the pointer at every nesting level, a line
+ * marks the same-level drop slot inside the item's own list run, and a
+ * drop outside the run (another level or kind, or the item's own
+ * subtree) is rejected.
+ *
+ * One drag issues one `moveBlock` (one undo step, one wire update): for
+ * the framer drag the pre-move target index is computed from the old vs.
+ * new order on release; a drag that ends at the same position issues no
+ * command.
  *
  * Known v1 edge (accepted, no protection): a remote doc update mid-drag
- * re-derives the entry list and re-lays the group out; the in-flight drag
- * may visually restart, and a reorder order stale against the store is
- * dropped on release (no commit).
+ * re-derives the entry list and re-lays the group out; the in-flight
+ * drag may visually restart, and a reorder order stale against the store
+ * is dropped on release (no commit).
  *
  * The exit animation pops the leaving entry out of layout (popLayout)
  * against the editor root's `position: relative` — import the package
@@ -58,6 +63,7 @@ import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
+import { useListDrag } from "./list-drag";
 import { moveTargetForReorder } from "./reorder";
 
 /**
@@ -154,6 +160,7 @@ function MotionEditor({
   const { rootRef, onKeyDown } = useEditing();
   const slash = useSlashMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
+  const listDragStart = useListDrag(rootRef, store, doc, rootBlockId);
   const groups = useMemo(() => groupChildren(rootChildren, blocks), [rootChildren, blocks]);
   const entries = useMemo<Entry[]>(
     () =>
@@ -190,17 +197,24 @@ function MotionEditor({
     else controlsRef.current.set(key, controls);
   }, []);
 
-  /** The gutter handle of a single entry starts that entry's drag (a plain press without movement stays the block selection). */
-  const onHandlePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {
-    const target = event.target instanceof HTMLElement ? event.target : null;
-    if (target === null) return;
-    const handle = target.closest('[data-slot="docblocks/gutter"]');
-    if (handle === null) return;
-    const wrapper = handle.closest("[data-block-id]");
-    const blockId = wrapper?.getAttribute("data-block-id") ?? null;
-    if (blockId === null) return;
-    controlsRef.current.get(blockId)?.start(event);
-  }, []);
+  /** The gutter handle starts the drag for that block: the custom list-drag session for list items (every level), the framer drag for the rest. A plain press without movement stays the block selection. */
+  const onHandlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target === null) return;
+      const handle = target.closest('[data-slot="docblocks/gutter"]');
+      if (handle === null) return;
+      const wrapper = handle.closest("[data-block-id]");
+      const blockId = wrapper?.getAttribute("data-block-id") ?? null;
+      if (blockId === null) return;
+      if (store.getState().blocks[blockId]?.type === "list-item") {
+        listDragStart(event, blockId);
+        return;
+      }
+      controlsRef.current.get(blockId)?.start(event);
+    },
+    [listDragStart, store]
+  );
 
   const onEntryDragStart = useCallback((key: string) => {
     draggingRef.current = key;
