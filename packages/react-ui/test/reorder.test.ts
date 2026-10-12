@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { finalOrderAfterSlotDrop, moveTargetForReorder } from "../src/motion/reorder";
+import { crossParentTargetIndex, finalOrderAfterSlotDrop, moveTargetForReorder } from "../src/motion/reorder";
 
 describe("moveTargetForReorder", () => {
   it("returns null when the order is unchanged", () => {
@@ -61,5 +61,22 @@ describe("finalOrderAfterSlotDrop", () => {
     // a below c: the pre-move target is after c (3).
     const final2 = finalOrderAfterSlotDrop(old, "a", "c", "after");
     expect(moveTargetForReorder(old, final2 ?? [], "a")).toBe(3);
+  });
+});
+
+describe("crossParentTargetIndex", () => {
+  it("returns the anchor's index (the pre-move index of the target order)", () => {
+    const target = ["a", "b", "c"];
+    expect(crossParentTargetIndex(target, "x", "a", "before")).toBe(0);
+    expect(crossParentTargetIndex(target, "x", "b", "after")).toBe(2);
+    expect(crossParentTargetIndex(target, "x", "c", "after")).toBe(3);
+  });
+
+  it("returns null for a stale anchor (a remote update moved or removed it)", () => {
+    expect(crossParentTargetIndex(["a", "b"], "x", "z", "before")).toBeNull();
+  });
+
+  it("returns null for a same-parent drop (that goes through finalOrderAfterSlotDrop)", () => {
+    expect(crossParentTargetIndex(["a", "x", "b"], "x", "b", "before")).toBeNull();
   });
 });

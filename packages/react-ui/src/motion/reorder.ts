@@ -60,4 +60,25 @@ function finalOrderAfterSlotDrop(
   return next.every((id, i) => oldIds[i] === id) ? null : next;
 }
 
-export { finalOrderAfterSlotDrop, moveTargetForReorder };
+/**
+ * The pre-move target index for a list item dropped into ANOTHER parent's
+ * children (a cross-level drop): `oldIds` is the target parent's current
+ * children and must not contain the dragged item (a within-parent drop
+ * goes through `finalOrderAfterSlotDrop` instead). The result is the
+ * index the item takes in the target order — or null for a stale anchor
+ * (a remote update moved or removed it mid-drag) or a same-parent drop
+ * (the wrong caller path).
+ */
+function crossParentTargetIndex(
+  oldIds: BlockId[],
+  draggedId: BlockId,
+  anchorId: BlockId,
+  side: "before" | "after"
+): number | null {
+  if (oldIds.includes(draggedId)) return null;
+  const anchorIndex = oldIds.indexOf(anchorId);
+  if (anchorIndex === -1) return null;
+  return side === "before" ? anchorIndex : anchorIndex + 1;
+}
+
+export { crossParentTargetIndex, finalOrderAfterSlotDrop, moveTargetForReorder };

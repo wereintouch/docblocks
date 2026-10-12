@@ -26,10 +26,13 @@
  * are reorder targets but not drag sources). A list run is an atomic
  * entry (a dragged block lands before or after the whole run), and its
  * items drag through the custom list-drag session (list-drag): a list
- * item lifts and follows the pointer at every nesting level, a line
- * marks the same-level drop slot inside the item's own list run, and a
- * drop outside the run (another level or kind, or the item's own
- * subtree) is rejected.
+ * item lifts and follows the pointer at every nesting level. The
+ * hovered row's vertical half names the side, and its horizontal band
+ * the level — a pointer in the row's right band drops the item into a
+ * hovered list item (as its first child), anywhere else the item drops
+ * at the hovered row's level (its parent's children), which may
+ * re-parent it across levels; a pointer over the item's own subtree or
+ * past every row's band names no slot and snaps back.
  *
  * One drag issues one `moveBlock` (one undo step, one wire update): for
  * the framer drag the pre-move target index is computed from the old vs.

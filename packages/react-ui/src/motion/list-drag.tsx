@@ -4,26 +4,39 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import type { BlockId, Doc } from "docblocks-core";
 
 import type { EditorStore } from "../state/store";
-import { finalOrderAfterSlotDrop, moveTargetForReorder } from "./reorder";
+import { crossParentTargetIndex, finalOrderAfterSlotDrop, moveTargetForReorder } from "./reorder";
 
 /** Pointer movement before the lift begins: a press that does not reach it stays a plain click. */
 const DRAG_THRESHOLD_PX = 4;
 
-/** The horizontal band around a list run that still offers a drop slot. */
-const DROP_BAND_TOLERANCE_PX = 24;
+/** How far past a row's edges (left/right) the pointer still names that row. */
+const ROW_TOLERANCE_PX = 24;
 
-type DropSide = "before" | "after";
+/** The fallback run indent (pixels) when the computed padding is unavailable. */
+const INDENT_FALLBACK_PX = 24;
 
 /**
- * One same-level drop slot, named by the sibling it borders: `anchor` is
- * the item below the slot for a "before" drop and the item above it for
- * an "after" drop; a null anchor is the slot before the run's first item
- * or after its last.
+ * A same-side drop: the dragged item lands before/after `anchor` in the
+ * anchor's parent's children (the anchor's level). `parent` is the
+ * anchor's parent id, or null for the root.
  */
-interface DropSlot {
-  anchor: BlockId | null;
-  side: DropSide;
+interface SideSlot {
+  kind: "side";
+  anchor: BlockId;
+  side: "before" | "after";
+  parent: BlockId | null;
 }
+
+/**
+ * A nested drop: the dragged item becomes the first child of `host`
+ * (host is a list item; the pointer sits in the row's right band).
+ */
+interface IntoSlot {
+  kind: "into";
+  host: BlockId;
+}
+
+type Slot = SideSlot | IntoSlot;
 
 interface DragSessionOptions {
   rootRef: RefObject<HTMLElement | null>;
@@ -34,14 +47,22 @@ interface DragSessionOptions {
 
 /**
  * The custom pointer drag for list items (every level): the item lifts
- * and follows the pointer, a line marks the same-level drop slot inside
- * the item's own list run, and the release commits one `moveBlock`.
+ * and follows the pointer, a line marks the drop slot, and the release
+ * commits one `moveBlock`.
  *
- * Same level only (v1): no slot is offered outside the run (a pointer
- * over the parent, over another list kind, or over the item's own
- * subtree), so a cross-level drop snaps back. The framer reorder is not
- * involved — the list runs are not `Reorder` groups, which keeps the
- * native `<ul>`/`<ol>` markup (and its markers) intact.
+ * The hovered row's vertical half names the side (above its midpoint is
+ * "before", below is "after"), and the horizontal band names the level:
+ * a pointer in the row's right band (past 1.5 run-indents) drops the
+ * item INTO a hovered list item (as its first child); anywhere else the
+ * item drops at the hovered row's own level (its parent's children) —
+ * which may re-parent it across levels (the target parent is the
+ * hovered row's parent, not the dragged item's). A pointer over the
+ * item's own subtree or past every row's band names no slot, and the
+ * drop snaps back.
+ *
+ * The framer reorder is not involved — the list runs are not `Reorder`
+ * groups, which keeps the native `<ul>`/`<ol>` markup (and its markers)
+ * intact.
  */
 function useListDrag(rootRef: RefObject<HTMLElement | null>, store: EditorStore, doc: Doc, rootBlockId: BlockId) {
   const sessionRef = useRef<DragSession | null>(null);
@@ -63,9 +84,7 @@ function useListDrag(rootRef: RefObject<HTMLElement | null>, store: EditorStore,
 
 class DragSession {
   private lifted = false;
-  private slot: DropSlot | null = null;
-  private overElement: HTMLElement | null = null;
-  private overAnchor: BlockId | null = null;
+  private slot: Slot | null = null;
 
   constructor(
     private readonly event: ReactPointerEvent,
@@ -74,10 +93,12 @@ class DragSession {
     private readonly finish: () => void
   ) {
     const { rootRef } = options;
-    this.wrapper = rootRef.current?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(draggedId)}"]`) ?? null;
-    this.list = this.wrapper?.closest<HTMLElement>("[data-slot='docblocks/list']") ?? null;
-    if (this.wrapper === null || this.list === null) {
-      // No resolvable item or no list ancestor (malformed data): nothing to reorder.
+    this.root = rootRef.current;
+    this.wrapper = this.root?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(draggedId)}"]`) ?? null;
+    this.line = this.createLine();
+    if (this.wrapper === null || this.line === null) {
+      // No resolvable item or no editor root to anchor the line: nothing to drag.
+      this.line?.remove();
       this.finish();
       return;
     }
@@ -88,8 +109,9 @@ class DragSession {
     window.addEventListener("keydown", this.onKeyDown);
   }
 
+  private readonly root: HTMLElement | null;
   private readonly wrapper: HTMLElement | null;
-  private readonly list: HTMLElement | null;
+  private readonly line: HTMLElement | null;
   private readonly originY: number = 0;
 
   dispose() {
@@ -112,12 +134,14 @@ class DragSession {
       if (Math.abs(delta) < DRAG_THRESHOLD_PX) return;
       this.lifted = true;
       this.wrapper.setAttribute("data-docblocks-dragging", "");
-      // Keep the lifted item out of the hit tests: it follows the pointer
-      // and would otherwise shadow every slot.
+      // Keep the lifted item out of the row tests below: it follows the
+      // pointer and would otherwise shadow every slot.
       this.wrapper.style.pointerEvents = "none";
     }
     this.wrapper.style.transform = `translateY(${delta}px)`;
-    this.applySlot(this.slotForPointer(event));
+    const slot = this.slotForPointer(event);
+    this.slot = slot;
+    this.positionLine(slot);
   };
 
   private readonly onPointerUp = () => {
@@ -131,7 +155,7 @@ class DragSession {
   };
 
   /** Clears the mutable state and returns it so the release runs on the settled values. */
-  private releaseState(): { slot: DropSlot | null; lifted: boolean } {
+  private releaseState(): { slot: Slot | null; lifted: boolean } {
     const released = { slot: this.slot, lifted: this.lifted };
     this.slot = null;
     this.lifted = false;
@@ -144,14 +168,34 @@ class DragSession {
     this.wrapper?.removeAttribute("data-docblocks-dragging");
     this.wrapper?.style.removeProperty("transform");
     this.wrapper?.style.removeProperty("pointer-events");
-    this.clearOver();
+    this.line?.remove();
   }
 
-  private move(slot: DropSlot) {
-    const { store, doc, rootBlockId } = this.options;
-    const parentWrapper = this.list?.closest<HTMLElement>("[data-block-id]");
-    const parentId = parentWrapper?.getAttribute("data-block-id") ?? rootBlockId;
+  /** The positioned drop-line element (anchored in the editor root). */
+  private createLine(): HTMLElement | null {
+    if (this.root === null) return null;
+    const line = document.createElement("div");
+    line.setAttribute("data-slot", "docblocks/drag-line");
+    line.style.display = "none";
+    this.root.appendChild(line);
+    return line;
+  }
+
+  private move(slot: Slot) {
+    const { store } = this.options;
     const state = store.getState();
+    // The dragged block was removed by a remote update mid-drag: there is
+    // nothing left to move (moving it would throw UnknownBlockError and
+    // skip the dispose below).
+    if (state.blocks[this.draggedId] === undefined) return;
+    if (slot.kind === "into") {
+      const host = state.blocks[slot.host];
+      if (host?.type !== "list-item") return;
+      this.commit(slot.host, [...(host.children ?? [])], null, "before");
+      return;
+    }
+    const { rootBlockId } = this.options;
+    const parentId = slot.parent ?? rootBlockId;
     const parentBlock = state.blocks[parentId];
     const oldIds =
       parentId === rootBlockId
@@ -159,64 +203,117 @@ class DragSession {
         : parentBlock?.type === "list-item"
           ? [...(parentBlock.children ?? [])]
           : [];
-    const finalIds = finalOrderAfterSlotDrop(oldIds, this.draggedId, slot.anchor, slot.side);
-    const toIndex = finalIds === null ? null : moveTargetForReorder(oldIds, finalIds, this.draggedId);
+    this.commit(parentId, oldIds, slot.anchor, slot.side);
+  }
+
+  /**
+   * One moveBlock for the slot (pre-move index), dropped when the order
+   * is stale or a no-op. Within a parent the drop reorders the children
+   * (the final-order chain); across parents the item is not among the
+   * target's children and lands at the anchor's index instead.
+   */
+  private commit(parentId: BlockId, oldIds: BlockId[], anchor: BlockId | null, side: "before" | "after") {
+    const { doc } = this.options;
+    let toIndex: number | null;
+    if (oldIds.includes(this.draggedId)) {
+      const finalIds = finalOrderAfterSlotDrop(oldIds, this.draggedId, anchor, side);
+      toIndex = finalIds === null ? null : moveTargetForReorder(oldIds, finalIds, this.draggedId);
+    } else {
+      toIndex = anchor === null ? 0 : crossParentTargetIndex(oldIds, this.draggedId, anchor, side);
+    }
     if (toIndex === null) return;
     doc.transact(() => doc.moveBlock(this.draggedId, parentId, toIndex));
   }
 
   /**
-   * The slot the pointer's row belongs to, or null when the pointer is
-   * outside the run's horizontal band or the run has no other items. The
-   * slot is named by the row's item: the pointer above its midpoint is
-   * "before" it, below its midpoint "after" it; a pointer below the last
-   * item is the slot after the run.
+   * The slot the pointer names, or null (no row, the row is the item's
+   * own subtree, or the side target's parent does not accept list
+   * items). The innermost row whose band contains the pointer is the
+   * hovered row; the pointer's vertical half names the side, and the
+   * right band (past 1.5 run-indents) names a nested drop into a
+   * hovered list item.
    */
-  private slotForPointer(event: PointerEvent): DropSlot | null {
-    const { wrapper, list } = this;
-    if (wrapper === null || list === null) return null;
-    const band = list.getBoundingClientRect();
-    if (event.clientX < band.left - DROP_BAND_TOLERANCE_PX || event.clientX > band.right + DROP_BAND_TOLERANCE_PX) {
-      return null;
+  private slotForPointer(event: PointerEvent): Slot | null {
+    const { store } = this.options;
+    if (this.root === null || this.wrapper === null) return null;
+    const rows = [...this.root.querySelectorAll<HTMLElement>("[data-block-id]")].filter(
+      (el) => el !== this.wrapper && !this.wrapper!.contains(el) && el.dataset.slot !== "docblocks/block-content"
+    );
+    const matches = rows.filter((el) => {
+      const rect = el.getBoundingClientRect();
+      return (
+        event.clientX >= rect.left - ROW_TOLERANCE_PX &&
+        event.clientX <= rect.right + ROW_TOLERANCE_PX &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+      );
+    });
+    const hovered = matches.find((el) => !matches.some((other) => other !== el && el.contains(other)));
+    if (hovered === undefined) return null;
+    const hoveredId = hovered.dataset.blockId ?? null;
+    if (hoveredId === null) return null;
+    const rect = hovered.getBoundingClientRect();
+    const indent = this.indentOf(hovered);
+    const hoveredType = store.getState().blocks[hoveredId]?.type;
+    if (event.clientX > rect.left + 1.5 * indent && hoveredType === "list-item") {
+      return { kind: "into", host: hoveredId };
     }
-    const items = [...list.querySelectorAll<HTMLElement>(":scope > [data-block-id]")].filter((el) => el !== wrapper);
-    if (items.length === 0) return null;
-    for (const item of items) {
-      const rect = item.getBoundingClientRect();
-      if (event.clientY < rect.top + rect.height / 2) return { anchor: item.dataset.blockId ?? null, side: "before" };
-    }
-    return { anchor: items[items.length - 1]?.dataset.blockId ?? null, side: "after" };
+    // The parent is the nearest block ancestor (the row itself carries the
+    // id; null is the root).
+    const parentEl = hovered.parentElement?.closest<HTMLElement>("[data-block-id]");
+    const parentId = parentEl?.dataset.blockId ?? null;
+    const parentType = parentId === null ? "root" : store.getState().blocks[parentId]?.type;
+    if (parentId !== null && parentType !== "list-item") return null;
+    const side = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+    return { kind: "side", anchor: hoveredId, side, parent: parentId };
   }
 
-  private applySlot(slot: DropSlot | null) {
-    if (slot === null) {
-      this.slot = null;
-      this.clearOver();
+  /** The run indent (the hovered row's list padding-left) in pixels. */
+  private indentOf(row: HTMLElement): number {
+    const list = row.closest<HTMLElement>("[data-slot='docblocks/list']");
+    if (list === null) return INDENT_FALLBACK_PX;
+    const padding = parseFloat(getComputedStyle(list).paddingLeft);
+    return Number.isFinite(padding) && padding > 0 ? padding : INDENT_FALLBACK_PX;
+  }
+
+  /** Places the drop line at the slot (or hides it); coordinates are editor-root relative. */
+  private positionLine(slot: Slot | null) {
+    const line = this.line;
+    if (line === null) return;
+    if (slot === null || this.root === null) {
+      line.style.display = "none";
       return;
     }
-    if (slot.anchor !== null) {
-      if (slot.anchor !== this.overAnchor || this.overElement?.getAttribute("data-docblocks-drag-over") !== slot.side) {
-        this.clearOver();
-        const anchor =
-          this.list === null
-            ? null
-            : this.list.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(slot.anchor)}"]`);
-        if (anchor !== null) {
-          anchor.setAttribute("data-docblocks-drag-over", slot.side);
-          this.overElement = anchor;
-          this.overAnchor = slot.anchor;
-        }
-      }
-    } else {
-      this.clearOver();
+    const hovered =
+      slot.kind === "into"
+        ? this.root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(slot.host)}"]`)
+        : this.root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(slot.anchor)}"]`);
+    if (hovered === null) {
+      line.style.display = "none";
+      return;
     }
-    this.slot = slot;
-  }
-
-  private clearOver() {
-    this.overElement?.removeAttribute("data-docblocks-drag-over");
-    this.overElement = null;
-    this.overAnchor = null;
+    const hoveredRect = hovered.getBoundingClientRect();
+    const rootRect = this.root.getBoundingClientRect();
+    let top: number;
+    let left: number;
+    let width: number;
+    if (slot.kind === "into") {
+      const indent = this.indentOf(hovered);
+      // The host's children live in its nested list (direct li rows).
+      const firstChild = hovered.querySelector<HTMLElement>(':scope > [data-slot="docblocks/list"] > [data-block-id]');
+      const childRect = firstChild !== null ? firstChild.getBoundingClientRect() : null;
+      left = (childRect !== null ? childRect.left : hoveredRect.left + indent) - rootRect.left;
+      width = childRect !== null ? childRect.width : Math.max(0, hoveredRect.width - indent);
+      top = (childRect !== null ? childRect.top : hoveredRect.bottom) - 1 - rootRect.top;
+    } else {
+      top = (slot.side === "before" ? hoveredRect.top : hoveredRect.bottom) - 1 - rootRect.top;
+      left = hoveredRect.left - rootRect.left;
+      width = hoveredRect.width;
+    }
+    line.style.left = `${left}px`;
+    line.style.top = `${top}px`;
+    line.style.width = `${width}px`;
+    line.style.display = "block";
   }
 }
 

@@ -18,7 +18,8 @@
  * docblocks/block-content, docblocks/gutter, docblocks/list,
  * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret,
  * docblocks/mermaid, docblocks/sync-embed-body,
- * docblocks/sync-embed-placeholder, docblocks/slash-menu),
+ * docblocks/sync-embed-placeholder, docblocks/slash-menu,
+ * docblocks/drag-line),
  * plus the per-block elements (docblocks/image, docblocks/embed, …);
  * + `data-block-type` / `data-list` / `data-variant` / `data-checked`
  * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
@@ -168,12 +169,14 @@
   z-index: 10;
 }
 
-[data-slot="docblocks/editor"] [data-docblocks-drag-over="before"] {
-  box-shadow: 0 -2px 0 0 var(--docblocks-drag-line-color);
-}
-
-[data-slot="docblocks/editor"] [data-docblocks-drag-over="after"] {
-  box-shadow: 0 2px 0 0 var(--docblocks-drag-line-color);
+/* The drop line (positioned by the session, anchored in the editor root). */
+[data-slot="docblocks/editor"] [data-slot="docblocks/drag-line"] {
+  position: absolute;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--docblocks-drag-line-color);
+  pointer-events: none;
+  z-index: 20;
 }
 
 /* The inner editable: the flat text diff is scoped to it, so it carries
