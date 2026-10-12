@@ -146,6 +146,13 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   const commitDomDelta = useCallback(() => {
     const el = innerRef.current;
     if (el === null) return;
+    // A cross-block range is owned by the range operations: a cross DOM
+    // selection must not feed the single-region diff (it would commit a
+    // garbage region — the store stays the source of truth).
+    const selection = selectionRef.view?.get();
+    if (selection?.kind === "text" && selection.to !== null && selection.to.blockId !== selection.from.blockId) {
+      return;
+    }
     const current = store.getState().blocks[id];
     if (current === undefined) return;
     const delta = diffTexts(textOf("content" in current ? current.content : undefined), logicalTextOf(el));
@@ -154,7 +161,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       if (delta.deleteLen > 0) doc.deleteText(id, delta.from, delta.from + delta.deleteLen);
       if (delta.inserted.length > 0) doc.insertText(id, delta.from, delta.inserted);
     });
-  }, [doc, id, store]);
+  }, [doc, id, selectionRef, store]);
 
   // Capture a store block change that reaches while the DOM selection is
   // inside, before the render: zustand notifies synchronously in the doc

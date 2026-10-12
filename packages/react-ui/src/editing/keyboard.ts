@@ -6,8 +6,9 @@ import type { BlockId, BlockType, Doc } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
-import { focusCaretIn } from "./block-commands";
-import { caretOffsetIn } from "./dom-offset";
+import { extendSelectionTo, focusCaretIn } from "./block-commands";
+import { caretOffsetIn, editorRootOf, textBlockOfNode } from "./dom-offset";
+import { syncDomSelection } from "./selection-mapping";
 
 /** The marks the format shortcuts and the mark toolbar toggle. */
 type FormatMark = "bold" | "italic" | "strike" | "underline" | "code";
@@ -70,11 +71,16 @@ interface BlockKeyboardProps {
  * The block's keyboard gestures beyond the input-safety guards: cross-block
  * arrow navigation, mod+shift+arrow block moves, and the format shortcuts.
  *
- * Cross-block arrows act on a collapsed DOM caret at the block edge (IME
- * composition is ignored): ArrowUp at offset 0 moves the caret to the end
- * of the previous text sibling, ArrowDown at the text end to the start of
- * the next one (the DOM move is scheduled for the next frame; the
- * selectionchange mapping then updates the view selection). mod+shift+arrow
+ * Cross-block arrows act on a caret at the block edge — or on a selection
+ * whose focus end sits at the edge (IME composition is ignored): ArrowUp at
+ * offset 0 moves the caret to the end of the previous text sibling, ArrowDown
+ * at the text end to the start of the next one (the DOM move is scheduled for
+ * the next frame; the selectionchange mapping then updates the view
+ * selection). With Shift
+ * held the gesture extends the selection to the sibling's point instead —
+ * the browser's shift+arrow cannot cross a contenteditable boundary, so
+ * this edge-to-edge extension is how a cross-block selection is composed.
+ * mod+shift+arrow
  * moves a single-block blocks selection (the wrapper-focused gutter
  * selection) one slot in the sibling order — one transact, and the
  * selection is re-set on the moved block so the highlight follows. The
@@ -159,28 +165,70 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
         return;
       }
 
-      // Cross-block arrows: a collapsed caret at the block edge.
+      // Cross-block arrows: a caret — or a selection with its focus end —
+      // at a text block's edge.
       if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
       if (mod || event.nativeEvent.isComposing) return;
       // A blocks selection owns the plain arrows (the wrapper's selection
       // navigation); a leftover DOM caret must not take them over.
       if (selectionRef.view?.get().kind === "blocks") return;
       const domSelection = window.getSelection();
-      if (domSelection === null || domSelection.rangeCount === 0 || !domSelection.isCollapsed) return;
-      const { anchorNode, anchorOffset } = domSelection;
-      if (anchorNode === null || !inner.contains(anchorNode)) return;
-      const offset = caretOffsetIn(inner, anchorNode, anchorOffset);
-      if (event.key === "ArrowUp" && offset !== 0) return;
-      if (event.key === "ArrowDown" && offset !== doc.getTextLength(id)) return;
-      const target = findSiblingTextBlock(doc, id, context.parentId, event.key === "ArrowUp" ? "previous" : "next");
+      if (domSelection === null || domSelection.rangeCount === 0) return;
+      const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
+      if (anchorNode === null || focusNode === null) return;
+      // The focus end's block — not necessarily this one: after a cross
+      // extension the browser re-focuses the anchor's editable, so the
+      // next gesture keydown dispatches from the anchor block and the
+      // focus end sits in the far block (the extension chains). A plain
+      // arrow over a non-collapsed selection yields to the browser (it
+      // collapses the selection); a shift arrow extends the focus end —
+      // the browser's shift+arrow cannot cross a contenteditable boundary,
+      // so this edge-to-edge extension is how a cross-block selection is
+      // composed (the selectionchange mapping then updates the view).
+      const focusBlock = textBlockOfNode(focusNode);
+      if (focusBlock === null) return;
+      const focusBlockId = focusBlock.dataset.blockId as BlockId;
+      if (doc.getBlock(focusBlockId) === null) return; // another editor's block
+      const focus = caretOffsetIn(focusBlock, focusNode, focusOffset);
+      const edge = event.key === "ArrowUp" ? 0 : doc.getTextLength(focusBlockId);
+      if (!domSelection.isCollapsed && !event.shiftKey) return;
+      if (focus !== edge) return;
+      const target = findSiblingTextBlock(
+        doc,
+        focusBlockId,
+        parentBlockIdOf(focusBlock, doc),
+        event.key === "ArrowUp" ? "previous" : "next"
+      );
       if (target === null) return;
       event.preventDefault();
+      if (event.shiftKey) {
+        extendSelectionTo(anchorNode, anchorOffset, target.id, event.key === "ArrowUp" ? target.length : 0);
+        // The browser does not dispatch selectionchange for the cross-boundary
+        // re-base: push the mapping to the view directly (the presence
+        // publish and the toolbar follow the view).
+        const root = editorRootOf(event.currentTarget);
+        if (root instanceof HTMLElement && selectionRef.view !== null) {
+          syncDomSelection(root, doc, selectionRef.view);
+        }
+        return;
+      }
       focusCaretIn(target.id, event.key === "ArrowUp" ? target.length : 0);
     },
     [blockType, context, doc, id, innerRef, selectionRef]
   );
 
   return { onKeyDown };
+}
+
+/**
+ * The parent of a block element: the nearest block wrapper above it (the
+ * nested children render inside the parent's wrapper), or the document
+ * root when it stands at the top level.
+ */
+function parentBlockIdOf(blockEl: HTMLElement, doc: Doc): BlockId {
+  const wrapper = blockEl.parentElement;
+  const parent = wrapper?.parentElement?.closest<HTMLElement>("[data-block-id]") ?? null;
+  return parent?.dataset.blockId ?? doc.meta.id;
 }
 
 export { markToggleAction, useBlockKeyboard };

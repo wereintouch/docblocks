@@ -1,6 +1,5 @@
 import type { BlockId } from "@docblocks-core/schema";
 
-import type { Doc } from "../doc";
 import type { TextDelta } from "./deltas";
 import type { Selection, TextPoint } from "./selection";
 
@@ -50,8 +49,14 @@ function chainBetween(linearization: readonly BlockId[], fromId: BlockId, toId: 
   return a > b ? [...slice].reverse() : slice;
 }
 
+/** The document surface the linearization reads (the Doc's meta.id + getChildren). */
+interface Linearizable {
+  meta: { id: BlockId };
+  getChildren(id: BlockId): readonly BlockId[];
+}
+
 /** DFS (reading) order of every block, starting at the root. */
-function linearize(doc: Doc): BlockId[] {
+function linearize(doc: Linearizable): BlockId[] {
   const order: BlockId[] = [];
   const visit = (id: BlockId): void => {
     order.push(id);
@@ -115,4 +120,4 @@ function rebaseSelection(
 }
 
 export { chainBetween, linearize, rebaseOffset, rebaseSelection };
-export type { StructuralFacts };
+export type { Linearizable, StructuralFacts };

@@ -32,6 +32,7 @@ import { setGeometry as setGeometryCommand } from "./commands/geometry";
 import { setMark as setMarkCommand, unsetMark as unsetMarkCommand } from "./commands/marks";
 import type { MarkInput } from "./commands/marks";
 import { deleteText as deleteTextCommand, insertText as insertTextCommand } from "./commands/text";
+import { deleteTextRange as deleteTextRangeCommand, setMarkRange as setMarkRangeCommand } from "./commands/text-range";
 import { changeBlockType as changeBlockTypeCommand } from "./commands/types";
 import type { ChangeBlockTypeArgs } from "./commands/types";
 import { InvalidSnapshotError, formatValidationErrors } from "./errors";
@@ -40,6 +41,7 @@ import type { Change } from "./events";
 import { undoManagerOf } from "./history";
 import { layoutDoc, loadOriginOf, localTransact, writeDocument } from "./layout";
 import { readBlock, readChildren, readMeta, readRuns, readText, toDocJSON } from "./read";
+import type { TextPoint } from "./selection";
 
 const randomId = (): string => crypto.randomUUID();
 
@@ -236,6 +238,24 @@ class Doc {
   /** Removes a mark from the text range [from, to). */
   unsetMark(blockId: BlockId, from: number, to: number, name: MarkName): void {
     unsetMarkCommand(this.#ydoc, blockId, from, to, name);
+  }
+
+  /**
+   * Deletes the cross-block text range [from, to) and returns the caret
+   * seam (the point the caret lands on); null when the document carries
+   * no text left. Same-block ranges delegate to deleteText.
+   */
+  deleteTextRange(from: TextPoint, to: TextPoint): TextPoint | null {
+    return deleteTextRangeCommand(this.#ydoc, from, to);
+  }
+
+  /**
+   * Applies a mark to the cross-block text range [from, to): the per-block
+   * segments of the range's DFS chain, in one transaction. Same-block
+   * ranges delegate to setMark.
+   */
+  setMarkRange(from: TextPoint, to: TextPoint, mark: MarkInput): void {
+    setMarkRangeCommand(this.#ydoc, from, to, mark);
   }
 
   /** The document as plain schema JSON (export normalization applied). */

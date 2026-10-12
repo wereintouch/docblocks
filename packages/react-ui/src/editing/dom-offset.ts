@@ -14,6 +14,37 @@ import { LINE_ANCHOR_SLOT } from "../text/runs-dom";
 /** A DOM caret/endpoint position: the node and the offset within it. */
 type DomPosition = { node: Node; offset: number };
 
+/**
+ * The editor root (the docblocks/editor slot element) that owns the node;
+ * the document when the node is not inside an editor. A page can render
+ * the same doc in several editors (sync panes) — element lookups by block
+ * id must be scoped to the one that owns the selection.
+ */
+function editorRootOf(node: Node): ParentNode {
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return element?.closest<HTMLElement>('[data-slot="docblocks/editor"]') ?? document;
+}
+
+/**
+ * The closest text-editable block (the inner contenteditable
+ * [data-block-id] element) containing the node; null when the node is in a
+ * non-text block or detached.
+ */
+function textBlockOfNode(node: Node): HTMLElement | null {
+  let current: Node | null = node;
+  while (current !== null) {
+    if (
+      current instanceof HTMLElement &&
+      current.dataset.blockId !== undefined &&
+      current.getAttribute("contenteditable") === "true"
+    ) {
+      return current;
+    }
+    current = current.parentNode;
+  }
+  return null;
+}
+
 /** Whether the node is the line-break anchor element or its text. */
 function isLineAnchor(node: Node | null): boolean {
   if (node === null) return false;
@@ -173,4 +204,13 @@ function selectionOrphaned(): boolean {
   return node !== document && !document.contains(node);
 }
 
-export { caretOffsetIn, locatePosition, logicalTextOf, restoreSelection, selectionInside, selectionOrphaned };
+export {
+  caretOffsetIn,
+  editorRootOf,
+  locatePosition,
+  logicalTextOf,
+  restoreSelection,
+  selectionInside,
+  selectionOrphaned,
+  textBlockOfNode,
+};

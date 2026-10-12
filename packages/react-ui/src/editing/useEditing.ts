@@ -31,13 +31,13 @@ function useEditing(): EditingHandle {
       const root = rootRef.current;
       const view = selectionRef.view;
       if (root === null || view === null) return;
-      const next = mapDomSelection(root, window.getSelection());
+      const next = mapDomSelection(root, window.getSelection(), doc);
       // The view emits even on no-op sets — only push a real change.
       if (!selectionsEqual(next, view.get())) view.set(next);
     };
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
-  }, [selectionRef]);
+  }, [doc, selectionRef]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     // Keys typed inside a nested editor (a sync-embed) bubble up to this

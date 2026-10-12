@@ -1,48 +1,62 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, RefObject } from "react";
 
-import type { Block, TextAlign, TextRun } from "docblocks-core";
+import type { Block, BlockId, TextAlign } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock, useSelection } from "../hooks";
+import {
+  TOOLBAR_BLOCK_TYPES,
+  alignOfBlock,
+  applyAlignRange,
+  applyMarkRange,
+  applyValueMarkRange,
+  clearMarkRange,
+  crossRangeEligible,
+  crossRangeOf,
+  rangeMarkAction,
+  uniformAlignOfRange,
+  uniformMarkValue,
+  uniformMarkValueRange,
+} from "./format-range";
+import type { CrossRange } from "./format-range";
 import { type FormatMark, markToggleAction } from "./keyboard";
 
 /**
  * The floating format toolbar — the selection's formatting affordance.
  *
- * It is visible while the view's selection is a text range inside a single
- * block of a toolbar-eligible type (paragraph, heading, list-item, callout,
- * latex; code and canvas-text have their own formatting model, and a
- * cross-block range has no single target block), and floats above the
- * selection (below it when there is no room above). It disappears as soon
- * as the selection collapses, leaves the block, or becomes a blocks
- * selection — the visibility is derived from the selection state, so no
- * key or mouse capture is needed.
+ * It is visible while the view's selection is a text range over a
+ * toolbar-eligible target: a single block of an eligible type (paragraph,
+ * heading, list-item, callout, latex; code and canvas-text have their own
+ * formatting model) or a cross-block range whose chain text blocks are all
+ * eligible. It floats above the selection (below it when there is no room
+ * above) and disappears as soon as the selection collapses, leaves the
+ * target, or becomes a blocks selection — the visibility is derived from
+ * the selection state, so no key or mouse capture is needed.
  *
  * Controls: the five toggle marks (bold, monospace = the exclusive code
- * mark, italic, underline, strikethrough) applied over the range; the three
- * text alignments, a block attr applied with updateBlock (set-only:
- * updateBlock never removes attrs, so "left" is how the default is
- * restored); and the highlight control — a palette popover with a target
- * switch (the text `color` mark vs the background `highlight` mark) and a
- * color palette (the default six, overridable through the editor's
- * `formatPalette` prop) plus a clear entry; and the list-type menu (for
- * paragraph, heading, and list-item blocks) — a popover that turns the
- * block into a bullet/numbered/to-do list (a list-item swap is a `list`
- * attr update; any other target is a changeBlockType) or into a paragraph
- * (the "Text" option is disabled for a list item with children: the core
- * rejects a container becoming a leaf while it has children). A mark button is active when
- * every run of the range carries the mark; a swatch is active when the
- * whole range is uniformly marked with that value (a highlight without a
- * value counts as the empty value). Every action is a doc command inside
- * one transaction (one undo step, one wire update).
+ * mark, italic, underline, strikethrough); the three text alignments, a
+ * block attr applied with updateBlock (set-only: updateBlock never removes
+ * attrs, so "left" is how the default is restored); the highlight control —
+ * a palette popover with a target switch (the text `color` mark vs the
+ * background `highlight` mark) and a color palette (the default six,
+ * overridable through the editor's `formatPalette` prop) plus a clear
+ * entry; and the list-type menu (single-block targets only — for paragraph,
+ * heading, and list-item blocks) — a popover that turns the block into a
+ * bullet/numbered/to-do list (a list-item swap is a `list` attr update; any
+ * other target is a changeBlockType) or into a paragraph (the "Text" option
+ * is disabled for a list item with children: the core rejects a container
+ * becoming a leaf while it has children). A cross-block range applies the
+ * mark actions over the range's per-block segments (the align per chain
+ * block) and hides the list-type menu. A mark button is active when every
+ * run of the range carries the mark; a swatch is active when the whole
+ * range is uniformly marked with that value (a highlight without a value
+ * counts as the empty value). Every action is doc command(s) inside one
+ * transaction (one undo step, one wire update).
  */
 
 /** The default format palette (a consumer can pass its own through the editor prop). */
 const FORMAT_PALETTE: readonly string[] = ["#71717a", "#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
-
-/** The block types the toolbar formats (a single-block text range inside one). */
-const TOOLBAR_BLOCK_TYPES: ReadonlySet<string> = new Set(["paragraph", "heading", "list-item", "callout", "latex"]);
 
 /** The list-type menu options, in display order ("paragraph" = turn into text). */
 const LIST_MENU_OPTIONS: { option: "bullet" | "number" | "task" | "paragraph"; label: string; glyph: string }[] = [
@@ -71,58 +85,13 @@ const TOOLBAR_ALIGNS: { align: TextAlign; label: string; title: string }[] = [
 /** The palette target: which mark the picked color is applied to. */
 type PaletteTarget = "color" | "highlight";
 
+/** The toolbar's target range: a same-block range or a cross-block range over the engine's chain. */
+type ToolbarRange =
+  { kind: "single"; blockId: BlockId; from: number; to: number } | { kind: "cross"; cross: CrossRange };
+
 /** Clamp a number into [min, max]. */
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
-}
-
-/** The current alignment of a snapshot block (absent for types without the attr). */
-function alignOf(block: Block): TextAlign | undefined {
-  switch (block.type) {
-    case "paragraph":
-      return block.attrs?.align;
-    case "callout":
-      return block.attrs?.align;
-    case "heading":
-    case "latex":
-    case "list-item":
-      return block.attrs.align;
-    default:
-      return undefined;
-  }
-}
-
-/**
- * The uniform value of the `color` / `highlight` mark over [from, to): the
- * value when every overlapping run carries the mark with it (a highlight
- * without a value reads as the empty string), null when no overlapping run
- * carries the mark, "mixed" otherwise.
- */
-function uniformMarkValue(
-  block: Block,
-  from: number,
-  to: number,
-  mark: "color" | "highlight"
-): string | null | "mixed" {
-  if (!("content" in block)) return "mixed";
-  const runs: TextRun[] = block.content ?? [];
-  let pos = 0;
-  let value: string | null | undefined;
-  let seen = false;
-  for (const run of runs) {
-    const start = pos;
-    pos += run.text.length;
-    if (pos <= from || start >= to) continue;
-    const read = run.marks[mark];
-    const here = read === undefined ? null : (read.value ?? "");
-    if (!seen) {
-      value = here;
-      seen = true;
-    } else if (value !== here) {
-      return "mixed";
-    }
-  }
-  return seen ? (value ?? "") : null;
 }
 
 interface FormatToolbarProps {
@@ -138,24 +107,26 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const [listMenuOpen, setListMenuOpen] = useState(false);
   const [target, setTarget] = useState<PaletteTarget>("highlight");
 
-  // A range inside a single block (the toolbar's only target shape).
-  const range =
-    selection.kind === "text" &&
-    selection.to !== null &&
-    selection.from.blockId === selection.to.blockId &&
-    selection.from.offset !== selection.to.offset
-      ? { blockId: selection.from.blockId, from: selection.from.offset, to: selection.to.offset }
-      : null;
+  // The toolbar's target: a range inside a single block, or a cross-block
+  // range whose chain text blocks are all toolbar-eligible.
+  const range = useMemo<ToolbarRange | null>(() => {
+    if (selection.kind !== "text" || selection.to === null) return null;
+    if (selection.from.blockId === selection.to.blockId) {
+      if (selection.from.offset === selection.to.offset) return null;
+      return { kind: "single", blockId: selection.from.blockId, from: selection.from.offset, to: selection.to.offset };
+    }
+    const cross = crossRangeOf(selection);
+    return cross !== null && crossRangeEligible(doc, cross) ? { kind: "cross", cross } : null;
+  }, [doc, selection]);
 
-  const block = useBlock(range !== null ? range.blockId : "");
-  const eligible = range !== null && block !== undefined && TOOLBAR_BLOCK_TYPES.has(block.type);
+  const block = useBlock(range !== null && range.kind === "single" ? range.blockId : "");
 
   // A moved selection is a fresh toolbar context: the palette closes. The
   // key (not the selection object) is the trigger — a mark applied through
   // the palette rebases the selection in place, which must not close it.
   const selectionKey =
     selection.kind === "text"
-      ? `${selection.from.blockId}:${selection.from.offset}:${selection.to?.offset ?? "caret"}`
+      ? `${selection.from.blockId}:${selection.from.offset}:${selection.to?.blockId ?? ""}:${selection.to?.offset ?? "caret"}`
       : selection.kind;
   useEffect(() => {
     setPaletteOpen(false);
@@ -163,7 +134,8 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   }, [selectionKey]);
 
   // Anchor the bar above the selection rect (below it when there is no
-  // room) and clamp it horizontally inside the editor root.
+  // room) and clamp it horizontally inside the editor root. The rect of a
+  // cross-block DOM selection works the same way as a single-block one.
   useLayoutEffect(() => {
     const el = barRef.current;
     const root = rootRef.current;
@@ -190,56 +162,92 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     el.style.top = `${top}px`;
   });
 
-  if (range === null || block === undefined || !eligible) return null;
-  const { blockId, from, to } = range;
+  if (range === null) return null;
+  if (range.kind === "single" && (block === undefined || !TOOLBAR_BLOCK_TYPES.has(block.type))) return null;
+  // The single target is defined here (the guard above); a cross target
+  // never reads it (its branches short-circuit first).
+  const single = block as Block;
+  const cross = range.kind === "cross";
 
-  /** Toggle a mark over the range (one transaction; the decision reads the snapshot). */
+  /** Toggle a mark over the target (one undo step, one wire update). */
   const onToggleMark = (mark: FormatMark): void => {
-    const action = markToggleAction(doc, blockId, from, to, mark);
+    if (range.kind === "cross") {
+      if (rangeMarkAction(doc, range.cross, mark) === "unset") clearMarkRange(doc, range.cross, mark);
+      else applyMarkRange(doc, range.cross, mark);
+      return;
+    }
+    const action = markToggleAction(doc, range.blockId, range.from, range.to, mark);
     doc.transact(() => {
-      if (action === "unset") doc.unsetMark(blockId, from, to, mark);
-      else doc.setMark(blockId, from, to, { type: mark });
+      if (action === "unset") doc.unsetMark(range.blockId, range.from, range.to, mark);
+      else doc.setMark(range.blockId, range.from, range.to, { type: mark });
     });
   };
 
   /** Apply an alignment (set-only; the current one is a visible no-op). */
   const onAlign = (align: TextAlign): void => {
-    if (alignOf(block) === align) return;
+    if (range.kind === "cross") {
+      if (uniformAlignOfRange(doc, range.cross) === align) return;
+      applyAlignRange(doc, range.cross, align);
+      return;
+    }
+    if (alignOfBlock(single) === align) return;
     doc.transact(() => {
-      doc.updateBlock(blockId, { align });
+      doc.updateBlock(range.blockId, { align });
     });
   };
 
   /** Apply the palette target's mark with the value (or clear it). */
   const onPaletteValue = (value: string | null): void => {
-    const current = uniformMarkValue(block, from, to, target);
+    if (range.kind === "cross") {
+      const current = uniformMarkValueRange(doc, range.cross, target);
+      if (current === value) return;
+      if (value === null) clearMarkRange(doc, range.cross, target);
+      else applyValueMarkRange(doc, range.cross, target, value);
+      return;
+    }
+    const current = uniformMarkValue(single, range.from, range.to, target);
     if (current === value) return;
     doc.transact(() => {
-      if (value === null) doc.unsetMark(blockId, from, to, target);
-      else if (target === "color") doc.setMark(blockId, from, to, { type: "color", value });
-      else doc.setMark(blockId, from, to, { type: "highlight", value });
+      if (value === null) doc.unsetMark(range.blockId, range.from, range.to, target);
+      else if (target === "color") doc.setMark(range.blockId, range.from, range.to, { type: "color", value });
+      else doc.setMark(range.blockId, range.from, range.to, { type: "highlight", value });
     });
   };
 
   /**
-   * The list-type menu action: a swap inside a list is a `list` attr
-   * update; any other target is a type change (the target's required
-   * attrs come from the option). "Text" is unreachable for a list item
-   * with children (the option is disabled; the core would reject it).
+   * The list-type menu action (single-block targets only): a swap inside a
+   * list is a `list` attr update; any other target is a type change (the
+   * target's required attrs come from the option). "Text" is unreachable
+   * for a list item with children (the option is disabled; the core would
+   * reject it).
    */
   const onListOption = (option: (typeof LIST_MENU_OPTIONS)[number]["option"]): void => {
     setListMenuOpen(false);
+    if (range.kind !== "single") return;
     if (option === "paragraph") {
-      if (block.type !== "paragraph") doc.transact(() => doc.changeBlockType(blockId, "paragraph"));
+      if (single.type !== "paragraph") doc.transact(() => doc.changeBlockType(range.blockId, "paragraph"));
       return;
     }
-    const currentList = block.type === "list-item" ? block.attrs.list : null;
+    const currentList = single.type === "list-item" ? single.attrs.list : null;
     if (currentList === option) return;
     doc.transact(() => {
-      if (block.type === "list-item") doc.updateBlock(blockId, { list: option });
-      else doc.changeBlockType(blockId, "list-item", { list: option });
+      if (single.type === "list-item") doc.updateBlock(range.blockId, { list: option });
+      else doc.changeBlockType(range.blockId, "list-item", { list: option });
     });
   };
+
+  const markActive = (mark: FormatMark): boolean =>
+    range.kind === "cross"
+      ? rangeMarkAction(doc, range.cross, mark) === "unset"
+      : markToggleAction(doc, range.blockId, range.from, range.to, mark) === "unset";
+
+  const alignActive = (align: TextAlign): boolean =>
+    range.kind === "cross" ? uniformAlignOfRange(doc, range.cross) === align : alignOfBlock(single) === align;
+
+  const paletteActive = (value: string | null): boolean =>
+    range.kind === "cross"
+      ? uniformMarkValueRange(doc, range.cross, target) === value
+      : uniformMarkValue(single, range.from, range.to, target) === value;
 
   return (
     <div
@@ -258,7 +266,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           data-mark={mark}
           title={title}
           aria-label={title}
-          aria-pressed={markToggleAction(doc, blockId, from, to, mark) === "unset"}
+          aria-pressed={markActive(mark)}
           style={style}
           onClick={() => onToggleMark(mark)}
         >
@@ -273,13 +281,13 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           data-align-btn={align}
           title={title}
           aria-label={title}
-          aria-pressed={alignOf(block) === align}
+          aria-pressed={alignActive(align)}
           onClick={() => onAlign(align)}
         >
           {label}
         </button>
       ))}
-      {(block.type === "paragraph" || block.type === "heading" || block.type === "list-item") && (
+      {!cross && (single.type === "paragraph" || single.type === "heading" || single.type === "list-item") && (
         <>
           <span data-slot="docblocks/format-separator" aria-hidden="true" />
           <div style={{ position: "relative" }}>
@@ -302,11 +310,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
               >
                 {LIST_MENU_OPTIONS.map(({ option, label, glyph }) => {
                   const active =
-                    block.type === "list-item"
-                      ? block.attrs.list === option
-                      : block.type === "paragraph" && option === "paragraph";
+                    single.type === "list-item"
+                      ? single.attrs.list === option
+                      : single.type === "paragraph" && option === "paragraph";
                   const disabled =
-                    option === "paragraph" && block.type === "list-item" && (block.children ?? []).length > 0;
+                    option === "paragraph" && single.type === "list-item" && (single.children ?? []).length > 0;
                   return (
                     <button
                       key={option}
@@ -372,7 +380,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                 data-color={color}
                 title={color}
                 aria-label={`${target} color ${color}`}
-                aria-pressed={uniformMarkValue(block, from, to, target) === color}
+                aria-pressed={paletteActive(color)}
                 style={{ background: color }}
                 onClick={() => onPaletteValue(color)}
               />
@@ -383,7 +391,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
               data-color="none"
               title="No color"
               aria-label="No color"
-              aria-pressed={uniformMarkValue(block, from, to, target) === null}
+              aria-pressed={paletteActive(null)}
               style={{ background: "transparent", position: "relative" }}
               onClick={() => onPaletteValue(null)}
             >
@@ -400,7 +408,9 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
 function useFormatToolbar(
   rootRef: RefObject<HTMLElement | null>,
   palette: readonly string[]
-): { toolbarNode: ReactNode } {
+): {
+  toolbarNode: ReactNode;
+} {
   return { toolbarNode: <FormatToolbar rootRef={rootRef} palette={palette} /> };
 }
 

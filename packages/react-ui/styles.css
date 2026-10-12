@@ -17,7 +17,7 @@
  * Structural hooks: `data-slot` (docblocks/editor, docblocks/block,
  * docblocks/block-content, docblocks/gutter, docblocks/list,
  * docblocks/list-item, docblocks/nested, docblocks/placeholder,
- * docblocks/presence-caret,
+ * docblocks/presence-caret, docblocks/presence-range,
  * docblocks/mermaid, docblocks/sync-embed-body,
  * docblocks/sync-embed-placeholder, docblocks/slash-menu,
  * docblocks/drag-line, docblocks/checkbox, docblocks/collapse,
@@ -141,6 +141,7 @@
   --docblocks-presence-caret-width: 2px;
   --docblocks-presence-caret-saturation: 70%;
   --docblocks-presence-caret-lightness: 45%;
+  --docblocks-presence-range-opacity: 0.25;
 }
 
 /* The editor root: the positioning anchor for presence carets. */
@@ -735,6 +736,21 @@ iframe[data-slot="docblocks/embed"] {
   background: hsl(
     var(--docblocks-presence-hue, 200) var(--docblocks-presence-caret-saturation)
       var(--docblocks-presence-caret-lightness)
+  );
+}
+
+/* The remote range highlight (a from+to selection, cross-block included):
+   one box per measured client rect of a chain-block segment; left/top/
+   width/height come from the measured geometry (inline), the fill reuses
+   the caret's hue/saturation/lightness tokens, softened by the opacity
+   token. */
+[data-slot="docblocks/presence-range"] {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 2px;
+  background: hsl(
+    var(--docblocks-presence-hue, 200) var(--docblocks-presence-caret-saturation)
+      var(--docblocks-presence-caret-lightness) / var(--docblocks-presence-range-opacity)
   );
 }
 

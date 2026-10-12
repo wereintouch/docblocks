@@ -144,5 +144,5 @@ function unsetMark(ydoc: Y.Doc, blockId: string, from: number, to: number, name:
   });
 }
 
-export { setMark, unsetMark };
+export { markInputToMark, setMark, unsetMark };
 export type { MarkInput };

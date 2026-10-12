@@ -7,7 +7,9 @@ import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
 import { focusCaretIn, mergeWithPrevious, nestIntoPrevious, outdentFrom, splitAt } from "./block-commands";
 import { applyRichPaste } from "./clipboard";
-import { caretOffsetIn, restoreSelection } from "./dom-offset";
+import { handleCrossRangeKey } from "./cross-range-keys";
+import { caretOffsetIn, editorRootOf, restoreSelection } from "./dom-offset";
+import { mapDomSelection, selectionsEqual } from "./selection-mapping";
 import { useSlashMenuApi } from "./slash";
 
 /**
@@ -62,6 +64,30 @@ function useBlockInput({
       event.preventDefault();
       const html = event.clipboardData.getData("text/html");
       const text = event.clipboardData.getData("text/plain");
+
+      // A cross-block range: the range is deleted as text and the paste
+      // content lands at the seam. The pipeline is single-block-targeted
+      // (reused as-is: the insert is an empty region at the seam), so a
+      // cross paste is two undo steps — the delete, then the insert. A
+      // fully deleted range leaves no seam: the data is dropped (the v1
+      // edge).
+      const view = selectionRef.view;
+      if (view !== null) {
+        const selection = view.get();
+        if (selection.kind === "text" && selection.to !== null && selection.to.blockId !== selection.from.blockId) {
+          const result = doc.deleteTextRange(selection.from, selection.to);
+          if (result === null) return;
+          let length = 0;
+          if (html !== "") length = applyRichPaste(doc, result.blockId, result.offset, result.offset, html);
+          else if (text !== "") {
+            doc.insertText(result.blockId, result.offset, text);
+            length = text.length;
+          }
+          if (length > 0) focusCaretIn(result.blockId, result.offset + length);
+          return;
+        }
+      }
+
       const selection = window.getSelection();
       if (selection === null || selection.rangeCount === 0) return;
       const range = selection.getRangeAt(0);
@@ -87,7 +113,7 @@ function useBlockInput({
         doc.insertText(id, from, text);
       });
     },
-    [doc, id]
+    [doc, id, selectionRef]
   );
 
   const onKeyDown = useCallback(
@@ -95,7 +121,35 @@ function useBlockInput({
       const view = selectionRef.view;
       const inner = innerRef.current;
       if (view === null || inner === null) return;
-      const selection = view.get();
+      let selection = view.get();
+      let root: HTMLElement | null = null;
+
+      // The selection is re-mapped from the DOM at event time before any
+      // operation acts on it: the view is normally updated by the
+      // selectionchange event, which the browser does not dispatch for a
+      // cross-boundary selection (and dispatches flakily in general). The
+      // mapping is the one the event handler uses; a differing result is
+      // pushed to the view there (the same equality guard: a no-op set is
+      // skipped). A blocks view (the gutter selection) is never clobbered —
+      // the DOM caret left behind by the gutter flow cannot express it.
+      const mappedRoot = editorRootOf(event.currentTarget);
+      const domSelection = window.getSelection();
+      if (selection.kind !== "blocks" && mappedRoot instanceof HTMLElement && domSelection !== null) {
+        const fresh = mapDomSelection(mappedRoot, domSelection, doc);
+        if (!selectionsEqual(fresh, selection)) view.set(fresh);
+        selection = view.get();
+        root = mappedRoot;
+      }
+
+      // A cross-block text range: the range operations own the keys —
+      // shift+arrow/home/end move the selection's focus end (the browser
+      // cannot extend a selection across a contenteditable boundary),
+      // Delete/Backspace and a printable character replace the range as
+      // text, Enter is a no-op; any other key passes through to the
+      // browser (the arrows collapse the range to a caret).
+      if (selection.kind === "text" && selection.to !== null && selection.to.blockId !== selection.from.blockId) {
+        if (root !== null && handleCrossRangeKey(doc, view, selection, root, event)) return;
+      }
 
       if (selection.kind === "blocks") {
         // The wrapper is focused (gutter click): the selection keys act on it.

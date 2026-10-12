@@ -1,7 +1,7 @@
 import { BLOCK_REGISTRY } from "docblocks-core";
 import type { Block, BlockId, Doc, TextRun } from "docblocks-core";
 
-import { restoreSelection } from "./dom-offset";
+import { editorRootOf, locatePosition, restoreSelection } from "./dom-offset";
 
 /**
  * Block-level gestures: Enter (split), Backspace (merge), Tab (nest),
@@ -260,17 +260,40 @@ function afterFrame(fn: () => void): void {
 }
 
 /**
- * Move the browser caret into a block's inner editable at the flat
- * offset (DOM-only: the doc is untouched). The element must already be
- * rendered — schedule this for the frame after a structural gesture.
+ * Move the browser caret into a block's inner editable at the flat offset
+ * (DOM-only: the doc is untouched). Schedule it for the frame after a
+ * structural gesture (the element must be rendered); `scope` confines the
+ * lookup to one editor root (a page can render the same doc in several).
  */
-function focusCaretIn(blockId: BlockId, offset: number): void {
+function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = document): void {
   afterFrame(() => {
-    const el = document.querySelector<HTMLElement>(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
-    if (el === null) return;
+    const el = scope.querySelector<HTMLElement>(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
+    // The gesture outlived its editor: a stale restore would clobber the live selection.
+    if (el === null || !el.isConnected) return;
     el.focus();
     restoreSelection(el, offset, null);
   });
 }
 
-export { focusCaretIn, mergeWithPrevious, nestIntoPrevious, outdentFrom, splitAt };
+/**
+ * Re-base the browser's selection anchor at (anchorNode, anchorOffset) and
+ * put the focus end at the flat offset in the target block (DOM-only: the
+ * doc is untouched). The browser's shift+arrow cannot cross a contenteditable
+ * boundary, so this is the edge extension a cross-block selection is
+ * composed from (a collapsed caret extends from itself); the
+ * selectionchange mapping then updates the view selection. The DOM focus is
+ * left where it stands — the browser re-focuses the anchor's editable after
+ * a cross-boundary selection anyway, and the gestures read the DOM
+ * selection, not the focus. A no-op when the target element is not rendered.
+ */
+function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: BlockId, offset: number): void {
+  const domSelection = window.getSelection();
+  if (domSelection === null) return;
+  const scope = editorRootOf(anchorNode);
+  const el = scope.querySelector<HTMLElement>(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
+  if (el === null) return;
+  const target = locatePosition(el, offset);
+  domSelection.setBaseAndExtent(anchorNode, anchorOffset, target.node, target.offset);
+}
+
+export { extendSelectionTo, focusCaretIn, mergeWithPrevious, nestIntoPrevious, outdentFrom, splitAt };
