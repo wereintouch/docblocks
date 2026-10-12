@@ -243,3 +243,52 @@ describe("TextBlock contenteditable editing", () => {
     expect(selection.anchorOffset).toBe(2);
   });
 });
+
+describe("Task checkbox", () => {
+  /** The id of the (single) list-item block of the doc. */
+  function listItemIdOf(doc: TestDoc): BlockId {
+    const blocks = doc.toJSON().blocks;
+    const id = Object.keys(blocks).find((key) => blocks[key]?.type === "list-item");
+    expect(id, "the doc should have a list item").toBeDefined();
+    return id!;
+  }
+
+  /** The list item's attrs, narrowed (getBlock returns the Block union). */
+  function listItemAttrs(doc: TestDoc, id: BlockId): { list: "bullet" | "number" | "task"; checked?: boolean } {
+    const block = doc.getBlock(id);
+    expect(block, "the list item should exist").not.toBeNull();
+    if (block === null || block.type !== "list-item") throw new Error("expected a list-item block");
+    return block.attrs;
+  }
+
+  it("renders a checkbox for a task item and toggles checked on click", () => {
+    const doc = renderDoc((d) => {
+      const id = d.insertBlock("list-item", { list: "task" });
+      d.insertText(id, 0, "buy milk");
+    });
+    const id = listItemIdOf(doc);
+    const wrapper = document.querySelector(`[data-block-id="${id}"]`);
+    expect(wrapper).not.toBeNull();
+    const box = wrapper!.querySelector<HTMLButtonElement>('[data-slot="docblocks/checkbox"]');
+    expect(box, "a task item should render a checkbox").not.toBeNull();
+    expect(box!.getAttribute("aria-checked")).toBe("false");
+
+    act(() => box!.click());
+    expect(listItemAttrs(doc, id)).toMatchObject({ checked: true });
+    expect(box!.getAttribute("aria-checked")).toBe("true");
+
+    act(() => box!.click());
+    expect(listItemAttrs(doc, id)).toMatchObject({ checked: false });
+    expect(box!.getAttribute("aria-checked")).toBe("false");
+  });
+
+  it("renders no checkbox for non-task list items", () => {
+    const doc = renderDoc((d) => {
+      const id = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(id, 0, "a bullet");
+    });
+    const id = listItemIdOf(doc);
+    const wrapper = document.querySelector(`[data-block-id="${id}"]`);
+    expect(wrapper!.querySelector('[data-slot="docblocks/checkbox"]')).toBeNull();
+  });
+});

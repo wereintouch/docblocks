@@ -64,6 +64,12 @@
   /* Lists. */
   --docblocks-list-padding-left: 1.5em;
 
+  /* Task checkbox (list-item with list: "task"). */
+  --docblocks-checkbox-size: 14px;
+  --docblocks-checkbox-border-color: #8b949e;
+  --docblocks-checkbox-checked-background: #0969da;
+  --docblocks-checkbox-checked-color: #ffffff;
+
   /* Callout. */
   --docblocks-callout-border-width: 4px;
   --docblocks-callout-padding: 8px 12px;
@@ -227,6 +233,41 @@
 
 [data-slot="docblocks/list"][data-list="task"] {
   list-style: none;
+}
+
+/* The task checkbox: sits in the list marker gutter of its item; clicking
+   it toggles the item's checked attr. */
+[data-slot="docblocks/checkbox"] {
+  position: absolute;
+  top: 0.25em;
+  left: calc(-1 * var(--docblocks-list-padding-left) + 2px);
+  width: var(--docblocks-checkbox-size);
+  height: var(--docblocks-checkbox-size);
+  margin: 0;
+  padding: 0;
+  border: 1.5px solid var(--docblocks-checkbox-border-color);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--docblocks-checkbox-checked-color);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+[data-slot="docblocks/checkbox"][aria-checked="true"] {
+  border-color: var(--docblocks-checkbox-checked-background);
+  background: var(--docblocks-checkbox-checked-background);
+}
+
+[data-slot="docblocks/checkbox"][aria-checked="true"]::after {
+  content: "\2713";
+}
+
+/* A done task: its text is struck through. */
+[data-slot="docblocks/list-item"][data-checked="true"] [data-slot="docblocks/block-content"] {
+  text-decoration: line-through;
 }
 
 /* Callout: the default (no variant) uses the info tokens. */
@@ -598,6 +639,10 @@ iframe[data-slot="docblocks/embed"] {
   --docblocks-divider-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-table-border-color: rgba(110, 118, 129, 0.65);
   --docblocks-selected-background: rgba(56, 139, 253, 0.15);
+
+  --docblocks-checkbox-border-color: #8b949e;
+  --docblocks-checkbox-checked-background: #58a6ff;
+  --docblocks-checkbox-checked-color: #0d1117;
 
   --docblocks-canvas-background: rgba(110, 118, 129, 0.15);
   --docblocks-frame-background: #161b22;

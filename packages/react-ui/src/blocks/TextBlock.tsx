@@ -245,10 +245,23 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
     [blockContext, doc, id, selectionRef]
   );
 
-  /** Keep the gutter mousedown from moving the text caret. */
-  const onGutterMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
+  /** Keep a mousedown on a block control from moving the text caret. */
+  const onControlMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
   }, []);
+
+  /**
+   * Checkbox click: toggle the task's checked attr. One command is its own
+   * transaction, so the toggle is one undo step and one wire update.
+   */
+  const onCheckboxClick = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      if (block.type !== "list-item" || block.attrs.list !== "task") return;
+      doc.updateBlock(id, { checked: !block.attrs.checked });
+    },
+    [block, doc, id]
+  );
 
   const Tag = tag;
   return (
@@ -272,8 +285,19 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
         data-slot="docblocks/gutter"
         aria-label="Select block"
         onClick={onGutterClick}
-        onMouseDown={onGutterMouseDown}
+        onMouseDown={onControlMouseDown}
       />
+      {block.type === "list-item" && block.attrs.list === "task" && (
+        <button
+          type="button"
+          data-slot="docblocks/checkbox"
+          role="checkbox"
+          aria-checked={block.attrs.checked === true}
+          aria-label={block.attrs.checked ? "Mark task as not done" : "Mark task as done"}
+          onClick={onCheckboxClick}
+          onMouseDown={onControlMouseDown}
+        />
+      )}
       <div
         ref={setInnerRef}
         contentEditable

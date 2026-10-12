@@ -13,3 +13,6 @@ TODO.md
 .pi/
 
 .scratch-editor-spec/
+
+# agent tooling (playwright mcp scratch)
+.playwright-mcp/
