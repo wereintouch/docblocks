@@ -19,7 +19,8 @@
  * docblocks/list-item, docblocks/placeholder, docblocks/presence-caret,
  * docblocks/mermaid, docblocks/sync-embed-body,
  * docblocks/sync-embed-placeholder, docblocks/slash-menu,
- * docblocks/drag-line),
+ * docblocks/drag-line, docblocks/checkbox, docblocks/collapse,
+ * docblocks/format-toolbar, docblocks/format-list-menu),
  * plus the per-block elements (docblocks/image, docblocks/embed, …);
  * + `data-block-type` / `data-list` / `data-variant` / `data-checked`
  * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
@@ -287,6 +288,31 @@
 
 [data-slot="docblocks/checkbox"][aria-checked="true"]::after {
   content: "\2713";
+}
+
+/* The collapse toggle of a list item with children: a view-state control
+   (no doc data) placed in the list marker gutter, to the right of the
+   task checkbox slot (absolute: an inline element of its own would add a
+   line box to the item). */
+[data-slot="docblocks/collapse"] {
+  position: absolute;
+  top: 0.25em;
+  left: calc(-1 * var(--docblocks-list-padding-left) + var(--docblocks-checkbox-size) + 2px);
+  width: 8px;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--docblocks-gutter-color);
+  font-size: 9px;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+}
+
+[data-slot="docblocks/collapse"]:hover {
+  color: var(--docblocks-text-color);
 }
 
 /* A done task: its text is struck through. */
@@ -632,6 +658,37 @@ iframe[data-slot="docblocks/embed"] {
 [data-slot="docblocks/format-palette"] button[aria-pressed="true"] {
   outline: 2px solid var(--docblocks-text-color);
   outline-offset: 1px;
+}
+
+/* The list-type menu popover (the toolbar's turn-into affordance). */
+[data-slot="docblocks/format-list-menu"] {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 50;
+  display: grid;
+  gap: 2px;
+  min-width: 140px;
+  padding: 6px;
+  background: var(--docblocks-formatbar-background);
+  border: 1px solid var(--docblocks-formatbar-border-color);
+  border-radius: var(--docblocks-radius);
+  box-shadow: var(--docblocks-formatbar-shadow);
+}
+
+[data-slot="docblocks/format-list-menu"] button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  height: auto;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+[data-slot="docblocks/format-list-menu"] button[disabled] {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* The structural parts of a presence caret; the per-peer hue is set

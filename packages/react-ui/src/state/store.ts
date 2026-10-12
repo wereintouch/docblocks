@@ -20,6 +20,11 @@ interface EditorState {
   meta: DocMeta;
   /** Local view selection; a separate slice so caret moves never re-render blocks. */
   selection: Selection;
+  /**
+   * The collapsed list-item ids (the children are hidden). Local view
+   * state, never document data: a separate slice, reset on remount.
+   */
+  collapsedIds: BlockId[];
   /** Remote peers' ephemeral state; a separate slice for the same reason. */
   presence: PresenceState[];
 }
@@ -32,6 +37,8 @@ interface EditorActions {
   setPresence: (peers: PresenceState[]) => void;
   /** Replaces the selection slice. */
   setSelection: (selection: Selection) => void;
+  /** Sets the collapsed state of one list item (view state, no doc command). */
+  setCollapsed: (id: BlockId, collapsed: boolean) => void;
 }
 
 /** The per-instance vanilla store created by `createEditorStore`. */
@@ -80,6 +87,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     if (change.blockIds.length > 0) {
       let blocks = state.blocks;
       let blocksChanged = false;
+      const removed = new Set<BlockId>();
       for (const id of new Set(change.blockIds)) {
         const fresh = doc.getBlock(id);
         const prev = blocks[id];
@@ -89,6 +97,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
             blocks = { ...blocks };
             delete blocks[id];
             blocksChanged = true;
+            removed.add(id);
           }
         } else if (prev === undefined || !deepEqual(prev, fresh)) {
           // Added or changed: replace the reference; unchanged blocks keep theirs.
@@ -104,6 +113,12 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
         const children = doc.getChildren(entryRootId);
         if (!deepEqual(state.rootChildren, children)) patch.rootChildren = children;
       }
+
+      // A removed block's collapse state is stale (harmless, but it must
+      // not accumulate across a long session).
+      if (removed.size > 0 && state.collapsedIds.some((id) => removed.has(id))) {
+        patch.collapsedIds = state.collapsedIds.filter((id) => !removed.has(id));
+      }
     }
 
     if (change.metaChanged) patch.meta = doc.meta;
@@ -118,10 +133,17 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     rootChildren: initialRootChildren,
     meta: initialMeta,
     selection: { kind: "none" },
+    collapsedIds: [],
     presence: [],
     applyChange,
     setPresence: (peers) => store.setState({ presence: peers }),
     setSelection: (selection) => store.setState({ selection }),
+    setCollapsed: (id, collapsed) => {
+      const ids = store.getState().collapsedIds;
+      store.setState({
+        collapsedIds: collapsed ? [...(ids.includes(id) ? ids : [...ids, id])] : ids.filter((x) => x !== id),
+      });
+    },
   }));
 
   return store;

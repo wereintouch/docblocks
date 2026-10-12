@@ -80,8 +80,8 @@ test("a range selection raises the floating toolbar; a collapsed selection dismi
   await a.keyboard.up("Shift");
   await expect(toolbar(a, "a")).toBeVisible();
   // The control set: the five mark buttons, the three align buttons, the
-  // palette button.
-  await expect(toolbar(a, "a").locator("button")).toHaveCount(9);
+  // list-type button, and the palette button.
+  await expect(toolbar(a, "a").locator("button")).toHaveCount(10);
 
   // Collapsing the selection (a plain click) dismisses the toolbar.
   await inner.click();

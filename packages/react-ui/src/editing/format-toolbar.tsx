@@ -26,7 +26,12 @@ import { type FormatMark, markToggleAction } from "./keyboard";
  * restored); and the highlight control — a palette popover with a target
  * switch (the text `color` mark vs the background `highlight` mark) and a
  * color palette (the default six, overridable through the editor's
- * `formatPalette` prop) plus a clear entry. A mark button is active when
+ * `formatPalette` prop) plus a clear entry; and the list-type menu (for
+ * paragraph, heading, and list-item blocks) — a popover that turns the
+ * block into a bullet/numbered/to-do list (a list-item swap is a `list`
+ * attr update; any other target is a changeBlockType) or into a paragraph
+ * (the "Text" option is disabled for a list item with children: the core
+ * rejects a container becoming a leaf while it has children). A mark button is active when
  * every run of the range carries the mark; a swatch is active when the
  * whole range is uniformly marked with that value (a highlight without a
  * value counts as the empty value). Every action is a doc command inside
@@ -38,6 +43,14 @@ const FORMAT_PALETTE: readonly string[] = ["#71717a", "#e11d48", "#f59e0b", "#10
 
 /** The block types the toolbar formats (a single-block text range inside one). */
 const TOOLBAR_BLOCK_TYPES: ReadonlySet<string> = new Set(["paragraph", "heading", "list-item", "callout", "latex"]);
+
+/** The list-type menu options, in display order ("paragraph" = turn into text). */
+const LIST_MENU_OPTIONS: { option: "bullet" | "number" | "task" | "paragraph"; label: string; glyph: string }[] = [
+  { option: "bullet", label: "Bullet list", glyph: "\u2022" },
+  { option: "number", label: "Numbered list", glyph: "1." },
+  { option: "task", label: "To-do list", glyph: "\u2610" },
+  { option: "paragraph", label: "Text", glyph: "\u00B6" },
+];
 
 /** The toggle mark buttons, in display order. */
 const TOOLBAR_MARKS: { mark: FormatMark; label: string; title: string; style: CSSProperties }[] = [
@@ -122,6 +135,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const selection = useSelection();
   const barRef = useRef<HTMLDivElement | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [listMenuOpen, setListMenuOpen] = useState(false);
   const [target, setTarget] = useState<PaletteTarget>("highlight");
 
   // A range inside a single block (the toolbar's only target shape).
@@ -145,6 +159,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       : selection.kind;
   useEffect(() => {
     setPaletteOpen(false);
+    setListMenuOpen(false);
   }, [selectionKey]);
 
   // Anchor the bar above the selection rect (below it when there is no
@@ -206,6 +221,26 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     });
   };
 
+  /**
+   * The list-type menu action: a swap inside a list is a `list` attr
+   * update; any other target is a type change (the target's required
+   * attrs come from the option). "Text" is unreachable for a list item
+   * with children (the option is disabled; the core would reject it).
+   */
+  const onListOption = (option: (typeof LIST_MENU_OPTIONS)[number]["option"]): void => {
+    setListMenuOpen(false);
+    if (option === "paragraph") {
+      if (block.type !== "paragraph") doc.transact(() => doc.changeBlockType(blockId, "paragraph"));
+      return;
+    }
+    const currentList = block.type === "list-item" ? block.attrs.list : null;
+    if (currentList === option) return;
+    doc.transact(() => {
+      if (block.type === "list-item") doc.updateBlock(blockId, { list: option });
+      else doc.changeBlockType(blockId, "list-item", { list: option });
+    });
+  };
+
   return (
     <div
       data-slot="docblocks/format-toolbar"
@@ -244,6 +279,56 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           {label}
         </button>
       ))}
+      {(block.type === "paragraph" || block.type === "heading" || block.type === "list-item") && (
+        <>
+          <span data-slot="docblocks/format-separator" aria-hidden="true" />
+          <div style={{ position: "relative" }}>
+            <button
+              type="button"
+              title="List type"
+              aria-label="List type"
+              aria-expanded={listMenuOpen}
+              onClick={() => setListMenuOpen((open) => !open)}
+            >
+              {"\u2261"}
+            </button>
+            {listMenuOpen && (
+              <div
+                data-slot="docblocks/format-list-menu"
+                role="group"
+                aria-label="List type"
+                // Same guard: the popover is part of the bar layer.
+                onMouseDown={(event) => event.preventDefault()}
+              >
+                {LIST_MENU_OPTIONS.map(({ option, label, glyph }) => {
+                  const active =
+                    block.type === "list-item"
+                      ? block.attrs.list === option
+                      : block.type === "paragraph" && option === "paragraph";
+                  const disabled =
+                    option === "paragraph" && block.type === "list-item" && (block.children ?? []).length > 0;
+                  return (
+                    <button
+                      key={option}
+                      type="button"
+                      data-list-option={option}
+                      aria-pressed={active}
+                      disabled={disabled}
+                      title={disabled ? "List items with children cannot become text" : label}
+                      onClick={() => onListOption(option)}
+                    >
+                      <span aria-hidden="true" style={{ width: 14, textAlign: "center" }}>
+                        {glyph}
+                      </span>
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </>
+      )}
       <span data-slot="docblocks/format-separator" aria-hidden="true" />
       <div style={{ position: "relative" }}>
         <button

@@ -82,6 +82,8 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   const { doc, store, selection: selectionRef } = useEditorContext();
   const blockContext = useBlockContext();
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
+  const hasNested = block.type === "list-item" && (block.children ?? []).length > 0;
+  const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
 
   const wrapperRef = useRef<HTMLElement | null>(null);
   const innerRef = useRef<HTMLElement | null>(null);
@@ -251,6 +253,19 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   }, []);
 
   /**
+   * Collapse toggle: a view-state flip (no doc command, no wire update,
+   * not in the undo history) — the children unmount while hidden.
+   */
+  const onCollapseClick = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      const state = store.getState();
+      state.setCollapsed(id, !state.collapsedIds.includes(id));
+    },
+    [id, store]
+  );
+
+  /**
    * Checkbox click: toggle the task's checked attr. One command is its own
    * transaction, so the toggle is one undo step and one wire update.
    */
@@ -297,6 +312,18 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
           onClick={onCheckboxClick}
           onMouseDown={onControlMouseDown}
         />
+      )}
+      {hasNested && (
+        <button
+          type="button"
+          data-slot="docblocks/collapse"
+          aria-label={collapsed ? "Expand children" : "Collapse children"}
+          aria-expanded={!collapsed}
+          onClick={onCollapseClick}
+          onMouseDown={onControlMouseDown}
+        >
+          {collapsed ? "\u25B6" : "\u25BC"}
+        </button>
       )}
       <div
         ref={setInnerRef}

@@ -32,6 +32,8 @@ import { setGeometry as setGeometryCommand } from "./commands/geometry";
 import { setMark as setMarkCommand, unsetMark as unsetMarkCommand } from "./commands/marks";
 import type { MarkInput } from "./commands/marks";
 import { deleteText as deleteTextCommand, insertText as insertTextCommand } from "./commands/text";
+import { changeBlockType as changeBlockTypeCommand } from "./commands/types";
+import type { ChangeBlockTypeArgs } from "./commands/types";
 import { InvalidSnapshotError, formatValidationErrors } from "./errors";
 import { observeText as observeDocText, onBlock as onDocBlock, onChange as onDocChange } from "./events";
 import type { Change } from "./events";
@@ -162,6 +164,18 @@ class Doc {
   /** Moves a block to `toIndex` under `toParent` (pre-move index semantics). */
   moveBlock(id: BlockId, toParent: BlockId, toIndex: number): void {
     moveBlockCommand(this.#ydoc, id, toParent, toIndex);
+  }
+
+  /**
+   * Changes a block's type. The content must survive (both types carry
+   * it), the children must fit the target's children rules, the new type
+   * must fit the block's parent, and the target's required attrs must be
+   * satisfied: the current attrs the target also declares are carried
+   * over, `attrs` overrides them, and type-specific attrs are dropped.
+   */
+  changeBlockType<T extends BlockType>(...args: ChangeBlockTypeArgs<T>): void {
+    const [id, type, attrs] = args;
+    changeBlockTypeCommand(this.#ydoc, id, type, attrs);
   }
 
   /** Removes a block and its whole subtree. */

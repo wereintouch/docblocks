@@ -292,3 +292,50 @@ describe("Task checkbox", () => {
     expect(wrapper!.querySelector('[data-slot="docblocks/checkbox"]')).toBeNull();
   });
 });
+
+describe("Collapse toggle", () => {
+  /** The parent list item and its child, in order of insertion. */
+  function listIdsOf(doc: TestDoc): { parent: BlockId; child: BlockId } {
+    const ids = Object.entries(doc.toJSON().blocks)
+      .filter(([, block]) => block?.type === "list-item")
+      .map(([id]) => id);
+    expect(ids, "the doc should have the two list items").toHaveLength(2);
+    const parent = ids.find((id) => doc.getChildren(id).length > 0);
+    expect(parent, "one list item should hold the other").toBeDefined();
+    return { parent: parent!, child: ids.find((id) => id !== parent)! };
+  }
+
+  it("hides the children on click (view state: no doc change) and restores them", () => {
+    const doc = renderDoc((d) => {
+      const li = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(li, 0, "parent");
+      const child = d.insertBlock("list-item", { list: "bullet" }, { parent: li });
+      d.insertText(child, 0, "child");
+    });
+    const { parent, child } = listIdsOf(doc);
+    const before = JSON.stringify(doc.toJSON());
+    const wrapper = document.querySelector(`[data-block-id="${parent}"]`);
+    expect(wrapper, "the parent list item should be rendered").not.toBeNull();
+    const toggle = wrapper!.querySelector<HTMLButtonElement>(':scope > button[data-slot="docblocks/collapse"]');
+    expect(toggle, "a list item with children should render a collapse toggle").not.toBeNull();
+    expect(toggle!.getAttribute("aria-expanded")).toBe("true");
+    expect(document.querySelector(`[data-block-id="${child}"]`), "the child should be visible").not.toBeNull();
+
+    act(() => toggle!.click());
+
+    expect(toggle!.getAttribute("aria-expanded")).toBe("false");
+    expect(document.querySelector(`[data-block-id="${child}"]`), "the child should be hidden").toBeNull();
+    expect(JSON.stringify(doc.toJSON()), "a collapse must not touch the doc").toBe(before);
+
+    act(() => toggle!.click());
+    expect(document.querySelector(`[data-block-id="${child}"]`), "the child should be back").not.toBeNull();
+  });
+
+  it("renders no toggle for a childless list item", () => {
+    const doc = renderDoc((d) => {
+      const id = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(id, 0, "a leaf");
+    });
+    expect(document.querySelector('[data-slot="docblocks/collapse"]')).toBeNull();
+  });
+});

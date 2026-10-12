@@ -21,6 +21,7 @@ export {
   UnknownRowError,
 } from "./errors";
 export type { InsertBlockArgs, InsertBlockPosition } from "./commands/blocks";
+export type { ChangeBlockTypeArgs } from "./commands/types";
 export type { MarkInput } from "./commands/marks";
 export type { Change } from "./events";
 export { localOriginOf } from "./layout";

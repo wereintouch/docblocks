@@ -137,4 +137,28 @@ describe("createEditorStore", () => {
     expect(store.getState().presence).toEqual([]);
     expect(store.getState().blocks).toBe(before.blocks);
   });
+
+  it("tracks the collapsed ids in the view-state slice (no doc change)", () => {
+    const { doc, store } = setup();
+    const li = doc.insertBlock("list-item", { list: "bullet" });
+    store.getState().setCollapsed(li, true);
+    expect(store.getState().collapsedIds).toEqual([li]);
+    // Idempotent: a repeat does not duplicate the id.
+    store.getState().setCollapsed(li, true);
+    expect(store.getState().collapsedIds).toEqual([li]);
+    store.getState().setCollapsed(li, false);
+    expect(store.getState().collapsedIds).toEqual([]);
+    // The toggle is a view-state flip: the doc never changed.
+    expect(doc.getBlock(li)).toMatchObject({ type: "list-item" });
+    expect(doc.getChildren(li)).toEqual([]);
+  });
+
+  it("drops a removed block from the collapsed slice", () => {
+    const { doc, store } = setup();
+    const li = doc.insertBlock("list-item", { list: "bullet" });
+    store.getState().setCollapsed(li, true);
+    expect(store.getState().collapsedIds).toEqual([li]);
+    doc.removeBlock(li);
+    expect(store.getState().collapsedIds).toEqual([]);
+  });
 });

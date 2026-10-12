@@ -83,12 +83,15 @@ const BlockGroups = memo(function BlockGroups({ ids }: { ids: BlockId[] }) {
 /**
  * The nested list items of a list item: rendered inside the item's
  * wrapper, after the inner editable, with their own block context (the
- * item is their parent).
+ * item is their parent). Hidden (unmounted) while the item is collapsed
+ * (view state: the text re-syncs from the store on the expand).
  */
 const ListItemChildren = memo(function ListItemChildren({ id, block }: { id: BlockId; block: ListItemBlock }) {
+  const { store } = useEditorContext();
+  const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
   const children = block.children ?? EMPTY_IDS;
   const contextValue = useBlockContextValue(id, children);
-  if (children.length === 0) return null;
+  if (children.length === 0 || collapsed) return null;
   return (
     <BlockContext.Provider value={contextValue}>
       <BlockGroups ids={children} />
