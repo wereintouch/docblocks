@@ -12,14 +12,18 @@
  * `AnimatePresence` (`popLayout`): an inserted entry fades in as its
  * height grows, a removed one fades out as it collapses. The siblings'
  * position slides on a reorder (a drag or a remote move) and while a
- * leaving entry pops out of the layout; the slide is position-only
- * (armed only for those renders) — a size projection would scale an
- * entry while its content height settles and distort the text. The
- * entry being dragged renders its height as a gap in the flow (its
+ * leaving entry pops out of the layout. The slide is position-only — a
+ * size projection would scale an entry while its content height settles
+ * and distort the text. The layout projection is armed on every entry at
+ * all times — an entry whose layout feature toggles with the slide state
+ * (unmounting between renders) does not slide reliably when a live
+ * reorder commits — and the slide is gated by the per-value layout
+ * transition duration instead: the 0.18 s slide runs only while a drag
+ * or a structural settle is in flight, 0 otherwise, so an in-place
+ * height change (typing, a line break, a remote edit) reflows instantly.
+ * The entry being dragged renders its height as a gap in the flow (its
  * content lifts out and floats at the pointer on its own transform), so
- * the gap — not the floating content — is what the projection slides. An
- * in-place height change (typing, a line break, a remote edit) reflows
- * instantly: no projection, no slide.
+ * the gap — not the floating content — is what the projection slides.
  *
  * v1 scope: the root list only — nested list items and table-cell
  * children animate plain. A list group is keyed by its first id, so a
@@ -109,26 +113,18 @@ const ANIMATE = { opacity: 1, height: "auto" } as const;
 const EXIT = { opacity: 0, height: 0, marginBottom: 0 } as const;
 
 /**
- * The enter/exit and layout-slide transition (one snappy ease for all of
- * it). The drag snap-back on release runs framer's own spring (the forced
- * `dragSnapToOrigin` inside Reorder.Item), not this transition; the
+ * The enter/exit and layout-slide transition (one snappy ease). The
  * between-slots reflow while a drag runs (the lifted entry's gap and the
- * entries slide into each crossed slot) runs this slide. The dragged
- * entry's content settles into its slot with its own transform
- * transition, not the projection.
+ * entries slide into each crossed slot) runs the layout arm of this
+ * transition (gated per-value: 0 while the slide is disarmed); the
+ * dragged entry's content settles into its slot on its own transform
+ * transition (the same ease, written inline on release), not the
+ * projection.
  */
 const TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
 
 /** How long the layout slide stays armed after a structural render (the slide itself runs 0.18s). */
 const SLIDE_SETTLE_MS = 400;
-
-/**
- * The un-armed layout posture: no projection at all. `Reorder.Item`
- * declares `layout` as `true | "position"`, but the value passes through
- * to the motion element, which also accepts `false` — the assertion
- * bridges the library's narrow declaration, not a behavior boundary.
- */
-const LAYOUT_IDLE = false as unknown as "position";
 
 /** The pointer travel (from the press) that engages the lift; a press that stays inside it is a plain click (the block selection). */
 const LIFT_THRESHOLD_PX = 4;
@@ -161,7 +157,7 @@ interface EntryItemProps {
   entry: Entry;
   /** Register the entry's wrapper and content elements (the drag lift pins the lifted content to the pointer through them). */
   registerEls: (key: string, wrapper: HTMLElement | null, content: HTMLElement | null) => void;
-  /** The position-only layout slide armed (a drag in flight, a structural settle). */
+  /** The position-only layout slide armed (a drag in flight, a structural settle): selects the entries' layout transition. */
   layoutSlide: boolean;
   /** This entry is the one being dragged: its wrapper keeps the entry's height as a gap (the content is lifted out of the flow and pinned to the pointer), so the live reorder slides the gap, not the floating content. */
   isDragged: boolean;
@@ -195,18 +191,25 @@ function EntryItem({ entry, registerEls, layoutSlide, isDragged, dragHeight }: E
       initial={ENTER}
       animate={ANIMATE}
       exit={EXIT}
-      transition={TRANSITION}
-      // Position-only, and only while armed: Reorder's default layout
-      // projects size too, and a size projection scales an entry while
-      // its content height settles — the text squashes or stretches for
-      // the duration of the animation. A plain insert needs no slide
-      // (the entering entry's height growth is the reflow) and an
-      // in-place content change reflows instantly. The lifted entry's
-      // wrapper keeps the projection too: it renders the gap (its height
-      // is fixed for the drag) and the gap slides with the live reorder;
-      // the floating content is pinned to the pointer by its own
-      // transform, not the projection (see the module docs).
-      layout={layoutSlide ? "position" : LAYOUT_IDLE}
+      // Per-value: the enter/exit geometry keeps the snappy slide; the
+      // layout animation runs the 0.18 s slide only while the slide is
+      // armed (a drag in flight, a structural settle) and 0 otherwise —
+      // an in-place content change reflows instantly (a zero-duration
+      // projection, not a visible slide).
+      transition={{
+        opacity: TRANSITION,
+        height: TRANSITION,
+        marginBottom: TRANSITION,
+        layout: layoutSlide ? TRANSITION : { duration: 0 },
+      }}
+      // Position-only, always armed: a size projection would scale an
+      // entry while its content height settles (the text squashes or
+      // stretches). The lifted entry's wrapper keeps the projection too:
+      // it renders the gap (its height is fixed for the drag) and the gap
+      // slides with the live reorder; the floating content is pinned to
+      // the pointer by its own transform, not the projection (see the
+      // module docs).
+      layout="position"
       style={isDragged ? { position: "relative", zIndex: 10 } : undefined}
       // Framer's own drag is disarmed on every entry: the session owns the
       // pointer (the root singles through the lift, the list items and the
@@ -281,7 +284,7 @@ function MotionEditor({
   const pressRef = useRef({ x: 0, y: 0 });
   const draggingRef = useRef<string | null>(null);
   const pendingRef = useRef<string[] | null>(null);
-  /** The framer drag key (a state mirror of `draggingRef`: it drives the entries' layout prop and the lift). */
+  /** The framer drag key (a state mirror of `draggingRef`: it drives the entries' layout transition and the lift). */
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
   /** The lifted entry's wrapper height (the gap), measured at drag start. */
   const [liftHeight, setLiftHeight] = useState<number | null>(null);
@@ -304,7 +307,7 @@ function MotionEditor({
   /**
    * Keep the layout slide armed for the settle window after a drag or a
    * structural change, then release it so in-place content changes
-   * reflow instantly again (a size projection must never scale the text).
+   * reflow instantly again (the zero-duration layout transition).
    */
   const armSlide = useCallback(() => {
     if (slideTimerRef.current !== null) window.clearTimeout(slideTimerRef.current);
@@ -374,6 +377,15 @@ function MotionEditor({
     setDraggingKey(key);
     pendingRef.current = null;
     if (liftRef.current !== null) setLiftHeight(liftRef.current.height);
+    // A previous release's settle transition may still sit on the content
+    // (it was written imperatively — React drops only the styles it set):
+    // clear it so this lift's pin writes land untransitioned and the
+    // content tracks the pointer 1:1.
+    const els = entryElsRef.current.get(key);
+    if (els !== undefined) {
+      els.content.style.transition = "";
+      els.content.style.transform = "";
+    }
   }, []);
 
   /** Re-decide the virtual order at the pointer (the midpoint rule against the siblings' layout centers) and commit it to the local order — the DOM reorder that the projection slides. */
@@ -454,6 +466,15 @@ function MotionEditor({
         liftActiveRef.current = false;
         setDraggingKey(null);
         setLiftHeight(null);
+        // The settle's inline transition/transform were written imperatively,
+        // not by React — drop them when the lift drops (a leftover
+        // `transition: transform` would animate the next drag's pin writes
+        // and make the content chase the pointer).
+        const settled = entryElsRef.current.get(key);
+        if (settled !== undefined) {
+          settled.content.style.transition = "";
+          settled.content.style.transform = "";
+        }
       }, 220);
     }
   }, [armSlide, doc, entriesByKey, rootBlockId, store]);
