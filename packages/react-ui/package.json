@@ -6,7 +6,8 @@
   "license": "UNLICENSED",
   "files": [
     "dist",
-    "styles.css"
+    "styles.css",
+    "theme.css"
   ],
   "sideEffects": [
     "**/*.css"
@@ -24,7 +25,8 @@
       "types": "./dist/motion/index.d.mts",
       "import": "./dist/motion/index.mjs"
     },
-    "./styles.css": "./styles.css"
+    "./styles.css": "./styles.css",
+    "./theme.css": "./theme.css"
   },
   "publishConfig": {
     "access": "public"
