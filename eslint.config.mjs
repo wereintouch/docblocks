@@ -1,5 +1,7 @@
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
+import betterTailwindcss from "eslint-plugin-better-tailwindcss";
+import tailwindCanonicalClasses from "eslint-plugin-tailwind-canonical-classes";
 import path from "node:path";
 import tseslint from "typescript-eslint";
 
@@ -159,6 +161,13 @@ const boundariesPlugin = {
   },
 };
 
+// The design-system components (shared/ui) are Tailwind v4 utility classes
+// validated against the tooling-only entry, which mirrors the standard token
+// set of the shipped theme.css (same theme a consumer builds from). The
+// defaults already pick up `className` attributes and the `cn`/`cva` call
+// strings (base + variant values).
+const TAILWIND_ENTRY = path.join(import.meta.dirname, "packages", "react-ui", "tailwind.entry.css");
+
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
@@ -211,6 +220,28 @@ const eslintConfig = tseslint.config(
           ],
         },
       ],
+    },
+  },
+  // Tailwind class hygiene for react-ui: order + line wrapping (auto-fixable),
+  // canonical forms, and correctness (typos / conflicting classes).
+  {
+    files: ["packages/react-ui/**/*.{ts,tsx}"],
+    plugins: {
+      "better-tailwindcss": betterTailwindcss,
+      "tailwind-canonical-classes": tailwindCanonicalClasses,
+    },
+    settings: {
+      "better-tailwindcss": { entryPoint: TAILWIND_ENTRY },
+    },
+    rules: {
+      "better-tailwindcss/enforce-consistent-class-order": "warn",
+      "better-tailwindcss/enforce-consistent-line-wrapping": [
+        "warn",
+        { printWidth: 120, group: "newLine", preferSingleLine: true, strictness: "loose", indent: 2 },
+      ],
+      "better-tailwindcss/no-unknown-classes": "error",
+      "better-tailwindcss/no-conflicting-classes": "error",
+      "tailwind-canonical-classes/tailwind-canonical-classes": ["warn", { cssPath: TAILWIND_ENTRY }],
     },
   },
   prettier

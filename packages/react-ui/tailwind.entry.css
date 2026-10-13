@@ -1,0 +1,40 @@
+/*
+ * Tailwind entry for the ESLint tooling of docblocks-react-ui
+ * (eslint-plugin-better-tailwindcss, eslint-plugin-tailwind-canonical-classes).
+ *
+ * Mirrors the standard (shadcn) token set of theme.css, so the semantic token
+ * classes the design-system components use (bg-primary,
+ * text-card-foreground, ring-ring/50, ...) validate against the same theme a
+ * consumer builds from. `tw-animate-css` provides the enter/exit animation
+ * utilities (animate-in, fade-in-0, zoom-in-95, slide-in-from-*); `z-modal`
+ * is the consumer-side stacking utility the primitives use (the consumer
+ * defines it, e.g. `@utility z-modal { z-index: var(--z-modal) }`).
+ * Tooling-only: not imported by any build.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@utility z-modal {
+  z-index: 50;
+}
+
+@theme {
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0 0);
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.145 0 0);
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.145 0 0);
+  --color-primary: oklch(0.205 0 0);
+  --color-primary-foreground: oklch(0.985 0 0);
+  --color-secondary: oklch(0.97 0 0);
+  --color-secondary-foreground: oklch(0.205 0 0);
+  --color-muted: oklch(0.97 0 0);
+  --color-muted-foreground: oklch(0.556 0 0);
+  --color-accent: oklch(0.97 0 0);
+  --color-accent-foreground: oklch(0.205 0 0);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-border: oklch(0.922 0 0);
+  --color-input: oklch(0.922 0 0);
+  --color-ring: oklch(0.708 0 0);
+}
