@@ -28,15 +28,18 @@
  * the only drag trigger; a press without movement stays the plain block
  * selection, and root blocks without a handle — image, divider, table —
  * are reorder targets but not drag sources). A list run is an atomic
- * entry (a dragged block lands before or after the whole run), and its
- * items drag through the custom list-drag session (list-drag): a list
- * item lifts and follows the pointer at every nesting level. The
- * hovered row's vertical half names the side, and its horizontal band
- * the level — a pointer in the row's right band drops the item into a
- * hovered list item (as its first child), anywhere else the item drops
- * at the hovered row's level (its parent's children), which may
- * re-parent it across levels; a pointer over the item's own subtree or
- * past every row's band names no slot and snaps back.
+ * entry (a dragged block lands before or after the whole run), and the
+ * non-root blocks — a list item of every level and a child of a text
+ * container (the Tab-nested content) — drag through the custom
+ * block-drag session (block-drag): the block lifts and follows the
+ * pointer, and the hovered row's vertical half names the side, and its
+ * horizontal band the level — a pointer in a row's right band drops the
+ * block into a hovered list item or text container (as its first child,
+ * when the registry's child types allow it), anywhere else the block
+ * drops at the hovered row's own level (its parent's children, accepted
+ * when the registry allows the dragged type there), which may re-parent
+ * it across levels or back to the root; a pointer over the block's own
+ * subtree or past every row's band names no slot and snaps back.
  *
  * One drag issues one `moveBlock` (one undo step, one wire update): for
  * the framer drag the pre-move target index is computed from the old vs.
@@ -70,7 +73,7 @@ import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
-import { useListDrag } from "./list-drag";
+import { useBlockDrag } from "./block-drag";
 import { moveTargetForReorder } from "./reorder";
 
 /**
@@ -195,7 +198,7 @@ function MotionEditor({
   const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
-  const listDragStart = useListDrag(rootRef, store, doc, rootBlockId);
+  const blockDragStart = useBlockDrag(rootRef, store, doc, rootBlockId);
   const groups = useMemo(() => groupChildren(rootChildren, blocks), [rootChildren, blocks]);
   const entries = useMemo<Entry[]>(
     () =>
@@ -279,7 +282,7 @@ function MotionEditor({
     else controlsRef.current.set(key, controls);
   }, []);
 
-  /** The gutter handle starts the drag for that block: the custom list-drag session for list items (every level), the framer drag for the rest. A plain press without movement stays the block selection. */
+  /** The gutter handle starts the drag for that block: the framer drag for a root single entry, the custom block-drag session for the rest (a list item of every level, a child of a text container). A plain press without movement stays the block selection. */
   const onHandlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
@@ -290,12 +293,12 @@ function MotionEditor({
       const blockId = wrapper?.getAttribute("data-block-id") ?? null;
       if (blockId === null) return;
       if (store.getState().blocks[blockId]?.type === "list-item") {
-        listDragStart(event, blockId);
+        blockDragStart(event, blockId);
         return;
       }
       controlsRef.current.get(blockId)?.start(event);
     },
-    [listDragStart, store]
+    [blockDragStart, store]
   );
 
   const onEntryDragStart = useCallback((key: string) => {
@@ -343,7 +346,7 @@ function MotionEditor({
     setOrder((prev) => (sameKeys(prev, keys) ? prev : keys));
   }, [armSlide, doc, entriesByKey, rootBlockId, store]);
 
-  // The list-drag handle session and the cross-drag selection session both
+  // The block-drag handle session and the cross-drag selection session both
   // own the root's pointerdown; the target decides (a gutter handle vs a
   // text inner) and the two are mutually exclusive.
   const onRootPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {

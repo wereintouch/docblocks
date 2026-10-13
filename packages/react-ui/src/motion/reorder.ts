@@ -25,15 +25,15 @@ function moveTargetForReorder(oldIds: BlockId[], newIds: BlockId[], draggedId: B
 }
 
 /**
- * The post-move parent order for a list item dropped into a slot of its
- * own list run, or null when the drop is a no-op (the item lands in its
- * own slot) or the order is stale (a remote update changed the children
- * mid-drag — the drop is rejected).
+ * The post-move parent order for a block dropped into a slot of its own
+ * parent's children, or null when the drop is a no-op (the block lands in
+ * its own slot) or the order is stale (a remote update changed the
+ * children mid-drag — the drop is rejected).
  *
  * `anchorId` is the sibling the slot belongs to: with side "before" it is
  * the item BELOW the slot, with "after" the item ABOVE it; null is the slot
  * before the run's first item or after its last. The result is a
- * permutation of `oldIds` (the dragged item moved, nothing else) that
+ * permutation of `oldIds` (the dragged block moved, nothing else) that
  * feeds `moveTargetForReorder`.
  */
 function finalOrderAfterSlotDrop(
@@ -61,11 +61,11 @@ function finalOrderAfterSlotDrop(
 }
 
 /**
- * The pre-move target index for a list item dropped into ANOTHER parent's
+ * The pre-move target index for a block dropped into ANOTHER parent's
  * children (a cross-level drop): `oldIds` is the target parent's current
- * children and must not contain the dragged item (a within-parent drop
+ * children and must not contain the dragged block (a within-parent drop
  * goes through `finalOrderAfterSlotDrop` instead). The result is the
- * index the item takes in the target order — or null for a stale anchor
+ * index the block takes in the target order — or null for a stale anchor
  * (a remote update moved or removed it mid-drag) or a same-parent drop
  * (the wrong caller path).
  */
