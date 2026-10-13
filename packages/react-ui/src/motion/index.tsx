@@ -14,7 +14,10 @@
  * position slides on a reorder (a drag or a remote move) and while a
  * leaving entry pops out of the layout; the slide is position-only
  * (armed only for those renders) — a size projection would scale an
- * entry while its content height settles and distort the text. An
+ * entry while its content height settles and distort the text. The
+ * entry being dragged renders its height as a gap in the flow (its
+ * content lifts out and floats at the pointer on its own transform), so
+ * the gap — not the floating content — is what the projection slides. An
  * in-place height change (typing, a line break, a remote edit) reflows
  * instantly: no projection, no slide.
  *
@@ -41,10 +44,31 @@
  * it across levels or back to the root; a pointer over the block's own
  * subtree or past every row's band names no slot and snaps back.
  *
- * One drag issues one `moveBlock` (one undo step, one wire update): for
- * the framer drag the pre-move target index is computed from the old vs.
- * new order on release; a drag that ends at the same position issues no
- * command.
+ * The gutter drag is a pointer session, not a framer `drag`: the virtual
+ * order is decided from the pointer against the siblings' layout centers
+ * (`offsetTop`, unaffected by the projection transforms) — a crossing is
+ * decided where the pointer is, not where the dragged entry's projected
+ * position is. Framer's own reorder detection would decide off the
+ * entry's layout slot plus its drag offset, and the offset re-baselines
+ * a frame late after every live reorder, so a downward drag cascades the
+ * virtual index through every remaining slot (the entry commits to the
+ * bottom regardless of the drop point). Framer's `Reorder` is still what
+ * the entries render as: the session's live reorder commits a DOM reorder
+ * and each crossed entry settles into its slot with the 0.18 s projection
+ * slide.
+ *
+ * One drag issues one `moveBlock` (one undo step, one wire update): the
+ * pre-move target index is computed from the old vs. new order on release;
+ * a drag that ends at the same position issues no command. While a drag
+ * runs the entry being dragged is lifted: a transparent gap of the
+ * entry's height slides with the live reorder (a plain in-flow div — the
+ * entry's height is a framer-managed value, so the gap is not the
+ * Reorder.Item itself), while its content floats above the list at the
+ * pointer on its own transform — the pointer offset, never re-baselined,
+ * so the block tracks the pointer 1:1 at any drag speed (a projection on
+ * it would make the block jump). On release the content slides into the
+ * in-flow slot (0.18 s) and the lift is dropped. A press that never moves
+ * past the lift threshold is a plain click (the block selection).
  *
  * Known v1 edge (accepted, no protection): a remote doc update mid-drag
  * re-derives the entry list and re-lays the group out; the in-flight
@@ -56,10 +80,10 @@
  * stylesheet (or an equivalent positioned editor root) for the exit to
  * anchor inside the editor.
  */
-import { AnimatePresence, type DragControls, Reorder, useDragControls } from "framer-motion";
+import { AnimatePresence, Reorder } from "framer-motion";
 import { useStore } from "zustand";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import type { Block, BlockId, ListItemAttrs } from "docblocks-core";
@@ -87,7 +111,11 @@ const EXIT = { opacity: 0, height: 0, marginBottom: 0 } as const;
 /**
  * The enter/exit and layout-slide transition (one snappy ease for all of
  * it). The drag snap-back on release runs framer's own spring (the forced
- * `dragSnapToOrigin` inside Reorder.Item), not this transition.
+ * `dragSnapToOrigin` inside Reorder.Item), not this transition; the
+ * between-slots reflow while a drag runs (the lifted entry's gap and the
+ * entries slide into each crossed slot) runs this slide. The dragged
+ * entry's content settles into its slot with its own transform
+ * transition, not the projection.
  */
 const TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
 
@@ -101,6 +129,9 @@ const SLIDE_SETTLE_MS = 400;
  * bridges the library's narrow declaration, not a behavior boundary.
  */
 const LAYOUT_IDLE = false as unknown as "position";
+
+/** The pointer travel (from the press) that engages the lift; a press that stays inside it is a plain click (the block selection). */
+const LIFT_THRESHOLD_PX = 4;
 
 /**
  * The drag affordance: the handle shows the grab cursor in this view
@@ -128,32 +159,38 @@ function keysOf(rootChildren: BlockId[], blocks: Record<BlockId, Block>): string
 
 interface EntryItemProps {
   entry: Entry;
-  register: (key: string, controls: DragControls | null) => void;
-  onDragStart: (key: string) => void;
-  onDragEnd: () => void;
+  /** Register the entry's wrapper and content elements (the drag lift pins the lifted content to the pointer through them). */
+  registerEls: (key: string, wrapper: HTMLElement | null, content: HTMLElement | null) => void;
   /** The position-only layout slide armed (a drag in flight, a structural settle). */
   layoutSlide: boolean;
+  /** This entry is the one being dragged: its wrapper keeps the entry's height as a gap (the content is lifted out of the flow and pinned to the pointer), so the live reorder slides the gap, not the floating content. */
+  isDragged: boolean;
+  /** The lifted entry's wrapper height (the gap), the natural height measured at drag start. */
+  dragHeight: number;
 }
 
 /**
  * One root entry as a `Reorder.Item`: a single block (draggable from the
  * gutter handle) or a list group (no drag — the stable value keeps the
  * group atomic, so a dragged block lands before or after the whole
- * group).
+ * group). The drag itself is the session's pointer state (see the module
+ * docs), not a framer `drag` — the Reorder.Item provides the layout
+ * projection (the slide into a crossed slot) only.
  */
-function EntryItem({ entry, register, onDragStart, onDragEnd, layoutSlide }: EntryItemProps) {
-  const controls = useDragControls();
+function EntryItem({ entry, registerEls, layoutSlide, isDragged, dragHeight }: EntryItemProps) {
   const single = entry.kind === "single";
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!single) return;
-    register(entry.key, controls);
-    return () => register(entry.key, null);
-  }, [entry, controls, register, single]);
+    registerEls(entry.key, wrapperRef.current, contentRef.current);
+    return () => registerEls(entry.key, null, null);
+  }, [entry.key, registerEls]);
 
   return (
     <Reorder.Item
       as="div"
+      ref={wrapperRef}
       value={entry.key}
       initial={ENTER}
       animate={ANIMATE}
@@ -164,22 +201,42 @@ function EntryItem({ entry, register, onDragStart, onDragEnd, layoutSlide }: Ent
       // its content height settles — the text squashes or stretches for
       // the duration of the animation. A plain insert needs no slide
       // (the entering entry's height growth is the reflow) and an
-      // in-place content change reflows instantly.
+      // in-place content change reflows instantly. The lifted entry's
+      // wrapper keeps the projection too: it renders the gap (its height
+      // is fixed for the drag) and the gap slides with the live reorder;
+      // the floating content is pinned to the pointer by its own
+      // transform, not the projection (see the module docs).
       layout={layoutSlide ? "position" : LAYOUT_IDLE}
+      style={isDragged ? { position: "relative", zIndex: 10 } : undefined}
+      // Framer's own drag is disarmed on every entry: the session owns the
+      // pointer (the root singles through the lift, the list items and the
+      // text-container children through the block-drag session). Without
+      // this a press on a list item's gutter would start a framer drag of
+      // the whole list-run entry, distorting the session's row geometry.
       dragListener={false}
-      dragControls={single ? controls : undefined}
-      onDragStart={single ? () => onDragStart(entry.key) : undefined}
-      onDragEnd={single ? onDragEnd : undefined}
     >
-      {single ? (
-        <BlockView id={entry.id} />
-      ) : (
-        <entry.tag data-slot="docblocks/list" data-list={entry.list} data-depth={1}>
-          {entry.ids.map((childId) => (
-            <BlockView key={childId} id={childId} />
-          ))}
-        </entry.tag>
-      )}
+      {/* The gap: a plain in-flow placeholder of the entry's height (the
+          content is lifted out of the flow), so the live reorder slides a
+          visible gap. A plain div on purpose — the entry's height is a
+          framer-managed value (the enter/exit animation), so the height
+          must not be set on the Reorder.Item element itself. */}
+      {isDragged ? <div style={{ height: dragHeight }} aria-hidden /> : null}
+      <div
+        ref={contentRef}
+        style={
+          isDragged ? { position: "absolute", left: 0, top: 0, width: "100%", willChange: "transform" } : undefined
+        }
+      >
+        {single ? (
+          <BlockView id={entry.id} />
+        ) : (
+          <entry.tag data-slot="docblocks/list" data-list={entry.list} data-depth={1}>
+            {entry.ids.map((childId) => (
+              <BlockView key={childId} id={childId} />
+            ))}
+          </entry.tag>
+        )}
+      </div>
     </Reorder.Item>
   );
 }
@@ -216,13 +273,29 @@ function MotionEditor({
   }, [entries]);
   const entryKeys = useMemo(() => entries.map((entry) => entry.key), [entries]);
 
-  /** The drag's local order: live during a drag, locked to the store otherwise. */
+  /** The local entry order: live during a drag (the virtual order the session's cross detection and the release commit run against), locked to the store otherwise. */
   const [order, setOrder] = useState<string[]>(entryKeys);
-  const controlsRef = useRef<Map<string, DragControls>>(new Map());
+  /** The committed order (the session's cross detection reads it; it mirrors the state, refreshed after each render's DOM commit). */
+  const orderRef = useRef(order);
+  /** The pointer position at the press (the lift threshold is measured from it). */
+  const pressRef = useRef({ x: 0, y: 0 });
   const draggingRef = useRef<string | null>(null);
   const pendingRef = useRef<string[] | null>(null);
-  /** The framer drag key (a state mirror of `draggingRef`: it drives the entries' layout prop). */
+  /** The framer drag key (a state mirror of `draggingRef`: it drives the entries' layout prop and the lift). */
   const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  /** The lifted entry's wrapper height (the gap), measured at drag start. */
+  const [liftHeight, setLiftHeight] = useState<number | null>(null);
+  /** The entry wrapper/content elements (the drag lift pins the lifted content to the pointer through them). */
+  const entryElsRef = useRef<Map<string, { wrapper: HTMLElement; content: HTMLElement }>>(new Map());
+  /** The lift's geometry: the gap height and the pointer's offset from the lifted content's top-left at drag start. */
+  const liftRef = useRef<{ height: number; grabX: number; grabY: number } | null>(null);
+  /** The latest pointer position (the lift loop runs it into the content's transform). */
+  const pointerRef = useRef({ x: 0, y: 0 });
+  /** The release settle is in flight (the content slides into the slot on its own transform; the lift loop must not overwrite it). */
+  const settleRef = useRef(false);
+  const settleTimerRef = useRef<number | null>(null);
+  /** True while the lift is live (the content is absolute and pin-transformable): set at drag start, cleared when the lift drops. The pointer-driven pin write is gated on it — a transform on the still-in-flow content would nudge the resting block. */
+  const liftActiveRef = useRef(false);
   /** The layout slide armed: a drag in flight or the settle window after a structural change. */
   const [layoutSlide, setLayoutSlide] = useState(false);
   const slideTimerRef = useRef<number | null>(null);
@@ -245,6 +318,7 @@ function MotionEditor({
   useEffect(
     () => () => {
       if (slideTimerRef.current !== null) window.clearTimeout(slideTimerRef.current);
+      if (settleTimerRef.current !== null) window.clearTimeout(settleTimerRef.current);
     },
     []
   );
@@ -277,48 +351,66 @@ function MotionEditor({
     prevKeysRef.current = entryKeys;
   }
 
-  const registerControls = useCallback((key: string, controls: DragControls | null) => {
-    if (controls === null) controlsRef.current.delete(key);
-    else controlsRef.current.set(key, controls);
+  const registerEls = useCallback((key: string, wrapper: HTMLElement | null, content: HTMLElement | null) => {
+    if (wrapper === null || content === null) entryElsRef.current.delete(key);
+    else entryElsRef.current.set(key, { wrapper, content });
   }, []);
 
-  /** The gutter handle starts the drag for that block: the framer drag for a root single entry, the custom block-drag session for the rest (a list item of every level, a child of a text container). A plain press without movement stays the block selection. */
-  const onHandlePointerDown = useCallback(
-    (event: ReactPointerEvent<HTMLDivElement>) => {
-      const target = event.target instanceof HTMLElement ? event.target : null;
-      if (target === null) return;
-      const handle = target.closest('[data-slot="docblocks/gutter"]');
-      if (handle === null) return;
-      const wrapper = handle.closest("[data-block-id]");
-      const blockId = wrapper?.getAttribute("data-block-id") ?? null;
-      if (blockId === null) return;
-      if (store.getState().blocks[blockId]?.type === "list-item") {
-        blockDragStart(event, blockId);
-        return;
-      }
-      controlsRef.current.get(blockId)?.start(event);
-    },
-    [blockDragStart, store]
-  );
+  /** Write the lift pin: the lifted content's transform is the pointer's offset from the (possibly reordered or projected) wrapper's visual box, so the content stays pointer-locked while the wrapper slides with the live reorder. Written from the press's pointermove listener (the pin lands in the same frame as the pointer) and from the rAF loop (the wrapper's box also changes without a pointer event). */
+  const writeLiftPin = useCallback(() => {
+    const key = draggingRef.current;
+    if (key === null || settleRef.current || !liftActiveRef.current) return;
+    const els = entryElsRef.current.get(key);
+    const lift = liftRef.current;
+    if (els === undefined || lift === null) return;
+    const box = els.wrapper.getBoundingClientRect();
+    els.content.style.transform = `translate(${pointerRef.current.x - lift.grabX - box.left}px, ${pointerRef.current.y - lift.grabY - box.top}px)`;
+  }, []);
 
-  const onEntryDragStart = useCallback((key: string) => {
+  /** Engage the lift: the entry's content leaves the flow (absolute, pointer-pinned) and its wrapper keeps the entry's height as the gap. */
+  const engageLift = useCallback((key: string) => {
     draggingRef.current = key;
+    liftActiveRef.current = true;
     setDraggingKey(key);
     pendingRef.current = null;
+    if (liftRef.current !== null) setLiftHeight(liftRef.current.height);
   }, []);
 
-  const onReorder = useCallback((newOrder: string[]) => {
-    pendingRef.current = newOrder;
-    setOrder(newOrder);
+  /** Re-decide the virtual order at the pointer (the midpoint rule against the siblings' layout centers) and commit it to the local order — the DOM reorder that the projection slides. */
+  const updateVirtualOrder = useCallback(() => {
+    const key = draggingRef.current;
+    const lift = liftRef.current;
+    const root = rootRef.current;
+    if (key === null || lift === null || root === null) return;
+    const rootBox = root.getBoundingClientRect();
+    // The dragged entry's center in root coordinates: its top follows the
+    // pointer minus the grab offset; its height is the gap's (fixed for
+    // the drag). offsetTop is layout-relative — the siblings' projections
+    // are transforms, not layout — so a crossing is decided against where
+    // the siblings settle, not where they are mid-slide.
+    const itemCenter = pointerRef.current.y - rootBox.top - lift.grabY + lift.height / 2;
+    const current = orderRef.current;
+    const siblings = current.filter((candidate) => candidate !== key);
+    let k = 0;
+    for (const siblingKey of siblings) {
+      const sibling = entryElsRef.current.get(siblingKey);
+      if (sibling === undefined) continue;
+      if (sibling.wrapper.offsetTop + sibling.wrapper.offsetHeight / 2 < itemCenter) k++;
+    }
+    const virtual = [...siblings.slice(0, k), key, ...siblings.slice(k)];
+    if (!sameKeys(virtual, current)) {
+      orderRef.current = virtual;
+      pendingRef.current = virtual;
+      setOrder(virtual);
+    }
   }, []);
 
-  /** Release: commit one moveBlock for the drag (pre-move index), then resync the local order to the store. */
+  /** Release: commit one moveBlock for the drag (pre-move index), resync the local order to the store (read after the commit), then settle the lifted content into the slot. */
   const finishDrag = useCallback(() => {
     const pending = pendingRef.current;
     const key = draggingRef.current;
     pendingRef.current = null;
     draggingRef.current = null;
-    setDraggingKey(null);
     // Keep the slide armed through the release settle: the snap-back and
     // any in-flight reorder slide run out under the layout projection.
     armSlide();
@@ -337,14 +429,136 @@ function MotionEditor({
         });
       }
     }
-    // Resync to the store's order: after a committed drag the render-phase
-    // guard suffices, but when the commit was dropped (a remote update
-    // changed the order mid-drag) nothing else re-triggers it, so this is
-    // what snaps the local order back.
+    // Resync to the store's order: after a committed drag the store
+    // already matches the virtual order (the resync is a no-op), and
+    // when the commit was dropped (a remote update changed the order
+    // mid-drag) this is what snaps the local order back.
     const state = store.getState();
     const keys = keysOf(state.rootChildren, state.blocks);
     setOrder((prev) => (sameKeys(prev, keys) ? prev : keys));
+    // Settle: the lifted content slides from the pointer into the
+    // in-flow slot on its own transform transition (the wrapper's
+    // reorder already happened live during the drag), and the lift is
+    // dropped after the slide finishes so the content re-enters the
+    // flow at rest.
+    if (key !== null) {
+      settleRef.current = true;
+      const els = entryElsRef.current.get(key);
+      if (els !== undefined) {
+        els.content.style.transition = "transform 0.18s ease-out";
+        els.content.style.transform = "translate(0px, 0px)";
+      }
+      settleTimerRef.current = window.setTimeout(() => {
+        settleTimerRef.current = null;
+        settleRef.current = false;
+        liftActiveRef.current = false;
+        setDraggingKey(null);
+        setLiftHeight(null);
+      }, 220);
+    }
   }, [armSlide, doc, entriesByKey, rootBlockId, store]);
+
+  /** The gutter handle starts the drag for that block: the pointer session for a root single entry, the custom block-drag session for the rest (a list item of every level, a child of a text container). A plain press without movement stays the block selection. */
+  const onHandlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target === null) return;
+      const handle = target.closest('[data-slot="docblocks/gutter"]');
+      if (handle === null) return;
+      const wrapper = handle.closest("[data-block-id]");
+      const blockId = wrapper?.getAttribute("data-block-id") ?? null;
+      if (blockId === null) return;
+      if (store.getState().blocks[blockId]?.type === "list-item") {
+        blockDragStart(event, blockId);
+        return;
+      }
+      if (entriesByKey.get(blockId)?.kind === "single") {
+        const els = entryElsRef.current.get(blockId);
+        if (els !== undefined) {
+          // The lift's geometry, measured now (the content is still in-flow,
+          // pre-lift): the gap's height is the entry's natural height, the
+          // grab is the pointer's offset from the content's top-left. The
+          // lift itself engages on the first move past the threshold —
+          // engaging it here, on pointerdown, would re-render the entry
+          // (the content lifts out of the flow, the gap appears) under an
+          // in-progress press and break a plain gutter click (the
+          // selection).
+          const contentRect = els.content.getBoundingClientRect();
+          liftRef.current = {
+            height: els.wrapper.getBoundingClientRect().height,
+            grabX: event.clientX - contentRect.left,
+            grabY: event.clientY - contentRect.top,
+          };
+          pointerRef.current = { x: event.clientX, y: event.clientY };
+          pressRef.current = { x: event.clientX, y: event.clientY };
+          draggingRef.current = blockId;
+        }
+        // A previous drag's settle is still in flight: drop its lift so
+        // this drag owns the drag state.
+        if (settleTimerRef.current !== null) {
+          window.clearTimeout(settleTimerRef.current);
+          settleTimerRef.current = null;
+          settleRef.current = false;
+          liftActiveRef.current = false;
+          setDraggingKey(null);
+          setLiftHeight(null);
+        }
+        // Keep the pointer ref current from the very press: the lift engages
+        // only at drag start, and moves in between would otherwise be missed
+        // (the first pin would trail the pointer). The write is a no-op until
+        // the lift is live (gated in writeLiftPin).
+        const onMove = (moveEvent: PointerEvent) => {
+          pointerRef.current = { x: moveEvent.clientX, y: moveEvent.clientY };
+          // Past the threshold the lift engages for good; from then on
+          // every move re-decides the virtual order at the pointer.
+          if (!liftActiveRef.current) {
+            const dx = moveEvent.clientX - pressRef.current.x;
+            const dy = moveEvent.clientY - pressRef.current.y;
+            if (Math.hypot(dx, dy) >= LIFT_THRESHOLD_PX) engageLift(blockId);
+          }
+          writeLiftPin();
+          if (liftActiveRef.current) updateVirtualOrder();
+        };
+        // Release: a live lift commits (one moveBlock + the settle);
+        // a plain press (no lift) drops the press state — the click
+        // stays the selection.
+        const dropPressLift = () => {
+          window.removeEventListener("pointermove", onMove);
+          if (draggingRef.current !== blockId) return;
+          if (liftActiveRef.current) {
+            finishDrag();
+            return;
+          }
+          draggingRef.current = null;
+          setDraggingKey(null);
+          setLiftHeight(null);
+        };
+        window.addEventListener("pointermove", onMove);
+        window.addEventListener("pointerup", dropPressLift, { once: true });
+        return;
+      }
+      blockDragStart(event, blockId);
+    },
+    [blockDragStart, engageLift, entriesByKey, finishDrag, store, updateVirtualOrder, writeLiftPin]
+  );
+
+  /** The lift loop: while a drag runs, re-write the pin every frame — the wrapper's visual box changes without a pointer event (the live DOM reorder, framer's projection slide while the pointer pauses), and the pin must follow so the content stays at the pointer. The press's pointermove listener covers the moving-pointer case in the same frame. */
+  useEffect(() => {
+    if (draggingKey === null) return;
+    let raf = 0;
+    const loop = () => {
+      writeLiftPin();
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [draggingKey, writeLiftPin]);
+
+  /** Re-pin the instant a live reorder commits (the dragged entry's in-flow gap jumps to its new slot, moving the wrapper's box), and mirror the committed order for the session's cross detection. useLayoutEffect runs after the DOM commit and before paint, so the content is re-anchored to the pointer with no visible one-frame snap. */
+  useLayoutEffect(() => {
+    orderRef.current = order;
+    writeLiftPin();
+  }, [order, writeLiftPin]);
 
   // The block-drag handle session and the cross-drag selection session both
   // own the root's pointerdown; the target decides (a gutter handle vs a
@@ -368,10 +582,11 @@ function MotionEditor({
       <style>{HANDLE_GRAB_STYLE}</style>
       <SlashMenuContext.Provider value={slash.api}>
         <BlockContext.Provider value={rootContext}>
+          {/* The session owns the order (the virtual order is decided at the pointer); the no-op keeps the required prop — framer's own reorder detection no longer runs (there is no framer drag). */}
           {view === "canvas" ? (
             <CanvasView />
           ) : (
-            <Reorder.Group as="div" axis="y" values={order} onReorder={onReorder}>
+            <Reorder.Group as="div" axis="y" values={order} onReorder={() => undefined}>
               <AnimatePresence initial={false} mode="popLayout">
                 {order.map((key) => {
                   const entry = entriesByKey.get(key);
@@ -380,10 +595,10 @@ function MotionEditor({
                     <EntryItem
                       key={key}
                       entry={entry}
-                      register={registerControls}
-                      onDragStart={onEntryDragStart}
-                      onDragEnd={finishDrag}
-                      layoutSlide={draggingKey !== null || layoutSlide}
+                      registerEls={registerEls}
+                      layoutSlide={layoutSlide || draggingKey !== null}
+                      isDragged={draggingKey === key}
+                      dragHeight={liftHeight ?? 0}
                     />
                   );
                 })}

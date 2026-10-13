@@ -72,12 +72,18 @@ describe("MotionEditor", () => {
     });
 
     // The new entry mounts immediately and its enter animation settles
-    // (framer leaves the final state in the inline style).
+    // (framer leaves the final state in the inline style). The animation
+    // runs on the entry's Reorder.Item — the block wrapper's nearest
+    // ancestor that is a direct child of the root group (the lift's
+    // content div sits in between).
     await waitFor(
       () => {
         const wrappers = wrappersOf(container);
         expect(wrappers).toHaveLength(2);
-        expect(wrappers[1]?.parentElement?.style.opacity).toBe("1");
+        const group = container.querySelector("[data-slot='docblocks/editor'] > div");
+        let entry: HTMLElement | null = wrappers[1]?.parentElement ?? null;
+        while (entry !== null && entry.parentElement !== group) entry = entry.parentElement;
+        expect(entry?.style.opacity).toBe("1");
       },
       { timeout: 5000 }
     );
