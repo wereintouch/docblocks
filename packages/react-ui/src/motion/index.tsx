@@ -10,9 +10,13 @@
  * scope), the same block rendering and editing wiring, and the same
  * presence overlay. The top-level block list renders through
  * `AnimatePresence` (`popLayout`): an inserted entry fades in as its
- * height grows, a removed one fades out as it collapses, and `layout`
- * reflows the siblings while an entry enters, exits, or the order
- * changes.
+ * height grows, a removed one fades out as it collapses. The siblings'
+ * position slides on a reorder (a drag or a remote move) and while a
+ * leaving entry pops out of the layout; the slide is position-only
+ * (armed only for those renders) — a size projection would scale an
+ * entry while its content height settles and distort the text. An
+ * in-place height change (typing, a line break, a remote edit) reflows
+ * instantly: no projection, no slide.
  *
  * v1 scope: the root list only — nested list items and table-cell
  * children animate plain. A list group is keyed by its first id, so a
@@ -78,6 +82,24 @@ const ANIMATE = { opacity: 1, height: "auto" } as const;
 const EXIT = { opacity: 0, height: 0, marginBottom: 0 } as const;
 
 /**
+ * The enter/exit and layout-slide transition (one snappy ease for all of
+ * it). The drag snap-back on release runs framer's own spring (the forced
+ * `dragSnapToOrigin` inside Reorder.Item), not this transition.
+ */
+const TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
+
+/** How long the layout slide stays armed after a structural render (the slide itself runs 0.18s). */
+const SLIDE_SETTLE_MS = 400;
+
+/**
+ * The un-armed layout posture: no projection at all. `Reorder.Item`
+ * declares `layout` as `true | "position"`, but the value passes through
+ * to the motion element, which also accepts `false` — the assertion
+ * bridges the library's narrow declaration, not a behavior boundary.
+ */
+const LAYOUT_IDLE = false as unknown as "position";
+
+/**
  * The drag affordance: the handle shows the grab cursor in this view
  * only — the rule is scoped to the root attribute below, so the base
  * editor keeps the stylesheet's plain pointer cursor.
@@ -106,6 +128,8 @@ interface EntryItemProps {
   register: (key: string, controls: DragControls | null) => void;
   onDragStart: (key: string) => void;
   onDragEnd: () => void;
+  /** The position-only layout slide armed (a drag in flight, a structural settle). */
+  layoutSlide: boolean;
 }
 
 /**
@@ -114,7 +138,7 @@ interface EntryItemProps {
  * group atomic, so a dragged block lands before or after the whole
  * group).
  */
-function EntryItem({ entry, register, onDragStart, onDragEnd }: EntryItemProps) {
+function EntryItem({ entry, register, onDragStart, onDragEnd, layoutSlide }: EntryItemProps) {
   const controls = useDragControls();
   const single = entry.kind === "single";
 
@@ -131,6 +155,14 @@ function EntryItem({ entry, register, onDragStart, onDragEnd }: EntryItemProps) 
       initial={ENTER}
       animate={ANIMATE}
       exit={EXIT}
+      transition={TRANSITION}
+      // Position-only, and only while armed: Reorder's default layout
+      // projects size too, and a size projection scales an entry while
+      // its content height settles — the text squashes or stretches for
+      // the duration of the animation. A plain insert needs no slide
+      // (the entering entry's height growth is the reflow) and an
+      // in-place content change reflows instantly.
+      layout={layoutSlide ? "position" : LAYOUT_IDLE}
       dragListener={false}
       dragControls={single ? controls : undefined}
       onDragStart={single ? () => onDragStart(entry.key) : undefined}
@@ -160,7 +192,7 @@ function MotionEditor({
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const blocks = useStore(store, (state) => state.blocks);
   const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
-  const { rootRef, onKeyDown } = useEditing();
+  const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
   const listDragStart = useListDrag(rootRef, store, doc, rootBlockId);
@@ -186,6 +218,33 @@ function MotionEditor({
   const controlsRef = useRef<Map<string, DragControls>>(new Map());
   const draggingRef = useRef<string | null>(null);
   const pendingRef = useRef<string[] | null>(null);
+  /** The framer drag key (a state mirror of `draggingRef`: it drives the entries' layout prop). */
+  const [draggingKey, setDraggingKey] = useState<string | null>(null);
+  /** The layout slide armed: a drag in flight or the settle window after a structural change. */
+  const [layoutSlide, setLayoutSlide] = useState(false);
+  const slideTimerRef = useRef<number | null>(null);
+  const prevKeysRef = useRef<string[]>(entryKeys);
+
+  /**
+   * Keep the layout slide armed for the settle window after a drag or a
+   * structural change, then release it so in-place content changes
+   * reflow instantly again (a size projection must never scale the text).
+   */
+  const armSlide = useCallback(() => {
+    if (slideTimerRef.current !== null) window.clearTimeout(slideTimerRef.current);
+    slideTimerRef.current = window.setTimeout(() => {
+      slideTimerRef.current = null;
+      setLayoutSlide(false);
+    }, SLIDE_SETTLE_MS);
+    setLayoutSlide(true);
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (slideTimerRef.current !== null) window.clearTimeout(slideTimerRef.current);
+    },
+    []
+  );
 
   // A store change (remote or local, drag-free) resyncs the local order.
   // The render-phase setState (not an effect) keeps the committed DOM in
@@ -193,6 +252,26 @@ function MotionEditor({
   // immediately; mid-drag changes are resynced on release instead.
   if (draggingRef.current === null && !sameKeys(order, entryKeys)) {
     setOrder(entryKeys);
+  }
+
+  // Arm the slide for the renders an enter/exit height animation does
+  // not drive: a reorder of the surviving entries (a pure reorder, or an
+  // insert that also reorders the rest) and any change that removes an
+  // entry (its pop leaves the survivors a position delta to slide). A
+  // pure insert needs no slide — the entering entry's height growth IS
+  // the reflow — and an in-place content change (same keys, same order)
+  // reflows instantly with no projection: a size projection would scale
+  // the entry while its text settles and distort the content.
+  if (prevKeysRef.current !== entryKeys) {
+    const prev = prevKeysRef.current;
+    const removed = prev.some((key) => !entryKeys.includes(key));
+    const prevCommon = prev.filter((key) => entryKeys.includes(key));
+    const reordered = !sameKeys(
+      prevCommon,
+      entryKeys.filter((key) => prev.includes(key))
+    );
+    if (removed || reordered) armSlide();
+    prevKeysRef.current = entryKeys;
   }
 
   const registerControls = useCallback((key: string, controls: DragControls | null) => {
@@ -221,6 +300,7 @@ function MotionEditor({
 
   const onEntryDragStart = useCallback((key: string) => {
     draggingRef.current = key;
+    setDraggingKey(key);
     pendingRef.current = null;
   }, []);
 
@@ -235,6 +315,10 @@ function MotionEditor({
     const key = draggingRef.current;
     pendingRef.current = null;
     draggingRef.current = null;
+    setDraggingKey(null);
+    // Keep the slide armed through the release settle: the snap-back and
+    // any in-flight reorder slide run out under the layout projection.
+    armSlide();
     if (pending !== null && key !== null) {
       const newIds: BlockId[] = [];
       for (const pendingKey of pending) {
@@ -257,7 +341,15 @@ function MotionEditor({
     const state = store.getState();
     const keys = keysOf(state.rootChildren, state.blocks);
     setOrder((prev) => (sameKeys(prev, keys) ? prev : keys));
-  }, [doc, entriesByKey, rootBlockId, store]);
+  }, [armSlide, doc, entriesByKey, rootBlockId, store]);
+
+  // The list-drag handle session and the cross-drag selection session both
+  // own the root's pointerdown; the target decides (a gutter handle vs a
+  // text inner) and the two are mutually exclusive.
+  const onRootPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    onCrossDragPointerDown(event);
+    onHandlePointerDown(event);
+  };
 
   return (
     <div
@@ -267,7 +359,8 @@ function MotionEditor({
       data-view={view}
       tabIndex={-1}
       onKeyDown={onKeyDown}
-      onPointerDown={onHandlePointerDown}
+      onCopy={onCopy}
+      onPointerDown={onRootPointerDown}
     >
       <style>{HANDLE_GRAB_STYLE}</style>
       <SlashMenuContext.Provider value={slash.api}>
@@ -287,6 +380,7 @@ function MotionEditor({
                       register={registerControls}
                       onDragStart={onEntryDragStart}
                       onDragEnd={finishDrag}
+                      layoutSlide={draggingKey !== null || layoutSlide}
                     />
                   );
                 })}

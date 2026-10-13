@@ -76,6 +76,67 @@ test("an inserted block reaches both panes and its enter animation settles", asy
   await close();
 });
 
+test("an in-place line break reflows without a size projection (the text is never scaled)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ui03c-linebreak");
+
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
+  const content = wrappers(a, "a").nth(0).locator('[data-slot="docblocks/block-content"]');
+  await content.click();
+  await a.keyboard.type("hello");
+  await a.keyboard.press("Shift+Enter");
+
+  // The content height changed in place, so no entry may carry a framer
+  // transform at ANY point — a size projection would be mid-scale on the
+  // changed entry and distorting its text for ~450ms. Sample three times
+  // over the first ~120ms: the old projection's window is longer than any
+  // sample spread, so a loaded runner cannot slip past it.
+  const entryTransforms = () =>
+    pane(a, "a").evaluate((root) => {
+      const group = root.querySelector("[data-docblocks-motion] > div");
+      if (group === null) return null;
+      return Array.from(group.children)
+        .filter((c) => c instanceof HTMLElement)
+        .map((el) => el.style.transform);
+    });
+  const midTransforms: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const t = await entryTransforms();
+    expect(t).not.toBeNull();
+    midTransforms.push(...t!);
+    if (i < 2) await a.waitForTimeout(60);
+  }
+  // `none` / the identity matrix: an active projection would carry a scale
+  // or an offset here.
+  expect(midTransforms.every((t) => t === "none" || t === "matrix(1, 0, 0, 1, 0, 0)")).toBe(true);
+
+  // The break landed in the doc (a newline in the run text, not a new
+  // block) and settled clean (no projection left armed behind).
+  const text = await a.evaluate(
+    (id) => {
+      const block = window.__paneDocs?.a?.getBlock(id);
+      return block?.content?.map((r) => r.text).join("") ?? null;
+    },
+    (await wrappers(a, "a").nth(0).getAttribute("data-block-id")) ?? ""
+  );
+  expect(text).toBe("hello\n");
+  await expect
+    .poll(
+      async () =>
+        await pane(a, "a").evaluate((root) => {
+          const group = root.querySelector("[data-docblocks-motion] > div");
+          if (group === null) return "no-group";
+          return Array.from(group.children)
+            .filter((c) => c instanceof HTMLElement)
+            .map((el) => el.style.transform)
+            .join(";");
+        }),
+      SETTLE
+    )
+    .toBe("none;none");
+
+  await close();
+});
+
 test("a gutter deletion disappears in both panes (the exit animation completes)", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03c-delete");
 
