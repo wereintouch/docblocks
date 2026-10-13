@@ -146,6 +146,42 @@ test("Tab indents the second paragraph under the first; one mod+z reverts it", a
   await close();
 });
 
+test("Tab re-seats the caret on the moved block (typing lands there; mod+z reverts without re-focus)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "c5c-reseat");
+
+  await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(2);
+  const root = await rootIds(a, "a");
+  const [firstId, secondId] = root;
+  const secondText = await textOf(a, "a", secondId);
+
+  // Caret at the text end (deterministic), then Tab: the structural move
+  // remounts the block, and the gesture re-seats the same offset on it.
+  await innerOf(a, "a", secondId).click();
+  await a.keyboard.press("End");
+  await a.keyboard.press("Tab");
+  await expect.poll(async () => childrenOf(a, "a", firstId), SETTLE).toEqual([secondId]);
+  await settled(a, "a", secondId);
+
+  // Typing lands in the moved (nested) block without any re-click, and
+  // reaches the other pane over the wire.
+  await a.keyboard.type("Z");
+  await expect.poll(async () => textOf(a, "a", secondId), SETTLE).toBe(secondText + "Z");
+  await expect.poll(async () => textOf(b, "b", secondId), SETTLE).toBe(secondText + "Z");
+
+  // The re-seated caret is inside the editor root, so the undo hotkey
+  // reaches the doc without re-focusing: one mod+z reverts the typed
+  // character, the next reverts the indent.
+  await a.keyboard.press("Control+z");
+  await expect.poll(async () => textOf(a, "a", secondId), SETTLE).toBe(secondText);
+  await a.keyboard.press("Control+z");
+  await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual([firstId, secondId]);
+  await expect(a.locator('[data-slot="docblocks/nested"]')).toHaveCount(0);
+
+  await close();
+});
+
 test("Shift+Tab outdents the indented paragraph back to the top level (after the parent)", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "c5c-outdent");
 

@@ -140,7 +140,7 @@ function sameAttrs(block: Block, command: SlashCommand): boolean {
  * remove + insert in place inside one transaction (the undo step), with
  * the caret moved to the new block.
  */
-function applyCommand(doc: Doc, command: SlashCommand, blockId: BlockId, parentId: BlockId): void {
+function applyCommand(doc: Doc, command: SlashCommand, blockId: BlockId, parentId: BlockId, scope: ParentNode): void {
   const current = doc.getBlock(blockId);
   // The triggering block vanished (a concurrent remote removal or an undo
   // with the menu open): nothing to convert.
@@ -152,7 +152,7 @@ function applyCommand(doc: Doc, command: SlashCommand, blockId: BlockId, parentI
     const after = index > 0 ? siblings[index - 1] : undefined;
     doc.removeBlock(blockId);
     const newId = insertCommand(doc, command, after === undefined ? undefined : { parent: parentId, after });
-    focusCaretIn(newId, 0);
+    focusCaretIn(newId, 0, scope);
   });
 }
 
@@ -207,9 +207,9 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       const command = items[index] ?? items[0];
       setState(null);
       if (command === undefined) return;
-      applyCommand(doc, command, s.blockId, s.parentId);
+      applyCommand(doc, command, s.blockId, s.parentId, rootRef.current ?? document);
     },
-    [doc]
+    [doc, rootRef]
   );
 
   /** The open-menu key handling (consumes the event; false otherwise). */

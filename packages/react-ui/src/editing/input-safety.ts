@@ -5,7 +5,14 @@ import type { BlockId, BlockType } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
-import { focusCaretIn, mergeWithPrevious, nestIntoPrevious, outdentFrom, splitAt } from "./block-commands";
+import {
+  focusCaretIn,
+  mergeWithPrevious,
+  nestIntoPrevious,
+  outdentFrom,
+  restoreSelectionIn,
+  splitAt,
+} from "./block-commands";
 import { applyRichPaste } from "./clipboard";
 import { handleCrossRangeKey } from "./cross-range-keys";
 import { caretOffsetIn, editorRootOf, restoreSelection } from "./dom-offset";
@@ -233,7 +240,7 @@ function useBlockInput({
           return;
         }
         const newId = splitAt(doc, id, context.parentId, offset);
-        if (newId !== null) focusCaretIn(newId, 0);
+        if (newId !== null) focusCaretIn(newId, 0, editorRootOf(inner));
         return;
       }
 
@@ -246,7 +253,7 @@ function useBlockInput({
         const merged = mergeWithPrevious(doc, id, context.parentId);
         if (merged === null) return;
         event.preventDefault();
-        focusCaretIn(merged.blockId, merged.offset);
+        focusCaretIn(merged.blockId, merged.offset, editorRootOf(inner));
         return;
       }
 
@@ -274,10 +281,37 @@ function useBlockInput({
           }
           return;
         }
+        // The DOM selection before the move: a structural gesture remounts
+        // the block's subtree, so the gesture's own selection (a caret, or
+        // a range within the block) is captured here and re-seated on the
+        // moved block (the content stands, so the offsets remain valid).
+        const domSelection = window.getSelection();
+        let seat: { from: number; to: number | null } | null = null;
+        if (
+          domSelection !== null &&
+          domSelection.rangeCount > 0 &&
+          domSelection.anchorNode !== null &&
+          domSelection.focusNode !== null &&
+          inner.contains(domSelection.anchorNode) &&
+          inner.contains(domSelection.focusNode)
+        ) {
+          const anchor = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
+          const focus = caretOffsetIn(inner, domSelection.focusNode, domSelection.focusOffset);
+          const from = Math.min(anchor, focus);
+          const to = Math.max(anchor, focus);
+          seat = { from, to: to === from ? null : to };
+        }
+        // The gesture's own inner element: the motion view's exit clone
+        // keeps this node connected while the remount adds the survivor,
+        // so the re-seat must not mistake the clone for the target.
+        const exclude = innerRef.current ?? null;
         const acted = event.shiftKey
           ? outdentFrom(doc, id, context.parentId)
           : nestIntoPrevious(doc, id, context.parentId);
-        if (acted) event.preventDefault();
+        if (acted) {
+          event.preventDefault();
+          if (seat !== null) restoreSelectionIn(doc, id, seat.from, seat.to, editorRootOf(inner), exclude);
+        }
       }
     },
     [blockType, context, declareLocalCaret, doc, id, innerRef, rootBlockId, selectionRef, slash, store, wrapperRef]

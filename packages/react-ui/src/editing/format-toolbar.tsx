@@ -5,6 +5,7 @@ import type { Block, BlockId, TextAlign } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock, useSelection } from "../hooks";
+import { restoreSelectionIn } from "./block-commands";
 import {
   TOOLBAR_BLOCK_TYPES,
   alignOfBlock,
@@ -224,8 +225,21 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const onListOption = (option: (typeof LIST_MENU_OPTIONS)[number]["option"]): void => {
     setListMenuOpen(false);
     if (range.kind !== "single") return;
+    // A list-type swap or a type change remounts the block's subtree (the
+    // wrapper tag swaps), so the DOM selection dies with it: the gesture's
+    // range is re-seated on the rebuilt block (the content stands, so the
+    // offsets remain valid).
+    const seat: { from: number; to: number } = { from: range.from, to: range.to };
+    // The gesture's own inner element: the motion view's exit clone keeps
+    // this node connected while the remount adds the survivor, so the
+    // re-seat must not mistake the clone for the target.
+    const exclude =
+      rootRef.current?.querySelector<HTMLElement>(
+        `[data-block-id="${range.blockId}"][data-slot="docblocks/block-content"]`
+      ) ?? null;
     if (option === "paragraph") {
       if (single.type !== "paragraph") doc.transact(() => doc.changeBlockType(range.blockId, "paragraph"));
+      restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
       return;
     }
     const currentList = single.type === "list-item" ? single.attrs.list : null;
@@ -234,6 +248,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       if (single.type === "list-item") doc.updateBlock(range.blockId, { list: option });
       else doc.changeBlockType(range.blockId, "list-item", { list: option });
     });
+    restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
   };
 
   const markActive = (mark: FormatMark): boolean =>

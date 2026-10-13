@@ -116,10 +116,9 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   expect(blockB?.attrs).toMatchObject({ list: "number" });
 
   // One undo step restores the paragraph (the change was one command).
-  // The type change swapped the wrapper tag (div -> li), so the focused
-  // editable was unmounted: refocus the block before the hotkey (the
-  // hotkey scope is the editor root).
-  await pane(a, "a").locator('ol li [data-slot="docblocks/block-content"]').first().click();
+  // The type change swapped the wrapper tag (div -> li) and remounted the
+  // block: the gesture re-seats the selection on the rebuilt block, so the
+  // undo hotkey reaches the doc without a re-focus.
   await a.keyboard.press("Control+z");
   expect((await blockOf(a, "a", id))?.type).toBe("paragraph");
   await expect(pane(a, "a").locator("ol")).toHaveCount(0, SETTLE);

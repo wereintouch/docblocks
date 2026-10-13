@@ -212,7 +212,7 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
         }
         return;
       }
-      focusCaretIn(target.id, event.key === "ArrowUp" ? target.length : 0);
+      focusCaretIn(target.id, event.key === "ArrowUp" ? target.length : 0, editorRootOf(focusBlock));
     },
     [blockType, context, doc, id, innerRef, selectionRef]
   );
