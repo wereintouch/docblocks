@@ -1,0 +1,67 @@
+/*
+ * Style entry for the design system primitives (src/shared/ui) — compiled
+ * at package build time into dist/ui.css (the `tailwindcss` CLI step in
+ * package.json) and shipped as the `./ui.css` subpath. Consumers import it
+ * alongside styles.css; no Tailwind tooling is needed on the consumer side.
+ *
+ * What the output contains:
+ * - Tailwind's layered theme + base (preflight) + the utilities the
+ *   package's source actually uses. Unlayered consumer CSS — including
+ *   styles.css, which owns the editor area — always wins over the base
+ *   layer.
+ * - The enter/exit animation utilities the primitives use (tw-animate-css).
+ * - The standard (shadcn) token seed (theme.css), inlined: one import
+ *   provides the token values (light + the `.dark` flip) and the utility
+ *   set.
+ * - The `dark:` variant follows the `dark` class (any ancestor), not the
+ *   prefers-color-scheme media.
+ *
+ * The primitives also reference the consumer-side `z-modal` stacking
+ * utility: the consumer defines it (for example
+ * `@utility z-modal { z-index: var(--z-modal) }`); without it the portal
+ * content simply carries no z-index.
+ *
+ * The `@theme inline` block maps the utility namespaces (color, radius,
+ * font) to the standard tokens at the use site: the compiled utilities
+ * reference `var(--…)` directly, so the editor-root mapping and the
+ * `.dark` flip are honored, and no theme variables are self-emitted.
+ *
+ * Source detection is pinned to this package's src (auto-detection off via
+ * source(none)): the build never scans outside the package, and classes
+ * added anywhere in src are picked up on the next build.
+ */
+@import "tailwindcss" source(none);
+@import "tw-animate-css";
+@import "./theme.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-xs: calc(var(--radius) - 6px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+}
+
+@source "./src";

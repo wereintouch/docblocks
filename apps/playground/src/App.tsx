@@ -1,3 +1,4 @@
+import { DsPanel } from "./DsPanel";
 import { SyncPane } from "./SyncPane";
 
 /** The in-process dev relay (see vite.config.ts). */
@@ -15,7 +16,10 @@ const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
  * empty seed; `?canvas=1` seeds the canvas demo (the page + a surface with
  * shapes, a canvas text, and a connector — see canvas-seed.ts) and starts
  * in the canvas view; `?cycle=1` seeds the pane's master doc with a sync-embed
- * referencing the outer doc (the cycle-guard e2e case). Each pane renders
+ * referencing the outer doc (the cycle-guard e2e case); `?ds=1` renders the
+ * design system preview instead of a pane (DsPanel.tsx — the shared/ui
+ * primitives outside any editor root, the visual gate for the compiled
+ * utility CSS, no relay/doc involved). Each pane renders
  * the two-pane layout: the editor (page or canvas) on the left and the
  * system panel (status, the relay's per-room chaos controls, the live
  * JSON / wire / presence inspectors) on the right.
@@ -27,6 +31,8 @@ function App() {
   const syncUrl = params.get("syncUrl") ?? (canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
   const catalog = params.get("catalog") === "1";
   const cycle = params.get("cycle") === "1";
+  const ds = params.get("ds") === "1";
+  if (ds) return <DsPanel />;
   return <SyncPane client={client} syncUrl={syncUrl} catalog={catalog} canvas={canvas} cycle={cycle} />;
 }
 

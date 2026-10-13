@@ -60,13 +60,14 @@ test("structurally inserted blocks render in the other pane", async ({ browser }
     .poll(async () => pre.first().evaluate((el) => getComputedStyle(el).fontFamily), SETTLE)
     .toContain("mono");
 
-  // Table: 2 rows x 2 cells; the cell border comes from the token.
+  // Table: 2 rows x 2 cells; the cell border comes from the token (the
+  // inlined standard seed is the harness default — the seeded border value).
   const cells = doc.locator("td[data-slot='docblocks/table-cell']");
   await expect(cells, SETTLE).toHaveCount(4);
   await expect(doc.locator("tr"), SETTLE).toHaveCount(2);
   await expect
     .poll(async () => cells.first().evaluate((el) => getComputedStyle(el).borderTopColor), SETTLE)
-    .toBe("rgba(175, 184, 193, 0.4)");
+    .toBe("oklch(0.922 0 0)");
 
   // Divider and image (the src resolved from the harness's blob map).
   await expect(doc.locator('hr[data-slot="docblocks/divider"]'), SETTLE).toHaveCount(1);

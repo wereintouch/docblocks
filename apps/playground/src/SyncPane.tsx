@@ -262,8 +262,11 @@ function SyncPane({
           background: "#f6f8fa",
         }
       : // The page flow keeps the visual-golden editor width (702: the doc area's
-        // content width the goldens were captured at).
-        { width: 702, maxWidth: "100%", border: "1px solid #ccc", padding: 8, minHeight: 40 };
+        // content width the goldens were captured at). The width is 720 because
+        // the shipped utility CSS puts box-sizing: border-box on every element
+        // (the preflight in ui.css's base layer): 702 content + 2x1 border +
+        // 2x8 padding.
+        { width: 720, maxWidth: "100%", border: "1px solid #ccc", padding: 8, minHeight: 40 };
 
   // main must stay content-height (a viewport-pinned fixed height makes
   // Chrome swallow the default Home/End caret moves inside the nested
