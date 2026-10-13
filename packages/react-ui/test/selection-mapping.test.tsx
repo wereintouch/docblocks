@@ -243,4 +243,46 @@ describe("DOM selection mapping (cross-block ranges)", () => {
     const mapped = mapDomSelection(rootOf(), window.getSelection(), doc);
     expect(mapped).toEqual({ kind: "none" });
   });
+
+  it("resolves a non-text endpoint over a nested editor to the nearest own-scope block", () => {
+    let p1: BlockId = "";
+    let divider: BlockId = "";
+    const doc = renderDoc((d) => {
+      p1 = d.insertBlock("paragraph");
+      d.insertText(p1, 0, "alpha");
+      divider = d.insertBlock("divider");
+    });
+
+    // A nested sync-embed editor between the paragraph and the divider,
+    // rendering a foreign doc's text block.
+    const nested = document.createElement("div");
+    nested.setAttribute("data-slot", "docblocks/editor");
+    const foreign = document.createElement("div");
+    foreign.setAttribute("data-block-id", "foreign-1");
+    foreign.setAttribute("contenteditable", "true");
+    foreign.textContent = "master text";
+    nested.appendChild(foreign);
+    wrapperOf(divider).before(nested);
+
+    // The range spans from the paragraph into the divider (a non-text
+    // endpoint) over the nested editor.
+    const range = document.createRange();
+    range.setStart(textNodeOf(p1), 1);
+    range.setEnd(wrapperOf(divider), 0);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    const mapped = mapDomSelection(rootOf(), selection, doc);
+    expect(mapped).toEqual({
+      kind: "text",
+      from: { blockId: p1, offset: 1 },
+      to: { blockId: p1, offset: 5 },
+    });
+    // The foreign block id must never reach the engine (its selection view
+    // rejects the unknown id).
+    expect(JSON.stringify(mapped)).not.toContain("foreign-1");
+    const view = createSelection(doc);
+    expect(() => view.set(mapped)).not.toThrow();
+  });
 });

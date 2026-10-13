@@ -83,7 +83,14 @@ function useBlockInput({
             doc.insertText(result.blockId, result.offset, text);
             length = text.length;
           }
-          if (length > 0) focusCaretIn(result.blockId, result.offset + length);
+          if (length > 0) {
+            // Scope the caret seat to this editor's root: the seam block id
+            // also exists in the other panes' editors (same doc), and an
+            // unscoped document query would seat the caret in the first
+            // match in document order.
+            const root = innerRef.current?.closest('[data-slot="docblocks/editor"]') ?? document;
+            focusCaretIn(result.blockId, result.offset + length, root);
+          }
           return;
         }
       }

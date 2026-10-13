@@ -172,10 +172,17 @@ function rangeTouchesTextBlock(root: HTMLElement, range: Range): boolean {
   return false;
 }
 
-/** The text-editable blocks of the editor (contenteditable [data-block-id]), in DOM order. */
+/**
+ * The text-editable blocks of the editor's OWN scope (contenteditable
+ * [data-block-id], in DOM order). Blocks of a nested editor (a sync-embed
+ * rendering another doc) are excluded: a boundary resolved to a foreign
+ * block id would not exist in this doc's `doc`, so the mapping must never
+ * consider them (compare the `ownScopeOf` endpoint guard in
+ * `mapDomSelection`).
+ */
 function textBlockElementsIn(root: HTMLElement): HTMLElement[] {
-  return Array.from(root.querySelectorAll<HTMLElement>("[data-block-id]")).filter((element) =>
-    isTextBlockElement(element)
+  return Array.from(root.querySelectorAll<HTMLElement>("[data-block-id]")).filter(
+    (element) => isTextBlockElement(element) && ownScopeOf(element, root)
   );
 }
 

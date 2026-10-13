@@ -18,9 +18,11 @@ import { syncDomSelection } from "./selection-mapping";
  * browser (Tab/Shift+Tab are consumed as no-ops — the block gesture needs a
  * collapsed caret and must not re-parent the anchor block; the arrows
  * collapse the range to a caret, and the selectionchange mapping then
- * updates the view). The shift arrows / home / end never reach the browser
- * (a native extension acts on the anchor's editable and would retract the
- * range); at the range's edge they stand as a suppressed no-op. `root`
+ * updates the view). The horizontal shift arrows / home / end never reach
+ * the browser (a native extension acts on the anchor's editable and would
+ * retract the range); at the range's edge they stand as a suppressed
+ * no-op. The vertical shift arrows pass through (the native within-block
+ * extension is the browser's; the remap reconciles the view). `root`
  * scopes the gesture-time view sync (the
  * browser does not dispatch selectionchange for the re-based selection).
  */
