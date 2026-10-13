@@ -1,7 +1,9 @@
 import { useEffect, useRef } from "react";
-import type { KeyboardEvent, RefObject } from "react";
+import type { ClipboardEvent, KeyboardEvent, PointerEvent, RefObject } from "react";
 
 import { useEditorContext } from "../EditorProvider";
+import { crossRangeClipboardContent } from "./cross-copy";
+import { useCrossDrag } from "./cross-drag";
 import { mapDomSelection, selectionsEqual } from "./selection-mapping";
 
 interface EditingHandle {
@@ -9,13 +11,18 @@ interface EditingHandle {
   rootRef: RefObject<HTMLDivElement | null>;
   /** The undo/redo hotkeys; attach to the editor root element. */
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
+  /** The cross-range copy payload; attach to the editor root element. */
+  onCopy: (event: ClipboardEvent<HTMLDivElement>) => void;
+  /** The cross-drag selection session; attach the pointerdown to the editor root element. */
+  onPointerDown: (event: PointerEvent<HTMLDivElement>) => void;
 }
 
 /**
  * Document-level wiring owned by the editor root: `selectionchange` maps
- * the DOM selection to the core Selection view, and the mod+z /
- * mod+shift+z / mod+y hotkeys drive doc.undo()/doc.redo() (the keydown
- * listener lives on the root, so they never fire outside the editor).
+ * the DOM selection to the core Selection view, the mod+z / mod+shift+z /
+ * mod+y hotkeys drive doc.undo()/doc.redo(), and the copy event carries
+ * the cross-range payload (the keydown and copy listeners live on the
+ * root, so they never fire outside the editor).
  *
  * The selection view is read at event time through the stable context
  * handle: the view becomes live when the provider's mount effect runs,
@@ -25,6 +32,7 @@ interface EditingHandle {
 function useEditing(): EditingHandle {
   const { doc, selection: selectionRef } = useEditorContext();
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const crossDrag = useCrossDrag(rootRef, doc);
 
   useEffect(() => {
     const onSelectionChange = () => {
@@ -59,7 +67,28 @@ function useEditing(): EditingHandle {
     }
   };
 
-  return { rootRef, onKeyDown };
+  const onCopy = (event: ClipboardEvent<HTMLDivElement>) => {
+    // A copy from a nested editor (a sync-embed) bubbles up to this root;
+    // that editor's own copy handler owns its payload.
+    const root = rootRef.current;
+    const view = selectionRef.view;
+    if (root === null || view === null) return;
+    const target = event.target instanceof Element ? event.target : null;
+    const nearest = target?.closest('[data-slot="docblocks/editor"]') ?? null;
+    if (nearest !== null && nearest !== root) return;
+    // The browser cannot copy a selection across a contenteditable
+    // boundary: a cross-block range is serialized from the doc (the
+    // covered segment of each chain block); same-block copies keep the
+    // default copy.
+    const selection = view.get();
+    const payload = crossRangeClipboardContent(doc, selection);
+    if (payload === null) return;
+    event.preventDefault();
+    event.clipboardData.setData("text/plain", payload.text);
+    event.clipboardData.setData("text/html", payload.html);
+  };
+
+  return { rootRef, onKeyDown, onCopy, ...crossDrag };
 }
 
 export { useEditing };

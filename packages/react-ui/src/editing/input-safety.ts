@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import type { ClipboardEvent, KeyboardEvent, RefObject } from "react";
 
-import type { BlockId, BlockType } from "docblocks-core";
+import type { BlockId, BlockType, TextPoint } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
@@ -73,30 +73,39 @@ function useBlockInput({
       const text = event.clipboardData.getData("text/plain");
 
       // A cross-block range: the range is deleted as text and the paste
-      // content lands at the seam. The pipeline is single-block-targeted
-      // (reused as-is: the insert is an empty region at the seam), so a
-      // cross paste is two undo steps — the delete, then the insert. A
+      // content lands at the seam — one transaction (one undo step, one
+      // wire update), the single-block insert pipeline reused as-is. A
       // fully deleted range leaves no seam: the data is dropped (the v1
       // edge).
       const view = selectionRef.view;
       if (view !== null) {
         const selection = view.get();
         if (selection.kind === "text" && selection.to !== null && selection.to.blockId !== selection.from.blockId) {
-          const result = doc.deleteTextRange(selection.from, selection.to);
-          if (result === null) return;
-          let length = 0;
-          if (html !== "") length = applyRichPaste(doc, result.blockId, result.offset, result.offset, html);
-          else if (text !== "") {
-            doc.insertText(result.blockId, result.offset, text);
-            length = text.length;
-          }
-          if (length > 0) {
+          // The const locals keep the narrowing inside the transact closure
+          // (a property narrowing does not persist past the arrow).
+          const from = selection.from;
+          const to = selection.to;
+          // The seam outlives the transact via a property (a closure-
+          // assigned variable is not flow-narrowed past the call).
+          const seam: { point: TextPoint | null; length: number } = { point: null, length: 0 };
+          doc.transact(() => {
+            const deleted = doc.deleteTextRange(from, to);
+            if (deleted === null) return;
+            if (html !== "") seam.length = applyRichPaste(doc, deleted.blockId, deleted.offset, deleted.offset, html);
+            else if (text !== "") {
+              doc.insertText(deleted.blockId, deleted.offset, text);
+              seam.length = text.length;
+            }
+            seam.point = deleted;
+          });
+          if (seam.point === null) return;
+          if (seam.length > 0) {
             // Scope the caret seat to this editor's root: the seam block id
             // also exists in the other panes' editors (same doc), and an
             // unscoped document query would seat the caret in the first
             // match in document order.
             const root = innerRef.current?.closest('[data-slot="docblocks/editor"]') ?? document;
-            focusCaretIn(result.blockId, result.offset + length, root);
+            focusCaretIn(seam.point.blockId, seam.point.offset + seam.length, root);
           }
           return;
         }

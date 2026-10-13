@@ -42,12 +42,20 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
   const { store, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
-  const { rootRef, onKeyDown } = useEditing();
+  const { rootRef, onKeyDown, onCopy, onPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
 
   return (
-    <div ref={rootRef} data-slot="docblocks/editor" data-view={view} tabIndex={-1} onKeyDown={onKeyDown}>
+    <div
+      ref={rootRef}
+      data-slot="docblocks/editor"
+      data-view={view}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      onCopy={onCopy}
+      onPointerDown={onPointerDown}
+    >
       <SlashMenuContext.Provider value={slash.api}>
         <BlockContext.Provider value={rootContext}>
           {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}

@@ -112,9 +112,12 @@ test("typing in the code block re-renders the diagram in both panes", async ({ b
 
   // The seed is "graph TD\n A --> B": appending " --> C" on the last line
   // chains a third node into the diagram (a single-line continuation —
-  // Enter would split the block, not add a line).
+  // Enter would split the block, not add a line). The click seats on the
+  // last line explicitly (a center click of a two-line block stands on
+  // the line boundary and resolves to the first line).
   const inner = blockA.locator('[data-slot="docblocks/block-content"]');
-  await inner.click();
+  const box = (await inner.boundingBox())!;
+  await a.mouse.click(box.x + 20, box.y + box.height - 6);
   await a.keyboard.press("End");
   await a.keyboard.type(" --> C");
 

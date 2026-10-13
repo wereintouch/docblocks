@@ -111,6 +111,10 @@ async function twoPanes(browser: Browser, seed: string): Promise<{ a: Page; b: P
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
+  // The paste test seeds and reads the OS clipboard (headless Chromium
+  // does not write it from a keyboard copy).
+  await contextA.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await contextB.grantPermissions(["clipboard-read", "clipboard-write"]);
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await openPane(a, "a", room);
@@ -317,5 +321,198 @@ test("an arrow key from the cross range collapses it to a caret", async ({ brows
 
   // The doc is untouched.
   expect(await blocksOf(a, "a")).toEqual(blocks);
+  await close();
+});
+
+test("a cross paste replaces the range at the seam (one undo step)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "c5d-cross-paste");
+  await typeTwoBlocks(a, "a");
+  const blocks = await blocksOf(a, "a");
+  const [first, second] = [blocks[0]!, blocks[1]!];
+
+  // Seed the OS clipboard with the payload (headless Chromium does not
+  // write it from a keyboard copy, so the copy side is simulated; the
+  // paste side reads the real clipboard).
+  await a.evaluate(async () => {
+    await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob(["XY"], { type: "text/plain" }) })]);
+  });
+
+  // Compose the cross range with partial endpoints: (block 1, 0) to
+  // (block 2, 5) — both blocks survive the replace with their outside
+  // parts.
+  await selectAcrossBlocks(a, "a", 5, 1, false);
+  const sel = await domSelection(a);
+  expect(sel!.startBlock).toBe(first.id);
+  expect(sel!.endBlock).toBe(second.id);
+
+  // Read the real clipboard and dispatch a paste event to the focused
+  // inner (headless Chromium does not synthesize the event from Control+v).
+  await a.evaluate(async () => {
+    let plain: string | null = null;
+    for (const item of await navigator.clipboard.read()) {
+      if (item.types.includes("text/plain")) plain = await (await item.getType("text/plain")).text();
+    }
+    if (plain === null) throw new Error("the clipboard should carry plain text");
+    const target = document.activeElement;
+    if (!(target instanceof HTMLElement)) throw new Error("the paste target should be focused");
+    const transfer = new DataTransfer();
+    transfer.setData("text/plain", plain);
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: transfer });
+    target.dispatchEvent(event);
+  });
+
+  // The range starts at block 1's start: block 1 is fully covered and
+  // removed; the seam is (block 2, 0), so the paste lands at block 2's
+  // start and block 2 keeps its tail from the range end.
+  await expect.poll(async () => blockOf(a, "a", first.id), SETTLE).toBeNull();
+  await expect
+    .poll(async () => (await blockOf(a, "a", second.id))?.content?.map((run) => run.text).join(""), SETTLE)
+    .toBe("XY" + second.text.slice(sel!.endOffset));
+
+  // The other pane sees the replace over the wire.
+  await expect
+    .poll(async () => (await blockOf(b, "b", second.id))?.content?.map((run) => run.text).join(""), SETTLE)
+    .toBe("XY" + second.text.slice(sel!.endOffset));
+
+  // The seam caret is seated on the next frame (the replace removed the
+  // block the focus sat in) — settle it before the undo hotkey, which the
+  // editor root receives by bubbling from the focus.
+  await expect
+    .poll(
+      async () => a.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("data-block-id") ?? ""),
+      SETTLE
+    )
+    .toBe(second.id);
+
+  // ONE undo step restores the whole replace (delete + insert were one
+  // transaction); redo re-applies it.
+  await a.keyboard.press("Control+z");
+  expect((await blockOf(a, "a", first.id))?.content?.map((run) => run.text).join("")).toBe(first.text);
+  expect((await blockOf(a, "a", second.id))?.content?.map((run) => run.text).join("")).toBe(second.text);
+  await a.keyboard.press("Control+Shift+z");
+  expect(await blockOf(a, "a", first.id)).toBeNull();
+  expect((await blockOf(a, "a", second.id))?.content?.map((run) => run.text).join("")).toBe(
+    "XY" + second.text.slice(sel!.endOffset)
+  );
+  await close();
+});
+
+test("a cross copy serializes the range from the doc (the default copy cannot cross the boundary)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "c5d-cross-copy");
+  await typeTwoBlocks(a, "a");
+  const blocks = await blocksOf(a, "a");
+  const [first, second] = [blocks[0]!, blocks[1]!];
+
+  // Mark block 1's head so the payload carries a mark tag.
+  await a.evaluate((id) => window.__paneDocs?.a?.setMark(id, 0, 5, { type: "bold" }), first.id);
+
+  // (block 1, 0) to (block 2, 5): block 1 is fully covered, block 2 is
+  // cut after its head.
+  await selectAcrossBlocks(a, "a", 5, 1, false);
+  const sel = await domSelection(a);
+  expect(sel!.startBlock).toBe(first.id);
+  expect(sel!.endBlock).toBe(second.id);
+
+  // Dispatch a copy event on the focused inner and read what the editor
+  // put on the clipboard (headless Chromium does not run the default copy
+  // for a cross-boundary selection, and the copy side is simulated per
+  // the clipboard spec's convention).
+  const data = await a.evaluate(() => {
+    const target = document.activeElement;
+    if (!(target instanceof HTMLElement)) throw new Error("the copy target should be focused");
+    const transfer = new DataTransfer();
+    const event = new Event("copy", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: transfer });
+    target.dispatchEvent(event);
+    return {
+      prevented: event.defaultPrevented,
+      text: transfer.getData("text/plain"),
+      html: transfer.getData("text/html"),
+    };
+  });
+
+  expect(data.prevented).toBe(true);
+  expect(data.text).toBe("hello world\n" + second.text.slice(0, sel!.endOffset));
+  expect(data.html).toBe(`<div><strong>hello</strong> world</div><div>${second.text.slice(0, sel!.endOffset)}</div>`);
+  await close();
+});
+
+/**
+ * Drag the pointer from a point inside block 1 (a few px in) to a point
+ * inside block 2 (a few px in) with a real mouse: the browser's own drag
+ * cannot cross the contenteditable boundary, so the editor takes the
+ * selection over once the pointer leaves the anchor block.
+ */
+async function dragAcrossBlocks(page: Page, client: "a" | "b"): Promise<void> {
+  const first = (await inners(page, client).nth(0).boundingBox())!;
+  const second = (await inners(page, client).nth(1).boundingBox())!;
+  await page.mouse.move(first.x + 6, first.y + first.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(second.x + 6, second.y + second.height / 2, { steps: 8 });
+}
+
+test("a mouse drag composes the cross selection (and the in-block drag stands)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "c5d-cross-drag");
+  await typeTwoBlocks(a, "a");
+  const blocks = await blocksOf(a, "a");
+  const [first, second] = [blocks[0]!, blocks[1]!];
+
+  // Cross drag: the selection stands across the boundary mid-drag and
+  // keeps standing after the release (the editor re-seats it over the
+  // suppressed browser seat).
+  await dragAcrossBlocks(a, "a");
+  const during = await domSelection(a);
+  expect(during!.startBlock).toBe(first.id);
+  expect(during!.endBlock).toBe(second.id);
+  await a.mouse.up();
+  const after = await domSelection(a)!;
+  expect(after.startBlock).toBe(first.id);
+  expect(after.endBlock).toBe(second.id);
+  // The toolbar stands over the cross range, and the document focus stands
+  // inside the editor (on the base's block — setBaseAndExtent moves the
+  // document focus to the base's editable; the keys bubble to the root
+  // handlers regardless of the focused block).
+  await expect(toolbar(a, "a")).toBeVisible();
+  const activeBlock = await a.evaluate(
+    () => document.activeElement?.closest?.("[data-block-id]")?.getAttribute("data-block-id") ?? ""
+  );
+  expect([first.id, second.id]).toContain(activeBlock);
+
+  // The delete of the dragged range removes the covered text over the
+  // wire: the endpoint blocks keep their uncovered parts (block 1 the
+  // head before the drag start, block 2 the tail after the drag end),
+  // nothing in between (there is nothing in between).
+  const [firstText, secondText] = [first.text, second.text];
+  await a.keyboard.press("Delete");
+  await expect
+    .poll(async () => {
+      const texts = (await blocksOf(b, "b")).map((t) => t.text);
+      return (
+        JSON.stringify(texts) ===
+        JSON.stringify([firstText.slice(0, during!.startOffset), secondText.slice(during!.endOffset)])
+      );
+    }, SETTLE)
+    .toBe(true);
+  expect((await blockOf(a, "a", first.id))?.content?.map((run) => run.text).join("")).toBe(
+    firstText.slice(0, during!.startOffset)
+  );
+
+  // An in-block-only drag leaves a plain in-block range (no cross takeover).
+  const innersA = inners(a, "a");
+  const box = (await innersA.nth(0).boundingBox())!;
+  await a.mouse.move(box.x + 4, box.y + box.height / 2);
+  await a.mouse.down();
+  await a.mouse.move(box.x + 30, box.y + box.height / 2, { steps: 5 });
+  const inBlock = await domSelection(a)!;
+  expect(inBlock.startBlock).toBe(inBlock.endBlock);
+  await a.mouse.up();
+
+  // A click without a drag seats the caret: typing lands where it stands.
+  await innersA.nth(0).click();
+  await a.keyboard.type("Z");
+  expect((await blockOf(a, "a", first.id))?.content?.map((run) => run.text).join("")).toContain("Z");
   await close();
 });
