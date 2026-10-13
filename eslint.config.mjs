@@ -162,7 +162,14 @@ const boundariesPlugin = {
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
-    ignores: ["**/dist/**", "test-results/**", "playwright-report/**", "coverage/**", ".scratch-editor-spec/**"],
+    ignores: [
+      "**/dist/**",
+      "test-results/**",
+      "playwright-report/**",
+      "coverage/**",
+      ".scratch-editor-spec/**",
+      ".scratch-probes/**",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

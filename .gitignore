@@ -16,3 +16,4 @@ TODO.md
 
 # agent tooling (playwright mcp scratch)
 .playwright-mcp/
+.scratch-probes/
