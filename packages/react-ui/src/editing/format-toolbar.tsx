@@ -1,10 +1,38 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties, ReactNode, RefObject } from "react";
+import type { ComponentType, ReactNode, RefObject, SVGProps } from "react";
 
 import type { Block, BlockId, TextAlign } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock, useSelection } from "../hooks";
+import { Button } from "../shared/ui/Button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "../shared/ui/DropdownMenu";
+import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
+import { Separator } from "../shared/ui/Separator";
+import { cn } from "../shared/ui/cn";
+import {
+  Baseline,
+  Bold,
+  CodeXml,
+  Dot,
+  Italic,
+  ListOrdered,
+  Menu as MenuIcon,
+  Pilcrow,
+  SquareCheck,
+  Strikethrough,
+  TextAlignCenter,
+  TextAlignEnd,
+  TextAlignStart,
+  Underline,
+  X,
+} from "../shared/ui/icons";
 import { restoreSelectionIn } from "./block-commands";
 import {
   TOOLBAR_BLOCK_TYPES,
@@ -35,52 +63,61 @@ import { type FormatMark, markToggleAction } from "./keyboard";
  * target, or becomes a blocks selection — the visibility is derived from
  * the selection state, so no key or mouse capture is needed.
  *
- * Controls: the five toggle marks (bold, monospace = the exclusive code
- * mark, italic, underline, strikethrough); the three text alignments, a
- * block attr applied with updateBlock (set-only: updateBlock never removes
- * attrs, so "left" is how the default is restored); the highlight control —
- * a palette popover with a target switch (the text `color` mark vs the
- * background `highlight` mark) and a color palette (the default six,
- * overridable through the editor's `formatPalette` prop) plus a clear
- * entry; and the list-type menu (single-block targets only — for paragraph,
- * heading, and list-item blocks) — a popover that turns the block into a
- * bullet/numbered/to-do list (a list-item swap is a `list` attr update; any
- * other target is a changeBlockType) or into a paragraph (the "Text" option
- * is disabled for a list item with children: the core rejects a container
- * becoming a leaf while it has children). A cross-block range applies the
- * mark actions over the range's per-block segments (the align per chain
- * block) and hides the list-type menu. A mark button is active when every
- * run of the range carries the mark; a swatch is active when the whole
- * range is uniformly marked with that value (a highlight without a value
- * counts as the empty value). Every action is doc command(s) inside one
- * transaction (one undo step, one wire update).
+ * Controls (shared/ui primitives): the five toggle marks (bold, monospace =
+ * the exclusive code mark, italic, underline, strikethrough) and the three
+ * text alignments as ghost icon buttons; the alignment is a block attr
+ * applied with updateBlock (set-only: updateBlock never removes attrs, so
+ * "left" is how the default is restored). The list-type menu (single-block
+ * paragraph/heading/list-item targets only) is a non-modal dropdown — a
+ * radio group that turns the block into a bullet/numbered/to-do list (a
+ * list-item swap is a `list` attr update; any other target is a
+ * changeBlockType) or into a paragraph ("Text" is disabled for a list item
+ * with children: the core rejects a container becoming a leaf while it has
+ * children). The highlight control is a non-modal popover with a target
+ * switch (the text `color` mark vs the background `highlight` mark) and a
+ * color palette (the default six, overridable through the editor's
+ * `formatPalette` prop) plus a clear entry. The popovers are portaled to
+ * the document body (radix) and — like the bar — suppress the default
+ * mousedown so the editor's text selection stays alive while a swatch or
+ * option is picked; outside dismiss (pointer and focus) is suppressed the
+ * same way the bar is not dismissed by its own buttons (the selection
+ * state owns the visibility). A cross-block range applies the mark actions
+ * over the range's per-block segments (the align per chain block) and hides
+ * the list-type menu. A mark button is active when every run of the range
+ * carries the mark; a swatch is active when the whole range is uniformly
+ * marked with that value (a highlight without a value counts as the empty
+ * value). Every action is doc command(s) inside one transaction (one undo
+ * step, one wire update).
  */
+
+/** A 24px-stroke icon component (the package icon set). */
+type ToolbarIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
 /** The default format palette (a consumer can pass its own through the editor prop). */
 const FORMAT_PALETTE: readonly string[] = ["#71717a", "#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
 /** The list-type menu options, in display order ("paragraph" = turn into text). */
-const LIST_MENU_OPTIONS: { option: "bullet" | "number" | "task" | "paragraph"; label: string; glyph: string }[] = [
-  { option: "bullet", label: "Bullet list", glyph: "\u2022" },
-  { option: "number", label: "Numbered list", glyph: "1." },
-  { option: "task", label: "To-do list", glyph: "\u2610" },
-  { option: "paragraph", label: "Text", glyph: "\u00B6" },
+const LIST_MENU_OPTIONS: { option: "bullet" | "number" | "task" | "paragraph"; label: string; icon: ToolbarIcon }[] = [
+  { option: "bullet", label: "Bullet list", icon: Dot },
+  { option: "number", label: "Numbered list", icon: ListOrdered },
+  { option: "task", label: "To-do list", icon: SquareCheck },
+  { option: "paragraph", label: "Text", icon: Pilcrow },
 ];
 
 /** The toggle mark buttons, in display order. */
-const TOOLBAR_MARKS: { mark: FormatMark; label: string; title: string; style: CSSProperties }[] = [
-  { mark: "bold", label: "B", title: "Bold", style: { fontWeight: 700 } },
-  { mark: "code", label: "</>", title: "Monospace", style: { fontFamily: "monospace", fontSize: "0.9em" } },
-  { mark: "italic", label: "I", title: "Italic", style: { fontStyle: "italic" } },
-  { mark: "underline", label: "U", title: "Underline", style: { textDecoration: "underline" } },
-  { mark: "strike", label: "S", title: "Strikethrough", style: { textDecoration: "line-through" } },
+const TOOLBAR_MARKS: { mark: FormatMark; title: string; icon: ToolbarIcon }[] = [
+  { mark: "bold", title: "Bold", icon: Bold },
+  { mark: "code", title: "Monospace", icon: CodeXml },
+  { mark: "italic", title: "Italic", icon: Italic },
+  { mark: "underline", title: "Underline", icon: Underline },
+  { mark: "strike", title: "Strikethrough", icon: Strikethrough },
 ];
 
 /** The alignment buttons, in display order. */
-const TOOLBAR_ALIGNS: { align: TextAlign; label: string; title: string }[] = [
-  { align: "left", label: "L", title: "Align left" },
-  { align: "center", label: "C", title: "Align center" },
-  { align: "right", label: "R", title: "Align right" },
+const TOOLBAR_ALIGNS: { align: TextAlign; title: string; icon: ToolbarIcon }[] = [
+  { align: "left", title: "Align left", icon: TextAlignStart },
+  { align: "center", title: "Align center", icon: TextAlignCenter },
+  { align: "right", title: "Align right", icon: TextAlignEnd },
 ];
 
 /** The palette target: which mark the picked color is applied to. */
@@ -264,6 +301,16 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       ? uniformMarkValueRange(doc, range.cross, target) === value
       : uniformMarkValue(single, range.from, range.to, target) === value;
 
+  // The list-type radio state (single-block eligible targets only — the
+  // menu renders for paragraph, heading, and list-item blocks; the
+  // cross-block target never renders it and has no `single` block).
+  const listValue =
+    block !== undefined && block.type === "list-item"
+      ? block.attrs.list
+      : block !== undefined && block.type === "paragraph"
+        ? "paragraph"
+        : "";
+
   return (
     <div
       data-slot="docblocks/format-toolbar"
@@ -274,147 +321,161 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       // into the bar and dismiss the toolbar (the selection maps to none).
       onMouseDown={(event) => event.preventDefault()}
     >
-      {TOOLBAR_MARKS.map(({ mark, label, title, style }) => (
-        <button
+      {TOOLBAR_MARKS.map(({ mark, title, icon: Icon }) => (
+        <Button
           key={mark}
-          type="button"
+          variant="ghost"
+          size="icon"
           data-mark={mark}
           title={title}
           aria-label={title}
           aria-pressed={markActive(mark)}
-          style={style}
+          className={cn(markActive(mark) && "bg-accent text-accent-foreground")}
           onClick={() => onToggleMark(mark)}
         >
-          {label}
-        </button>
+          <Icon className="size-4" />
+        </Button>
       ))}
-      <span data-slot="docblocks/format-separator" aria-hidden="true" />
-      {TOOLBAR_ALIGNS.map(({ align, label, title }) => (
-        <button
+      <Separator orientation="vertical" className="h-5" />
+      {TOOLBAR_ALIGNS.map(({ align, title, icon: Icon }) => (
+        <Button
           key={align}
-          type="button"
+          variant="ghost"
+          size="icon"
           data-align-btn={align}
           title={title}
           aria-label={title}
           aria-pressed={alignActive(align)}
+          className={cn(alignActive(align) && "bg-accent text-accent-foreground")}
           onClick={() => onAlign(align)}
         >
-          {label}
-        </button>
+          <Icon className="size-4" />
+        </Button>
       ))}
       {!cross && (single.type === "paragraph" || single.type === "heading" || single.type === "list-item") && (
         <>
-          <span data-slot="docblocks/format-separator" aria-hidden="true" />
-          <div style={{ position: "relative" }}>
-            <button
-              type="button"
-              title="List type"
-              aria-label="List type"
-              aria-expanded={listMenuOpen}
-              onClick={() => setListMenuOpen((open) => !open)}
-            >
-              {"\u2261"}
-            </button>
-            {listMenuOpen && (
-              <div
-                data-slot="docblocks/format-list-menu"
-                role="group"
+          <Separator orientation="vertical" className="h-5" />
+          <DropdownMenu modal={false} open={listMenuOpen} onOpenChange={setListMenuOpen}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="List type"
                 aria-label="List type"
-                // Same guard: the popover is part of the bar layer.
-                onMouseDown={(event) => event.preventDefault()}
+                className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
               >
-                {LIST_MENU_OPTIONS.map(({ option, label, glyph }) => {
-                  const active =
-                    single.type === "list-item"
-                      ? single.attrs.list === option
-                      : single.type === "paragraph" && option === "paragraph";
+                <MenuIcon className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            {/* The portaled content keeps the bar's mousedown guard: a
+                default mousedown would blur the editable and kill the
+                selection the gesture is about to re-seat. Outside dismiss
+                (pointer and focus) is suppressed — the editor owns the
+                focus, and the selection state owns the visibility. */}
+            <DropdownMenuContent
+              align="start"
+              sideOffset={6}
+              data-slot="docblocks/format-list-menu"
+              onMouseDown={(event) => event.preventDefault()}
+              onPointerDownOutside={(event) => event.preventDefault()}
+              onFocusOutside={(event) => event.preventDefault()}
+            >
+              <DropdownMenuRadioGroup value={listValue}>
+                {LIST_MENU_OPTIONS.map(({ option, label, icon: Icon }) => {
                   const disabled =
                     option === "paragraph" && single.type === "list-item" && (single.children ?? []).length > 0;
                   return (
-                    <button
+                    <DropdownMenuRadioItem
                       key={option}
-                      type="button"
+                      value={option}
                       data-list-option={option}
-                      aria-pressed={active}
                       disabled={disabled}
                       title={disabled ? "List items with children cannot become text" : label}
-                      onClick={() => onListOption(option)}
+                      onSelect={() => onListOption(option)}
                     >
-                      <span aria-hidden="true" style={{ width: 14, textAlign: "center" }}>
-                        {glyph}
-                      </span>
+                      <Icon className="size-4" />
                       {label}
-                    </button>
+                    </DropdownMenuRadioItem>
                   );
                 })}
-              </div>
-            )}
-          </div>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </>
       )}
-      <span data-slot="docblocks/format-separator" aria-hidden="true" />
-      <div style={{ position: "relative" }}>
-        <button
-          type="button"
-          data-target="highlight"
-          title="Text and background color"
-          aria-label="Text and background color"
-          aria-expanded={paletteOpen}
-          onClick={() => setPaletteOpen((open) => !open)}
-        >
-          A
-        </button>
-        {paletteOpen && (
-          <div
-            data-slot="docblocks/format-palette"
-            role="group"
-            // Same guard: the popover is part of the bar layer.
-            onMouseDown={(event) => event.preventDefault()}
+      <Separator orientation="vertical" className="h-5" />
+      <Popover modal={false} open={paletteOpen} onOpenChange={setPaletteOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            data-target={target}
+            title="Text and background color"
+            aria-label="Text and background color"
+            className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
           >
-            <div role="group" aria-label="Color target" style={{ gridColumn: "1 / -1", display: "flex", gap: 2 }}>
-              {(["highlight", "color"] as const).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  data-target-btn={t}
-                  aria-pressed={target === t}
-                  aria-label={t === "highlight" ? "Highlight the background" : "Color the text"}
-                  title={t === "highlight" ? "Highlight the background" : "Color the text"}
-                  style={{ fontSize: "0.85em", padding: "0 4px", flex: 1 }}
-                  onClick={() => setTarget(t)}
-                >
-                  {t === "highlight" ? "bg" : "text"}
-                </button>
-              ))}
-            </div>
+            <Baseline className="size-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={6}
+          data-slot="docblocks/format-palette"
+          aria-label="Text and background color"
+          className="w-auto p-2"
+          onMouseDown={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+          onFocusOutside={(event) => event.preventDefault()}
+        >
+          <div role="group" aria-label="Color target" className="flex gap-1">
+            {(["highlight", "color"] as const).map((t) => (
+              <Button
+                key={t}
+                variant="ghost"
+                size="sm"
+                data-target-btn={t}
+                aria-pressed={target === t}
+                aria-label={t === "highlight" ? "Highlight the background" : "Color the text"}
+                title={t === "highlight" ? "Highlight the background" : "Color the text"}
+                className={cn("h-7 flex-1 text-xs", target === t && "bg-accent text-accent-foreground")}
+                onClick={() => setTarget(t)}
+              >
+                {t === "highlight" ? "bg" : "text"}
+              </Button>
+            ))}
+          </div>
+          <div role="group" aria-label="Palette colors" className="grid grid-cols-3 gap-1">
             {palette.map((color) => (
-              <button
+              <Button
                 key={color}
-                type="button"
+                variant="outline"
+                size="icon"
                 data-slot="docblocks/format-swatch"
                 data-color={color}
                 title={color}
                 aria-label={`${target} color ${color}`}
                 aria-pressed={paletteActive(color)}
+                className={cn("size-6", paletteActive(color) && "ring-2 ring-ring")}
                 style={{ background: color }}
                 onClick={() => onPaletteValue(color)}
               />
             ))}
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="icon"
               data-slot="docblocks/format-swatch"
               data-color="none"
               title="No color"
               aria-label="No color"
               aria-pressed={paletteActive(null)}
-              style={{ background: "transparent", position: "relative" }}
+              className={cn("size-6", paletteActive(null) && "ring-2 ring-ring")}
               onClick={() => onPaletteValue(null)}
             >
-              ✕
-            </button>
+              <X className="size-3.5" />
+            </Button>
           </div>
-        )}
-      </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }

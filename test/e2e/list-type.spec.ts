@@ -99,7 +99,9 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   await expect(bar).toBeVisible(SETTLE);
 
   await bar.locator('button[aria-label="List type"]').click();
-  const menu = bar.locator('[data-slot="docblocks/format-list-menu"]');
+  // The menu content is portaled to the document body (radix), so the
+  // locator is page-scoped.
+  const menu = a.locator('[data-slot="docblocks/format-list-menu"]');
   await expect(menu.locator('[data-list-option="number"]')).toBeVisible();
   await menu.locator('[data-list-option="number"]').click();
 
@@ -135,14 +137,15 @@ test("the toolbar menu swaps a list item's kind (an attr update, the type stands
   const bar = toolbar(a, "a");
   await expect(bar).toBeVisible(SETTLE);
   await bar.locator('button[aria-label="List type"]').click();
-  await bar.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="bullet"]').click();
+  await a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="bullet"]').click();
   const id = (await rootIds(a, "a"))[0];
   expect(await blockOf(a, "a", id)).toMatchObject({ type: "list-item", attrs: { list: "bullet" } });
 
-  // The selection survived the change: the menu shows the new active kind.
+  // The selection survived the change: the menu shows the new active kind
+  // (the radix radio state).
   await bar.locator('button[aria-label="List type"]').click();
-  const menu = bar.locator('[data-slot="docblocks/format-list-menu"]');
-  await expect(menu.locator('[data-list-option="bullet"]')).toHaveAttribute("aria-pressed", "true");
+  const menu = a.locator('[data-slot="docblocks/format-list-menu"]');
+  await expect(menu.locator('[data-list-option="bullet"]')).toHaveAttribute("data-state", "checked");
   await menu.locator('[data-list-option="task"]').click();
 
   expect(await blockOf(a, "a", id)).toMatchObject({ type: "list-item", attrs: { list: "task" } });
@@ -179,7 +182,7 @@ test("the text option is disabled for a list item with children", async ({ brows
   const bar = toolbar(a, "a");
   await expect(bar).toBeVisible(SETTLE);
   await bar.locator('button[aria-label="List type"]').click();
-  const textOption = bar.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]');
+  const textOption = a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]');
   await expect(textOption).toBeDisabled();
   // A disabled option takes no click: the type and the child stand.
   await textOption.click({ force: true }).catch(() => {});
@@ -209,7 +212,7 @@ test("a childless list item becomes text through the menu", async ({ browser }) 
   const bar = toolbar(a, "a");
   await expect(bar).toBeVisible(SETTLE);
   await bar.locator('button[aria-label="List type"]').click();
-  await bar.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]').click();
+  await a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]').click();
 
   expect((await blockOf(a, "a", id))?.type).toBe("paragraph");
   // The list wrapper is gone in both panes (the change traveled the wire).

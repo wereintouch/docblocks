@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
@@ -125,19 +125,31 @@ function toolbarOf(): HTMLElement {
   return el as HTMLElement;
 }
 
-/** Click an element (the house pattern: a dispatched click inside act). */
-function click(el: Element): void {
+/**
+ * Click a list-type menu option through the menu (open, then the option).
+ * The trigger is a radix dropdown trigger (it toggles on pointerdown, not
+ * click); the option is a radix menu item that activates on the native
+ * click (the browser synthesizes it from the pointer sequence — jsdom does
+ * not, so the test dispatches it). Opening the menu also focuses the
+ * portaled content (roving focus) — jsdom's focus() moves the DOM
+ * selection with it, where a browser keeps the editable's selection, so
+ * the gesture's range is re-seated before the pick.
+ */
+function pickListOption(option: string, id: BlockId, from: number, to: number): void {
+  const trigger = toolbarOf().querySelector('button[aria-label="List type"]');
+  expect(trigger, "the list-type trigger should be present").not.toBeNull();
   act(() => {
-    el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    fireEvent.pointerDown(trigger as Element);
   });
-}
-
-/** Click a list-type menu option through the menu (open, then the option). */
-function pickListOption(option: string): void {
-  click(toolbarOf().querySelector('button[aria-label="List type"]')!);
+  selectRange(id, from, to);
   const menu = document.querySelector('[data-slot="docblocks/format-list-menu"]');
   expect(menu, "the list-type menu should be open").not.toBeNull();
-  click((menu as HTMLElement).querySelector(`[data-list-option="${option}"]`)!);
+  const item = (menu as HTMLElement).querySelector(`[data-list-option="${option}"]`);
+  expect(item, `the "${option}" option should be present`).not.toBeNull();
+  const itemEl = item as HTMLElement;
+  act(() => {
+    itemEl.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  });
 }
 
 describe("the list-type menu keeps the selection seated", () => {
@@ -149,7 +161,7 @@ describe("the list-type menu keeps the selection seated", () => {
     });
 
     selectRange(li, 2, 15);
-    pickListOption("task");
+    pickListOption("task", li, 2, 15);
 
     const block = doc.getBlock(li);
     expect(block).toMatchObject({ type: "list-item" });

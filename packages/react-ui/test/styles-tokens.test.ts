@@ -67,7 +67,6 @@ describe("styles.css token contract", () => {
       "var(--card, #ffffff)",
       "color-mix(in srgb, var(--muted-foreground, #afb8c1) 35%, transparent)",
       "var(--popover, #ffffff)",
-      "color-mix(in srgb, var(--accent, #0969da) 12%, transparent)",
     ];
     for (const value of lightFallbackValues) {
       expect(flat, `styles.css must carry the fallback ${value}`).toContain(value);

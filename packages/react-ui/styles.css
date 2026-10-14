@@ -37,7 +37,8 @@
  * docblocks/mermaid, docblocks/sync-embed-body,
  * docblocks/sync-embed-placeholder, docblocks/slash-menu,
  * docblocks/drag-line, docblocks/checkbox, docblocks/collapse,
- * docblocks/format-toolbar, docblocks/format-list-menu),
+ * docblocks/format-toolbar, docblocks/format-list-menu,
+ * docblocks/format-palette),
  * plus the per-block elements (docblocks/image, docblocks/embed, …);
  * + `data-block-type` / `data-list` / `data-depth` / `data-variant` / `data-checked`
  * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
@@ -159,7 +160,6 @@
   /* The floating format toolbar (the selection's formatting layer). */
   --docblocks-formatbar-background: var(--popover, #ffffff);
   --docblocks-formatbar-border-color: var(--border, #d0d7de);
-  --docblocks-formatbar-active-background: color-mix(in srgb, var(--accent, #0969da) 12%, transparent);
   --docblocks-formatbar-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
 
   /* Presence. */
@@ -650,8 +650,9 @@ iframe[data-slot="docblocks/embed"] {
 }
 
 /* The floating format toolbar: the editor root's floating layer, anchored
-   above the selection (inline top/left). The palette popover is anchored
-   at the highlight button (a relative wrapper inside the bar). */
+   above the selection (inline top/left). The controls are shared/ui
+   primitives (Tailwind classes); the list-type menu and the color palette
+   are portaled to the document body (radix) and style themselves there. */
 [data-slot="docblocks/format-toolbar"] {
   position: absolute;
   z-index: 50;
@@ -665,90 +666,6 @@ iframe[data-slot="docblocks/embed"] {
   border-radius: var(--docblocks-radius);
   box-shadow: var(--docblocks-formatbar-shadow);
   font-size: 0.8125em;
-}
-
-[data-slot="docblocks/format-toolbar"] button {
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-}
-
-[data-slot="docblocks/format-toolbar"] button[aria-pressed="true"] {
-  background: var(--docblocks-formatbar-active-background);
-}
-
-[data-slot="docblocks/format-toolbar"] [data-slot="docblocks/format-separator"] {
-  width: 1px;
-  height: 18px;
-  margin: 0 4px;
-  background: var(--docblocks-formatbar-border-color);
-}
-
-[data-slot="docblocks/format-palette"] {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
-  display: grid;
-  grid-template-columns: repeat(3, 24px);
-  gap: 4px;
-  padding: 8px;
-  background: var(--docblocks-formatbar-background);
-  border: 1px solid var(--docblocks-formatbar-border-color);
-  border-radius: var(--docblocks-radius);
-  box-shadow: var(--docblocks-formatbar-shadow);
-}
-
-[data-slot="docblocks/format-palette"] [data-slot="docblocks/format-swatch"] {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 1px solid var(--docblocks-formatbar-border-color);
-  border-radius: 4px;
-  color: inherit;
-  cursor: pointer;
-}
-
-[data-slot="docblocks/format-palette"] button[aria-pressed="true"] {
-  outline: 2px solid var(--docblocks-text-color);
-  outline-offset: 1px;
-}
-
-/* The list-type menu popover (the toolbar's turn-into affordance). */
-[data-slot="docblocks/format-list-menu"] {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 50;
-  display: grid;
-  gap: 2px;
-  min-width: 140px;
-  padding: 6px;
-  background: var(--docblocks-formatbar-background);
-  border: 1px solid var(--docblocks-formatbar-border-color);
-  border-radius: var(--docblocks-radius);
-  box-shadow: var(--docblocks-formatbar-shadow);
-}
-
-[data-slot="docblocks/format-list-menu"] button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  height: auto;
-  padding: 4px 8px;
-  text-align: left;
-}
-
-[data-slot="docblocks/format-list-menu"] button[disabled] {
-  opacity: 0.45;
-  cursor: default;
 }
 
 /* The structural parts of a presence caret; the per-peer hue is set
@@ -820,6 +737,5 @@ iframe[data-slot="docblocks/embed"] {
 
   --docblocks-formatbar-background: var(--popover, #161b22);
   --docblocks-formatbar-border-color: var(--border, rgba(110, 118, 129, 0.65));
-  --docblocks-formatbar-active-background: color-mix(in srgb, var(--accent, #388bfd) 18%, transparent);
   --docblocks-formatbar-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }

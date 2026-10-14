@@ -124,9 +124,10 @@ test("the palette applies a background highlight, then a text color, then clears
   await expect(bar).toBeVisible();
 
   // The palette opens at the palette button (the background target is the
-  // default) and a swatch applies the highlight mark.
+  // default) and a swatch applies the highlight mark. The palette content
+  // is portaled to the document body (radix), so the locator is page-scoped.
   await bar.locator('[data-target="highlight"]').click();
-  const palette = bar.locator('[data-slot="docblocks/format-palette"]');
+  const palette = a.locator('[data-slot="docblocks/format-palette"]');
   await expect(palette).toBeVisible();
   await palette.locator('[data-color="#e11d48"]').click();
   // The palette stays open for the next pick (applying a color does not
@@ -138,7 +139,7 @@ test("the palette applies a background highlight, then a text color, then clears
   });
 
   // The text target applies the color mark alongside the highlight.
-  await bar.locator('[data-target-btn="color"]').click();
+  await a.locator('[data-target-btn="color"]').click();
   await palette.locator('[data-color="#3b82f6"]').click();
   block = await firstBlock(a, "a");
   const worldRun = (block.content ?? []).find((run) => run.text === "hello world");
