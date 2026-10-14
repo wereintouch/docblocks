@@ -324,12 +324,30 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
         : block.type === "heading" && tag === "h3"
           ? "text-(length:--docblocks-heading-h3-font-size)"
           : undefined;
+  // The block's wrapper classes (the old [data-slot="docblocks/block"]
+  // rules as utilities). The selected background precedes the block-type
+  // backgrounds: the merge drops it for a callout or code block (their
+  // background wins — the way the unlayered callout/code CSS beat the
+  // layered utility before this migration).
   const wrapperClass = cn(
     "relative outline-none",
     tag !== "li" && "my-(--docblocks-block-spacing)",
     selected && "bg-(--docblocks-selected-background)",
     block.type === "heading" && "font-(--docblocks-heading-font-weight)",
-    headingSize
+    headingSize,
+    block.type === "callout" &&
+      cn(
+        "border-l-(length:--docblocks-callout-border-width) border-l-(--docblocks-callout-border-color-info)",
+        "rounded-(--docblocks-radius) bg-(--docblocks-callout-background-info) p-(--docblocks-callout-padding)"
+      ),
+    block.type === "callout" &&
+      block.attrs?.variant === "warning" &&
+      cn("border-l-(--docblocks-callout-border-color-warning)", "bg-(--docblocks-callout-background-warning)"),
+    block.type === "callout" &&
+      block.attrs?.variant === "danger" &&
+      cn("border-l-(--docblocks-callout-border-color-danger)", "bg-(--docblocks-callout-background-danger)"),
+    block.type === "code" &&
+      "rounded-(--docblocks-radius) bg-(--docblocks-code-background) p-(--docblocks-code-padding)"
   );
 
   /**
@@ -341,6 +359,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   const innerClass = cn(
     "m-0 whitespace-pre-wrap outline-none empty:after:content-['\\200b']",
     block.type === "list-item" && block.attrs.checked && "line-through",
+    (block.type === "code" || block.type === "latex") && "font-(family-name:--docblocks-mono-font-family)",
     align === "center" && "text-center",
     align === "right" && "text-right"
   );

@@ -20,7 +20,12 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const rows = block.children ?? EMPTY_IDS;
   const contextValue = useBlockContextValue(id, rows);
   return (
-    <table data-slot="docblocks/table" data-block-type="table" data-block-id={id}>
+    <table
+      data-slot="docblocks/table"
+      data-block-type="table"
+      data-block-id={id}
+      className="mx-0 my-(--docblocks-block-spacing) border-collapse"
+    >
       <tbody>
         <BlockContext.Provider value={contextValue}>
           {rows.map((rowId) => (
@@ -56,7 +61,14 @@ const TableCell = memo(function TableCell({ id }: { id: BlockId }) {
   const contextValue = useBlockContextValue(id, children);
   if (cell === undefined || cell.type !== "table-cell") return null;
   return (
-    <td data-slot="docblocks/table-cell" data-block-id={id}>
+    <td
+      data-slot="docblocks/table-cell"
+      data-block-id={id}
+      className="
+        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
+        p-(--docblocks-table-cell-padding) align-top
+      "
+    >
       <BlockContext.Provider value={contextValue}>
         {children.map((childId) => (
           <BlockView key={childId} id={childId} />

@@ -53,11 +53,13 @@ test("structurally inserted blocks render in the other pane", async ({ browser }
 
   const doc = b.locator('[data-testid="doc-b"]');
 
-  // Code: a <pre> with the mono font family from the tokens.
+  // Code: a <pre> with a mono inner content (the preflight makes pre mono
+  // on its own — the pin reads the content element the class lands on).
   const pre = doc.locator('pre[data-block-type="code"]');
   await expect(pre, SETTLE).toHaveCount(1);
+  const codeContent = pre.first().locator('[data-slot="docblocks/block-content"]');
   await expect
-    .poll(async () => pre.first().evaluate((el) => getComputedStyle(el).fontFamily), SETTLE)
+    .poll(async () => codeContent.evaluate((el) => getComputedStyle(el).fontFamily), SETTLE)
     .toContain("mono");
 
   // Table: 2 rows x 2 cells; the cell border comes from the token (the

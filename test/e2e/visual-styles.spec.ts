@@ -149,11 +149,15 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('td[data-slot="docblocks/table-cell"]').count()).toBe(4);
   await expect(doc.locator("td").first()).toHaveText("cell 1-1");
 
-  // Code blocks: the language attrs (the ts block is the mono pin below; the
-  // mermaid block renders the diagram — waited for above).
+  // Code blocks: the language attrs (the ts block is the mono pin below —
+  // the preflight makes pre mono on its own, so the pin reads the inner
+  // content element the class lands on; the mermaid block renders the
+  // diagram — waited for above).
   const pre = doc.locator('pre[data-block-type="code"][data-language="ts"]');
   expect(await pre.getAttribute("data-language")).toBe("ts");
-  expect((await styleProps(pre, "font-family"))["font-family"]).toContain("mono");
+  expect(
+    (await styleProps(pre.locator('[data-slot="docblocks/block-content"]'), "font-family"))["font-family"]
+  ).toContain("mono");
 
   // Image: the fixed key resolved by the harness's blob map.
   const img = doc.locator('img[data-slot="docblocks/image"]');
@@ -295,6 +299,51 @@ test("the list markers cycle per nesting level", async ({ page }) => {
     { depth: "2", style: "lower-alpha" },
     { depth: "3", style: "lower-roman" },
   ]);
+});
+
+test("the callout, divider and table read the zone-2 tokens", async ({ page }) => {
+  await openCatalogPane(page);
+  const doc = editor(page).first();
+
+  // The default callout: the border-left width/style, the padding and the
+  // radius tokens (the info color follows the standard --primary input and
+  // is not pinned — it is seed-dependent).
+  const callout = doc.locator('[data-block-type="callout"]:not([data-variant])').first();
+  await expect(callout).toHaveCount(1);
+  const calloutStyle = await styleProps(callout, "border-left-width", "border-left-style", "padding", "border-radius");
+  expect(calloutStyle).toEqual({
+    "border-left-width": "4px",
+    "border-left-style": "solid",
+    padding: "8px 12px",
+    "border-radius": "10px",
+  });
+  // The warning variant switches the border color to the package literal.
+  const warning = doc.locator('[data-block-type="callout"][data-variant="warning"]');
+  await expect(warning).toHaveCount(1);
+  expect((await styleProps(warning, "border-left-color"))["border-left-color"]).toBe("rgb(154, 103, 0)");
+
+  // The divider: the margin token (the two-value shorthand — margin-top
+  // pins the token, margin-right the second value; the bottom margin is
+  // not pinned: the computed value of a collapsing margin is the used
+  // value after collapse) + the top border width/style.
+  const divider = doc.locator('hr[data-slot="docblocks/divider"]');
+  const dividerStyle = await styleProps(divider, "margin-top", "margin-right", "border-top-width", "border-top-style");
+  expect(dividerStyle).toEqual({
+    "margin-top": "16px",
+    "margin-right": "0px",
+    "border-top-width": "1px",
+    "border-top-style": "solid",
+  });
+
+  // The table: the collapsed borders + the cell width/padding tokens.
+  // The table's vertical margins collapse with the neighbors' — the
+  // non-collapsing margin-right pins the margin token instead.
+  const table = doc.locator('table[data-slot="docblocks/table"]');
+  await expect(table).toHaveCount(1);
+  const tableStyle = await styleProps(table, "border-collapse", "margin-top", "margin-right");
+  expect(tableStyle).toEqual({ "border-collapse": "collapse", "margin-top": "8px", "margin-right": "0px" });
+  const cellStyle = await styleProps(table.locator("td").first(), "border-top-width", "padding");
+  expect(cellStyle).toEqual({ "border-top-width": "1px", padding: "4px 8px" });
 });
 
 test("the editor root typography and the block spacing read the tokens", async ({ page }) => {

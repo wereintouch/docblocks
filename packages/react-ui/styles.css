@@ -196,40 +196,6 @@
   z-index: 20;
 }
 
-/* Callout: the default (no variant) uses the info tokens. */
-[data-block-type="callout"] {
-  border-left: var(--docblocks-callout-border-width) solid var(--docblocks-callout-border-color-info);
-  background: var(--docblocks-callout-background-info);
-  padding: var(--docblocks-callout-padding);
-  border-radius: var(--docblocks-radius);
-}
-
-[data-block-type="callout"][data-variant="warning"] {
-  border-left-color: var(--docblocks-callout-border-color-warning);
-  background: var(--docblocks-callout-background-warning);
-}
-
-[data-block-type="callout"][data-variant="danger"] {
-  border-left-color: var(--docblocks-callout-border-color-danger);
-  background: var(--docblocks-callout-background-danger);
-}
-
-/* Code and latex blocks: mono. */
-pre[data-block-type="code"] [data-slot="docblocks/block-content"],
-div[data-block-type="latex"] [data-slot="docblocks/block-content"] {
-  font-family: var(--docblocks-mono-font-family);
-}
-
-pre[data-block-type="code"] [data-slot="docblocks/block-content"] {
-  white-space: pre-wrap;
-}
-
-pre[data-block-type="code"] {
-  background: var(--docblocks-code-background);
-  padding: var(--docblocks-code-padding);
-  border-radius: var(--docblocks-radius);
-}
-
 /* Mermaid diagram preview (the ./mermaid subpath): the preview sits below
    the editable code inside the code wrapper. The loading and error states
    get a dashed structural box (the table border tokens); the error
@@ -248,23 +214,6 @@ pre[data-block-type="code"] {
 [data-slot="docblocks/mermaid-error-message"] {
   display: block;
   color: var(--docblocks-callout-border-color-danger);
-}
-
-hr[data-slot="docblocks/divider"] {
-  border: none;
-  border-top: var(--docblocks-divider-border-width) solid var(--docblocks-divider-border-color);
-  margin: var(--docblocks-divider-margin);
-}
-
-table[data-slot="docblocks/table"] {
-  border-collapse: collapse;
-  margin: var(--docblocks-block-spacing) 0;
-}
-
-td[data-slot="docblocks/table-cell"] {
-  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
-  padding: var(--docblocks-table-cell-padding);
-  vertical-align: top;
 }
 
 img[data-slot="docblocks/image"] {

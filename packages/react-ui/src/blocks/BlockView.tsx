@@ -196,7 +196,17 @@ const BlockView = memo(function BlockView({ id, depth = 1 }: { id: BlockId; dept
     case "latex":
       return <TextBlock id={id} block={block} tag="div" nested={childrenSlot(id, block.children)} />;
     case "divider":
-      return <hr data-slot="docblocks/divider" data-block-type="divider" data-block-id={id} />;
+      return (
+        <hr
+          data-slot="docblocks/divider"
+          data-block-type="divider"
+          data-block-id={id}
+          className="
+            m-(--docblocks-divider-margin) border-0 border-t-(length:--docblocks-divider-border-width)
+            border-t-(--docblocks-divider-border-color)
+          "
+        />
+      );
     case "image":
       return <ImageBlock id={id} block={block} />;
     case "database":
