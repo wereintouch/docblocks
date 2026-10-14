@@ -462,5 +462,12 @@ test("the editor root typography and the block spacing read the tokens", async (
   expect(margin["margin-top"]).toBe("8px");
   expect(margin["margin-bottom"]).toBe("8px");
   const gutterStyle = await styleProps(paragraph.locator('[data-slot="docblocks/gutter"]'), "left");
-  expect(gutterStyle["left"]).toBe("-14px");
+  expect(gutterStyle["left"]).toBe("-24px");
+
+  // The collapse toggle (a list item with children) sits in the marker
+  // gutter, its right edge at the content's left edge (the em basis is the
+  // block's font — the button pins `text-[length:inherit]`).
+  const collapse = root.locator('[data-slot="docblocks/collapse"]').first();
+  const collapseStyle = await styleProps(collapse, "left");
+  expect(collapseStyle["left"]).toBe("-8px");
 });

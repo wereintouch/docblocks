@@ -9,11 +9,12 @@ import { describe, expect, it } from "vitest";
 const STYLES = readFileSync(fileURLToPath(new URL("../styles.css", import.meta.url)), "utf8");
 const THEME = readFileSync(fileURLToPath(new URL("../theme.css", import.meta.url)), "utf8");
 
-// The standard input tokens the editor reads (the documented contract).
+// The standard input tokens styles.css maps (the documented mapping
+// contract; the rest of the standard set is consumed by the seed / the
+// shared-ui classes, not by styles.css).
 const INPUT_TOKENS = [
   "--foreground",
   "--primary",
-  "--primary-foreground",
   "--muted",
   "--muted-foreground",
   "--accent",
@@ -29,6 +30,11 @@ const INPUT_TOKENS = [
 // Theme-independent inputs: declared on :root only (the standard seed does
 // not restate them under .dark — they inherit).
 const THEME_INDEPENDENT = new Set(["--radius", "--font-sans", "--font-mono"]);
+
+// Consumed by the seed and the shared-ui classes, not by the styles.css
+// mapping: the seed must still declare them (the DS components read them
+// through the compiled ui.css).
+const SEED_ONLY_TOKENS = ["--primary-foreground"] as const;
 
 describe("styles.css token contract", () => {
   // Whitespace-normalized: the pins must survive formatting.
@@ -58,7 +64,6 @@ describe("styles.css token contract", () => {
       "color-mix(in srgb, var(--accent, #0969da) 8%, transparent)",
       "var(--muted-foreground, #8b949e)",
       "var(--primary, #2563eb)",
-      "var(--primary-foreground, #ffffff)",
       "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
       "var(--muted, rgba(175, 184, 193, 0.15))",
       "var(--border, rgba(175, 184, 193, 0.4))",
@@ -97,6 +102,14 @@ describe("theme.css seed", () => {
       if (!THEME_INDEPENDENT.has(token)) {
         expect(darkBlock, `theme.css .dark must declare ${token}`).toMatch(re);
       }
+    }
+  });
+
+  it("declares the seed-only tokens on :root and .dark", () => {
+    for (const token of SEED_ONLY_TOKENS) {
+      const re = new RegExp(`^\\s*${token}:`, "m");
+      expect(rootBlock, `theme.css :root must declare ${token}`).toMatch(re);
+      expect(darkBlock, `theme.css .dark must declare ${token}`).toMatch(re);
     }
   });
 });

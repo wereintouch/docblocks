@@ -62,7 +62,9 @@ describe("MermaidCodeRenderer", () => {
       { timeout: 1_000 }
     );
     expect(container.querySelector('[data-slot="docblocks/mermaid"]')).toBeNull();
-    expect(container.querySelector("svg")).toBeNull();
+    // No diagram svg anywhere in the content (the block's gutter grip
+    // icon is chrome, not a preview).
+    expect(container.querySelector('[data-slot="docblocks/block-content"] svg')).toBeNull();
   });
 
   it("keeps the children of a code block in the fallthrough rendering", () => {

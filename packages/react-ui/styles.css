@@ -88,10 +88,11 @@
 
   /* Block selection. */
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);
-  --docblocks-gutter-size: 10px;
+  --docblocks-gutter-size: 20px;
   --docblocks-gutter-color: var(--muted-foreground, #8b949e);
   --docblocks-gutter-offset: 4px;
-  /* The gutter's left edge (derived: the dot sits in the left margin). */
+  /* The gutter's left edge (derived: the grip control sits in the left
+     margin, its right edge `offset` px clear of the block content). */
   --docblocks-gutter-left: calc(-1 * (var(--docblocks-gutter-size) + var(--docblocks-gutter-offset)));
   --docblocks-drag-line-color: var(--primary, #2563eb);
 
@@ -108,15 +109,13 @@
      nest under a text block steps by the same amount as a list level). */
   --docblocks-nested-indent: var(--docblocks-list-padding-left);
 
-  /* Task checkbox (list-item with list: "task"). */
-  --docblocks-checkbox-size: 14px;
-  --docblocks-checkbox-border-color: var(--muted-foreground, #8b949e);
-  --docblocks-checkbox-checked-background: var(--primary, #0969da);
-  --docblocks-checkbox-checked-color: var(--primary-foreground, #ffffff);
+  /* Task checkbox (list-item with list: "task"): the size of the
+     Checkbox primitive (size-4); the position calcs below read it. */
+  --docblocks-checkbox-size: 16px;
   /* The checkbox's and the collapse toggle's left edges (derived: the
      list marker gutter, to the right of each other). */
   --docblocks-checkbox-left: calc(-1 * var(--docblocks-list-padding-left) + 2px);
-  --docblocks-collapse-left: calc(-1 * var(--docblocks-list-padding-left) + var(--docblocks-checkbox-size) + 2px);
+  --docblocks-collapse-left: calc(-1 * var(--docblocks-list-padding-left) + var(--docblocks-checkbox-size));
 
   /* Callout. */
   --docblocks-callout-border-width: 4px;
@@ -223,9 +222,6 @@
   --docblocks-table-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
   --docblocks-drag-line-color: var(--primary, #58a6ff);
-
-  --docblocks-checkbox-checked-background: var(--primary, #58a6ff);
-  --docblocks-checkbox-checked-color: var(--primary-foreground, #0d1117);
 
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #6e7681) 15%, transparent);
   --docblocks-frame-background: var(--card, #161b22);

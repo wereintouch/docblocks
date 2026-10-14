@@ -53,7 +53,6 @@ test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
   await expect.poll(() => tokenOf("--docblocks-frame-background"), SETTLE).toBe("#445566");
   await expect.poll(() => tokenOf("--docblocks-gutter-color"), SETTLE).toBe("#556677");
   await expect.poll(() => tokenOf("--docblocks-drag-line-color"), SETTLE).toBe("#654321");
-  await expect.poll(() => tokenOf("--docblocks-checkbox-checked-color"), SETTLE).toBe("#112233");
 
   // The .dark flip: the dark standard set resolves (the mapping re-declares
   // the tokens on the editor root scope), then back to light — the standard

@@ -88,7 +88,7 @@ test("a mermaid code block inserted in A renders the diagram in both panes", asy
     // The seed diagram renders as an svg inside the block wrapper in both
     // panes: the text synced over the wire, the renderer is registered on
     // both (the harness demo).
-    await expect(block.locator("svg"), SETTLE).toHaveCount(1);
+    await expect(block.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
     await expect(preview(pane, client)).toHaveAttribute("data-state", "diagram");
     // The editable code path stays in place (the diagram is the preview
     // below the editable, not a replacement of it).
@@ -108,7 +108,7 @@ test("typing in the code block re-renders the diagram in both panes", async ({ b
 
   await insertType(a, "a", "code-mermaid");
   const blockA = mermaidBlock(a, "a");
-  await expect(blockA.locator("svg"), SETTLE).toHaveCount(1);
+  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
 
   // The seed is "graph TD\n A --> B": appending " --> C" on the last line
   // chains a third node into the diagram (a single-line continuation —
@@ -135,7 +135,7 @@ test("an invalid diagram keeps no svg and shows the error state", async ({ brows
 
   await insertType(a, "a", "code-mermaid");
   const blockA = mermaidBlock(a, "a");
-  await expect(blockA.locator("svg"), SETTLE).toHaveCount(1);
+  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
 
   // Replace the seed with an incomplete diagram: select-all, delete (the
   // DOM input diff commits the empty text), then paste the invalid text
@@ -148,7 +148,7 @@ test("an invalid diagram keeps no svg and shows the error state", async ({ brows
 
   // No svg: the error state renders the raw text with the error flag
   // (asserted by the attribute, not the look), and the message shows.
-  await expect(blockA.locator("svg"), SETTLE).toHaveCount(0);
+  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(0);
   await expect(preview(a, "a"), SETTLE).toHaveAttribute("data-state", "error");
   await expect(blockA.locator('[data-slot="docblocks/mermaid-error"]'), SETTLE).toHaveText("graph TD\n A -->");
   expect(await blockA.locator('[data-slot="docblocks/mermaid-error-message"]').count()).toBe(1);
@@ -174,7 +174,7 @@ test("a plain code block stays editable under the override", async ({ browser })
   await insertType(a, "a", "code");
   const block = a.locator('[data-block-type="code"][data-language="ts"]');
   await expect(block, SETTLE).toHaveCount(1);
-  expect(await block.locator("svg").count()).toBe(0);
+  expect(await block.locator('[data-slot="docblocks/block-content"] svg').count()).toBe(0);
 
   const inner = block.locator('[data-slot="docblocks/block-content"]');
   await inner.click();

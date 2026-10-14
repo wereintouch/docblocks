@@ -17,7 +17,10 @@ import { useBlockInput } from "../editing/input-safety";
 import { useBlockKeyboard } from "../editing/keyboard";
 import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
+import { Button } from "../shared/ui/Button";
+import { Checkbox } from "../shared/ui/Checkbox";
 import { cn } from "../shared/ui/cn";
+import { GripVertical, Triangle } from "../shared/ui/icons";
 import { renderRunsInto } from "../text/runs-dom";
 import { useBlockContext } from "./block-context";
 
@@ -294,19 +297,6 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
     [id, store]
   );
 
-  /**
-   * Checkbox click: toggle the task's checked attr. One command is its own
-   * transaction, so the toggle is one undo step and one wire update.
-   */
-  const onCheckboxClick = useCallback(
-    (event: ReactMouseEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      if (block.type !== "list-item" || block.attrs.list !== "task") return;
-      doc.updateBlock(id, { checked: !block.attrs.checked });
-    },
-    [block, doc, id]
-  );
-
   const align = alignOf(block);
 
   /**
@@ -365,38 +355,25 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
   );
 
   /**
-   * The gutter handle classes: the dot in the left margin (the position
-   * reads the gutter tokens), revealed on a wrapper hover or while the
-   * block is selected.
+   * The gutter handle classes: the grip control in the left margin (the
+   * position reads the gutter tokens), revealed on a wrapper hover or while
+   * the block is selected.
    */
   const gutterClass = cn(
     "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
-    "left-(--docblocks-gutter-left) size-(--docblocks-gutter-size) bg-(--docblocks-gutter-color)",
+    "left-(--docblocks-gutter-left) text-(--docblocks-gutter-color)",
     selected && "opacity-100"
   );
 
-  /**
-   * The task checkbox classes: the box in the list marker gutter (the
-   * position reads the list indent + checkbox tokens); the checked state
-   * fills the box and adds the check mark.
-   */
-  const checkboxClass = cn(
-    `
-      absolute top-[0.25em] grid cursor-pointer place-items-center border-[1.5px] bg-transparent text-[10px]
-      leading-none
-    `,
-    "left-(--docblocks-checkbox-left) size-(--docblocks-checkbox-size) rounded-[3px]",
-    "border-(--docblocks-checkbox-border-color) text-(--docblocks-checkbox-checked-color)",
-    `
-      aria-checked:border-(--docblocks-checkbox-checked-background)
-      aria-checked:bg-(--docblocks-checkbox-checked-background)
-    `,
-    "aria-checked:after:content-['\\2713']"
-  );
+  /** The task checkbox position (the list marker gutter; the Checkbox primitive sizes itself). */
+  const checkboxClass = "absolute left-(--docblocks-checkbox-left) top-[0.25em]";
 
-  /** The collapse toggle classes: the view-state control in the list marker gutter. */
+  /** The collapse toggle position (the list marker gutter, to the right of the checkbox). */
+  // `text-[length:inherit]` keeps the em basis on the block's font (the
+  // Button base carries text-sm), so the em-based token below stays aligned
+  // with the list indent.
   const collapseClass = cn(
-    "absolute top-[0.25em] h-3.5 w-2 cursor-pointer bg-transparent text-center text-[9px] leading-none",
+    "absolute top-[0.25em] text-[length:inherit]",
     "left-(--docblocks-collapse-left) text-(--docblocks-gutter-color) hover:text-(--docblocks-text-color)"
   );
 
@@ -418,38 +395,46 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       className={cn("group", wrapperClass)}
       onKeyDown={onKeydown}
     >
-      <button
+      <Button
         type="button"
         data-slot="docblocks/gutter"
         aria-label="Select block"
+        variant="ghost"
+        size="icon"
         onClick={onGutterClick}
         onMouseDown={onControlMouseDown}
-        className={gutterClass}
-      />
+        className={cn(gutterClass, "size-5")}
+      >
+        <GripVertical />
+      </Button>
       {block.type === "list-item" && block.attrs.list === "task" && (
-        <button
-          type="button"
+        <Checkbox
           data-slot="docblocks/checkbox"
-          role="checkbox"
-          aria-checked={block.attrs.checked === true}
+          checked={block.attrs.checked === true}
           aria-label={block.attrs.checked ? "Mark task as not done" : "Mark task as done"}
-          onClick={onCheckboxClick}
+          // One command is its own transaction: one undo step, one wire update.
+          onCheckedChange={(checked) => {
+            doc.updateBlock(id, { checked: checked === true });
+          }}
           onMouseDown={onControlMouseDown}
           className={checkboxClass}
         />
       )}
       {hasNested && (
-        <button
+        <Button
           type="button"
           data-slot="docblocks/collapse"
           aria-label={collapsed ? "Expand children" : "Collapse children"}
           aria-expanded={!collapsed}
+          variant="ghost"
+          // A view-state flip (no doc command, no wire update, not in the
+          // undo history) — the children unmount while hidden.
           onClick={onCollapseClick}
           onMouseDown={onControlMouseDown}
-          className={collapseClass}
+          className={cn(collapseClass, "h-3.5 w-2 p-0 has-[>svg]:p-0")}
         >
-          {collapsed ? "\u25B6" : "\u25BC"}
-        </button>
+          <Triangle className={cn("size-2", collapsed ? "rotate-90" : "rotate-180")} />
+        </Button>
       )}
       <div
         ref={setInnerRef}
