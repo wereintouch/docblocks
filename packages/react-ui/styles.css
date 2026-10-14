@@ -1,6 +1,6 @@
 /*
- * docblocks-react-ui default stylesheet (token mapping + structural
- * rules).
+ * docblocks-react-ui default stylesheet (token mapping + the structural
+ * rules pending the utility migration).
  *
  * Token model (two layers):
  * 1. Standard (shadcn) input tokens — `--foreground`, `--primary`,
@@ -29,6 +29,12 @@
  * that matches the editor root (e.g. `[data-slot="docblocks/editor"]`)
  * or a higher-specificity wrapper. Styling of user content (run color /
  * highlight) is data, not theme: the renderers apply it inline.
+ *
+ * This file holds the token mapping (the light + dark sets) plus the
+ * structural rules of the zones pending the utility migration: the
+ * migrated zones style their components with the package's Tailwind
+ * utilities, which read these tokens (`bg-(--docblocks-*)` and friends),
+ * so a token override themes the editor without touching the components.
  *
  * Structural hooks: `data-slot` (docblocks/editor, docblocks/block,
  * docblocks/block-content, docblocks/gutter, docblocks/list,
@@ -76,13 +82,14 @@
   /* Layout. */
   --docblocks-block-spacing: 8px;
   --docblocks-radius: var(--radius, 6px);
-  --docblocks-list-nested-margin: 0;
 
   /* Block selection. */
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);
   --docblocks-gutter-size: 10px;
   --docblocks-gutter-color: var(--muted-foreground, #8b949e);
   --docblocks-gutter-offset: 4px;
+  /* The gutter's left edge (derived: the dot sits in the left margin). */
+  --docblocks-gutter-left: calc(-1 * (var(--docblocks-gutter-size) + var(--docblocks-gutter-offset)));
   --docblocks-drag-line-color: var(--primary, #2563eb);
 
   /* Headings. */
@@ -103,6 +110,10 @@
   --docblocks-checkbox-border-color: var(--muted-foreground, #8b949e);
   --docblocks-checkbox-checked-background: var(--primary, #0969da);
   --docblocks-checkbox-checked-color: var(--primary-foreground, #ffffff);
+  /* The checkbox's and the collapse toggle's left edges (derived: the
+     list marker gutter, to the right of each other). */
+  --docblocks-checkbox-left: calc(-1 * var(--docblocks-list-padding-left) + 2px);
+  --docblocks-collapse-left: calc(-1 * var(--docblocks-list-padding-left) + var(--docblocks-checkbox-size) + 2px);
 
   /* Callout. */
   --docblocks-callout-border-width: 4px;
@@ -163,26 +174,6 @@
   --docblocks-presence-range-opacity: 0.25;
 }
 
-/* The editor root: the positioning anchor for presence carets. */
-[data-slot="docblocks/editor"] {
-  position: relative;
-  font-family: var(--docblocks-font-family);
-  font-size: var(--docblocks-font-size);
-  line-height: var(--docblocks-line-height);
-  color: var(--docblocks-text-color);
-}
-
-/* A block wrapper: the spacing anchor and the gutter positioning box. */
-[data-slot="docblocks/block"],
-[data-slot="docblocks/list-item"] {
-  position: relative;
-  outline: none;
-}
-
-[data-slot="docblocks/block"] {
-  margin: var(--docblocks-block-spacing) 0;
-}
-
 /*
  * The list-drag session (the motion view): the lifted item follows the
  * pointer via an inline transform; the attrs below are set by the
@@ -205,175 +196,6 @@
   z-index: 20;
 }
 
-/* The inner editable: the flat text diff is scoped to it, so it carries
-   no vertical spacing. An empty editable keeps a line box (and a caret
-   target) via a zero-width space; the pseudo-element content is not text
-   content. */
-[data-slot="docblocks/block-content"] {
-  margin: 0;
-  outline: none;
-  /* A \n in the run text (the Shift+Enter line break) renders as a line
-     break; typed spaces stay as typed. */
-  white-space: pre-wrap;
-}
-
-[data-slot="docblocks/block-content"]:empty::after {
-  content: "\200b";
-}
-
-/* The gutter handle: a small dot in the left margin, revealed on hover
-   or while the block is selected. */
-[data-slot="docblocks/gutter"] {
-  position: absolute;
-  top: 50%;
-  left: calc(-1 * (var(--docblocks-gutter-size) + var(--docblocks-gutter-offset)));
-  width: var(--docblocks-gutter-size);
-  height: var(--docblocks-gutter-size);
-  transform: translateY(-50%);
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: var(--docblocks-gutter-color);
-  opacity: 0;
-  cursor: pointer;
-}
-
-[data-slot="docblocks/block"]:hover [data-slot="docblocks/gutter"],
-[data-slot="docblocks/list-item"]:hover [data-slot="docblocks/gutter"],
-[data-selected="true"] [data-slot="docblocks/gutter"] {
-  opacity: 1;
-}
-
-/* The selected block (a blocks selection). */
-[data-block-id][data-selected="true"] {
-  background: var(--docblocks-selected-background);
-}
-
-[data-slot="docblocks/editor"] [data-block-type="heading"] {
-  font-weight: var(--docblocks-heading-font-weight);
-}
-
-[data-slot="docblocks/editor"] h1[data-block-type="heading"] {
-  font-size: var(--docblocks-heading-h1-font-size);
-}
-
-[data-slot="docblocks/editor"] h2[data-block-type="heading"] {
-  font-size: var(--docblocks-heading-h2-font-size);
-}
-
-[data-slot="docblocks/editor"] h3[data-block-type="heading"] {
-  font-size: var(--docblocks-heading-h3-font-size);
-}
-
-[data-slot="docblocks/list"] {
-  margin: var(--docblocks-block-spacing) 0;
-  padding-left: var(--docblocks-list-padding-left);
-}
-
-/* A list nested inside a list item: no block spacing of its own. */
-[data-slot="docblocks/list-item"] [data-slot="docblocks/list"] {
-  margin: var(--docblocks-list-nested-margin);
-}
-
-/* Nested content of a text container (paragraph / heading / callout /
-   code / latex): indented like a list level (the block spacing of the
-   nested blocks stands). */
-[data-slot="docblocks/nested"] {
-  padding-left: var(--docblocks-nested-indent);
-}
-
-/* Level markers: `data-depth` carries the marker's cycle index (1|2|3 —
-   the nesting depth is unbounded and CSS cannot modulo it), so a level 4+
-   list reuses the level-1 rule. */
-[data-slot="docblocks/list"][data-list="bullet"] {
-  list-style: disc;
-}
-
-[data-slot="docblocks/list"][data-list="bullet"][data-depth="2"] {
-  list-style: circle;
-}
-
-[data-slot="docblocks/list"][data-list="bullet"][data-depth="3"] {
-  list-style: square;
-}
-
-[data-slot="docblocks/list"][data-list="number"] {
-  list-style: decimal;
-}
-
-[data-slot="docblocks/list"][data-list="number"][data-depth="2"] {
-  list-style: lower-alpha;
-}
-
-[data-slot="docblocks/list"][data-list="number"][data-depth="3"] {
-  list-style: lower-roman;
-}
-
-[data-slot="docblocks/list"][data-list="task"] {
-  list-style: none;
-}
-
-/* The task checkbox: sits in the list marker gutter of its item; clicking
-   it toggles the item's checked attr. */
-[data-slot="docblocks/checkbox"] {
-  position: absolute;
-  top: 0.25em;
-  left: calc(-1 * var(--docblocks-list-padding-left) + 2px);
-  width: var(--docblocks-checkbox-size);
-  height: var(--docblocks-checkbox-size);
-  margin: 0;
-  padding: 0;
-  border: 1.5px solid var(--docblocks-checkbox-border-color);
-  border-radius: 3px;
-  background: transparent;
-  color: var(--docblocks-checkbox-checked-color);
-  display: grid;
-  place-items: center;
-  font-size: 10px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-[data-slot="docblocks/checkbox"][aria-checked="true"] {
-  border-color: var(--docblocks-checkbox-checked-background);
-  background: var(--docblocks-checkbox-checked-background);
-}
-
-[data-slot="docblocks/checkbox"][aria-checked="true"]::after {
-  content: "\2713";
-}
-
-/* The collapse toggle of a list item with children: a view-state control
-   (no doc data) placed in the list marker gutter, to the right of the
-   task checkbox slot (absolute: an inline element of its own would add a
-   line box to the item). */
-[data-slot="docblocks/collapse"] {
-  position: absolute;
-  top: 0.25em;
-  left: calc(-1 * var(--docblocks-list-padding-left) + var(--docblocks-checkbox-size) + 2px);
-  width: 8px;
-  height: 14px;
-  margin: 0;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--docblocks-gutter-color);
-  font-size: 9px;
-  line-height: 1;
-  text-align: center;
-  cursor: pointer;
-}
-
-[data-slot="docblocks/collapse"]:hover {
-  color: var(--docblocks-text-color);
-}
-
-/* A done task: its text is struck through. */
-[data-slot="docblocks/list-item"][data-checked="true"] [data-slot="docblocks/block-content"] {
-  text-decoration: line-through;
-}
-
 /* Callout: the default (no variant) uses the info tokens. */
 [data-block-type="callout"] {
   border-left: var(--docblocks-callout-border-width) solid var(--docblocks-callout-border-color-info);
@@ -390,16 +212,6 @@
 [data-block-type="callout"][data-variant="danger"] {
   border-left-color: var(--docblocks-callout-border-color-danger);
   background: var(--docblocks-callout-background-danger);
-}
-
-[data-slot="docblocks/editor"] a {
-  color: var(--docblocks-link-color);
-}
-
-[data-slot="docblocks/editor"] code {
-  background: var(--docblocks-inline-code-background);
-  border-radius: var(--docblocks-radius);
-  padding: var(--docblocks-inline-code-padding);
 }
 
 /* Code and latex blocks: mono. */
@@ -592,21 +404,6 @@ iframe[data-slot="docblocks/embed"] {
 
 [data-slot="docblocks/sync-embed-placeholder"][data-state="broken"] {
   color: var(--docblocks-callout-border-color-danger);
-}
-
-[data-slot="docblocks/editor"] ::selection {
-  background: var(--docblocks-selection-background);
-}
-
-/* Horizontal text alignment (the text blocks' `align` attr): the block's
-   content element takes the alignment; `left` is the default, so it has
-   no rule of its own. */
-[data-block-type][data-align="center"] > [data-slot="docblocks/block-content"] {
-  text-align: center;
-}
-
-[data-block-type][data-align="right"] > [data-slot="docblocks/block-content"] {
-  text-align: right;
 }
 
 /* The floating format toolbar: the editor root's floating layer, anchored

@@ -296,3 +296,26 @@ test("the list markers cycle per nesting level", async ({ page }) => {
     { depth: "3", style: "lower-roman" },
   ]);
 });
+
+test("the editor root typography and the block spacing read the tokens", async ({ page }) => {
+  await openCatalogPane(page);
+  // The catalog doc carries nested editors (the sync-embed and the frame)
+  // — the pane's own root is the first one in DOM order.
+  const root = editor(page).first();
+
+  // The root typography (the old editor-root rule is the root's classes):
+  // the 16px font and its 1.6 line-height.
+  const rootStyle = await styleProps(root, "font-size", "line-height");
+  expect(rootStyle["font-size"]).toBe("16px");
+  expect(rootStyle["line-height"]).toBe("25.6px");
+
+  // A block wrapper's vertical spacing reads the spacing token (the old
+  // generic wrapper rule is the wrappers' classes), and the gutter sits
+  // in the left margin at the derived left-edge token.
+  const paragraph = root.locator('[data-slot="docblocks/block"]').first();
+  const margin = await styleProps(paragraph, "margin-top", "margin-bottom");
+  expect(margin["margin-top"]).toBe("8px");
+  expect(margin["margin-bottom"]).toBe("8px");
+  const gutterStyle = await styleProps(paragraph.locator('[data-slot="docblocks/gutter"]'), "left");
+  expect(gutterStyle["left"]).toBe("-14px");
+});

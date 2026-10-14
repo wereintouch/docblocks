@@ -1,5 +1,7 @@
 import type { TextRun } from "docblocks-core";
 
+import { INLINE_CODE_CLASS, LINK_CLASS } from "./runs";
+
 /**
  * The imperative counterpart of renderRuns (text/runs.tsx): build the
  * marked inline DOM of the runs and replace a container's children with
@@ -55,6 +57,7 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
   for (const run of runs) {
     if (run.marks.code === true) {
       const code = document.createElement("code");
+      code.className = INLINE_CODE_CLASS;
       code.textContent = run.text;
       nodes.push(code);
       continue;
@@ -62,12 +65,13 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
     if (run.marks.math !== undefined) {
       const math = document.createElement("code");
       math.setAttribute("data-mark", "math");
+      math.className = INLINE_CODE_CLASS;
       math.textContent = run.marks.math.tex;
       nodes.push(math);
       continue;
     }
     let node: Node = document.createTextNode(run.text);
-    if (run.marks.link !== undefined) node = wrap(node, "a", { href: run.marks.link.href });
+    if (run.marks.link !== undefined) node = wrap(node, "a", { href: run.marks.link.href, class: LINK_CLASS });
     if (run.marks.bold === true) node = wrap(node, "strong");
     if (run.marks.italic === true) node = wrap(node, "em");
     if (run.marks.strike === true) node = wrap(node, "s");

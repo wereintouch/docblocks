@@ -438,7 +438,7 @@ function SlashMenu({ rootRef, state, onHover, onPick }: SlashMenuProps) {
         side="bottom"
         sideOffset={0}
         data-slot="docblocks/slash-menu"
-        className="data-[state=open]:animate-none data-[state=closed]:animate-none"
+        className="data-[state=closed]:animate-none data-[state=open]:animate-none"
         onMouseDown={(event) => event.preventDefault()}
         onPointerDownOutside={(event) => event.preventDefault()}
         onFocusOutside={(event) => event.preventDefault()}

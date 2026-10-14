@@ -17,6 +17,7 @@ import { useBlockInput } from "../editing/input-safety";
 import { useBlockKeyboard } from "../editing/keyboard";
 import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
+import { cn } from "../shared/ui/cn";
 import { renderRunsInto } from "../text/runs-dom";
 import { useBlockContext } from "./block-context";
 
@@ -306,6 +307,80 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
     [block, doc, id]
   );
 
+  const align = alignOf(block);
+
+  /**
+   * The wrapper classes: the gutter positioning box (no focus outline).
+   * Non-list blocks carry the vertical spacing (a list item's spacing
+   * stands on its list); the selected background follows the blocks
+   * selection; the heading weight and the h1-h3 sizes follow the heading
+   * tokens.
+   */
+  const headingSize =
+    block.type === "heading" && tag === "h1"
+      ? "text-(length:--docblocks-heading-h1-font-size)"
+      : block.type === "heading" && tag === "h2"
+        ? "text-(length:--docblocks-heading-h2-font-size)"
+        : block.type === "heading" && tag === "h3"
+          ? "text-(length:--docblocks-heading-h3-font-size)"
+          : undefined;
+  const wrapperClass = cn(
+    "relative outline-none",
+    tag !== "li" && "my-(--docblocks-block-spacing)",
+    selected && "bg-(--docblocks-selected-background)",
+    block.type === "heading" && "font-(--docblocks-heading-font-weight)",
+    headingSize
+  );
+
+  /**
+   * The inner editable classes: no spacing of its own, the pre-wrap of the
+   * line breaks, the zero-width line box of an empty editable (the caret
+   * target — the pseudo-element content is not text content), the done
+   * task's strike, and the block's alignment (left is the default).
+   */
+  const innerClass = cn(
+    "m-0 whitespace-pre-wrap outline-none empty:after:content-['\\200b']",
+    block.type === "list-item" && block.attrs.checked && "line-through",
+    align === "center" && "text-center",
+    align === "right" && "text-right"
+  );
+
+  /**
+   * The gutter handle classes: the dot in the left margin (the position
+   * reads the gutter tokens), revealed on a wrapper hover or while the
+   * block is selected.
+   */
+  const gutterClass = cn(
+    "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
+    "left-(--docblocks-gutter-left) size-(--docblocks-gutter-size) bg-(--docblocks-gutter-color)",
+    selected && "opacity-100"
+  );
+
+  /**
+   * The task checkbox classes: the box in the list marker gutter (the
+   * position reads the list indent + checkbox tokens); the checked state
+   * fills the box and adds the check mark.
+   */
+  const checkboxClass = cn(
+    `
+      absolute top-[0.25em] grid cursor-pointer place-items-center border-[1.5px] bg-transparent text-[10px]
+      leading-none
+    `,
+    "left-(--docblocks-checkbox-left) size-(--docblocks-checkbox-size) rounded-[3px]",
+    "border-(--docblocks-checkbox-border-color) text-(--docblocks-checkbox-checked-color)",
+    `
+      aria-checked:border-(--docblocks-checkbox-checked-background)
+      aria-checked:bg-(--docblocks-checkbox-checked-background)
+    `,
+    "aria-checked:after:content-['\\2713']"
+  );
+
+  /** The collapse toggle classes: the view-state control in the list marker gutter. */
+  const collapseClass = cn(
+    "absolute top-[0.25em] h-3.5 w-2 cursor-pointer bg-transparent text-center text-[9px] leading-none",
+    "left-(--docblocks-collapse-left) text-(--docblocks-gutter-color) hover:text-(--docblocks-text-color)"
+  );
+
   const Tag = tag;
   return (
     <Tag
@@ -321,6 +396,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       data-align={alignOf(block)}
       data-selected={selected ? "true" : undefined}
       tabIndex={0}
+      className={cn("group", wrapperClass)}
       onKeyDown={onKeydown}
     >
       <button
@@ -329,6 +405,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
         aria-label="Select block"
         onClick={onGutterClick}
         onMouseDown={onControlMouseDown}
+        className={gutterClass}
       />
       {block.type === "list-item" && block.attrs.list === "task" && (
         <button
@@ -339,6 +416,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
           aria-label={block.attrs.checked ? "Mark task as not done" : "Mark task as done"}
           onClick={onCheckboxClick}
           onMouseDown={onControlMouseDown}
+          className={checkboxClass}
         />
       )}
       {hasNested && (
@@ -349,6 +427,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
           aria-expanded={!collapsed}
           onClick={onCollapseClick}
           onMouseDown={onControlMouseDown}
+          className={collapseClass}
         >
           {collapsed ? "\u25B6" : "\u25BC"}
         </button>
@@ -360,6 +439,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
         spellCheck={false}
         data-slot="docblocks/block-content"
         data-block-id={id}
+        className={innerClass}
         onInput={commitDomDelta}
         onPaste={onPaste}
       />

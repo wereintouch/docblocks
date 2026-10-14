@@ -7,6 +7,7 @@ import type { Block, BlockId, ListItemAttrs, ListItemBlock } from "docblocks-cor
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
+import { cn } from "../shared/ui/cn";
 import { DatabaseBlock } from "./DatabaseBlock";
 import { EmbedBlock } from "./EmbedBlock";
 import { FrameBlock } from "./FrameBlock";
@@ -49,12 +50,30 @@ function groupChildren(ids: BlockId[], blocks: Record<BlockId, Block>): ChildGro
 /**
  * One list: consecutive list items of the same kind. `data-depth` carries
  * the marker's cycle index (1|2|3, not the raw level): the nesting depth is
- * unbounded and CSS cannot modulo it, so the renderer cycles it.
+ * unbounded and CSS cannot modulo it, so the renderer cycles it. The list
+ * carries the block spacing only at the top level (a nested list's spacing
+ * stands on its list item); the marker style cycles per level (disc /
+ * circle / square and decimal / lower-alpha / lower-roman; the task list
+ * has no marker — the checkbox stands in for it).
  */
 function ListGroup({ tag, list, ids, depth }: { tag: "ul" | "ol"; list: ListKind; ids: BlockId[]; depth: number }) {
   const Tag = tag;
+  const cycle = ((depth - 1) % 3) + 1;
+  const bulletMarkers = ["list-disc", "list-[circle]", "list-[square]"] as const;
+  const numberMarkers = ["list-decimal", "list-[lower-alpha]", "list-[lower-roman]"] as const;
+  const markerClass =
+    list === "task" ? "list-none" : list === "bullet" ? bulletMarkers[cycle - 1] : numberMarkers[cycle - 1];
   return (
-    <Tag data-slot="docblocks/list" data-list={list} data-depth={((depth - 1) % 3) + 1}>
+    <Tag
+      data-slot="docblocks/list"
+      data-list={list}
+      data-depth={cycle}
+      className={cn(
+        "pl-(--docblocks-list-padding-left)",
+        depth === 1 ? "my-(--docblocks-block-spacing)" : "my-0",
+        markerClass
+      )}
+    >
       {ids.map((childId) => (
         <BlockView key={childId} id={childId} depth={depth} />
       ))}
@@ -123,7 +142,7 @@ const ContainerChildren = memo(function ContainerChildren({ id, children }: { id
   const contextValue = useBlockContextValue(id, children);
   if (children.length === 0) return null;
   return (
-    <div data-slot="docblocks/nested">
+    <div data-slot="docblocks/nested" className="pl-(--docblocks-nested-indent)">
       <BlockContext.Provider value={contextValue}>
         <BlockGroups ids={children} />
       </BlockContext.Provider>

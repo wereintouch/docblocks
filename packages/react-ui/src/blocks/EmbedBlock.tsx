@@ -11,7 +11,13 @@ import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
   const { kind, src, title } = block.attrs;
   return (
-    <div data-slot="docblocks/block" data-block-type="embed" data-block-id={id} data-kind={kind}>
+    <div
+      data-slot="docblocks/block"
+      data-block-type="embed"
+      data-block-id={id}
+      data-kind={kind}
+      className="relative my-(--docblocks-block-spacing) outline-none"
+    >
       <iframe data-slot="docblocks/embed" src={src} title={title ?? kind} loading="lazy" />
     </div>
   );

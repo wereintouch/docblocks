@@ -34,6 +34,7 @@ import type { BlockId, CodeBlock } from "docblocks-core";
 import { childrenSlot } from "../blocks/BlockView";
 import { TextBlock, textOf } from "../blocks/TextBlock";
 import type { BlockRendererProps } from "../blocks/renderers";
+import { INLINE_CODE_CLASS } from "../text/runs";
 
 // The v1 security posture (see the module doc). Safe to run more than
 // once: initialize only sets the config. `suppressErrorRendering` keeps
@@ -82,7 +83,9 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
   if (state.error !== null) {
     return (
       <div data-slot="docblocks/mermaid" data-state="error">
-        <code data-slot="docblocks/mermaid-error">{text}</code>
+        <code data-slot="docblocks/mermaid-error" className={INLINE_CODE_CLASS}>
+          {text}
+        </code>
         <span data-slot="docblocks/mermaid-error-message">{state.error}</span>
       </div>
     );

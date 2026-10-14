@@ -101,6 +101,7 @@ import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
+import { cn } from "../shared/ui/cn";
 import { useBlockDrag } from "./block-drag";
 import { moveTargetForReorder } from "./reorder";
 
@@ -233,7 +234,15 @@ function EntryItem({ entry, registerEls, layoutSlide, isDragged, dragHeight }: E
         {single ? (
           <BlockView id={entry.id} />
         ) : (
-          <entry.tag data-slot="docblocks/list" data-list={entry.list} data-depth={1}>
+          <entry.tag
+            data-slot="docblocks/list"
+            data-list={entry.list}
+            data-depth={1}
+            className={cn(
+              "my-(--docblocks-block-spacing) pl-(--docblocks-list-padding-left)",
+              entry.list === "task" ? "list-none" : entry.list === "bullet" ? "list-disc" : "list-decimal"
+            )}
+          >
             {entry.ids.map((childId) => (
               <BlockView key={childId} id={childId} />
             ))}
@@ -596,6 +605,11 @@ function MotionEditor({
       data-docblocks-motion=""
       data-view={view}
       tabIndex={-1}
+      className={cn(
+        "relative selection:bg-(--docblocks-selection-background)",
+        "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
+        "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
+      )}
       onKeyDown={onKeyDown}
       onCopy={onCopy}
       onPointerDown={onRootPointerDown}

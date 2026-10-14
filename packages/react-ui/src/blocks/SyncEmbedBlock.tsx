@@ -73,6 +73,7 @@ function SyncEmbedBlock({ id, block }: { id: BlockId; block: SyncEmbedBlockType 
       data-block-id={id}
       data-state={state}
       data-doc-id={ref.docId}
+      className="relative my-(--docblocks-block-spacing) outline-none"
     >
       {state === "resolved" && master !== null && (
         <SyncEmbedContent key={`${ref.docId}:${ref.blockId ?? ""}`} master={master} blockId={ref.blockId} />

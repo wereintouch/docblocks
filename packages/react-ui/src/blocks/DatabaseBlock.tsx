@@ -13,7 +13,12 @@ function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType })
   const { columns } = block.attrs;
   const rowCount = block.rowOrder.length;
   return (
-    <div data-slot="docblocks/block" data-block-type="database" data-block-id={id}>
+    <div
+      data-slot="docblocks/block"
+      data-block-type="database"
+      data-block-id={id}
+      className="relative my-(--docblocks-block-spacing) outline-none"
+    >
       <div data-slot="docblocks/database">
         <div data-slot="docblocks/database-header">
           {columns.map((column) => (

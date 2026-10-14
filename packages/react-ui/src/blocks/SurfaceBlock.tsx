@@ -20,7 +20,12 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
   const children = block.children ?? EMPTY_IDS;
   const contextValue = useBlockContextValue(id, children);
   return (
-    <div data-slot="docblocks/block" data-block-type="surface" data-block-id={id}>
+    <div
+      data-slot="docblocks/block"
+      data-block-type="surface"
+      data-block-id={id}
+      className="relative my-(--docblocks-block-spacing) outline-none"
+    >
       <div data-slot="docblocks/canvas">
         <BlockContext.Provider value={contextValue}>
           {children.map((childId) => (

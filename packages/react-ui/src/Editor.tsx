@@ -10,6 +10,7 @@ import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
 import { PresenceCaretOverlay } from "./presence/presence-caret";
+import { cn } from "./shared/ui/cn";
 
 /**
  * The document's view mode: the page flow (the root's children in reading
@@ -52,6 +53,11 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
       data-slot="docblocks/editor"
       data-view={view}
       tabIndex={-1}
+      className={cn(
+        "relative selection:bg-(--docblocks-selection-background)",
+        "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
+        "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
+      )}
       onKeyDown={onKeyDown}
       onCopy={onCopy}
       onPointerDown={onPointerDown}
