@@ -151,12 +151,6 @@
   --docblocks-page-card-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
   --docblocks-page-card-padding: 32px 40px;
 
-  /* Slash command menu. */
-  --docblocks-menu-background: var(--popover, #ffffff);
-  --docblocks-menu-border-color: var(--border, #d0d7de);
-  --docblocks-menu-active-background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);
-  --docblocks-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
-
   /* The floating format toolbar (the selection's formatting layer). */
   --docblocks-formatbar-background: var(--popover, #ffffff);
   --docblocks-formatbar-border-color: var(--border, #d0d7de);
@@ -604,40 +598,6 @@ iframe[data-slot="docblocks/embed"] {
   background: var(--docblocks-selection-background);
 }
 
-/* The slash command menu: the editor root's floating layer, anchored at
-   the triggering block (inline top/left); the items are the command list
-   filtered by the typed query. */
-[data-slot="docblocks/slash-menu"] {
-  position: absolute;
-  z-index: 40;
-  min-width: 190px;
-  max-height: 240px;
-  overflow-y: auto;
-  padding: 4px;
-  background: var(--docblocks-menu-background);
-  color: var(--docblocks-text-color);
-  border: 1px solid var(--docblocks-menu-border-color);
-  border-radius: var(--docblocks-radius);
-  box-shadow: var(--docblocks-menu-shadow);
-  font-size: 0.8125em;
-}
-
-[data-slot="docblocks/slash-menu"] [role="option"] {
-  padding: 6px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-[data-slot="docblocks/slash-menu"] [aria-selected="true"] {
-  background: var(--docblocks-menu-active-background);
-}
-
-[data-slot="docblocks/slash-menu"] [data-slot="docblocks/slash-empty"] {
-  padding: 6px 8px;
-  opacity: 0.6;
-}
-
 /* Horizontal text alignment (the text blocks' `align` attr): the block's
    content element takes the alignment; `left` is the default, so it has
    no rule of its own. */
@@ -729,11 +689,6 @@ iframe[data-slot="docblocks/embed"] {
   --docblocks-callout-background-warning: rgba(210, 153, 34, 0.15);
   --docblocks-callout-border-color-danger: var(--destructive, #f85149);
   --docblocks-callout-background-danger: color-mix(in srgb, var(--destructive, #f85149) 15%, transparent);
-
-  --docblocks-menu-background: var(--popover, #161b22);
-  --docblocks-menu-border-color: var(--border, rgba(110, 118, 129, 0.65));
-  --docblocks-menu-active-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
-  --docblocks-menu-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 
   --docblocks-formatbar-background: var(--popover, #161b22);
   --docblocks-formatbar-border-color: var(--border, rgba(110, 118, 129, 0.65));

@@ -1,10 +1,25 @@
 import { type ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import type { KeyboardEvent, RefObject } from "react";
+import type { ComponentType, KeyboardEvent, RefObject, SVGProps } from "react";
 
 import type { Block, BlockId, Doc } from "docblocks-core";
 import type { InsertBlockPosition } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../shared/ui/DropdownMenu";
+import { cn } from "../shared/ui/cn";
+import {
+  CodeXml,
+  Heading1,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  Pilcrow,
+  Sigma,
+  SquareCheck,
+  SquareSplitVertical,
+  TextQuote,
+} from "../shared/ui/icons";
 import { focusCaretIn } from "./block-commands";
 import { selectionInside } from "./dom-offset";
 
@@ -16,9 +31,19 @@ import { selectionInside } from "./dom-offset";
  * doc: the following input is captured as a filter query (the doc and the
  * wire see nothing until a command is applied), ArrowUp/ArrowDown move
  * the active item, Enter or a click applies it, Escape cancels, a
- * Backspace with an empty query closes (the phantom "/" is not in the doc
- * to delete), and the menu closes itself as soon as the DOM selection
+ * Backspace with an empty query closes (the phantom "/" is not in the
+ * doc to delete), and the menu closes itself as soon as the DOM selection
  * leaves the triggering block or the block gains text.
+ *
+ * The menu is a non-modal radix dropdown portaled to the document body:
+ * the trigger is an invisible zero-size anchor at the block, and the
+ * keys stay the editor's — the block's keydown while the focus sits in
+ * the block, a document-level capture (scoped to this editor's root or
+ * the menu) once radix's roving focus has landed on the menu. Hovering
+ * and the keyboard both highlight through the active index. The content
+ * suppresses the default mousedown (the selection must survive a click)
+ * and the outside pointer/focus dismiss (the selection state owns the
+ * visibility).
  *
  * Applying a command converts the empty block: the block is removed and
  * the command's block is inserted in its place (one transaction — one
@@ -32,30 +57,33 @@ import { selectionInside } from "./dom-offset";
  * canvas types) are not offered; they stay command-API inserts.
  */
 
-/** One slash command: the block type and its default attrs. */
+/** A 24px-stroke icon component (the package icon set). */
+type SlashIcon = ComponentType<SVGProps<SVGSVGElement>>;
+
+/** One slash command: the block type, its default attrs, and the menu glyph. */
 type SlashCommand =
-  | { label: string; type: "paragraph" }
-  | { label: string; type: "heading"; attrs: { level: 1 | 2 | 3 } }
-  | { label: string; type: "list-item"; attrs: { list: "bullet" | "number" | "task" } }
-  | { label: string; type: "callout" }
-  | { label: string; type: "code"; attrs?: { language?: string } }
-  | { label: string; type: "latex"; attrs: { display: boolean } }
-  | { label: string; type: "divider" };
+  | { label: string; icon: SlashIcon; type: "paragraph" }
+  | { label: string; icon: SlashIcon; type: "heading"; attrs: { level: 1 | 2 | 3 } }
+  | { label: string; icon: SlashIcon; type: "list-item"; attrs: { list: "bullet" | "number" | "task" } }
+  | { label: string; icon: SlashIcon; type: "callout" }
+  | { label: string; icon: SlashIcon; type: "code"; attrs?: { language?: string } }
+  | { label: string; icon: SlashIcon; type: "latex"; attrs: { display: boolean } }
+  | { label: string; icon: SlashIcon; type: "divider" };
 
 /** The v1 command list (filterable by the typed query). */
 const SLASH_COMMANDS: SlashCommand[] = [
-  { label: "Text", type: "paragraph" },
-  { label: "Heading 1", type: "heading", attrs: { level: 1 } },
-  { label: "Heading 2", type: "heading", attrs: { level: 2 } },
-  { label: "Heading 3", type: "heading", attrs: { level: 3 } },
-  { label: "Bulleted list", type: "list-item", attrs: { list: "bullet" } },
-  { label: "Numbered list", type: "list-item", attrs: { list: "number" } },
-  { label: "Task list", type: "list-item", attrs: { list: "task" } },
-  { label: "Callout", type: "callout" },
-  { label: "Code block", type: "code" },
-  { label: "Code block (mermaid)", type: "code", attrs: { language: "mermaid" } },
-  { label: "Formula", type: "latex", attrs: { display: false } },
-  { label: "Divider", type: "divider" },
+  { label: "Text", icon: Pilcrow, type: "paragraph" },
+  { label: "Heading 1", icon: Heading1, type: "heading", attrs: { level: 1 } },
+  { label: "Heading 2", icon: Heading2, type: "heading", attrs: { level: 2 } },
+  { label: "Heading 3", icon: Heading3, type: "heading", attrs: { level: 3 } },
+  { label: "Bulleted list", icon: List, type: "list-item", attrs: { list: "bullet" } },
+  { label: "Numbered list", icon: ListOrdered, type: "list-item", attrs: { list: "number" } },
+  { label: "Task list", icon: SquareCheck, type: "list-item", attrs: { list: "task" } },
+  { label: "Callout", icon: TextQuote, type: "callout" },
+  { label: "Code block", icon: CodeXml, type: "code" },
+  { label: "Code block (mermaid)", icon: CodeXml, type: "code", attrs: { language: "mermaid" } },
+  { label: "Formula", icon: Sigma, type: "latex", attrs: { display: false } },
+  { label: "Divider", icon: SquareSplitVertical, type: "divider" },
 ];
 
 interface SlashMenuState {
@@ -156,11 +184,20 @@ function applyCommand(doc: Doc, command: SlashCommand, blockId: BlockId, parentI
   });
 }
 
+/** The key facts the open-menu key handling reads (react and native alike). */
+interface OpenMenuKey {
+  key: string;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  isComposing: boolean;
+}
+
 /**
  * The editor-level slash menu state and UI. The root owns the state and
- * renders the floating menu; the blocks get the stable api (the key
- * handling reads the state through a ref, so query changes do not
- * re-render the block tree).
+ * renders the menu; the blocks get the stable api (the key handling reads
+ * the state through a ref, so query changes do not re-render the block
+ * tree).
  */
 function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuApi; menuNode: ReactNode } {
   const { doc, store } = useEditorContext();
@@ -212,43 +249,41 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     [doc, rootRef]
   );
 
-  /** The open-menu key handling (consumes the event; false otherwise). */
-  const onKeyDown = useCallback(
-    (event: KeyboardEvent, blockId: BlockId): boolean => {
+  /**
+   * The open-menu key handling, on the key facts (react and native
+   * keyboard events alike); true = the key is the menu's (the caller
+   * preventDefaults).
+   */
+  const handleOpenMenuKey = useCallback(
+    (key: OpenMenuKey, blockId: BlockId): boolean => {
       const s = stateRef.current;
       if (s === null || s.blockId !== blockId) return false;
-      switch (event.key) {
+      switch (key.key) {
         case "Escape":
-          event.preventDefault();
           setState(null);
           return true;
         case "ArrowDown":
-          event.preventDefault();
           move(1);
           return true;
         case "ArrowUp":
-          event.preventDefault();
           move(-1);
           return true;
         case "Enter":
-          if (!event.nativeEvent.isComposing) {
-            event.preventDefault();
+          if (!key.isComposing) {
             pick(s.active);
             return true;
           }
           return false;
         case "Backspace":
-          if (!event.nativeEvent.isComposing) {
-            event.preventDefault();
+          if (!key.isComposing) {
             backspaceQuery();
             return true;
           }
           return false;
         default:
-          if (event.nativeEvent.isComposing || event.metaKey || event.ctrlKey || event.altKey) return false;
-          if (event.key.length === 1) {
-            event.preventDefault();
-            typeChar(event.key);
+          if (key.isComposing || key.metaKey || key.ctrlKey || key.altKey) return false;
+          if (key.key.length === 1) {
+            typeChar(key.key);
             return true;
           }
           return false;
@@ -256,6 +291,64 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     },
     [backspaceQuery, move, pick, typeChar]
   );
+
+  /** The open-menu key handling on the block's react event (consumes it). */
+  const onKeyDown = useCallback(
+    (event: KeyboardEvent, blockId: BlockId): boolean => {
+      const consumed = handleOpenMenuKey(
+        {
+          key: event.key,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          isComposing: event.nativeEvent.isComposing,
+        },
+        blockId
+      );
+      if (consumed) event.preventDefault();
+      return consumed;
+    },
+    [handleOpenMenuKey]
+  );
+
+  // The focus lands on the portaled menu when it opens (radix's roving
+  // focus), and then the block's keydown never fires: while the menu is
+  // open, the root also owns the keys at the document level (capture),
+  // scoped to this editor's root or the menu itself (a page can render
+  // several roots — the other roots' keys must not filter this menu).
+  // stopPropagation keeps the menu's own key handling (roving focus,
+  // typeahead) out — the state machine above is the single key owner.
+  const openFlag = state !== null;
+  useEffect(() => {
+    if (!openFlag) return;
+    const onDocKeyDown = (event: globalThis.KeyboardEvent): void => {
+      const s = stateRef.current;
+      const root = rootRef.current;
+      const target = event.target instanceof Element ? event.target : null;
+      if (s === null || root === null || target === null) return;
+      // Scope: the key must land in this editor's root (a nested editor root
+      // inside this one is another editor — its keys stay its own) or in the
+      // menu itself (portaled outside every editor root).
+      const inOwnEditor = target.closest('[data-slot="docblocks/editor"]') === root;
+      if (!inOwnEditor && target.closest('[data-slot="docblocks/slash-menu"]') === null) return;
+      const consumed = handleOpenMenuKey(
+        {
+          key: event.key,
+          metaKey: event.metaKey,
+          ctrlKey: event.ctrlKey,
+          altKey: event.altKey,
+          isComposing: event.isComposing,
+        },
+        s.blockId
+      );
+      if (consumed) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    document.addEventListener("keydown", onDocKeyDown, true);
+    return () => document.removeEventListener("keydown", onDocKeyDown, true);
+  }, [openFlag, rootRef, handleOpenMenuKey]);
 
   /** The "/" trigger: a plain "/" keystroke in an eligible block. */
   const onSlashKey = useCallback(
@@ -272,7 +365,6 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
 
   // Auto-close: the selection left the triggering block, or the block
   // gained text (an IME commit while the menu captured the query).
-  const openFlag = state !== null;
   useEffect(() => {
     if (!openFlag) return;
     const onSelectionChange = () => {
@@ -312,7 +404,13 @@ interface SlashMenuProps {
   onPick: (index: number) => void;
 }
 
-/** The floating command list, anchored at the triggering block. */
+/**
+ * The floating command list: a non-modal radix dropdown anchored at the
+ * triggering block through an invisible zero-size trigger (the content is
+ * portaled to the document body and styles itself; the bar-level mousedown
+ * guard and the outside dismiss suppression stand here as well — the
+ * editor owns the selection and the selection state owns the visibility).
+ */
 function SlashMenu({ rootRef, state, onHover, onPick }: SlashMenuProps) {
   const items = filterCommands(state.query);
   const anchor =
@@ -331,26 +429,39 @@ function SlashMenu({ rootRef, state, onHover, onPick }: SlashMenuProps) {
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 
   return (
-    <div data-slot="docblocks/slash-menu" role="listbox" style={{ top, left }}>
-      {items.length === 0 ? (
-        <div data-slot="docblocks/slash-empty">no commands</div>
-      ) : (
-        items.map((command, index) => (
-          <div
-            key={command.label}
-            role="option"
-            aria-selected={index === active}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              onPick(index);
-            }}
-            onMouseEnter={() => onHover(index)}
-          >
-            {command.label}
+    <DropdownMenu modal={false} open>
+      <DropdownMenuTrigger asChild>
+        <span aria-hidden="true" style={{ position: "absolute", top, left, width: 0, height: 0 }} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        side="bottom"
+        sideOffset={0}
+        data-slot="docblocks/slash-menu"
+        className="data-[state=open]:animate-none data-[state=closed]:animate-none"
+        onMouseDown={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onFocusOutside={(event) => event.preventDefault()}
+      >
+        {items.length === 0 ? (
+          <div data-slot="docblocks/slash-empty" className="px-2 py-1.5 text-sm text-muted-foreground">
+            no commands
           </div>
-        ))
-      )}
-    </div>
+        ) : (
+          items.map((command, index) => (
+            <DropdownMenuItem
+              key={command.label}
+              onSelect={() => onPick(index)}
+              onMouseEnter={() => onHover(index)}
+              className={cn("focus:bg-transparent", index === active && "bg-accent text-accent-foreground")}
+            >
+              <command.icon className="size-4" />
+              {command.label}
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

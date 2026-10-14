@@ -48,12 +48,25 @@ test("slash: / opens the command menu; the query filters; Enter converts the emp
 
   const m = menu(a);
   await expect(m).toBeVisible();
-  await expect(m.locator('[role="option"]')).toHaveCount(12);
+  await expect(m.locator('[role="menuitem"]')).toHaveCount(12);
+
+  // The menu anchors at the triggering block's top-left (the old inline
+  // geometry, now the radix content over the zero-size trigger).
+  const menuBox = await m.boundingBox();
+  const blockBox = await a
+    .locator('[data-block-type="paragraph"]')
+    .first()
+    .locator('[data-slot="docblocks/block-content"]')
+    .boundingBox();
+  if (menuBox !== null && blockBox !== null) {
+    expect(Math.abs(menuBox.x - blockBox.x)).toBeLessThanOrEqual(4);
+    expect(Math.abs(menuBox.y - blockBox.y)).toBeLessThanOrEqual(4);
+  }
 
   // The typed query filters the list (case-insensitive substring).
   await a.keyboard.type("head");
-  await expect(m.locator('[role="option"]')).toHaveCount(3);
-  await expect(m.locator('[role="option"]')).toHaveText(["Heading 1", "Heading 2", "Heading 3"]);
+  await expect(m.locator('[role="menuitem"]')).toHaveCount(3);
+  await expect(m.locator('[role="menuitem"]')).toHaveText(["Heading 1", "Heading 2", "Heading 3"]);
 
   // ArrowDown moves the active item; Enter applies it (Heading 2).
   await a.keyboard.press("ArrowDown");
@@ -93,8 +106,8 @@ test("slash: a click picks the command", async ({ browser }) => {
   await a.keyboard.press("/");
   await expect(menu(a)).toBeVisible();
 
-  // The accessible name is the option's label text.
-  await menu(a).getByRole("option", { name: "Callout" }).click();
+  // The accessible name is the item's label text.
+  await menu(a).getByRole("menuitem", { name: "Callout" }).click();
   await expect(menu(a)).toHaveCount(0);
   await expect(a.locator('[data-testid="doc-a"] [data-block-type="callout"]'), SETTLE).toHaveCount(1);
   await close();

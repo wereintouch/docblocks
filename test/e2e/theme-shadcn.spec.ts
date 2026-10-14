@@ -51,7 +51,6 @@ test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
   await expect.poll(() => tokenOf("--docblocks-radius"), SETTLE).toBe("10px");
   await expect.poll(() => tokenOf("--docblocks-table-border-color"), SETTLE).toBe("#223344");
   await expect.poll(() => tokenOf("--docblocks-frame-background"), SETTLE).toBe("#445566");
-  await expect.poll(() => tokenOf("--docblocks-menu-background"), SETTLE).toBe("#667788");
   await expect.poll(() => tokenOf("--docblocks-gutter-color"), SETTLE).toBe("#556677");
   await expect.poll(() => tokenOf("--docblocks-drag-line-color"), SETTLE).toBe("#654321");
   await expect.poll(() => tokenOf("--docblocks-checkbox-checked-color"), SETTLE).toBe("#112233");
