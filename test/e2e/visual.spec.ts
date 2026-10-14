@@ -46,14 +46,15 @@ test("the catalog renders the light and dark goldens", async ({ page }) => {
   // The dark token set activates via the .dark class on <html> (the shadcn
   // convention). The page background is a consumer concern the package
   // stylesheet does not own, so the harness sets a dark canvas for the dark
-  // golden; wait for the computed token to flip before shooting.
+  // golden; wait for the computed token to flip before shooting (the seed's
+  // dark --foreground, which the token follows while the seed is inlined).
   await page.evaluate(() => {
     document.documentElement.classList.add("dark");
     document.body.style.backgroundColor = "#0d1117";
   });
   await expect
     .poll(() => pane.evaluate((el) => getComputedStyle(el).getPropertyValue("--docblocks-text-color").trim()), SETTLE)
-    .toBe("#e6edf3");
+    .toBe("oklch(0.985 0 0)");
   await clearFocus(page);
   await expect(pane).toHaveScreenshot("catalog-dark.png");
 });
