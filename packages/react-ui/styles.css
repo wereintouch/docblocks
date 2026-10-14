@@ -1,6 +1,6 @@
 /*
- * docblocks-react-ui default stylesheet (token mapping + the structural
- * rules pending the utility migration).
+ * docblocks-react-ui default stylesheet (token mapping + the imperative
+ * drag-session rules).
  *
  * Token model (two layers):
  * 1. Standard (shadcn) input tokens — `--foreground`, `--primary`,
@@ -31,14 +31,15 @@
  * highlight) is data, not theme: the renderers apply it inline.
  *
  * This file holds the token mapping (the light + dark sets) plus the
- * structural rules of the zones pending the utility migration: the
- * migrated zones style their components with the package's Tailwind
- * utilities, which read these tokens (`bg-(--docblocks-*)` and friends),
- * so a token override themes the editor without touching the components.
+ * rules of the imperative drag session (attribute-driven, session-owned
+ * outside the React lifecycle): the migrated zones style their
+ * components with the package's Tailwind utilities, which read these
+ * tokens (`bg-(--docblocks-*)` and friends), so a token override themes
+ * the editor without touching the components.
  *
- * Structural hooks: the zones pending the migration read their tokens
- * through the `data-slot` selectors below; the migrated zones carry the
- * same hooks as the components' class-bearing elements.
+ * Structural hooks (the DOM surface consumers can target): all structural
+ * styling lives in the components' Tailwind classes (which read these
+ * tokens) + the imperative drag-session rules below;
  * `data-slot` (docblocks/editor, docblocks/block,
  * docblocks/block-content, docblocks/gutter, docblocks/list,
  * docblocks/list-item, docblocks/nested, docblocks/placeholder,
@@ -179,7 +180,10 @@
 /*
  * The list-drag session (the motion view): the lifted item follows the
  * pointer via an inline transform; the attrs below are set by the
- * session, so the rules are inert outside a drag.
+ * session at runtime (outside the React lifecycle), so the session stays
+ * attribute-driven — the remaining structural rules in this file (the
+ * other zones read their tokens from the components' Tailwind classes),
+ * inert outside a drag.
  */
 [data-slot="docblocks/editor"] [data-docblocks-dragging] {
   background: var(--docblocks-selected-background);
@@ -198,61 +202,15 @@
   z-index: 20;
 }
 
-/* The floating format toolbar: the editor root's floating layer, anchored
-   above the selection (inline top/left). The controls are shared/ui
-   primitives (Tailwind classes); the list-type menu and the color palette
-   are portaled to the document body (radix) and style themselves there. */
-[data-slot="docblocks/format-toolbar"] {
-  position: absolute;
-  z-index: 50;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 4px;
-  background: var(--docblocks-formatbar-background);
-  color: var(--docblocks-text-color);
-  border: 1px solid var(--docblocks-formatbar-border-color);
-  border-radius: var(--docblocks-radius);
-  box-shadow: var(--docblocks-formatbar-shadow);
-  font-size: 0.8125em;
-}
-
-/* The structural parts of a presence caret; the per-peer hue is set
-   inline as the --docblocks-presence-hue custom property, and
-   left/top/height come from the measured geometry (inline). */
-[data-slot="docblocks/presence-caret"] {
-  position: absolute;
-  pointer-events: none;
-  width: var(--docblocks-presence-caret-width);
-  background: hsl(
-    var(--docblocks-presence-hue, 200) var(--docblocks-presence-caret-saturation)
-      var(--docblocks-presence-caret-lightness)
-  );
-}
-
-/* The remote range highlight (a from+to selection, cross-block included):
-   one box per measured client rect of a chain-block segment; left/top/
-   width/height come from the measured geometry (inline), the fill reuses
-   the caret's hue/saturation/lightness tokens, softened by the opacity
-   token. */
-[data-slot="docblocks/presence-range"] {
-  position: absolute;
-  pointer-events: none;
-  border-radius: 2px;
-  background: hsl(
-    var(--docblocks-presence-hue, 200) var(--docblocks-presence-caret-saturation)
-      var(--docblocks-presence-caret-lightness) / var(--docblocks-presence-range-opacity)
-  );
-}
-
 /*
  * Dark mapping: overrides the color tokens only, activated by the `dark`
  * class on the editor root or any ancestor (typically <html>). It re-declares
  * the same tokens on the editor root (the higher-specificity scope) so the
  * standard input tokens — which flip under the same class — resolve against
- * the dark values; the literals stand for unthemed consumers. The structural
- * rules above are theme-agnostic (they read the tokens, so they follow the
- * active set).
+ * the dark values; the literals stand for unthemed consumers. The
+ * structural styling (the drag-session rules above and the components'
+ * classes) is theme-agnostic: it reads the tokens, so it follows the
+ * active set.
  */
 :is(.dark [data-slot="docblocks/editor"], [data-slot="docblocks/editor"].dark) {
   --docblocks-text-color: var(--foreground, #e6edf3);

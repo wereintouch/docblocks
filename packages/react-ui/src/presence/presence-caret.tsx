@@ -11,6 +11,17 @@ import { locatePosition } from "../editing/dom-offset";
 /** The box kinds of the overlay: a caret bar or a range-segment highlight. */
 type OverlaySlot = "docblocks/presence-caret" | "docblocks/presence-range";
 
+/**
+ * The structural classes of the overlay boxes (the per-peer hue comes
+ * from the inline --docblocks-presence-hue property, the geometry from
+ * the inline layout properties). The caret bar is the fixed width token;
+ * the range highlight is a softened box of the same hue.
+ */
+const CARET_CLASS =
+  "pointer-events-none absolute w-(--docblocks-presence-caret-width) bg-[hsl(var(--docblocks-presence-hue,200)_var(--docblocks-presence-caret-saturation)_var(--docblocks-presence-caret-lightness))]";
+const RANGE_CLASS =
+  "pointer-events-none absolute rounded-[2px] bg-[hsl(var(--docblocks-presence-hue,200)_var(--docblocks-presence-caret-saturation)_var(--docblocks-presence-caret-lightness)/var(--docblocks-presence-range-opacity))]";
+
 /** One rendered box: the peer and the pixel geometry relative to the editor root. */
 interface OverlayBox {
   key: string;
@@ -232,6 +243,7 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
           data-slot={box.slot}
           data-peer={box.peerId}
           data-range-block={box.blockId}
+          className={box.slot === "docblocks/presence-caret" ? CARET_CLASS : RANGE_CLASS}
           style={
             {
               "--docblocks-presence-hue": peerHue(box.peerId),
