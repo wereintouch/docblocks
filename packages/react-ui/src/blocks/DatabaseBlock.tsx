@@ -17,17 +17,23 @@ function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType })
       data-slot="docblocks/block"
       data-block-type="database"
       data-block-id={id}
-      className="relative my-(--docblocks-block-spacing) outline-none"
+      className="
+        relative my-(--docblocks-block-spacing) rounded-(--docblocks-radius)
+        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
+      "
     >
-      <div data-slot="docblocks/database">
-        <div data-slot="docblocks/database-header">
+      <div data-slot="docblocks/database" className="p-(--docblocks-table-cell-padding)">
+        <div
+          data-slot="docblocks/database-header"
+          className="flex flex-wrap gap-(--docblocks-block-spacing) font-(--docblocks-heading-font-weight)"
+        >
           {columns.map((column) => (
             <span key={column.id} data-slot="docblocks/database-column" data-column-type={column.type}>
               {column.name}
             </span>
           ))}
         </div>
-        <div data-slot="docblocks/database-count">
+        <div data-slot="docblocks/database-count" className="mt-(--docblocks-block-spacing) opacity-70">
           {rowCount} {rowCount === 1 ? "row" : "rows"}
         </div>
       </div>

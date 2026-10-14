@@ -16,9 +16,19 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
       data-block-type="embed"
       data-block-id={id}
       data-kind={kind}
-      className="relative my-(--docblocks-block-spacing) outline-none"
+      className="
+        relative my-(--docblocks-block-spacing) h-(--docblocks-embed-height) overflow-hidden
+        rounded-(--docblocks-radius) border-(length:--docblocks-divider-border-width)
+        border-(--docblocks-divider-border-color) outline-none
+      "
     >
-      <iframe data-slot="docblocks/embed" src={src} title={title ?? kind} loading="lazy" />
+      <iframe
+        data-slot="docblocks/embed"
+        src={src}
+        title={title ?? kind}
+        loading="lazy"
+        className="block h-full w-full border-0"
+      />
     </div>
   );
 }

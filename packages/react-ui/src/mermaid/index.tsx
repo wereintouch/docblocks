@@ -82,23 +82,42 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
 
   if (state.error !== null) {
     return (
-      <div data-slot="docblocks/mermaid" data-state="error">
+      <div
+        data-slot="docblocks/mermaid"
+        data-state="error"
+        className="
+          mt-(--docblocks-block-spacing) border-(length:--docblocks-table-border-width) border-dashed
+          border-(--docblocks-table-border-color) p-(--docblocks-code-padding)
+        "
+      >
         <code data-slot="docblocks/mermaid-error" className={INLINE_CODE_CLASS}>
           {text}
         </code>
-        <span data-slot="docblocks/mermaid-error-message">{state.error}</span>
+        <span
+          data-slot="docblocks/mermaid-error-message"
+          className="block text-(--docblocks-callout-border-color-danger)"
+        >
+          {state.error}
+        </span>
       </div>
     );
   }
   if (state.svg !== null) {
     return (
-      <div data-slot="docblocks/mermaid" data-state="diagram">
+      <div data-slot="docblocks/mermaid" data-state="diagram" className="mt-(--docblocks-block-spacing)">
         <div data-slot="docblocks/mermaid-diagram" dangerouslySetInnerHTML={{ __html: state.svg }} />
       </div>
     );
   }
   return (
-    <div data-slot="docblocks/mermaid" data-state="loading">
+    <div
+      data-slot="docblocks/mermaid"
+      data-state="loading"
+      className="
+        mt-(--docblocks-block-spacing) border-(length:--docblocks-table-border-width) border-dashed
+        border-(--docblocks-table-border-color) p-(--docblocks-code-padding)
+      "
+    >
       <span data-slot="docblocks/mermaid-loading">rendering…</span>
     </div>
   );

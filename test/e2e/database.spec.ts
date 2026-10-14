@@ -83,6 +83,14 @@ test("a database inserted in A renders in both panes and reaches the JSON", asyn
     await expect(wrapper.locator("[data-slot='docblocks/database-header']"), SETTLE).toContainText("Done");
     await expect(wrapper.locator("[data-slot='docblocks/database-header']"), SETTLE).toContainText("Status");
     await expect(wrapper.locator("[data-slot='docblocks/database-count']"), SETTLE).toHaveText("2 rows");
+    // The card frame reads the table border tokens (zone 3 — the classes
+    // replaced the removed wrapper rule; the catalog has no database
+    // block, so this pane is its visual pin).
+    const cardStyle = await wrapper.first().evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { width: s.borderTopWidth, style: s.borderTopStyle, radius: s.borderTopLeftRadius };
+    });
+    expect(cardStyle).toEqual({ width: "1px", style: "solid", radius: "10px" });
     // The wrapper contract: not text-editable, no gutter.
     expect(await wrapper.locator('[data-slot="docblocks/block-content"]').count()).toBe(0);
     expect(await wrapper.locator('[data-slot="docblocks/gutter"]').count()).toBe(0);

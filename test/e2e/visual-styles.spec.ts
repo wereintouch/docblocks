@@ -346,6 +346,41 @@ test("the callout, divider and table read the zone-2 tokens", async ({ page }) =
   expect(cellStyle).toEqual({ "border-top-width": "1px", padding: "4px 8px" });
 });
 
+test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) => {
+  await openCatalogPane(page);
+  const doc = editor(page).first();
+
+  // The embed: the wrapper box carries the height token (the iframe fills
+  // it) + the divider border.
+  const embed = doc.locator('[data-block-type="embed"]');
+  await expect(embed).toHaveCount(1);
+  const embedStyle = await styleProps(embed, "height", "border-style", "overflow");
+  expect(embedStyle).toEqual({ height: "300px", "border-style": "solid", overflow: "hidden" });
+
+  // The image: a block-level element capped at the box width.
+  const img = doc.locator('img[data-slot="docblocks/image"]');
+  await expect(img).toHaveCount(1);
+  const imgStyle = await styleProps(img, "display", "max-width");
+  expect(imgStyle).toEqual({ display: "block", "max-width": "100%" });
+
+  // The sync-embed: the wrapper frame's border + the scrolling body cap.
+  const syncEmbed = doc.locator('[data-block-type="sync-embed"]');
+  await expect(syncEmbed).toHaveCount(1);
+  expect((await styleProps(syncEmbed, "border-width"))["border-width"]).toBe("1px");
+  const bodyStyle = await styleProps(
+    syncEmbed.locator('[data-slot="docblocks/sync-embed-body"]'),
+    "max-height",
+    "overflow-y"
+  );
+  expect(bodyStyle).toEqual({ "max-height": "200px", "overflow-y": "auto" });
+
+  // The mermaid preview (the ./mermaid subpath, once the diagram settles):
+  // the spacing below the editable code.
+  const mermaid = doc.locator('[data-slot="docblocks/mermaid"]');
+  await expect(mermaid.locator("svg"), SETTLE).toHaveCount(1);
+  expect((await styleProps(mermaid, "margin-top"))["margin-top"]).toBe("8px");
+});
+
 test("the editor root typography and the block spacing read the tokens", async ({ page }) => {
   await openCatalogPane(page);
   // The catalog doc carries nested editors (the sync-embed and the frame)

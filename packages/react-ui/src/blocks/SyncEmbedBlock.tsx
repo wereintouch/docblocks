@@ -2,6 +2,7 @@ import type { BlockId, Doc, SyncEmbedBlock as SyncEmbedBlockType } from "docbloc
 
 import { Editor } from "../Editor";
 import { EditorProvider, useEditorContext } from "../EditorProvider";
+import { cn } from "../shared/ui/cn";
 
 /**
  * The sync-embed render depth bound (spec: the cycle guards are a
@@ -27,7 +28,7 @@ type SyncEmbedState = "resolved" | "broken" | "cycle";
  */
 function SyncEmbedContent({ master, blockId }: { master: Doc; blockId?: BlockId }) {
   return (
-    <div data-slot="docblocks/sync-embed-body">
+    <div data-slot="docblocks/sync-embed-body" className="max-h-(--docblocks-sync-embed-max-height) overflow-y-auto">
       <EditorProvider doc={master} rootBlockId={blockId}>
         <Editor />
       </EditorProvider>
@@ -38,7 +39,17 @@ function SyncEmbedContent({ master, blockId }: { master: Doc; blockId?: BlockId 
 /** The broken and cycle placeholders (no cascade: the block stays in its own doc). */
 function SyncEmbedPlaceholder({ state }: { state: Exclude<SyncEmbedState, "resolved"> }) {
   return (
-    <div data-slot="docblocks/sync-embed-placeholder" data-state={state}>
+    <div
+      data-slot="docblocks/sync-embed-placeholder"
+      data-state={state}
+      className={cn(
+        `
+          border-(length:--docblocks-table-border-width) border-dashed border-(--docblocks-table-border-color)
+          p-(--docblocks-code-padding) text-center
+        `,
+        state === "broken" && "text-(--docblocks-callout-border-color-danger)"
+      )}
+    >
       {state === "broken"
         ? "The master document for this synced block is unavailable."
         : "Circular synced block reference."}
@@ -73,7 +84,10 @@ function SyncEmbedBlock({ id, block }: { id: BlockId; block: SyncEmbedBlockType 
       data-block-id={id}
       data-state={state}
       data-doc-id={ref.docId}
-      className="relative my-(--docblocks-block-spacing) outline-none"
+      className="
+        relative my-(--docblocks-block-spacing) rounded-(--docblocks-radius)
+        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
+      "
     >
       {state === "resolved" && master !== null && (
         <SyncEmbedContent key={`${ref.docId}:${ref.blockId ?? ""}`} master={master} blockId={ref.blockId} />
