@@ -608,7 +608,10 @@ function MotionEditor({
       className={cn(
         "relative selection:bg-(--docblocks-selection-background)",
         "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
-        "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
+        "leading-(--docblocks-line-height) text-(--docblocks-text-color)",
+        // The canvas view grows to fill the flex column container: the 100%
+        // height chain below the root needs a definite root height.
+        view === "canvas" && "min-h-0 flex-1"
       )}
       onKeyDown={onKeyDown}
       onCopy={onCopy}

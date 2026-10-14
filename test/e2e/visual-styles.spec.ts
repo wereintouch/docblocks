@@ -381,6 +381,67 @@ test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) 
   expect((await styleProps(mermaid, "margin-top"))["margin-top"]).toBe("8px");
 });
 
+test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
+  await openCatalogPane(page);
+  const doc = editor(page).first();
+
+  // The surface viewport (the page-view rendering): the height, the table
+  // border and the clipping tokens.
+  const viewport = doc.locator('[data-slot="docblocks/canvas"]');
+  await expect(viewport).toHaveCount(1);
+  const viewportStyle = await styleProps(viewport, "height", "border-top-width", "border-top-style", "overflow");
+  expect(viewportStyle).toEqual({
+    height: "500px",
+    "border-top-width": "1px",
+    "border-top-style": "solid",
+    overflow: "hidden",
+  });
+  // The viewport background reads the canvas background token (a
+  // color-mix of the standard --muted input — not pinned to a value,
+  // only to the non-transparent).
+  const viewportBackground = await viewport.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(viewportBackground).not.toBe("rgba(0, 0, 0, 0)");
+
+  // The frame: the table border, the radius, and no clipping (the frame
+  // does not clip in v1 — no overflow class, the visible default).
+  const frame = doc.locator('[data-slot="docblocks/frame"]');
+  await expect(frame).toHaveCount(1);
+  const frameStyle = await styleProps(frame, "border-top-width", "border-top-style", "overflow");
+  expect(frameStyle).toEqual({
+    "border-top-width": "1px",
+    "border-top-style": "solid",
+    overflow: "visible",
+  });
+});
+
+test("the document canvas view and the page card read the zone-4 tokens", async ({ page }) => {
+  const room = `vreg04s-${Math.random().toString(36).slice(2, 8)}`;
+  await page.goto(`/?client=a&canvas=1&syncUrl=${RELAY}/${room}`);
+  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+
+  // The canvas view: the dotted grid (the image and the size read the
+  // tokens; the height is the 100% token resolved against the container,
+  // so only the non-zero layout is pinned — the box checks live in
+  // view.spec).
+  const view = page.locator('[data-slot="docblocks/canvas-view"]');
+  await expect(view, { timeout: 15_000 }).toHaveCount(1);
+  const grid = await view.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return { size: s.backgroundSize, dotted: s.backgroundImage.includes("radial-gradient"), height: s.height };
+  });
+  expect(grid.size).toBe("24px 24px");
+  expect(grid.dotted).toBe(true);
+  expect(grid.height).not.toBe("0px");
+
+  // The page miniature: the padding, the radius and the shadow tokens.
+  const card = page.locator('[data-slot="docblocks/page-card"]');
+  await expect(card).toHaveCount(1);
+  const cardStyle = await styleProps(card, "padding", "border-radius", "box-shadow");
+  expect(cardStyle["padding"]).toBe("32px 40px");
+  expect(cardStyle["border-radius"]).toBe("10px");
+  expect(cardStyle["box-shadow"]).toContain("rgba(0, 0, 0, 0.12)");
+});
+
 test("the editor root typography and the block spacing read the tokens", async ({ page }) => {
   await openCatalogPane(page);
   // The catalog doc carries nested editors (the sync-embed and the frame)

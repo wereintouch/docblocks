@@ -198,66 +198,6 @@
   z-index: 20;
 }
 
-/* Canvas (surface): the relative viewport — the height, the border
-   (the table border token), and the background tokens; the elements are
-   positioned inline by their geometry (the wrapper left/top/transform),
-   and the DOM order is the z-order. The viewport clips its elements
-   (pan/zoom is the interaction stage). */
-[data-slot="docblocks/canvas"] {
-  position: relative;
-  height: var(--docblocks-canvas-height);
-  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
-  border-radius: var(--docblocks-radius);
-  background: var(--docblocks-canvas-background);
-  overflow: hidden;
-}
-
-/* A frame: a positioned box (the border and background tokens) holding
-   the nested page blocks; the nested editor fills the box. The frame
-   does not clip in v1 (overflow visible). */
-[data-slot="docblocks/frame"] {
-  box-sizing: border-box;
-  width: 100%;
-  height: 100%;
-  border: var(--docblocks-table-border-width) solid var(--docblocks-table-border-color);
-  border-radius: var(--docblocks-radius);
-  background: var(--docblocks-frame-background);
-}
-
-/* The document's canvas view: the full container canvas (the shared
-   origin is the container center — the elements are positioned inline by
-   their geometry, the DOM order is the z-order), the dotted grid
-   background, and the clipping (pan/zoom is the interaction stage). The
-   canvas view needs a definite container height: the editor root in the
-   canvas view grows to fill a flex column container (the playground's doc
-   area); a consumer with a definite-height non-flex wrapper gets the same
-   via the 100% chain. */
-[data-slot="docblocks/editor"][data-view="canvas"] {
-  flex: 1;
-  min-height: 0;
-}
-
-[data-slot="docblocks/canvas-view"] {
-  position: relative;
-  height: var(--docblocks-canvas-view-height);
-  background: var(--docblocks-canvas-background);
-  background-image: radial-gradient(circle, var(--docblocks-canvas-view-dot) 1px, transparent 1px);
-  background-size: var(--docblocks-canvas-view-grid) var(--docblocks-canvas-view-grid);
-  overflow: hidden;
-}
-
-/* The page miniature (the canvas view): the vertical page rectangle with
-   the page content inside; it scrolls its own content (the page keeps
-   its natural height inside the fixed-size card). */
-[data-slot="docblocks/page-card"] {
-  box-sizing: border-box;
-  background: var(--docblocks-page-card-background);
-  border-radius: var(--docblocks-radius);
-  box-shadow: var(--docblocks-page-card-shadow);
-  padding: var(--docblocks-page-card-padding);
-  overflow: auto;
-}
-
 /* The floating format toolbar: the editor root's floating layer, anchored
    above the selection (inline top/left). The controls are shared/ui
    primitives (Tailwind classes); the list-type menu and the color palette

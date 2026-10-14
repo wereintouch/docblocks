@@ -26,7 +26,14 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
       data-block-id={id}
       className="relative my-(--docblocks-block-spacing) outline-none"
     >
-      <div data-slot="docblocks/canvas">
+      <div
+        data-slot="docblocks/canvas"
+        className="
+          relative h-(--docblocks-canvas-height) overflow-hidden rounded-(--docblocks-radius)
+          border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
+          bg-(--docblocks-canvas-background)
+        "
+      >
         <BlockContext.Provider value={contextValue}>
           {children.map((childId) => (
             <CanvasItem key={childId} id={childId} />

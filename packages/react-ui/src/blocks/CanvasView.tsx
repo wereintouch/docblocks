@@ -71,8 +71,22 @@ function CanvasView() {
   if (root === undefined) return null;
 
   return (
-    <div data-slot="docblocks/canvas-view">
-      <div data-slot="docblocks/page-card" style={pageCardStyle(root)}>
+    <div
+      data-slot="docblocks/canvas-view"
+      className="
+        relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background)
+        bg-[radial-gradient(circle,var(--docblocks-canvas-view-dot)_1px,transparent_1px)]
+        bg-size-[var(--docblocks-canvas-view-grid)_var(--docblocks-canvas-view-grid)]
+      "
+    >
+      <div
+        data-slot="docblocks/page-card"
+        style={pageCardStyle(root)}
+        className="
+          box-border overflow-auto rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
+          p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
+        "
+      >
         <BlockContext.Provider value={pageContext}>
           <BlockGroups ids={pageChildren} />
         </BlockContext.Provider>

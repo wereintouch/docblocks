@@ -43,7 +43,14 @@ function FrameBlock({ id }: { id: BlockId }) {
     return <FrameContent id={id} />;
   }
   return (
-    <div data-slot="docblocks/frame" data-block-id={id}>
+    <div
+      data-slot="docblocks/frame"
+      data-block-id={id}
+      className="
+        box-border h-full w-full rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
+        border-(--docblocks-table-border-color) bg-(--docblocks-frame-background)
+      "
+    >
       <EditorProvider key={id} doc={doc} rootBlockId={id}>
         <Editor />
       </EditorProvider>
