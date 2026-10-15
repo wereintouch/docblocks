@@ -44,7 +44,10 @@ describe("MermaidCodeRenderer", () => {
       },
       { timeout: 5_000 }
     );
-    expect(container.querySelector('[data-slot="docblocks/mermaid"] svg')).toBeNull();
+    // No diagram (the error state renders the raw text + the message;
+    // the Alert's triangle is chrome, not a diagram): the diagram
+    // container is not mounted at all.
+    expect(container.querySelector('[data-slot="docblocks/mermaid-diagram"]')).toBeNull();
     expect(container.querySelector('[data-slot="docblocks/mermaid-error"]')).not.toBeNull();
   });
 

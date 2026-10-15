@@ -34,6 +34,9 @@ import type { BlockId, CodeBlock } from "docblocks-core";
 import { childrenSlot } from "../blocks/BlockView";
 import { TextBlock, textOf } from "../blocks/TextBlock";
 import type { BlockRendererProps } from "../blocks/renderers";
+import { Alert, AlertDescription, AlertTitle } from "../shared/ui/Alert";
+import { Skeleton } from "../shared/ui/Skeleton";
+import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 import { INLINE_CODE_CLASS } from "../text/runs";
 
 // The v1 security posture (see the module doc). Safe to run more than
@@ -82,24 +85,22 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
 
   if (state.error !== null) {
     return (
-      <div
+      <Alert
         data-slot="docblocks/mermaid"
         data-state="error"
-        className="
-          mt-(--docblocks-block-spacing) border-(length:--docblocks-table-border-width) border-dashed
-          border-(--docblocks-table-border-color) p-(--docblocks-code-padding)
-        "
+        variant="destructive"
+        className="mt-(--docblocks-block-spacing)"
       >
-        <code data-slot="docblocks/mermaid-error" className={INLINE_CODE_CLASS}>
-          {text}
-        </code>
-        <span
-          data-slot="docblocks/mermaid-error-message"
-          className="block text-(--docblocks-callout-border-color-danger)"
-        >
+        <TriangleAlert />
+        <AlertTitle data-slot="docblocks/mermaid-error-message" className="line-clamp-none">
           {state.error}
-        </span>
-      </div>
+        </AlertTitle>
+        <AlertDescription>
+          <code data-slot="docblocks/mermaid-error" className={INLINE_CODE_CLASS}>
+            {text}
+          </code>
+        </AlertDescription>
+      </Alert>
     );
   }
   if (state.svg !== null) {
@@ -110,15 +111,12 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
     );
   }
   return (
-    <div
-      data-slot="docblocks/mermaid"
-      data-state="loading"
-      className="
-        mt-(--docblocks-block-spacing) border-(length:--docblocks-table-border-width) border-dashed
-        border-(--docblocks-table-border-color) p-(--docblocks-code-padding)
-      "
-    >
-      <span data-slot="docblocks/mermaid-loading">rendering…</span>
+    <div data-slot="docblocks/mermaid" data-state="loading" className="relative mt-(--docblocks-block-spacing)">
+      <Skeleton className="h-24 w-full" />
+      <div className="absolute inset-0 flex items-center justify-center gap-2">
+        <LoaderCircle className="size-4 animate-spin" />
+        <span data-slot="docblocks/mermaid-loading">rendering…</span>
+      </div>
     </div>
   );
 }

@@ -146,9 +146,11 @@ test("an invalid diagram keeps no svg and shows the error state", async ({ brows
   await a.keyboard.press("Backspace");
   await pastePlainText(a, "graph TD\n A -->");
 
-  // No svg: the error state renders the raw text with the error flag
-  // (asserted by the attribute, not the look), and the message shows.
-  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(0);
+  // No diagram: the error state renders the raw text with the error flag
+  // (asserted by the attribute, not the look), and the message shows
+  // (the Alert's triangle icon is chrome, not a diagram — the diagram
+  // container itself is absent).
+  await expect(blockA.locator('[data-slot="docblocks/mermaid-diagram"]'), SETTLE).toHaveCount(0);
   await expect(preview(a, "a"), SETTLE).toHaveAttribute("data-state", "error");
   await expect(blockA.locator('[data-slot="docblocks/mermaid-error"]'), SETTLE).toHaveText("graph TD\n A -->");
   expect(await blockA.locator('[data-slot="docblocks/mermaid-error-message"]').count()).toBe(1);
