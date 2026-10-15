@@ -3,8 +3,9 @@
 Headless CRDT document engine built on Yjs, designed to be reused
 across projects.
 
-**Status:** monorepo scaffold (package manifests, tooling, boundary gates);
-engine implementation in progress.
+**Status:** the schema, engine, and React editing layer are feature-complete
+(v1, the v1.1 block extensions, canvas, the flat page model); the packages
+are 0.x pre-release.
 
 ## Packages
 
