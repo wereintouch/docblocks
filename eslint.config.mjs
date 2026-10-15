@@ -166,7 +166,7 @@ const boundariesPlugin = {
 // set of the shipped theme.css (same theme a consumer builds from). The
 // defaults already pick up `className` attributes and the `cn`/`cva` call
 // strings (base + variant values).
-const TAILWIND_ENTRY = path.join(import.meta.dirname, "packages", "react-ui", "tailwind.entry.css");
+const TAILWIND_ENTRY = path.join(import.meta.dirname, "packages", "react-ui", "eslint.tailwind.entry.css");
 
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
