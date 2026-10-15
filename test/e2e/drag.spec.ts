@@ -126,9 +126,9 @@ async function dragGutterTo(page: Page, client: "a" | "b", index: number, toX: n
 test("a gutter drag reorders the block, syncs to the other pane, and undoes as one step", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui04b-reorder");
 
-  // Both panes seed their own first paragraph, so the room starts with two.
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
-  await expect(wrappers(b, "b"), SETTLE).toHaveCount(2);
+  // The room starts with pane "a"'s single starter (both panes see it).
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await expect(wrappers(b, "b"), SETTLE).toHaveCount(1);
 
   // Two more paragraphs via the pane's insert hook (the inserted block is
   // current, so it is labeled), with unique texts for the assertions.
@@ -138,18 +138,18 @@ test("a gutter drag reorders the block, syncs to the other pane, and undoes as o
   await insertBlockType(a, "a", "paragraph");
   await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
   await a.keyboard.type("two");
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(4);
-  await expect(wrappers(b, "b"), SETTLE).toHaveCount(4);
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(3);
+  await expect(wrappers(b, "b"), SETTLE).toHaveCount(3);
 
-  const lastId = await wrapperId(a, "a", 3);
+  const lastId = await wrapperId(a, "a", 2);
   expect(lastId).not.toBe("");
   const firstBox = await wrappers(a, "a").nth(0).boundingBox();
-  const lastBox = await wrappers(a, "a").nth(3).boundingBox();
+  const lastBox = await wrappers(a, "a").nth(2).boundingBox();
   if (firstBox === null || lastBox === null) throw new Error("the wrappers have no boxes");
 
   // Drag the last block above the first one (the pointer lands inside the
   // viewport, so the drag does not trigger page auto-scroll).
-  await dragGutterTo(a, "a", 3, lastBox.x + 20, firstBox.y + firstBox.height / 4);
+  await dragGutterTo(a, "a", 2, lastBox.x + 20, firstBox.y + firstBox.height / 4);
 
   // The order changed in A and reached B over the wire (B shows the new
   // order as the update arrives).
@@ -168,7 +168,7 @@ test("a gutter drag reorders the block, syncs to the other pane, and undoes as o
 test("a drag back to the same position issues no command", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "ui04b-noop");
 
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
   const firstId = await wrapperId(a, "a", 0);
   expect(firstId).not.toBe("");
 

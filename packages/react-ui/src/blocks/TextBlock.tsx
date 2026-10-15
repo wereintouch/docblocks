@@ -20,7 +20,7 @@ import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { Button } from "../shared/ui/Button";
 import { Checkbox } from "../shared/ui/Checkbox";
 import { cn } from "../shared/ui/cn";
-import { GripVertical, Triangle } from "../shared/ui/icons";
+import { GripVertical, TriangleFilled } from "../shared/ui/icons";
 import { renderRunsInto } from "../text/runs-dom";
 import { useBlockContext } from "./block-context";
 import { indentOf, markerCycle, numberMarkerLabel } from "./flat";
@@ -44,7 +44,7 @@ interface TextBlockProps {
    */
   nested?: ReactNode;
   /**
-   * A list item with a non-empty derived segment (the flat model's
+   * A block with a non-empty derived segment (the flat model's
    * "children"): the row shows the collapse toggle (a per-instance view
    * state, never document data).
    */
@@ -105,7 +105,8 @@ function alignOf(block: EditableBlock): "left" | "center" | "right" | undefined 
  * commits plain text. Known v1 limitation: CJK IME composition is not
  * tracked (composition commits character by character).
  *
- * The list item's collapse toggle and the checkbox are view affordances:
+ * The collapse toggle (any block with a derived segment) and the checkbox
+ * are view affordances:
  * a per-instance state (the store's collapsedIds / the block's `checked`
  * attr) — the toggle is never document data, and while collapsed the
  * derived segment is unmounted (the other panes stand).
@@ -118,7 +119,6 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
   const { doc, store, selection: selectionRef, commandPalettePlaceholder } = useEditorContext();
   const blockContext = useBlockContext();
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
-  const collapsibleList = collapsible && block.type === "list-item";
   const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
   // The marker's cycle index (1|2|3) from the block's indent — the
   // data-depth attr (the base view's CSS marker cycle; the motion view's
@@ -396,24 +396,49 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
   /**
    * The gutter handle classes: the grip control in the left margin (the
    * position reads the gutter tokens), revealed on a wrapper hover or while
-   * the block is selected.
+   * the block is selected. Centered on the FIRST line (not the block's
+   * vertical middle): a multi-line block keeps the grip at the line level.
    */
   const gutterClass = cn(
-    "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
+    "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)]",
+    "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
     "left-(--docblocks-gutter-left) text-(--docblocks-gutter-color)",
     selected && "opacity-100"
   );
 
+  /**
+   * A flat list row's wrapper is shifted by the marker zone (the row's
+   * first character stands in the row's content); the gutter and the
+   * collapse columns stand at the row level — the same columns as a text
+   * row of the same indent.
+   */
+  const flatListShift = flat && block.type === "list-item" ? "var(--docblocks-marker-width)" : undefined;
+  const gutterShift =
+    flatListShift === undefined ? undefined : { left: `calc(var(--docblocks-gutter-left) - ${flatListShift})` };
+
   /** The task checkbox position (the list marker gutter; the Checkbox primitive sizes itself). */
   const checkboxClass = "absolute left-(--docblocks-checkbox-left) top-[0.25em]";
 
-  /** The collapse toggle position (the list marker gutter, to the right of the checkbox). */
-  // `text-[length:inherit]` keeps the em basis on the block's font (the
-  // Button base carries text-sm), so the em-based token below stays aligned
-  // with the list indent.
+  /**
+   * The collapse toggle: between the drag grip and the block content, in
+   * the gutter band (every view), centered on the first line on the same
+   * axis as the grip (a multi-line block keeps both at the line level). The
+   * triangle is filled in both states —
+   * pointing right while collapsed, down while expanded — in the block's
+   * text color (the gutter's muted stands for the grip only). The hover
+   * highlight is the muted square (rounded-xs) behind the triangle. The
+   * collapsed state is always visible; the expanded state reveals on a
+   * wrapper hover, like the grip. The ghost variant's hover colors are
+   * pinned back to the same values. `text-[length:inherit]` keeps the em
+   * basis on the block's font (the Button base carries text-sm).
+   */
   const collapseClass = cn(
-    "absolute top-[0.25em] text-[length:inherit]",
-    "left-(--docblocks-collapse-left) text-(--docblocks-gutter-color) hover:text-(--docblocks-text-color)"
+    "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-collapse-size))/2)]",
+    "size-5 cursor-pointer rounded-xs text-[length:inherit]",
+    "left-(--docblocks-collapse-band-left)",
+    "text-(--docblocks-text-color) hover:text-(--docblocks-text-color) dark:hover:text-(--docblocks-text-color)",
+    "hover:bg-muted dark:hover:bg-muted",
+    !collapsed && "opacity-0 group-hover:opacity-100"
   );
 
   const Tag = tag;
@@ -444,6 +469,7 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
         onClick={onGutterClick}
         onMouseDown={onControlMouseDown}
         className={cn(gutterClass, "size-5")}
+        style={gutterShift}
       >
         <GripVertical />
       </Button>
@@ -465,7 +491,7 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
           {flatMarkerIsNumber && number !== undefined ? numberMarkerLabel(number, cycle) : null}
         </span>
       )}
-      {collapsibleList && (
+      {collapsible && (
         <Button
           type="button"
           data-slot="docblocks/collapse"
@@ -476,9 +502,14 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
           // undo history) — the children unmount while hidden.
           onClick={onCollapseClick}
           onMouseDown={onControlMouseDown}
-          className={cn(collapseClass, "h-3.5 w-2 p-0 has-[>svg]:p-0")}
+          className={cn(collapseClass, "p-0 has-[>svg]:p-0")}
+          style={
+            flatListShift === undefined
+              ? undefined
+              : { left: `calc(var(--docblocks-collapse-band-left) - ${flatListShift})` }
+          }
         >
-          <Triangle className={cn("size-2", collapsed ? "rotate-90" : "rotate-180")} />
+          <TriangleFilled className={cn("size-2", collapsed ? "rotate-90" : "rotate-180")} />
         </Button>
       )}
       <div

@@ -249,8 +249,8 @@ function markerCycle(indent: number): number {
 }
 
 /**
- * The VISIBLE rows of a sequence: the sequence with every collapsed list
- * item's derived segment unmounted (the collapse is a view state — the
+ * The VISIBLE rows of a sequence: the sequence with every collapsed
+ * block's derived segment unmounted (the collapse is a view state — the
  * rows stand in the data; the motion view's row list and its local drag
  * order run over the visible rows only).
  */
@@ -266,7 +266,8 @@ function visibleRows(ids: BlockId[], byId: Map<BlockId, FlatNode>, collapsedIds:
     while (open.length > 0 && node.indent <= open[open.length - 1]!) open.pop();
     if (open.length > 0) continue; // hidden inside a collapsed segment
     out.push(id);
-    if (node.kind !== undefined && collapsed.has(id) && node.children.length > 0) open.push(node.indent);
+    // Any collapsed block with a derived segment hides it (view state).
+    if (collapsed.has(id) && node.children.length > 0) open.push(node.indent);
   }
   return out;
 }

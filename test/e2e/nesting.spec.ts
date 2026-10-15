@@ -119,10 +119,12 @@ async function twoPanes(
 test("Tab indents the second paragraph (an indent attr update); one mod+z reverts it", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "c5c-indent");
 
-  // Both panes seed their own first paragraph, so the room starts with two.
+  // The room starts with pane "a"'s single starter; the second paragraph
+  // is inserted explicitly (the harness insert).
+  await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(1);
+  const firstId = (await rootIds(a, "a"))[0]!;
+  const secondId = await insertBlockType(a, "a", "paragraph");
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(2);
-  const root = await rootIds(a, "a");
-  const [firstId, secondId] = root;
 
   const outBefore = await outCount(a);
   await innerOf(a, "a", secondId).click();
@@ -205,9 +207,8 @@ test("the Tab boundary rules: the first block and the jump of more than one leve
 test("Shift+Tab at the top level is a no-op", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "c5c-outdent-top");
 
-  await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(2);
-  const root = await rootIds(a, "a");
-  const [firstId] = root;
+  await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(1);
+  const firstId = (await rootIds(a, "a"))[0]!;
   const outBefore = await outCount(a);
 
   await innerOf(a, "a", firstId).click();
@@ -216,7 +217,7 @@ test("Shift+Tab at the top level is a no-op", async ({ browser }) => {
   // The top level has no outdent target: no attr, no wire update.
   expect(await outCount(a)).toBe(outBefore);
   expect(await indentOf(a, "a", firstId)).toBeUndefined();
-  await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual(root);
+  await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual([firstId]);
 
   await close();
 });
@@ -224,10 +225,10 @@ test("Shift+Tab at the top level is a no-op", async ({ browser }) => {
 test("Tab in a code block inserts a tab character (no indent change)", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "c5c-code-tab");
 
-  await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(2);
+  await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(1);
   await insertBlockType(a, "a", "code");
   const after = await rootIds(a, "a");
-  expect(after).toHaveLength(3);
+  expect(after).toHaveLength(2);
   const codeId = after[after.length - 1]!;
 
   await innerOf(a, "a", codeId).click();
@@ -244,14 +245,12 @@ test("Tab in a code block inserts a tab character (no indent change)", async ({ 
   await close();
 });
 
-test("an empty list item + Enter exits the list (the segment is removed, a paragraph at the attach level)", async ({
-  browser,
-}) => {
-  const { a, b, close } = await twoPanes(browser, "c5c-markdown-exit");
+test("an empty root list item + Enter resets its type in place (the segment stands)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "c5c-type-reset");
 
-  // The room starts with the panes' two seeded paragraphs; the pane's doc
-  // handle adds an EMPTY bullet item with a nested item (its derived
-  // segment) at indent 1.
+  // The room starts with pane "a"'s single starter; the pane's doc handle
+  // adds an EMPTY bullet item with a nested item (its derived segment) at
+  // indent 1.
   const seeded = await a.evaluate(() => {
     const d = window.__paneDocs?.a ?? null;
     if (d === null) return null;
@@ -265,33 +264,40 @@ test("an empty list item + Enter exits the list (the segment is removed, a parag
 
   const outBefore = await outCount(a);
 
-  // Caret in the empty item, Enter: the item's derived segment is removed
-  // and a paragraph lands at the item's former position (the markdown
-  // exit), at the item's attach level (indent 0 — the top level here).
+  // Caret in the empty item, Enter: the root-level non-text block resets
+  // its type to a plain paragraph IN PLACE (one updateBlock-class command,
+  // one wire update) — the derived segment stands under the paragraph.
   await innerOf(a, "a", seeded.item).click();
   await a.keyboard.press("Enter");
 
   await expect.poll(async () => outCount(a), SETTLE).toBe(outBefore + 1);
   const after = await rootIds(a, "a");
-  // The item and its sublist are gone; the paragraph stands in the item's
-  // slot (right after the two seeded rows) with no indent.
-  expect(after).not.toContain(seeded.item);
-  expect(after).not.toContain(seeded.sub);
-  const paragraphIndex = after.length - 1;
-  expect(paragraphIndex).toBe(2);
-  const exitId = after[paragraphIndex]!;
-  expect(await blockOf(a, "a", exitId)).toMatchObject({ type: "paragraph" });
-  expect(await indentOf(a, "a", exitId)).toBeUndefined();
-  expect(await textOf(a, "a", exitId)).toBe("");
+  // The item's slot is a paragraph now (the same block id — the reset is
+  // in place), the sublist and the starter stand.
+  expect(after).toContain(seeded.item);
+  expect(after).toContain(seeded.sub);
+  expect(await blockOf(a, "a", seeded.item)).toMatchObject({ type: "paragraph" });
+  expect(await textOf(a, "a", seeded.item)).toBe("");
+  expect(await blockOf(a, "a", seeded.sub)).toMatchObject({ type: "list-item" });
 
-  // The exit reached the other pane over the wire.
-  await expect.poll(async () => (await rootIds(b, "b")).some((id) => id === exitId), SETTLE).toBe(true);
-  await expect.poll(async () => (await blockOf(b, "b", seeded.item)) === null, SETTLE).toBe(true);
+  // The reset reached the other pane over the wire.
+  await expect
+    .poll(
+      async () => (await b.evaluate((id) => window.__paneDocs?.b?.getBlock(id)?.type, seeded.item)) === "paragraph",
+      SETTLE
+    )
+    .toBe(true);
+  await expect.poll(async () => (await rootIds(b, "b")).some((id) => id === seeded.sub), SETTLE).toBe(true);
 
-  // One undo step restores the item and its sublist.
-  await innerOf(a, "a", exitId).click();
+  // One undo step restores the list item.
+  await innerOf(a, "a", seeded.item).click();
   await a.keyboard.press("Control+z");
-  await expect.poll(async () => (await rootIds(a, "a")).some((id) => id === seeded.sub), SETTLE).toBe(true);
+  await expect
+    .poll(
+      async () => (await a.evaluate((id) => window.__paneDocs?.a?.getBlock(id)?.type, seeded.item)) === "list-item",
+      SETTLE
+    )
+    .toBe(true);
   await expect.poll(async () => indentOf(a, "a", seeded.sub), SETTLE).toBe(1);
 
   await close();
@@ -415,6 +421,8 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
     .locator(`[data-block-id="${seeded.item}"]`)
     .first()
     .locator('> button[data-slot="docblocks/collapse"]');
+  // The expanded-state toggle reveals on a wrapper hover (like the grip).
+  await a.locator(`[data-block-id="${seeded.item}"]`).first().hover();
   await expect(toggle).toBeVisible();
   await toggle.click();
 
@@ -428,6 +436,84 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
   // The expand re-mounts the segment.
+  await toggle.click();
+  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible(SETTLE);
+  expect(await indentOf(a, "a", seeded.child)).toBe(1);
+
+  await close();
+});
+
+// The collapse triangle on a NON-list block (the flat model's derived
+// segment stands under any text block) and its visual states: the triangle
+// is filled in both states (pointing down while expanded, right while
+// collapsed, in the block's text color); the expanded state reveals on a
+// wrapper hover like the grip, the collapsed one is always visible; the
+// hover raises the muted square highlight.
+test("the collapse triangle: a paragraph's derived segment and the fill/visibility states", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "c5-collapse-paragraph");
+
+  const seeded = await a.evaluate(() => {
+    const d = window.__paneDocs?.a ?? null;
+    if (d === null) return null;
+    const parent = d.insertBlock("paragraph");
+    d.insertText(parent, 0, "parent");
+    const child = d.insertBlock("paragraph", { indent: 1 });
+    d.insertText(child, 0, "child");
+    return { parent, child };
+  });
+  if (seeded === null) throw new Error("the pane's doc is not mounted");
+  await a.waitForTimeout(600); // the enter animations settle
+
+  const row = a.locator(`[data-block-id="${seeded.parent}"]`).first();
+  const toggle = row.locator('> button[data-slot="docblocks/collapse"]');
+  const triangle = toggle.locator("svg");
+
+  // Expanded state: hidden until a wrapper hover; the filled triangle
+  // points down.
+  await expect(toggle).toHaveCSS("opacity", "0");
+  await row.hover();
+  await expect(toggle).toHaveCSS("opacity", "1");
+  expect(await triangle.evaluate((el) => getComputedStyle(el).fill)).not.toBe("none");
+  await expect(triangle).toHaveCSS("rotate", "180deg");
+  // The text color, not the gutter's muted (the element the locator
+  // resolved, no re-query).
+  const colors = await row.evaluate((el) => {
+    const svg = el.querySelector(":scope > button[data-slot='docblocks/collapse'] svg");
+    return { fill: getComputedStyle(svg!).fill, color: getComputedStyle(el).color };
+  });
+  expect(colors.fill).not.toBe("none");
+  expect(colors.fill).toBe(colors.color);
+  // The hover highlight: the muted square behind the triangle (the button's
+  // own hover — the pointer stands on the toggle, not just the row). The
+  // background reads the muted token (not the ghost variant's accent); the
+  // button's transition-all animates it in, so wait it out before reading.
+  await toggle.hover();
+  await a.waitForTimeout(300);
+  const hoverBg = await toggle.evaluate((el) => {
+    const cs = getComputedStyle(el);
+    return {
+      bg: cs.backgroundColor,
+      matchesMuted: cs.backgroundColor === cs.getPropertyValue("--muted").trim(),
+    };
+  });
+  expect(hoverBg.bg).not.toBe("rgba(0, 0, 0, 0)");
+  expect(hoverBg.matchesMuted).toBe(true);
+
+  // Collapse: the derived segment unmounts (view state — the data stands,
+  // no wire update), the triangle turns right, and it stays visible
+  // without the hover.
+  const wireA = await outCount(a);
+  await toggle.click();
+  await a.mouse.move(5, 5); // leave the wrapper: the hover is off
+  await expect(toggle).toHaveCSS("opacity", "1");
+  await expect(triangle).toHaveCSS("rotate", "90deg");
+  expect(await triangle.evaluate((el) => getComputedStyle(el).fill)).not.toBe("none");
+  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0, SETTLE);
+  expect(await outCount(a)).toBe(wireA);
+  expect(await indentOf(a, "a", seeded.child)).toBe(1);
+
+  // Expand re-mounts the segment.
+  await row.hover();
   await toggle.click();
   await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible(SETTLE);
   expect(await indentOf(a, "a", seeded.child)).toBe(1);

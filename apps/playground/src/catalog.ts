@@ -184,8 +184,11 @@ function buildCatalogDoc(doc: Doc): void {
 }
 
 /**
- * The pane's doc: the catalog (deterministic ids) or the empty seed with the
- * pane's first paragraph.
+ * The pane's doc: the catalog (deterministic ids) or the empty page. The
+ * plain room's starter paragraph is NOT seeded here: a pre-attach seed
+ * duplicates on every reload (the relay's room state survives the reload
+ * and resyncs against it), so the pane seeds it after the sync settles
+ * (SyncPane — pane "a" only, while the root still has no children).
  */
 function seedPaneDoc(catalog: boolean): Doc {
   const doc = catalog
@@ -193,8 +196,6 @@ function seedPaneDoc(catalog: boolean): Doc {
     : createDoc({ id: DOC_ID, createdAt: DOC_CREATED_AT });
   if (catalog) {
     buildCatalogDoc(doc);
-  } else {
-    doc.insertBlock("paragraph");
   }
   return doc;
 }

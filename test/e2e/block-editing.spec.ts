@@ -73,8 +73,9 @@ async function twoPanes(
 test("Enter splits the block in both panes and the caret lands in the tail", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03b-enter");
 
-  // Both panes seed their own first paragraph, so the room starts with two.
-  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  // The room starts with pane "a"'s single starter (seeded once after the
+  // sync settles — a reload never re-seeds a non-empty room).
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
   const beforeInners = await inners(a, "a").count();
 
   const first = inners(a, "a").first();
@@ -105,8 +106,8 @@ test("Enter splits the block in both panes and the caret lands in the tail", asy
 test("Backspace at the block start merges into the previous block", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03b-backspace");
 
-  // Both panes seed their own first paragraph, so the room starts with two.
-  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  // The room starts with pane "a"'s single starter.
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
   const beforeInners = await inners(a, "a").count();
 
   const first = inners(a, "a").first();
@@ -137,13 +138,13 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
   await insertType(a, "a", "list-item");
   await expect(listItems(b, "b"), SETTLE).toHaveCount(2);
 
-  // The ids of the two items (root order: the room's two seeded rows first).
+  // The ids of the two items (root order: the room's starter row first).
   const rootOrder = await a.evaluate((c) => {
     const d = window.__paneDocs?.[c] ?? null;
     if (d === null) throw new Error("the pane's doc is not mounted");
     return d.getChildren(d.toJSON().id);
   }, "a");
-  const secondId = rootOrder[3]!;
+  const secondId = rootOrder[2]!;
 
   // Caret in the second item, Tab: the flat model's indent attr update —
   // the sequence stands, the item's row steps in one level. Each pane's
@@ -165,13 +166,13 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
   await expect.poll(async () => indentOf("a", secondId), SETTLE).toBe(1);
   await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(1);
   // The sequence order stands (a Tab is an attr update, never a move), and
-  // the indented row's left step is two nested indents (the item's own
-  // level + the list marker gutter).
+  // the indented row's left step is the indent step plus its marker zone
+  // (the row's first character, 24px + 18px).
   expect(
     await a.evaluate((c) => window.__paneDocs?.[c as "a"]?.getChildren(window.__paneDocs[c as "a"]!.toJSON().id), "a")
   ).toEqual(rootOrder);
   const secondRow = a.locator(`[data-slot="docblocks/row"]:has([data-block-id="${secondId}"])`);
-  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("48px");
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("42px");
 
   // Shift+Tab in the indented item brings it back to the top level (the
   // gesture writes the indent as an explicit 0 — the writer omits the
@@ -180,7 +181,7 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
   await a.keyboard.press("Shift+Tab");
   await expect.poll(async () => indentOf("a", secondId), SETTLE).toBe(0);
   await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(0);
-  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("24px");
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("18px");
 
   await close();
 });
@@ -188,8 +189,10 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
 test("gutter click selects the block; Delete removes it in both panes", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03b-gutter");
 
-  // Both panes seed their own first paragraph: two text blocks (the editor
-  // root is not a rendered block wrapper).
+  // The room's starter plus an inserted paragraph: two text blocks (the
+  // editor root is not a rendered block wrapper).
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await insertBlockType(a, "a", "paragraph");
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
   const before = 2;
   const wrapper = wrappers(a, "a").nth(1);
@@ -206,4 +209,147 @@ test("gutter click selects the block; Delete removes it in both panes", async ({
   await expect(b.getByTestId(`block-b-${wrapperId}`)).toHaveCount(0);
 
   await close();
+});
+
+// The empty-block editing rules (Enter / Backspace): a root-level empty
+// non-text block resets its type to a plain paragraph; a child empty block
+// outdents one level (the type stands, until the indent reaches 0, where
+// the root rules take over); a root-level empty paragraph is removed on
+// Backspace when the page carries more than one block.
+
+test("Backspace on an empty root list item resets its type in place (one undo step)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "ui03b-bs-reset");
+
+  // The room's starter plus an empty bullet item (the pane's doc handle).
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
+  const item = await a.evaluate(() => {
+    const d = window.__paneDocs?.a ?? null;
+    if (d === null) throw new Error("the pane's doc is not mounted");
+    return d.insertBlock("list-item", { list: "bullet" });
+  });
+  if (item === null) throw new Error("the insert returned no id");
+  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+
+  const inner = inners(a, "a").nth(1);
+  await inner.click();
+  await a.keyboard.press("Backspace");
+
+  // The reset is in place (the same block id, now a paragraph), one undo
+  // step restores the list item, and the reset reached pane B.
+  await expect
+    .poll(async () => a.evaluate((id) => window.__paneDocs?.a?.getBlock(id)?.type, item), SETTLE)
+    .toBe("paragraph");
+  await expect
+    .poll(async () => b.evaluate((id) => window.__paneDocs?.b?.getBlock(id)?.type, item), SETTLE)
+    .toBe("paragraph");
+  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+
+  await inner.click();
+  await a.keyboard.press("Control+z");
+  await expect
+    .poll(async () => a.evaluate((id) => window.__paneDocs?.a?.getBlock(id)?.type, item), SETTLE)
+    .toBe("list-item");
+
+  await close();
+});
+
+test("Backspace on an empty child list item outdents; on an empty root paragraph it removes", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ui03b-bs-outdent");
+
+  // Ladder: the starter paragraph, a bullet item, an empty child bullet
+  // (indent 1).
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
+  const ids = await a.evaluate(() => {
+    const d = window.__paneDocs?.a ?? null;
+    if (d === null) throw new Error("the pane's doc is not mounted");
+    const parent = d.insertBlock("list-item", { list: "bullet" });
+    const child = d.insertBlock("list-item", { list: "bullet", indent: 1 });
+    return { parent, child };
+  });
+  await expect(inners(a, "a"), SETTLE).toHaveCount(3);
+
+  // Backspace on the empty child (a non-paragraph type): the type resets
+  // to a plain paragraph first, the indent stands.
+  await inners(a, "a").nth(2).click();
+  await a.keyboard.press("Backspace");
+  await expect
+    .poll(
+      async () =>
+        a.evaluate((id) => {
+          const d = window.__paneDocs?.a ?? null;
+          if (d === null) return null;
+          const block = d.getBlock(id);
+          return block === null ? null : { type: block.type, indent: block.attrs?.indent ?? 0 };
+        }, ids.child),
+      SETTLE
+    )
+    .toMatchObject({ type: "paragraph", indent: 1 });
+  // The type reset remounts the row (li -> div): wait for the caret to be
+  // re-seated in the new contenteditable before the next key.
+  await expect(inners(a, "a").nth(2), SETTLE).toBeFocused();
+
+  // The next Backspace outdents (the type stands: a paragraph at the root
+  // level).
+  await a.keyboard.press("Backspace");
+  await expect
+    .poll(async () => a.evaluate((id) => window.__paneDocs?.a?.getBlock(id)?.type, ids.child), SETTLE)
+    .toBe("paragraph");
+  await expect
+    .poll(
+      async () =>
+        a.evaluate((id) => {
+          const d = window.__paneDocs?.a ?? null;
+          if (d === null) return null;
+          return d.getBlock(id)?.attrs?.indent ?? 0;
+        }, ids.child),
+      SETTLE
+    )
+    .toBe(0);
+  await expect(inners(a, "a").nth(2), SETTLE).toBeFocused();
+
+  // Backspace on the empty root paragraph (the page has more than one
+  // block): the block is removed.
+  await a.keyboard.press("Backspace");
+  await expect
+    .poll(
+      async () => a.evaluate((id) => (window.__paneDocs?.a?.getBlock(id) === null ? "removed" : "present"), ids.child),
+      SETTLE
+    )
+    .toBe("removed");
+  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+
+  await close();
+});
+
+test("a reload does not re-seed the room (the content is stable across reloads)", async ({ browser }) => {
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  const room = `ui03b-reload-${Math.random().toString(36).slice(2, 8)}`;
+  await openPane(a, "a", room);
+
+  // The room's single starter settles (pane "a" is the designated seeder,
+  // after the sync settles).
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
+  const first = inners(a, "a").first();
+  await first.click();
+  await a.keyboard.type("hello");
+  await insertBlockType(a, "a", "list-item");
+  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  const second = inners(a, "a").nth(1);
+  await second.click();
+  await a.keyboard.type("an item");
+  await expect(inners(a, "a").first(), SETTLE).toHaveText("hello");
+  const countBefore = await inners(a, "a").count();
+
+  // Two reloads: the relay's room state survives the reload and the pane
+  // resyncs against it — no duplicate starter, the content stands.
+  await a.reload({ waitUntil: "domcontentloaded" });
+  await expect(inners(a, "a"), SETTLE).toHaveCount(countBefore);
+  await expect(inners(a, "a").first(), SETTLE).toHaveText("hello");
+  await a.reload({ waitUntil: "domcontentloaded" });
+  await expect(inners(a, "a"), SETTLE).toHaveCount(countBefore);
+  await expect(inners(a, "a").first(), SETTLE).toHaveText("hello");
+  await expect(inners(a, "a").nth(1), SETTLE).toHaveText("an item");
+
+  await context.close();
 });

@@ -207,15 +207,15 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
 
   // Nested under text: the flat model renders the indented segment as the
   // sequence's own rows (the per-level row step — no nested slot): the
-  // indented paragraph steps one level (24px), the indented list item two
-  // (its level + the list marker gutter, 48px).
+  // indented paragraph steps one level (24px), the indented list item the
+  // step plus its marker zone (the row's first character, 24px + 18px).
   const rowPaddingOf = (id: string) =>
     doc
       .locator(`[data-block-id="${id}"]`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
   expect(await rowPaddingOf("c0062")).toBe("24px");
-  expect(await rowPaddingOf("c0063")).toBe("48px");
+  expect(await rowPaddingOf("c0063")).toBe("42px");
   expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 
@@ -485,13 +485,26 @@ test("the editor root typography and the block spacing read the tokens", async (
   const margin = await styleProps(paragraph, "margin-top", "margin-bottom");
   expect(margin["margin-top"]).toBe("8px");
   expect(margin["margin-bottom"]).toBe("8px");
-  const gutterStyle = await styleProps(paragraph.locator('[data-slot="docblocks/gutter"]'), "left");
-  expect(gutterStyle["left"]).toBe("-24px");
+  const gutterStyle = await styleProps(paragraph.locator('[data-slot="docblocks/gutter"]'), "left", "top");
+  expect(gutterStyle["left"]).toBe("-48px");
+  // Centered on the first line: (16px * 1.6 - 20px) / 2 at the default font.
+  expect(gutterStyle["top"]).toBe("2.8px");
 
-  // The collapse toggle (a list item with children) sits in the marker
-  // gutter, its right edge at the content's left edge (the em basis is the
-  // block's font — the button pins `text-[length:inherit]`).
+  // The collapse toggle (a list item with children — the catalog's first
+  // collapsible) stands in the gutter band, gap-1 clear of the content,
+  // centered on the first line on the same axis as the grip. Its wrapper
+  // is shifted by the marker zone, so the row-level column reads the band
+  // edge minus the marker width.
   const collapse = root.locator('[data-slot="docblocks/collapse"]').first();
-  const collapseStyle = await styleProps(collapse, "left");
-  expect(collapseStyle["left"]).toBe("-8px");
+  const collapseStyle = await styleProps(collapse, "left", "top");
+  expect(collapseStyle["left"]).toBe("-42px");
+  expect(collapseStyle["top"]).toBe("2.8px");
+
+  // The flat list rows are standalone list items (outside a list element):
+  // the UA marker dot is suppressed (the row's own marker span / checkbox
+  // is the visible marker).
+  const listItem = root.locator('[data-slot="docblocks/list-item"]').first();
+  const liStyle = await styleProps(listItem, "list-style-type", "display");
+  expect(liStyle["list-style-type"]).toBe("none");
+  expect(liStyle["display"]).toBe("list-item");
 });

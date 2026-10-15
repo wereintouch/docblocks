@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { insertBlockType } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -99,8 +101,8 @@ async function twoPanes(
 test("a rich paste carries the clipboard marks into both panes", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui04-clipboard");
 
-  // Both panes seed their own first paragraph, so the room starts with two.
-  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  // The room starts with pane "a"'s single starter.
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
   const firstA = inners(a, "a").first();
   const firstId = (await firstA.getAttribute("data-block-id")) ?? "";
   expect(firstId).not.toBe("");
@@ -122,8 +124,11 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   await expect(firstA.locator("strong"), SETTLE).toHaveText("hello");
 
   // Copy the bold word to the clipboard (what a default copy would carry),
-  // then paste it into the second (empty) block.
+  // then paste it into a second (empty) block (inserted explicitly — the
+  // room carries a single starter).
   await copyBlockToClipboard(a, "a");
+  await insertBlockType(a, "a", "paragraph");
+  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
   const secondA = inners(a, "a").nth(1);
   await secondA.click();
   await pasteFromClipboard(a);

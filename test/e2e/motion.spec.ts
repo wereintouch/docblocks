@@ -72,16 +72,16 @@ async function settled(page: Page): Promise<void> {
 test("an inserted block reaches both panes and its enter animation settles", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03c-insert");
 
-  // Both panes seed their own first paragraph, so the room starts with two.
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
+  // The room starts with pane "a"'s single starter.
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
 
   await insertBlockType(a, "a", "paragraph");
 
   // Both panes (the motion editor) render the block as it arrives...
-  await expect(wrappers(b, "b"), SETTLE).toHaveCount(3);
+  await expect(wrappers(b, "b"), SETTLE).toHaveCount(2);
   // ...and the enter animation settles in A (the block is current after
   // the insert, so it is labeled).
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(3);
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
   await expect
     .poll(
       async () => await currentWrapper(a, "a").evaluate((el) => getComputedStyle(el.parentElement!).opacity),
@@ -96,7 +96,7 @@ test("an inserted block reaches both panes and its enter animation settles", asy
 test("an in-place line break reflows without a size projection (the text is never scaled)", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "ui03c-linebreak");
 
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
   const content = wrappers(a, "a").nth(0).locator('[data-slot="docblocks/block-content"]');
   await content.click();
   await a.keyboard.type("hello");
@@ -151,7 +151,8 @@ test("an in-place line break reflows without a size projection (the text is neve
         }),
       SETTLE
     )
-    .toBe("none;none");
+    // The single starter row: one clean transform.
+    .toBe("none");
 
   await close();
 });
@@ -161,9 +162,10 @@ test("a real-pointer gutter drag slides the crossed sibling, commits over the wi
 }) => {
   const { a, b, close } = await twoPanes(browser, "ui03c-drag");
 
-  // Both panes seed their own first paragraph; the insert makes three
+  // The room's starter; the insert makes two
   // (the harness insert — no typing, deterministic under parallel load).
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await insertBlockType(a, "a", "paragraph");
   const thirdId = await insertBlockType(a, "a", "paragraph");
   await settled(a);
 
@@ -233,6 +235,8 @@ test("a real-pointer gutter drag slides the crossed sibling, commits over the wi
 test("a gutter deletion disappears in both panes (the exit animation completes)", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03c-delete");
 
+  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await insertBlockType(a, "a", "paragraph");
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
   const before = 2;
   const wrapper = wrappers(a, "a").nth(1);

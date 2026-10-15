@@ -29,8 +29,9 @@ interface EditorState {
   /** Local view selection; a separate slice so caret moves never re-render blocks. */
   selection: Selection;
   /**
-   * The collapsed list-item ids (the children are hidden). Local view
-   * state, never document data: a separate slice, reset on remount.
+   * The collapsed block ids (the derived segment's rows are hidden). Local
+   * view state — never document data, no wire traffic; a separate slice,
+   * reset on remount.
    */
   collapsedIds: BlockId[];
   /** Remote peers' ephemeral state; a separate slice for the same reason. */

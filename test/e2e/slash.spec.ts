@@ -93,9 +93,9 @@ test("slash: Escape closes the menu without touching the doc", async ({ browser 
   await a.keyboard.press("Escape");
   await expect(menu(a)).toHaveCount(0);
 
-  // The doc is untouched: both panes' seeded paragraphs, the first still
-  // empty (the "/" character was never inserted).
-  await expect(a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]')).toHaveCount(2);
+  // The doc is untouched: the room's starter paragraph is still empty
+  // (the "/" character was never inserted).
+  await expect(a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]')).toHaveCount(1);
   await expect(inner(a, "a")).toHaveText("");
   await close();
 });

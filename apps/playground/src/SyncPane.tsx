@@ -169,6 +169,30 @@ function SyncPane({
 
     const unsubscribeWire = provider.onUpdate((bytes) => addWire("in", bytes.length));
 
+    // The plain room's starter paragraph: pane "a" is the designated
+    // seeder (pane "b" never seeds, so a fresh room gets exactly one
+    // starter). The seed waits for the sync to settle — the first
+    // incoming update (the room's state, or the peer's skeleton) or a
+    // settle timeout — and inserts the starter only while the root still
+    // has no children (a room with surviving content resyncs against it
+    // on a reload and is never re-seeded).
+    let starterSettled = false;
+    let settleTimer = 0;
+    const finishStarter = (): void => {
+      if (starterSettled) return;
+      starterSettled = true;
+      window.clearTimeout(settleTimer);
+      unsubscribeSettle?.();
+      if (doc.getChildren(DOC_ID).length === 0) {
+        doc.insertBlock("paragraph");
+      }
+    };
+    let unsubscribeSettle: (() => void) | null = null;
+    if (client === "a" && !catalog && !canvas) {
+      unsubscribeSettle = provider.onUpdate(finishStarter);
+      settleTimer = window.setTimeout(finishStarter, 1000);
+    }
+
     const refresh = () => setBlocks(readBlocks(doc));
     const unsubscribeDoc = doc.onChange(refresh);
     // Initial read: the catalog is seeded before this subscription.
@@ -204,6 +228,8 @@ function SyncPane({
     setRuntime({ doc, provider, master, mountedAt });
 
     return () => {
+      window.clearTimeout(settleTimer);
+      if (unsubscribeSettle !== null) unsubscribeSettle();
       unsubscribeDoc();
       unsubscribePresence();
       unsubscribeWire();

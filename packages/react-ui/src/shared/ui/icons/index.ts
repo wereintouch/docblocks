@@ -23,5 +23,6 @@ export { TextAlignStart } from "./TextAlignStart";
 export { TextQuote } from "./TextQuote";
 export { Triangle } from "./Triangle";
 export { TriangleAlert } from "./TriangleAlert";
+export { TriangleFilled } from "./TriangleFilled";
 export { Underline } from "./Underline";
 export { X } from "./X";

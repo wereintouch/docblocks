@@ -151,7 +151,7 @@ describe("Enter: block split", () => {
     expect(doc.getText(ids[1]!)).toBe("b");
   });
 
-  it("exits an empty list item: the item is removed and a paragraph inserted after", () => {
+  it("resets an empty root list item to a plain paragraph (in place, one undo step)", () => {
     let intro: BlockId = "";
     let li: BlockId = "";
     const doc = renderDoc((d) => {
@@ -170,23 +170,22 @@ describe("Enter: block split", () => {
 
     key(wrapperOf(li), "Enter");
 
-    expect(doc.getBlock(li)).toBeNull();
+    // The type resets in place (the block keeps its slot, no new block,
+    // the list attr is dropped).
     const ids = doc.getChildren(doc.meta.id);
     expect(ids).toHaveLength(2);
-    expect(ids[0]).toBe(intro);
-    const exit = doc.toJSON().blocks[ids[1]!];
-    expect(exit).toMatchObject({ type: "paragraph" });
-    expect(doc.getText(ids[1]!)).toBe("");
+    expect(ids[1]).toBe(li);
+    expect(doc.getBlock(li)!.type).toBe("paragraph");
+    expect(doc.getText(li)).toBe("");
 
     // One undo step restores the list item.
     act(() => {
       doc.undo();
     });
-    expect(doc.getBlock(li)).not.toBeNull();
     expect(doc.getBlock(li)!.type).toBe("list-item");
   });
 
-  it("exits an empty list item at the sequence's start: the paragraph takes the item's former position", () => {
+  it("resets an empty root list item at the sequence's start (the slot stands)", () => {
     let li: BlockId = "";
     let after: BlockId = "";
     const doc = renderDoc((d) => {
@@ -204,23 +203,16 @@ describe("Enter: block split", () => {
 
     key(wrapperOf(li), "Enter");
 
-    // The item is the sequence's first block: there is no predecessor to
-    // anchor on, so the paragraph takes the item's own slot (the sequence's
-    // start) — not the sequence's end.
-    expect(doc.getBlock(li)).toBeNull();
+    // The reset is in place: the first slot is now a paragraph, the
+    // following block stands after it.
     const ids = doc.getChildren(doc.meta.id);
     expect(ids).toHaveLength(2);
-    expect(doc.toJSON().blocks[ids[0]!]).toMatchObject({ type: "paragraph" });
+    expect(ids[0]).toBe(li);
+    expect(doc.getBlock(li)!.type).toBe("paragraph");
     expect(ids[1]).toBe(after);
-
-    // One undo step restores the list item at the start.
-    act(() => {
-      doc.undo();
-    });
-    expect(doc.getChildren(doc.meta.id)[0]).toBe(li);
   });
 
-  it("exits an empty list item at the sequence's start with a sublist: the sublist goes with the removal", () => {
+  it("keeps the sublist when an empty root list item resets to a paragraph", () => {
     let li: BlockId = "";
     let child: BlockId = "";
     let after: BlockId = "";
@@ -239,18 +231,18 @@ describe("Enter: block split", () => {
 
     key(wrapperOf(li), "Enter");
 
-    // The item's sublist is removed with the removal (the composed landing
-    // must not break the item's derived segment), and the paragraph takes
-    // the item's own slot (the following block stands after it).
-    expect(doc.getBlock(li)).toBeNull();
-    expect(doc.getBlock(child)).toBeNull();
+    // The derived segment stands under the paragraph (the type reset
+    // never removes content): the item's slot is a paragraph, the child
+    // and the following block stand.
     const ids = doc.getChildren(doc.meta.id);
-    expect(ids).toHaveLength(2);
-    expect(doc.toJSON().blocks[ids[0]!]).toMatchObject({ type: "paragraph" });
-    expect(ids[1]).toBe(after);
+    expect(ids).toHaveLength(3);
+    expect(ids[0]).toBe(li);
+    expect(doc.getBlock(li)!.type).toBe("paragraph");
+    expect(ids[1]).toBe(child);
+    expect(ids[2]).toBe(after);
   });
 
-  it("exits a nested empty list item (depth 2): the paragraph lands at the item's attach level", () => {
+  it("outdents a nested empty list item (depth 2): one level out, the type stands", () => {
     let outer: BlockId = "";
     let inner: BlockId = "";
     const doc = renderDoc((d) => {
@@ -268,17 +260,18 @@ describe("Enter: block split", () => {
 
     key(wrapperOf(inner), "Enter");
 
-    // The markdown exit: the item is removed and the paragraph lands at
-    // the item's attach level (indent - 1, the outer item's level), right
-    // after the preceding block.
-    expect(doc.getBlock(inner)).toBeNull();
+    // The repeated-Enter climb back to the root: one level out (indent 0),
+    // the type stands, no block is added or removed.
     const ids = doc.getChildren(doc.meta.id);
     expect(ids).toHaveLength(2);
     expect(ids[0]).toBe(outer);
-    expect(doc.toJSON().blocks[ids[1]!]).toMatchObject({ type: "paragraph" });
+    expect(ids[1]).toBe(inner);
+    const innerJson = doc.getBlock(inner)!;
+    expect(innerJson.type).toBe("list-item");
+    expect((innerJson as { attrs?: { indent?: number } }).attrs?.indent ?? 0).toBe(0);
   });
 
-  it("exits a doubly-nested empty list item (depth 3): one level shallower, the rest stands", () => {
+  it("outdents a doubly-nested empty list item (depth 3): one level shallower, the rest stands", () => {
     let top: BlockId = "";
     let mid: BlockId = "";
     let deep: BlockId = "";
@@ -298,17 +291,16 @@ describe("Enter: block split", () => {
 
     key(wrapperOf(deep), "Enter");
 
-    // The exit is one level: the paragraph lands at the item's attach level
-    // (indent 1, the middle item's level) right after the preceding block —
-    // the top-level list and the middle item stand.
-    expect(doc.getBlock(deep)).toBeNull();
+    // One level shallower (indent 1, the middle item's level) — the
+    // top-level list and the middle item stand, the type stands.
     const ids = doc.getChildren(doc.meta.id);
     expect(ids).toHaveLength(3);
     expect(ids[0]).toBe(top);
     expect(ids[1]).toBe(mid);
-    const exitJson = doc.toJSON().blocks[ids[2]!]!;
-    expect(exitJson).toMatchObject({ type: "paragraph" });
-    expect((exitJson as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    expect(ids[2]).toBe(deep);
+    const deepJson = doc.getBlock(deep)!;
+    expect(deepJson.type).toBe("list-item");
+    expect((deepJson as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
   });
 
   it("is a no-op over an in-block range selection", () => {

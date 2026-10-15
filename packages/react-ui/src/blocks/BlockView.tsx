@@ -125,15 +125,29 @@ function GroupedNodes({ nodes }: { nodes: FlatNode[] }) {
 }
 
 /**
+ * The derived nested content's collapse gate: while the parent block is
+ * collapsed (view state) the segment is unmounted (the other panes stand;
+ * the rows keep their indent in the data).
+ */
+function CollapsedGate({ id, children }: { id: BlockId; children: ReactNode }) {
+  const { store } = useEditorContext();
+  const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
+  return collapsed ? null : <>{children}</>;
+}
+
+/**
  * A container's nested content: the derived segment inside a rendered-only
  * `docblocks/nested` wrapper (the CSS indent step), in reading order (a
- * list run groups into its list, the rest stands as single blocks).
+ * list run groups into its list, the rest stands as single blocks); hidden
+ * while the parent block is collapsed.
  */
-function NestedSlot({ nodes }: { nodes: FlatNode[] }) {
+function NestedSlot({ id, nodes }: { id: BlockId; nodes: FlatNode[] }) {
   return (
-    <div data-slot="docblocks/nested" className="pl-(--docblocks-nested-indent)">
-      <GroupedNodes nodes={nodes} />
-    </div>
+    <CollapsedGate id={id}>
+      <div data-slot="docblocks/nested" className="pl-(--docblocks-nested-indent)">
+        <GroupedNodes nodes={nodes} />
+      </div>
+    </CollapsedGate>
   );
 }
 
@@ -146,12 +160,9 @@ function NestedSlot({ nodes }: { nodes: FlatNode[] }) {
  * expand).
  */
 function ItemNested({ id, nodes, ownKind }: { id: BlockId; nodes: FlatNode[]; ownKind: ListKind }) {
-  const { store } = useEditorContext();
-  const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
-  if (collapsed) return null;
   const segments = nestedSegments(nodes, ownKind);
   return (
-    <>
+    <CollapsedGate id={id}>
       {segments.map((segment, index) =>
         segment.kind === "list" ? (
           <ListRun
@@ -166,7 +177,7 @@ function ItemNested({ id, nodes, ownKind }: { id: BlockId; nodes: FlatNode[]; ow
           </div>
         )
       )}
-    </>
+    </CollapsedGate>
   );
 }
 
@@ -337,12 +348,15 @@ const BlockNodeView = memo(
     // the parent's slot).
     const hasChildren = !flat && node.children.length > 0;
     const isListItem = block.type === "list-item";
-    const collapsible = isListItem && node.children.length > 0;
+    // The collapse toggle stands for any block with a derived segment,
+    // flat or not (the flat rows' segment stands as the sequence's own
+    // rows — the toggle hides them, it does not thread them in).
+    const collapsible = node.children.length > 0;
     const nested: ReactNode = hasChildren ? (
       isListItem ? (
         <ItemNested id={node.id} nodes={node.children} ownKind={block.attrs.list} />
       ) : (
-        <NestedSlot nodes={node.children} />
+        <NestedSlot id={node.id} nodes={node.children} />
       )
     ) : undefined;
     const custom = renderers[block.type];
@@ -359,7 +373,7 @@ const BlockNodeView = memo(
       return (
         <Fragment>
           {view}
-          <NestedSlot nodes={node.children} />
+          <NestedSlot id={node.id} nodes={node.children} />
         </Fragment>
       );
     }
@@ -370,7 +384,7 @@ const BlockNodeView = memo(
     return (
       <Fragment>
         {view}
-        <NestedSlot nodes={node.children} />
+        <NestedSlot id={node.id} nodes={node.children} />
       </Fragment>
     );
   },

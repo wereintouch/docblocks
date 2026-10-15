@@ -137,15 +137,15 @@ function copyRunsRange(
 /**
  * Enter at a caret in a text block: split the block at the caret offset.
  *
- * Empty block: paragraph / heading / callout / code / latex insert a new
- * paragraph after (at the same indent) and keep the empty block; an empty
- * list item EXITS the list one level (the markdown exit — ONE level is
- * peeled, not a full return to indent 0): the item's derived segment (its
- * sublist) is removed and a paragraph is inserted at the item's former
- * position, at the item's attach level (indent - 1, floored at 0).
  * Non-empty: a block of the same type and attrs (the indent included) is
  * inserted right after, the tail text (with marks) moves there, and the
- * tail is deleted. One transact — one undo step.
+ * tail is deleted.
+ * Empty: a child block (indent > 0) outdents one level (the type stands,
+ * until the indent reaches 0); a root-level non-text block resets its type
+ * to a plain paragraph (in place — the type-specific attrs are dropped, the
+ * derived segment stands); a root-level empty paragraph inserts a new
+ * empty paragraph after.
+ * One transact — one undo step.
  *
  * Returns the id of the block that receives the caret; null for a no-op
  * (missing block or offset out of range, or the core's typed rejection of
@@ -163,30 +163,20 @@ function splitAt(doc: Doc, id: BlockId, contextId: BlockId, offset: number): Blo
   try {
     doc.transact(() => {
       if (text === "") {
-        if (block.type === "list-item") {
-          const segment = segmentRange(doc, contextId, id);
-          if (segment === null) return;
-          const sequence = doc.getChildren(contextId);
-          // The paragraph lands at the item's former position (before the
-          // segment is removed), at the item's attach level (the markdown
-          // exit: the item's sublist goes with the removal). At sequence
-          // index 0 there is no predecessor — anchor on the item itself:
-          // the paragraph takes the item's own slot once the segment is
-          // removed (a bare append would land at the sequence's end).
-          const exitIndent = Math.max(0, indentOf(doc, id) - 1);
-          const anchor = segment.start > 0 ? sequence[segment.start - 1] : id;
-          // The segment's ids captured BEFORE the insert: the composed
-          // landing (an index-0 item's paragraph anchors on the item
-          // itself) would break the item's re-derived segment, and the
-          // ids stand regardless of the insert's shift.
-          const segmentIds = sequence.slice(segment.start, segment.end);
-          focusId = doc.insertBlock("paragraph", exitIndent !== 0 ? { indent: exitIndent } : undefined, {
-            parent: contextId,
-            after: anchor,
-          });
-          for (let i = segmentIds.length - 1; i >= 0; i -= 1) {
-            doc.removeBlock(segmentIds[i]!);
-          }
+        const indent = indentOf(doc, id);
+        if (indent > 0) {
+          // A child empty block: one level out, the type stands (the
+          // repeated-Enter climb back to the root level).
+          doc.updateBlock(id, { indent: indent - 1 });
+          focusId = id;
+          return;
+        }
+        if (block.type !== "paragraph") {
+          // A root-level empty non-text block: the type resets to plain
+          // text in place (the markdown list exit at the root level — the
+          // derived segment, if any, stands under the paragraph).
+          doc.changeBlockType(id, "paragraph");
+          focusId = id;
           return;
         }
         focusId = doc.insertBlock("paragraph", undefined, { parent: contextId, after: id });
@@ -210,9 +200,15 @@ function splitAt(doc: Doc, id: BlockId, contextId: BlockId, offset: number): Blo
 /**
  * Backspace at offset 0: merge the block with its previous sequence block.
  *
- * Previous is a text block: the block's runs (with marks) are appended to
- * the previous block's end and the block is removed. Previous is
- * non-text (divider, image, ...): the previous block and its derived
+ * Empty block: a non-text block resets its type to a plain paragraph (in
+ * place — the type-specific attrs are dropped, the derived segment stands);
+ * a child paragraph (indent > 0) outdents one level (the type stands, until
+ * the indent reaches 0). A root-level empty paragraph then takes the merge
+ * below — removed when a previous block exists (the caret lands at the
+ * join point), a no-op when it is the sequence's only block.
+ * Non-empty: previous is a text block: the block's runs (with marks) are
+ * appended to the previous block's end and the block is removed. Previous
+ * is non-text (divider, image, ...): the previous block and its derived
  * segment are removed only.
  *
  * Returns the surviving block and the caret offset (the join point); null
@@ -225,6 +221,26 @@ function splitAt(doc: Doc, id: BlockId, contextId: BlockId, offset: number): Blo
 function mergeWithPrevious(doc: Doc, id: BlockId, contextId: BlockId): { blockId: BlockId; offset: number } | null {
   const block = doc.getBlock(id);
   if (block === null || !BLOCK_REGISTRY[block.type].content) return null;
+  const runs = runsOf(block);
+  const text = textOf(runs);
+  if (text === "") {
+    // The empty-block steps (the type reset / the outdent) never remove
+    // content, so they run before the derived-segment guard below (which
+    // protects the removal path only).
+    if (block.type !== "paragraph") {
+      doc.transact(() => {
+        doc.changeBlockType(id, "paragraph");
+      });
+      return { blockId: id, offset: 0 };
+    }
+    const indent = indentOf(doc, id);
+    if (indent > 0) {
+      doc.transact(() => {
+        doc.updateBlock(id, { indent: indent - 1 });
+      });
+      return { blockId: id, offset: 0 };
+    }
+  }
   const segment = segmentRange(doc, contextId, id);
   if (segment === null) return null;
   if (segment.end > segment.start + 1) return null; // the block owns a derived segment: no merge
@@ -241,7 +257,6 @@ function mergeWithPrevious(doc: Doc, id: BlockId, contextId: BlockId): { blockId
   // container guard above) — the caret stands, nothing is deleted.
   const prevSegment = segmentRange(doc, contextId, prevId);
   if (prevSegment !== null && index < prevSegment.end) return null;
-  const runs = runsOf(block);
   const prevLength = BLOCK_REGISTRY[prev.type].content ? textOf(runsOf(prev)).length : 0;
 
   let result: { blockId: BlockId; offset: number } | null = null;

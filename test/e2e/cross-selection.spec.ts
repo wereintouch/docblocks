@@ -50,10 +50,21 @@ async function blockOf(
   return page.evaluate(({ client, id }) => window.__paneDocs?.[client]?.getBlock(id) ?? null, { client, id });
 }
 
-/** Type the two seeded paragraphs (each client seeds one per the pane doc convention). */
+/**
+ * Type the room's starter paragraph (pane "a" seeds it once after the
+ * sync settles) and a second paragraph (an Enter split at the first
+ * block's end), both typed.
+ */
 async function typeTwoBlocks(page: Page, client: "a" | "b"): Promise<void> {
+  await expect(inners(page, client), SETTLE).toHaveCount(1); // the starter has settled
   await inners(page, client).first().click();
   await page.keyboard.type("hello world");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  // The split lands in the DOM on the next store flush: wait for the new
+  // row and re-seat the caret in it (a stale caret in the first block's
+  // contenteditable would absorb the early keystrokes).
+  await expect(inners(page, client), SETTLE).toHaveCount(2);
   await inners(page, client).nth(1).click();
   await page.keyboard.type("another world");
 }
@@ -272,10 +283,15 @@ test("a divider inside the composed chain is skipped by the extension and remove
   browser,
 }) => {
   const { a, close } = await twoPanes(browser, "c5d-cross-divider");
-  // The pane seeds two paragraphs; type the first, append a divider and a
-  // paragraph, type the last: [p1, p2 (empty), divider, p3].
+  // The room's starter is typed, then a second empty paragraph is split
+  // off, a divider and a paragraph are appended, and the last is typed:
+  // [p1, p2 (empty), divider, p3].
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
   await inners(a, "a").first().click();
   await a.keyboard.type("hello world");
+  await a.keyboard.press("End");
+  await a.keyboard.press("Enter");
+  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
   await insertBlockType(a, "a", "divider");
   await insertBlockType(a, "a", "paragraph");
   await inners(a, "a").last().click();

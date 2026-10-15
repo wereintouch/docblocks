@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { insertBlockType } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -49,12 +51,14 @@ async function twoPanes(
 test("ArrowDown at the text end moves the caret to the next block", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui04-arrow");
 
-  // Both panes seed their own first paragraph, so the room starts with two.
-  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  // The room starts with pane "a"'s single starter.
+  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
   const first = inners(a, "a").first();
   await first.click();
   await a.keyboard.type("one");
   await expect(inners(b, "b").first(), SETTLE).toHaveText("one");
+  await insertBlockType(a, "a", "paragraph");
+  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
 
   // Caret to the end, ArrowDown: the caret moves to the start of the next
   // (empty) block — B's presence line shows it at offset 0.
@@ -117,8 +121,9 @@ test("Shift+Enter inserts a line break in the run text (synced, not a new block)
   await a.keyboard.type("line two");
 
   // The break is a \n inside the run text of the same block: the block
-  // count is unchanged and both panes carry the break in the store text.
-  await expect.poll(() => a.evaluate(() => Object.keys(window.__paneDocs.a.toJSON().blocks).length), SETTLE).toBe(3);
+  // count is unchanged (root + the single starter) and both panes carry the
+  // break in the store text.
+  await expect.poll(() => a.evaluate(() => Object.keys(window.__paneDocs.a.toJSON().blocks).length), SETTLE).toBe(2);
   await expect.poll(() => firstText(a, "a"), SETTLE).toBe("line one\nline two");
   await expect.poll(() => firstText(b, "b"), SETTLE).toBe("line one\nline two");
 

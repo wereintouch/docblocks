@@ -146,9 +146,11 @@ const RowItem = memo(
       (state) => state.selection.kind === "blocks" && state.selection.ids.includes(node.id)
     );
     // The row-level gutter handle: the non-text page rows' drag trigger
-    // (the text rows' handle stands inside their own wrapper).
+    // (the text rows' handle stands inside their own wrapper). The gutter
+    // column follows the indent steps only — a list row's marker zone stands
+    // in the row's content, so every row of one indent shares the columns.
     const needsRowGutter = block !== undefined && !TEXT_ROW_TYPES.has(block.type);
-    const padSteps = node.indent + (isList ? 1 : 0);
+    const indentLeft = `calc(${node.indent} * var(--docblocks-nested-indent)`;
 
     /** The gutter handle's pointerdown starts this row's framer drag. */
     const onRowPointerDown = useCallback(
@@ -226,7 +228,9 @@ const RowItem = memo(
         className={needsRowGutter ? "group" : undefined}
         style={{
           position: "relative",
-          paddingLeft: `calc(${padSteps} * var(--docblocks-nested-indent))`,
+          // The indent steps, plus the list row's marker zone (the row's
+          // first character, right before the text).
+          paddingLeft: `${indentLeft} + ${isList ? "var(--docblocks-marker-width)" : "0px"})`,
           ...(isDragged ? { zIndex: 30 } : undefined),
         }}
       >
@@ -239,16 +243,18 @@ const RowItem = memo(
             size="icon"
             onClick={onGutterClick}
             onMouseDown={onHandleMouseDown}
-            // The left edge stands at the row content's left edge (the
-            // indent steps clear), the grip offset from it as the text
-            // rows' own handle.
+            // The left edge stands at the row's left step (the indent steps
+            // only — the marker zone keeps the row content clear), the grip
+            // offset from it as the text rows' own handle (centered on the
+            // row's first line).
             className={cn(
-              "absolute top-1/2 -translate-y-1/2 cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
+              "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)]",
+              "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
               "text-(--docblocks-gutter-color)",
               "size-5",
               selected && "opacity-100"
             )}
-            style={{ left: `calc(${padSteps} * var(--docblocks-nested-indent) + var(--docblocks-gutter-left))` }}
+            style={{ left: `${indentLeft} + var(--docblocks-gutter-left))` }}
           >
             <GripVertical />
           </Button>
@@ -292,8 +298,8 @@ function MotionEditor({
     prevRef.current = result.byId;
     return result;
   }, [rootChildren, blocks]);
-  // The visible rows: the sequence with every collapsed list item's
-  // derived segment unmounted (a view-state skip — the rows stand in the
+  // The visible rows: the sequence with every collapsed block's derived
+  // segment unmounted (a view-state skip — the rows stand in the
   // data; the local drag order and the commit run over the visible rows).
   const rowKeys = useMemo(
     () => visibleRows(rootChildren, derivation.byId, collapsedIds),
