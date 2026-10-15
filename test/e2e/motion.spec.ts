@@ -53,11 +53,10 @@ async function twoPanes(
 }
 
 /**
- * Wait for pane A's entry height animations to settle. A drag started
- * mid-animation measures the entries' mid-flight boxes (the lift's height,
- * the siblings' crossing centers) and the live reorder misjudges. A
- * settled entry carries the animated `height: auto` inline (an entry that
- * skipped the enter animation carries none).
+ * Wait for pane A's row height animations to settle. A drag started
+ * mid-animation measures the rows' mid-flight boxes and the live reorder
+ * misjudges. A settled row carries the animated `height: auto` inline (a
+ * row that skipped the enter animation carries none).
  */
 async function settled(page: Page): Promise<void> {
   await page.waitForFunction(
@@ -103,14 +102,14 @@ test("an in-place line break reflows without a size projection (the text is neve
   await a.keyboard.type("hello");
   await a.keyboard.press("Shift+Enter");
 
-  // The changed entry's content height grew in place, so that entry must
-  // never carry a framer transform — it is the top entry, so its own height
-  // change gives it no position delta, and a size projection (had one been
-  // armed) would be mid-scale on it, distorting the text. Sample three
-  // times over the first ~120 ms. The entries below it may carry a
-  // transient zero-duration projection transform (the instant position
-  // slide), so the window pin is scoped to the changed entry; the settle
-  // assertion below still requires every entry to be clean.
+  // The changed row's content height grew in place, so that row must never
+  // carry a framer transform — it is the top row, so its own height change
+  // gives it no position delta, and a size projection (had one been armed)
+  // would be mid-scale on it, distorting the text. Sample three times over
+  // the first ~120 ms. The rows below it may carry a transient
+  // zero-duration projection transform (the instant position slide), so the
+  // window pin is scoped to the changed row; the settle assertion below
+  // still requires every row to be clean.
   const changedTransform = () =>
     pane(a, "a").evaluate((root) => {
       const group = root.querySelector("[data-docblocks-motion] > div");
@@ -157,8 +156,10 @@ test("an in-place line break reflows without a size projection (the text is neve
   await close();
 });
 
-test("a gutter drag slides the crossed entry into its slot (the layout animation runs)", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "ui03c-cross-slide");
+test("a real-pointer gutter drag slides the crossed sibling, commits over the wire, and undoes as one step", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ui03c-drag");
 
   // Both panes seed their own first paragraph; the insert makes three
   // (the harness insert — no typing, deterministic under parallel load).
@@ -166,13 +167,12 @@ test("a gutter drag slides the crossed entry into its slot (the layout animation
   const thirdId = await insertBlockType(a, "a", "paragraph");
   await settled(a);
 
-  // A non-dragged entry's layout animation writes a non-identity inline
+  // A non-dragged row's layout animation writes a non-identity inline
   // transform on its Reorder.Item (a group's direct child) while the slide
   // is in flight. Wait for it from the Node side (a 20 ms CDP poll — an
   // in-page rAF sampler is starved by the other spec's pages in a parallel
-  // run). The dragged entry's lift pin is on the inner content div, and
-  // its own gap slides too — so exclude the dragged child: the pin is the
-  // crossed sibling's slide.
+  // run). The dragged row carries its own projection too — so exclude it:
+  // the pin is the crossed sibling's slide.
   const slid = a.waitForFunction(
     (draggedId) => {
       const group = document.querySelector('[data-testid="doc-a"] [data-docblocks-motion] > div');
@@ -190,15 +190,18 @@ test("a gutter drag slides the crossed entry into its slot (the layout animation
     { polling: 20, timeout: 5_000 }
   );
 
-  // A real pointer drag of the third block's gutter handle up past the
-  // second block's top (slow steps so the browser renders between moves
-  // and the crossed entry's slide is in flight mid-drag).
+  // A real pointer drag of the third row's gutter handle above the first
+  // row's top (slow steps so the browser renders between moves and the
+  // crossed row's slide is in flight mid-drag). The pointer stops well
+  // above the first row's center, so the commit's virtual index is 0
+  // unambiguously (framer decides off the dragged row's projected position,
+  // which tracks the pointer).
   const handle = wrappers(a, "a").nth(2).locator('button[data-slot="docblocks/gutter"]');
   const handleBox = await handle.boundingBox();
-  const secondBox = await wrappers(a, "a").nth(1).boundingBox();
-  if (handleBox === null || secondBox === null) throw new Error("no handle/second boxes");
+  const firstBox = await wrappers(a, "a").nth(0).boundingBox();
+  if (handleBox === null || firstBox === null) throw new Error("no handle/first boxes");
   const fromY = handleBox.y + handleBox.height / 2;
-  const dy = fromY - (secondBox.y - 10);
+  const dy = fromY - (firstBox.y - 10);
   await a.mouse.move(handleBox.x, fromY);
   await a.mouse.down();
   for (let i = 1; i <= 12; i++) {
@@ -209,78 +212,20 @@ test("a gutter drag slides the crossed entry into its slot (the layout animation
   // The slide runs out (it started when the drag crossed mid-drag).
   await slid;
 
-  // The drag committed: the dragged block is second now.
+  // The drag committed: the dragged block is first now, in both panes
+  // (the commit left the pane over the wire).
   const order = await wrappers(a, "a").evaluateAll((els) => els.map((el) => el.getAttribute("data-block-id")));
-  expect(order[1]).toBe(thirdId);
+  expect(order[0]).toBe(thirdId);
+  await expect(wrappers(b, "b").nth(0), SETTLE).toHaveAttribute("data-block-id", thirdId);
 
-  await close();
-});
-
-test("a re-drag of the same entry stays pointer-locked (the lift transition does not leak)", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "ui03c-redrag");
-
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
-  const thirdId = await insertBlockType(a, "a", "paragraph");
-  await settled(a);
-
-  const handleCenter = async (index: number) => {
-    const box = await wrappers(a, "a").nth(index).locator('button[data-slot="docblocks/gutter"]').boundingBox();
-    if (box === null) throw new Error("no handle box");
-    return { x: box.x, y: box.y + box.height / 2 };
-  };
-
-  // First drag: the third block to the second slot (one commit) — the
-  // release settle writes its inline transform transition on this
-  // entry's content.
-  const from = await handleCenter(2);
-  const secondBox = await wrappers(a, "a").nth(1).boundingBox();
-  if (secondBox === null) throw new Error("no second box");
-  await a.mouse.move(from.x, from.y);
-  await a.mouse.down();
-  for (let i = 1; i <= 12; i++) {
-    await a.mouse.move(from.x, from.y - ((from.y - (secondBox.y - 8)) * i) / 12);
-    await a.waitForTimeout(35);
-  }
-  await a.mouse.up();
-  const order1 = await wrappers(a, "a").evaluateAll((els) => els.map((el) => el.getAttribute("data-block-id")));
-  expect(order1[1]).toBe(thirdId);
-  // The settle (220 ms) is done: the lift is dropped and the content is
-  // back in the flow.
-  await a.waitForTimeout(300);
-
-  // Second drag of the same entry, no crossing (a no-op drop): after a
-  // fast retarget the pointer is held still — the lifted content
-  // (pointer-pinned, the pin writes carry no transition) must be
-  // stationary: two samples 50 ms apart agree. A transition leaked from
-  // the first release would still animate the pin's transform, so the
-  // content chases the pointer between the samples. A crossing is kept
-  // out of the window on purpose: a crossing commit moves the gap's
-  // projected box a frame after the pin write (the one-frame hitch),
-  // which would move the content regardless of the leak.
-  const contentTop = () =>
-    a.evaluate((id) => {
-      const group = document.querySelector('[data-testid="doc-a"] [data-docblocks-motion] > div');
-      const entry = Array.from(group?.children ?? []).find(
-        (c) => c.querySelector("[data-block-id]")?.getAttribute("data-block-id") === id
-      );
-      const content = entry instanceof HTMLElement ? (entry.children[1] ?? entry.children[0]) : null;
-      return content instanceof HTMLElement ? content.getBoundingClientRect().top : null;
-    }, thirdId);
-
-  const from2 = await handleCenter(1);
-  await a.mouse.move(from2.x, from2.y);
-  await a.mouse.down();
-  for (let i = 1; i <= 2; i++) {
-    await a.mouse.move(from2.x, from2.y + 4 * i);
-    await a.waitForTimeout(35);
-  }
-  await a.mouse.move(from2.x, from2.y + 24);
-  const t1 = await contentTop();
-  await a.waitForTimeout(50);
-  const t2 = await contentTop();
-  await a.mouse.up();
-  if (t1 === null || t2 === null) throw new Error("no content box");
-  expect(Math.abs(t2 - t1)).toBeLessThan(2);
+  // The move is A's local undo entry (one command, one undoable unit):
+  // the order reverts in both panes. The undo hotkey reaches the doc only
+  // from inside the editor root, so click back in first (the drag left the
+  // focus outside).
+  await wrappers(a, "a").nth(0).locator('[data-slot="docblocks/block-content"]').first().click();
+  await a.keyboard.press("Control+z");
+  await expect(wrappers(a, "a").nth(0), SETTLE).not.toHaveAttribute("data-block-id", thirdId);
+  await expect(wrappers(b, "b").nth(0), SETTLE).not.toHaveAttribute("data-block-id", thirdId);
 
   await close();
 });
@@ -300,7 +245,7 @@ test("a gutter deletion disappears in both panes (the exit animation completes)"
 
   await a.keyboard.press("Delete");
 
-  // The exit animation runs out (the leaving entry is popped out of the
+  // The exit animation runs out (the leaving row is popped out of the
   // layout) and the block is gone in both panes.
   await expect(wrappers(a, "a"), SETTLE).toHaveCount(before - 1);
   await expect(wrappers(b, "b"), SETTLE).toHaveCount(before - 1);

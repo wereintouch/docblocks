@@ -3,6 +3,8 @@ import type { StoreApi } from "zustand/vanilla";
 
 import type { Block, BlockId, Change, Doc, DocMeta, PresenceState, Selection } from "docblocks-core";
 
+import { sequenceContainerOf, subtreeSegmentOf } from "../blocks/flat";
+
 /**
  * Per-instance editor state: a projection of one docblocks-core Doc.
  *
@@ -14,7 +16,13 @@ import type { Block, BlockId, Change, Doc, DocMeta, PresenceState, Selection } f
 interface EditorState {
   /** Block snapshots keyed by id; a block keeps its reference while its JSON is unchanged. */
   blocks: Record<BlockId, Block>;
-  /** The entry-list block ids: the document root's children, or a single subtree root. */
+  /**
+   * The entry-list block ids: the document root's children (the page
+   * sequence), or the subtree entry's derived segment (the subtree root
+   * and its deeper followers — re-derived only when the change can affect
+   * it, see `applyChange`'s invalidation: a peer or a local insert into
+   * the segment grows it without touching the subtree root itself).
+   */
   rootChildren: BlockId[];
   /** Document meta; replaced only when the title changed. */
   meta: DocMeta;
@@ -72,13 +80,19 @@ function deepEqual(a: unknown, b: unknown): boolean {
  *
  * `rootId` is the entry-list root: the document root by default (its
  * children are the entry list), or a subtree block — the entry list is the
- * block itself, whose own renderers carry its descendants.
+ * block's derived segment (its deeper followers in the page sequence).
  */
 function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
   const { blocks: initialBlocks, ...initialMeta } = doc.toJSON();
   const entryRootId = rootId ?? doc.meta.id;
   const isDocRoot = entryRootId === doc.meta.id;
-  const initialRootChildren = isDocRoot ? doc.getChildren(entryRootId) : [entryRootId];
+  // The subtree entry's sequence container, resolved from the store's own
+  // blocks map (no doc snapshot): it stands until a change can affect the
+  // resolution (see `applyChange`'s invalidation).
+  let container = isDocRoot ? entryRootId : sequenceContainerOf(initialBlocks, entryRootId);
+  const initialRootChildren = isDocRoot
+    ? doc.getChildren(entryRootId)
+    : subtreeSegmentOf(initialBlocks, container, entryRootId);
 
   const applyChange: EditorActions["applyChange"] = (change) => {
     const state = store.getState();
@@ -107,11 +121,88 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
       }
       if (blocksChanged) patch.blocks = blocks;
 
-      // Only the document root's entry list is dynamic: a subtree entry is
-      // the fixed [rootId] (descendants track through the block snapshots).
-      if (isDocRoot && change.blockIds.includes(entryRootId)) {
-        const children = doc.getChildren(entryRootId);
-        if (!deepEqual(state.rootChildren, children)) patch.rootChildren = children;
+      // The entry list's dynamics: the document root's children change
+      // with the root entry itself. The subtree entry's derived segment
+      // re-derives only when the change can AFFECT it — a concurrent
+      // (peer or local) insertion of a deeper block into the segment, or
+      // a shallower block moving into the segment's end, does not touch
+      // the subtree root, so the root-entry watch would miss it. The
+      // derivation runs over the store's own blocks map (no doc snapshot
+      // per change — the block snapshots' stability stands on the per-id
+      // diff above, the seed and the diff share the same reader).
+      if (isDocRoot) {
+        if (change.blockIds.includes(entryRootId)) {
+          const children = doc.getChildren(entryRootId);
+          if (!deepEqual(state.rootChildren, children)) patch.rootChildren = children;
+        }
+      } else {
+        // Invalidation rule: the segment (the container's sequence range
+        // from the entry root to the first block with `indent` <= its own)
+        // can change only when the change touches — the entry root itself
+        // (its indent moves the end boundary, its type flips the
+        // sequence-container check, its removal dangles it), the sequence
+        // container (its children array is the sequence: an insert/move/
+        // removal in it, a re-parent of the entry root), a block currently
+        // inside the segment (its indent can move the end boundary; its
+        // removal shrinks the segment), or the terminator after the
+        // segment (the first sequence block with `indent` <= the entry
+        // root's own — its indent can rise into the segment and grow it).
+        // A text/mark change of an unaffected block keeps the segment
+        // standing: no derivation, no doc read.
+        const touched = new Set(change.blockIds);
+        const current = state.rootChildren;
+        // The terminator from the PRE-change state: the sequence block
+        // right after the current segment (by the segment's definition it
+        // stands at `indent` <= the entry root's own; absent when the
+        // segment reaches the sequence's end). A stale segment (the entry
+        // root out of the sequence — unreachable through applyChange, the
+        // resync is free) re-derives outright.
+        const oldContainer = state.blocks[container];
+        const oldSequence =
+          oldContainer !== undefined && "children" in oldContainer ? oldContainer.children : undefined;
+        const segmentStart = oldSequence !== undefined ? oldSequence.indexOf(current[0]!) : -1;
+        const staleSegment =
+          oldSequence === undefined ||
+          current.length === 0 ||
+          segmentStart === -1 ||
+          oldSequence.indexOf(current[current.length - 1]!) !== segmentStart + current.length - 1;
+        const terminator =
+          !staleSegment && oldSequence !== undefined ? (oldSequence[segmentStart + current.length] ?? null) : null;
+        const affected =
+          staleSegment ||
+          touched.has(entryRootId) ||
+          touched.has(container) ||
+          current.some((id) => touched.has(id)) ||
+          (terminator !== null && touched.has(terminator));
+        if (affected) {
+          // The resolution (entry root -> sequence container) re-scans
+          // (over the store's own blocks map — no doc snapshot) only when
+          // it can change: the entry root changed (its type flips the
+          // sequence-container check), the resolved container changed (its
+          // children may have lost the entry root), or a changed block now
+          // holds the entry root in its children (a new parent). Otherwise
+          // the cached container stands.
+          let nextContainer = container;
+          let resolutionMayMove = touched.has(entryRootId) || touched.has(container);
+          if (!resolutionMayMove) {
+            for (const id of change.blockIds) {
+              const block = blocks[id];
+              if (
+                block !== undefined &&
+                "children" in block &&
+                block.children !== undefined &&
+                block.children.includes(entryRootId)
+              ) {
+                resolutionMayMove = true;
+                break;
+              }
+            }
+          }
+          if (resolutionMayMove) nextContainer = sequenceContainerOf(blocks, entryRootId);
+          const segment = subtreeSegmentOf(blocks, nextContainer, entryRootId);
+          if (!deepEqual(state.rootChildren, segment)) patch.rootChildren = segment;
+          if (nextContainer !== container) container = nextContainer;
+        }
       }
 
       // A removed block's collapse state is stale (harmless, but it must

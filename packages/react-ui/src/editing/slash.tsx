@@ -20,7 +20,7 @@ import {
   SquareSplitVertical,
   TextQuote,
 } from "../shared/ui/icons";
-import { focusCaretIn } from "./block-commands";
+import { focusCaretIn, segmentRange } from "./block-commands";
 import { selectionInside } from "./dom-offset";
 
 /**
@@ -128,30 +128,42 @@ function filterCommands(query: string): SlashCommand[] {
   return SLASH_COMMANDS.filter((command) => command.label.toLowerCase().includes(q));
 }
 
-/** Insert the command's block with its default attrs (type-safe per type). */
-function insertCommand(doc: Doc, command: SlashCommand, at?: InsertBlockPosition): BlockId {
+/** Insert the command's block with its default attrs (type-safe per type), keeping the trigger's attach level (a subtree view's root level may sit deeper than 0 — the same position and indent were valid before, so the sequence's jump rule holds at the landing). */
+function insertCommand(doc: Doc, command: SlashCommand, at?: InsertBlockPosition, indent = 0): BlockId {
+  const ind: { indent?: number } = indent !== 0 ? { indent } : {};
   switch (command.type) {
     case "paragraph":
-      return doc.insertBlock("paragraph", undefined, at);
+      return doc.insertBlock("paragraph", ind.indent === undefined ? undefined : { ...ind }, at);
     case "heading":
-      return doc.insertBlock("heading", { level: command.attrs.level }, at);
+      return doc.insertBlock("heading", { level: command.attrs.level, ...ind }, at);
     case "list-item":
-      return doc.insertBlock("list-item", { list: command.attrs.list }, at);
+      return doc.insertBlock("list-item", { list: command.attrs.list, ...ind }, at);
     case "callout":
-      return doc.insertBlock("callout", undefined, at);
+      return doc.insertBlock("callout", ind.indent === undefined ? undefined : { ...ind }, at);
     case "code":
       return doc.insertBlock(
         "code",
-        command.attrs?.language === undefined ? undefined : { language: command.attrs.language },
+        command.attrs?.language === undefined
+          ? ind.indent === undefined
+            ? undefined
+            : { ...ind }
+          : { language: command.attrs.language, ...ind },
         at
       );
     case "latex":
-      return doc.insertBlock("latex", { display: command.attrs.display }, at);
+      return doc.insertBlock("latex", { display: command.attrs.display, ...ind }, at);
     case "divider":
-      return doc.insertBlock("divider", undefined, at);
+      return doc.insertBlock("divider", ind.indent === undefined ? undefined : { ...ind }, at);
     default:
       throw new Error(`Unknown slash command type "${(command as { type: string }).type}".`);
   }
+}
+
+/** The block snapshot's indent: a non-negative integer attr; absent is 0. */
+function indentOf(block: Block): number {
+  if (!("attrs" in block)) return 0;
+  const indent = (block.attrs as { indent?: unknown } | undefined)?.indent;
+  return typeof indent === "number" && Number.isInteger(indent) && indent >= 0 ? indent : 0;
 }
 
 /** The command's attrs equal the block's current attrs (the no-op close)? */
@@ -173,13 +185,23 @@ function applyCommand(doc: Doc, command: SlashCommand, blockId: BlockId, parentI
   // The triggering block vanished (a concurrent remote removal or an undo
   // with the menu open): nothing to convert.
   if (current === null) return;
+  // Defense in depth: the trigger owns a deeper follower (the open guard
+  // keeps this unreachable — a remote change could seed the segment
+  // after the menu opened). The removal would cascade the follower, so
+  // no-op (the menu closes, the doc stands).
+  const segment = segmentRange(doc, parentId, blockId);
+  if (segment !== null && segment.end > segment.start + 1) return;
   if (sameAttrs(current, command)) return;
+  // The trigger's attach level: the replacement stands in the trigger's
+  // slot (the jump rule over the sequence holds — the position and the
+  // indent were valid before).
+  const indent = indentOf(current);
   doc.transact(() => {
     const siblings = doc.getChildren(parentId);
     const index = siblings.indexOf(blockId);
     const after = index > 0 ? siblings[index - 1] : undefined;
     doc.removeBlock(blockId);
-    const newId = insertCommand(doc, command, after === undefined ? undefined : { parent: parentId, after });
+    const newId = insertCommand(doc, command, after === undefined ? undefined : { parent: parentId, after }, indent);
     focusCaretIn(newId, 0, scope);
   });
 }

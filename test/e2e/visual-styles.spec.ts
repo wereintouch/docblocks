@@ -103,12 +103,13 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // render as structural <tr>/<td>, not data-block-type elements). The
   // catalog's sync-embed resolves its master (fixed docId, deterministic
   // seed), so the master's blocks (one h1 + three paragraphs) count too,
-  // and so does the canvas scene (a frame paragraph + a frame heading) and
-  // the nested-under-text sample (a container + an indented paragraph + an
-  // indented list item).
+  // and so does the canvas scene (a frame paragraph + a frame heading).
+  // The motion view renders the flat page sequence: the nesting is the row
+  // step (no nested slot), and the list markers stand as rendered row
+  // labels (no list element).
   expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(13);
   expect(await doc.locator('[data-block-type="heading"]').count()).toBe(8);
-  expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(8);
+  expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(17);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
   expect(await doc.locator('[data-block-type="code"]').count()).toBe(2);
   expect(await doc.locator('[data-block-type="code"][data-language="mermaid"]').count()).toBe(1);
@@ -130,13 +131,24 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
     expect(await doc.locator(`${tag}[data-block-type="heading"]`).count()).toBe(1);
   }
 
-  // Lists: one list per variant, the nested level inside the second bullet
-  // (plus the nested sample's bullet under a paragraph), the task checkbox
-  // via data-checked.
-  expect(await doc.locator('[data-slot="docblocks/list"][data-list="bullet"]').count()).toBe(3);
-  expect(await doc.locator('[data-slot="docblocks/list"][data-list="number"]').count()).toBe(1);
-  expect(await doc.locator('[data-slot="docblocks/list"][data-list="task"]').count()).toBe(1);
+  // Lists: the flat rows stand without a list element; the markers are
+  // rendered row labels (the bullet/number kinds; the task items carry the
+  // checkbox instead), and the checked task via data-checked.
+  expect(await doc.locator('[data-slot="docblocks/list"]').count()).toBe(0);
+  expect(await doc.locator('[data-slot="docblocks/row-marker"]').count()).toBe(12);
+  expect(await doc.locator('[data-slot="docblocks/row-marker"][data-kind="bullet"]').count()).toBe(6);
+  expect(await doc.locator('[data-slot="docblocks/row-marker"][data-kind="number"]').count()).toBe(6);
+  expect(await doc.locator('[data-slot="docblocks/checkbox"]').count()).toBe(5);
   expect(await doc.locator('li[data-checked="true"]').count()).toBe(1);
+
+  // The numbered run's labels (DOM order): the numbering continues across
+  // the sublist (1. [sub] 2.) and the marker style cycles by the indent
+  // (decimal / lower-alpha / lower-roman, wrapping to decimal at indent 3).
+  expect(
+    await doc
+      .locator('[data-slot="docblocks/row-marker"][data-kind="number"]')
+      .evaluateAll((els) => els.map((el) => el.textContent))
+  ).toEqual(["1.", "a.", "2.", "a.", "i.", "1."]);
 
   // Callout variants: the explicit ones carry data-variant, the default does not.
   expect(await doc.locator('[data-block-type="callout"][data-variant="info"]').count()).toBe(1);
@@ -190,18 +202,24 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);
 
-  // Nested under text: the docblocks/nested slot inside the sample's
-  // container (the CSS indent is pinned by test/e2e/nesting.spec.ts).
-  const nested = doc.locator('[data-slot="docblocks/nested"]');
-  expect(await nested.count()).toBe(1);
-  expect(await nested.locator('[data-block-type="paragraph"]').count()).toBe(1);
-  expect(await nested.locator('li[data-block-type="list-item"]').count()).toBe(1);
+  // Nested under text: the flat model renders the indented segment as the
+  // sequence's own rows (the per-level row step — no nested slot): the
+  // indented paragraph steps one level (24px), the indented list item two
+  // (its level + the list marker gutter, 48px).
+  const rowPaddingOf = (id: string) =>
+    doc
+      .locator(`[data-block-id="${id}"]`)
+      .first()
+      .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
+  expect(await rowPaddingOf("c0062")).toBe("24px");
+  expect(await rowPaddingOf("c0063")).toBe("48px");
+  expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 
 test("a live edit after the catalog reaches the render and the JSON", async ({ page }) => {
   await openCatalogPane(page);
-  // The pane's current block is the last top-level paragraph (the
-  // catalog's nested-under-text container, after the trailing one): the
+  // The pane's current block is the last paragraph in the flat sequence
+  // (the catalog's indented paragraph, after the trailing one): the
   // data-current label keeps working.
   const current = page.locator('[data-testid="doc-a"] [data-current="true"]');
   await expect(current).toHaveCount(1);
@@ -249,55 +267,58 @@ test("the caret at known offsets is a real caret inside the block", async ({ pag
   expect(atStart.x).toBeLessThan(atEnd.x);
 });
 
-// The marker cycle (the pane renders the motion view, whose root run is
-// level 1): a 3-level nested run per kind gives disc → circle → square and
-// decimal → lower-alpha → lower-roman in the real browser (computed style —
-// jsdom cannot compute list-style). A unique room: the relay keeps rooms
-// for the dev server's lifetime, so a shared room would be polluted.
-test("the list markers cycle per nesting level", async ({ page }) => {
+// The marker cycle (the pane renders the motion view, whose flat rows carry
+// a rendered row label per list item): a 3-level chain per kind gives
+// disc → circle → square and decimal → lower-alpha → lower-roman in the real
+// browser (computed style — jsdom cannot compute list-style). The cycle is
+// the block's indent (the flat model: indent % 3). A unique room: the relay
+// keeps rooms for the dev server's lifetime, so a shared room would be
+// polluted.
+test("the list markers cycle per indent level", async ({ page }) => {
   const room = `vreg01l-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
 
-  // A 3-level nested run per kind, seeded through the pane's own doc
-  // commands (the established harness pattern).
+  // A 3-level chain per kind, seeded through the pane's own doc commands
+  // (the established harness pattern): the indents 0/1/2 of the flat model.
   const seeded = await page.evaluate(() => {
     const d = window.__paneDocs?.a ?? null;
     if (d === null) return false;
     for (const list of ["bullet", "number"] as const) {
-      const ids: string[] = [];
       for (let level = 0; level < 3; level++) {
-        const parent = ids[level - 1];
-        const id = d.insertBlock("list-item", { list }, parent === undefined ? undefined : { parent });
-        d.insertText(id, 0, `${list} level ${level + 1}`);
-        ids.push(id);
+        d.insertBlock("list-item", { list, ...(level > 0 ? { indent: level } : {}) });
       }
     }
     return true;
   });
   expect(seeded, "the pane's doc should be mounted").toBe(true);
 
-  // Settle: the motion view animates the root entries in (6 lists: three
-  // per kind, each run nesting one level deeper).
+  // Settle: the motion view animates the root rows in.
   await expect
-    .poll(async () => page.locator('[data-testid="doc-a"] [data-slot="docblocks/list"]').count(), SETTLE)
-    .toBe(6);
+    .poll(async () => page.locator('[data-testid="doc-a"] [data-slot="docblocks/row"]').count(), SETTLE)
+    .toBe(7);
 
-  /** Every list element of the kind in DOM order: the cycle index + the real computed marker. */
+  /** The row markers of the kind in DOM order: the cycle + the rendered glyph / label. */
   const markers = (kind: "bullet" | "number") =>
-    page.$$eval(`[data-testid="doc-a"] [data-slot="docblocks/list"][data-list="${kind}"]`, (els) =>
-      els.map((el) => ({ depth: el.getAttribute("data-depth"), style: getComputedStyle(el).listStyleType }))
+    page.$$eval(`[data-testid="doc-a"] [data-slot="docblocks/row-marker"][data-kind="${kind}"]`, (els) =>
+      els.map((el) => ({
+        cycle: el.getAttribute("data-cycle"),
+        glyph: getComputedStyle(el, "::before").content,
+        label: el.textContent,
+      }))
     );
 
+  // Bullet: the ::before glyph cycles disc / circle / square per indent.
   expect(await markers("bullet")).toEqual([
-    { depth: "1", style: "disc" },
-    { depth: "2", style: "circle" },
-    { depth: "3", style: "square" },
+    { cycle: "1", glyph: '"\u2022"', label: "" },
+    { cycle: "2", glyph: '"\u25E6"', label: "" },
+    { cycle: "3", glyph: '"\u25AA"', label: "" },
   ]);
+  // Number: the run-position label cycles decimal / lower-alpha / lower-roman.
   expect(await markers("number")).toEqual([
-    { depth: "1", style: "decimal" },
-    { depth: "2", style: "lower-alpha" },
-    { depth: "3", style: "lower-roman" },
+    { cycle: "1", glyph: "none", label: "1." },
+    { cycle: "2", glyph: "none", label: "a." },
+    { cycle: "3", glyph: "none", label: "i." },
   ]);
 });
 

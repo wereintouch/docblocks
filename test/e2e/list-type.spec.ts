@@ -45,18 +45,6 @@ async function blockOf(
   );
 }
 
-/** The children ids of a block (plain values across the bridge). */
-async function childrenOf(page: Page, client: "a" | "b", id: string): Promise<string[] | null> {
-  return page.evaluate(
-    ({ c, id }) => {
-      const d = window.__paneDocs?.[c];
-      if (d === null || d === undefined) throw new Error(`the ${c} pane's doc is not mounted`);
-      return d.getBlock(id) === null ? null : (d.toJSON().blocks[id]?.children ?? []);
-    },
-    { c: client, id }
-  );
-}
-
 /** Type the fixture text into the seeded paragraph and select the whole line. */
 async function typeAndSelectAll(page: Page, client: "a" | "b"): Promise<void> {
   const inner = pane(page, client).locator('[data-slot="docblocks/block-content"]').first();
@@ -66,12 +54,6 @@ async function typeAndSelectAll(page: Page, client: "a" | "b"): Promise<void> {
   await page.keyboard.down("Shift");
   await page.keyboard.press("Home");
   await page.keyboard.up("Shift");
-}
-
-/** The wire log's outbound doc-update count. */
-async function outCount(page: Page, client: "a" | "b"): Promise<number> {
-  const text = await page.getByTestId(`wire-${client}`).innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
 }
 
 async function twoPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
@@ -105,12 +87,19 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   await expect(menu.locator('[data-list-option="number"]')).toBeVisible();
   await menu.locator('[data-list-option="number"]').click();
 
-  // The block is a numbered list item (the text survived the change).
+  // The block is a numbered list item (the text survived the change). The
+  // motion view renders the marker as a rendered row label (no `ol` — the
+  // flat row is not in a list element).
   const id = (await rootIds(a, "a"))[0];
   const block = await blockOf(a, "a", id);
   expect(block?.type).toBe("list-item");
   expect(block?.attrs).toMatchObject({ list: "number" });
-  await expect(pane(a, "a").locator("ol").first()).toContainText("hello world");
+  const marker = pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`);
+  await expect(marker).toHaveCount(1);
+  expect(await marker.textContent()).toBe("1.");
+  await expect(
+    pane(a, "a").locator(`[data-block-id="${id}"]:not([data-slot="docblocks/block-content"])`)
+  ).toContainText("hello world");
 
   // The other pane sees the same block over the wire.
   const blockB = await blockOf(b, "b", id);
@@ -123,7 +112,10 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   // undo hotkey reaches the doc without a re-focus.
   await a.keyboard.press("Control+z");
   expect((await blockOf(a, "a", id))?.type).toBe("paragraph");
-  await expect(pane(a, "a").locator("ol")).toHaveCount(0, SETTLE);
+  await expect(pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(
+    0,
+    SETTLE
+  );
   await expect(pane(a, "a")).toContainText("hello world", SETTLE);
 
   await close();
@@ -156,15 +148,16 @@ test("the toolbar menu swaps a list item's kind (an attr update, the type stands
   await close();
 });
 
-test("the text option is disabled for a list item with children", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "c4-with-children");
-  // Seed a bullet item with a nested child.
+test("the text option stands for a list item with a derived segment (the segment re-attaches)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "c4-with-segment");
+  // Seed a bullet item with a nested item (its derived segment, the flat
+  // model's indent).
   const ids = await a.evaluate(() => {
     const doc = window.__paneDocs?.a;
     if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
     const parent = doc.insertBlock("list-item", { list: "bullet" });
     doc.insertText(parent, 0, "parent");
-    const child = doc.insertBlock("list-item", { list: "bullet" }, { parent });
+    const child = doc.insertBlock("list-item", { list: "bullet", indent: 1 });
     doc.insertText(child, 0, "child");
     return { parent, child };
   });
@@ -183,11 +176,20 @@ test("the text option is disabled for a list item with children", async ({ brows
   await expect(bar).toBeVisible(SETTLE);
   await bar.locator('button[aria-label="List type"]').click();
   const textOption = a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]');
-  await expect(textOption).toBeDisabled();
-  // A disabled option takes no click: the type and the child stand.
-  await textOption.click({ force: true }).catch(() => {});
-  expect((await blockOf(a, "a", ids.parent))?.type).toBe("list-item");
-  expect(await childrenOf(a, "a", ids.parent)).toEqual([ids.child]);
+  // The flat model: "Text" stands even for an item with a derived segment
+  // (nothing is lost — the segment re-attaches to the paragraph, the
+  // indent stands).
+  await expect(textOption).toBeEnabled();
+  await textOption.click();
+
+  // The item is a paragraph now; the child keeps its indent (it attaches
+  // to the paragraph as its nested content) and still renders.
+  expect((await blockOf(a, "a", ids.parent))?.type).toBe("paragraph");
+  expect((await blockOf(a, "a", ids.parent))?.attrs).toBeUndefined();
+  expect((await blockOf(a, "a", ids.child))?.attrs).toMatchObject({ indent: 1 });
+  await expect(pane(a, "a").locator(`[data-block-id="${ids.child}"]`).first()).toBeVisible();
+  await expect(pane(b, "b").locator(`[data-block-id="${ids.parent}"]`).first(), SETTLE).toContainText("parent");
+  expect((await blockOf(b, "b", ids.parent))?.type).toBe("paragraph");
 
   await close();
 });
@@ -215,44 +217,17 @@ test("a childless list item becomes text through the menu", async ({ browser }) 
   await a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]').click();
 
   expect((await blockOf(a, "a", id))?.type).toBe("paragraph");
-  // The list wrapper is gone in both panes (the change traveled the wire).
-  await expect(pane(a, "a").locator("ol, ul")).toHaveCount(0, SETTLE);
-  await expect(pane(b, "b").locator("ol, ul")).toHaveCount(0, SETTLE);
+  // The row marker is gone in both panes (the change traveled the wire);
+  // the motion view renders no list element at all.
+  await expect(pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(
+    0,
+    SETTLE
+  );
+  await expect(pane(b, "b").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(
+    0,
+    SETTLE
+  );
   await expect(pane(b, "b").locator(`[data-block-id="${id}"]`).first()).toContainText("standalone item", SETTLE);
-
-  await close();
-});
-
-test("collapse hides the children locally (no wire traffic, the other pane stands)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "c4-collapse");
-  const ids = await a.evaluate(() => {
-    const doc = window.__paneDocs?.a;
-    if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
-    const parent = doc.insertBlock("list-item", { list: "bullet" });
-    doc.insertText(parent, 0, "parent");
-    const child = doc.insertBlock("list-item", { list: "bullet" }, { parent });
-    doc.insertText(child, 0, "child");
-    return { parent, child };
-  });
-  await a.waitForTimeout(600); // the enter animations settle (boxes move with them)
-
-  const toggle = pane(a, "a").locator(`[data-block-id="${ids.parent}"] > button[data-slot="docblocks/collapse"]`);
-  await expect(toggle).toBeVisible();
-  await expect(pane(a, "a").locator(`[data-block-id="${ids.child}"]`).first()).toBeVisible();
-  await expect(pane(b, "b").locator(`[data-block-id="${ids.child}"]`).first()).toBeVisible(SETTLE);
-  const wireA = await outCount(a, "a");
-
-  await toggle.click();
-
-  await expect(pane(a, "a").locator(`[data-block-id="${ids.child}"]`).first()).toHaveCount(0);
-  // The other pane keeps the child (the collapse is view state, per pane).
-  await expect(pane(b, "b").locator(`[data-block-id="${ids.child}"]`).first()).toBeVisible();
-  // The toggle issued no doc update (the wire log stands).
-  expect(await outCount(a, "a")).toBe(wireA);
-
-  await toggle.click();
-  await expect(pane(a, "a").locator(`[data-block-id="${ids.child}"]`).first()).toBeVisible();
-  expect(await childrenOf(a, "a", ids.parent)).toEqual([ids.child]);
 
   await close();
 });

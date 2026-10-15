@@ -48,12 +48,14 @@ describe("MotionEditor", () => {
     );
     expect(motionWrappers.map((el) => el.textContent)).toEqual(baseWrappers.map((el) => el.textContent));
 
-    // The list group keeps its structure and data attributes.
-    const list = motion.container.querySelector('[data-slot="docblocks/list"]');
-    expect(list).not.toBeNull();
-    expect(list?.tagName).toBe("UL");
-    expect(list?.getAttribute("data-list")).toBe("bullet");
-    expect(list?.querySelector('[data-slot="docblocks/list-item"]')).not.toBeNull();
+    // The flat rows: every block is its own row (no list element — the
+    // list item's marker stands as a rendered row marker per row).
+    const rows = motion.container.querySelectorAll('[data-slot="docblocks/row"]');
+    expect(rows.length).toBe(3);
+    const marker = motion.container.querySelector('[data-slot="docblocks/row-marker"]');
+    expect(marker).not.toBeNull();
+    expect(marker?.getAttribute("data-kind")).toBe("bullet");
+    expect(marker?.getAttribute("data-cycle")).toBe("1");
   });
 
   it("adds a block after mount and the enter animation settles", async () => {

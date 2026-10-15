@@ -12,7 +12,7 @@ import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatVali
 import { localTransact, writeAttrValue } from "../layout";
 import { readBlock } from "../read";
 import { assertValidDatabasePatch } from "./database";
-import { blockTypeOf, childrenOf, getBlockMap } from "./structure";
+import { blockTypeOf, childrenOf, findParent, getBlockMap, indentJumpViolation, isPageSequence } from "./structure";
 
 /** Sets or overwrites the given attrs; other attrs stay, attrs are never removed. */
 function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
@@ -64,6 +64,21 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
     validateCanvasBlock(type, { type, attrs: merged }, `blocks.${id}`, canvasErrors);
     if (canvasErrors.length > 0) {
       throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(canvasErrors)}`);
+    }
+  }
+
+  // The flat page model: a post-patch indent must keep the
+  // sequence's jump rule (the validator enforces it at load; the commands
+  // keep a live document valid too).
+  if (merged.indent !== undefined) {
+    const parent = findParent(ydoc, id);
+    if (parent !== null && isPageSequence(ydoc, parent)) {
+      const seq = childrenOf(ydoc, parent);
+      const childIds = seq !== null ? seq.toArray() : [];
+      const violation = indentJumpViolation(ydoc, childIds, childIds.indexOf(id), merged.indent as number);
+      if (violation !== null) {
+        throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${violation}.`);
+      }
     }
   }
 

@@ -3,16 +3,17 @@ import { memo } from "react";
 import type { BlockId, TableBlock as TableBlockType } from "docblocks-core";
 
 import { useBlock } from "../hooks";
-import { BlockView } from "./BlockView";
+import { BlockGroups } from "./BlockView";
 import { BlockContext, useBlockContextValue } from "./block-context";
 
 const EMPTY_IDS: BlockId[] = [];
 
 /**
  * A table: one <tr> per row block, one <td> per cell; each cell renders
- * its leaf children recursively through BlockView, so a paragraph cell is
+ * its flat content sequence (a page context: the `indent` attr carries
+ * the nesting) through the flat sequence renderer, so a paragraph cell is
  * editable via the text block path. The block context is provided at each
- * level (rows under the table, cells under the row, leaves under the
+ * level (rows under the table, cells under the row, contents under the
  * cell). Rendering only: structure editing (adding or removing rows and
  * cells) is not a v1 feature.
  */
@@ -54,7 +55,7 @@ const TableRow = memo(function TableRow({ id }: { id: BlockId }) {
   );
 });
 
-/** One cell: its leaf children render through BlockView. */
+/** One cell: its flat content sequence renders through the flat sequence renderer. */
 const TableCell = memo(function TableCell({ id }: { id: BlockId }) {
   const cell = useBlock(id);
   const children = cell !== undefined && cell.type === "table-cell" ? (cell.children ?? EMPTY_IDS) : EMPTY_IDS;
@@ -70,9 +71,7 @@ const TableCell = memo(function TableCell({ id }: { id: BlockId }) {
       "
     >
       <BlockContext.Provider value={contextValue}>
-        {children.map((childId) => (
-          <BlockView key={childId} id={childId} />
-        ))}
+        <BlockGroups ids={children} />
       </BlockContext.Provider>
     </td>
   );

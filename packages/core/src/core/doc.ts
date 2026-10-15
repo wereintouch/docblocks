@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 
-import { validateDoc } from "@docblocks-core/schema";
+import { flattenDoc, validateDoc } from "@docblocks-core/schema";
 import type {
   Block,
   BlockAttrsPatch,
@@ -97,11 +97,21 @@ class Doc {
     }
     // A full snapshot is the only loadable state: an incremental delta applied
     // to an empty doc yields a partial document, so validate it loudly.
-    const errors = validateDoc(toDocJSON(ydoc));
+    const json = toDocJSON(ydoc);
+    const errors = validateDoc(json);
     if (errors.length > 0) {
       throw new InvalidSnapshotError(
         `loadDoc expects a full document snapshot; got an incomplete or invalid state: ${formatValidationErrors(errors)}`
       );
+    }
+    // Eager normalization of the legacy nesting form: the live document is
+    // always flat, so a legacy snapshot is rewritten (depth -> indent) as a
+    // fresh load step; a flat snapshot loads as-is (byte-identical state).
+    const flat = flattenDoc(json);
+    if (JSON.stringify(flat) !== JSON.stringify(json)) {
+      const normalized = new Y.Doc();
+      writeDocument(normalized, flat);
+      return new Doc(normalized, randomId);
     }
     return new Doc(ydoc, randomId);
   }
@@ -110,8 +120,10 @@ class Doc {
   static fromJSON(json: DocJSON): Doc {
     const errors = validateDoc(json);
     if (errors.length > 0) throw errors;
+    // The legacy nesting form is valid v1 input: normalize it to the flat
+    // form on load, so the live document is always flat (and toJSON flat).
     const ydoc = new Y.Doc();
-    writeDocument(ydoc, json);
+    writeDocument(ydoc, flattenDoc(json));
     return new Doc(ydoc, randomId);
   }
 
@@ -383,7 +395,9 @@ function loadDoc(bytes: Uint8Array): Doc {
 
 /**
  * Build a document from schema JSON. Validates first and throws the
- * ValidationError list as-is on violations. Runs are written as given.
+ * ValidationError list as-is on violations. The legacy nesting form is
+ * valid input and is normalized to the flat form on load. Runs are written
+ * as given.
  */
 function fromJSON(json: DocJSON): Doc {
   return Doc.fromJSON(json);

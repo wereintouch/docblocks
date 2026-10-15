@@ -63,7 +63,6 @@ describe("styles.css token contract", () => {
       "var(--radius, 6px)",
       "color-mix(in srgb, var(--accent, #0969da) 8%, transparent)",
       "var(--muted-foreground, #8b949e)",
-      "var(--primary, #2563eb)",
       "var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)",
       "var(--muted, rgba(175, 184, 193, 0.15))",
       "var(--border, rgba(175, 184, 193, 0.4))",

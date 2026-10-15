@@ -164,9 +164,11 @@ class SelectionView {
   #onDocChange(change: Change): void {
     const state = this.#state;
     if (state.kind === "none") return;
-    // Cross-block: the chain spans a DFS interval; a change anywhere inside or
-    // above it (e.g. an insertion under an ancestor of the endpoints) may
-    // reshape it, so rebase on any change (the no-op check suppresses emission).
+    // Cross-block: the chain is a reading-order segment (a contiguous
+    // sequence segment for page content; a structural descent for cells
+    // and frames) — a change inside or above it (e.g. under a cell or a
+    // frame containing an endpoint) may reshape it, so rebase on any
+    // change (the no-op check suppresses emission).
     if (state.kind === "text" && state.to !== null && state.to.blockId !== state.from.blockId) {
       this.#pendingChange = change;
       return;
@@ -293,7 +295,7 @@ function normalizeSelection(doc: Doc, selection: Selection): Selection {
   throw new InvalidSelectionError(`Unknown selection kind "${String(kind)}".`);
 }
 
-/** The DFS chain of a cross-block selection; throws when a block is unreachable. */
+/** The reading-order chain of a cross-block selection; throws when a block is unreachable. */
 function chainFor(doc: Doc, fromId: BlockId, toId: BlockId): BlockId[] {
   const chain = chainBetween(linearize(doc), fromId, toId);
   if (chain === null) {

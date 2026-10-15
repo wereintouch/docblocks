@@ -18,7 +18,7 @@ import type { Selection, TextPoint } from "./selection";
 interface StructuralFacts {
   /** Block ids removed by the change. */
   deletedIds: ReadonlySet<BlockId>;
-  /** DFS (reading) order of every block, post-change. */
+  /** Reading order of every block, post-change (the page sequences in array order; structural descent only). */
   linearization: readonly BlockId[];
   /** Flattened text length of a block, post-change. */
   textLength: (blockId: BlockId) => number;
@@ -37,9 +37,10 @@ function rebaseOffset(offset: number, deltas: readonly TextDelta[], newLength: n
 }
 
 /**
- * The DFS chain between two blocks, ordered from-block first and to-block
- * last (reversed when the to-block precedes the from-block); null when
- * either block is not in the linearization.
+ * The chain between two blocks, ordered from-block first and to-block
+ * last (reversed when the to-block precedes the from-block): the reading-
+ * order segment of the linearization. null when either block is not in
+ * the linearization.
  */
 function chainBetween(linearization: readonly BlockId[], fromId: BlockId, toId: BlockId): BlockId[] | null {
   const a = linearization.indexOf(fromId);
@@ -55,7 +56,14 @@ interface Linearizable {
   getChildren(id: BlockId): readonly BlockId[];
 }
 
-/** DFS (reading) order of every block, starting at the root. */
+/**
+ * The reading order of every block, starting at the root. In the flat page
+ * model a page block has no children, so a page sequence (root order, a
+ * cell mini-doc, a frame's nested page) reads in array order — the chain
+ * between two page blocks is a contiguous segment of that sequence; the
+ * descent applies only to the structural containers (table rows/cells,
+ * the surface z-order, the frame's nested page).
+ */
 function linearize(doc: Linearizable): BlockId[] {
   const order: BlockId[] = [];
   const visit = (id: BlockId): void => {

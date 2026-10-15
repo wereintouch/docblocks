@@ -2,8 +2,9 @@ import type { DocJSON } from "../src/schema";
 
 /**
  * Golden document fixture covering the full v1 block catalog with stable
- * ids, a nested list, a 3-column table (one filled, two empty cells), and
- * a code block. Already in normalized (export) form: the round-trip
+ * ids, a flat list (the nesting is the `indent` attr), a
+ * 3-column table (one filled, two empty cells), and a code block.
+ * Already in normalized (flat, export) form: the round-trip
  * fromJSON(fixture) → toJSON() must equal it exactly.
  */
 const fixture: DocJSON = {
@@ -13,7 +14,7 @@ const fixture: DocJSON = {
   createdAt: "2026-10-08T10:00:00Z",
 
   blocks: {
-    d_8f3a2c: { type: "root", children: ["b01", "b02", "b03", "b04", "b05", "b06", "b07", "b08"] },
+    d_8f3a2c: { type: "root", children: ["b01", "b02", "b03", "b03a", "b04", "b05", "b06", "b07", "b08"] },
 
     b01: { type: "heading", attrs: { level: 1 }, content: [{ text: "Migration", marks: {} }] },
 
@@ -30,11 +31,10 @@ const fixture: DocJSON = {
       type: "list-item",
       attrs: { list: "task", checked: true },
       content: [{ text: "sketch the schema", marks: {} }],
-      children: ["b03a"],
     },
     b03a: {
       type: "list-item",
-      attrs: { list: "task", checked: false },
+      attrs: { list: "task", checked: false, indent: 1 },
       content: [{ text: "usage-audit", marks: {} }],
     },
 

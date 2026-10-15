@@ -6,6 +6,7 @@ import { useEditorContext } from "./EditorProvider";
 import { BlockGroups } from "./blocks/BlockView";
 import { CanvasView } from "./blocks/CanvasView";
 import { BlockContext } from "./blocks/block-context";
+import { entrySequenceParent } from "./blocks/flat";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
@@ -31,7 +32,10 @@ interface EditorProps {
  * children, or a single subtree block when the provider got a
  * `rootBlockId`). The root is the editor's focus/keyboard scope: the
  * undo/redo hotkeys only fire for keys targeted inside it. The root block
- * context (the entry root and its children) is provided for every entry.
+ * context is provided for every entry: the entry list's siblings, and the
+ * entry root's sequence container as the gestures' command parent (a
+ * subtree entry root is a page block — structurally childless, so its
+ * commands target the container of its sequence, not itself).
  *
  * The `view` prop selects the rendering: "page" (default) is the entry
  * list; "canvas" renders the document's page as a page miniature and the
@@ -40,9 +44,12 @@ interface EditorProps {
  * palette.
  */
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
-  const { store, rootBlockId } = useEditorContext();
+  const { store, doc, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
-  const rootContext = useMemo(() => ({ parentId: rootBlockId, siblings: rootChildren }), [rootBlockId, rootChildren]);
+  const rootContext = useMemo(
+    () => ({ parentId: entrySequenceParent(doc, rootBlockId), siblings: rootChildren }),
+    [doc, rootBlockId, rootChildren]
+  );
   const { rootRef, onKeyDown, onCopy, onPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);

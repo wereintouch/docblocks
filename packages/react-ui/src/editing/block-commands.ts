@@ -1,15 +1,19 @@
-import { BLOCK_REGISTRY } from "docblocks-core";
+import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 import type { Block, BlockId, Doc, TextRun } from "docblocks-core";
 
 import { editorRootOf, locatePosition, logicalTextOf, restoreSelection } from "./dom-offset";
 
 /**
- * Block-level gestures: Enter (split), Backspace (merge), Tab (nest),
- * Shift+Tab (outdent). Each gesture issues its doc commands inside one
- * `doc.transact` — one undo step, one wire update. The doc is the source
- * of truth: a gesture never writes the DOM back; the store rebuilds it,
- * and the focus/caret move is a DOM-only effect scheduled for the next
- * frame (the new block must be rendered first).
+ * Block-level gestures over the FLAT page model: Enter
+ * (split), Backspace (merge), Tab (indent), Shift+Tab (outdent). A page
+ * sequence (the root's children, a cell's mini-doc, a frame's nested page)
+ * is one flat list; the nesting is the `indent` attr relative to the
+ * PRECEDING block, so the gestures are: Tab/Shift+Tab — one
+ * `updateBlock({ indent })` (one undo step, one wire update); a drag /
+ * keyboard slot move — the block's derived SUBTREE moves as one contiguous
+ * range (`moveSegmentInSequence`, one transact). The doc is the source of
+ * truth: a gesture never writes the DOM back; the store rebuilds it, and
+ * the focus/caret move is a DOM-only effect scheduled for the next frame.
  */
 
 /** The flattened text of the runs. */
@@ -25,8 +29,17 @@ function runsOf(block: Block): TextRun[] {
   return "content" in block ? (block.content ?? []) : [];
 }
 
+/** The block's effective indent: a non-negative integer attr; absent is 0. */
+function indentOf(doc: Doc, id: BlockId): number {
+  const block = doc.getBlock(id);
+  if (block === null || !("attrs" in block)) return 0;
+  const indent = (block.attrs as { indent?: unknown } | undefined)?.indent;
+  return typeof indent === "number" && Number.isInteger(indent) && indent >= 0 ? indent : 0;
+}
+
 /**
- * The parent id of a block: the single block whose children hold it. A
+ * The parent id of a block: the single block whose children hold it (the
+ * page context for a page block — the root, a table cell, or a frame). A
  * document scan — gestures are user-driven and v1 documents are small.
  */
 function findParentId(doc: Doc, id: BlockId): BlockId | null {
@@ -37,38 +50,61 @@ function findParentId(doc: Doc, id: BlockId): BlockId | null {
   return null;
 }
 
-/** Inserts a block of the same type and attrs as `block`, right after `after` under `parent`. */
+/**
+ * The derived subtree of a block in its page sequence: the
+ * contiguous segment from the block to the first following block with
+ * `indent` <= the block's own (the block inclusive). The core's removeBlock
+ * cascades this derived segment too — a gesture that removes the segment
+ * head may rely on the cascade, and the blocks-kind delete de-duplicates
+ * against it (a live read skips ids the cascade already took).
+ */
+function segmentRange(doc: Doc, contextId: BlockId, id: BlockId): { start: number; end: number } | null {
+  const sequence = doc.getChildren(contextId);
+  const start = sequence.indexOf(id);
+  if (start === -1) return null;
+  const indent = indentOf(doc, id);
+  let end = start + 1;
+  while (end < sequence.length && indentOf(doc, sequence[end]!) > indent) end += 1;
+  return { start, end };
+}
+
+/** Inserts a block of the same type and attrs as `block`, right after `after` under `parent` (the indent stands). */
 function insertSameTypeAfter(doc: Doc, block: Block, parent: BlockId, after: BlockId): BlockId {
+  const indent = indentOf(doc, after);
   switch (block.type) {
     case "heading":
-      return doc.insertBlock("heading", { level: block.attrs.level }, { parent, after });
+      return doc.insertBlock("heading", { level: block.attrs.level, indent }, { parent, after });
     case "list-item":
       return doc.insertBlock(
         "list-item",
-        { list: block.attrs.list, ...(block.attrs.checked !== undefined ? { checked: block.attrs.checked } : {}) },
+        {
+          list: block.attrs.list,
+          ...(block.attrs.checked !== undefined ? { checked: block.attrs.checked } : {}),
+          indent,
+        },
         { parent, after }
       );
     case "callout":
       return doc.insertBlock(
         "callout",
-        block.attrs?.variant !== undefined ? { variant: block.attrs.variant } : undefined,
+        block.attrs?.variant !== undefined ? { variant: block.attrs.variant, indent } : { indent },
         { parent, after }
       );
     case "code":
       return doc.insertBlock(
         "code",
-        block.attrs?.language !== undefined ? { language: block.attrs.language } : undefined,
+        block.attrs?.language !== undefined ? { language: block.attrs.language, indent } : { indent },
         { parent, after }
       );
     case "latex":
-      return doc.insertBlock("latex", { display: block.attrs.display }, { parent, after });
+      return doc.insertBlock("latex", { display: block.attrs.display, indent }, { parent, after });
     case "canvas-text":
       return doc.insertBlock("canvas-text", block.attrs !== undefined ? { ...block.attrs } : undefined, {
         parent,
         after,
       });
     default:
-      return doc.insertBlock("paragraph", undefined, { parent, after });
+      return doc.insertBlock("paragraph", indent !== 0 ? { indent } : undefined, { parent, after });
   }
 }
 
@@ -99,43 +135,24 @@ function copyRunsRange(
 }
 
 /**
- * The exit point of an empty list item: the paragraph lands after the
- * outermost list-item ancestor, under that ancestor's parent (a
- * top-level empty item exits to a paragraph after itself).
- */
-/**
- * The paragraph placement of a list exit: climb while the item's parent is
- * itself a list item (a paragraph cannot be a list-item child), and land
- * right after the outermost item in the chain, under that item's parent.
- */
-function listExitPoint(doc: Doc, id: BlockId, parentId: BlockId): { parent: BlockId; after: BlockId } {
-  let after = id;
-  let parent = parentId;
-  for (;;) {
-    const parentBlock = doc.getBlock(parent);
-    if (parentBlock === null || parentBlock.type !== "list-item") break;
-    const grandParentId = findParentId(doc, parent);
-    if (grandParentId === null) break;
-    after = parent;
-    parent = grandParentId;
-  }
-  return { parent, after };
-}
-
-/**
  * Enter at a caret in a text block: split the block at the caret offset.
  *
  * Empty block: paragraph / heading / callout / code / latex insert a new
- * paragraph after and keep the empty block; an empty list item exits the
- * list (it is removed and a paragraph is inserted at the exit point).
- * Non-empty: a block of the same type and attrs is inserted right after,
- * the tail text (with marks) moves there, and the tail is deleted. One
- * transact — one undo step.
+ * paragraph after (at the same indent) and keep the empty block; an empty
+ * list item EXITS the list one level (the markdown exit — ONE level is
+ * peeled, not a full return to indent 0): the item's derived segment (its
+ * sublist) is removed and a paragraph is inserted at the item's former
+ * position, at the item's attach level (indent - 1, floored at 0).
+ * Non-empty: a block of the same type and attrs (the indent included) is
+ * inserted right after, the tail text (with marks) moves there, and the
+ * tail is deleted. One transact — one undo step.
  *
  * Returns the id of the block that receives the caret; null for a no-op
- * (missing block or offset out of range).
+ * (missing block or offset out of range, or the core's typed rejection of
+ * a composed landing — the transact rolled back, the gesture is a no-op,
+ * not a crash).
  */
-function splitAt(doc: Doc, id: BlockId, parentId: BlockId, offset: number): BlockId | null {
+function splitAt(doc: Doc, id: BlockId, contextId: BlockId, offset: number): BlockId | null {
   const block = doc.getBlock(id);
   if (block === null || !BLOCK_REGISTRY[block.type].content) return null;
   const runs = runsOf(block);
@@ -143,48 +160,87 @@ function splitAt(doc: Doc, id: BlockId, parentId: BlockId, offset: number): Bloc
   if (offset < 0 || offset > text.length) return null;
 
   let focusId: BlockId | null = null;
-  doc.transact(() => {
-    if (text === "") {
-      if (block.type === "list-item") {
-        const exit = listExitPoint(doc, id, parentId);
-        // The paragraph lands before the item is removed: the exit point is
-        // an existing sibling and must still hold when the insert resolves.
-        focusId = doc.insertBlock("paragraph", undefined, { parent: exit.parent, after: exit.after });
-        doc.removeBlock(id);
+  try {
+    doc.transact(() => {
+      if (text === "") {
+        if (block.type === "list-item") {
+          const segment = segmentRange(doc, contextId, id);
+          if (segment === null) return;
+          const sequence = doc.getChildren(contextId);
+          // The paragraph lands at the item's former position (before the
+          // segment is removed), at the item's attach level (the markdown
+          // exit: the item's sublist goes with the removal). At sequence
+          // index 0 there is no predecessor — anchor on the item itself:
+          // the paragraph takes the item's own slot once the segment is
+          // removed (a bare append would land at the sequence's end).
+          const exitIndent = Math.max(0, indentOf(doc, id) - 1);
+          const anchor = segment.start > 0 ? sequence[segment.start - 1] : id;
+          // The segment's ids captured BEFORE the insert: the composed
+          // landing (an index-0 item's paragraph anchors on the item
+          // itself) would break the item's re-derived segment, and the
+          // ids stand regardless of the insert's shift.
+          const segmentIds = sequence.slice(segment.start, segment.end);
+          focusId = doc.insertBlock("paragraph", exitIndent !== 0 ? { indent: exitIndent } : undefined, {
+            parent: contextId,
+            after: anchor,
+          });
+          for (let i = segmentIds.length - 1; i >= 0; i -= 1) {
+            doc.removeBlock(segmentIds[i]!);
+          }
+          return;
+        }
+        focusId = doc.insertBlock("paragraph", undefined, { parent: contextId, after: id });
         return;
       }
-      focusId = doc.insertBlock("paragraph", undefined, { parent: parentId, after: id });
-      return;
-    }
-    focusId = insertSameTypeAfter(doc, block, parentId, id);
-    copyRunsRange(doc, runs, offset, text.length, focusId, 0);
-    doc.deleteText(id, offset, text.length);
-  });
+      focusId = insertSameTypeAfter(doc, block, contextId, id);
+      copyRunsRange(doc, runs, offset, text.length, focusId, 0);
+      doc.deleteText(id, offset, text.length);
+    });
+  } catch (error) {
+    // A composed landing the core rejects: the sequence's indent-jump rule
+    // (corrupt data — the composed position of valid data always holds)
+    // or a context whose container no longer carries the sequence. The
+    // transact rolled back — the gesture is a no-op, not a crash.
+    if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return null;
+    throw error;
+  }
   return focusId;
 }
 
 /**
- * Backspace at offset 0: merge the block with its previous sibling.
+ * Backspace at offset 0: merge the block with its previous sequence block.
  *
  * Previous is a text block: the block's runs (with marks) are appended to
  * the previous block's end and the block is removed. Previous is
- * non-text (divider, image, ...): the previous block is removed only.
+ * non-text (divider, image, ...): the previous block and its derived
+ * segment are removed only.
  *
  * Returns the surviving block and the caret offset (the join point); null
- * for a no-op (no previous sibling, or the block has children — merging
- * a container is a structural merge, not a v1 gesture).
+ * for a no-op (no previous block, the block has a non-empty derived
+ * segment — merging a container would swallow its nested content — or the
+ * block sits inside the previous block's derived segment — the previous's
+ * segment removal would swallow it; the caret stands, nothing is deleted,
+ * not a v1 gesture).
  */
-function mergeWithPrevious(doc: Doc, id: BlockId, parentId: BlockId): { blockId: BlockId; offset: number } | null {
+function mergeWithPrevious(doc: Doc, id: BlockId, contextId: BlockId): { blockId: BlockId; offset: number } | null {
   const block = doc.getBlock(id);
   if (block === null || !BLOCK_REGISTRY[block.type].content) return null;
-  if ("children" in block && (block.children?.length ?? 0) > 0) return null;
-  const siblings = doc.getChildren(parentId);
-  const index = siblings.indexOf(id);
+  const segment = segmentRange(doc, contextId, id);
+  if (segment === null) return null;
+  if (segment.end > segment.start + 1) return null; // the block owns a derived segment: no merge
+  const sequence = doc.getChildren(contextId);
+  const index = sequence.indexOf(id);
   if (index <= 0) return null;
-  const prevId = siblings[index - 1];
+  const prevId = sequence[index - 1];
   if (prevId === undefined) return null;
   const prev = doc.getBlock(prevId);
   if (prev === null) return null;
+  // The current block inside the previous block's derived segment (deeper
+  // than the previous): the previous's segment removal would swallow the
+  // current block, so the merge is a no-op (the mirrored case of the
+  // container guard above) — the caret stands, nothing is deleted.
+  const prevSegment = segmentRange(doc, contextId, prevId);
+  if (prevSegment !== null && index < prevSegment.end) return null;
   const runs = runsOf(block);
   const prevLength = BLOCK_REGISTRY[prev.type].content ? textOf(runsOf(prev)).length : 0;
 
@@ -195,6 +251,9 @@ function mergeWithPrevious(doc: Doc, id: BlockId, parentId: BlockId): { blockId:
       doc.removeBlock(id);
       result = { blockId: prevId, offset: prevLength };
     } else {
+      // The previous block and its derived segment go together: the core's
+      // removeBlock cascades the segment (the guard above keeps the current
+      // block out of it, so the cascade cannot swallow it).
       doc.removeBlock(prevId);
       result = { blockId: id, offset: 0 };
     }
@@ -203,53 +262,144 @@ function mergeWithPrevious(doc: Doc, id: BlockId, parentId: BlockId): { blockId:
 }
 
 /**
- * Tab in a text block: nest under the previous sibling when it is a
- * registry container whose children set accepts this block's type (a
- * list item nests under a list item; the page set nests under any text
- * container). True when the block moved (one moveBlock in one transact).
+ * Tab in a text block: indent the block by one — `updateBlock({ indent:
+ * indent + 1 })` — when valid: a preceding block must exist and the new
+ * indent must not exceed the preceding block's indent by more than 1 (the
+ * markdown jump rule; the strict validator enforces it over the sequence).
+ * A no-op at the boundary (the first block, or the jump already maximal).
+ * True when the block was updated (one updateBlock in one transact).
  */
-function nestIntoPrevious(doc: Doc, id: BlockId, parentId: BlockId): boolean {
+function indentIn(doc: Doc, id: BlockId, contextId: BlockId): boolean {
   const block = doc.getBlock(id);
   if (block === null) return false;
-  const siblings = doc.getChildren(parentId);
-  const index = siblings.indexOf(id);
-  if (index <= 0) return false;
-  const prevId = siblings[index - 1];
+  const sequence = doc.getChildren(contextId);
+  const index = sequence.indexOf(id);
+  if (index <= 0) return false; // no preceding block: nothing to nest under
+  const prevId = sequence[index - 1];
   if (prevId === undefined) return false;
   const prev = doc.getBlock(prevId);
   if (prev === null) return false;
-  const allowed = BLOCK_REGISTRY[prev.type].childrenTypes;
-  if (allowed === undefined || !allowed.includes(block.type)) return false;
+  const nextIndent = indentOf(doc, id) + 1;
+  if (nextIndent > indentOf(doc, prevId) + 1) return false;
   doc.transact(() => {
-    doc.moveBlock(id, prevId, doc.getChildren(prevId).length);
+    doc.updateBlock(id, { indent: nextIndent });
   });
   return true;
 }
 
 /**
- * Shift+Tab in a text block whose parent is a container: outdent to right
- * after the parent (the top level — the parent is the root — has no
- * outdent target). True when the block moved (one moveBlock in one
- * transact).
+ * Shift+Tab in a text block: outdent the block's WHOLE derived segment —
+ * the head and every deeper follower, one level each (the markdown/Notion
+ * UX: the item moves out with its sublist) — in one transact (one undo
+ * step). A lone head outdent would leave a follower at head + 2 — an
+ * indent jump the sequence no longer validates (the per-block updateBlock
+ * check covers only the updated block's own position). The relative
+ * indents stand, so the jump rule holds at every landing: a follower's
+ * new predecessor is its segment predecessor at the same relative indent,
+ * and the head's new indent is one below the old, which passed its
+ * predecessor's +1. A follower at indent 0 cannot occur (a segment member
+ * is deeper than the head, and the head's indent > 0), so the per-member
+ * floor is moot. A no-op at the top level (indent 0) and for a head with
+ * no deeper followers the update is the block alone. True when the
+ * segment was updated.
  */
-function outdentFrom(doc: Doc, id: BlockId, parentId: BlockId): boolean {
-  if (parentId === doc.meta.id) return false;
-  const parent = doc.getBlock(parentId);
-  if (parent === null || BLOCK_REGISTRY[parent.type].children !== true) return false;
+function outdentBlock(doc: Doc, id: BlockId, contextId: BlockId): boolean {
   const block = doc.getBlock(id);
   if (block === null) return false;
-  const grandParentId = findParentId(doc, parentId);
-  if (grandParentId === null) return false;
-  const grandParent = doc.getBlock(grandParentId);
-  if (grandParent === null) return false;
-  const allowed = BLOCK_REGISTRY[grandParent.type].childrenTypes;
-  if (allowed === undefined || !allowed.includes(block.type)) return false;
-  const grandChildren = doc.getChildren(grandParentId);
-  const parentIndex = grandChildren.indexOf(parentId);
-  if (parentIndex === -1) return false;
-  doc.transact(() => {
-    doc.moveBlock(id, grandParentId, parentIndex + 1);
-  });
+  const indent = indentOf(doc, id);
+  if (indent === 0) return false; // the top level has no outdent target
+  const segment = segmentRange(doc, contextId, id);
+  if (segment === null) return false;
+  const sequence = doc.getChildren(contextId);
+  const ids = sequence.slice(segment.start, segment.end);
+  try {
+    doc.transact(() => {
+      // Head-first: each member's landing check runs against the final
+      // state (the earlier members are already outdented).
+      for (const segId of ids) {
+        const segIndent = indentOf(doc, segId);
+        doc.updateBlock(segId, { indent: Math.max(0, segIndent - 1) });
+      }
+    });
+  } catch (error) {
+    // A composed landing the core rejects (corrupt data — the composed
+    // position of valid data always holds): the transact rolled back —
+    // the gesture is a no-op, not a crash.
+    if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return false;
+    throw error;
+  }
+  return true;
+}
+
+/**
+ * Moves a block's derived subtree (the contiguous segment from `startIndex`
+ * of length `length`) within the same page sequence to `target` — a range
+ * operation on one array (the segment's internal order and
+ * indents stand — a drop is a reorder, never a re-nest; the level change
+ * is the Tab/Shift+Tab gesture). One transact — one undo step, one wire
+ * update.
+ *
+ * `target` is the pre-move sequence index of the item the segment's head
+ * will PRECEDE (`target` = the sequence's length = move to the end, no
+ * item preceded). The two in-place targets (the head precedes itself —
+ * `target` = the segment's start — or its own last element — `target` =
+ * the segment's end) issue no command. A landing the core rejects with a
+ * typed error (the sequence's indent-jump rule — the segment's head would
+ * jump levels at the target) rolls the transact back and issues no
+ * command: the gesture is a no-op (the caller's stale-drop posture — the
+ * order resyncs to the store).
+ */
+function moveSegmentInSequence(
+  doc: Doc,
+  contextId: BlockId,
+  startIndex: number,
+  length: number,
+  target: number
+): boolean {
+  const sequence = doc.getChildren(contextId);
+  if (startIndex < 0 || startIndex + length > sequence.length) return false;
+  if (target < 0 || target > sequence.length) return false;
+  // The in-place targets: the head precedes itself or its own last element
+  // (the segment's own position — a no-op drop).
+  if (target === startIndex || target === startIndex + length) return false;
+
+  try {
+    doc.transact(() => {
+      const blockIds = doc.getChildren(contextId).slice(startIndex, startIndex + length);
+      if (target < startIndex) {
+        // Moving up: the segment's blocks (in order) land at target + i.
+        // Each block's position is unaffected by the earlier steps (a
+        // remove-before + insert-before cancel), so the indices hold for
+        // every step.
+        for (let i = 0; i < length; i += 1) {
+          doc.moveBlock(blockIds[i]!, contextId, target + i);
+        }
+      } else {
+        // Moving down: the segment's blocks (head-first) each land at the
+        // pre-move index `target` — the removal from the segment's start
+        // shifts the `target` slot left by one, so the head lands before
+        // the item at `target` and each follower right after the block
+        // moved before it. Head-first runs every LANDING block's jump
+        // check against its final predecessor (the earlier segment
+        // members are already in place), so a valid final state commits
+        // every step. The mid-transact sequence can briefly violate the
+        // rule for a not-yet-moved follower (it stands on a shallower
+        // predecessor until its own step), but the Yjs transaction is
+        // atomic — the transient never reaches the wire or a listener, and
+        // the per-block landing check reads only the landing block's own
+        // position (only a rejected batch on corrupt/stale state could
+        // emit it).
+        for (let i = 0; i < length; i += 1) {
+          doc.moveBlock(blockIds[i]!, contextId, target);
+        }
+      }
+    });
+  } catch (error) {
+    // The core's typed landing rejection (the indent-jump rule): the
+    // transact rolled back — no command issued, the gesture is a no-op.
+    if (error instanceof InvalidOperationError) return false;
+    throw error;
+  }
   return true;
 }
 
@@ -320,7 +470,7 @@ function seatedIn(el: HTMLElement): boolean {
 
 /**
  * Restore a text range (a caret when `to` is null) inside a block's inner
- * editable after a structural gesture (a Tab/Shift+Tab move, a list-type
+ * editable after a structural gesture (a Tab/Shift+Tab indent, a list-type
  * swap) that remounts the block's subtree: the old editable is gone and
  * the DOM selection cleared with it.
  *
@@ -352,8 +502,11 @@ function restoreSelectionIn(
   const json = doc.toJSON();
   // A top-level block's doc parent is the root block; in the DOM its parent
   // wrapper is absent, so normalize to null (domParentBlockIdOf's domain).
+  // The same normalization stands for a frame: its nested page renders in
+  // its own editor root (no frame wrapper in the DOM).
   const rawParent = findParentId(doc, blockId);
-  const expectedParent = rawParent === json.id ? null : rawParent;
+  const rawParentType = rawParent === null ? null : (json.blocks[rawParent]?.type ?? null);
+  const expectedParent = rawParent === null || rawParent === json.id || rawParentType === "frame" ? null : rawParent;
   const blockType = json.blocks[blockId]?.type ?? "";
   let observer: MutationObserver | null = null;
   const deadlineTimer = window.setTimeout(stop, RESTORE_DEADLINE_MS);
@@ -368,7 +521,11 @@ function restoreSelectionIn(
     const inners = Array.from(liveScope(scope).querySelectorAll<HTMLElement>(selector))
       .filter((el) => el.isConnected)
       .filter((el) => el !== exclude)
-      .filter((el) => domParentBlockIdOf(el) === expectedParent)
+      // The DOM parent check is the cell/frame scoping: a top-level block's
+      // expected parent is null (no page-context wrapper in the DOM — the
+      // nesting is the indent attr, not a wrapper), so the check is skipped
+      // then (the id + survivor-tag + seeded-text filters stand).
+      .filter((el) => expectedParent === null || domParentBlockIdOf(el) === expectedParent)
       .filter((el) => isSurvivorInner(el, blockType))
       .filter((el) => logicalTextOf(el) === doc.getText(blockId));
     const el = inners.length === 1 ? (inners[0] as HTMLElement) : null;
@@ -425,9 +582,11 @@ function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: Bloc
 export {
   extendSelectionTo,
   focusCaretIn,
+  indentIn,
   mergeWithPrevious,
-  nestIntoPrevious,
-  outdentFrom,
+  moveSegmentInSequence,
+  outdentBlock,
   restoreSelectionIn,
+  segmentRange,
   splitAt,
 };

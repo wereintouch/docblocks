@@ -1,9 +1,9 @@
 import { useStore } from "zustand";
 
-import { memo, useMemo } from "react";
+import { Fragment, memo, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
-import type { Block, BlockId, ListItemAttrs, ListItemBlock } from "docblocks-core";
+import type { Block, BlockId, ListItemAttrs } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
@@ -17,184 +17,249 @@ import { SurfaceBlock } from "./SurfaceBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
 import { TableBlock } from "./TableBlock";
 import { TextBlock } from "./TextBlock";
-import { BlockContext, useBlockContextValue } from "./block-context";
+import { deriveFlat, markerCycle } from "./flat";
+import type { FlatNode } from "./flat";
 
 const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;
 
 type ListKind = ListItemAttrs["list"];
 
-const EMPTY_IDS: BlockId[] = [];
-
-type ChildGroup = { kind: "single"; id: BlockId } | { kind: "list"; tag: "ul" | "ol"; list: ListKind; ids: BlockId[] };
-
-/** Groups consecutive list items of the same list kind into one list. */
-function groupChildren(ids: BlockId[], blocks: Record<BlockId, Block>): ChildGroup[] {
-  const groups: ChildGroup[] = [];
-  for (const id of ids) {
-    const block = blocks[id];
-    const kind = block !== undefined && block.type === "list-item" ? block.attrs.list : undefined;
-    if (kind !== undefined) {
-      const last = groups[groups.length - 1];
-      if (last !== undefined && last.kind === "list" && last.list === kind) {
-        last.ids.push(id);
-        continue;
-      }
-      groups.push({ kind: "list", tag: kind === "number" ? "ol" : "ul", list: kind, ids: [id] });
-      continue;
-    }
-    groups.push({ kind: "single", id });
-  }
-  return groups;
-}
-
 /**
- * One list: consecutive list items of the same kind. `data-depth` carries
- * the marker's cycle index (1|2|3, not the raw level): the nesting depth is
- * unbounded and CSS cannot modulo it, so the renderer cycles it. The list
- * carries the block spacing only at the top level (a nested list's spacing
- * stands on its list item); the marker style cycles per level (disc /
- * circle / square and decimal / lower-alpha / lower-roman; the task list
- * has no marker — the checkbox stands in for it).
+ * One list run: consecutive list items of one kind at one indent level,
+ * rendered as a native `<ul>`/`<ol>` (the base view keeps the derived list
+ * DOM: a sublist is a nested list inside the item wrapper, and the native
+ * numbering continues across it — `1. [sub] 2.`). `data-depth` carries the
+ * marker's cycle index (1|2|3, not the raw level): the nesting depth is
+ * unbounded and CSS cannot modulo it, so the renderer cycles it (the
+ * marker style cycles per level — disc / circle / square and decimal /
+ * lower-alpha / lower-roman; the task list has no marker, the checkbox
+ * stands in for it). The list carries the block spacing only at the
+ * sequence's top level (a nested list's spacing stands on its list item).
  */
-function ListGroup({ tag, list, ids, depth }: { tag: "ul" | "ol"; list: ListKind; ids: BlockId[]; depth: number }) {
-  const Tag = tag;
-  const cycle = ((depth - 1) % 3) + 1;
+function ListRun({ nodes, kind, indent }: { nodes: FlatNode[]; kind: ListKind; indent: number }) {
+  const Tag: "ul" | "ol" = kind === "number" ? "ol" : "ul";
+  const cycle = markerCycle(indent);
   const bulletMarkers = ["list-disc", "list-[circle]", "list-[square]"] as const;
   const numberMarkers = ["list-decimal", "list-[lower-alpha]", "list-[lower-roman]"] as const;
   const markerClass =
-    list === "task" ? "list-none" : list === "bullet" ? bulletMarkers[cycle - 1] : numberMarkers[cycle - 1];
+    kind === "task" ? "list-none" : kind === "bullet" ? bulletMarkers[cycle - 1] : numberMarkers[cycle - 1];
   return (
     <Tag
       data-slot="docblocks/list"
-      data-list={list}
+      data-list={kind}
       data-depth={cycle}
       className={cn(
         "pl-(--docblocks-list-padding-left)",
-        depth === 1 ? "my-(--docblocks-block-spacing)" : "my-0",
+        indent === 0 ? "my-(--docblocks-block-spacing)" : "my-0",
         markerClass
       )}
     >
-      {ids.map((childId) => (
-        <BlockView key={childId} id={childId} depth={depth} />
+      {nodes.map((node) => (
+        <FlatBlockView key={node.id} node={node} />
       ))}
     </Tag>
   );
 }
 
+/** One segment of nested content: a stretch of blocks rendered inside a container (the slot or the item). */
+type NestedSegment =
+  { kind: "list"; list: ListKind; indent: number; nodes: FlatNode[] } | { kind: "single"; nodes: FlatNode[] };
+
 /**
- * One container's children in reading order: list items grouped into
- * lists, the rest as single blocks. The block context for the children is
- * provided by the container's own renderer (the editor root, a table row,
- * a cell, or the parent list item).
+ * Partition a block's direct derived children into render segments (the
+ * flat model's nested content): a maximal run of list items of ONE kind
+ * forms a list run (a native list). For a list item, only the items of
+ * its OWN kind are the marker nesting (they render as a nested list
+ * directly inside the item); a different-kind run — or a text / non-text
+ * block — is the item's nested content (the attach rule: a different-kind
+ * item is content, not a sublist), collected into a rendered-only `nested`
+ * slot. A non-list container renders every run as a list and every
+ * non-list block as a single.
  */
-const BlockGroups = memo(function BlockGroups({ ids, depth = 1 }: { ids: BlockId[]; depth?: number }) {
-  const { store } = useEditorContext();
-  const blocks = useStore(store, (state) => state.blocks);
-  const groups = useMemo(() => groupChildren(ids, blocks), [ids, blocks]);
+function nestedSegments(nodes: FlatNode[], ownKind: ListKind | undefined): NestedSegment[] {
+  const segments: NestedSegment[] = [];
+  let i = 0;
+  while (i < nodes.length) {
+    const node = nodes[i]!;
+    if (node.kind !== undefined) {
+      const runKind = node.kind;
+      let j = i + 1;
+      while (j < nodes.length && nodes[j]!.kind === runKind) j += 1;
+      // For a list item, a different-kind run is its nested content (the
+      // attach rule: marker nesting is the own kind only).
+      if (ownKind !== undefined && runKind !== ownKind) {
+        segments.push({ kind: "single", nodes: nodes.slice(i, j) });
+      } else {
+        segments.push({ kind: "list", list: runKind, indent: node.indent, nodes: nodes.slice(i, j) });
+      }
+      i = j;
+      continue;
+    }
+    let j = i + 1;
+    while (j < nodes.length && nodes[j]!.kind === undefined) j += 1;
+    segments.push({ kind: "single", nodes: nodes.slice(i, j) });
+    i = j;
+  }
+  return segments;
+}
+
+/** A non-list block's (or a slot's) children in reading order: list runs as lists, the rest as single blocks. */
+function GroupedNodes({ nodes }: { nodes: FlatNode[] }) {
+  const segments = nestedSegments(nodes, undefined);
   return (
     <>
-      {groups.map((group) =>
-        group.kind === "single" ? (
-          <BlockView key={group.id} id={group.id} depth={depth} />
+      {segments.flatMap((segment) =>
+        segment.kind === "list"
+          ? [
+              <ListRun
+                key={`list-${segment.nodes[0]!.id}`}
+                nodes={segment.nodes}
+                kind={segment.list}
+                indent={segment.indent}
+              />,
+            ]
+          : segment.nodes.map((node) => <FlatBlockView key={node.id} node={node} />)
+      )}
+    </>
+  );
+}
+
+/**
+ * A container's nested content: the derived segment inside a rendered-only
+ * `docblocks/nested` wrapper (the CSS indent step), in reading order (a
+ * list run groups into its list, the rest stands as single blocks).
+ */
+function NestedSlot({ nodes }: { nodes: FlatNode[] }) {
+  return (
+    <div data-slot="docblocks/nested" className="pl-(--docblocks-nested-indent)">
+      <GroupedNodes nodes={nodes} />
+    </div>
+  );
+}
+
+/**
+ * A list item's nested content (the flat model's sublist / nested content):
+ * the same-kind items render as a nested list directly inside the item
+ * (the marker nesting, no slot), the rest — a different-kind run or a
+ * non-list block — in the item's nested slot. Hidden (unmounted) while the
+ * item is collapsed (view state: the text re-syncs from the store on the
+ * expand).
+ */
+function ItemNested({ id, nodes, ownKind }: { id: BlockId; nodes: FlatNode[]; ownKind: ListKind }) {
+  const { store } = useEditorContext();
+  const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
+  if (collapsed) return null;
+  const segments = nestedSegments(nodes, ownKind);
+  return (
+    <>
+      {segments.map((segment, index) =>
+        segment.kind === "list" ? (
+          <ListRun
+            key={`list-${segment.nodes[0]!.id}`}
+            nodes={segment.nodes}
+            kind={segment.list}
+            indent={segment.indent}
+          />
         ) : (
-          <ListGroup key={`list-${group.ids[0]}`} tag={group.tag} list={group.list} ids={group.ids} depth={depth} />
+          <div key={`slot-${index}`} data-slot="docblocks/nested" className="pl-(--docblocks-nested-indent)">
+            <GroupedNodes nodes={segment.nodes} />
+          </div>
         )
       )}
     </>
   );
-});
-
-/**
- * The nested list items of a list item: rendered inside the item's
- * wrapper, after the inner editable, with their own block context (the
- * item is their parent). Hidden (unmounted) while the item is collapsed
- * (view state: the text re-syncs from the store on the expand).
- */
-const ListItemChildren = memo(function ListItemChildren({
-  id,
-  block,
-  depth,
-}: {
-  id: BlockId;
-  block: ListItemBlock;
-  depth: number;
-}) {
-  const { store } = useEditorContext();
-  const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
-  const children = block.children ?? EMPTY_IDS;
-  const contextValue = useBlockContextValue(id, children);
-  if (children.length === 0 || collapsed) return null;
-  return (
-    <BlockContext.Provider value={contextValue}>
-      <BlockGroups ids={children} depth={depth + 1} />
-    </BlockContext.Provider>
-  );
-});
-
-/**
- * The nested content of a text container (paragraph / heading / callout /
- * code / latex): the children in reading order inside a rendered-only
- * `docblocks/nested` wrapper (the CSS indent hook), with their own block
- * context (the container is their parent). No collapse — collapse is a
- * list-item affordance.
- */
-const ContainerChildren = memo(function ContainerChildren({ id, children }: { id: BlockId; children: BlockId[] }) {
-  const contextValue = useBlockContextValue(id, children);
-  if (children.length === 0) return null;
-  return (
-    <div data-slot="docblocks/nested" className="pl-(--docblocks-nested-indent)">
-      <BlockContext.Provider value={contextValue}>
-        <BlockGroups ids={children} />
-      </BlockContext.Provider>
-    </div>
-  );
-});
-
-/** The nested-content slot of a text container (the `nested` prop). */
-function childrenSlot(id: BlockId, children: BlockId[] | undefined): ReactNode {
-  if (children === undefined || children.length === 0) return undefined;
-  return <ContainerChildren id={id} children={children} />;
 }
 
 /**
- * Renders one block by id. Memoized on the stable id: the block snapshot
- * is store-driven by reference, so a change to a sibling block never
- * re-renders this component. A block removed by a peer renders nothing.
- *
- * Renderer resolution (per instance): a consumer renderer for the type,
- * then the built-in renderer, then the placeholder (unknown and future
- * types keep working).
+ * The built-in dispatch of one block (no consumer renderer): the text
+ * types take the derived nested content through the wrapper (a list item
+ * nests its sublist inside itself, the rest in its nested slot) — the
+ * sequence views only; a flat (motion) row renders the block alone, its
+ * derived nesting standing as the sequence's own rows; the non-text types
+ * render standalone (their derived content stands after the block,
+ * threaded by the sequence layer).
  */
-const BlockView = memo(function BlockView({ id, depth = 1 }: { id: BlockId; depth?: number }) {
-  const { renderers } = useEditorContext();
-  const block = useBlock(id);
-  if (block === undefined) return null;
-
-  const custom = renderers[block.type];
-  if (custom !== undefined) return custom({ id, block });
-
+function dispatchBuiltIn(
+  id: BlockId,
+  block: Block,
+  nested: ReactNode,
+  collapsible: boolean,
+  flat: boolean,
+  number: number | undefined
+): ReactNode {
   switch (block.type) {
     case "paragraph":
-      return <TextBlock id={id} block={block} tag="div" nested={childrenSlot(id, block.children)} />;
+      return (
+        <TextBlock
+          id={id}
+          block={block}
+          tag="div"
+          nested={nested}
+          collapsible={collapsible}
+          flat={flat}
+          number={number}
+        />
+      );
     case "heading":
       return (
         <TextBlock
           id={id}
           block={block}
           tag={HEADING_TAGS[block.attrs.level]}
-          nested={childrenSlot(id, block.children)}
+          nested={nested}
+          collapsible={collapsible}
+          flat={flat}
+          number={number}
         />
       );
     case "callout":
-      return <TextBlock id={id} block={block} tag="aside" nested={childrenSlot(id, block.children)} />;
+      return (
+        <TextBlock
+          id={id}
+          block={block}
+          tag="aside"
+          nested={nested}
+          collapsible={collapsible}
+          flat={flat}
+          number={number}
+        />
+      );
     case "list-item":
       return (
-        <TextBlock id={id} block={block} tag="li" nested={<ListItemChildren id={id} block={block} depth={depth} />} />
+        <TextBlock
+          id={id}
+          block={block}
+          tag="li"
+          nested={nested}
+          collapsible={collapsible}
+          flat={flat}
+          number={number}
+        />
       );
     case "code":
-      return <TextBlock id={id} block={block} tag="pre" nested={childrenSlot(id, block.children)} />;
+      return (
+        <TextBlock
+          id={id}
+          block={block}
+          tag="pre"
+          nested={nested}
+          collapsible={collapsible}
+          flat={flat}
+          number={number}
+        />
+      );
     case "latex":
-      return <TextBlock id={id} block={block} tag="div" nested={childrenSlot(id, block.children)} />;
+      return (
+        <TextBlock
+          id={id}
+          block={block}
+          tag="div"
+          nested={nested}
+          collapsible={collapsible}
+          flat={flat}
+          number={number}
+        />
+      );
     case "divider":
       return (
         <hr
@@ -239,6 +304,144 @@ const BlockView = memo(function BlockView({ id, depth = 1 }: { id: BlockId; dept
       // fall through to the placeholder.
       return <PlaceholderBlock type={block.type} />;
   }
+}
+
+/**
+ * The block body + the derived nested content, per view. The text
+ * renderers thread the content into the wrapper (a list item nests its
+ * sublist inside itself, the rest in its nested slot); a consumer
+ * renderer or a non-text built-in renderer renders it as a nested slot
+ * AFTER the block view (the renderer does not thread it — the content is
+ * never dropped). `flat` (the motion view's flat row): the `number` item's
+ * marker stands as a rendered label (the row is not in a list element —
+ * the native `ol`/`ul` marker is absent; the base view numbers the `ol`
+ * natively), and the derived nesting is NOT threaded into the wrapper —
+ * the flat sequence's rows own it (a nested block renders exactly once,
+ * as its own row).
+ *
+ * Memoized on the node's identity: the derivation interns the node
+ * objects, so an unchanged node (indent, run position, children) keeps its
+ * reference across re-derivations, and a change to a sibling never
+ * re-renders this node — the store subscription inside (the block
+ * snapshot) re-renders it on its own text change. A node whose block is
+ * missing (removed by a peer) renders nothing.
+ */
+const BlockNodeView = memo(
+  function BlockNodeView({ node, flat = false }: { node: FlatNode; flat?: boolean }) {
+    const { renderers } = useEditorContext();
+    const block = useBlock(node.id);
+    if (block === undefined) return null;
+    // A flat (motion) row renders the block alone: its derived nesting
+    // stands as the sequence's own rows, not inside the wrapper (threading
+    // it in would render the nested blocks twice — once per row, once in
+    // the parent's slot).
+    const hasChildren = !flat && node.children.length > 0;
+    const isListItem = block.type === "list-item";
+    const collapsible = isListItem && node.children.length > 0;
+    const nested: ReactNode = hasChildren ? (
+      isListItem ? (
+        <ItemNested id={node.id} nodes={node.children} ownKind={block.attrs.list} />
+      ) : (
+        <NestedSlot nodes={node.children} />
+      )
+    ) : undefined;
+    const custom = renderers[block.type];
+    const builtInText =
+      block.type === "paragraph" ||
+      block.type === "heading" ||
+      block.type === "callout" ||
+      block.type === "code" ||
+      block.type === "latex" ||
+      isListItem;
+    if (custom !== undefined) {
+      const view = custom({ id: node.id, block });
+      if (!hasChildren) return view;
+      return (
+        <Fragment>
+          {view}
+          <NestedSlot nodes={node.children} />
+        </Fragment>
+      );
+    }
+    const view = dispatchBuiltIn(node.id, block, nested, collapsible, flat, node.number);
+    // The text renderers thread the content into the wrapper; the non-text
+    // built-in renderers stand it after the block.
+    if (!hasChildren || builtInText) return view;
+    return (
+      <Fragment>
+        {view}
+        <NestedSlot nodes={node.children} />
+      </Fragment>
+    );
+  },
+  // The node identity is the memo: the derivation interns node objects, so
+  // an unchanged node (indent, run position, children) keeps its reference
+  // across re-derivations. The children's data stands in the node's own
+  // (interned) references.
+  (prev, next) => prev.node === next.node && prev.flat === next.flat
+);
+
+/**
+ * One derived node of a flat sequence, rendered in the base view.
+ */
+const FlatBlockView = memo(
+  function FlatBlockView({ node }: { node: FlatNode }) {
+    return <BlockNodeView node={node} />;
+  },
+  (prev, next) => prev.node === next.node
+);
+
+/**
+ * A flat page sequence in reading order (the base view): the sequence is
+ * derived per render (the store stays a flat map projection) — the top
+ * level renders list runs as native lists and the rest as single blocks,
+ * every block's nesting stands in its derived children (a list item's
+ * sublist, a text container's nested slot).
+ */
+function BlockGroups({ ids }: { ids: BlockId[] }) {
+  const { store } = useEditorContext();
+  const blocks = useStore(store, (state) => state.blocks);
+  // The interning cache: the previous derivation's byId stands while the
+  // sequence's data is unchanged (the memo is keyed on the node identity).
+  const prevRef = useRef<Map<string, FlatNode> | null>(null);
+  const derivation = useMemo(() => {
+    const result = deriveFlat(ids, blocks, prevRef.current ?? undefined);
+    prevRef.current = result.byId;
+    return result;
+  }, [ids, blocks]);
+  return <GroupedNodes nodes={derivation.nodes} />;
+}
+
+/**
+ * Renders one block by id, standalone (no derived nesting): the canvas
+ * element types inside a surface, a provider entry root that is a
+ * structural block (a table, a frame), or any block outside a flat
+ * sequence context (a surface's z-order). The block snapshot is
+ * store-driven by reference, so a change to a sibling never re-renders
+ * this component. A block removed by a peer renders nothing.
+ */
+const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
+  const block = useBlock(id);
+  if (block === undefined) return null;
+  return dispatchBuiltIn(id, block, undefined, false, false, undefined);
 });
 
-export { BlockGroups, BlockView, childrenSlot, groupChildren };
+/**
+ * The LEGACY nested-content reader: page blocks no longer carry
+ * `children` (the flat page model — the nesting is the sequence's
+ * `indent` attr, and `fromJSON` / `loadDoc` normalize the legacy form
+ * eagerly, so a live document never carries it). The derived nested
+ * content is a SEQUENCE concern (it stands as the following blocks,
+ * rendered by the sequence layer); this reader always resolves to
+ * nothing and stands for the `./mermaid` subpath's fallthrough.
+ */
+function childrenSlot(_id: BlockId, children: BlockId[] | undefined): ReactNode {
+  void _id;
+  if (children === undefined || children.length === 0) return undefined;
+  // A legacy `children` field on a live snapshot (unreachable through the
+  // normalized load path): render nothing — the sequence rendering owns
+  // the nesting.
+  return undefined;
+}
+
+export { BlockGroups, BlockNodeView, BlockView, childrenSlot };

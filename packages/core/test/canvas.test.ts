@@ -274,17 +274,18 @@ describe("structure (commands)", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("the frame holds page blocks (a nested list-item included)", () => {
+  it("the frame holds page blocks (the nesting is the indent attr)", () => {
     const doc = newDoc();
     const surface = doc.insertBlock("surface");
     const frame = doc.insertBlock("frame", undefined, { parent: surface });
     const item = doc.insertBlock("list-item", { list: "bullet" }, { parent: frame });
-    const nested = doc.insertBlock("list-item", { list: "bullet" }, { parent: item });
+    const nested = doc.insertBlock("list-item", { list: "bullet" }, { parent: frame });
+    doc.updateBlock(nested, { indent: 1 }); // the frame's nested page is a flat sequence
     doc.insertText(item, 0, "item");
     doc.insertText(nested, 0, "nested");
 
-    expect(doc.getChildren(frame)).toEqual([item]);
-    expect(doc.getChildren(item)).toEqual([nested]);
+    expect(doc.getChildren(frame)).toEqual([item, nested]);
+    expect((doc.getBlock(nested) as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDoc } from "docblocks-core";
+import { createDoc, validateDoc } from "docblocks-core";
 import type { BlockId, Selection } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
@@ -98,7 +98,7 @@ afterEach(() => {
 });
 
 describe("Tab: list nesting", () => {
-  it("nests the second item under the first; Shift+Tab undoes it", () => {
+  it("nests the second item under the first (an indent attr update); Shift+Tab undoes it", () => {
     let l1: BlockId = "";
     let l2: BlockId = "";
     const doc = renderDoc((d) => {
@@ -111,21 +111,56 @@ describe("Tab: list nesting", () => {
     caretAtFlat(l2, 0);
     key(wrapperOf(l2), "Tab");
 
+    // The flat model: Tab is one indent attr update — the sequence stands,
+    // no children field is written.
     const nested = doc.toJSON();
-    const l1Json = nested.blocks[l1]!;
-    expect("children" in l1Json ? l1Json.children : null).toEqual([l2]);
-    expect(doc.getChildren(doc.meta.id)).toEqual([l1]);
+    expect((nested.blocks[l2]! as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    expect(doc.getChildren(doc.meta.id)).toEqual([l1, l2]);
     // The nested item renders inside the parent's nested list.
     expect(wrapperOf(l1).querySelector('[data-slot="docblocks/list"] li[data-block-id]')).not.toBeNull();
 
     key(wrapperOf(l2), "Tab", { shiftKey: true });
 
     const flat = doc.toJSON();
-    expect("children" in flat.blocks[l1]!).toBe(false); // omitted when empty
+    expect((flat.blocks[l2]! as { attrs?: { indent?: number } }).attrs?.indent ?? 0).toBe(0);
     expect(doc.getChildren(doc.meta.id)).toEqual([l1, l2]);
   });
 
-  it("nests the list item under a previous paragraph (a text container holds the page set)", () => {
+  it("Shift+Tab outdents the whole derived segment (the head and its follower step out together)", () => {
+    let l1: BlockId = "";
+    let l2: BlockId = "";
+    let l3: BlockId = "";
+    const doc = renderDoc((d) => {
+      l1 = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(l1, 0, "one");
+      l2 = d.insertBlock("list-item", { list: "bullet", indent: 1 });
+      d.insertText(l2, 0, "two");
+      l3 = d.insertBlock("list-item", { list: "bullet", indent: 2 });
+      d.insertText(l3, 0, "three");
+    });
+
+    caretAtFlat(l2, 0);
+    const before = doc.toJSON();
+    const prevented = key(wrapperOf(l2), "Tab", { shiftKey: true });
+
+    // Suppressed: the structural gesture ran. The head AND its follower
+    // step out one level (the relative indents stand — a lone-head outdent
+    // would leave l3 at head + 2, a jump the doc would no longer validate).
+    expect(prevented).toBe(false);
+    const after = doc.toJSON();
+    expect((after.blocks[l2]! as { attrs?: { indent?: number } }).attrs?.indent ?? 0).toBe(0);
+    expect((after.blocks[l3]! as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    expect(validateDoc(after)).toEqual([]);
+    expect(doc.getChildren(doc.meta.id)).toEqual([l1, l2, l3]); // the order stands
+
+    // One undo step restores the pre-gesture indents.
+    act(() => {
+      doc.undo();
+    });
+    expect(doc.toJSON()).toEqual(before);
+  });
+
+  it("nests the list item under a previous paragraph (the attach rule holds any page block)", () => {
     let p: BlockId = "";
     let l1: BlockId = "";
     const doc = renderDoc((d) => {
@@ -139,9 +174,11 @@ describe("Tab: list nesting", () => {
     const prevented = key(wrapperOf(l1), "Tab");
 
     expect(prevented).toBe(false); // suppressed: the structural move ran
-    expect(doc.getChildren(doc.meta.id)).toEqual([p]);
-    const pJson = doc.toJSON().blocks[p]!;
-    expect("children" in pJson ? pJson.children : null).toEqual([l1]);
+    expect(doc.getChildren(doc.meta.id)).toEqual([p, l1]);
+    const l1Json = doc.toJSON().blocks[l1]!;
+    expect((l1Json as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    // The indented item stands in the paragraph's indent slot.
+    expect(wrapperOf(p).querySelector('[data-slot="docblocks/nested"]')).not.toBeNull();
   });
 });
 
@@ -167,6 +204,43 @@ describe("blocks selection (gutter)", () => {
 
     expect(doc.getBlock(p1)).toBeNull();
     expect(storeSelection()).toEqual({ kind: "none" });
+  });
+
+  it("Delete on a gutter-selected segment head removes the whole derived segment (one undo step)", () => {
+    let head: BlockId = "";
+    let child: BlockId = "";
+    const doc = renderDoc((d) => {
+      const anchor = d.insertBlock("paragraph");
+      d.insertText(anchor, 0, "anchor");
+      head = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(head, 0, "head");
+      child = d.insertBlock("list-item", { list: "bullet", indent: 1 });
+      d.insertText(child, 0, "child");
+    });
+
+    const wrapper = wrapperOf(head);
+    act(() => {
+      wrapper
+        .querySelector<HTMLElement>('[data-slot="docblocks/gutter"]')!
+        .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    expect(storeSelection()).toEqual({ kind: "blocks", ids: [head], anchorId: head });
+
+    const before = doc.toJSON();
+    // The head's core cascade removes the child with it: the handler must
+    // skip the already-removed follower — a re-removal would throw the
+    // typed error and un-roll the gesture.
+    key(wrapper, "Delete");
+
+    expect(doc.getBlock(head)).toBeNull();
+    expect(doc.getBlock(child)).toBeNull();
+    expect(storeSelection()).toEqual({ kind: "none" });
+
+    // One undo step restores the whole segment (one transact).
+    act(() => {
+      doc.undo();
+    });
+    expect(doc.toJSON()).toEqual(before);
   });
 
   it("shift+click extends the selection to a sibling range", () => {
@@ -231,13 +305,11 @@ describe("per-level list markers (the rendered data-depth cycle)", () => {
     );
   }
 
-  /** A chain of `levels` nested list items of one kind (deepest last). */
+  /** A chain of `levels` nested list items of one kind (deepest last; the flat model: the level IS the indent). */
   function seedChain(d: TestDoc, list: "bullet" | "number", levels: number): void {
-    const ids: BlockId[] = [];
     for (let level = 0; level < levels; level++) {
-      const id = d.insertBlock("list-item", { list }, level === 0 ? undefined : { parent: ids[level - 1]! });
+      const id = d.insertBlock("list-item", { list, indent: level });
       d.insertText(id, 0, `level ${level + 1}`);
-      ids.push(id);
     }
   }
 

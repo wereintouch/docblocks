@@ -71,9 +71,9 @@ import { type FormatMark, markToggleAction } from "./keyboard";
  * paragraph/heading/list-item targets only) is a non-modal dropdown — a
  * radio group that turns the block into a bullet/numbered/to-do list (a
  * list-item swap is a `list` attr update; any other target is a
- * changeBlockType) or into a paragraph ("Text" is disabled for a list item
- * with children: the core rejects a container becoming a leaf while it has
- * children). The highlight control is a non-modal popover with a target
+ * changeBlockType) or into a paragraph (the flat model: a list item's
+ * derived segment re-attaches to the paragraph as its nested content —
+ * nothing is lost). The highlight control is a non-modal popover with a target
  * switch (the text `color` mark vs the background `highlight` mark) and a
  * color palette (the default six, overridable through the editor's
  * `formatPalette` prop) plus a clear entry. The popovers are portaled to
@@ -255,9 +255,10 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   /**
    * The list-type menu action (single-block targets only): a swap inside a
    * list is a `list` attr update; any other target is a type change (the
-   * target's required attrs come from the option). "Text" is unreachable
-   * for a list item with children (the option is disabled; the core would
-   * reject it).
+   * target's required attrs come from the option). "Text" stands for a
+   * list item with a derived segment (the flat model: the segment
+   * re-attaches to the paragraph as its nested content — nothing is lost,
+   * the indent stands).
    */
   const onListOption = (option: (typeof LIST_MENU_OPTIONS)[number]["option"]): void => {
     setListMenuOpen(false);
@@ -387,15 +388,14 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             >
               <DropdownMenuRadioGroup value={listValue}>
                 {LIST_MENU_OPTIONS.map(({ option, label, icon: Icon }) => {
-                  const disabled =
-                    option === "paragraph" && single.type === "list-item" && (single.children ?? []).length > 0;
+                  const disabled = false;
                   return (
                     <DropdownMenuRadioItem
                       key={option}
                       value={option}
                       data-list-option={option}
                       disabled={disabled}
-                      title={disabled ? "List items with children cannot become text" : label}
+                      title={label}
                       onSelect={() => onListOption(option)}
                     >
                       <Icon className="size-4" />

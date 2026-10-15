@@ -110,6 +110,23 @@ describe("insertBlock", () => {
     expect(doc.getChildren("r")).toEqual([p1, p4, p2, p3]);
   });
 
+  it("page content is a flat sequence: insert under a page-content block is rejected", () => {
+    const doc = newDoc();
+    const p = doc.insertBlock("paragraph");
+    const li = doc.insertBlock("list-item", { list: "bullet" });
+    // The remodeled page types are not containers anymore: nesting is the
+    // `indent` attr in the page sequence, not a child of the block.
+    expectThrows(() => doc.insertBlock("paragraph", undefined, { parent: p }), InvalidOperationError);
+    expectThrows(() => doc.insertBlock("list-item", { list: "bullet" }, { parent: li }), InvalidOperationError);
+    // The doc stands; the flat sequence is the only page-context.
+    expect(doc.getChildren("r")).toEqual([p, li]);
+    // The same sequence expressed with indents round-trips and validates.
+    const indented = doc.insertBlock("paragraph");
+    doc.updateBlock(indented, { indent: 1 });
+    expect(doc.getBlock(indented)).toEqual({ type: "paragraph", attrs: { indent: 1 } });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
   it("generates block ids via the doc's id generator", () => {
     let n = 0;
     const doc = createDoc({ id: "d", createdAt: CREATED_AT, generateId: () => `b${n++}` });
@@ -132,7 +149,7 @@ describe("insertBlock", () => {
     expect(() => doc.insertBlock("heading", { level: 7 } as unknown as HeadingAttrs)).toThrow(InvalidAttrsError);
     expect(() => doc.insertBlock("heading", undefined as unknown as HeadingAttrs)).toThrow(InvalidAttrsError);
     expect(() => doc.insertBlock("table", { cols: 0 })).toThrow(InvalidAttrsError);
-    expect(() => doc.insertBlock("divider", {} as never)).toThrow(InvalidAttrsError);
+    expect(() => doc.insertBlock("divider", { bogus: 1 } as never)).toThrow(InvalidAttrsError);
     expect(() =>
       doc.insertBlock("database", {
         columns: [{ id: "c", name: "C", type: "select" }],
@@ -280,15 +297,18 @@ describe("moveBlock", () => {
     expect(doc.getChildren("r")).toEqual([b, a, d, c]);
   });
 
-  it("nests a block under a new parent and keeps its subtree", () => {
+  it("reorders within the flat page sequence (the nesting is the indent attr)", () => {
     const doc = newDoc();
-    const li = doc.insertBlock("list-item", { list: "bullet" });
-    const child = doc.insertBlock("list-item", { list: "bullet" }, { parent: li });
-    const other = doc.insertBlock("list-item", { list: "bullet" }, { parent: li });
-    doc.moveBlock(other, "r", 0);
-    expect(doc.getChildren("r")).toEqual([other, li]);
-    expect(doc.getChildren(li)).toEqual([child]);
-    expect(doc.getBlock(other)).not.toBeNull();
+    const a = doc.insertBlock("list-item", { list: "bullet" });
+    const b = doc.insertBlock("list-item", { list: "bullet" });
+    const c = doc.insertBlock("list-item", { list: "bullet" });
+    // b nested under a = b after a with indent 1 (one sequence, two attrs).
+    doc.updateBlock(b, { indent: 1 });
+    // c moves in front of a; a's nesting stands.
+    doc.moveBlock(c, "r", 0);
+    expect(doc.getChildren("r")).toEqual([c, a, b]);
+    expect(doc.getChildren(a)).toEqual([]); // structurally childless
+    expect((doc.getBlock(b) as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
@@ -296,7 +316,6 @@ describe("moveBlock", () => {
     const doc = newDoc();
     const a = doc.insertBlock("paragraph");
     const li = doc.insertBlock("list-item", { list: "bullet" });
-    const liChild = doc.insertBlock("list-item", { list: "bullet" }, { parent: li });
     const table = doc.insertBlock("table", { cols: 1 });
     const row = doc.insertBlock("table-row", undefined, { parent: table });
     const cell = doc.insertBlock("table-cell", undefined, { parent: row });
@@ -308,7 +327,11 @@ describe("moveBlock", () => {
     expect(() => doc.moveBlock(a, "r", 10)).toThrow(InvalidRangeError);
     expect(() => doc.moveBlock(a, "r", -1)).toThrow(InvalidRangeError);
     expect(() => doc.moveBlock(li, li, 0)).toThrow(InvalidOperationError);
-    expect(() => doc.moveBlock(li, liChild, 0)).toThrow(InvalidOperationError);
+    // Moving into a page-content block: it is not a container (the flat
+    // page sequence is the only page context).
+    const text = doc.insertBlock("paragraph");
+    expect(() => doc.moveBlock(a, li, 0)).toThrow(InvalidOperationError);
+    expect(() => doc.moveBlock(a, text, 0)).toThrow(InvalidOperationError);
     // The child-type restriction applies to moves, not just inserts.
     expect(() => doc.moveBlock(li, cell, 0)).toThrow(InvalidChildError);
     expect(() => doc.moveBlock(table, cell, 0)).toThrow(InvalidChildError);

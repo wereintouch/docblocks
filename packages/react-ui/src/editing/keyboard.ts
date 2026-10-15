@@ -6,7 +6,7 @@ import type { BlockId, BlockType, Doc } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
-import { extendSelectionTo, focusCaretIn } from "./block-commands";
+import { extendSelectionTo, focusCaretIn, moveSegmentInSequence, segmentRange } from "./block-commands";
 import { caretOffsetIn, editorRootOf, textBlockOfNode } from "./dom-offset";
 import { syncDomSelection } from "./selection-mapping";
 
@@ -103,7 +103,8 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
       const mod = event.metaKey || event.ctrlKey;
 
       // mod+shift+arrow with a single-block blocks selection on this block:
-      // move the block one slot in the sibling order.
+      // move the block (and its derived subtree — the contiguous segment
+      // of its deeper followers) one slot in the sequence order.
       if (mod && event.shiftKey && (event.key === "ArrowUp" || event.key === "ArrowDown")) {
         const view = selectionRef.view;
         if (view === null) return;
@@ -111,14 +112,16 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
         if (selection.kind !== "blocks" || selection.ids.length !== 1 || selection.ids[0] !== id) return;
         const siblings = doc.getChildren(context.parentId);
         const index = siblings.indexOf(id);
-        // Pre-move index semantics: up takes the previous slot, down takes
-        // the slot after the next sibling (removal shifts it left by one).
-        const target = index === -1 ? -1 : event.key === "ArrowUp" ? index - 1 : index + 2;
+        const segment = segmentRange(doc, context.parentId, id);
+        if (index === -1 || segment === null) return;
+        const length = segment.end - segment.start;
+        // Pre-move index semantics: up lands the segment's head in the
+        // previous block's slot, down lands it right after the block
+        // following the segment (removal shifts it left by the length).
+        const target = event.key === "ArrowUp" ? segment.start - 1 : segment.end + 1;
         if (target < 0 || target > siblings.length) return; // clamped at the edge
         event.preventDefault();
-        doc.transact(() => {
-          doc.moveBlock(id, context.parentId, target);
-        });
+        moveSegmentInSequence(doc, context.parentId, segment.start, length, target);
         // The selection is blocks-kind by id and survives the move; re-set
         // it so the highlight re-renders at the block's new position.
         view.set({ kind: "blocks", ids: [id], anchorId: id });

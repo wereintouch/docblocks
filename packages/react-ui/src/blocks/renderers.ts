@@ -15,11 +15,16 @@ interface BlockRendererProps {
  * affordance — a renderer that needs editing drives the core commands
  * through the hooks (the consumer builds its own UI on top of them).
  *
- * The built-in text renderers read the per-block context (the parent and
- * siblings) for the keyboard gestures; a consumer renderer does not read
- * it — the context is part of the built-in rendering, not of the
- * renderer contract. A replaced list item renders its nested children by
- * itself (they are the `block.children` ids).
+ * The built-in text renderers read the per-block context (the page
+ * context — the root, a table cell, or a frame — and the flat page
+ * sequence) for the keyboard gestures; a consumer renderer does not read
+ * it — the context is part of the built-in rendering, not of the renderer
+ * contract. Nesting is a derived notion (the flat page model: a block's
+ * `indent` attr relative to its preceding block, not a data field), so a
+ * replaced block does not receive its derived nested content — the
+ * sequence rendering stands a block's deeper followers as a nested slot
+ * AFTER the replaced view (the content is never dropped); a renderer that
+ * wants to render them itself drives the doc through the hooks.
  *
  * A renderer is a plain render function, not a component: it is invoked
  * during the block view's render, so it must not call hooks itself —

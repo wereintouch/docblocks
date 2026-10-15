@@ -129,6 +129,80 @@ test("a subtree sync-embed shows only the subtree block and edits reach the mast
   await close();
 });
 
+/** The pane's master's root sequence (the structural view the assertions read). */
+async function masterState(
+  page: Page,
+  client: "a" | "b"
+): Promise<{ id: string; type: string | null; indent: number | undefined }[] | null> {
+  return page.evaluate((letter) => {
+    const m = window.__masterDocs?.[letter as "a" | "b"];
+    if (m === null) return null;
+    return m.getChildren(m.meta.id).map((id) => {
+      const block = m.getBlock(id);
+      return {
+        id,
+        type: block?.type ?? null,
+        indent: (block?.attrs as { indent?: number } | undefined)?.indent,
+      };
+    });
+  }, client);
+}
+
+test("a subtree embed: the split gesture commits to the master and a peer's nested insert grows the segment", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ext03-subtree-gesture");
+
+  await insertType(a, "a", "sync-embed-subtree");
+  const wa = wrapper(a, "a");
+  await expect(wa, SETTLE).toHaveAttribute("data-state", "resolved");
+  const wb = wrapper(b, "b");
+  await expect(wb, SETTLE).toHaveAttribute("data-state", "resolved");
+  await expect(wa.getByText("Master subtree paragraph")).toBeVisible();
+  await expect(wb.getByText("Master subtree paragraph")).toBeVisible();
+
+  // Gesture inside the subtree embed (pane A): Enter at the end of the
+  // subtree root splits it — the split commits into the MASTER doc
+  // against the root's sequence container (not the subtree root itself),
+  // so the new paragraph lands in the master right after the root.
+  await wa.getByText("Master subtree paragraph").click();
+  await a.keyboard.press("End");
+  await a.keyboard.press("Enter");
+
+  // Pane B's master client sees the committed split (a new top-level
+  // paragraph between the subtree root and the master's last paragraph).
+  await expect
+    .poll(async () => (await masterState(b, "b")) ?? [], SETTLE)
+    .toEqual([
+      { id: "m0001", type: "heading", indent: undefined },
+      { id: "m0002", type: "paragraph", indent: undefined },
+      { id: "m0003", type: "paragraph", indent: undefined },
+      expect.objectContaining({ type: "paragraph", indent: undefined }),
+      { id: "m0004", type: "paragraph", indent: undefined },
+    ]);
+
+  // Peer-side nested insert into the segment (pane B, pane A's embed): a
+  // deeper block (indent 1) after the subtree root grows the root's
+  // derived segment — the insert touches no subtree root, so only the
+  // projection's re-derivation adds the row (no remount, no manual
+  // refresh).
+  const inserted = await b.evaluate(() => {
+    const m = window.__masterDocs?.b;
+    if (m === null) return null;
+    return m.insertBlock("paragraph", { indent: 1 }, { parent: m.meta.id, after: "m0003" });
+  });
+  expect(inserted).not.toBeNull();
+
+  // Both panes' embed region shows the nested row — pane A without a
+  // local edit to its master client — and the embeds stay resolved.
+  await expect(wa.locator('[data-block-type="paragraph"]'), SETTLE).toHaveCount(2);
+  await expect(wb.locator('[data-block-type="paragraph"]'), SETTLE).toHaveCount(2);
+  await expect(wa).toHaveAttribute("data-state", "resolved");
+  await expect(wb).toHaveAttribute("data-state", "resolved");
+
+  await close();
+});
+
 test("a broken sync-embed (an unknown master id) renders the placeholder in both panes", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ext03-broken");
 

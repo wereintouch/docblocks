@@ -4,6 +4,8 @@ import * as Y from "yjs";
 import type { RootBlock } from "../src";
 import { createDoc, fromJSON, loadDoc } from "../src/core";
 import type { Doc } from "../src/core";
+import { validateDoc } from "../src/schema";
+import type { DocJSON } from "../src/schema";
 import { fixture } from "./fixtures";
 
 /**
@@ -130,6 +132,65 @@ describe("independent createDoc peers converge", () => {
       expect(b.toJSON().blocks).toHaveProperty(pa);
       expect(b.toJSON().blocks).toHaveProperty(pb);
     }
+  });
+});
+
+describe("peers loading different shapes converge (legacy vs flat)", () => {
+  /** The legacy (nested) shape and its flat twin — the same content. */
+  const legacy: DocJSON = {
+    v: 1,
+    id: "d1",
+    title: "",
+    createdAt: CREATED_AT,
+    blocks: {
+      d1: { type: "root", children: ["p1", "l1"] },
+      p1: { type: "paragraph", content: [{ text: "base", marks: {} }] },
+      l1: { type: "list-item", attrs: { list: "bullet" }, children: ["l2"] },
+      l2: { type: "list-item", attrs: { list: "bullet" }, children: ["l3"] },
+      l3: { type: "list-item", attrs: { list: "bullet" } },
+    },
+  };
+  const flat: DocJSON = {
+    ...legacy,
+    blocks: {
+      d1: { type: "root", children: ["p1", "l1", "l2", "l3"] },
+      p1: legacy.blocks.p1!,
+      l1: { type: "list-item", attrs: { list: "bullet" } },
+      l2: { type: "list-item", attrs: { list: "bullet", indent: 1 } },
+      l3: { type: "list-item", attrs: { list: "bullet", indent: 2 } },
+    },
+  };
+
+  it("a legacy-shape peer bootstraps a joining peer; both converge to the same flat state", () => {
+    // The supported init of a room with two clients: the first joiner's
+    // full state is the base (attach's bootstrap) — so the legacy snapshot
+    // is loaded by one peer, the other takes it. Independent layouts of
+    // one document collide (the shared-skeleton rule), so the joiner
+    // never builds its own.
+    const base = fromJSON(legacy);
+    const joiner = loadDoc(base.encode());
+
+    // Divergent edits after the bootstrap (different blocks, shared ids).
+    base.insertText("p1", 0, "A-");
+    joiner.insertText("l3", 0, "B-");
+    exchange(base, joiner);
+
+    // Deep equality, and the converged state is the flat form + valid.
+    expect(base.toJSON()).toEqual(joiner.toJSON());
+    const final = base.toJSON();
+    expect(validateDoc(final)).toEqual([]);
+    expect("children" in (final.blocks.l1 as object)).toBe(false);
+    expect((final.blocks.l3 as { attrs?: { indent?: number } }).attrs?.indent).toBe(2);
+    const textOf = (id: string): string =>
+      "content" in final.blocks[id]! ? (final.blocks[id]!.content ?? []).reduce((t, run) => t + run.text, "") : "";
+    expect(textOf("p1")).toBe("A-base");
+    expect(textOf("l3")).toBe("B-");
+  });
+
+  it("loadDoc of each shape lands on the same bytes", () => {
+    const fromLegacy = loadDoc(fromJSON(legacy).encode());
+    const fromFlat = loadDoc(fromJSON(flat).encode());
+    expect(JSON.stringify(fromLegacy.toJSON())).toBe(JSON.stringify(fromFlat.toJSON()));
   });
 });
 

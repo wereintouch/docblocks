@@ -5,19 +5,28 @@ import type {
   AttrsFor,
   Block,
   BlockType,
+  CalloutAttrs,
   CanvasRef,
+  CodeAttrs,
   ConnectorAttrs,
+  DatabaseAttrs,
   DatabaseBlock,
   DatabaseCellValue,
   DatabaseColumn,
+  DividerAttrs,
   EmbedAttrs,
   Geometry,
   HeadingAttrs,
   ImageAttrs,
+  LatexAttrs,
+  ListItemAttrs,
   MarkSet,
+  ParagraphAttrs,
   ShapeAttrs,
+  SurfaceAttrs,
   SyncEmbedAttrs,
   SyncEmbedRef,
+  TableAttrs,
 } from "../src/schema";
 
 describe("block registry", () => {
@@ -47,9 +56,52 @@ describe("block registry", () => {
   });
 
   it("pins the exact allowed child sets per container", () => {
-    expect([...(BLOCK_REGISTRY["list-item"].childrenTypes ?? [])].sort()).toEqual(["list-item"]);
+    // The structural containers (the writer contract).
     expect([...(BLOCK_REGISTRY.table.childrenTypes ?? [])].sort()).toEqual(["table-row"]);
     expect([...(BLOCK_REGISTRY["table-row"].childrenTypes ?? [])].sort()).toEqual(["table-cell"]);
+    // The remodeled page types: no children of their own; the LEGACY form
+    // (still valid v1) keeps its child-type rules.
+    const pageSet = [...(BLOCK_REGISTRY.root.childrenTypes ?? [])].sort();
+    for (const type of ["paragraph", "heading", "callout", "code", "latex"] as const) {
+      expect(BLOCK_REGISTRY[type].children, `${type} is structurally childless`).toBe(false);
+      expect([...(BLOCK_REGISTRY[type].legacyChildrenTypes ?? [])].sort(), `${type} legacy form`).toEqual(pageSet);
+    }
+    expect(BLOCK_REGISTRY["list-item"].children).toBe(false);
+    expect([...(BLOCK_REGISTRY["list-item"].legacyChildrenTypes ?? [])].sort()).toEqual(["list-item"]);
+    // The flat page sequences (the indent-jump rule contexts).
+    expect(BLOCK_REGISTRY.root.sequence).toBe(true);
+    expect(BLOCK_REGISTRY["table-cell"].sequence).toBe(true);
+    expect(BLOCK_REGISTRY.frame.sequence).toBe(true);
+    for (const type of ["table", "table-row", "surface", "list-item"] as const) {
+      expect(BLOCK_REGISTRY[type].sequence, `${type} is not a page sequence`).toBeFalsy();
+    }
+  });
+
+  it("pins the indent attr: every page-sequence type, none on the structural-context types", () => {
+    for (const type of [
+      "paragraph",
+      "heading",
+      "list-item",
+      "callout",
+      "code",
+      "latex",
+      "table",
+      "image",
+      "embed",
+      "sync-embed",
+      "divider",
+      "database",
+      "surface",
+    ] as const) {
+      expect(BLOCK_REGISTRY[type].attrs?.indent, `indent on ${type}`).toEqual({
+        kind: "number",
+        integer: true,
+        min: 0,
+      });
+    }
+    for (const type of ["table-row", "table-cell", "shape", "connector", "frame", "canvas-text"] as const) {
+      expect(BLOCK_REGISTRY[type].attrs?.indent, `no indent on ${type}`).toBeUndefined();
+    }
   });
 
   it("pins the canvas child sets: surface (no nested surface), frame (page blocks only)", () => {
@@ -207,7 +259,9 @@ describe("type shapes", () => {
     // Extract keeps working per member and carries the geometry.
     type Shape = Extract<Block, { type: "shape" }>;
     expectTypeOf<Shape["geometry"]>().toEqualTypeOf<Geometry | undefined>();
-    expectTypeOf<AttrsFor<"surface">>().toEqualTypeOf<undefined>();
+    // The flat page model: the surface (a page-sequence type) carries the
+    // optional indent; the frame (structural context) has no attrs.
+    expectTypeOf<AttrsFor<"surface">>().toEqualTypeOf<SurfaceAttrs | undefined>();
     expectTypeOf<AttrsFor<"frame">>().toEqualTypeOf<undefined>();
   });
 
@@ -230,6 +284,22 @@ describe("type shapes", () => {
     expectTypeOf<EmbedAttrs["src"]>().toEqualTypeOf<string>();
     expectTypeOf<EmbedAttrs["title"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<AttrsFor<"embed">>().toEqualTypeOf<EmbedAttrs>();
+  });
+
+  it("indent: an optional number on every page-sequence type (the flat page model)", () => {
+    expectTypeOf<ParagraphAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<HeadingAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<ListItemAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<CalloutAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<CodeAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<LatexAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<TableAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<ImageAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<EmbedAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<SyncEmbedAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<DividerAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<DatabaseAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<SurfaceAttrs["indent"]>().toEqualTypeOf<number | undefined>();
   });
 
   it("sync-embed attrs: required ref with required docId, optional blockId", () => {

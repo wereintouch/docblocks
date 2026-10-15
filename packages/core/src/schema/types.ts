@@ -1,9 +1,15 @@
 /**
  * Schema v1 — public data types.
  *
- * A document is a plain JSON object: metadata plus a flat block map with
- * explicit ordering via `children`. The JSON form and the CRDT form are
- * isomorphic: every field has exactly one CRDT image.
+ * A document is a plain JSON object: metadata plus a flat block map. The
+ * page content is ONE FLAT SEQUENCE per page (the root sequence, a cell's
+ * mini-doc sequence, a frame's nested page); nesting is the optional
+ * `indent` attribute relative to the preceding block of the same sequence.
+ * `children` is the structural order of the true containers (root,
+ * table-row, table-cell, surface, frame) and the LEGACY nesting form of the
+ * remodeled page types (readable, normalized to `indent` on load; the
+ * writer never emits it). The JSON form and the CRDT form are isomorphic:
+ * every field has exactly one CRDT image.
  */
 import type { Block } from "./block-union";
 
@@ -61,35 +67,50 @@ interface DocJSON extends DocMeta {
   blocks: Record<BlockId, Block>;
 }
 
+/** The flat-page nesting depth of a page block relative to the preceding block of the same sequence (default 0). */
+type PageIndent = number;
+
 interface HeadingAttrs {
   /** Heading level 1-6. */
   level: 1 | 2 | 3 | 4 | 5 | 6;
   align?: TextAlign;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface ListItemAttrs {
   list: "bullet" | "number" | "task";
   checked?: boolean;
   align?: TextAlign;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface ParagraphAttrs {
   align?: TextAlign;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface CalloutAttrs {
   variant?: "info" | "warning" | "danger";
   align?: TextAlign;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface CodeAttrs {
   language?: string;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface LatexAttrs {
   /** Display (block) formula vs inline. */
   display: boolean;
   align?: TextAlign;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface TableCellAttrs {
@@ -99,6 +120,8 @@ interface TableCellAttrs {
 interface TableAttrs {
   /** Column count; every row holds exactly `cols` cells. */
   cols: number;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface ImageAttrs {
@@ -107,6 +130,8 @@ interface ImageAttrs {
   /** Width in px; `null` = natural width. */
   width?: number | null;
   align?: TextAlign;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface EmbedAttrs {
@@ -116,6 +141,8 @@ interface EmbedAttrs {
   src: string;
   /** Accessible title; falls back to the kind in the renderer. */
   title?: string;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface RootBlock {
@@ -128,7 +155,7 @@ interface ParagraphBlock {
   type: "paragraph";
   attrs?: ParagraphAttrs;
   content?: BlockContent;
-  /** Optional nested content: the full page block set. */
+  /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
   children?: BlockId[];
 }
 
@@ -136,7 +163,7 @@ interface HeadingBlock {
   type: "heading";
   attrs: HeadingAttrs;
   content?: BlockContent;
-  /** Optional nested content: the full page block set. */
+  /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
   children?: BlockId[];
 }
 
@@ -144,7 +171,7 @@ interface ListItemBlock {
   type: "list-item";
   attrs: ListItemAttrs;
   content?: BlockContent;
-  /** Nested `list-item` blocks only. */
+  /** LEGACY nesting form (readable v1): nested `list-item` blocks only; normalized to `indent` on load. */
   children?: BlockId[];
 }
 
@@ -152,7 +179,7 @@ interface CalloutBlock {
   type: "callout";
   attrs?: CalloutAttrs;
   content?: BlockContent;
-  /** Optional nested content: the full page block set. */
+  /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
   children?: BlockId[];
 }
 
@@ -160,7 +187,7 @@ interface CodeBlock {
   type: "code";
   attrs?: CodeAttrs;
   content?: BlockContent;
-  /** Optional nested content: the full page block set. */
+  /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
   children?: BlockId[];
 }
 
@@ -169,7 +196,7 @@ interface LatexBlock {
   attrs: LatexAttrs;
   /** Text is the LaTeX source. */
   content?: BlockContent;
-  /** Optional nested content: the full page block set. */
+  /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
   children?: BlockId[];
 }
 
@@ -219,6 +246,8 @@ interface SyncEmbedRef {
 interface SyncEmbedAttrs {
   /** The reference to the master document. */
   ref: SyncEmbedRef;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
 }
 
 interface SyncEmbedBlock {
@@ -226,8 +255,14 @@ interface SyncEmbedBlock {
   attrs: SyncEmbedAttrs;
 }
 
+interface DividerAttrs {
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
+}
+
 interface DividerBlock {
   type: "divider";
+  attrs?: DividerAttrs;
 }
 
 export type {
@@ -239,6 +274,7 @@ export type {
   CodeBlock,
   DocJSON,
   DocMeta,
+  DividerAttrs,
   DividerBlock,
   EmbedAttrs,
   EmbedBlock,
@@ -252,6 +288,7 @@ export type {
   ListItemBlock,
   MarkName,
   MarkSet,
+  PageIndent,
   ParagraphAttrs,
   ParagraphBlock,
   RootBlock,
@@ -266,6 +303,7 @@ export type {
   SyncEmbedRef,
   TextRun,
 };
+
 export type {
   CanvasRef,
   CanvasTextAttrs,
@@ -276,6 +314,7 @@ export type {
   Geometry,
   ShapeAttrs,
   ShapeBlock,
+  SurfaceAttrs,
   SurfaceBlock,
   WithGeometry,
 } from "./canvas";

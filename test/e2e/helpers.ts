@@ -6,6 +6,8 @@ declare global {
     __insertBlock?: (client: "a" | "b", type: string) => string | null;
     /** The playground panes' live docs (per letter; null until the pane is mounted) — the command API the e2e suite reads/drives. */
     __paneDocs?: { a: PaneDoc | null; b: PaneDoc | null };
+    /** The playground panes' master docs (the sync-embed targets, per letter; null until the pane is mounted) — the master's command API the e2e suite reads/drives. */
+    __masterDocs?: { a: MasterDoc | null; b: MasterDoc | null };
   }
 }
 
@@ -26,6 +28,11 @@ interface PaneDoc {
     content?: { text: string; marks: Record<string, unknown> }[];
   } | null;
   insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string }): string;
+}
+
+/** The pane's master doc (the sync-embed target) — the structural surface the specs may read/drive (the mounted global is the full core `Doc`). */
+interface MasterDoc extends PaneDoc {
+  meta: { id: string };
 }
 
 /**

@@ -1,8 +1,10 @@
 /**
  * Chain-level text range commands: deleteTextRange, setMarkRange.
  *
- * A cross-block range spans the DFS chain between its endpoint blocks (the
- * reading-order chain the selection engine maintains). The range is
+ * A cross-block range spans the reading-order chain between its endpoint
+ * blocks (a contiguous page-sequence segment for page content, the
+ * structural descent for cells and frames — the chain the selection
+ * engine maintains). The range is
  * resolved per block: the from block's tail [from.offset, end), every block
  * strictly between (a text block in full, a non-text block removed whole),
  * the to block's head [0, to.offset). One command = one local transaction:
@@ -10,13 +12,13 @@
  *
  * Postures:
  * - deleteTextRange removes the fully covered middle blocks of any type
- *   (a block's children cascade with it, v1) and removes the endpoint
- *   blocks whose whole text lies inside the range (their children cascade
- *   too). The returned caret seam: the from block's range start when that
- *   block keeps a prefix (offset > 0), the to block's start when it keeps
- *   a suffix (offset < its length), else the first block with text at or
- *   after the deleted interval; null when the document carries no text
- *   left at all.
+ *   (a structural container's children cascade with it) and removes the
+ *   endpoint blocks whose whole text lies inside the range (their children
+ *   cascade too). The returned caret seam: the from block's range start
+ *   when that block keeps a prefix (offset > 0), the to block's start when
+ *   it keeps a suffix (offset < its length), else the first block with
+ *   text at or after the deleted interval; null when the document carries
+ *   no text left at all.
  * - setMarkRange applies the mark to the per-block segments; the per-block
  *   setMark rejects marks in a code block, so the cross command rejects
  *   the whole range when any covered text block is a code block.
@@ -84,8 +86,8 @@ function requireTextPoint(ydoc: Y.Doc, point: RangePoint, label: string): ValidP
 }
 
 /**
- * The DFS chain between the two points, from-block first. The to point
- * must come after the from point in document order (and both must be
+ * The reading-order chain between the two points, from-block first. The to
+ * point must come after the from point in document order (and both must be
  * reachable); otherwise the range is inverted or does not exist.
  */
 function chainSpan(ydoc: Y.Doc, fromId: BlockId, toId: BlockId): { chain: BlockId[]; toIndex: number } {

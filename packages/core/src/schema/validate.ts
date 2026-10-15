@@ -440,6 +440,48 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
   }
 }
 
+/** The block's effective indent; absent (or a non-integer, reported by the attrs spec) is 0. */
+function indentOf(block: Record<string, unknown>): number {
+  const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
+  const indent = attrs?.indent;
+  return typeof indent === "number" && Number.isInteger(indent) ? indent : 0;
+}
+
+/**
+ * The indent-jump rule of a flat page sequence: a block's indent may
+ * exceed the preceding block's indent by at most 1 (the first block anchors
+ * at 0 — there is no block to attach to). Runs per sequence container
+ * (registry `sequence` flag: root, table-cell, frame); structural order
+ * (table-row grid, surface z-order) ignores indent.
+ */
+function validateSequences(blocks: Record<string, unknown>, errors: ValidationError[]): void {
+  for (const block of Object.values(blocks)) {
+    if (!isPlainObject(block)) continue;
+    const type = block.type;
+    if (typeof type !== "string" || !(type in BLOCK_REGISTRY) || !BLOCK_REGISTRY[type as BlockType].sequence) continue;
+    if (!Array.isArray(block.children)) continue; // a missing/non-array order is reported above
+    let prev = -1; // virtual: before the first block
+    block.children.forEach((childId, index) => {
+      if (typeof childId !== "string" || !(childId in blocks)) return; // reported above
+      const child = blocks[childId];
+      if (!isPlainObject(child)) return;
+      const indent = indentOf(child);
+      if (index === 0 && indent > 0) {
+        errors.push({
+          path: `blocks.${childId}.attrs.indent`,
+          message: `The first block of a page sequence must have indent 0 (got ${indent}).`,
+        });
+      } else if (indent > prev + 1) {
+        errors.push({
+          path: `blocks.${childId}.attrs.indent`,
+          message: `Attribute "indent" must not exceed the preceding block's indent (${prev}) by more than 1 (got ${indent}).`,
+        });
+      }
+      prev = indent;
+    });
+  }
+}
+
 function validateAttrs(
   type: BlockType,
   spec: BlockSpec,
@@ -637,9 +679,14 @@ function validateDoc(json: unknown): ValidationError[] {
       validateContent(blockType, block.content, `blocks.${id}.content`, errors);
     }
 
-    if (!spec.children && "children" in block) {
+    // Writer contract vs legacy form: structural containers keep `children`
+    // (their order); the remodeled page types carry it only in the legacy
+    // nesting form (still valid v1, the same child-type rules apply). Both
+    // shapes are accepted; the strictness is about the rules, not the shape.
+    const allowedChildTypes = spec.childrenTypes ?? spec.legacyChildrenTypes;
+    if ("children" in block && allowedChildTypes === undefined) {
       errors.push({ path: `blocks.${id}.children`, message: `Block type "${blockType}" has no children.` });
-    } else if ("children" in block && spec.children) {
+    } else if ("children" in block && allowedChildTypes !== undefined) {
       if (!Array.isArray(block.children)) {
         errors.push({
           path: `blocks.${id}.children`,
@@ -671,8 +718,7 @@ function validateDoc(json: unknown): ValidationError[] {
           }
           const childBlock = blocks[childId];
           if (isPlainObject(childBlock) && typeof childBlock.type === "string" && childBlock.type in BLOCK_REGISTRY) {
-            const allowed = spec.childrenTypes;
-            if (allowed && !allowed.includes(childBlock.type as BlockType)) {
+            if (!allowedChildTypes.includes(childBlock.type as BlockType)) {
               errors.push({
                 path: childPath,
                 message: `Block type "${childBlock.type}" is not allowed as a child of "${blockType}".`,
@@ -723,6 +769,9 @@ function validateDoc(json: unknown): ValidationError[] {
       errors.push({ path: `blocks.${id}`, message: `Orphan block "${id}" (unreachable from root).` });
     }
   }
+
+  // The flat page sequences: the indent-jump rule per sequence container.
+  validateSequences(blocks, errors);
 
   // Every table row holds exactly the parent table's `cols` cells.
   for (const [id, block] of Object.entries(blocks)) {

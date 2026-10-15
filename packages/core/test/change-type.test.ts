@@ -40,7 +40,7 @@ describe("changeBlockType", () => {
     if (block?.type !== "list-item") throw new Error("the type did not change");
     expect(block.attrs.list).toBe("number");
     expect(doc.getText(p)).toBe("hello");
-    // The leaf -> container step creates the (empty) children array.
+    // Structurally childless: the nesting is the indent attr, not a children field.
     expect(doc.getChildren(p)).toEqual([]);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
@@ -113,17 +113,18 @@ describe("changeBlockType", () => {
     expect(doc.getText(p)).toBe("kept");
   });
 
-  it("rejects a text container becoming a leaf while it has children", () => {
+  it("rejects a contentful block becoming a contentless one (the text would be lost)", () => {
     const doc = newDoc();
     const p = doc.insertBlock("paragraph");
     doc.insertText(p, 0, "keep");
-    const child = doc.insertBlock("paragraph", undefined, { parent: p });
+    const nested = doc.insertBlock("paragraph");
+    doc.updateBlock(nested, { indent: 1 }); // the flat "child" of p
 
     expectThrows(() => doc.changeBlockType(p, "image", { src: "blobs/x.png" }), InvalidOperationError);
 
     const block = doc.getBlock(p);
     expect(block?.type).toBe("paragraph");
-    expect(doc.getChildren(p)).toEqual([child]);
+    expect(doc.getChildren(p)).toEqual([]);
   });
 
   it("rejects children the target cannot hold", () => {
@@ -169,19 +170,21 @@ describe("changeBlockType", () => {
     expect(doc.getBlock(cell)?.type).toBe("table-cell");
   });
 
-  it("accepts a target without attrs (no attrs to validate)", () => {
+  it("accepts a target whose attrs are all optional (the dropped cols attr is gone)", () => {
     const doc = newDoc();
-    // A rowless table (contentless, attrs of its own) becomes a divider
-    // (no attrs at all): the dropped cols attr is gone, nothing is written.
+    // A rowless table (contentless, attrs of its own) becomes a paragraph
+    // (only optional attrs): the dropped cols attr is gone, nothing is written.
     const table = doc.insertBlock("table", { cols: 1 });
-    doc.changeBlockType(table, "divider");
+    doc.changeBlockType(table, "paragraph");
     const block = doc.getBlock(table);
-    expect(block?.type).toBe("divider");
+    expect(block?.type).toBe("paragraph");
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("rejects a patch for a target without attrs", () => {
+  it("rejects a patch with an attr the target does not declare", () => {
     const doc = newDoc();
+    // A divider declares only the indent attr: a patch with a foreign key
+    // fails the post-patch validation.
     const table = doc.insertBlock("table", { cols: 1 });
     expectThrows(() => doc.changeBlockType(table, "divider", { extra: 1 } as never), InvalidAttrsError);
   });

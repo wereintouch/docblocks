@@ -23,6 +23,7 @@ import { cn } from "../shared/ui/cn";
 import { GripVertical, Triangle } from "../shared/ui/icons";
 import { renderRunsInto } from "../text/runs-dom";
 import { useBlockContext } from "./block-context";
+import { indentOf, markerCycle, numberMarkerLabel } from "./flat";
 
 /** The text-editable block types (the wrapper tag and data attrs are props). */
 type EditableBlock = Extract<
@@ -35,11 +36,27 @@ interface TextBlockProps {
   block: EditableBlock;
   tag: "div" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "aside" | "li" | "pre";
   /**
-   * Content rendered inside the wrapper after the editable: the nested
-   * child blocks (list-item) or a custom trailing region (the mermaid
-   * diagram preview).
+   * Content rendered inside the wrapper after the editable: the derived
+   * nested content (the flat model's "children" — a list item's sublist /
+   * a text container's nested slot; a list item's content self-gates on
+   * the collapse state) or a custom trailing region (the mermaid diagram
+   * preview).
    */
   nested?: ReactNode;
+  /**
+   * A list item with a non-empty derived segment (the flat model's
+   * "children"): the row shows the collapse toggle (a per-instance view
+   * state, never document data).
+   */
+  collapsible?: boolean;
+  /**
+   * The motion view's flat row: the `number` item's marker stands as a
+   * rendered label (the flat row is `list-style: none` — the native `ol`
+   * marker is absent; the base view numbers the `ol` natively).
+   */
+  flat?: boolean;
+  /** The run position of a `number` item (the marker label; 1-based). */
+  number?: number;
 }
 
 const EMPTY_RUNS: TextRun[] = [];
@@ -87,13 +104,35 @@ function alignOf(block: EditableBlock): "left" | "center" | "right" | undefined 
  * default is suppressed, the gestures issue doc commands, and paste
  * commits plain text. Known v1 limitation: CJK IME composition is not
  * tracked (composition commits character by character).
+ *
+ * The list item's collapse toggle and the checkbox are view affordances:
+ * a per-instance state (the store's collapsedIds / the block's `checked`
+ * attr) — the toggle is never document data, and while collapsed the
+ * derived segment is unmounted (the other panes stand).
+ *
+ * The `number` marker in the flat (motion) view: a rendered label per
+ * level (decimal / lower-alpha / lower-roman, cycled by the marker's
+ * cycle index), from the run position (continuing across the sublist).
  */
-function TextBlock({ id, block, tag, nested }: TextBlockProps) {
+function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, number }: TextBlockProps) {
   const { doc, store, selection: selectionRef } = useEditorContext();
   const blockContext = useBlockContext();
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
-  const hasNested = block.type === "list-item" && (block.children ?? []).length > 0;
+  const collapsibleList = collapsible && block.type === "list-item";
   const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
+  // The marker's cycle index (1|2|3) from the block's indent — the
+  // data-depth attr (the base view's CSS marker cycle; the motion view's
+  // per-level row indent steps are the raw level).
+  const cycle = markerCycle(indentOf(block));
+  // The flat (motion) row's rendered list marker: the base view numbers /
+  // bullets through the native `ol`/`ul` list-style, but a flat row is not
+  // in a list element, so the marker is a rendered span. A `number` item
+  // carries its run-position label (decimal / lower-alpha / lower-roman,
+  // cycled by the marker's cycle); a `bullet` item is an empty span the
+  // stylesheet's ::before glyph fills per data-cycle. A `task` item has
+  // no marker (the checkbox stands in for it).
+  const flatMarkerIsNumber = flat && block.type === "list-item" && block.attrs.list === "number";
+  const flatMarkerIsBullet = flat && block.type === "list-item" && block.attrs.list === "bullet";
 
   const wrapperRef = useRef<HTMLElement | null>(null);
   const innerRef = useRef<HTMLElement | null>(null);
@@ -390,6 +429,7 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
       data-language={block.type === "code" ? block.attrs?.language : undefined}
       data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
       data-align={alignOf(block)}
+      data-depth={block.type === "list-item" ? cycle : undefined}
       data-selected={selected ? "true" : undefined}
       tabIndex={0}
       className={cn("group", wrapperClass)}
@@ -420,7 +460,12 @@ function TextBlock({ id, block, tag, nested }: TextBlockProps) {
           className={checkboxClass}
         />
       )}
-      {hasNested && (
+      {(flatMarkerIsNumber || flatMarkerIsBullet) && (
+        <span data-slot="docblocks/row-marker" data-cycle={cycle} data-kind={block.attrs.list}>
+          {flatMarkerIsNumber && number !== undefined ? numberMarkerLabel(number, cycle) : null}
+        </span>
+      )}
+      {collapsibleList && (
         <Button
           type="button"
           data-slot="docblocks/collapse"

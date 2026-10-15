@@ -312,6 +312,34 @@ describe("cross-block selections", () => {
     });
   });
 
+  it("a flat segment with a deeper-indented subtree reads in sequence order (the chain includes it)", () => {
+    const doc = createDoc({ id: "d1", createdAt: CREATED_AT, generateId: makeIds("b") });
+    // b0 "aaa" (0), b1 "sub" (1), b2 "sub2" (2), b3 "bbb" (0): the flat page
+    // sequence with a two-level subtree (the nesting is the indent attr).
+    for (const [text, indent] of [
+      ["aaa", 0],
+      ["sub", 1],
+      ["sub2", 2],
+      ["bbb", 0],
+    ] as const) {
+      const id = doc.insertBlock("paragraph");
+      doc.insertText(id, 0, text);
+      if (indent > 0) doc.updateBlock(id, { indent });
+    }
+    const sel = createSelection(doc);
+    sel.set(range("b0", 1, "b3", 2));
+
+    // The chain is the contiguous sequence segment: the deeper-indented
+    // subtree blocks read between the endpoints (no descent of their own).
+    expect(asText(sel.get()).blocks).toEqual(["b0", "b1", "b2", "b3"]);
+
+    // Moving the deeper segment out of the span recomputes the chain (the
+    // outdent keeps the jump rule; the landing spot must honor it too).
+    doc.updateBlock("b2", { indent: 0 });
+    doc.moveBlock("b2", doc.meta.id, 4);
+    expect(asText(sel.get()).blocks).toEqual(["b0", "b1", "b3"]);
+  });
+
   it("an unrelated change outside the span leaves the selection untouched", () => {
     const doc = withThreeParagraphs();
     const sel = createSelection(doc);

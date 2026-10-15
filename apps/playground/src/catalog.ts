@@ -51,12 +51,27 @@ function deterministicIdGenerator(): () => string {
   };
 }
 
+/** Insert one list item of `list` kind at `indent` with `text` (one command each); the default indent 0 stays absent from the attrs. */
+function listBlock(
+  doc: Doc,
+  list: "bullet" | "number" | "task",
+  indent: number,
+  text: string,
+  checked?: boolean
+): void {
+  const id = doc.insertBlock("list-item", {
+    list,
+    ...(indent > 0 ? { indent } : {}),
+    ...(checked !== undefined ? { checked } : {}),
+  });
+  doc.insertText(id, 0, text);
+}
+
 /**
  * Build the v1 catalog document: every v1 block type and every v1 mark in a
- * fixed order, via public core commands only. The whole build is one
- * transaction: one wire update and one undo step. The trailing paragraph is
- * the last paragraph in reading order, so the pane's current-block label
- * lands on it.
+ * fixed order, via public core commands only (the flat page model — the
+ * nesting is the `indent` attr relative to the PRECEDING block). The whole
+ * build is one transaction: one wire update and one undo step.
  */
 function buildCatalogDoc(doc: Doc): void {
   doc.transact(() => {
@@ -70,21 +85,31 @@ function buildCatalogDoc(doc: Doc): void {
       doc.insertText(heading, 0, `Heading ${level}`);
     }
 
-    // Lists: all three variants and a nested level under the second bullet.
-    const bulletOne = doc.insertBlock("list-item", { list: "bullet" });
-    doc.insertText(bulletOne, 0, "bullet one");
-    const bulletTwo = doc.insertBlock("list-item", { list: "bullet" });
-    doc.insertText(bulletTwo, 0, "bullet two");
-    const nested = doc.insertBlock("list-item", { list: "bullet" }, { parent: bulletTwo });
-    doc.insertText(nested, 0, "nested bullet");
-    const numberOne = doc.insertBlock("list-item", { list: "number" });
-    doc.insertText(numberOne, 0, "number one");
-    const numberTwo = doc.insertBlock("list-item", { list: "number" });
-    doc.insertText(numberTwo, 0, "number two");
-    const taskOpen = doc.insertBlock("list-item", { list: "task" });
-    doc.insertText(taskOpen, 0, "task open");
-    const taskDone = doc.insertBlock("list-item", { list: "task", checked: true });
-    doc.insertText(taskDone, 0, "task done");
+    // Bullet list, four indents: the marker cycle disc / circle / square
+    // and its wrap back to disc at indent 3.
+    listBlock(doc, "bullet", 0, "bullet one");
+    listBlock(doc, "bullet", 0, "bullet two");
+    listBlock(doc, "bullet", 1, "nested bullet");
+    listBlock(doc, "bullet", 2, "deeper bullet");
+    listBlock(doc, "bullet", 3, "deepest bullet");
+
+    // Numbered list with sublists: the numbering continues across the
+    // sublist (markdown semantics — 1. [sub] 2.); the marker cycle is
+    // decimal / lower-alpha / lower-roman, wrapping to decimal at indent 3.
+    listBlock(doc, "number", 0, "number one");
+    listBlock(doc, "number", 1, "nested number");
+    listBlock(doc, "number", 0, "number two");
+    listBlock(doc, "number", 1, "deeper number");
+    listBlock(doc, "number", 2, "deepest number");
+    listBlock(doc, "number", 3, "deepnest number");
+
+    // Task list across the four indents (no marker — the checkbox stands
+    // in for it), one checked item per the v1 affordance.
+    listBlock(doc, "task", 0, "task open");
+    listBlock(doc, "task", 0, "task done", true);
+    listBlock(doc, "task", 1, "nested task");
+    listBlock(doc, "task", 2, "deep task");
+    listBlock(doc, "task", 3, "deepest task");
 
     // Callouts: the default (info) plus every registry variant.
     const calloutDefault = doc.insertBlock("callout");
@@ -146,14 +171,14 @@ function buildCatalogDoc(doc: Doc): void {
     const trailing = doc.insertBlock("paragraph");
     doc.insertText(trailing, 0, "Trailing paragraph");
 
-    // Nested under text (the v1.1 extension): a paragraph holding the full
-    // page set — an indented paragraph + an indented list (the
-    // docblocks/nested render slot, the CSS indent).
+    // Nested under text: a paragraph with an indented segment — the flat
+    // model's text-container content (an indented paragraph + an indented
+    // list item, the rows' per-level indent).
     const nestedUnder = doc.insertBlock("paragraph");
     doc.insertText(nestedUnder, 0, "Nested under text");
-    const nestedParagraph = doc.insertBlock("paragraph", undefined, { parent: nestedUnder });
+    const nestedParagraph = doc.insertBlock("paragraph", { indent: 1 });
     doc.insertText(nestedParagraph, 0, "Indented paragraph");
-    const nestedList = doc.insertBlock("list-item", { list: "bullet" }, { parent: nestedUnder });
+    const nestedList = doc.insertBlock("list-item", { list: "bullet", indent: 1 });
     doc.insertText(nestedList, 0, "Indented list item");
   });
 }

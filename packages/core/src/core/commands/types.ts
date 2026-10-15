@@ -19,7 +19,7 @@ import {
 import { localTransact, writeAttrValue } from "../layout";
 import { readBlock } from "../read";
 import { assertValidDatabaseInsert } from "./database";
-import { blockTypeOf, childrenOf, findParent, getBlockMap } from "./structure";
+import { blockTypeOf, childrenOf, findParent, getBlockMap, indentJumpViolation } from "./structure";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -120,6 +120,18 @@ function changeBlockType(ydoc: Y.Doc, id: string, type: BlockType, attrs: unknow
     }
   } else if (Object.keys(merged).length > 0) {
     throw new InvalidAttrsError(`Block type "${type}" has no attributes.`);
+  }
+
+  // The flat page model: the post-change indent must keep the sequence's
+  // jump rule at the block's position (the position itself does not move).
+  if (parentSpec.sequence === true) {
+    const seq = childrenOf(ydoc, parentId);
+    const childIds = seq !== null ? seq.toArray() : [];
+    const newIndent = typeof merged.indent === "number" ? merged.indent : 0;
+    const violation = indentJumpViolation(ydoc, childIds, childIds.indexOf(id), newIndent);
+    if (violation !== null) {
+      throw new InvalidAttrsError(`Invalid attrs for type "${type}" on block "${id}": ${violation}.`);
+    }
   }
 
   // The block-level invariants the registry attrs spec does not express:

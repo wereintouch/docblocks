@@ -29,6 +29,8 @@ declare global {
   interface Window {
     /** Harness-only: the live docs of the mounted panes (per letter; null until the pane's effect ran); the e2e suite drives the command API through them. */
     __paneDocs?: { a: Doc | null; b: Doc | null };
+    /** Harness-only: the mounted panes' master docs (the sync-embed targets, per letter; null until the pane's effect ran); the e2e suite drives the master's command API through them. */
+    __masterDocs?: { a: Doc | null; b: Doc | null };
     /** Harness-only: inserts a v1 block of `type` into the pane's doc with the harness attrs (see insert-blocks.ts) and returns its id (null if the pane is not mounted); the e2e suite's insert path in place of the removed insert controls. */
     __insertBlock?: (client: "a" | "b", type: string) => string | null;
   }
@@ -178,6 +180,14 @@ function SyncPane({
       b: client === "b" ? doc : (window.__paneDocs?.b ?? null),
     };
 
+    // The pane's master doc (per letter) for the e2e tests that drive the
+    // sync-embed master's command API (the peer-side edits into the
+    // subtree's derived segment).
+    window.__masterDocs = {
+      a: client === "a" ? master.doc : (window.__masterDocs?.a ?? null),
+      b: client === "b" ? master.doc : (window.__masterDocs?.b ?? null),
+    };
+
     void provider
       .connect()
       .then(() => setConnected(true))
@@ -197,6 +207,10 @@ function SyncPane({
       window.__paneDocs = {
         a: client === "a" ? null : (window.__paneDocs?.a ?? null),
         b: client === "b" ? null : (window.__paneDocs?.b ?? null),
+      };
+      window.__masterDocs = {
+        a: client === "a" ? null : (window.__masterDocs?.a ?? null),
+        b: client === "b" ? null : (window.__masterDocs?.b ?? null),
       };
       setConnected(false);
       setBlocks([]);

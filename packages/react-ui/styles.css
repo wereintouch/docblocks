@@ -39,13 +39,13 @@
  *
  * Structural hooks (the DOM surface consumers can target): all structural
  * styling lives in the components' Tailwind classes (which read these
- * tokens) + the imperative drag-session rules below;
+ * tokens) + the flat-row marker rules below;
  * `data-slot` (docblocks/editor, docblocks/block,
  * docblocks/block-content, docblocks/gutter, docblocks/list,
  * docblocks/list-item, docblocks/nested, docblocks/placeholder,
  * docblocks/presence-caret, docblocks/presence-range,
  * docblocks/slash-menu,
- * docblocks/drag-line, docblocks/checkbox, docblocks/collapse,
+ * docblocks/row, docblocks/row-marker, docblocks/checkbox, docblocks/collapse,
  * docblocks/format-toolbar, docblocks/format-list-menu,
  * docblocks/format-palette),
  * plus the per-block elements;
@@ -94,7 +94,6 @@
   /* The gutter's left edge (derived: the grip control sits in the left
      margin, its right edge `offset` px clear of the block content). */
   --docblocks-gutter-left: calc(-1 * (var(--docblocks-gutter-size) + var(--docblocks-gutter-offset)));
-  --docblocks-drag-line-color: var(--primary, #2563eb);
 
   /* Headings. */
   --docblocks-heading-font-weight: 600;
@@ -177,28 +176,33 @@
 }
 
 /*
- * The list-drag session (the motion view): the lifted item follows the
- * pointer via an inline transform; the attrs below are set by the
- * session at runtime (outside the React lifecycle), so the session stays
- * attribute-driven — the remaining structural rules in this file (the
- * other zones read their tokens from the components' Tailwind classes),
- * inert outside a drag.
+ * The flat-row list marker (the motion view): a row is not in a list
+ * element, so the marker is a rendered span in the marker gutter (the
+ * row's left step — the list padding, to the left of the row content).
+ * The bullet glyph cycles per level (the base view's list-style cycle —
+ * disc / circle / square); a `number` row carries its run-position label
+ * (decimal / lower-alpha / lower-roman, continuing across the sublist) as
+ * text; a `task` row has no marker (the checkbox stands in for it).
  */
-[data-slot="docblocks/editor"] [data-docblocks-dragging] {
-  background: var(--docblocks-selected-background);
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-  z-index: 10;
+[data-docblocks-motion] [data-slot="docblocks/row-marker"] {
+  position: absolute;
+  top: 0.25em;
+  left: calc(-1 * var(--docblocks-list-padding-left) + 2px);
+  color: var(--docblocks-text-color);
+  pointer-events: none;
+  user-select: none;
 }
 
-/* The drop line (positioned by the session, anchored in the editor root). */
-[data-slot="docblocks/editor"] [data-slot="docblocks/drag-line"] {
-  position: absolute;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--docblocks-drag-line-color);
-  pointer-events: none;
-  z-index: 20;
+[data-docblocks-motion] [data-slot="docblocks/row-marker"][data-kind="bullet"][data-cycle="1"]::before {
+  content: "\2022"; /* disc */
+}
+
+[data-docblocks-motion] [data-slot="docblocks/row-marker"][data-kind="bullet"][data-cycle="2"]::before {
+  content: "\25E6"; /* circle */
+}
+
+[data-docblocks-motion] [data-slot="docblocks/row-marker"][data-kind="bullet"][data-cycle="3"]::before {
+  content: "\25AA"; /* square */
 }
 
 /*
@@ -221,7 +225,6 @@
   --docblocks-divider-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-table-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
-  --docblocks-drag-line-color: var(--primary, #58a6ff);
 
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #6e7681) 15%, transparent);
   --docblocks-frame-background: var(--card, #161b22);

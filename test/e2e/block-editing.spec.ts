@@ -27,12 +27,9 @@ function wrappers(page: Page, client: "a" | "b") {
   return pane(page, client).locator('[data-block-id]:not([data-slot="docblocks/block-content"])');
 }
 
-/** The top-level list items (the list rendered directly under the editor root). */
-/** The pane's top-level list items (a list not nested inside a list item; the motion view wraps the root entries in entry divs). */
-function topLis(page: Page, client: "a" | "b") {
-  return pane(page, client).locator(
-    '[data-slot="docblocks/editor"] ul[data-slot="docblocks/list"]:not(li ul[data-slot="docblocks/list"]) > li'
-  );
+/** The pane's list item rows (the flat model: each item is its own row — no list element wraps it in the motion view). */
+function listItems(page: Page, client: "a" | "b") {
+  return pane(page, client).locator('[data-block-type="list-item"]');
 }
 
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {
@@ -133,36 +130,57 @@ test("Backspace at the block start merges into the previous block", async ({ bro
   await close();
 });
 
-test("Tab nests the list item under the previous one; Shift+Tab un-nests", async ({ browser }) => {
+test("Tab indents the list item (an indent attr update); Shift+Tab brings it back", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03b-tab");
 
   await insertType(a, "a", "list-item");
   await insertType(a, "a", "list-item");
-  await expect(topLis(b, "b"), SETTLE).toHaveCount(2);
+  await expect(listItems(b, "b"), SETTLE).toHaveCount(2);
 
-  // Caret in the second item, Tab: it moves into the first item's children.
-  const secondInner = topLis(a, "a").nth(1).locator('[data-slot="docblocks/block-content"]');
+  // The ids of the two items (root order: the room's two seeded rows first).
+  const rootOrder = await a.evaluate((c) => {
+    const d = window.__paneDocs?.[c] ?? null;
+    if (d === null) throw new Error("the pane's doc is not mounted");
+    return d.getChildren(d.toJSON().id);
+  }, "a");
+  const secondId = rootOrder[3]!;
+
+  // Caret in the second item, Tab: the flat model's indent attr update —
+  // the sequence stands, the item's row steps in one level. Each pane's
+  // doc handle lives on its own page (__paneDocs), so read each pane on
+  // its own page.
+  const secondInner = listItems(a, "a").nth(1).locator('[data-slot="docblocks/block-content"]');
   await secondInner.click();
   await a.keyboard.press("Tab");
 
-  await expect(topLis(b, "b"), SETTLE).toHaveCount(1);
-  const nested = topLis(b, "b").first().locator('ul[data-slot="docblocks/list"] > li');
-  await expect(nested, SETTLE).toHaveCount(1);
-  await expect(nested.first().locator('[data-slot="docblocks/block-content"]'), SETTLE).toHaveText("", SETTLE);
+  const indentOf = (client: "a" | "b", id: string) =>
+    (client === "a" ? a : b).evaluate(
+      ({ c, id }) => {
+        const d = window.__paneDocs?.[c as "a" | "b"] ?? null;
+        const block = d === null ? null : d.getBlock(id);
+        return block === null ? undefined : (block.attrs as { indent?: number } | undefined)?.indent;
+      },
+      { c: client, id }
+    );
+  await expect.poll(async () => indentOf("a", secondId), SETTLE).toBe(1);
+  await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(1);
+  // The sequence order stands (a Tab is an attr update, never a move), and
+  // the indented row's left step is two nested indents (the item's own
+  // level + the list marker gutter).
+  expect(
+    await a.evaluate((c) => window.__paneDocs?.[c as "a"]?.getChildren(window.__paneDocs[c as "a"]!.toJSON().id), "a")
+  ).toEqual(rootOrder);
+  const secondRow = a.locator(`[data-slot="docblocks/row"]:has([data-block-id="${secondId}"])`);
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("48px");
 
-  // Shift+Tab in the nested item brings it back to the top level (click and
-  // key on the same page: the caret must sit in the nested item there).
-  const nestedInner = topLis(a, "a")
-    .first()
-    .locator('ul[data-slot="docblocks/list"] > li')
-    .first()
-    .locator('[data-slot="docblocks/block-content"]');
-  await nestedInner.click();
+  // Shift+Tab in the indented item brings it back to the top level (the
+  // gesture writes the indent as an explicit 0 — the writer omits the
+  // default at export; the row keeps its list marker gutter step).
+  await secondInner.click();
   await a.keyboard.press("Shift+Tab");
-
-  await expect(topLis(a, "a"), SETTLE).toHaveCount(2);
-  await expect(topLis(b, "b"), SETTLE).toHaveCount(2);
-  await expect(topLis(b, "b").first().locator("ul"), SETTLE).toHaveCount(0);
+  await expect.poll(async () => indentOf("a", secondId), SETTLE).toBe(0);
+  await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(0);
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("24px");
 
   await close();
 });

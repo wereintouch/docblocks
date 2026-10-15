@@ -7,10 +7,11 @@ import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
 import {
   focusCaretIn,
+  indentIn,
   mergeWithPrevious,
-  nestIntoPrevious,
-  outdentFrom,
+  outdentBlock,
   restoreSelectionIn,
+  segmentRange,
   splitAt,
 } from "./block-commands";
 import { applyRichPaste } from "./clipboard";
@@ -179,7 +180,23 @@ function useBlockInput({
         if (event.key === "Delete" || event.key === "Backspace") {
           event.preventDefault();
           doc.transact(() => {
-            for (const blockId of selection.ids) doc.removeBlock(blockId);
+            // Each selected block's derived segment (its deeper
+            // followers) goes with it: the core's removeBlock cascades
+            // the segment, so the removals run head-first and skip what
+            // a previous cascade already took (the cross-range
+            // commands' skip-already-removed pattern) — a single-block
+            // selection is one removeBlock, a multi-block selection one
+            // transact (one undo step).
+            for (const blockId of selection.ids) {
+              if (doc.getBlock(blockId) === null) continue; // a previous cascade took it
+              const segment = segmentRange(doc, context.parentId, blockId);
+              if (segment === null) continue;
+              const sequence = doc.getChildren(context.parentId);
+              for (let i = segment.start; i < segment.end; i += 1) {
+                const segId = sequence[i];
+                if (segId !== undefined && doc.getBlock(segId) !== null) doc.removeBlock(segId);
+              }
+            }
           });
           view.set({ kind: "none" });
           return;
@@ -218,8 +235,21 @@ function useBlockInput({
         const block = store.getState().blocks[id];
         if (block === undefined) return;
         const text = "content" in block ? (block.content ?? []).reduce((t, run) => t + run.text, "") : "";
-        if (text === "" && slash.onSlashKey(event, id, context.parentId, true, context.parentId === rootBlockId))
-          return;
+        // A trigger that owns a derived segment (deeper followers) does
+        // not open the menu: apply would remove the trigger, and the
+        // core's removeBlock cascades the segment — the nested content
+        // would be lost (the mergeWithPrevious guard's precedent).
+        const segment = segmentRange(doc, context.parentId, id);
+        if (segment !== null && segment.end > segment.start + 1) return;
+        // The menu opens for an empty, top-level (indent 0) block of the
+        // root page sequence (the flat model's "root-level") — or for the
+        // provider's entry root itself (a subtree view's top level, which
+        // may sit at a deeper indent in the full sequence; the apply keeps
+        // the trigger's indent, so the replacement's landing holds).
+        const attrs = "attrs" in block ? (block.attrs as { indent?: unknown } | undefined) : undefined;
+        const indent = typeof attrs?.indent === "number" ? attrs.indent : 0;
+        const isRootLevel = (context.parentId === rootBlockId && indent === 0) || id === rootBlockId;
+        if (text === "" && slash.onSlashKey(event, id, context.parentId, true, isRootLevel)) return;
       }
 
       // isComposing: an Enter during an IME composition commits the
@@ -269,7 +299,7 @@ function useBlockInput({
       if (event.key === "Tab" && !event.nativeEvent.isComposing) {
         if (blockType === "code") {
           // The code block keeps the typewriter Tab: a "\t" at the caret
-          // (one insertText) instead of a structural move.
+          // (one insertText) instead of an indent change.
           if (!event.shiftKey) {
             const domSelection = window.getSelection();
             if (
@@ -290,10 +320,11 @@ function useBlockInput({
           }
           return;
         }
-        // The DOM selection before the move: a structural gesture remounts
-        // the block's subtree, so the gesture's own selection (a caret, or
-        // a range within the block) is captured here and re-seated on the
-        // moved block (the content stands, so the offsets remain valid).
+        // The DOM selection before the gesture: the indent change is a
+        // structural edit (a list item re-derives its nesting — in the
+        // base view its li moves between lists and remounts), so the
+        // gesture's own selection (a caret, or a range within the block)
+        // is captured here and re-seated when the remount dropped it.
         const domSelection = window.getSelection();
         let seat: { from: number; to: number | null } | null = null;
         if (
@@ -314,12 +345,23 @@ function useBlockInput({
         // keeps this node connected while the remount adds the survivor,
         // so the re-seat must not mistake the clone for the target.
         const exclude = innerRef.current ?? null;
-        const acted = event.shiftKey
-          ? outdentFrom(doc, id, context.parentId)
-          : nestIntoPrevious(doc, id, context.parentId);
+        const acted = event.shiftKey ? outdentBlock(doc, id, context.parentId) : indentIn(doc, id, context.parentId);
         if (acted) {
           event.preventDefault();
-          if (seat !== null) restoreSelectionIn(doc, id, seat.from, seat.to, editorRootOf(inner), exclude);
+          // The flat gesture (updateBlock) keeps the block's element where
+          // it stands in the flat-row view (no remount: the selection is
+          // already seated). A remount (a base-view list item moving
+          // between lists) drops the selection — then the re-seat.
+          const freshSelection = window.getSelection();
+          const stillSeated =
+            inner.isConnected &&
+            freshSelection !== null &&
+            freshSelection.rangeCount > 0 &&
+            freshSelection.anchorNode !== null &&
+            inner.contains(freshSelection.anchorNode);
+          if (!stillSeated && seat !== null) {
+            restoreSelectionIn(doc, id, seat.from, seat.to, editorRootOf(inner), exclude);
+          }
         }
       }
     },

@@ -18,6 +18,13 @@ const DATABASE_CELL_TYPES = ["text", "number", "checkbox", "select", "multi-sele
 /** The horizontal text alignment, shared by the text block types. */
 const ALIGN = { kind: "enum", values: ["left", "center", "right"] } as const;
 
+/**
+ * The flat-page nesting depth: a non-negative integer, default
+ * 0, relative to the preceding block of the same page sequence. Carried by
+ * every page-sequence type only.
+ */
+const INDENT = { kind: "number", integer: true, min: 0 } as const;
+
 /** Structural description of a block attribute. */
 interface AttrSpec {
   kind: "boolean" | "string" | "number" | "nullable-number" | "enum" | "object" | "array";
@@ -45,38 +52,52 @@ interface AttrSpec {
 interface BlockSpec {
   /** The block carries inline text content (runs). */
   content: boolean;
-  /** The block carries child blocks. */
+  /** The block carries child blocks in the WRITER contract (the field is read and written). */
   children: boolean;
   /** The block carries row data (the `rows` map + the `rowOrder` order). */
   rows: boolean;
   /** Allowed child block types (present whenever `children` is true). */
   childrenTypes?: readonly BlockType[];
+  /**
+   * The LEGACY child types: the `children` field of these remodeled page
+   * types stays VALID v1 data (the nesting form that predates the flat
+   * page model), with this child-type rule; `flattenDoc` normalizes it to
+   * `indent`, and the writer never emits it. Absent — `children` is
+   * rejected on the type.
+   */
+  legacyChildrenTypes?: readonly BlockType[];
+  /**
+   * The children array is a FLAT PAGE SEQUENCE: `indent`
+   * applies and the indent-jump rule is checked over it. Structural order
+   * without this flag: `table-row` (grid positions), `surface` (z-order).
+   */
+  sequence?: boolean;
   /** Attribute schema; absent — the type has no attributes. */
   attrs?: Record<string, AttrSpec>;
 }
 
 /** The v1 block registry. */
 const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
-  root: { content: false, children: true, rows: false, childrenTypes: PAGE_BLOCK_TYPES },
+  root: { content: false, children: true, rows: false, childrenTypes: PAGE_BLOCK_TYPES, sequence: true },
   paragraph: {
     content: true,
-    children: true,
+    children: false,
     rows: false,
-    childrenTypes: PAGE_BLOCK_TYPES,
+    legacyChildrenTypes: PAGE_BLOCK_TYPES,
     attrs: { align: ALIGN },
   },
   heading: {
     content: true,
-    children: true,
+    children: false,
     rows: false,
-    childrenTypes: PAGE_BLOCK_TYPES,
+    legacyChildrenTypes: PAGE_BLOCK_TYPES,
     attrs: { level: { kind: "enum", values: [1, 2, 3, 4, 5, 6], required: true }, align: ALIGN },
   },
   "list-item": {
     content: true,
-    children: true,
+    children: false,
     rows: false,
-    childrenTypes: ["list-item"],
+    legacyChildrenTypes: ["list-item"],
     attrs: {
       list: { kind: "enum", values: ["bullet", "number", "task"], required: true },
       checked: { kind: "boolean" },
@@ -85,23 +106,23 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   },
   callout: {
     content: true,
-    children: true,
+    children: false,
     rows: false,
-    childrenTypes: PAGE_BLOCK_TYPES,
+    legacyChildrenTypes: PAGE_BLOCK_TYPES,
     attrs: { variant: { kind: "enum", values: ["info", "warning", "danger"] }, align: ALIGN },
   },
   code: {
     content: true,
-    children: true,
+    children: false,
     rows: false,
-    childrenTypes: PAGE_BLOCK_TYPES,
+    legacyChildrenTypes: PAGE_BLOCK_TYPES,
     attrs: { language: { kind: "string" } },
   },
   latex: {
     content: true,
-    children: true,
+    children: false,
     rows: false,
-    childrenTypes: PAGE_BLOCK_TYPES,
+    legacyChildrenTypes: PAGE_BLOCK_TYPES,
     attrs: { display: { kind: "boolean", required: true }, align: ALIGN },
   },
   table: {
@@ -117,6 +138,7 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     children: true,
     rows: false,
     childrenTypes: LEAF_BLOCK_TYPES,
+    sequence: true,
     attrs: { align: ALIGN },
   },
   image: {
@@ -154,7 +176,7 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       },
     },
   },
-  divider: { content: false, children: false, rows: false },
+  divider: { content: false, children: false, rows: false, attrs: { indent: INDENT } },
   database: {
     content: false,
     children: false,
@@ -184,6 +206,13 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   ...CANVAS_BLOCK_SPECS,
 };
 
+// The flat page model: every page-sequence type carries the optional
+// `indent` attr (structural-context types do not). Kept registry-driven:
+// the page set is the type list, not a validator branch.
+for (const type of PAGE_BLOCK_TYPES) {
+  BLOCK_REGISTRY[type].attrs = { ...BLOCK_REGISTRY[type].attrs, indent: INDENT };
+}
+
 /** Structural description of a mark. */
 interface MarkSpec {
   /** `toggle`: the mark value is `true`; `attrs`: the value is an object. */
@@ -209,5 +238,5 @@ const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
   math: { kind: "attrs", exclusive: true, attr: "tex" },
 };
 
-export { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY };
+export { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };
 export type { AttrSpec, BlockSpec, MarkSpec };

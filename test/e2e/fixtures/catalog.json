@@ -16,6 +16,7 @@
         "c0007",
         "c0008",
         "c0009",
+        "c0010",
         "c0011",
         "c0012",
         "c0013",
@@ -28,15 +29,26 @@
         "c0020",
         "c0021",
         "c0022",
-        "c0033",
-        "c0034",
-        "c0035",
-        "c0036",
-        "c0037",
-        "c0040",
-        "c0050",
-        "c0051",
-        "c0052"
+        "c0023",
+        "c0024",
+        "c0025",
+        "c0026",
+        "c0027",
+        "c0028",
+        "c0029",
+        "c0030",
+        "c0031",
+        "c0042",
+        "c0043",
+        "c0044",
+        "c0045",
+        "c0046",
+        "c0049",
+        "c0059",
+        "c0060",
+        "c0061",
+        "c0062",
+        "c0063"
       ]
     },
     "c0001": {
@@ -142,13 +154,13 @@
           "text": "bullet two",
           "marks": {}
         }
-      ],
-      "children": ["c0010"]
+      ]
     },
     "c0010": {
       "type": "list-item",
       "attrs": {
-        "list": "bullet"
+        "list": "bullet",
+        "indent": 1
       },
       "content": [
         {
@@ -160,6 +172,32 @@
     "c0011": {
       "type": "list-item",
       "attrs": {
+        "list": "bullet",
+        "indent": 2
+      },
+      "content": [
+        {
+          "text": "deeper bullet",
+          "marks": {}
+        }
+      ]
+    },
+    "c0012": {
+      "type": "list-item",
+      "attrs": {
+        "list": "bullet",
+        "indent": 3
+      },
+      "content": [
+        {
+          "text": "deepest bullet",
+          "marks": {}
+        }
+      ]
+    },
+    "c0013": {
+      "type": "list-item",
+      "attrs": {
         "list": "number"
       },
       "content": [
@@ -169,7 +207,20 @@
         }
       ]
     },
-    "c0012": {
+    "c0014": {
+      "type": "list-item",
+      "attrs": {
+        "list": "number",
+        "indent": 1
+      },
+      "content": [
+        {
+          "text": "nested number",
+          "marks": {}
+        }
+      ]
+    },
+    "c0015": {
       "type": "list-item",
       "attrs": {
         "list": "number"
@@ -181,7 +232,46 @@
         }
       ]
     },
-    "c0013": {
+    "c0016": {
+      "type": "list-item",
+      "attrs": {
+        "list": "number",
+        "indent": 1
+      },
+      "content": [
+        {
+          "text": "deeper number",
+          "marks": {}
+        }
+      ]
+    },
+    "c0017": {
+      "type": "list-item",
+      "attrs": {
+        "list": "number",
+        "indent": 2
+      },
+      "content": [
+        {
+          "text": "deepest number",
+          "marks": {}
+        }
+      ]
+    },
+    "c0018": {
+      "type": "list-item",
+      "attrs": {
+        "list": "number",
+        "indent": 3
+      },
+      "content": [
+        {
+          "text": "deepnest number",
+          "marks": {}
+        }
+      ]
+    },
+    "c0019": {
       "type": "list-item",
       "attrs": {
         "list": "task"
@@ -193,7 +283,7 @@
         }
       ]
     },
-    "c0014": {
+    "c0020": {
       "type": "list-item",
       "attrs": {
         "list": "task",
@@ -206,7 +296,46 @@
         }
       ]
     },
-    "c0015": {
+    "c0021": {
+      "type": "list-item",
+      "attrs": {
+        "list": "task",
+        "indent": 1
+      },
+      "content": [
+        {
+          "text": "nested task",
+          "marks": {}
+        }
+      ]
+    },
+    "c0022": {
+      "type": "list-item",
+      "attrs": {
+        "list": "task",
+        "indent": 2
+      },
+      "content": [
+        {
+          "text": "deep task",
+          "marks": {}
+        }
+      ]
+    },
+    "c0023": {
+      "type": "list-item",
+      "attrs": {
+        "list": "task",
+        "indent": 3
+      },
+      "content": [
+        {
+          "text": "deepest task",
+          "marks": {}
+        }
+      ]
+    },
+    "c0024": {
       "type": "callout",
       "content": [
         {
@@ -215,7 +344,7 @@
         }
       ]
     },
-    "c0016": {
+    "c0025": {
       "type": "callout",
       "attrs": {
         "variant": "info"
@@ -227,7 +356,7 @@
         }
       ]
     },
-    "c0017": {
+    "c0026": {
       "type": "callout",
       "attrs": {
         "variant": "warning"
@@ -239,7 +368,7 @@
         }
       ]
     },
-    "c0018": {
+    "c0027": {
       "type": "callout",
       "attrs": {
         "variant": "danger"
@@ -251,7 +380,7 @@
         }
       ]
     },
-    "c0019": {
+    "c0028": {
       "type": "code",
       "attrs": {
         "language": "ts"
@@ -263,7 +392,7 @@
         }
       ]
     },
-    "c0020": {
+    "c0029": {
       "type": "code",
       "attrs": {
         "language": "mermaid"
@@ -275,7 +404,7 @@
         }
       ]
     },
-    "c0021": {
+    "c0030": {
       "type": "latex",
       "attrs": {
         "display": true
@@ -287,23 +416,23 @@
         }
       ]
     },
-    "c0022": {
+    "c0031": {
       "type": "table",
       "attrs": {
         "cols": 2
       },
-      "children": ["c0023", "c0028"]
+      "children": ["c0032", "c0037"]
     },
-    "c0023": {
+    "c0032": {
       "type": "table-row",
-      "children": ["c0024", "c0026"]
+      "children": ["c0033", "c0035"]
     },
-    "c0024": {
+    "c0033": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0025"]
+      "children": ["c0034"]
     },
-    "c0025": {
+    "c0034": {
       "type": "paragraph",
       "content": [
         {
@@ -312,12 +441,12 @@
         }
       ]
     },
-    "c0026": {
+    "c0035": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0027"]
+      "children": ["c0036"]
     },
-    "c0027": {
+    "c0036": {
       "type": "paragraph",
       "content": [
         {
@@ -326,16 +455,16 @@
         }
       ]
     },
-    "c0028": {
+    "c0037": {
       "type": "table-row",
-      "children": ["c0029", "c0031"]
+      "children": ["c0038", "c0040"]
     },
-    "c0029": {
+    "c0038": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0030"]
+      "children": ["c0039"]
     },
-    "c0030": {
+    "c0039": {
       "type": "paragraph",
       "content": [
         {
@@ -344,12 +473,12 @@
         }
       ]
     },
-    "c0031": {
+    "c0040": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0032"]
+      "children": ["c0041"]
     },
-    "c0032": {
+    "c0041": {
       "type": "paragraph",
       "content": [
         {
@@ -358,23 +487,23 @@
         }
       ]
     },
-    "c0033": {
+    "c0042": {
       "type": "image",
       "attrs": {
         "src": "demo-image"
       }
     },
-    "c0034": {
+    "c0043": {
       "type": "divider"
     },
-    "c0035": {
+    "c0044": {
       "type": "embed",
       "attrs": {
         "kind": "iframe",
         "src": "data:text/html,%3Chtml%3E%3Cbody%3E%3Cp%3Eembedded%20page%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"
       }
     },
-    "c0036": {
+    "c0045": {
       "type": "sync-embed",
       "attrs": {
         "ref": {
@@ -382,7 +511,7 @@
         }
       }
     },
-    "c0037": {
+    "c0046": {
       "type": "database",
       "attrs": {
         "columns": [
@@ -405,20 +534,20 @@
         ]
       },
       "rows": {
-        "c0038": {
+        "c0047": {
           "name": "First task",
           "done": false,
           "status": "active"
         },
-        "c0039": {
+        "c0048": {
           "name": "Second task",
           "done": true,
           "status": "done"
         }
       },
-      "rowOrder": ["c0038", "c0039"]
+      "rowOrder": ["c0047", "c0048"]
     },
-    "c0040": {
+    "c0049": {
       "type": "surface",
       "geometry": {
         "x": 0,
@@ -426,9 +555,9 @@
         "w": 900,
         "h": 500
       },
-      "children": ["c0041", "c0044", "c0045", "c0046", "c0047", "c0048", "c0049"]
+      "children": ["c0050", "c0053", "c0054", "c0055", "c0056", "c0057", "c0058"]
     },
-    "c0041": {
+    "c0050": {
       "type": "frame",
       "geometry": {
         "x": -180,
@@ -436,9 +565,9 @@
         "w": 280,
         "h": 160
       },
-      "children": ["c0042", "c0043"]
+      "children": ["c0051", "c0052"]
     },
-    "c0042": {
+    "c0051": {
       "type": "heading",
       "attrs": {
         "level": 2
@@ -450,7 +579,7 @@
         }
       ]
     },
-    "c0043": {
+    "c0052": {
       "type": "paragraph",
       "content": [
         {
@@ -459,7 +588,7 @@
         }
       ]
     },
-    "c0044": {
+    "c0053": {
       "type": "shape",
       "attrs": {
         "variant": "rect",
@@ -472,7 +601,7 @@
         "h": 80
       }
     },
-    "c0045": {
+    "c0054": {
       "type": "shape",
       "attrs": {
         "variant": "ellipse"
@@ -484,7 +613,7 @@
         "h": 80
       }
     },
-    "c0046": {
+    "c0055": {
       "type": "shape",
       "attrs": {
         "variant": "diamond"
@@ -496,7 +625,7 @@
         "h": 90
       }
     },
-    "c0047": {
+    "c0056": {
       "type": "shape",
       "attrs": {
         "variant": "line"
@@ -508,7 +637,7 @@
         "h": 60
       }
     },
-    "c0048": {
+    "c0057": {
       "type": "canvas-text",
       "geometry": {
         "x": 140,
@@ -523,19 +652,19 @@
         }
       ]
     },
-    "c0049": {
+    "c0058": {
       "type": "connector",
       "attrs": {
         "start": {
-          "blockId": "c0041"
+          "blockId": "c0050"
         },
         "end": {
-          "blockId": "c0044"
+          "blockId": "c0053"
         },
         "label": "relates to"
       }
     },
-    "c0050": {
+    "c0059": {
       "type": "paragraph",
       "content": [
         {
@@ -613,7 +742,7 @@
         }
       ]
     },
-    "c0051": {
+    "c0060": {
       "type": "paragraph",
       "content": [
         {
@@ -622,18 +751,20 @@
         }
       ]
     },
-    "c0052": {
+    "c0061": {
       "type": "paragraph",
       "content": [
         {
           "text": "Nested under text",
           "marks": {}
         }
-      ],
-      "children": ["c0053", "c0054"]
+      ]
     },
-    "c0053": {
+    "c0062": {
       "type": "paragraph",
+      "attrs": {
+        "indent": 1
+      },
       "content": [
         {
           "text": "Indented paragraph",
@@ -641,10 +772,11 @@
         }
       ]
     },
-    "c0054": {
+    "c0063": {
       "type": "list-item",
       "attrs": {
-        "list": "bullet"
+        "list": "bullet",
+        "indent": 1
       },
       "content": [
         {

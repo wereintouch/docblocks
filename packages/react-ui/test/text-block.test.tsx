@@ -294,25 +294,15 @@ describe("Task checkbox", () => {
 });
 
 describe("Collapse toggle", () => {
-  /** The parent list item and its child, in order of insertion. */
-  function listIdsOf(doc: TestDoc): { parent: BlockId; child: BlockId } {
-    const ids = Object.entries(doc.toJSON().blocks)
-      .filter(([, block]) => block?.type === "list-item")
-      .map(([id]) => id);
-    expect(ids, "the doc should have the two list items").toHaveLength(2);
-    const parent = ids.find((id) => doc.getChildren(id).length > 0);
-    expect(parent, "one list item should hold the other").toBeDefined();
-    return { parent: parent!, child: ids.find((id) => id !== parent)! };
-  }
-
   it("hides the children on click (view state: no doc change) and restores them", () => {
+    let parent: BlockId = "";
+    let child: BlockId = "";
     const doc = renderDoc((d) => {
-      const li = d.insertBlock("list-item", { list: "bullet" });
-      d.insertText(li, 0, "parent");
-      const child = d.insertBlock("list-item", { list: "bullet" }, { parent: li });
+      parent = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(parent, 0, "parent");
+      child = d.insertBlock("list-item", { list: "bullet", indent: 1 });
       d.insertText(child, 0, "child");
     });
-    const { parent, child } = listIdsOf(doc);
     const before = JSON.stringify(doc.toJSON());
     const wrapper = document.querySelector(`[data-block-id="${parent}"]`);
     expect(wrapper, "the parent list item should be rendered").not.toBeNull();

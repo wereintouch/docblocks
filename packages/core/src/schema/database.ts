@@ -25,6 +25,8 @@ type DatabaseCellValue = string | number | boolean | string[];
 interface DatabaseAttrs {
   /** The columns; a cell key references a column id. */
   columns: DatabaseColumn[];
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: number;
 }
 
 interface DatabaseBlock {

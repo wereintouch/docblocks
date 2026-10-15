@@ -100,31 +100,30 @@ describe("deleteTextRange — cross", () => {
     expect(doc.getText(d)).toBe("tail");
   });
 
-  it("removes the middle block's children with it (the v1 cascade)", () => {
+  it("removes the middle segment with it (the flat subtree: the deeper-indented blocks too)", () => {
     const { doc, a, c } = withRangeDoc();
-    const list = doc.insertBlock("list-item", { list: "bullet" });
+    const list = doc.insertBlock("list-item", { list: "bullet" }, { after: a });
     doc.insertText(list, 0, "one");
-    const child = doc.insertBlock("list-item", { list: "bullet" }, { parent: list });
-    doc.insertText(child, 0, "two");
-    // Rebuild the order: paragraph, list item (with child), divider, paragraph.
-    doc.transact(() => {
-      doc.moveBlock(list, "d", 1);
-      doc.moveBlock(child, list, 0);
-    });
+    const deeper = doc.insertBlock("list-item", { list: "bullet" }, { after: list });
+    doc.insertText(deeper, 0, "two");
+    doc.updateBlock(deeper, { indent: 1 }); // the flat "child" of the list item
+    // Order: paragraph, list item, its deeper segment, divider, paragraph.
+    expect(doc.getChildren("d")).toEqual([a, list, deeper, "b1", c]);
     const result = doc.deleteTextRange({ blockId: a, offset: 1 }, { blockId: c, offset: 1 });
     expect(doc.getBlock(list)).toBeNull();
-    expect(doc.getBlock(child)).toBeNull();
+    expect(doc.getBlock(deeper)).toBeNull();
     expect(doc.getText(a)).toBe("h");
     expect(doc.getText(c)).toBe("orld");
     expect(result).toEqual({ blockId: a, offset: 1 });
   });
 
-  it("removes the emptied from block's children with it", () => {
+  it("removes the emptied from block's flat segment with it", () => {
     const doc = createDoc({ id: "d", createdAt: CREATED_AT, generateId: makeIds("b") });
     const a = doc.insertBlock("paragraph");
     doc.insertText(a, 0, "hello");
-    const nested = doc.insertBlock("paragraph", undefined, { parent: a });
+    const nested = doc.insertBlock("paragraph");
     doc.insertText(nested, 0, "nested");
+    doc.updateBlock(nested, { indent: 1 }); // the flat "child" of a
     const c = doc.insertBlock("paragraph");
     doc.insertText(c, 0, "world");
     const result = doc.deleteTextRange({ blockId: a, offset: 0 }, { blockId: c, offset: 2 });

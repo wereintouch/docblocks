@@ -72,6 +72,9 @@ const CANVAS_BLOCK_SPECS: Pick<
     children: true,
     rows: false,
     childrenTypes: FRAME_ELEMENT_TYPES,
+    // The frame's children are a nested page: the flat page model applies
+    // to this sequence (indent, the indent-jump rule).
+    sequence: true,
   },
   "canvas-text": {
     content: true,

@@ -88,9 +88,9 @@ describe("nested content of a text container (render)", () => {
     renderDoc((d) => {
       p = d.insertBlock("paragraph");
       d.insertText(p, 0, "container");
-      child = d.insertBlock("paragraph", undefined, { parent: p });
+      child = d.insertBlock("paragraph", { indent: 1 });
       d.insertText(child, 0, "nested paragraph");
-      li = d.insertBlock("list-item", { list: "bullet" }, { parent: p });
+      li = d.insertBlock("list-item", { list: "bullet", indent: 1 });
       d.insertText(li, 0, "nested list");
     });
 
@@ -100,11 +100,12 @@ describe("nested content of a text container (render)", () => {
     // The children render inside the slot, after the inner editable.
     expect(nested!.contains(wrapperOf(child))).toBe(true);
     expect(nested!.contains(wrapperOf(li))).toBe(true);
-    // The nested list starts a fresh depth-1 list context (no list-marker
-    // depth of its own: the container is not a list).
+    // The nested list renders as a list; the marker cycles by the
+    // INDENT (the flat model: the nesting depth is the indent attr, so a
+    // list one level in carries the cycle-2 marker, not a fresh cycle-1).
     const list = nested!.querySelector<HTMLElement>('ul[data-slot="docblocks/list"]');
     expect(list).not.toBeNull();
-    expect(list!.getAttribute("data-depth")).toBe("1");
+    expect(list!.getAttribute("data-depth")).toBe("2");
     expect(wrapperOf(child).querySelector('[data-slot="docblocks/block-content"]')!.textContent).toBe(
       "nested paragraph"
     );
@@ -116,7 +117,7 @@ describe("nested content of a text container (render)", () => {
     renderDoc((d) => {
       code = d.insertBlock("code", { language: "ts" });
       d.insertText(code, 0, "const a = 1;");
-      child = d.insertBlock("paragraph", undefined, { parent: code });
+      child = d.insertBlock("paragraph", { indent: 1 });
       d.insertText(child, 0, "nested under code");
     });
 
@@ -139,7 +140,7 @@ describe("nested content of a text container (render)", () => {
 });
 
 describe("Tab: nesting of any text block (the gesture generalization)", () => {
-  it("nests the second paragraph under the first; Shift+Tab brings it back after the parent", () => {
+  it("nests the second paragraph under the first (an indent attr update); Shift+Tab brings it back", () => {
     let p1: BlockId = "";
     let p2: BlockId = "";
     const doc = renderDoc((d) => {
@@ -153,23 +154,26 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     const prevented = key(wrapperOf(p2), "Tab");
     expect(prevented).toBe(false); // suppressed: the structural move ran
 
+    // The flat model: Tab is an indent attr update — the sequence stands,
+    // no children field is written.
     const json = doc.toJSON();
-    const p1Json = json.blocks[p1]!;
-    expect("children" in p1Json ? p1Json.children : null).toEqual([p2]);
-    expect(doc.getChildren(doc.meta.id)).toEqual([p1]);
+    expect("children" in json.blocks[p1]!).toBe(false);
+    const p2Json = json.blocks[p2]!;
+    expect((p2Json as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    expect(doc.getChildren(doc.meta.id)).toEqual([p1, p2]);
     // The nested content renders inside the parent's nested slot.
     expect(wrapperOf(p1).querySelector('[data-slot="docblocks/nested"]')).not.toBeNull();
 
-    // Shift+Tab: right after the parent, back at the top level.
+    // Shift+Tab: back at the top level (the indent is zeroed).
     caretAtFlat(p2, 0);
     expect(key(wrapperOf(p2), "Tab", { shiftKey: true })).toBe(false);
 
     const flat = doc.toJSON();
-    expect("children" in flat.blocks[p1]!).toBe(false); // omitted when empty
+    expect((flat.blocks[p2]! as { attrs?: { indent?: number } }).attrs?.indent ?? 0).toBe(0);
     expect(doc.getChildren(doc.meta.id)).toEqual([p1, p2]);
   });
 
-  it("does nothing when the previous sibling is a non-container (divider)", () => {
+  it("indents after a non-text block (the attach rule: any page block is a parent)", () => {
     let divider: BlockId = "";
     let p: BlockId = "";
     const doc = renderDoc((d) => {
@@ -181,9 +185,15 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     caretAtFlat(p, 0);
     const prevented = key(wrapperOf(p), "Tab");
 
-    expect(prevented).toBe(true); // not suppressed: the browser default stands
+    // The flat attach rule allows any page block as the attach parent: the
+    // paragraph indents under the divider (one indent attr update).
+    expect(prevented).toBe(false);
     expect(doc.getChildren(doc.meta.id)).toEqual([divider, p]);
-    expect(wrapperOf(p).querySelector('[data-slot="docblocks/nested"]')).toBeNull();
+    const pJson = doc.toJSON().blocks[p]!;
+    expect((pJson as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    // The indented content stands in the divider's indent slot (after the
+    // non-text block view).
+    expect(document.querySelector('[data-slot="docblocks/nested"]')).not.toBeNull();
   });
 
   it("Shift+Tab at the top level is a no-op", () => {
@@ -221,27 +231,24 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     expect(selection.anchorOffset).toBe(4);
   });
 
-  it("does not merge a text container with children on a Backspace at the start", () => {
+  it("does not merge a text container with a derived segment on a Backspace at the start", () => {
     let p1: BlockId = "";
     let p2: BlockId = "";
     const doc = renderDoc((d) => {
       p1 = d.insertBlock("paragraph");
       d.insertText(p1, 0, "one");
-      p2 = d.insertBlock("paragraph", undefined, { parent: p1 });
+      p2 = d.insertBlock("paragraph", { indent: 1 });
       d.insertText(p2, 0, "two");
     });
 
     // A Backspace at the container's own offset 0 would merge it into the
-    // previous sibling — the guard rejects it: a container with children
-    // is a structural merge, not a v1 gesture.
+    // previous sibling — the guard rejects it: a block that owns a
+    // non-empty derived segment (nested content) would swallow it.
     caretAtFlat(p1, 0);
     const prevented = key(wrapperOf(p1), "Backspace");
 
     expect(prevented).toBe(true); // no-op: the browser default stands
-    const json = doc.toJSON();
-    const p1Json = json.blocks[p1]!;
-    expect("children" in p1Json ? p1Json.children : null).toEqual([p2]);
-    expect(doc.getChildren(doc.meta.id)).toEqual([p1]);
+    expect(doc.getChildren(doc.meta.id)).toEqual([p1, p2]);
     expect(doc.getText(p1)).toBe("one");
     expect(doc.getText(p2)).toBe("two");
   });

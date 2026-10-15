@@ -74,6 +74,72 @@ afterEach(() => {
   window.getSelection()?.removeAllRanges();
 });
 
+describe("slash trigger (the derived-segment guard)", () => {
+  let triggerId: BlockId = "";
+
+  /** An empty top-level trigger; with `withSegment` a nested follower makes it own a derived segment. */
+  function renderEmptyTrigger(withSegment: boolean): TestDoc {
+    triggerId = "";
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    triggerId = doc.insertBlock("paragraph");
+    if (withSegment) {
+      const child = doc.insertBlock("paragraph", { indent: 1 });
+      doc.insertText(child, 0, "nested");
+    }
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+    return doc;
+  }
+
+  /** Seat a collapsed caret on the EMPTY inner (no text node to walk) and press "/". */
+  function pressSlash(wrapper: HTMLElement, inner: HTMLElement): boolean {
+    const range = document.createRange();
+    range.selectNodeContents(inner);
+    range.collapse(true);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    let consumed = true;
+    act(() => {
+      consumed = wrapper.dispatchEvent(new KeyboardEvent("keydown", { key: "/", bubbles: true, cancelable: true }));
+    });
+    return consumed;
+  }
+
+  it("does not open on an empty block that owns a derived segment", () => {
+    const doc = renderEmptyTrigger(true);
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${triggerId}"]`);
+    expect(wrapper, "the trigger should be rendered").not.toBeNull();
+    const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+    expect(inner, "the trigger should carry the inner editable").not.toBeNull();
+
+    const consumed = pressSlash(wrapper!, inner!);
+
+    // The key is not consumed (the guard stands before the menu opens) and
+    // no menu renders: an apply would remove the trigger and cascade its
+    // nested follower, so the menu refuses such a trigger.
+    expect(consumed).toBe(true);
+    expect(document.querySelector('[data-slot="docblocks/slash-menu"]')).toBeNull();
+    expect(doc.getText(triggerId)).toBe(""); // the "/" never reaches the doc
+  });
+
+  it("opens on an empty block without a derived segment (the guard is not over-broad)", () => {
+    renderEmptyTrigger(false);
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${triggerId}"]`);
+    expect(wrapper, "the trigger should be rendered").not.toBeNull();
+    const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+    expect(inner, "the trigger should carry the inner editable").not.toBeNull();
+
+    const consumed = pressSlash(wrapper!, inner!);
+
+    expect(consumed).toBe(false); // the menu captured the "/"
+    expect(document.querySelector('[data-slot="docblocks/slash-menu"]')).not.toBeNull();
+  });
+});
+
 describe("text input safety", () => {
   it("Enter with no caret in the block is a no-op: prevented, no new block", () => {
     const doc = renderParagraph();

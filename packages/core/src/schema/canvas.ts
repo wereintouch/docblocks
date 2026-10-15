@@ -66,9 +66,15 @@ interface CanvasTextAttrs {
   textAlign?: string;
 }
 
+interface SurfaceAttrs {
+  /** Nesting depth in the page sequence (default 0); ignored in the canvas z-order. */
+  indent?: number;
+}
+
 /** The canvas container: its children are the canvas elements. */
 interface SurfaceBlock {
   type: "surface";
+  attrs?: SurfaceAttrs;
   /** The canvas elements; the order IS the z-order (the schema's only such case). */
   children?: BlockId[];
 }
@@ -108,6 +114,7 @@ export type {
   Geometry,
   ShapeAttrs,
   ShapeBlock,
+  SurfaceAttrs,
   SurfaceBlock,
   WithGeometry,
 };
