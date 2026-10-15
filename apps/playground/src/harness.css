@@ -1,5 +1,6 @@
-/* The harness page chrome follows the shipped standard tokens (the ui.css
-   seed: `:root` light / `.dark` dark — the `.dark` class is on <html>).
+/* The harness page chrome follows the shipped standard tokens (the seed
+   section of the shipped styles.css: `:root` light / `.dark` dark — the
+   `.dark` class is on <html>).
    The page background is a consumer concern the package stylesheet does
    not own, so the harness supplies it from the same token source as the
    editor; the pane components read the standard tokens via var() too. */

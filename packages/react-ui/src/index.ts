@@ -17,7 +17,7 @@ export { markToggleAction } from "./editing/keyboard";
 export type { FormatMark } from "./editing/keyboard";
 export { renderRuns } from "./text/runs";
 // The design system primitives (shared/ui) — styled by the compiled
-// utility CSS shipped as the `./ui.css` subpath (see ui.css).
+// utility layer shipped inside docblocks-react-ui/styles.css.
 export {
   Alert,
   AlertDescription,

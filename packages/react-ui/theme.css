@@ -4,10 +4,13 @@
  * The editor (styles.css) reads these tokens as optional inputs: when they
  * are defined, the editor follows the theme (the dark set flips under the
  * `dark` class on <html> or any ancestor); when they are not, the shipped
- * literals in styles.css stand. Import this file to get the standard token
- * set for your own UI as well — or skip it and define the same tokens in
- * your own theme (a Tailwind v4 app typically carries them in its
- * `@theme`/global stylesheet, in which case this file is not needed).
+ * literals in styles.css stand. This file also feeds the shipped
+ * stylesheet (dist/styles.css: the assemble script appends it after the
+ * utility layer), so the standard tokens ship with the default import.
+ * Import it standalone for the pure seed (without the utility layer), or
+ * skip it and define the same tokens in your own theme (a Tailwind v4 app
+ * typically carries them in its `@theme`/global stylesheet, in which case
+ * this file is not needed).
  *
  * The tokens the editor reads: --foreground, --primary,
  * --primary-foreground, --muted, --muted-foreground, --accent,

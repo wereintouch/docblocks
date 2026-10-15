@@ -21,7 +21,6 @@ Optional peers, used only by their subpaths: `framer-motion` (`./motion`),
 ```tsx
 import { Editor, EditorProvider } from "docblocks-react-ui";
 import "docblocks-react-ui/styles.css";
-import "docblocks-react-ui/ui.css";
 
 <EditorProvider doc={doc}>
   <Editor />
@@ -58,32 +57,24 @@ So a shadcn-based app needs no extra work: the editor follows the tokens
 your app already defines, and the `dark` class on `<html>` flips it with
 the rest of the app.
 
-For apps without a theme, the package ships a plain-CSS seed with the
-standard token set (light + dark):
+For apps without a theme, the shipped stylesheet carries the standard
+token seed (light + the `dark` set), so the single import above renders
+the editor and the primitives with the canonical shadcn palette. The
+pure seed (without the utility layer) also ships as
+`docblocks-react-ui/theme.css` — import it for the tokens alone, or copy
+its values into your own theme.
 
-```css
-@import "docblocks-react-ui/theme.css"; /* optional: the standard tokens */
-@import "docblocks-react-ui/styles.css";
-```
-
-`theme.css` contains no build-tool syntax; in a Tailwind v4 app you
-typically keep your own token definitions (in `@theme` / globals) and skip
-the seed.
-
-### Design system primitives (`ui.css`)
+### Design system primitives
 
 The package's design system primitives (Button, Checkbox, Card, Alert, … —
 exported from the package entry) are styled with Tailwind utility classes.
 Tailwind is a build-time concern, so the package compiles the utilities
-itself and ships the result as plain CSS: import `docblocks-react-ui/ui.css`
-next to `styles.css`. The compiled file carries Tailwind's layered theme +
-base (preflight) + the utilities the package source uses (including the
-enter/exit animation utilities the primitives use), and inlines the
-standard token seed above — one import is the complete default look. No
-Tailwind tooling is needed on the consumer side. Three notes:
+itself and ships the result inside `styles.css` (the utility layer, plain
+CSS) — no Tailwind tooling is needed on the consumer side. Three notes:
 
-- The preflight lives in `@layer base`, so any unlayered consumer CSS —
-  including `styles.css`, which owns the editor area — wins over it.
+- The preflight lives in `@layer base`, so any unlayered consumer CSS
+  wins over it (the `--docblocks-*` mapping and the structural rules own
+  the editor area).
 - The `dark:` utilities follow the `dark` class (any ancestor, the shadcn
   convention), not the `prefers-color-scheme` media query.
 - The primitives reference the `z-modal` stacking utility, which is
@@ -91,10 +82,10 @@ Tailwind tooling is needed on the consumer side. Three notes:
   `@utility z-modal { z-index: var(--z-modal) }`); without it the popup
   content simply carries no z-index.
 
-The inlined seed is the package's DEFAULT for the standard tokens, not a
+The seed section is the package's DEFAULT for the standard tokens, not a
 fixed value: if you define them yourself, declare your definitions after
-the `ui.css` import (same specificity — the later declaration wins) or on
-a wrapper around the editor (an element declaration beats the inherited
+the `styles.css` import (same specificity — the later declaration wins) or
+on a wrapper around the editor (an element declaration beats the inherited
 `:root` value for everything inside it).
 
 ### Overriding individual values

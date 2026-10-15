@@ -44,8 +44,8 @@ test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
 
   const tokenOf = (name: string) => editor.evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
 
-  // Unthemed baseline: the inlined standard seed stands (ui.css ships the
-  // seed, so the harness is seeded — the radius token resolves the seed's
+  // Unthemed baseline: the standard seed stands (the shipped styles.css
+  // carries the seed, so the harness is seeded — the radius token resolves the seed's
   // 0.625rem, not the fallback literal).
   await expect.poll(() => tokenOf("--docblocks-radius"), SETTLE).toBe("0.625rem");
 

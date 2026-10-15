@@ -1,20 +1,20 @@
 /*
  * Style entry for the design system primitives (src/shared/ui) — compiled
- * at package build time into dist/ui.css (the `tailwindcss` CLI step in
- * package.json) and shipped as the `./ui.css` subpath. Consumers import it
- * alongside styles.css; no Tailwind tooling is needed on the consumer side.
+ * at package build time (the `tailwindcss` CLI step in package.json) into
+ * the utility layer of the shipped stylesheet (dist/styles.css, assembled
+ * by scripts/assemble-styles.mjs); no Tailwind tooling is needed on the
+ * consumer side.
  * Tooling twin: eslint.tailwind.entry.css (the ESLint Tailwind plugin's
- * canonical entry) — same token set, different consumer; do not merge.
+ * canonical entry) — different consumer; do not merge.
  *
  * What the output contains:
  * - Tailwind's layered theme + base (preflight) + the utilities the
  *   package's source actually uses. Unlayered consumer CSS — including
- *   styles.css, which owns the editor area — always wins over the base
- *   layer.
+ *   the --docblocks-* mapping, which owns the editor area — always wins
+ *   over the base layer.
  * - The enter/exit animation utilities the primitives use (tw-animate-css).
- * - The standard (shadcn) token seed (theme.css), inlined: one import
- *   provides the token values (light + the `.dark` flip) and the utility
- *   set.
+ * - NOT the standard (shadcn) token seed: the assemble script appends it
+ *   (theme.css) as the section after the utility layer.
  * - The `dark:` variant follows the `dark` class (any ancestor), not the
  *   prefers-color-scheme media.
  *
@@ -34,7 +34,6 @@
  */
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
-@import "./theme.css";
 
 @custom-variant dark (&:is(.dark *));
 

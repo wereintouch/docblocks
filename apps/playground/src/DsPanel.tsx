@@ -41,8 +41,9 @@ const label: CSSProperties = { width: 110, fontSize: 12, color: "var(--muted-for
  * The design system preview (harness-only, `?ds=1`): the shared/ui
  * primitives rendered outside any editor root — the visual gate before the
  * wiring steps and the e2e surface for the compiled utility CSS
- * (docblocks-react-ui/ui.css: the token seed, the dark: class variant, and
- * the popup content styling).
+ * (the utility layer of the shipped docblocks-react-ui/styles.css: the
+ * standard token seed, the dark: class variant, and the popup content
+ * styling).
  */
 function DsPanel() {
   const [checked, setChecked] = useState(true);
@@ -59,8 +60,8 @@ function DsPanel() {
       <header>
         <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — design system preview</h1>
         <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted-foreground)" }}>
-          The shared/ui primitives over the compiled utility CSS (docblocks-react-ui/ui.css). The dark set flips under
-          the <code>.dark</code> class on <code>&lt;html&gt;</code> (no media query).
+          The shared/ui primitives over the compiled utility CSS (the utility layer of docblocks-react-ui/styles.css).
+          The dark set flips under the <code>.dark</code> class on <code>&lt;html&gt;</code> (no media query).
         </p>
       </header>
 

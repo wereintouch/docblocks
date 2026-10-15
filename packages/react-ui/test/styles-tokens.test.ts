@@ -33,7 +33,7 @@ const THEME_INDEPENDENT = new Set(["--radius", "--font-sans", "--font-mono"]);
 
 // Consumed by the seed and the shared-ui classes, not by the styles.css
 // mapping: the seed must still declare them (the DS components read them
-// through the compiled ui.css).
+// through the compiled utility layer of the shipped styles.css).
 const SEED_ONLY_TOKENS = ["--primary-foreground"] as const;
 
 describe("styles.css token contract", () => {

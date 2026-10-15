@@ -1,9 +1,9 @@
 /*
  * Tailwind entry for the ESLint tooling of docblocks-react-ui
  * (eslint-plugin-better-tailwindcss, eslint-plugin-tailwind-canonical-classes).
- * Build twin: ui.entry.css compiles the shipped dist/ui.css (source(none) +
- * @source + the @theme inline token mapping); the two entries differ by
- * design — do not merge.
+ * Build twin: ui.entry.css compiles the utility layer of the shipped
+ * dist/styles.css (source(none) + @source + the @theme inline token
+ * mapping); the two entries differ by design — do not merge.
  *
  * Mirrors the standard (shadcn) token set of theme.css, so the semantic token
  * classes the design-system components use (bg-primary,

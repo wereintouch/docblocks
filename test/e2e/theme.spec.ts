@@ -13,7 +13,7 @@ test("the dark theme activates via the .dark class on an ancestor", async ({ pag
   await expect(editor).toBeVisible();
 
   // The token resolves to the light standard seed the package ships (the
-  // inlined seed in ui.css is the unthemed default in this harness).
+  // seed section of the shipped styles.css is the unthemed default in this harness).
   const tokenOf = () => editor.evaluate((el) => getComputedStyle(el).getPropertyValue("--docblocks-text-color").trim());
   await expect.poll(tokenOf, SETTLE).toBe("oklch(0.145 0 0)");
 

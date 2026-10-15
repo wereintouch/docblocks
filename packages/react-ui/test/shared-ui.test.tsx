@@ -35,8 +35,8 @@ import {
 afterEach(cleanup);
 
 // Smoke test: every shared/ui component renders without crashing in its
-// closed/neutral state. The compiled utility CSS contract (dist/ui.css)
-// is pinned separately in ui-css.test.ts; this suite renders with no CSS.
+// closed/neutral state. The shipped stylesheet contract (dist/styles.css)
+// is pinned separately in styles-css.test.ts; this suite renders with no CSS.
 describe("shared/ui smoke", () => {
   it("renders Button, Badge, Skeleton, Separator, Card and Alert", () => {
     render(
