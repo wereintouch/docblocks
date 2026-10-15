@@ -11,6 +11,9 @@ async function openCatalogPane(page: Page): Promise<void> {
   const room = `vreg01s-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&catalog=1&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  // The harness loads dark by default; every pin in this spec is a light
+  // value, so clear the `.dark` class explicitly.
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
   // The catalog is built locally on mount; the divider lands with it.
   await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1, SETTLE);
 }

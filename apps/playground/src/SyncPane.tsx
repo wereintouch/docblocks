@@ -106,7 +106,16 @@ function SyncPane({
   const [tab, setTab] = useState<InspectTab>("json");
   /** The view mode (page / canvas): view state only — switching writes nothing to the doc. */
   const [view, setView] = useState<EditorView>(canvas ? "canvas" : "page");
+  /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
+  const [dark, setDark] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
+
+  // The theme lands on `<html>` (the package's dark set activates via the
+  // `.dark` class on any ancestor); the module-level default in main.tsx
+  // pre-applies it before the first paint so a dark default never flashes.
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+  }, [dark]);
 
   // The pane's master id: deterministic per room; the catalog pane's master
   // has a fixed id (the catalog's JSON golden is byte-stable), and the
@@ -347,6 +356,27 @@ function SyncPane({
           paddingLeft: 16,
         }}
       >
+        <div style={{ fontSize: 13, color: "#57606a", display: "flex", alignItems: "center", gap: 8 }}>
+          theme
+          <button
+            type="button"
+            data-testid={`theme-${client}-dark`}
+            aria-pressed={dark}
+            onClick={() => setDark(true)}
+            style={toggleStyle(dark)}
+          >
+            dark
+          </button>
+          <button
+            type="button"
+            data-testid={`theme-${client}-light`}
+            aria-pressed={!dark}
+            onClick={() => setDark(false)}
+            style={toggleStyle(!dark)}
+          >
+            light
+          </button>
+        </div>
         <div style={{ fontSize: 13, color: "#57606a", display: "flex", alignItems: "center", gap: 8 }}>
           <span data-testid={`status-${client}`}>{connected ? "connected" : "disconnected"}</span>
           <button data-testid={`reconnect-${client}`} onClick={onReconnect}>

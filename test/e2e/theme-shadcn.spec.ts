@@ -38,6 +38,10 @@ test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
   const editor = page.locator('[data-slot="docblocks/editor"]');
   await expect(editor).toBeVisible();
 
+  // The harness loads dark by default; this spec drives the light -> dark
+  // flip explicitly, so clear the `.dark` class first.
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
+
   const tokenOf = (name: string) => editor.evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
 
   // Unthemed baseline: the inlined standard seed stands (ui.css ships the

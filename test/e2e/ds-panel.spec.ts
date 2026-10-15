@@ -36,6 +36,8 @@ test("the utility CSS styles the primitives outside the editor root", async ({ p
 test("the .dark class flips the standard token set", async ({ page }) => {
   await page.goto(URL);
   await expect(page.getByTestId("ds-btn-default")).toBeVisible();
+  // The harness loads dark by default; clear it so the flip is light -> dark.
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
   const light = await tokenOf(page, "--primary");
   const button = page.getByTestId("ds-btn-default");
   await expect(button).toHaveCSS("background-color", light);

@@ -6,6 +6,9 @@ const SETTLE = { timeout: 15_000 };
 test("the dark theme activates via the .dark class on an ancestor", async ({ page }) => {
   await page.goto(`/?syncUrl=ws://localhost:5199/theme-${Math.random().toString(36).slice(2, 8)}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  // The harness loads dark by default; this spec pins the light seed
+  // baseline first, so clear the `.dark` class explicitly.
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
   const editor = page.locator('[data-slot="docblocks/editor"]');
   await expect(editor).toBeVisible();
 

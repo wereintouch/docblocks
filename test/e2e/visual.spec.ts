@@ -37,6 +37,9 @@ async function clearFocus(page: Page): Promise<void> {
 
 test("the catalog renders the light and dark goldens", async ({ page }) => {
   await openCatalogPane(page);
+  // The harness loads dark by default; the light golden clears the `.dark`
+  // class first (the dark shot below re-adds it).
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
   const pane = editor(page);
   await expect(pane).toBeVisible();
 

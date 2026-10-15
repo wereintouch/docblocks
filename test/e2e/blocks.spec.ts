@@ -11,6 +11,9 @@ const SETTLE = { timeout: 15_000 };
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  // The harness loads dark by default; the pins in this spec are light
+  // seed values, so clear the `.dark` class explicitly.
+  await page.evaluate(() => document.documentElement.classList.remove("dark"));
 }
 
 /** Insert one v1 type at the root through the pane's harness control. */
