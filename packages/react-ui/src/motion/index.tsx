@@ -77,6 +77,7 @@ import { useEditing } from "../editing/useEditing";
 import { useBlock } from "../hooks";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
 import { Button } from "../shared/ui/Button";
+import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
 import { GripVertical } from "../shared/ui/icons";
 import { commitFlatDrag, sameIds } from "./reorder";
@@ -399,55 +400,59 @@ function MotionEditor({
   };
 
   return (
-    <div
-      ref={rootRef}
-      data-slot="docblocks/editor"
-      data-docblocks-motion=""
-      data-view={view}
-      tabIndex={-1}
-      className={cn(
-        "relative selection:bg-(--docblocks-selection-background)",
-        "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
-        "leading-(--docblocks-line-height) text-(--docblocks-text-color)",
-        // The canvas view grows to fill the flex column container: the 100%
-        // height chain below the root needs a definite root height.
-        view === "canvas" && "min-h-0 flex-1"
-      )}
-      onKeyDown={onKeyDown}
-      onCopy={onCopy}
-      onPointerDown={onRootPointerDown}
-    >
-      <style>{HANDLE_GRAB_STYLE}</style>
-      <SlashMenuContext.Provider value={slash.api}>
-        <BlockContext.Provider value={rootContext}>
-          {view === "canvas" ? (
-            <CanvasView />
-          ) : (
-            <Reorder.Group as="div" axis="y" values={order} onReorder={(next) => setOrder(next as BlockId[])}>
-              <AnimatePresence initial={false} mode="popLayout">
-                {order.map((id) => {
-                  const node = nodesById.get(id);
-                  if (node === undefined) return null;
-                  return (
-                    <RowItem
-                      key={id}
-                      node={node}
-                      layoutSlide={layoutSlide || draggingKey !== null}
-                      isDragged={draggingKey === id}
-                      onDragStart={() => onRowDragStart(id)}
-                      onDragEnd={() => onRowDragEnd(id)}
-                    />
-                  );
-                })}
-              </AnimatePresence>
-            </Reorder.Group>
-          )}
-          <PresenceCaretOverlay rootRef={rootRef} />
-        </BlockContext.Provider>
-      </SlashMenuContext.Provider>
-      {slash.menuNode}
-      {format.toolbarNode}
-    </div>
+    // The shared Card carries the editor's frame chrome (border, radius,
+    // the card surface). In the canvas view it takes the flex column's
+    // slack: the 100% height chain below the root needs a definite height.
+    // The inner div is the editor root: the focus and keyboard scope and
+    // the token-mapping scope.
+    <Card className={cn(view === "canvas" && "min-h-0 flex-1")}>
+      <div
+        ref={rootRef}
+        data-slot="docblocks/editor"
+        data-docblocks-motion=""
+        data-view={view}
+        tabIndex={-1}
+        className={cn(
+          "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",
+          "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
+          "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
+        )}
+        onKeyDown={onKeyDown}
+        onCopy={onCopy}
+        onPointerDown={onRootPointerDown}
+      >
+        <style>{HANDLE_GRAB_STYLE}</style>
+        <SlashMenuContext.Provider value={slash.api}>
+          <BlockContext.Provider value={rootContext}>
+            {view === "canvas" ? (
+              <CanvasView />
+            ) : (
+              <Reorder.Group as="div" axis="y" values={order} onReorder={(next) => setOrder(next as BlockId[])}>
+                <AnimatePresence initial={false} mode="popLayout">
+                  {order.map((id) => {
+                    const node = nodesById.get(id);
+                    if (node === undefined) return null;
+                    return (
+                      <RowItem
+                        key={id}
+                        node={node}
+                        layoutSlide={layoutSlide || draggingKey !== null}
+                        isDragged={draggingKey === id}
+                        onDragStart={() => onRowDragStart(id)}
+                        onDragEnd={() => onRowDragEnd(id)}
+                      />
+                    );
+                  })}
+                </AnimatePresence>
+              </Reorder.Group>
+            )}
+            <PresenceCaretOverlay rootRef={rootRef} />
+          </BlockContext.Provider>
+        </SlashMenuContext.Provider>
+        {slash.menuNode}
+        {format.toolbarNode}
+      </div>
+    </Card>
   );
 }
 

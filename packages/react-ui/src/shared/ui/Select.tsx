@@ -76,7 +76,7 @@ function SelectContent({
           `
             relative z-modal max-h-(--radix-select-content-available-height) min-w-32
             origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border
-            bg-popover text-popover-foreground shadow-md
+            border-border bg-popover text-popover-foreground shadow-md
             data-[side=bottom]:slide-in-from-top-2
             data-[side=left]:slide-in-from-right-2
             data-[side=right]:slide-in-from-left-2

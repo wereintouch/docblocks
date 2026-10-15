@@ -115,7 +115,7 @@ function alignOf(block: EditableBlock): "left" | "center" | "right" | undefined 
  * cycle index), from the run position (continuing across the sublist).
  */
 function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, number }: TextBlockProps) {
-  const { doc, store, selection: selectionRef } = useEditorContext();
+  const { doc, store, selection: selectionRef, commandPalettePlaceholder } = useEditorContext();
   const blockContext = useBlockContext();
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const collapsibleList = collapsible && block.type === "list-item";
@@ -488,6 +488,7 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
         spellCheck={false}
         data-slot="docblocks/block-content"
         data-block-id={id}
+        data-placeholder={commandPalettePlaceholder}
         className={innerClass}
         onInput={commitDomDelta}
         onPaste={onPaste}

@@ -4,6 +4,7 @@ import { createSelection, presenceSelectionOf } from "docblocks-core";
 import type { BlockId, Doc, Selection, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
 
 import type { BlockRendererMap } from "./blocks/renderers";
+import { COMMAND_PALETTE_PLACEHOLDER } from "./editing/slash";
 import { createEditorStore } from "./state/store";
 import type { EditorStore } from "./state/store";
 
@@ -35,6 +36,8 @@ interface EditorContextValue {
   ancestorDocIds: readonly string[];
   /** The number of enclosing editor renders (the sync-embed cycle depth bound). */
   embedDepth: number;
+  /** The empty-block hint text (the default points at the slash command palette). */
+  commandPalettePlaceholder: string;
 }
 
 /** Debounce between a selection change and its awareness publish. */
@@ -93,6 +96,13 @@ interface EditorProviderProps {
    * Like `doc`, the value must not change after mount.
    */
   rootBlockId?: BlockId;
+  /**
+   * The command palette placeholder hint text, shown while the caret sits
+   * in a text block with no content; defaults to "Type '/' for commands"
+   * (`COMMAND_PALETTE_PLACEHOLDER`). A nested provider that supplies none
+   * inherits the enclosing value, like the resolvers.
+   */
+  commandPalettePlaceholder?: string;
   children: ReactNode;
 }
 
@@ -114,6 +124,7 @@ function EditorProvider({
   blobResolver,
   syncEmbedResolver,
   rootBlockId,
+  commandPalettePlaceholder,
   children,
 }: EditorProviderProps) {
   const rootId = rootBlockId ?? doc.meta.id;
@@ -240,8 +251,10 @@ function EditorProvider({
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
       embedDepth: parent === null ? 0 : parent.embedDepth + 1,
+      commandPalettePlaceholder:
+        commandPalettePlaceholder ?? parent?.commandPalettePlaceholder ?? COMMAND_PALETTE_PLACEHOLDER,
     };
-  }, [store, doc, blockRenderers, blobResolver, syncEmbedResolver, rootId, parentContext]);
+  }, [store, doc, blockRenderers, blobResolver, syncEmbedResolver, rootId, parentContext, commandPalettePlaceholder]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }

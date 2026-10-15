@@ -24,6 +24,13 @@ import { focusCaretIn, segmentRange } from "./block-commands";
 import { selectionInside } from "./dom-offset";
 
 /**
+ * The empty-block hint text: shown while the caret sits in a text block
+ * with no content, pointing at the "/" command palette (the
+ * `commandPalettePlaceholder` provider prop overrides it).
+ */
+const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
+
+/**
  * The "/" slash command menu — the block-insertion affordance.
  *
  * Trigger (v1 scope): a "/" typed with a collapsed caret in an empty,
@@ -487,4 +494,4 @@ function SlashMenu({ rootRef, state, onHover, onPick }: SlashMenuProps) {
   );
 }
 
-export { SlashMenuContext, useSlashMenu, useSlashMenuApi };
+export { COMMAND_PALETTE_PLACEHOLDER, SlashMenuContext, useSlashMenu, useSlashMenuApi };

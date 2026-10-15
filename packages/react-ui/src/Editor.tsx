@@ -11,6 +11,7 @@ import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
 import { PresenceCaretOverlay } from "./presence/presence-caret";
+import { Card } from "./shared/ui/Card";
 import { cn } from "./shared/ui/cn";
 
 /**
@@ -55,32 +56,36 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
   const format = useFormatToolbar(rootRef, formatPalette);
 
   return (
-    <div
-      ref={rootRef}
-      data-slot="docblocks/editor"
-      data-view={view}
-      tabIndex={-1}
-      className={cn(
-        "relative selection:bg-(--docblocks-selection-background)",
-        "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
-        "leading-(--docblocks-line-height) text-(--docblocks-text-color)",
-        // The canvas view grows to fill the flex column container: the 100%
-        // height chain below the root needs a definite root height.
-        view === "canvas" && "min-h-0 flex-1"
-      )}
-      onKeyDown={onKeyDown}
-      onCopy={onCopy}
-      onPointerDown={onPointerDown}
-    >
-      <SlashMenuContext.Provider value={slash.api}>
-        <BlockContext.Provider value={rootContext}>
-          {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
-        </BlockContext.Provider>
-      </SlashMenuContext.Provider>
-      <PresenceCaretOverlay rootRef={rootRef} />
-      {slash.menuNode}
-      {format.toolbarNode}
-    </div>
+    // The shared Card carries the editor's frame chrome (border, radius,
+    // the card surface). In the canvas view it takes the flex column's
+    // slack: the 100% height chain below the root needs a definite height.
+    // The inner div is the editor root: the focus and keyboard scope and
+    // the token-mapping scope.
+    <Card className={cn(view === "canvas" && "min-h-0 flex-1")}>
+      <div
+        ref={rootRef}
+        data-slot="docblocks/editor"
+        data-view={view}
+        tabIndex={-1}
+        className={cn(
+          "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",
+          "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
+          "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
+        )}
+        onKeyDown={onKeyDown}
+        onCopy={onCopy}
+        onPointerDown={onPointerDown}
+      >
+        <SlashMenuContext.Provider value={slash.api}>
+          <BlockContext.Provider value={rootContext}>
+            {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
+          </BlockContext.Provider>
+        </SlashMenuContext.Provider>
+        <PresenceCaretOverlay rootRef={rootRef} />
+        {slash.menuNode}
+        {format.toolbarNode}
+      </div>
+    </Card>
   );
 }
 

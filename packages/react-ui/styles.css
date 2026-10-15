@@ -68,6 +68,7 @@
 
   /* Color. */
   --docblocks-text-color: var(--foreground, #1f2328);
+  --docblocks-placeholder-color: var(--muted-foreground, #57606a);
   --docblocks-link-color: #0969da;
   --docblocks-selection-background: #b6d7fe;
   --docblocks-inline-code-background: var(--muted, rgba(175, 184, 193, 0.2));
@@ -217,6 +218,7 @@
  */
 :is(.dark [data-slot="docblocks/editor"], [data-slot="docblocks/editor"].dark) {
   --docblocks-text-color: var(--foreground, #e6edf3);
+  --docblocks-placeholder-color: var(--muted-foreground, #8b949e);
   --docblocks-link-color: #58a6ff;
   --docblocks-selection-background: rgba(56, 139, 253, 0.4);
   --docblocks-inline-code-background: var(--muted, rgba(110, 118, 129, 0.4));
@@ -239,4 +241,14 @@
   --docblocks-formatbar-background: var(--popover, #161b22);
   --docblocks-formatbar-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-formatbar-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* The empty-block hint: rendered into an empty text block's content box
+   only while the block holds the caret (the pseudo-element content is not
+   text content — the input layer and the run rendering ignore it); the
+   attribute carries the provider's placeholder text. */
+[data-slot="docblocks/block-content"]:empty:focus::before {
+  content: attr(data-placeholder);
+  color: var(--docblocks-placeholder-color);
+  pointer-events: none;
 }
