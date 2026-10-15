@@ -1,11 +1,22 @@
-import { type ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ComponentType, KeyboardEvent, RefObject, SVGProps } from "react";
 
 import type { Block, BlockId, Doc } from "docblocks-core";
 import type { InsertBlockPosition } from "docblocks-core";
+import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../shared/ui/DropdownMenu";
+import { useBlock } from "../hooks";
 import { cn } from "../shared/ui/cn";
 import {
   CodeXml,
@@ -21,7 +32,7 @@ import {
   TextQuote,
 } from "../shared/ui/icons";
 import { focusCaretIn, segmentRange } from "./block-commands";
-import { selectionInside } from "./dom-offset";
+import { caretOffsetIn, locatePosition, selectionInside } from "./dom-offset";
 
 /**
  * The empty-block hint text: shown while the caret sits in a text block
@@ -31,31 +42,49 @@ import { selectionInside } from "./dom-offset";
 const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
 
 /**
- * The "/" slash command menu — the block-insertion affordance.
+ * The "/" slash command menu — the block-conversion affordance.
  *
- * Trigger (v1 scope): a "/" typed with a collapsed caret in an empty,
- * root-level block. The menu opens without inserting the "/" into the
- * doc: the following input is captured as a filter query (the doc and the
- * wire see nothing until a command is applied), ArrowUp/ArrowDown move
- * the active item, Enter or a click applies it, Escape cancels, a
- * Backspace with an empty query closes (the phantom "/" is not in the
- * doc to delete), and the menu closes itself as soon as the DOM selection
- * leaves the triggering block or the block gains text.
+ * The doc is the query's source of truth: the "/" is regular doc text — the
+ * keypress commits it through the command API (the browser's insertion
+ * stands suppressed), and Backspace deletes it like any other character;
+ * the characters typed after it are plain text too. The menu tracks the
+ * triggering "/" by its text offset: the filter query is the block text
+ * between that "/" and the first whitespace (or the block end), re-derived
+ * on every change. Deleting the "/" (or moving the caret out of the query
+ * window) closes the menu; a "/" already in the text never re-triggers —
+ * only a "/" keypress does.
  *
- * The menu is a non-modal radix dropdown portaled to the document body:
- * the trigger is an invisible zero-size anchor at the block, and the
- * keys stay the editor's — the block's keydown while the focus sits in
- * the block, a document-level capture (scoped to this editor's root or
- * the menu) once radix's roving focus has landed on the menu. Hovering
- * and the keyboard both highlight through the active index. The content
- * suppresses the default mousedown (the selection must survive a click)
- * and the outside pointer/focus dismiss (the selection state owns the
- * visibility).
+ * The derivation reads the caret live from the DOM selection (the browser
+ * settles the DOM before the store commit that re-renders the menu, so the
+ * read stands at the current text): a stale caret reading would stand past
+ * the shrunken query's end after a Backspace and close the menu wrongly.
  *
- * Applying a command converts the empty block: the block is removed and
- * the command's block is inserted in its place (one transaction — one
- * undo step, one wire update), then the caret focuses the new block. A
- * command matching the block's current type and attrs is a no-op close.
+ * Trigger: a "/" keypress with a collapsed caret in a page text block
+ * (paragraph, heading, list-item, callout — code and latex are excluded:
+ * a "/" there is plain text) at any position and any indent of the root
+ * page sequence (or the provider's entry root itself).
+ *
+ * The menu stands a plain absolutely-positioned div inside the editor root
+ * (no focus machinery): it never takes the focus — the caret stays in the
+ * block while it is open — and anchors at the left edge of the "/"
+ * character: below the line, or above it when the below placement would
+ * overrun the viewport bottom. Zero filter matches hide the list (the
+ * state stays open, so deleting the query back to a match brings it
+ * back); the keys are Escape (close), ArrowUp/ArrowDown (move the active
+ * item while a list stands), and Enter (apply). Printable keys, Backspace,
+ * and space flow to the doc's normal input path — they grow, shrink, or
+ * end the query.
+ *
+ * Applying a command converts the triggering block: the trigger phrase
+ * ("/" + the query) is stripped from its text, and the rest survives the
+ * type change (a same-type command is an attrs update; a different type
+ * is changeBlockType — one transaction: one undo step, one wire update).
+ * A block that holds only the trigger phrase converts by the replace path
+ * (remove + insert, the caret seated in the new block) unless it owns a
+ * derived segment (deeper followers) — a removal would cascade them, so
+ * such a block converts in place. A no-op close (the command equals the
+ * block's current shape, or a contentless target like the divider over
+ * surviving text) issues no command.
  *
  * The command list (v1): the page block types creatable from default
  * attrs — text, headings 1-3, the three list kinds, callout, code (plain
@@ -93,46 +122,128 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Divider", icon: SquareSplitVertical, type: "divider" },
 ];
 
-interface SlashMenuState {
-  /** The empty block the menu is attached to (the conversion target). */
-  blockId: BlockId;
-  parentId: BlockId;
-  /** The typed filter query (never inserted into the doc). */
-  query: string;
-  /** The keyboard-active item index. */
-  active: number;
-}
-
-/** The editor-level slash menu api, consumed by the block input guards. */
-interface SlashMenuApi {
-  /** Handle a key while the menu is open on `blockId`; true = consumed. */
-  onKeyDown: (event: KeyboardEvent, blockId: BlockId) => boolean;
-  /**
-   * The "/" trigger check + open. `isEmpty` / `isRootParent` are the
-   * caller's block-context facts (the menu only opens for empty,
-   * root-level blocks); true = consumed.
-   */
-  onSlashKey: (
-    event: KeyboardEvent,
-    blockId: BlockId,
-    parentId: BlockId,
-    isEmpty: boolean,
-    isRootParent: boolean
-  ) => boolean;
-}
-
-const SlashMenuContext = createContext<SlashMenuApi | null>(null);
-
-/** The slash menu api for the nearest editor root (null = slash disabled). */
-function useSlashMenuApi(): SlashMenuApi | null {
-  return useContext(SlashMenuContext);
-}
-
 /** The command list filtered by the query (empty query = the full list). */
 function filterCommands(query: string): SlashCommand[] {
   const q = query.toLowerCase();
   if (q === "") return SLASH_COMMANDS;
   return SLASH_COMMANDS.filter((command) => command.label.toLowerCase().includes(q));
+}
+
+/** One query boundary: the whitespace characters that end the query. */
+function isQueryBoundary(ch: string): boolean {
+  return ch === " " || ch === "\t" || ch === "\n";
+}
+
+/** The live derivation of the menu state from the block text (the doc is the source of truth). */
+interface SlashDerivation {
+  /** The anchor is gone (the "/" deleted or edited away) or the caret left the query window. */
+  closed: boolean;
+  /** The filter query: the block text between the "/" and its query boundary. */
+  query: string;
+  /** The end of the query (the boundary index, or the text length). */
+  queryEnd: number;
+}
+
+/**
+ * Derive the menu state for a triggering "/": the anchor must still stand
+ * at `slashOffset` in the live text (edits before the "/" shift it — the
+ * anchor is offset-anchored and gives up on a miss), and the caret must
+ * sit inside the query window — after the "/" and no further than the
+ * query's whitespace boundary (a typed space, or a move out, ends the
+ * phrase). The query is the text between the two.
+ */
+function deriveSlash(text: string, slashOffset: number, caret: number): SlashDerivation {
+  if (slashOffset < 0 || slashOffset >= text.length || text.charAt(slashOffset) !== "/") {
+    return { closed: true, query: "", queryEnd: 0 };
+  }
+  let queryEnd = slashOffset + 1;
+  while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
+  const closed = caret <= slashOffset || caret > queryEnd;
+  return { closed, query: text.slice(slashOffset + 1, queryEnd), queryEnd };
+}
+
+/** The apply decision (pure): what a picked command does to the trigger block. */
+type SlashApplyPlan =
+  | { kind: "noop" }
+  | { kind: "replace" }
+  | { kind: "update"; deleteFrom: number; deleteTo: number }
+  | { kind: "convert"; deleteFrom: number; deleteTo: number };
+
+/** The command's attrs equal the block's current attrs (the no-op close)? */
+function sameAttrs(block: Block, command: SlashCommand): boolean {
+  if (command.type !== block.type) return false;
+  const current = "attrs" in block ? block.attrs : undefined;
+  const next = "attrs" in command ? command.attrs : undefined;
+  return JSON.stringify(current ?? null) === JSON.stringify(next ?? null);
+}
+
+/**
+ * Plan the command's application. The trigger phrase ("/" + the query) is
+ * always stripped; the stripped block is empty only when the phrase was
+ * its whole text. The replace path needs both an empty result and a type
+ * change — and a block that owns a derived segment cannot be removed (the
+ * removal cascades its followers), so it converts in place instead. The
+ * divider over a phrase-only block is a no-op close when the block owns a
+ * derived segment (a removal would cascade its followers) — the replace
+ * path stands only for a phrase-only block without followers (a divider
+ * insert is contentless, nothing is lost).
+ */
+function planSlashApply(
+  command: SlashCommand,
+  block: Block,
+  text: string,
+  slashOffset: number,
+  hasFollowers: boolean
+): SlashApplyPlan {
+  if (sameAttrs(block, command)) return { kind: "noop" };
+  const queryEnd = deriveSlash(text, slashOffset, text.length).queryEnd;
+  const stripped = text.slice(0, slashOffset) + text.slice(queryEnd);
+  if (stripped === "" && !hasFollowers && command.type !== block.type) return { kind: "replace" };
+  // A divider cannot stand the block's text (the core rejects the type
+  // change) nor replace a segment-owning block (the removal cascades):
+  // the replace check above stands only for the phrase-only case, so any
+  // other divider pick is a no-op close.
+  if (command.type === "divider") return { kind: "noop" };
+  if (command.type === block.type) return { kind: "update", deleteFrom: slashOffset, deleteTo: queryEnd };
+  return { kind: "convert", deleteFrom: slashOffset, deleteTo: queryEnd };
+}
+
+/** The block's text (a content block's runs joined; absent content is empty). */
+function blockTextOf(block: Block | null | undefined): string {
+  if (block === null || block === undefined || !("content" in block)) return "";
+  return (block.content ?? []).reduce((t, run) => t + run.text, "");
+}
+
+/** The trigger block's inner editable (null when the block vanished). */
+function slashInnerOf(rootRef: RefObject<HTMLElement | null>, blockId: BlockId): HTMLElement | null {
+  return (
+    rootRef.current?.querySelector<HTMLElement>(`[data-block-id="${blockId}"] [data-slot="docblocks/block-content"]`) ??
+    null
+  );
+}
+
+/**
+ * The caret offset inside the trigger block, live from the DOM selection.
+ * The browser settles the DOM before the store commit that re-renders the
+ * menu, so the read stands at the current text (a stale caret state would
+ * stand past the shrunken query's end after a Backspace and close the menu
+ * wrongly). The declared open seat (the caret right after the "/") stands
+ * when the selection does not sit in the block.
+ */
+function liveCaretOf(rootRef: RefObject<HTMLElement | null>, blockId: BlockId, fallback: number): number {
+  const el = slashInnerOf(rootRef, blockId);
+  const selection = window.getSelection();
+  if (
+    el !== null &&
+    selection !== null &&
+    selection.rangeCount > 0 &&
+    selection.isCollapsed &&
+    selection.anchorNode !== null &&
+    el.contains(selection.anchorNode)
+  ) {
+    return caretOffsetIn(el, selection.anchorNode, selection.anchorOffset);
+  }
+  return fallback;
 }
 
 /** Insert the command's block with its default attrs (type-safe per type), keeping the trigger's attach level (a subtree view's root level may sit deeper than 0 — the same position and indent were valid before, so the sequence's jump rule holds at the landing). */
@@ -173,52 +284,118 @@ function indentOf(block: Block): number {
   return typeof indent === "number" && Number.isInteger(indent) && indent >= 0 ? indent : 0;
 }
 
-/** The command's attrs equal the block's current attrs (the no-op close)? */
-function sameAttrs(block: Block, command: SlashCommand): boolean {
-  if (command.type !== block.type) return false;
-  const current = "attrs" in block ? block.attrs : undefined;
-  const next = "attrs" in command ? command.attrs : undefined;
-  return JSON.stringify(current ?? null) === JSON.stringify(next ?? null);
+/**
+ * Execute the apply plan (one transaction for the non-replace kinds —
+ * one undo step, one wire update). The validation-first ordering stands:
+ * the type change / the attrs patch validate before the text deletion
+ * runs, so a rejected plan commits nothing.
+ */
+function applySlashPlan(
+  doc: Doc,
+  plan: SlashApplyPlan,
+  command: SlashCommand,
+  blockId: BlockId,
+  parentId: BlockId,
+  indent: number,
+  scope: ParentNode
+): void {
+  switch (plan.kind) {
+    case "noop":
+      return;
+    case "replace":
+      doc.transact(() => {
+        const siblings = doc.getChildren(parentId);
+        const index = siblings.indexOf(blockId);
+        const after = index > 0 ? siblings[index - 1] : undefined;
+        doc.removeBlock(blockId);
+        const newId = insertCommand(
+          doc,
+          command,
+          after === undefined ? undefined : { parent: parentId, after },
+          indent
+        );
+        focusCaretIn(newId, 0, scope);
+      });
+      return;
+    case "update":
+    case "convert": {
+      const attrs = "attrs" in command && command.attrs !== undefined ? command.attrs : undefined;
+      try {
+        doc.transact(() => {
+          if (plan.kind === "convert") {
+            switch (command.type) {
+              case "paragraph":
+                doc.changeBlockType(blockId, "paragraph");
+                break;
+              case "heading":
+                doc.changeBlockType(blockId, "heading", command.attrs);
+                break;
+              case "list-item":
+                doc.changeBlockType(blockId, "list-item", command.attrs);
+                break;
+              case "callout":
+                doc.changeBlockType(blockId, "callout");
+                break;
+              case "code":
+                doc.changeBlockType(blockId, "code", command.attrs);
+                break;
+              case "latex":
+                doc.changeBlockType(blockId, "latex", command.attrs);
+                break;
+              default:
+                break;
+            }
+          } else if (attrs !== undefined) {
+            doc.updateBlock(blockId, attrs);
+          }
+          doc.deleteText(blockId, plan.deleteFrom, plan.deleteTo);
+        });
+      } catch (error) {
+        if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
+        throw error;
+      }
+      // A type change remounts the row (the wrapper tag swap drops the
+      // focus): re-seat the caret in the survivor at the rebase position
+      // (the deletion start — the caret's rebase rule).
+      focusCaretIn(blockId, plan.deleteFrom, scope);
+      return;
+    }
+  }
 }
 
-/**
- * Apply the command to the (empty) target block: a no-op close when the
- * block already is the command's type with the same attrs, otherwise a
- * remove + insert in place inside one transaction (the undo step), with
- * the caret moved to the new block.
- */
-function applyCommand(doc: Doc, command: SlashCommand, blockId: BlockId, parentId: BlockId, scope: ParentNode): void {
-  const current = doc.getBlock(blockId);
-  // The triggering block vanished (a concurrent remote removal or an undo
-  // with the menu open): nothing to convert.
-  if (current === null) return;
-  // Defense in depth: the trigger owns a deeper follower (the open guard
-  // keeps this unreachable — a remote change could seed the segment
-  // after the menu opened). The removal would cascade the follower, so
-  // no-op (the menu closes, the doc stands).
-  const segment = segmentRange(doc, parentId, blockId);
-  if (segment !== null && segment.end > segment.start + 1) return;
-  if (sameAttrs(current, command)) return;
-  // The trigger's attach level: the replacement stands in the trigger's
-  // slot (the jump rule over the sequence holds — the position and the
-  // indent were valid before).
-  const indent = indentOf(current);
-  doc.transact(() => {
-    const siblings = doc.getChildren(parentId);
-    const index = siblings.indexOf(blockId);
-    const after = index > 0 ? siblings[index - 1] : undefined;
-    doc.removeBlock(blockId);
-    const newId = insertCommand(doc, command, after === undefined ? undefined : { parent: parentId, after }, indent);
-    focusCaretIn(newId, 0, scope);
-  });
+interface SlashMenuState {
+  /** The block the menu is attached to (the conversion target). */
+  blockId: BlockId;
+  parentId: BlockId;
+  /** The text offset of the triggering "/" (the anchor; the query is derived after it). */
+  slashOffset: number;
+  /** The keyboard-active item index. */
+  active: number;
+}
+
+/** The editor-level slash menu api, consumed by the block input guards. */
+interface SlashMenuApi {
+  /** Handle a key while the menu is open on `blockId`; true = consumed. */
+  onKeyDown: (event: KeyboardEvent, blockId: BlockId) => boolean;
+  /**
+   * The "/" trigger open. `caretOffset` is the caret's text offset before
+   * the "/" lands (the anchor); the default is prevented here (the browser
+   * insertion stands suppressed — the caller commits the character
+   * through the command API). true = opened.
+   */
+  onSlashKey: (event: KeyboardEvent, blockId: BlockId, parentId: BlockId, caretOffset: number) => boolean;
+}
+
+const SlashMenuContext = createContext<SlashMenuApi | null>(null);
+
+/** The slash menu api for the nearest editor root (null = slash disabled). */
+function useSlashMenuApi(): SlashMenuApi | null {
+  return useContext(SlashMenuContext);
 }
 
 /** The key facts the open-menu key handling reads (react and native alike). */
 interface OpenMenuKey {
   key: string;
-  metaKey: boolean;
-  ctrlKey: boolean;
-  altKey: boolean;
   isComposing: boolean;
 }
 
@@ -234,91 +411,115 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const stateRef = useRef<SlashMenuState | null>(null);
   stateRef.current = state;
 
-  const open = useCallback(
-    (blockId: BlockId, parentId: BlockId) => setState({ blockId, parentId, query: "", active: 0 }),
-    []
+  const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
+    setState({ blockId, parentId, slashOffset, active: 0 });
+  }, []);
+
+  const close = useCallback(() => setState(null), []);
+
+  /** The open-menu derivation (the live doc text + the live caret). */
+  const openDerivation = useCallback(
+    (blockId: BlockId, slashOffset: number): SlashDerivation => {
+      const block = store.getState().blocks[blockId];
+      return deriveSlash(blockTextOf(block), slashOffset, liveCaretOf(rootRef, blockId, slashOffset + 1));
+    },
+    [rootRef, store]
   );
 
-  const typeChar = useCallback((ch: string) => {
-    setState((s) => (s === null ? s : { ...s, query: s.query + ch.toLowerCase(), active: 0 }));
-  }, []);
-
-  const backspaceQuery = useCallback(() => {
-    setState((s) => {
-      if (s === null) return s;
-      if (s.query === "") return null;
-      return { ...s, query: s.query.slice(0, -1), active: 0 };
-    });
-  }, []);
-
-  const move = useCallback((delta: 1 | -1) => {
-    setState((s) => {
-      if (s === null) return s;
-      const items = filterCommands(s.query);
-      if (items.length === 0) return s;
-      const next = (s.active + delta + items.length) % items.length;
-      return { ...s, active: next };
-    });
-  }, []);
+  const move = useCallback(
+    (delta: 1 | -1) => {
+      setState((s) => {
+        if (s === null) return s;
+        const items = filterCommands(openDerivation(s.blockId, s.slashOffset).query);
+        if (items.length === 0) return s;
+        const next = (s.active + delta + items.length) % items.length;
+        return { ...s, active: next };
+      });
+    },
+    [openDerivation]
+  );
 
   const hover = useCallback((index: number) => {
     setState((s) => (s === null ? s : { ...s, active: index }));
   }, []);
 
+  /**
+   * Apply the item: the plan is re-derived from the live doc (the doc is
+   * the source of truth — a change since the open can stale the state);
+   * a stale anchor, a vanished block, or a zero-list pick is a no-op close.
+   */
   const pick = useCallback(
     (index: number) => {
       const s = stateRef.current;
       if (s === null) return;
-      const items = filterCommands(s.query);
-      const command = items[index] ?? items[0];
+      const block = doc.getBlock(s.blockId);
+      if (block === null) {
+        close();
+        return;
+      }
+      const text = blockTextOf(block);
+      const derivation = openDerivation(s.blockId, s.slashOffset);
+      if (derivation.closed) {
+        close();
+        return;
+      }
+      const items = filterCommands(derivation.query);
+      // The clamped highlight index (the menu renders the clamped value):
+      // a filtered-down list keeps the last item active.
+      const command = items.length === 0 ? undefined : items[Math.min(index, items.length - 1)];
       setState(null);
       if (command === undefined) return;
-      applyCommand(doc, command, s.blockId, s.parentId, rootRef.current ?? document);
+      const segment = segmentRange(doc, s.parentId, s.blockId);
+      const hasFollowers = segment !== null && segment.end > segment.start + 1;
+      const plan = planSlashApply(command, block, text, s.slashOffset, hasFollowers);
+      applySlashPlan(doc, plan, command, s.blockId, s.parentId, indentOf(block), rootRef.current ?? document);
     },
-    [doc, rootRef]
+    [close, doc, openDerivation, rootRef]
   );
 
   /**
-   * The open-menu key handling, on the key facts (react and native
-   * keyboard events alike); true = the key is the menu's (the caller
-   * preventDefaults).
+   * The open-menu key handling, on the key facts; true = the key is the
+   * menu's (the caller preventDefaults). Everything else is the doc's:
+   * printable keys, Backspace, and space flow through the normal input
+   * path (they grow, shrink, or end the query).
    */
   const handleOpenMenuKey = useCallback(
     (key: OpenMenuKey, blockId: BlockId): boolean => {
       const s = stateRef.current;
       if (s === null || s.blockId !== blockId) return false;
+      const derivation = openDerivation(blockId, s.slashOffset);
+      if (derivation.closed) {
+        close();
+        return false;
+      }
+      const items = filterCommands(derivation.query);
       switch (key.key) {
         case "Escape":
-          setState(null);
+          close();
           return true;
         case "ArrowDown":
-          move(1);
-          return true;
+          if (items.length > 0) {
+            move(1);
+            return true;
+          }
+          return false;
         case "ArrowUp":
-          move(-1);
-          return true;
+          if (items.length > 0) {
+            move(-1);
+            return true;
+          }
+          return false;
         case "Enter":
-          if (!key.isComposing) {
+          if (!key.isComposing && items.length > 0) {
             pick(s.active);
             return true;
           }
           return false;
-        case "Backspace":
-          if (!key.isComposing) {
-            backspaceQuery();
-            return true;
-          }
-          return false;
         default:
-          if (key.isComposing || key.metaKey || key.ctrlKey || key.altKey) return false;
-          if (key.key.length === 1) {
-            typeChar(key.key);
-            return true;
-          }
           return false;
       }
     },
-    [backspaceQuery, move, pick, typeChar]
+    [close, move, openDerivation, pick]
   );
 
   /** The open-menu key handling on the block's react event (consumes it). */
@@ -327,9 +528,6 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       const consumed = handleOpenMenuKey(
         {
           key: event.key,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          altKey: event.altKey,
           isComposing: event.nativeEvent.isComposing,
         },
         blockId
@@ -340,88 +538,52 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     [handleOpenMenuKey]
   );
 
-  // The focus lands on the portaled menu when it opens (radix's roving
-  // focus), and then the block's keydown never fires: while the menu is
-  // open, the root also owns the keys at the document level (capture),
-  // scoped to this editor's root or the menu itself (a page can render
-  // several roots — the other roots' keys must not filter this menu).
-  // stopPropagation keeps the menu's own key handling (roving focus,
-  // typeahead) out — the state machine above is the single key owner.
-  const openFlag = state !== null;
-  useEffect(() => {
-    if (!openFlag) return;
-    const onDocKeyDown = (event: globalThis.KeyboardEvent): void => {
-      const s = stateRef.current;
-      const root = rootRef.current;
-      const target = event.target instanceof Element ? event.target : null;
-      if (s === null || root === null || target === null) return;
-      // Scope: the key must land in this editor's root (a nested editor root
-      // inside this one is another editor — its keys stay its own) or in the
-      // menu itself (portaled outside every editor root).
-      const inOwnEditor = target.closest('[data-slot="docblocks/editor"]') === root;
-      if (!inOwnEditor && target.closest('[data-slot="docblocks/slash-menu"]') === null) return;
-      const consumed = handleOpenMenuKey(
-        {
-          key: event.key,
-          metaKey: event.metaKey,
-          ctrlKey: event.ctrlKey,
-          altKey: event.altKey,
-          isComposing: event.isComposing,
-        },
-        s.blockId
-      );
-      if (consumed) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    document.addEventListener("keydown", onDocKeyDown, true);
-    return () => document.removeEventListener("keydown", onDocKeyDown, true);
-  }, [openFlag, rootRef, handleOpenMenuKey]);
-
-  /** The "/" trigger: a plain "/" keystroke in an eligible block. */
+  // The "/" trigger: a plain "/" keystroke with a collapsed caret. The
+  // default is prevented — the browser's insertion stands suppressed; the
+  // caller commits the character through the command API (one undo step)
+  // and the menu tracks it by offset (the doc is the source of truth).
   const onSlashKey = useCallback(
-    (event: KeyboardEvent, blockId: BlockId, parentId: BlockId, isEmpty: boolean, isRootParent: boolean): boolean => {
+    (event: KeyboardEvent, blockId: BlockId, parentId: BlockId, caretOffset: number): boolean => {
       if (event.key !== "/" || event.nativeEvent.isComposing) return false;
       if (event.metaKey || event.ctrlKey || event.altKey) return false;
-      if (!isEmpty || !isRootParent) return false;
       event.preventDefault();
-      open(blockId, parentId);
+      open(blockId, parentId, caretOffset);
       return true;
     },
     [open]
   );
 
-  // Auto-close: the selection left the triggering block, or the block
-  // gained text (an IME commit while the menu captured the query).
+  // Auto-close: the selection left the triggering block, became a range,
+  // or the block vanished (the caret window itself is checked on the
+  // derivation — live, at render and key time). A caret move inside the
+  // block re-renders the menu (a fresh state object) so the derivation
+  // re-runs.
+  const openFlag = state !== null;
   useEffect(() => {
     if (!openFlag) return;
     const onSelectionChange = () => {
       const s = stateRef.current;
       if (s === null) return;
-      const el =
-        rootRef.current?.querySelector<HTMLElement>(
-          `[data-block-id="${s.blockId}"] [data-slot="docblocks/block-content"]`
-        ) ?? null;
-      if (el !== null && selectionInside(el)) {
-        const block = store.getState().blocks[s.blockId];
-        if (block !== undefined && "content" in block) {
-          const text = (block.content ?? []).reduce((t, run) => t + run.text, "");
-          if (text !== "") {
-            setState(null);
-            return;
-          }
-        }
+      const el = slashInnerOf(rootRef, s.blockId);
+      if (el === null) {
+        setState(null);
         return;
       }
-      setState(null);
+      const selection = window.getSelection();
+      if (!selectionInside(el) || selection === null || selection.rangeCount === 0 || !selection.isCollapsed) {
+        setState(null);
+        return;
+      }
+      // A caret move inside the block: re-derive (the live read stands).
+      setState((cur) => (cur === null ? cur : { ...cur }));
     };
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
-  }, [openFlag, rootRef, store]);
+  }, [openFlag, rootRef]);
 
   const api = useMemo(() => ({ onKeyDown, onSlashKey }), [onKeyDown, onSlashKey]);
-  const menuNode = state !== null ? <SlashMenu rootRef={rootRef} state={state} onHover={hover} onPick={pick} /> : null;
+  const menuNode =
+    state !== null ? <SlashMenu rootRef={rootRef} state={state} onHover={hover} onPick={pick} onClose={close} /> : null;
 
   return { api, menuNode };
 }
@@ -431,67 +593,119 @@ interface SlashMenuProps {
   state: SlashMenuState;
   onHover: (index: number) => void;
   onPick: (index: number) => void;
+  onClose: () => void;
 }
 
 /**
- * The floating command list: a non-modal radix dropdown anchored at the
- * triggering block through an invisible zero-size trigger (the content is
- * portaled to the document body and styles itself; the bar-level mousedown
- * guard and the outside dismiss suppression stand here as well — the
- * editor owns the selection and the selection state owns the visibility).
+ * The floating command list: a plain absolutely-positioned div inside the
+ * editor root (the root is the positioning context). It renders no DOM
+ * while the filter stands at zero (the state stays open — deleting the
+ * query back to a match brings the list back). The mousedown suppression
+ * keeps the block's selection (and focus) alive across an item click.
  */
-function SlashMenu({ rootRef, state, onHover, onPick }: SlashMenuProps) {
-  const items = filterCommands(state.query);
-  const anchor =
-    rootRef.current?.querySelector<HTMLElement>(
-      `[data-block-id="${state.blockId}"] [data-slot="docblocks/block-content"]`
-    ) ?? null;
-  const root = rootRef.current;
-  let top = 8;
-  let left = 8;
-  if (anchor !== null && root !== null) {
-    const a = anchor.getBoundingClientRect();
-    const r = root.getBoundingClientRect();
-    top = a.top - r.top;
-    left = a.left - r.left;
-  }
+function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps) {
+  const block = useBlock(state.blockId);
+  const text = blockTextOf(block);
+
+  // The derivation, live (the block text from the store + the caret from
+  // the DOM selection — the browser settles the DOM before the store
+  // commit that re-renders this component, so both stand together). A
+  // closed derivation is a no-op close (the "/" deleted, or the caret out
+  // of the query window).
+  const [derived, setDerived] = useState<SlashDerivation | null>(null);
+  useLayoutEffect(() => {
+    const caret = liveCaretOf(rootRef, state.blockId, state.slashOffset + 1);
+    const derivation = deriveSlash(text, state.slashOffset, caret);
+    setDerived(derivation);
+    if (derivation.closed) onClose();
+  }, [text, state, rootRef, onClose]);
+
+  const items = derived === null ? [] : filterCommands(derived.query);
+  const visible = items.length > 0;
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 
+  // Anchor at the "/" character — below the line, above it when the
+  // below placement overruns the viewport bottom. Measured in a layout
+  // effect (the first frame stands hidden until the rects stand);
+  // environments without layout (jsdom — no range rects) leave the menu
+  // unpositioned.
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    if (!visible) {
+      setPosition(null);
+      return;
+    }
+    const root = rootRef.current;
+    const inner = slashInnerOf(rootRef, state.blockId);
+    if (root === null || inner === null) return;
+    const start = locatePosition(inner, state.slashOffset);
+    const end = locatePosition(inner, state.slashOffset + 1);
+    const range = document.createRange();
+    range.setStart(start.node, start.offset);
+    range.setEnd(end.node, end.offset);
+    if (typeof range.getBoundingClientRect !== "function") return;
+    const rect = range.getBoundingClientRect();
+    const rootRect = root.getBoundingClientRect();
+    const left = rect.left - rootRect.left;
+    const height = menuRef.current?.offsetHeight ?? 0;
+    if (rect.bottom + height + 8 > window.innerHeight) {
+      setPosition({ left, bottom: rect.top - rootRect.top });
+    } else {
+      setPosition({ left, top: rect.bottom - rootRect.top });
+    }
+  }, [visible, state.blockId, state.slashOffset, text, rootRef]);
+
+  if (!visible) return null;
   return (
-    <DropdownMenu modal={false} open>
-      <DropdownMenuTrigger asChild>
-        <span aria-hidden="true" style={{ position: "absolute", top, left, width: 0, height: 0 }} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        side="bottom"
-        sideOffset={0}
-        data-slot="docblocks/slash-menu"
-        className="data-[state=closed]:animate-none data-[state=open]:animate-none"
-        onMouseDown={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
-        onFocusOutside={(event) => event.preventDefault()}
-      >
-        {items.length === 0 ? (
-          <div data-slot="docblocks/slash-empty" className="px-2 py-1.5 text-sm text-muted-foreground">
-            no commands
-          </div>
-        ) : (
-          items.map((command, index) => (
-            <DropdownMenuItem
-              key={command.label}
-              onSelect={() => onPick(index)}
-              onMouseEnter={() => onHover(index)}
-              className={cn("focus:bg-transparent", index === active && "bg-accent text-accent-foreground")}
-            >
-              <command.icon className="size-4" />
-              {command.label}
-            </DropdownMenuItem>
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <div
+      ref={menuRef}
+      role="menu"
+      data-slot="docblocks/slash-menu"
+      className={cn(
+        "absolute z-modal min-w-32 overflow-hidden rounded-md border border-border bg-popover p-1",
+        "text-popover-foreground shadow-md",
+        position === null && "opacity-0"
+      )}
+      style={
+        position === null
+          ? undefined
+          : {
+              left: position.left,
+              ...(position.top !== undefined ? { top: position.top } : { bottom: position.bottom }),
+            }
+      }
+    >
+      {items.map((command, index) => (
+        <div
+          key={command.label}
+          role="menuitem"
+          data-slot="docblocks/slash-item"
+          data-active={index === active || undefined}
+          className={cn(
+            "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none",
+            "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+            index === active && "bg-accent text-accent-foreground"
+          )}
+          onMouseEnter={() => onHover(index)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onPick(index)}
+        >
+          <command.icon className="size-4" />
+          {command.label}
+        </div>
+      ))}
+    </div>
   );
 }
 
-export { COMMAND_PALETTE_PLACEHOLDER, SlashMenuContext, useSlashMenu, useSlashMenuApi };
+export {
+  COMMAND_PALETTE_PLACEHOLDER,
+  SLASH_COMMANDS,
+  SlashMenuContext,
+  deriveSlash,
+  filterCommands,
+  planSlashApply,
+  useSlashMenu,
+  useSlashMenuApi,
+};

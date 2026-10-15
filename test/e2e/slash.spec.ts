@@ -3,6 +3,21 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 const RELAY = "ws://localhost:5199";
 
 /**
+ * The "/" slash command menu (the reworked model): the "/" is regular doc
+ * text — the keypress commits it through the command API (the browser's
+ * insertion stands suppressed), and the query typed after it is plain text
+ * (the doc is the source of truth; the filter is the suffix after the
+ * triggering "/" up to the first whitespace). The menu stands at the "/"
+ * character (below the line; above it when the below placement overruns
+ * the viewport), zero matches hide the list (deleting back brings it),
+ * Esc keeps the phrase in the text (the existing "/" never re-triggers —
+ * only a "/" keypress does), and a picked command converts the block's
+ * type with the rest of the text surviving (the trigger phrase is
+ * stripped). The trigger stands at any position and indent of a page text
+ * block; code and latex are excluded (a "/" there is plain text).
+ */
+
+/**
  * A unique room per test: the relay keeps rooms for the dev server's
  * lifetime, so a fixed name would accumulate the content of failed attempts
  * across runs.
@@ -35,91 +50,325 @@ function menu(page: Page) {
   return page.locator('[data-slot="docblocks/slash-menu"]');
 }
 
-/**
- * The pane seeds a single empty paragraph, so the slash trigger (an empty,
- * root-level block) is available in the seeded state.
- */
+/** The pane's wire-log outbound doc-update count (awareness frames are not logged). */
+async function outCount(page: Page, client: "a" | "b"): Promise<number> {
+  const text = await page.getByTestId(`wire-${client}`).innerText();
+  return text.match(/\] out \d+B/g)?.length ?? 0;
+}
 
-test("slash: / opens the command menu; the query filters; Enter converts the empty block", async ({ browser }) => {
-  const { a, b, close } = await openPanes(browser, "ux01-slash");
-  await inner(a, "a").click();
+/** The rect of the block's "/" character (the flat offset `slashOffset` of its logical text; null when the pane or text node is missing). */
+async function slashRect(
+  page: Page,
+  client: "a" | "b",
+  slashOffset: number
+): Promise<{ left: number; bottom: number; top: number } | null> {
+  return page.evaluate(
+    ([c, offset]) => {
+      const innerEl = document.querySelector(`[data-testid="doc-${c}"] [data-slot="docblocks/block-content"]`);
+      if (innerEl === null) return null;
+      const textNode = Array.from(innerEl.childNodes).find((n) => n.nodeType === Node.TEXT_NODE) as Text | undefined;
+      if (textNode === undefined || offset >= textNode.length) return null;
+      const range = document.createRange();
+      range.setStart(textNode, offset);
+      range.setEnd(textNode, offset + 1);
+      const rect = range.getBoundingClientRect();
+      return { left: rect.left, bottom: rect.bottom, top: rect.top };
+    },
+    [client, slashOffset] as const
+  );
+}
+
+test("the / is a plain doc character — the doc and the wire see it; Backspace deletes it", async ({ browser }) => {
+  const { a, b, close } = await openPanes(browser, "ux01-slash-s1");
+  const target = inner(a, "a");
+  await target.click();
+  const outBefore = await outCount(a, "a");
+
   await a.keyboard.press("/");
+  // The menu stands open and the character is in the doc (both panes — the
+  // sync is plain text).
+  await expect(menu(a)).toBeVisible();
+  await expect(target).toHaveText("/");
+  await expect(inner(b, "b")).toHaveText("/");
+  expect(await outCount(a, "a")).toBe(outBefore + 1);
 
-  const m = menu(a);
-  await expect(m).toBeVisible();
-  await expect(m.locator('[role="menuitem"]')).toHaveCount(12);
+  // Backspace deletes the "/" like any other character: the anchor vanishes
+  // and the menu closes.
+  await a.keyboard.press("Backspace");
+  await expect(menu(a)).toHaveCount(0);
+  await expect(target).toHaveText("");
+  await expect(inner(b, "b")).toHaveText("");
+  expect(await outCount(a, "a")).toBe(outBefore + 2);
+  await close();
+});
 
-  // The menu anchors at the triggering block's top-left (the old inline
-  // geometry, now the radix content over the zero-size trigger).
-  const menuBox = await m.boundingBox();
-  const blockBox = await a
-    .locator('[data-block-type="paragraph"]')
-    .first()
-    .locator('[data-slot="docblocks/block-content"]')
-    .boundingBox();
-  if (menuBox !== null && blockBox !== null) {
-    expect(Math.abs(menuBox.x - blockBox.x)).toBeLessThanOrEqual(4);
-    expect(Math.abs(menuBox.y - blockBox.y)).toBeLessThanOrEqual(4);
+test("the menu stands at the / — below the line at the character's left edge", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux02-slash-anchor");
+  const target = inner(a, "a");
+  await target.click();
+  await a.keyboard.type("ab/");
+  await expect(menu(a)).toBeVisible();
+
+  // The anchor is the "/" character itself (offset 2), not the block's
+  // corner: the menu's top-left stands at the character's left edge, below
+  // its line.
+  const rect = await slashRect(a, "a", 2);
+  const box = await menu(a).boundingBox();
+  expect(rect).not.toBeNull();
+  expect(box).not.toBeNull();
+  if (rect !== null && box !== null) {
+    expect(Math.abs(box.x - rect.left)).toBeLessThanOrEqual(4);
+    expect(Math.abs(box.y - rect.bottom)).toBeLessThanOrEqual(4);
   }
+  await close();
+});
 
-  // The typed query filters the list (case-insensitive substring).
-  await a.keyboard.type("head");
-  await expect(m.locator('[role="menuitem"]')).toHaveCount(3);
-  await expect(m.locator('[role="menuitem"]')).toHaveText(["Heading 1", "Heading 2", "Heading 3"]);
+test("the menu flips above the line when the below placement overruns the viewport bottom", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux03-slash-flip");
 
-  // ArrowDown moves the active item; Enter applies it (Heading 2).
-  await a.keyboard.press("ArrowDown");
+  // A tall page: the last block sits at the viewport's bottom once scrolled.
+  const lastId = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    let id = "";
+    doc.transact(() => {
+      for (let i = 0; i < 24; i += 1) id = doc.insertBlock("paragraph");
+    });
+    return id;
+  });
+  expect(lastId).not.toBeNull();
+  const blockInner = a.locator(`[data-block-id="${lastId}"] [data-slot="docblocks/block-content"]`);
+  await blockInner.evaluate((el) => el.scrollIntoView({ block: "end" }));
+  await blockInner.click();
+
+  await a.keyboard.press("/");
+  await expect(menu(a)).toBeVisible();
+
+  // The below placement (a ~400px menu) would overrun the viewport: the
+  // menu's bottom stands at the line's top (above the line).
+  const lineBox = await blockInner.boundingBox();
+  const box = await menu(a).boundingBox();
+  expect(lineBox).not.toBeNull();
+  expect(box).not.toBeNull();
+  if (lineBox !== null && box !== null) {
+    expect(box.y + box.height).toBeLessThanOrEqual(lineBox.y + 4);
+  }
+  await close();
+});
+
+test("the query filters; zero matches hide the list; deleting back brings it (the focus stays in the block)", async ({
+  browser,
+}) => {
+  const { a, close } = await openPanes(browser, "ux04-slash-filter");
+  const target = inner(a, "a");
+  await target.click();
+
+  await a.keyboard.type("/hea");
+  await expect(menu(a)).toBeVisible();
+  await expect(menu(a).locator('[role="menuitem"]')).toHaveCount(3);
+  await expect(menu(a).locator('[role="menuitem"]')).toHaveText(["Heading 1", "Heading 2", "Heading 3"]);
+  await expect(target).toBeFocused();
+
+  // Zero matches: the list disappears (no placeholder).
+  await a.keyboard.type("zz");
+  await expect(menu(a)).toHaveCount(0);
+  await expect(target).toBeFocused();
+  await expect(target).toHaveText("/heazz");
+
+  // Deleting back to a match brings the list (the state never closed — the
+  // doc is the source of truth).
+  await a.keyboard.press("Backspace");
+  await a.keyboard.press("Backspace");
+  await expect(target).toHaveText("/hea");
+  await expect(menu(a)).toBeVisible();
+  await expect(menu(a).locator('[role="menuitem"]')).toHaveCount(3);
+  await expect(target).toBeFocused();
+  await close();
+});
+
+test("Esc keeps the phrase in the text; the existing / never re-triggers; a new / does", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux05-slash-esc");
+  const target = inner(a, "a");
+  await target.click();
+
+  await a.keyboard.type("/head");
+  await expect(menu(a)).toBeVisible();
+  await a.keyboard.press("Escape");
+  await expect(menu(a)).toHaveCount(0);
+  // The phrase stands in the doc as plain text (the block is editable as usual).
+  await expect(target).toHaveText("/head");
+  await expect(target).toBeFocused();
+
+  // Moving the caret back to the same "/" (no new "/" keypress) does not
+  // re-open the menu.
+  await a.keyboard.press("Home");
+  await a.keyboard.press("ArrowRight");
+  await a.keyboard.press("ArrowRight");
+  await expect(menu(a)).toHaveCount(0);
+
+  // A freshly typed "/" is a new trigger.
+  await a.keyboard.press("End");
+  await a.keyboard.press("/");
+  await expect(menu(a)).toBeVisible();
+  await expect(target).toHaveText("/head/");
+  await close();
+});
+
+test("/ triggers in a non-empty, indented block; the apply converts the type and keeps the text", async ({
+  browser,
+}) => {
+  const { a, b, close } = await openPanes(browser, "ux06-slash-convert");
+  const target = inner(a, "a");
+  await target.click();
+  // Two blocks (the sequence head stays at indent 0 — the first block
+  // cannot indent); the caret is re-seated in the second block explicitly
+  // (the split's caret handoff settles with the motion view's animation).
+  await a.keyboard.type("top");
   await a.keyboard.press("Enter");
-  await expect(m).toHaveCount(0);
+  const second = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').nth(1);
+  await expect(second).toHaveCount(1);
+  await second.click();
+  await a.keyboard.type("todo");
+  await a.keyboard.press("Tab"); // the second block indents to level 1
 
-  // The block converted in place to a level-2 heading (the h2 tag) and the
-  // typed query never reached the doc: the converted block has no text.
+  await a.keyboard.type("/task");
+  await expect(menu(a)).toBeVisible();
+  await expect(menu(a).locator('[role="menuitem"]')).toHaveCount(1);
+  await expect(menu(a).locator('[role="menuitem"]')).toHaveText("Task list");
+
+  const outBefore = await outCount(a, "a");
+  await a.keyboard.press("Enter");
+  await expect(menu(a)).toHaveCount(0);
+
+  // The block converted in place: a task list item at its indent, the text
+  // surviving (the trigger phrase "/task" stripped).
+  const taskItem = a.locator('[data-block-type="list-item"]');
+  await expect(taskItem).toHaveCount(1);
+  await expect(taskItem.locator('[data-slot="docblocks/block-content"]')).toHaveText("todo");
+  const attrs = await a.evaluate((c) => {
+    const doc = window.__paneDocs?.[c as "a" | "b"] ?? null;
+    if (doc === null) return null;
+    const order = doc.getChildren(doc.toJSON().id);
+    const id = order.find((blockId) => doc.getBlock(blockId)?.type === "list-item") ?? null;
+    return id === null ? null : (doc.getBlock(id)?.attrs ?? null);
+  }, "a");
+  expect(attrs).toEqual({ list: "task", indent: 1 });
+
+  // One command: one wire update; the other pane stands the same.
+  expect(await outCount(a, "a")).toBe(outBefore + 1);
+  const bItem = b.locator('[data-block-type="list-item"]');
+  await expect(bItem).toHaveCount(1);
+  await expect(bItem.locator('[data-slot="docblocks/block-content"]')).toHaveText("todo");
+
+  // One undo step: the phrase and the type are restored together (the
+  // wire log lags the update — polled).
+  await a.keyboard.press("Control+z");
+  await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 2);
+  await expect(a.locator('[data-block-type="list-item"]')).toHaveCount(0);
+  const restored = a.locator('[data-block-type="paragraph"]').filter({ hasText: "todo/task" });
+  await expect(restored).toHaveCount(1);
+  await expect(restored.locator('[data-slot="docblocks/block-content"]')).toHaveText("todo/task");
+  await close();
+});
+
+test("a phrase-only block converts by replacement (the converted block stands empty, the v1 path)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await openPanes(browser, "ux07-slash-replace");
+  const target = inner(a, "a");
+  await target.click();
+
+  await a.keyboard.type("/head");
+  await expect(menu(a)).toBeVisible();
+  await a.keyboard.press("ArrowDown"); // Heading 2
+  await a.keyboard.press("Enter");
+  await expect(menu(a)).toHaveCount(0);
+
+  // The block's whole text was the trigger phrase: it converts by the
+  // replace path — an empty heading (the phrase stripped, nothing else to
+  // keep), synced to the other pane; the caret stands in the new block
+  // (one undo step restores the phrase and the paragraph).
   const heading = a.locator('[data-testid="doc-a"] h2[data-block-type="heading"]');
   await expect(heading).toHaveCount(1);
   await expect(heading.locator('[data-slot="docblocks/block-content"]')).toHaveText("");
-
-  // The conversion reached the other pane (the doc-level sync).
   await expect(b.locator('[data-testid="doc-b"] h2[data-block-type="heading"]')).toHaveCount(1);
+
+  const outBefore = await outCount(a, "a");
+  await a.keyboard.press("Control+z");
+  await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 1);
+  await expect(a.locator('[data-testid="doc-a"] h2[data-block-type="heading"]')).toHaveCount(0);
+  await expect(target).toHaveText("/head");
   await close();
 });
 
-test("slash: Escape closes the menu without touching the doc", async ({ browser }) => {
-  const { a, close } = await openPanes(browser, "ux02-slash-esc");
-  await inner(a, "a").click();
-  await a.keyboard.press("/");
+test("a same-type command is an attrs update: the kind swap keeps the text", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux08-slash-kindswap");
+  const target = inner(a, "a");
+  await target.click();
+  await a.keyboard.type("item");
+  // Make the starter a bulleted list item (the list-type menu stands via the
+  // format toolbar — the slash's own kind-swap is the pin below, so seed the
+  // kind through the doc API).
+  await a.evaluate((c) => {
+    const doc = window.__paneDocs?.[c as "a" | "b"] ?? null;
+    if (doc === null) return;
+    const order = doc.getChildren(doc.toJSON().id);
+    const id = order[0];
+    if (id !== undefined) doc.changeBlockType(id, "list-item", { list: "bullet" });
+  }, "a");
+
+  await target.click();
+  await a.keyboard.press("End");
+  await a.keyboard.type("/task");
   await expect(menu(a)).toBeVisible();
+  await expect(menu(a).locator('[role="menuitem"]')).toHaveCount(1);
+  await expect(menu(a).locator('[role="menuitem"]')).toHaveText("Task list");
+  const outBefore = await outCount(a, "a");
 
-  await a.keyboard.press("Escape");
+  await a.keyboard.press("Enter");
   await expect(menu(a)).toHaveCount(0);
-
-  // The doc is untouched: the room's starter paragraph is still empty
-  // (the "/" character was never inserted).
-  await expect(a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]')).toHaveCount(1);
-  await expect(inner(a, "a")).toHaveText("");
+  const item = a.locator('[data-block-type="list-item"]');
+  await expect(item).toHaveCount(1);
+  await expect(item.locator('[data-slot="docblocks/block-content"]')).toHaveText("item");
+  const attrs = await a.evaluate((c) => {
+    const doc = window.__paneDocs?.[c as "a" | "b"] ?? null;
+    if (doc === null) return null;
+    const id = doc.getChildren(doc.toJSON().id)[0];
+    return id === undefined ? null : (doc.getBlock(id)?.attrs ?? null);
+  }, "a");
+  expect(attrs).toEqual({ list: "task" });
+  // One composed command: one wire update.
+  expect(await outCount(a, "a")).toBe(outBefore + 1);
   await close();
 });
 
-test("slash: a click picks the command", async ({ browser }) => {
-  const { a, close } = await openPanes(browser, "ux03-slash-click");
-  await inner(a, "a").click();
+test("code and latex do not trigger (a / there is plain text)", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux09-slash-code");
+  const target = inner(a, "a");
+  await target.click();
+
+  // A code block via the menu (the replace path on the phrase-only block).
   await a.keyboard.press("/");
-  await expect(menu(a)).toBeVisible();
-
-  // The accessible name is the item's label text.
-  await menu(a).getByRole("menuitem", { name: "Callout" }).click();
+  await expect(menu(a).getByRole("menuitem", { name: "Code block", exact: true })).toBeVisible();
+  await menu(a).getByRole("menuitem", { name: "Code block", exact: true }).click();
   await expect(menu(a)).toHaveCount(0);
-  await expect(a.locator('[data-testid="doc-a"] [data-block-type="callout"]')).toHaveCount(1);
-  await close();
-});
+  const code = a.locator('[data-block-type="code"]');
+  await expect(code).toHaveCount(1);
 
-test("slash: a non-empty block does not open the menu (the / is plain text)", async ({ browser }) => {
-  const { a, close } = await openPanes(browser, "ux04-slash-nonempty");
-  await inner(a, "a").click();
-  await a.keyboard.type("hello");
-  await a.keyboard.press("/");
-
-  // No menu; the "/" is a plain character in the text.
+  // Inside the code block: the "/" is a plain character (no menu).
+  const codeInner = code.locator('[data-slot="docblocks/block-content"]');
+  await codeInner.click();
+  await a.keyboard.type("a/b");
   await expect(menu(a)).toHaveCount(0);
-  await expect(inner(a, "a")).toHaveText("hello/");
+  await expect(codeInner).toHaveText("a/b");
+
+  // A latex block (the doc API's insert): the same exclusion.
+  const latexId = await a.evaluate(() => window.__paneDocs?.a?.insertBlock("latex", { display: false }) ?? null);
+  expect(latexId).not.toBeNull();
+  const latexInner = a.locator(`[data-block-id="${latexId}"] [data-slot="docblocks/block-content"]`);
+  await latexInner.click();
+  await a.keyboard.type("x/y");
+  await expect(menu(a)).toHaveCount(0);
+  await expect(latexInner).toHaveText("x/y");
   await close();
 });

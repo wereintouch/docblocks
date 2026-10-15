@@ -32,9 +32,10 @@ import { useSlashMenuApi } from "./slash";
  * line break (a `\n` in the run text, rendered through the inner's
  * `white-space: pre-wrap`), Backspace at offset 0 merges with the
  * previous sibling, Tab / Shift+Tab nest / outdent the block (the code
- * block keeps the typewriter Tab: a `\t` at the caret), and a "/" in an
- * empty root-level block opens the slash command menu (the
- * character is never inserted: the menu captures the filter query).
+ * block keeps the typewriter Tab: a `\t` at the caret), and a "/" typed in a
+ * page text block opens the slash command menu — the character and the
+ * query typed after it enter the doc as plain text (the menu filters on
+ * the live suffix; code and latex keep the "/" as plain text).
  * While a blocks selection is active (the wrapper is focused from the
  * gutter): Delete / Backspace remove the selected blocks, the arrows move
  * a single-block selection to the previous / next sibling, Escape clears it.
@@ -224,32 +225,42 @@ function useBlockInput({
         return;
       }
 
-      // The slash trigger: a "/" with a collapsed caret in an empty,
-      // root-level block opens the command menu (the key is consumed — the
-      // character never reaches the doc). `content` is omitted from the
-      // empty block's snapshot, so its absence is the empty state too.
-      if (slash !== null && event.key === "/" && !event.nativeEvent.isComposing) {
+      // The slash trigger: a "/" with a collapsed caret in a page text block
+      // (paragraph, heading, list-item, callout — code and latex are
+      // excluded: a "/" there is plain text) at any position and any indent
+      // of the root page sequence (or the provider's entry root itself)
+      // opens the command menu. The character stands in the doc as a regular
+      // one (the editor commits it; the browser's insertion is suppressed) —
+      // the menu tracks the text after it (the doc is the query's source
+      // of truth), and Backspace deletes it like any other.
+      if (
+        slash !== null &&
+        event.key === "/" &&
+        !event.nativeEvent.isComposing &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
         const domSelection = window.getSelection();
         if (domSelection === null || !domSelection.isCollapsed) return;
         if (domSelection.anchorNode === null || !inner.contains(domSelection.anchorNode)) return;
         const block = store.getState().blocks[id];
         if (block === undefined) return;
-        const text = "content" in block ? (block.content ?? []).reduce((t, run) => t + run.text, "") : "";
-        // A trigger that owns a derived segment (deeper followers) does
-        // not open the menu: apply would remove the trigger, and the
-        // core's removeBlock cascades the segment — the nested content
-        // would be lost (the mergeWithPrevious guard's precedent).
-        const segment = segmentRange(doc, context.parentId, id);
-        if (segment !== null && segment.end > segment.start + 1) return;
-        // The menu opens for an empty, top-level (indent 0) block of the
-        // root page sequence (the flat model's "root-level") — or for the
-        // provider's entry root itself (a subtree view's top level, which
-        // may sit at a deeper indent in the full sequence; the apply keeps
-        // the trigger's indent, so the replacement's landing holds).
-        const attrs = "attrs" in block ? (block.attrs as { indent?: unknown } | undefined) : undefined;
-        const indent = typeof attrs?.indent === "number" ? attrs.indent : 0;
-        const isRootLevel = (context.parentId === rootBlockId && indent === 0) || id === rootBlockId;
-        if (text === "" && slash.onSlashKey(event, id, context.parentId, true, isRootLevel)) return;
+        const type = block.type;
+        const isPageText = type === "paragraph" || type === "heading" || type === "list-item" || type === "callout";
+        const inPageSequence = context.parentId === rootBlockId || id === rootBlockId;
+        if (isPageText && inPageSequence) {
+          const caret = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
+          if (slash.onSlashKey(event, id, context.parentId, caret)) {
+            // The key's default is prevented by the trigger: the editor
+            // commits the "/" itself (one undo step) and the caret lands
+            // after it — declared before the store update, since the
+            // rebase rule keeps a caret at the insertion offset in place.
+            declareLocalCaret(caret + 1);
+            doc.insertText(id, caret, "/");
+            return;
+          }
+        }
       }
 
       // isComposing: an Enter during an IME composition commits the

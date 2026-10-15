@@ -51,6 +51,7 @@ interface PaneDoc {
   moveRow(databaseId: string, rowId: string, toIndex: number): void;
   removeRow(databaseId: string, rowId: string): void;
   moveBlock(id: string, toParent: string, toIndex: number): void;
+  changeBlockType(id: string, type: string, attrs?: Record<string, unknown>): void;
   setGeometry(id: string, geometry: { x?: number; y?: number; w?: number; h?: number; rotation?: number } | null): void;
   setMark(blockId: string, from: number, to: number, mark: unknown): void;
   transact(fn: () => void): void;
