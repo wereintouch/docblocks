@@ -176,7 +176,7 @@ const eslintConfig = tseslint.config(
       "test-results/**",
       "playwright-report/**",
       "coverage/**",
-      ".scratch-editor-spec/**",
+      ".docs/**",
       ".scratch-probes/**",
     ],
   },

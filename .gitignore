@@ -12,7 +12,7 @@ TODO.md
 .claude/
 .pi/
 
-.scratch-editor-spec/
+.docs/
 
 # agent tooling (playwright mcp scratch)
 .playwright-mcp/

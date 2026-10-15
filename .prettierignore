@@ -4,5 +4,5 @@ package-lock.json
 coverage
 test-results
 playwright-report
-.scratch-editor-spec
+.docs
 CHANGELOG.md
