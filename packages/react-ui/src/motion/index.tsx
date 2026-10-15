@@ -69,6 +69,7 @@ import { CanvasView } from "../blocks/CanvasView";
 import { BlockContext, useBlockContext } from "../blocks/block-context";
 import { deriveFlat, entrySequenceParent, visibleRows } from "../blocks/flat";
 import type { FlatNode } from "../blocks/flat";
+import { segmentRange } from "../editing/block-commands";
 import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
@@ -78,7 +79,7 @@ import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
 import { GripVertical } from "../shared/ui/icons";
-import { commitFlatDrag, sameIds } from "./reorder";
+import { type DropRow, commitFlatDrag, dropCandidateIndent, sameIds } from "./reorder";
 
 /**
  * The enter/exit geometry of a row. The spacing margin collapses on exit
@@ -95,6 +96,21 @@ const EXIT = { opacity: 0, height: 0, marginBottom: 0 } as const;
  * the slide is disarmed).
  */
 const TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
+
+/**
+ * The drag's pointer Y (the seam measurement's input): the pointer/mouse
+ * event's clientY, or the last changed touch's (the touch release event
+ * carries no coordinate of its own). Null when the event stands no
+ * usable coordinate (the measurement is stale — the caller keeps the
+ * preview or skips the commit).
+ */
+function pointerYOf(event: PointerEvent | MouseEvent | TouchEvent): number | null {
+  if (event instanceof TouchEvent) {
+    const touch = event.changedTouches[event.changedTouches.length - 1];
+    return touch === null || touch === undefined ? null : touch.clientY;
+  }
+  return event.clientY;
+}
 
 /** How long the layout slide stays armed after a structural render (the slide itself runs 0.18s). */
 const SLIDE_SETTLE_MS = 400;
@@ -194,6 +210,14 @@ interface RowItemProps {
   /** This row is the one being dragged (the zIndex keeps it above the sliding siblings). */
   isDragged: boolean;
   /**
+   * The in-flight seam candidate (the dragged row only, the drag's live
+   * preview): the row's left padding stands at the candidate's steps
+   * instead of the row's own indent — a pure preview (the doc, the wire,
+   * and the store are untouched); the drop's commit applies the same
+   * value, so the preview stands where the drop lands.
+   */
+  previewIndent: number | null;
+  /**
    * The enter-animation gate is open (the editor saw a text input): this
    * row's mount runs the enter animation (ENTER). A row that mounts while
    * the gate stands closed (the mount, the sync load) renders its animate
@@ -203,7 +227,9 @@ interface RowItemProps {
   /** The row's drag session start (from its gutter handle's pointerdown). */
   onDragStart: () => void;
   /** The row's release: the flat-range commit for this block. */
-  onDragEnd: () => void;
+  onDragEnd: (event: PointerEvent | MouseEvent | TouchEvent) => void;
+  /** The drag's live seam-candidate update (the preview's source). */
+  onDragMove: (event: PointerEvent | MouseEvent | TouchEvent) => void;
 }
 
 /**
@@ -221,7 +247,16 @@ interface RowItemProps {
 const TEXT_ROW_TYPES = new Set(["paragraph", "heading", "callout", "list-item", "code", "latex"]);
 
 const RowItem = memo(
-  function RowItem({ node, layoutSlide, isDragged, animated, onDragStart, onDragEnd }: RowItemProps) {
+  function RowItem({
+    node,
+    layoutSlide,
+    isDragged,
+    animated,
+    previewIndent,
+    onDragStart,
+    onDragEnd,
+    onDragMove,
+  }: RowItemProps) {
     const dragControls = useDragControls();
     const { doc, store, selection: selectionRef } = useEditorContext();
     const blockContext = useBlockContext();
@@ -236,7 +271,6 @@ const RowItem = memo(
     // column follows the indent steps only — a list row's marker zone stands
     // in the row's content, so every row of one indent shares the columns.
     const needsRowGutter = block !== undefined && !TEXT_ROW_TYPES.has(block.type);
-    const indentLeft = `calc(${node.indent} * var(--docblocks-nested-indent)`;
 
     /** The gutter handle's pointerdown starts this row's framer drag. */
     const onRowPointerDown = useCallback(
@@ -311,13 +345,16 @@ const RowItem = memo(
         dragControls={dragControls}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
+        onDrag={onDragMove}
         onPointerDown={onRowPointerDown}
         className={needsRowGutter ? "group" : undefined}
         style={{
           position: "relative",
           // The indent steps, plus the list row's marker zone (the row's
-          // first character, right before the text).
-          paddingLeft: `${indentLeft} + ${isList ? "var(--docblocks-marker-width)" : "0px"})`,
+          // first character, right before the text). The in-flight seam
+          // candidate (the drag's live preview) replaces the row's own
+          // indent for the padding only — the doc stays as it is.
+          paddingLeft: `calc(${previewIndent ?? node.indent} * var(--docblocks-nested-indent) + ${isList ? "var(--docblocks-marker-width)" : "0px"})`,
           ...(isDragged ? { zIndex: 30 } : undefined),
         }}
       >
@@ -341,7 +378,9 @@ const RowItem = memo(
               "size-5",
               selected && "opacity-100"
             )}
-            style={{ left: `${indentLeft} + var(--docblocks-gutter-left))` }}
+            style={{
+              left: `calc(${previewIndent ?? node.indent} * var(--docblocks-nested-indent) + var(--docblocks-gutter-left))`,
+            }}
           >
             <GripVertical />
           </Button>
@@ -350,7 +389,11 @@ const RowItem = memo(
       </Reorder.Item>
     );
   },
-  (prev, next) => prev.node === next.node && prev.layoutSlide === next.layoutSlide && prev.isDragged === next.isDragged
+  (prev, next) =>
+    prev.node === next.node &&
+    prev.layoutSlide === next.layoutSlide &&
+    prev.isDragged === next.isDragged &&
+    prev.previewIndent === next.previewIndent
 );
 
 function MotionEditor({
@@ -402,6 +445,8 @@ function MotionEditor({
   const orderRef = useRef(order);
   /** The framer drag key (a state mirror: it drives the rows' layout transition, the zIndex, and the render-phase resync skip). */
   const [draggingKey, setDraggingKey] = useState<BlockId | null>(null);
+  /** The in-flight seam candidate (the dragged row's live preview indent; null between drags). */
+  const [previewIndent, setPreviewIndent] = useState<number | null>(null);
   /** The layout slide armed: a drag in flight or the settle window after a structural change. */
   const [layoutSlide, setLayoutSlide] = useState(false);
   const slideTimerRef = useRef<number | null>(null);
@@ -461,30 +506,107 @@ function MotionEditor({
     prevKeysRef.current = rowKeys;
   }
 
+  /**
+   * The seam candidate at the pointer's Y (the drag's live preview and
+   * the release's commit input share it): the visible rows' viewport
+   * boxes against the seam rule (`reorder.ts`). Null when the measurement
+   * is stale (the segment vanished, or the rows are gone) — the caller
+   * keeps the preview (move) or skips the commit (release, the
+   * render-phase resync snaps the order back to the store).
+   */
+  const seamCandidateAt = useCallback(
+    (id: BlockId, pointerY: number): number | null => {
+      const root = rootRef.current;
+      if (root === null) return null;
+      const containerId = entrySequenceParent(doc, rootBlockId);
+      const segment = segmentRange(doc, containerId, id);
+      if (segment === null) return null;
+      const segmentIds = new Set(doc.getChildren(containerId).slice(segment.start, segment.end));
+      const rows: DropRow[] = [];
+      for (const el of Array.from(root.querySelectorAll<HTMLElement>('[data-slot="docblocks/row"]'))) {
+        // The row's block id stands on its direct child (the block wrapper
+        // — the row itself carries no id attribute).
+        const wrapperId = el.querySelector<HTMLElement>("[data-block-id]")?.getAttribute("data-block-id") ?? null;
+        if (wrapperId === null) continue;
+        const node = nodesById.get(wrapperId);
+        if (node === undefined) continue;
+        // The row's SETTLED box: the static layout (the offsetTop chain —
+        // transform-blind), not the live one. The rows slide on the layout
+        // projection while a drag runs, and the live boxes would stand
+        // mid-slide at the release (a stale seam measurement). The chain
+        // assumes no positioned/fixed ancestor above the editor (a
+        // position: fixed embedding would offset every box by a constant —
+        // the commit's guards keep such a measurement from committing a
+        // wrong seam).
+        let top = 0;
+        for (
+          let ancestor: HTMLElement | null = el;
+          ancestor !== null;
+          ancestor = ancestor.offsetParent as HTMLElement | null
+        ) {
+          top += ancestor.offsetTop;
+        }
+        top -= window.scrollY;
+        rows.push({ id: wrapperId, top, bottom: top + el.offsetHeight, indent: node.indent });
+      }
+      if (rows.length === 0) return null;
+      return dropCandidateIndent(rows, pointerY, segmentIds, id);
+    },
+    [doc, nodesById, rootBlockId, rootRef]
+  );
+
   /** The row's drag start: the slide arms, the row lifts (the zIndex). */
   const onRowDragStart = useCallback(
     (id: BlockId) => {
       armSlide();
       setDraggingKey(id);
+      setPreviewIndent(null);
     },
     [armSlide]
   );
 
   /**
-   * The row's release: the flat-range commit (one transact — one undo
-   * step, one wire update). A no-op drop (the segment landed in place)
-   * and a stale drop (a remote update changed the sequence mid-drag —
-   * the derived final order is not the current sequence with the
-   * segment moved) issue no command; the render-phase resync then snaps
-   * the local order back to the store.
+   * The drag's live seam candidate (the preview's source): the pointer's
+   * Y against the visible rows' boxes — the same measurement the drop's
+   * commit validates, so the preview stands where the drop lands. Pure
+   * preview: the doc, the wire, and the store are untouched.
+   */
+  const onRowDragMove = useCallback(
+    (id: BlockId, event: PointerEvent | MouseEvent | TouchEvent) => {
+      const pointerY = pointerYOf(event);
+      if (pointerY === null) return;
+      const candidate = seamCandidateAt(id, pointerY);
+      if (candidate === null) return; // a stale measurement — the preview stands
+      setPreviewIndent(candidate);
+    },
+    [seamCandidateAt]
+  );
+
+  /**
+   * The row's release: the flat-range commit plus the seam's indent
+   * (one transact — one undo step, one wire update). A no-op drop (the
+   * segment landed in place) and a stale drop (a remote update changed
+   * the sequence mid-drag — the derived final order is not the current
+   * sequence with the segment moved, or the seam's candidate matches
+   * neither seam neighbor) issue no command; the render-phase resync
+   * then snaps the local order back to the store.
    */
   const onRowDragEnd = useCallback(
-    (id: BlockId) => {
+    (id: BlockId, event: PointerEvent | MouseEvent | TouchEvent) => {
       armSlide();
       setDraggingKey(null);
-      commitFlatDrag(doc, rootBlockId, id, orderRef.current, store.getState().collapsedIds);
+      const pointerY = pointerYOf(event);
+      setPreviewIndent(null);
+      if (pointerY === null) return; // a stale release measurement — the resync stands
+      const candidate = seamCandidateAt(id, pointerY);
+      if (candidate === null) {
+        // The release's measurement is stale (no rows, or the segment
+        // vanished) — the render-phase resync snaps the order back.
+        return;
+      }
+      commitFlatDrag(doc, rootBlockId, id, orderRef.current, store.getState().collapsedIds, candidate);
     },
-    [armSlide, doc, rootBlockId, store]
+    [armSlide, doc, orderRef, rootBlockId, seamCandidateAt, store]
   );
 
   // The cross-drag selection session owns the root's pointerdown (the
@@ -538,8 +660,10 @@ function MotionEditor({
                         layoutSlide={layoutSlide || draggingKey !== null}
                         isDragged={draggingKey === id}
                         animated={enterGate.current}
+                        previewIndent={draggingKey === id ? previewIndent : null}
                         onDragStart={() => onRowDragStart(id)}
-                        onDragEnd={() => onRowDragEnd(id)}
+                        onDragEnd={(event) => onRowDragEnd(id, event)}
+                        onDragMove={(event) => onRowDragMove(id, event)}
                       />
                     );
                   })}

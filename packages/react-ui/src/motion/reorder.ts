@@ -8,23 +8,37 @@
  * sequence-container entry root (the document root — the common case) the
  * container's full sequence; for a page-block entry root (a subtree
  * provider, e.g. a sync-embed subtree) the entry root's derived segment
- * within the container's sequence — a vertical drag keeps every indent, so
- * the segment membership is invariant during the drag and the final
- * VISIBLE order (the local order at release — the collapsed segments are
- * unmounted, so they do not participate) is a permutation of the segment's
- * blocks. The visible order is mapped back to the scope (a collapsed
- * item's hidden segment rows reinsert after their collapsed item), and the
- * commit is the range move of the dragged block's derived subtree within
- * the CONTAINER's sequence (a range operation on one array, the scope's
- * indices translated by the scope's offset): one transact, one undo step,
- * one wire update. A no-op drop (the segment landed at its own position)
- * and a stale drop (a remote update changed the scope mid-drag — the
- * derived final order is not the current scope with the segment moved)
- * issue no command; so does a landing the core rejects with its typed
- * indent-jump violation (the move is the stale drop's posture: no command,
- * the order resyncs to the store).
+ * within the container's sequence — the final VISIBLE order (the local
+ * order at release — the collapsed segments are unmounted, so they do not
+ * participate) is a permutation of the segment's blocks. The visible
+ * order is mapped back to the scope (a collapsed item's hidden segment
+ * rows reinsert after their collapsed item), and the commit is the range
+ * move of the dragged block's derived subtree within the CONTAINER's
+ * sequence (a range operation on one array, the scope's indices translated
+ * by the scope's offset) plus the seam's indent assignment (below): one
+ * transact, one undo step, one wire update. A no-op drop (the segment
+ * landed at its own position) and a stale drop (a remote update changed
+ * the scope mid-drag — the derived final order is not the current scope
+ * with the segment moved) issue no command; so does a landing the core
+ * rejects with its typed indent-jump violation (the move is the stale
+ * drop's posture: no command, the order resyncs to the store).
+ *
+ * The seam's indent (the drop's two-variant rule): a drop at the seam
+ * between the row A (the block before the landed span) and the row B (the
+ * block after it) stands the segment's head at the seam's candidate
+ * indent — the row the pointer stands over (its upper or lower half is
+ * the same seam's side: the head lands before B at B's level, or after A
+ * at A's level); in the gap between A and B the pointer's half decides
+ * (the upper half stands the head before B — B's indent — the lower half
+ * after A — A's indent); at the sequence's start the only candidate is
+ * the first block's indent, at the end the last block's. The block's own
+ * current indent is NOT a candidate for a real move (a no-op drop keeps
+ * it — the position stands). The head's derived segment shifts by the
+ * delta (candidate minus the head's current indent) uniformly, so the
+ * segment's relative structure stands.
  */
 import type { BlockId, Doc } from "docblocks-core";
+import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { entrySequenceParent } from "../blocks/flat";
 import { moveSegmentInSequence, segmentRange } from "../editing/block-commands";
@@ -66,6 +80,73 @@ function hiddenSegmentRows(doc: Doc, sequence: readonly BlockId[], itemId: Block
 }
 
 /**
+ * A visible row for the seam measurement (the DOM order — the live local
+ * order at the drag's frame or at the release): the row's SETTLED viewport
+ * box (top/bottom — the static layout, the rows' mid-slide positions are
+ * not measured) and the block's current indent.
+ */
+interface DropRow {
+  id: BlockId;
+  top: number;
+  bottom: number;
+  indent: number;
+}
+
+/**
+ * The drop's candidate indent (the module header's seam rule), from the
+ * pointer's Y and the visible rows' settled boxes (viewport coordinates).
+ * The seam stands against the rows that STAND (the dragged segment's rows
+ * are the drop's moving span — the seam's neighbors, but they still occupy
+ * the span's space in the settled layout): over a row that stands — that
+ * row's indent (the pointer's half inside the row is the seam's side, but
+ * both sides stand the head at the row's level); in a gap — the gap's
+ * halves, split by the pointer's local gap's middle (the nearest rows
+ * above and below the pointer — the span's own settled slots included, so
+ * the middle splits the gap the pointer stands in, not the span's whole
+ * span) — the upper stands the head before the row below, the lower after
+ * the row above, at that row's level; above every row — the seam at the
+ * sequence's start, the first standing row's indent; below the last — the
+ * last standing row's. A local row that is the span's own slot carries no
+ * seam information at the sequence's ends (the no-op or a stale drop —
+ * the commit's guards stand): the value stands from the standing rows.
+ */
+function dropCandidateIndent(
+  rows: readonly DropRow[],
+  pointerY: number,
+  segmentIds: ReadonlySet<BlockId>,
+  headId: BlockId
+): number {
+  const rest = rows.filter((row) => !segmentIds.has(row.id));
+  if (rest.length === 0) {
+    const head = rows.find((row) => row.id === headId);
+    return head === undefined ? 0 : head.indent;
+  }
+  // Over a standing row: both halves of the row stand the head at its level.
+  const over = rest.find((row) => pointerY >= row.top && pointerY < row.bottom);
+  if (over !== undefined) return over.indent;
+  // The pointer stands in a gap (or beyond the rows' ends). The nearest
+  // rows by coordinate — the full visible set, the span's own settled slots
+  // included — on either side of the pointer; the pointer's gap's middle
+  // splits the halves.
+  const belowLocal = rows.find((row) => row.top >= pointerY);
+  const aboveLocal = [...rows].reverse().find((row) => row.bottom <= pointerY);
+  if (belowLocal !== undefined && aboveLocal !== undefined) {
+    const mid = (aboveLocal.bottom + belowLocal.top) / 2;
+    const seamRow = pointerY < mid ? belowLocal : aboveLocal;
+    return seamRow.indent;
+  }
+  // Beyond the rows' ends: the seam stands at the sequence's edge — the
+  // first/last standing row (the edge row is the span's own slot only for
+  // a no-op or a stale drop — the commit's guards stand, the candidate is
+  // unused).
+  if (belowLocal !== undefined) {
+    return segmentIds.has(belowLocal.id) ? (rest[0]?.indent ?? 0) : belowLocal.indent;
+  }
+  const last = aboveLocal?.indent ?? 0;
+  return aboveLocal !== undefined && segmentIds.has(aboveLocal.id) ? (rest[rest.length - 1]?.indent ?? 0) : last;
+}
+
+/**
  * The commit of a flat-row drag (the scope and the visible-order mapping:
  * the module header). `contextId` is the provider's entry root: the commit
  * resolves its sequence container and runs over its SCOPE — the full
@@ -75,7 +156,9 @@ function hiddenSegmentRows(doc: Doc, sequence: readonly BlockId[], itemId: Block
  * CONTAINER's sequence (the scope's indices translated by the scope's
  * offset — the scope's membership stands, so a valid permutation of the
  * scope always commits: the segment's internal adjacencies and the
- * boundary neighbors are unchanged, and the indent-jump rule holds).
+ * boundary neighbors are unchanged, and the indent-jump rule holds) plus
+ * the seam's indent assignment (the `candidateIndent`, the module
+ * header's seam rule).
  *
  * Returns true when the drag landed (a command issued or a no-op — the
  * local order already matches the store); false when the commit was
@@ -86,7 +169,8 @@ function commitFlatDrag(
   contextId: BlockId,
   draggedId: BlockId,
   visibleFinalOrder: readonly BlockId[],
-  collapsedIds: readonly BlockId[]
+  collapsedIds: readonly BlockId[],
+  candidateIndent: number
 ): boolean {
   // The entry root's sequence container (the container itself when the
   // entry root is one — the document root, the common case), and the
@@ -165,12 +249,70 @@ function commitFlatDrag(
   // scope's offset): up — that item's index stands (target); down — the
   // head precedes scope[target + length] (the segment's own trailing
   // edge), and the move to the scope's end maps onto the container's own
-  // trailing edge (target + length there). A landing the core rejects (its
-  // typed indent-jump violation) rolls the transact back — the commit
-  // drops like a stale drop (the caller resyncs the local order to the
-  // store).
+  // trailing edge (target + length there).
   const t = target < start ? target : target + segmentLength;
-  return moveSegmentInSequence(doc, containerId, scopeOffset + start, segmentLength, scopeOffset + t);
+
+  // The seam's candidate (the module header): the head stands at the
+  // seam's neighbor's indent — the block before the landed span (A) or
+  // the block after it (B). The block's own indent is the no-op drop's
+  // only (the early return above), so a candidate that matches neither
+  // neighbor is a stale measurement (a mid-slide box) — the stale drop's
+  // posture: no command, the caller resyncs.
+  const before = target > 0 ? finalFull[target - 1] : undefined;
+  const after = finalFull[target + segmentLength];
+  const matchesSeam =
+    (before !== undefined && candidateIndent === indentOf(doc, before)) ||
+    (after !== undefined && candidateIndent === indentOf(doc, after));
+  if (!matchesSeam) return false;
+
+  const headIndent = indentOf(doc, draggedId);
+  const delta = candidateIndent - headIndent;
+  const followers = segmentOthers.map((id) => ({ id, indent: indentOf(doc, id) + delta }));
+
+  if (delta === 0) {
+    // The pure move (the segment's indents stand): the pre-existing
+    // head-first composition (its per-step landing checks read the
+    // final predecessors, so a valid final state commits every step).
+    return moveSegmentInSequence(doc, containerId, scopeOffset + start, segmentLength, scopeOffset + t);
+  }
+
+  // The move plus the head's and the followers' indent updates — one
+  // transact (one undo step, one wire update). The steps' order keeps
+  // every intermediate state jump-rule-valid (the final state is valid
+  // by the seam rule, and the path exists in both directions):
+  // deepening (delta > 0) — the move first (the head's shallower old
+  // indent lands validly at the new predecessor), then the indents;
+  // shallowing (delta < 0) — the indents first (a shallower value at the
+  // block's own position is always valid), then the move. The follower
+  // updates ride the head's check (each follower stands one deeper than
+  // its predecessor, and the uniform delta keeps the difference).
+  const applyIndents = (): void => {
+    doc.updateBlock(draggedId, { indent: candidateIndent });
+    for (const follower of followers) doc.updateBlock(follower.id, { indent: follower.indent });
+  };
+  try {
+    doc.transact(() => {
+      if (delta < 0) applyIndents();
+      const blockIds = doc.getChildren(containerId).slice(scopeOffset + start, scopeOffset + start + segmentLength);
+      // Up: the segment's blocks (in order) land at t + i — each block's
+      // position is unaffected by the earlier steps (a remove-before +
+      // insert-before cancel), so the pre-move indices hold. Down: every
+      // block lands at the pre-move index t (the removal from the segment's
+      // start shifts the t slot left by one per step).
+      for (let i = 0; i < segmentLength; i += 1) {
+        const landing = target < start ? scopeOffset + t + i : scopeOffset + t;
+        doc.moveBlock(blockIds[i]!, containerId, landing);
+      }
+      if (delta > 0) applyIndents();
+    });
+  } catch (error) {
+    // The core's typed rejection (a corrupt or stale state the seam rule
+    // did not foresee — the move's position or an indent update's jump
+    // rule): the transact rolled back — the stale drop's posture.
+    if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return false;
+    throw error;
+  }
+  return true;
 }
 
-export { commitFlatDrag, sameIds };
+export { commitFlatDrag, dropCandidateIndent, sameIds, type DropRow };
