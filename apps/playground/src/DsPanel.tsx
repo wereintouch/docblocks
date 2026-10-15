@@ -35,7 +35,7 @@ import { useState } from "react";
 import type { CSSProperties } from "react";
 
 const row: CSSProperties = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" };
-const label: CSSProperties = { width: 110, fontSize: 12, color: "#57606a" };
+const label: CSSProperties = { width: 110, fontSize: 12, color: "var(--muted-foreground)" };
 
 /**
  * The design system preview (harness-only, `?ds=1`): the shared/ui
@@ -58,7 +58,7 @@ function DsPanel() {
     >
       <header>
         <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — design system preview</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "#57606a" }}>
+        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted-foreground)" }}>
           The shared/ui primitives over the compiled utility CSS (docblocks-react-ui/ui.css). The dark set flips under
           the <code>.dark</code> class on <code>&lt;html&gt;</code> (no media query).
         </p>

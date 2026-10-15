@@ -26,8 +26,8 @@ function WireLog({ client, events }: { client: "a" | "b"; events: WireEvent[] })
   }, [events]);
 
   return (
-    <div data-testid={`wire-${client}`} style={{ border: "1px solid #ccc", marginTop: 8 }}>
-      <div style={{ padding: "4px 8px", borderBottom: "1px solid #ccc", fontSize: 12 }}>
+    <div data-testid={`wire-${client}`} style={{ border: "1px solid var(--border)", marginTop: 8 }}>
+      <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
         wire — {events.length} events
       </div>
       <ul

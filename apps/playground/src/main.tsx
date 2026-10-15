@@ -5,6 +5,7 @@ import { createRoot } from "react-dom/client";
 import { StrictMode } from "react";
 
 import { App } from "./App";
+import "./harness.css";
 
 // The harness default theme: the dark token set (the `.dark` class on
 // `<html>`); the pane's theme toggle (SyncPane's system panel) is the

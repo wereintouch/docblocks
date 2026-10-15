@@ -263,10 +263,10 @@ function SyncPane({
   const toggleStyle = (active: boolean): CSSProperties => ({
     padding: "2px 10px",
     fontSize: 13,
-    border: "1px solid #d0d7de",
+    border: "1px solid var(--border)",
     borderRadius: 6,
-    background: active ? "#0969da" : "#f6f8fa",
-    color: active ? "#ffffff" : "#24292f",
+    background: active ? "var(--primary)" : "var(--muted)",
+    color: active ? "var(--primary-foreground)" : "var(--foreground)",
     cursor: "pointer",
   });
   const docAreaStyle: CSSProperties =
@@ -279,17 +279,17 @@ function SyncPane({
           display: "flex",
           flexDirection: "column",
           height: "calc(100vh - 72px)",
-          border: "1px solid #d0d7de",
+          border: "1px solid var(--border)",
           borderRadius: 8,
           overflow: "hidden",
-          background: "#f6f8fa",
+          background: "var(--background)",
         }
       : // The page flow keeps the visual-golden editor width (702: the doc area's
         // content width the goldens were captured at). The width is 720 because
         // the shipped utility CSS puts box-sizing: border-box on every element
         // (the preflight in ui.css's base layer): 702 content + 2x1 border +
         // 2x8 padding.
-        { width: 720, maxWidth: "100%", border: "1px solid #ccc", padding: 8, minHeight: 40 };
+        { width: 720, maxWidth: "100%", border: "1px solid var(--border)", padding: 8, minHeight: 40 };
 
   // main must stay content-height (a viewport-pinned fixed height makes
   // Chrome swallow the default Home/End caret moves inside the nested
@@ -352,11 +352,11 @@ function SyncPane({
           display: "flex",
           flexDirection: "column",
           gap: 12,
-          borderLeft: "1px solid #d0d7de",
+          borderLeft: "1px solid var(--border)",
           paddingLeft: 16,
         }}
       >
-        <div style={{ fontSize: 13, color: "#57606a", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
           theme
           <button
             type="button"
@@ -377,7 +377,7 @@ function SyncPane({
             light
           </button>
         </div>
-        <div style={{ fontSize: 13, color: "#57606a", display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
           <span data-testid={`status-${client}`}>{connected ? "connected" : "disconnected"}</span>
           <button data-testid={`reconnect-${client}`} onClick={onReconnect}>
             reconnect
@@ -397,8 +397,8 @@ function SyncPane({
                   style={{
                     padding: "2px 8px",
                     fontSize: 12,
-                    border: "1px solid #ccc",
-                    background: tab === name ? "#dbeafe" : "#f6f8fa",
+                    border: "1px solid var(--border)",
+                    background: tab === name ? "var(--accent)" : "var(--muted)",
                   }}
                 >
                   {name}

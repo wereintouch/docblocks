@@ -18,8 +18,8 @@ function JsonInspector({ client, doc }: { client: "a" | "b"; doc: Doc }) {
   }, [doc]);
 
   return (
-    <div data-testid={`json-${client}`} style={{ border: "1px solid #ccc", marginTop: 8 }}>
-      <div style={{ padding: "4px 8px", borderBottom: "1px solid #ccc", fontSize: 12 }}>
+    <div data-testid={`json-${client}`} style={{ border: "1px solid var(--border)", marginTop: 8 }}>
+      <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
         json — <span data-testid={`json-bytes-${client}`}>{JSON.stringify(snapshot).length} B</span>
       </div>
       <pre

@@ -97,8 +97,8 @@ function ChaosBar({ syncUrl }: { syncUrl: string }) {
             style={{
               padding: "2px 8px",
               fontSize: 12,
-              border: "1px solid #ccc",
-              background: active ? "#dbeafe" : "#f6f8fa",
+              border: "1px solid var(--border)",
+              background: active ? "var(--accent)" : "var(--muted)",
             }}
           >
             {label}
