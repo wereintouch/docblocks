@@ -415,6 +415,10 @@ function MotionEditor({
         className={cn(
           "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",
           "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
+          // The page view keeps the block content inside the card frame (the
+          // gutter grip stands in the left margin band, not past the border);
+          // the canvas view owns its own viewport and is unpadded.
+          view === "page" && "px-(--docblocks-page-padding-x)",
           "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
         )}
         onKeyDown={onKeyDown}

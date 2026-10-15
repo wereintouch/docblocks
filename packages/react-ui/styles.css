@@ -86,6 +86,10 @@
   /* Layout. */
   --docblocks-block-spacing: 8px;
   --docblocks-radius: var(--radius, 6px);
+  /* The page view's horizontal padding: the gutter's overhang (the grip
+     stands `gutter-size + gutter-offset` past the block content) plus an
+     8px clearance, so the grip never stands past the editor's frame. */
+  --docblocks-page-padding-x: calc(var(--docblocks-gutter-size) + var(--docblocks-gutter-offset) + 8px);
 
   /* Block selection. */
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);
