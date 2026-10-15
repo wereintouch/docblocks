@@ -98,6 +98,19 @@ function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): Dra
  * selection in sync, per block). The session ends on pointerup/cancel:
  * a click without a drag re-seats the caret at the anchor (the plain
  * click behavior), a drag leaves the selection where the pointer left it.
+ *
+ * The multi-click selects are the browser's own word select (the double
+ * press) — the session's mousedown suppression stands only for the first
+ * press (the multi-click's own mousedown tears the session down and lets
+ * the default action stand; the pointer's detail stands 0 under synthetic
+ * input, the mousedown's stands the real count, so the decision stands on
+ * the mousedown's). The triple press is the editor's: the browser's
+ * "paragraph" select of a pre-wrap block stands at one visual line (the
+ * soft-break lines), so a detail-3 press inside a text inner is
+ * suppressed and the editor stands the whole-block selection (all the
+ * soft-break lines) itself — a permanent capture listener, independent of
+ * the session (the real pointer's third press starts no session: the
+ * pointer's detail stands 3 and the session guard returns).
  */
 function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
   const sessionRef = useRef<CrossDragSession | null>(null);
@@ -148,13 +161,25 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
     // action; suppressing it (capture phase, the primary-button press
     // inside the editor — the mousedown of the session's own pointerdown,
     // which Chromium does not tag with a pointerId) leaves the editor as
-    // the selection's sole writer.
+    // the selection's sole writer. The multi-click check stands on the
+    // mousedown's own detail (a synthetic pointer stands 0 detail on the
+    // pointer events while the mouse events carry the real count): the
+    // double/triple press is the browser's native word/paragraph select,
+    // so the session is torn down and the default action stands.
     const mousedown = (event: MouseEvent) => {
       const session = sessionRef.current;
       const root = rootRef.current;
       if (session === null || root === null || event.button !== 0) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target === null || !root.contains(target)) return;
+      if (event.detail >= 2) {
+        sessionRef.current = null;
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", end);
+        window.removeEventListener("pointercancel", end);
+        window.removeEventListener("mousedown", mousedown, true);
+        return;
+      }
       event.preventDefault();
     };
     handlersRef.current = { move, end, mousedown };
@@ -165,8 +190,10 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
       const root = rootRef.current;
       if (root === null || event.pointerType !== "mouse") return;
       // A multi-click (the word/line select of a double or triple click)
-      // keeps the browser's default behavior: the session stands only
-      // for the primary single click.
+      // keeps the browser's default behavior — decided on the mousedown's
+      // detail, which stands correctly while the pointer's stands 0 under
+      // synthetic input (the session may stand here and is torn down by
+      // the mousedown handler).
       if (event.detail >= 2) return;
       const target = event.target instanceof Element ? event.target : null;
       // A text inner of THIS editor (a nested editor's inner is handled by
@@ -190,7 +217,26 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
   // A session that outlives its pointer (the window closed over a
   // captured pointer) is torn down with the effect's cleanup.
   useEffect(() => {
+    const triple = (event: MouseEvent) => {
+      const root = rootRef.current;
+      if (root === null || event.button !== 0 || event.detail < 3) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target === null || !root.contains(target)) return;
+      const inner = target.closest<HTMLElement>('[data-slot="docblocks/block-content"]');
+      if (inner === null || inner.closest('[data-slot="docblocks/editor"]') !== root) return;
+      const blockId = inner.dataset.blockId as BlockId;
+      // The native triple press selects the visual line of a pre-wrap
+      // block (one soft-break line); the whole-block select is the
+      // editor's: suppress the default action and stand the selection
+      // over the block's whole text (all the soft-break lines).
+      const head = locatePosition(inner, 0);
+      const tail = locatePosition(inner, doc.getTextLength(blockId));
+      event.preventDefault();
+      window.getSelection()?.setBaseAndExtent(head.node, head.offset, tail.node, tail.offset);
+    };
+    window.addEventListener("mousedown", triple, true);
     return () => {
+      window.removeEventListener("mousedown", triple, true);
       if (sessionRef.current === null) return;
       sessionRef.current = null;
       const handlers = handlersRef.current;
