@@ -1,5 +1,8 @@
 import type { BlockId, DatabaseBlock as DatabaseBlockType } from "docblocks-core";
 
+import { Badge } from "../shared/ui/Badge";
+import { Card, CardContent } from "../shared/ui/Card";
+
 /**
  * A database (v1): the placeholder card — the column names header line
  * plus a live row count. The table UI (the virtualized grid, the cell
@@ -13,16 +16,16 @@ function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType })
   const { columns } = block.attrs;
   const rowCount = block.rowOrder.length;
   return (
-    <div
+    <Card
       data-slot="docblocks/block"
       data-block-type="database"
       data-block-id={id}
       className="
-        relative my-(--docblocks-block-spacing) rounded-(--docblocks-radius)
-        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
+        my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
+        border-(--docblocks-table-border-color) outline-none
       "
     >
-      <div data-slot="docblocks/database" className="p-(--docblocks-table-cell-padding)">
+      <CardContent data-slot="docblocks/database">
         <div
           data-slot="docblocks/database-header"
           className="flex flex-wrap gap-(--docblocks-block-spacing) font-(--docblocks-heading-font-weight)"
@@ -33,11 +36,11 @@ function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType })
             </span>
           ))}
         </div>
-        <div data-slot="docblocks/database-count" className="mt-(--docblocks-block-spacing) opacity-70">
+        <Badge data-slot="docblocks/database-count" variant="secondary" className="mt-(--docblocks-block-spacing)">
           {rowCount} {rowCount === 1 ? "row" : "rows"}
-        </div>
-      </div>
-    </div>
+        </Badge>
+      </CardContent>
+    </Card>
   );
 }
 
