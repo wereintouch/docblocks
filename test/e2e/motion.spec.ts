@@ -69,17 +69,46 @@ async function settled(page: Page): Promise<void> {
   );
 }
 
-test("an inserted block reaches both panes and its enter animation settles", async ({ browser }) => {
+test("an insert before any input stands up instantly; an insert after input runs the enter animation", async ({
+  browser,
+}) => {
   const { a, b, close } = await twoPanes(browser, "ui03c-insert");
 
   // The room starts with pane "a"'s single starter.
   await expect(wrappers(a, "a")).toHaveCount(1);
 
+  // Capture the entering row's inline opacity at the mount tick (before
+  // the first animation frame): a row that stands up instantly carries no
+  // opacity-0 inline style (initial={false}: the animate values), a row
+  // that runs the enter animation does (opacity 0 from the ENTER values).
+  const armMountCapture = (page: Page) => (key: string) =>
+    page.evaluate((k: string) => {
+      const group = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"] > div');
+      (window as unknown as Record<string, { opacity: string | null }>)[k] = { opacity: null };
+      if (group === null) return;
+      const observer = new MutationObserver(() => {
+        const entries = Array.from(group.children);
+        const entry = entries[entries.length - 1] as HTMLElement | undefined;
+        (window as unknown as Record<string, { opacity: string | null }>)[k]!.opacity =
+          entry === undefined ? "absent" : entry.style.opacity;
+        observer.disconnect();
+      });
+      observer.observe(group, { childList: true });
+    }, key);
+  const readMountCapture = (page: Page, key: string) =>
+    page.evaluate((k: string) => (window as unknown as Record<string, { opacity: string | null }>)[k], key);
+
+  // The first insert happens before either pane typed — both gates stand
+  // closed, so the sync load (B) and the pre-input insert (A) stand up
+  // instantly.
+  await armMountCapture(b)("__mountB");
+  await armMountCapture(a)("__mountA");
+
   await insertBlockType(a, "a", "paragraph");
 
   // Both panes (the motion editor) render the block as it arrives...
   await expect(wrappers(b, "b")).toHaveCount(2);
-  // ...and the enter animation settles in A (the block is current after
+  // ...and the row is visible and settled in A (the block is current after
   // the insert, so it is labeled).
   await expect(wrappers(a, "a")).toHaveCount(2);
   await expect
@@ -89,6 +118,35 @@ test("an inserted block reaches both panes and its enter animation settles", asy
     )
     .toBe("1");
   await expect(currentWrapper(a, "a")).toBeVisible();
+
+  // The captured mount-tick opacity proves the stand-up was instant in
+  // both panes (a sync load and a pre-input insert are not animated
+  // inserts).
+  const bMount = await readMountCapture(b, "__mountB");
+  expect(bMount?.opacity).not.toBeNull();
+  expect(bMount?.opacity).not.toBe("absent");
+  expect(bMount?.opacity).not.toBe("0");
+  const aMount = await readMountCapture(a, "__mountA");
+  expect(aMount?.opacity).not.toBeNull();
+  expect(aMount?.opacity).not.toBe("absent");
+  expect(aMount?.opacity).not.toBe("0");
+
+  // An insert after an input: the gate stands open in A (it types) — a
+  // genuine insert runs the enter animation (opacity 0 at the mount tick,
+  // settling at 1).
+  await a.locator('[data-slot="docblocks/block-content"]').first().click();
+  await a.keyboard.type("hi");
+  await armMountCapture(a)("__mountA2");
+  await insertBlockType(a, "a", "paragraph");
+  await expect(wrappers(a, "a")).toHaveCount(3);
+  const aMount2 = await readMountCapture(a, "__mountA2");
+  expect(aMount2?.opacity).toBe("0");
+  await expect
+    .poll(
+      async () => await currentWrapper(a, "a").evaluate((el) => getComputedStyle(el.parentElement!).opacity),
+      SETTLE
+    )
+    .toBe("1");
 
   await close();
 });
@@ -249,8 +307,8 @@ test("a gutter deletion disappears in both panes (the exit animation completes)"
 
   await a.keyboard.press("Delete");
 
-  // The exit animation runs out (the leaving row is popped out of the
-  // layout) and the block is gone in both panes.
+  // The exit animation runs out (the leaving row stays in the layout flow
+  // and collapses) and the block is gone in both panes.
   await expect(wrappers(a, "a")).toHaveCount(before - 1);
   await expect(wrappers(b, "b")).toHaveCount(before - 1);
   await expect(b.getByTestId(`block-b-${wrapperId}`)).toHaveCount(0);

@@ -58,7 +58,7 @@ describe("MotionEditor", () => {
     expect(marker?.getAttribute("data-cycle")).toBe("1");
   });
 
-  it("adds a block after mount and the enter animation settles", async () => {
+  it("a row mounted before the first input stands up instantly (the gate is closed); after an input the enter animation runs", async () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     doc.insertText(doc.insertBlock("paragraph"), 0, "first");
 
@@ -69,26 +69,40 @@ describe("MotionEditor", () => {
     );
     expect(wrappersOf(container)).toHaveLength(1);
 
+    // The row's entry element: the block wrapper's nearest ancestor that
+    // is a direct child of the root group (the lift's content div sits in
+    // between).
+    const entryOf = (index: number) => {
+      const wrappers = wrappersOf(container);
+      const group = container.querySelector("[data-slot='docblocks/editor'] > div");
+      let entry: HTMLElement | null = wrappers[index]?.parentElement ?? null;
+      while (entry !== null && entry.parentElement !== group) entry = entry.parentElement;
+      return entry;
+    };
+
+    // Gate closed (no input yet): the row mounts its animate values at
+    // once (initial={false}) — no height-growth animation, no opacity
+    // dip: the inline opacity is 1 from the mount tick on.
     act(() => {
       doc.insertBlock("paragraph");
     });
+    expect(wrappersOf(container)).toHaveLength(2);
+    expect(entryOf(1)?.style.opacity).toBe("1");
 
-    // The new entry mounts immediately and its enter animation settles
-    // (framer leaves the final state in the inline style). The animation
-    // runs on the entry's Reorder.Item — the block wrapper's nearest
-    // ancestor that is a direct child of the root group (the lift's
-    // content div sits in between).
-    await waitFor(
-      () => {
-        const wrappers = wrappersOf(container);
-        expect(wrappers).toHaveLength(2);
-        const group = container.querySelector("[data-slot='docblocks/editor'] > div");
-        let entry: HTMLElement | null = wrappers[1]?.parentElement ?? null;
-        while (entry !== null && entry.parentElement !== group) entry = entry.parentElement;
-        expect(entry?.style.opacity).toBe("1");
-      },
-      { timeout: 5000 }
-    );
+    // Gate opens on the first text input in the editor (a printable
+    // keydown in the editor's contenteditable) — a row inserted after it
+    // runs the enter animation (the opacity stands below 1 in flight and
+    // settles at 1).
+    const inner = container.querySelector('[data-slot="docblocks/block-content"]')!;
+    act(() => {
+      inner.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true, cancelable: true }));
+    });
+    act(() => {
+      doc.insertBlock("paragraph");
+    });
+    expect(wrappersOf(container)).toHaveLength(3);
+    expect(parseFloat(entryOf(2)?.style.opacity ?? "1")).toBeLessThan(1);
+    await waitFor(() => expect(entryOf(2)?.style.opacity).toBe("1"), { timeout: 5000 });
   });
 
   it("removes a block from the list once its exit animation completes", async () => {

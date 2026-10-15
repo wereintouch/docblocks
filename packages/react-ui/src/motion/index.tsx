@@ -13,12 +13,15 @@
  * nesting is the block's `indent` attr (the row's left padding steps per
  * level; a list item's marker is a rendered label per row — the row is
  * not in a list element, so the native `ol`/`ul` marker is absent). The
- * top-level rows render through `AnimatePresence` (`popLayout`): an
- * inserted block fades in as its height grows, a removed one fades out as
- * it collapses. The siblings' position slides on a reorder (a drag or a
- * remote move) and while a leaving entry pops out of the layout. The slide
- * is position-only — a size projection would scale an entry while its
- * content height settles and distort the text. The layout projection is
+ * top-level rows render through `AnimatePresence` (`sync` — the rows
+ * stay in the layout flow while they enter/exit): an inserted block
+ * fades in as its height grows, a removed one fades out as it collapses
+ * (the mirror). Rows that mount while the editor is still loading (the
+ * mount and the sync load — before the first text input in the editor)
+ * stand up instantly (`initial={false}`): the load is not an insert.
+ * The siblings' position slides on a reorder (a drag or a
+ * remote move). The slide is position-only — a size projection would
+ * scale an entry while its content height settles and distort the text. The layout projection is
  * armed on every row at all times — a row whose layout feature toggles
  * with the slide state (unmounting between renders) does not slide
  * reliably when a live reorder commits — and the slide is gated by the
@@ -50,11 +53,6 @@
  * bottom (accepted as the experimental base — if it proves unacceptable
  * in e2e, the commit's stale-drop guard is the backstop: the release
  * commits the order framer actually produced).
- *
- * The exit animation pops the leaving row out of layout (popLayout)
- * against the editor root's `position: relative` — import the package
- * stylesheet (or an equivalent positioned editor root) for the exit to
- * anchor inside the editor.
  */
 import { AnimatePresence, Reorder, useDragControls } from "framer-motion";
 import { useStore } from "zustand";
@@ -150,12 +148,58 @@ function useTypingFlag(rootRef: { current: HTMLDivElement | null }) {
   }, [rootRef]);
 }
 
+/**
+ * The enter-animation gate: the latch stands on the first text input in
+ * this editor (a printable keydown or an input event in the editor's
+ * contenteditable) — rows that mount before it (the mount and the sync
+ * load) stand up instantly (`initial={false}`: the animate
+ * values, no height-growth animation); a row that appears after it is an
+ * insert in progress and runs the enter animation. The gate never clears
+ * (a load window is a start window, not a session state).
+ */
+function useEnterAnimationGate(rootRef: { current: HTMLDivElement | null }) {
+  const gateRef = useRef(false);
+  useEffect(() => {
+    const root = rootRef.current;
+    if (root === null) return;
+    const inThisEditorText = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target === null) return false;
+      if (target.closest('[data-slot="docblocks/editor"]') !== root) return false;
+      return target.closest('[data-slot="docblocks/block-content"]') !== null;
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!inThisEditorText(event)) return;
+      gateRef.current = true;
+    };
+    const onInput = (event: Event) => {
+      if (!inThisEditorText(event)) return;
+      gateRef.current = true;
+    };
+    document.addEventListener("keydown", onKeydown);
+    document.addEventListener("input", onInput);
+    return () => {
+      document.removeEventListener("keydown", onKeydown);
+      document.removeEventListener("input", onInput);
+    };
+  }, [rootRef]);
+  return gateRef;
+}
+
 interface RowItemProps {
   node: FlatNode;
   /** The position-only layout slide armed (a drag in flight, a structural settle): selects the rows' layout transition. */
   layoutSlide: boolean;
   /** This row is the one being dragged (the zIndex keeps it above the sliding siblings). */
   isDragged: boolean;
+  /**
+   * The enter-animation gate is open (the editor saw a text input): this
+   * row's mount runs the enter animation (ENTER). A row that mounts while
+   * the gate stands closed (the mount, the sync load) renders its animate
+   * values at once (initial={false} — no height-growth animation).
+   */
+  animated: boolean;
   /** The row's drag session start (from its gutter handle's pointerdown). */
   onDragStart: () => void;
   /** The row's release: the flat-range commit for this block. */
@@ -177,7 +221,7 @@ interface RowItemProps {
 const TEXT_ROW_TYPES = new Set(["paragraph", "heading", "callout", "list-item", "code", "latex"]);
 
 const RowItem = memo(
-  function RowItem({ node, layoutSlide, isDragged, onDragStart, onDragEnd }: RowItemProps) {
+  function RowItem({ node, layoutSlide, isDragged, animated, onDragStart, onDragEnd }: RowItemProps) {
     const dragControls = useDragControls();
     const { doc, store, selection: selectionRef } = useEditorContext();
     const blockContext = useBlockContext();
@@ -242,7 +286,7 @@ const RowItem = memo(
         data-slot="docblocks/row"
         data-selected={selected ? "true" : undefined}
         value={node.id}
-        initial={ENTER}
+        initial={animated ? ENTER : false}
         animate={ANIMATE}
         exit={EXIT}
         // Per-value: the enter/exit geometry keeps the snappy slide; the
@@ -331,6 +375,7 @@ function MotionEditor({
   const slash = useSlashMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
   useTypingFlag(rootRef);
+  const enterGate = useEnterAnimationGate(rootRef);
 
   // The flat page sequence, derived per render (the store stays a flat map
   // projection). The interning cache: the previous derivation's byId
@@ -482,7 +527,7 @@ function MotionEditor({
               <CanvasView />
             ) : (
               <Reorder.Group as="div" axis="y" values={order} onReorder={(next) => setOrder(next as BlockId[])}>
-                <AnimatePresence initial={false} mode="popLayout">
+                <AnimatePresence initial={false} mode="sync">
                   {order.map((id) => {
                     const node = nodesById.get(id);
                     if (node === undefined) return null;
@@ -492,6 +537,7 @@ function MotionEditor({
                         node={node}
                         layoutSlide={layoutSlide || draggingKey !== null}
                         isDragged={draggingKey === id}
+                        animated={enterGate.current}
                         onDragStart={() => onRowDragStart(id)}
                         onDragEnd={() => onRowDragEnd(id)}
                       />
