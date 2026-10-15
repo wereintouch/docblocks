@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /** The inner contenteditables of the pane's text blocks, in order. */
@@ -52,13 +52,13 @@ test("ArrowDown at the text end moves the caret to the next block", async ({ bro
   const { a, b, close } = await twoPanes(browser, "ui04-arrow");
 
   // The room starts with pane "a"'s single starter.
-  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
+  await expect(inners(a, "a")).toHaveCount(1);
   const first = inners(a, "a").first();
   await first.click();
   await a.keyboard.type("one");
-  await expect(inners(b, "b").first(), SETTLE).toHaveText("one");
+  await expect(inners(b, "b").first()).toHaveText("one");
   await insertBlockType(a, "a", "paragraph");
-  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  await expect(inners(a, "a")).toHaveCount(2);
 
   // Caret to the end, ArrowDown: the caret moves to the start of the next
   // (empty) block — B's presence line shows it at offset 0.
@@ -87,13 +87,13 @@ test("mod+b toggles the selected range bold in the other pane", async ({ browser
   await a.keyboard.press("End");
   await selectLeft(a, 3);
   await a.keyboard.press("Control+b");
-  await expect(b.locator(`[data-block-id="${id}"] strong`), SETTLE).toHaveText("one");
+  await expect(b.locator(`[data-block-id="${id}"] strong`)).toHaveText("one");
 
   // The selection survived the store-driven change: a second mod+b over the
   // same range unsets the mark.
   await a.keyboard.press("Control+b");
-  await expect(b.locator(`[data-block-id="${id}"] strong`)).toHaveCount(0, SETTLE);
-  await expect(inners(b, "b").first(), SETTLE).toHaveText("one");
+  await expect(b.locator(`[data-block-id="${id}"] strong`)).toHaveCount(0);
+  await expect(inners(b, "b").first()).toHaveText("one");
 
   await close();
 });
@@ -109,7 +109,7 @@ test("Shift+Enter inserts a line break in the run text (synced, not a new block)
     page.evaluate((c) => {
       const d = window.__paneDocs?.[c];
       if (d === null || d === undefined) throw new Error(`the ${c} pane's doc is not mounted`);
-      const firstId = d.getChildren(d.toJSON().id)[0];
+      const firstId = d.getChildren(d.toJSON().id)[0]!;
       const block = d.getBlock(firstId);
       return (block?.content ?? []).map((r) => r.text).join("");
     }, client);
@@ -123,7 +123,7 @@ test("Shift+Enter inserts a line break in the run text (synced, not a new block)
   // The break is a \n inside the run text of the same block: the block
   // count is unchanged (root + the single starter) and both panes carry the
   // break in the store text.
-  await expect.poll(() => a.evaluate(() => Object.keys(window.__paneDocs.a.toJSON().blocks).length), SETTLE).toBe(2);
+  await expect.poll(() => a.evaluate(() => Object.keys(window.__paneDocs!.a!.toJSON().blocks).length), SETTLE).toBe(2);
   await expect.poll(() => firstText(a, "a"), SETTLE).toBe("line one\nline two");
   await expect.poll(() => firstText(b, "b"), SETTLE).toBe("line one\nline two");
 
@@ -140,7 +140,7 @@ test("Shift+Enter inserts a line break in the run text (synced, not a new block)
         return { whiteSpace: style.whiteSpace, lines: el.getBoundingClientRect().height / line };
       });
       return box.lines;
-    }, SETTLE)
+    })
     .toBeCloseTo(2, 1);
   expect(box!.whiteSpace).toBe("pre-wrap");
 

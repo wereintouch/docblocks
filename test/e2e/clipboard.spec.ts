@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /** The inner contenteditables of the pane's text blocks, in order. */
@@ -102,7 +102,7 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   const { a, b, close } = await twoPanes(browser, "ui04-clipboard");
 
   // The room starts with pane "a"'s single starter.
-  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
+  await expect(inners(a, "a")).toHaveCount(1);
   const firstA = inners(a, "a").first();
   const firstId = (await firstA.getAttribute("data-block-id")) ?? "";
   expect(firstId).not.toBe("");
@@ -113,7 +113,7 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   // does not rebuild while the selection is inside the block).
   await firstA.click();
   await a.keyboard.type("hello");
-  await expect(inners(b, "b").first(), SETTLE).toHaveText("hello");
+  await expect(inners(b, "b").first()).toHaveText("hello");
   await a.getByTestId("status-a").click();
 
   const firstB = inners(b, "b").first();
@@ -121,14 +121,14 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   await b.keyboard.press("End");
   await selectLeft(b, 5);
   await b.keyboard.press("Control+b");
-  await expect(firstA.locator("strong"), SETTLE).toHaveText("hello");
+  await expect(firstA.locator("strong")).toHaveText("hello");
 
   // Copy the bold word to the clipboard (what a default copy would carry),
   // then paste it into a second (empty) block (inserted explicitly — the
   // room carries a single starter).
   await copyBlockToClipboard(a, "a");
   await insertBlockType(a, "a", "paragraph");
-  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  await expect(inners(a, "a")).toHaveCount(2);
   const secondA = inners(a, "a").nth(1);
   await secondA.click();
   await pasteFromClipboard(a);
@@ -140,7 +140,7 @@ test("a rich paste carries the clipboard marks into both panes", async ({ browse
   // The other pane converges to the same marked run.
   const secondB = inners(b, "b").nth(1);
   await expect.poll(async () => await secondB.innerHTML(), SETTLE).toBe("<strong>hello</strong>");
-  await expect(secondB).toHaveText("hello", SETTLE);
+  await expect(secondB).toHaveText("hello");
 
   await close();
 });

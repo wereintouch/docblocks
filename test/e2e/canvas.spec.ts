@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /** Insert one harness type at the root through the pane's insert control. */
@@ -57,7 +57,7 @@ async function surfaceInfo(page: Page, client: "a" | "b"): Promise<{ surfaceId: 
       const surfaceId = Object.keys(json.blocks).find((id) => json.blocks[id]!.type === "surface");
       if (surfaceId === undefined) return { surfaceId: "", children: [] };
       const block = json.blocks[surfaceId]!;
-      return { surfaceId, children: block.type === "surface" ? block.children : [] };
+      return { surfaceId, children: block.type === "surface" ? block.children! : [] };
     },
     { client }
   );
@@ -75,14 +75,14 @@ test("inserting a canvas in A renders the scene in both panes (shapes, the frame
     [b, "b"],
   ] as const) {
     const c = canvas(pane, client);
-    await expect(c, SETTLE).toHaveCount(1);
+    await expect(c).toHaveCount(1);
     // The four seeded shapes render as SVGs.
     await expect.poll(async () => c.locator('[data-slot="docblocks/shape"]').count(), SETTLE).toBe(4);
     // The frame's nested content renders inside the surface.
-    await expect(c.getByText("Frame heading"), SETTLE).toBeVisible();
-    await expect(c.getByText("Frame paragraph on the canvas."), SETTLE).toBeVisible();
+    await expect(c.getByText("Frame heading")).toBeVisible();
+    await expect(c.getByText("Frame paragraph on the canvas.")).toBeVisible();
     // The connector line is present (both endpoints resolve within the surface).
-    await expect(c.locator('[data-slot="docblocks/connector-layer"] line'), SETTLE).toHaveCount(1);
+    await expect(c.locator('[data-slot="docblocks/connector-layer"] line')).toHaveCount(1);
     // The DOM order of the wrappers is the scene's z-order (the seed order).
     const order = await canvasItemOrder(pane, client);
     expect(order.length).toBe(7);
@@ -106,7 +106,7 @@ test("an edit inside the frame (the same-doc nested provider) reaches the other 
   const { a, b, close } = await twoPanes(browser, "ext05-frame-edit");
 
   await insertType(a, "a", "canvas");
-  await expect(canvas(a, "a").getByText("Frame paragraph on the canvas."), SETTLE).toBeVisible();
+  await expect(canvas(a, "a").getByText("Frame paragraph on the canvas.")).toBeVisible();
 
   // The surface's children BEFORE the edit (the frame's children ids are
   // already there — the edit must not change the surface's children).
@@ -134,7 +134,7 @@ test("an edit inside the frame (the same-doc nested provider) reaches the other 
   await a.keyboard.type(" edited");
 
   // Pane B's frame shows the edit (the same doc over the wire).
-  await expect(canvas(b, "b").getByText("Frame paragraph on the canvas. edited"), SETTLE).toBeVisible();
+  await expect(canvas(b, "b").getByText("Frame paragraph on the canvas. edited")).toBeVisible();
 
   // The outer root's JSON gains nothing new: the surface's children are
   // unchanged (the frame's children ids were already there; the text changed).
@@ -159,7 +159,7 @@ test("a moveBlock to the front of the surface's children reorders pane B's DOM (
   const { a, b, close } = await twoPanes(browser, "ext05-zorder");
 
   await insertType(a, "a", "canvas");
-  await expect(canvas(b, "b").locator('[data-slot="docblocks/shape"]'), SETTLE).toHaveCount(4);
+  await expect(canvas(b, "b").locator('[data-slot="docblocks/shape"]')).toHaveCount(4);
 
   const { surfaceId, children } = await surfaceInfo(a, "a");
   // The seeded order: [frame, rect, ellipse, diamond, line, canvas-text,
@@ -187,7 +187,7 @@ test("a setGeometry on a shape updates pane B's wrapper position (the geometry s
   const { a, b, close } = await twoPanes(browser, "ext05-geometry");
 
   await insertType(a, "a", "canvas");
-  await expect(canvas(b, "b").locator('[data-slot="docblocks/shape"]'), SETTLE).toHaveCount(4);
+  await expect(canvas(b, "b").locator('[data-slot="docblocks/shape"]')).toHaveCount(4);
 
   const { children } = await surfaceInfo(a, "a");
   const rectId = children[1]!;
@@ -207,8 +207,8 @@ test("a setGeometry on a shape updates pane B's wrapper position (the geometry s
           const el = c?.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${rectId}"]`);
           if (c === null || el === undefined || c === undefined) return null;
           return {
-            left: parseFloat(getComputedStyle(el).left),
-            top: parseFloat(getComputedStyle(el).top),
+            left: parseFloat(getComputedStyle(el!).left),
+            top: parseFloat(getComputedStyle(el!).top),
             expectedLeft: c.clientWidth / 2 - 50,
             expectedTop: c.clientHeight / 2 + 20,
           };
@@ -217,7 +217,7 @@ test("a setGeometry on a shape updates pane B's wrapper position (the geometry s
       );
       if (info === null) return 99;
       return Math.max(Math.abs(info.left - info.expectedLeft), Math.abs(info.top - info.expectedTop));
-    }, SETTLE)
+    })
     .toBeLessThan(1.5);
 
   await close();

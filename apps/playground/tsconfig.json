@@ -13,5 +13,5 @@
       "@docblocks-core/core": ["../../packages/core/src/core/index.ts"]
     }
   },
-  "include": ["src", "server", "vite.config.ts", "../test/e2e"]
+  "include": ["src", "server", "vite.config.ts"]
 }

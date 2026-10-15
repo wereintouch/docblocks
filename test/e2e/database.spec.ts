@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /** Insert one v1 type at the root through the pane's harness control. */
@@ -42,7 +42,7 @@ function readDatabase(page: Page, client: "a" | "b", dbId: string) {
     ({ client, dbId }) => {
       const doc = client === "a" ? window.__paneDocs?.a : window.__paneDocs?.b;
       const block = doc?.toJSON().blocks[dbId];
-      return block?.type === "database" ? { rowOrder: block.rowOrder, rows: block.rows } : null;
+      return block?.type === "database" ? { rowOrder: block.rowOrder!, rows: block.rows! } : null;
     },
     { client, dbId }
   );
@@ -57,7 +57,7 @@ async function databaseInfo(page: Page): Promise<{ dbId: string; rowOrder: strin
     const dbId = Object.keys(json.blocks).find((id) => json.blocks[id]!.type === "database");
     if (dbId === undefined) return null;
     const block = json.blocks[dbId]!;
-    return { dbId, rowOrder: block.type === "database" ? block.rowOrder : [] };
+    return { dbId, rowOrder: block.type === "database" ? block.rowOrder! : [] };
   });
   expect(info).not.toBeNull();
   return info!;
@@ -78,11 +78,11 @@ test("a database inserted in A renders in both panes and reaches the JSON", asyn
     // The placeholder card in both panes: the column names (from the
     // harness seed) and the row count 2 (the seed rows synced over the
     // wire in B).
-    await expect(wrapper, SETTLE).toHaveCount(1);
-    await expect(wrapper.locator("[data-slot='docblocks/database-header']"), SETTLE).toContainText("Name");
-    await expect(wrapper.locator("[data-slot='docblocks/database-header']"), SETTLE).toContainText("Done");
-    await expect(wrapper.locator("[data-slot='docblocks/database-header']"), SETTLE).toContainText("Status");
-    await expect(wrapper.locator("[data-slot='docblocks/database-count']"), SETTLE).toHaveText("2 rows");
+    await expect(wrapper).toHaveCount(1);
+    await expect(wrapper.locator("[data-slot='docblocks/database-header']")).toContainText("Name");
+    await expect(wrapper.locator("[data-slot='docblocks/database-header']")).toContainText("Done");
+    await expect(wrapper.locator("[data-slot='docblocks/database-header']")).toContainText("Status");
+    await expect(wrapper.locator("[data-slot='docblocks/database-count']")).toHaveText("2 rows");
     // The card frame reads the table border tokens (zone 3 — the classes
     // replaced the removed wrapper rule; the catalog has no database
     // block, so this pane is its visual pin).
@@ -114,7 +114,7 @@ test("the row commands over the wire: insertRow / setCell / moveRow / removeRow 
   await insertType(a, "a", "database");
   const cardB = b.locator('[data-block-type="database"]');
   await expect.poll(async () => cardB.count(), SETTLE).toBe(1);
-  await expect(cardB.locator("[data-slot='docblocks/database-count']"), SETTLE).toHaveText("2 rows");
+  await expect(cardB.locator("[data-slot='docblocks/database-count']")).toHaveText("2 rows");
 
   const info = await databaseInfo(a);
   const { dbId, rowOrder: seedOrder } = info;
@@ -146,7 +146,7 @@ test("the row commands over the wire: insertRow / setCell / moveRow / removeRow 
     });
   const stage1 = await readDatabase(b, "b", dbId);
   expect(stage1?.rows[newRow]).toEqual({ name: "New row", status: "active" });
-  await expect(cardB.locator("[data-slot='docblocks/database-count']"), SETTLE).toHaveText("3 rows");
+  await expect(cardB.locator("[data-slot='docblocks/database-count']")).toHaveText("3 rows");
 
   // Stage 2: moveRow (the first seed row to the end, pre-move index) +
   // removeRow (the second seed row) — two more wire updates.
@@ -155,7 +155,7 @@ test("the row commands over the wire: insertRow / setCell / moveRow / removeRow 
       const doc = window.__paneDocs!.a!;
       const json = doc.toJSON();
       const block = json.blocks[dbId]!;
-      const [first, second] = block.type === "database" ? block.rowOrder : [];
+      const [first, second] = block.type === "database" ? block.rowOrder! : [];
       doc.moveRow(dbId, first!, 2);
       doc.removeRow(dbId, second!);
     },
@@ -175,7 +175,7 @@ test("the row commands over the wire: insertRow / setCell / moveRow / removeRow 
   expect(final?.rows[seedOrder[0]!]).toEqual({ name: "First task", done: false, status: "active" });
   expect(final?.rows[newRow]).toEqual({ name: "New row", status: "active" });
   expect(final?.rows[seedOrder[1]!]).toBeUndefined();
-  await expect(cardB.locator("[data-slot='docblocks/database-count']"), SETTLE).toHaveText("2 rows");
+  await expect(cardB.locator("[data-slot='docblocks/database-count']")).toHaveText("2 rows");
 
   // The four command updates are visible in A's wire log.
   const wireText = await a.locator("[data-testid='wire-a']").innerText();

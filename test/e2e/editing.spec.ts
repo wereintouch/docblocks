@@ -8,7 +8,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 async function docText(page: Page, client: "a" | "b"): Promise<string> {
@@ -86,12 +86,12 @@ test("undo and redo of a local edit reach the other pane", async ({ browser }) =
   // Control (not Meta) for a platform-stable hotkey: A's undo is a local
   // transaction that travels the wire like any other update.
   await a.keyboard.press("Control+z");
-  await expect(paragraph(a, "a")).toHaveText("a", SETTLE);
-  await expect(paragraph(b, "b")).toHaveText("a", SETTLE);
+  await expect(paragraph(a, "a")).toHaveText("a");
+  await expect(paragraph(b, "b")).toHaveText("a");
 
   await a.keyboard.press("Control+Shift+z");
-  await expect(paragraph(a, "a")).toHaveText("ab", SETTLE);
-  await expect(paragraph(b, "b")).toHaveText("ab", SETTLE);
+  await expect(paragraph(a, "a")).toHaveText("ab");
+  await expect(paragraph(b, "b")).toHaveText("ab");
 
   await close();
 });
@@ -139,15 +139,15 @@ test("undo of a range delete restores the caret to the deletion start", async ({
   await a.keyboard.press("Shift+ArrowLeft");
   await a.keyboard.press("Shift+ArrowLeft");
   await a.keyboard.press("Backspace");
-  await expect(paragraph(a, "a")).toHaveText("a", SETTLE);
-  await expect(paragraph(b, "b")).toHaveText("a", SETTLE);
+  await expect(paragraph(a, "a")).toHaveText("a");
+  await expect(paragraph(b, "b")).toHaveText("a");
   await expect.poll(async () => caretOffset(a), SETTLE).toBe(1);
 
   // Undo restores the text; the caret stays at the deletion start (the
   // undo inserts exactly at the caret position, which does not move it).
   await a.keyboard.press("Control+z");
-  await expect(paragraph(a, "a")).toHaveText("abc", SETTLE);
-  await expect(paragraph(b, "b")).toHaveText("abc", SETTLE);
+  await expect(paragraph(a, "a")).toHaveText("abc");
+  await expect(paragraph(b, "b")).toHaveText("abc");
   await expect.poll(async () => caretOffset(a), SETTLE).toBe(1);
 
   await close();

@@ -10,12 +10,12 @@ const SETTLE = { timeout: 15_000 };
 async function openCatalogPane(page: Page): Promise<void> {
   const room = `vreg01s-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&catalog=1&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
   // The harness loads dark by default; every pin in this spec is a light
   // value, so clear the `.dark` class explicitly.
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
   // The catalog is built locally on mount; the divider lands with it.
-  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1, SETTLE);
+  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
 }
 
 /** The pane's editor root. */
@@ -118,7 +118,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="code"][data-language="mermaid"]').count()).toBe(1);
   // The mermaid block renders the diagram (not the plain code view): wait
   // for the async render, then pin the preview state.
-  await expect(doc.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
+  await expect(doc.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
   await expect(doc.locator('[data-slot="docblocks/mermaid"][data-state="diagram"]')).toHaveCount(1);
   expect(await doc.locator('[data-block-type="latex"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="table"]').count()).toBe(1);
@@ -197,10 +197,10 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // Canvas (v2): the seeded demo scene — the surface viewport, the four
   // shape SVGs, the frame box, the canvas-text, the connector line.
   expect(await doc.locator('[data-block-type="surface"]').count()).toBe(1);
-  await expect(doc.locator('[data-slot="docblocks/shape"]'), SETTLE).toHaveCount(4);
+  await expect(doc.locator('[data-slot="docblocks/shape"]')).toHaveCount(4);
   expect(await doc.locator('[data-slot="docblocks/frame"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="canvas-text"]').count()).toBe(1);
-  await expect(doc.locator('[data-slot="docblocks/connector-layer"] line'), SETTLE).toHaveCount(1);
+  await expect(doc.locator('[data-slot="docblocks/connector-layer"] line')).toHaveCount(1);
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);
@@ -280,7 +280,7 @@ test("the caret at known offsets is a real caret inside the block", async ({ pag
 test("the list markers cycle per indent level", async ({ page }) => {
   const room = `vreg01l-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
 
   // A 3-level chain per kind, seeded through the pane's own doc commands
   // (the established harness pattern): the indents 0/1/2 of the flat model.
@@ -401,7 +401,7 @@ test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) 
   // The mermaid preview (the ./mermaid subpath, once the diagram settles):
   // the spacing below the editable code.
   const mermaid = doc.locator('[data-slot="docblocks/mermaid"]');
-  await expect(mermaid.locator("svg"), SETTLE).toHaveCount(1);
+  await expect(mermaid.locator("svg")).toHaveCount(1);
   expect((await styleProps(mermaid, "margin-top"))["margin-top"]).toBe("8px");
 });
 
@@ -441,14 +441,14 @@ test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
 test("the document canvas view and the page card read the zone-4 tokens", async ({ page }) => {
   const room = `vreg04s-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&canvas=1&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
 
   // The canvas view: the dotted grid (the image and the size read the
   // tokens; the height is the 100% token resolved against the container,
   // so only the non-zero layout is pinned — the box checks live in
   // view.spec).
   const view = page.locator('[data-slot="docblocks/canvas-view"]');
-  await expect(view, { timeout: 15_000 }).toHaveCount(1);
+  await expect(view).toHaveCount(1);
   const grid = await view.evaluate((el) => {
     const s = getComputedStyle(el);
     return { size: s.backgroundSize, dotted: s.backgroundImage.includes("radial-gradient"), height: s.height };

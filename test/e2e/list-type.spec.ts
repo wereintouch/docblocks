@@ -4,11 +4,10 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
 const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 function pane(page: Page, client: "a" | "b") {
@@ -78,7 +77,7 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   const { a, b, close } = await twoPanes(browser, "c4-para-list");
   await typeAndSelectAll(a, "a");
   const bar = toolbar(a, "a");
-  await expect(bar).toBeVisible(SETTLE);
+  await expect(bar).toBeVisible();
 
   await bar.locator('button[aria-label="List type"]').click();
   // The menu content is portaled to the document body (radix), so the
@@ -90,7 +89,7 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   // The block is a numbered list item (the text survived the change). The
   // motion view renders the marker as a rendered row label (no `ol` — the
   // flat row is not in a list element).
-  const id = (await rootIds(a, "a"))[0];
+  const id = (await rootIds(a, "a"))[0]!;
   const block = await blockOf(a, "a", id);
   expect(block?.type).toBe("list-item");
   expect(block?.attrs).toMatchObject({ list: "number" });
@@ -112,11 +111,8 @@ test("the toolbar menu turns a paragraph into a list and back (one undo step)", 
   // undo hotkey reaches the doc without a re-focus.
   await a.keyboard.press("Control+z");
   expect((await blockOf(a, "a", id))?.type).toBe("paragraph");
-  await expect(pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(
-    0,
-    SETTLE
-  );
-  await expect(pane(a, "a")).toContainText("hello world", SETTLE);
+  await expect(pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(0);
+  await expect(pane(a, "a")).toContainText("hello world");
 
   await close();
 });
@@ -127,10 +123,10 @@ test("the toolbar menu swaps a list item's kind (an attr update, the type stands
 
   // Turn the paragraph into a bullet list first.
   const bar = toolbar(a, "a");
-  await expect(bar).toBeVisible(SETTLE);
+  await expect(bar).toBeVisible();
   await bar.locator('button[aria-label="List type"]').click();
   await a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="bullet"]').click();
-  const id = (await rootIds(a, "a"))[0];
+  const id = (await rootIds(a, "a"))[0]!;
   expect(await blockOf(a, "a", id)).toMatchObject({ type: "list-item", attrs: { list: "bullet" } });
 
   // The selection survived the change: the menu shows the new active kind
@@ -142,8 +138,8 @@ test("the toolbar menu swaps a list item's kind (an attr update, the type stands
 
   expect(await blockOf(a, "a", id)).toMatchObject({ type: "list-item", attrs: { list: "task" } });
   // The task affordance appears in both panes.
-  await expect(pane(a, "a").locator('[data-slot="docblocks/checkbox"]')).toHaveCount(1, SETTLE);
-  await expect(pane(b, "b").locator('[data-slot="docblocks/checkbox"]')).toHaveCount(1, SETTLE);
+  await expect(pane(a, "a").locator('[data-slot="docblocks/checkbox"]')).toHaveCount(1);
+  await expect(pane(b, "b").locator('[data-slot="docblocks/checkbox"]')).toHaveCount(1);
 
   await close();
 });
@@ -173,7 +169,7 @@ test("the text option stands for a list item with a derived segment (the segment
   await a.keyboard.up("Shift");
 
   const bar = toolbar(a, "a");
-  await expect(bar).toBeVisible(SETTLE);
+  await expect(bar).toBeVisible();
   await bar.locator('button[aria-label="List type"]').click();
   const textOption = a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]');
   // The flat model: "Text" stands even for an item with a derived segment
@@ -188,7 +184,7 @@ test("the text option stands for a list item with a derived segment (the segment
   expect((await blockOf(a, "a", ids.parent))?.attrs).toBeUndefined();
   expect((await blockOf(a, "a", ids.child))?.attrs).toMatchObject({ indent: 1 });
   await expect(pane(a, "a").locator(`[data-block-id="${ids.child}"]`).first()).toBeVisible();
-  await expect(pane(b, "b").locator(`[data-block-id="${ids.parent}"]`).first(), SETTLE).toContainText("parent");
+  await expect(pane(b, "b").locator(`[data-block-id="${ids.parent}"]`).first()).toContainText("parent");
   expect((await blockOf(b, "b", ids.parent))?.type).toBe("paragraph");
 
   await close();
@@ -212,22 +208,16 @@ test("a childless list item becomes text through the menu", async ({ browser }) 
   await a.keyboard.up("Shift");
 
   const bar = toolbar(a, "a");
-  await expect(bar).toBeVisible(SETTLE);
+  await expect(bar).toBeVisible();
   await bar.locator('button[aria-label="List type"]').click();
   await a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="paragraph"]').click();
 
   expect((await blockOf(a, "a", id))?.type).toBe("paragraph");
   // The row marker is gone in both panes (the change traveled the wire);
   // the motion view renders no list element at all.
-  await expect(pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(
-    0,
-    SETTLE
-  );
-  await expect(pane(b, "b").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(
-    0,
-    SETTLE
-  );
-  await expect(pane(b, "b").locator(`[data-block-id="${id}"]`).first()).toContainText("standalone item", SETTLE);
+  await expect(pane(a, "a").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(0);
+  await expect(pane(b, "b").locator(`[data-block-id="${id}"] [data-slot="docblocks/row-marker"]`)).toHaveCount(0);
+  await expect(pane(b, "b").locator(`[data-block-id="${id}"]`).first()).toContainText("standalone item");
 
   await close();
 });

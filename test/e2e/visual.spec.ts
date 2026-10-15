@@ -13,12 +13,12 @@ const GOLDEN = fileURLToPath(new URL("./fixtures/catalog.json", import.meta.url)
 async function openCatalogPane(page: Page): Promise<void> {
   const room = `vreg01-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&catalog=1&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
   // The catalog is built locally on mount; the divider lands with it.
-  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1, SETTLE);
+  await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
   // The mermaid catalog block renders asynchronously (mermaid.render); the
   // goldens must capture the diagram, not the loading placeholder.
-  await expect(page.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
+  await expect(page.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
 }
 
 /** The pane's editor root — the screenshot scope (the harness chrome stays out). The direct-child scope (through the shared Card frame) keeps the nested editor root (the catalog's sync-embed) out of the match. The element's top edge sits on a subpixel offset (the harness header's height), so a chrome change above the doc area can shift the integer clip height by 1px without any content change — regenerate the goldens in that case. */

@@ -3,17 +3,7 @@ import http from "node:http";
 import { WebSocketServer } from "ws";
 import { docs, setupWSConnection } from "y-websocket/bin/utils";
 
-// The subpath ships CommonJS without type declarations.
-declare module "y-websocket/bin/utils" {
-  import type { IncomingMessage } from "node:http";
-  import type { WebSocket } from "ws";
-  export function setupWSConnection(
-    conn: WebSocket,
-    req: IncomingMessage,
-    opts?: { docName?: string; gc?: boolean }
-  ): void;
-  export const docs: Map<string, { name: string; awareness: { destroy(): void }; destroy(): void }>;
-}
+// The bin/utils subpath ships CommonJS without type declarations (typed by ./y-websocket.d.ts).
 
 /**
  * Smoke specs against a REAL standard y-websocket server (the classic
@@ -87,7 +77,7 @@ function paneUrl(client: "a" | "b", docName: string): string {
 
 async function openPane(page: Page, url: string, client: "a" | "b"): Promise<void> {
   await page.goto(url);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 async function expectDocContains(page: Page, client: "a" | "b", text: string): Promise<void> {

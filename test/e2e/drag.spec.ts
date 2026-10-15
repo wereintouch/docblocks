@@ -18,7 +18,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 function pane(page: Page, client: "a" | "b") {
@@ -127,8 +127,8 @@ test("a gutter drag reorders the block, syncs to the other pane, and undoes as o
   const { a, b, close } = await twoPanes(browser, "ui04b-reorder");
 
   // The room starts with pane "a"'s single starter (both panes see it).
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
-  await expect(wrappers(b, "b"), SETTLE).toHaveCount(1);
+  await expect(wrappers(a, "a")).toHaveCount(1);
+  await expect(wrappers(b, "b")).toHaveCount(1);
 
   // Two more paragraphs via the pane's insert hook (the inserted block is
   // current, so it is labeled), with unique texts for the assertions.
@@ -138,8 +138,8 @@ test("a gutter drag reorders the block, syncs to the other pane, and undoes as o
   await insertBlockType(a, "a", "paragraph");
   await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
   await a.keyboard.type("two");
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(3);
-  await expect(wrappers(b, "b"), SETTLE).toHaveCount(3);
+  await expect(wrappers(a, "a")).toHaveCount(3);
+  await expect(wrappers(b, "b")).toHaveCount(3);
 
   const lastId = await wrapperId(a, "a", 2);
   expect(lastId).not.toBe("");
@@ -153,14 +153,14 @@ test("a gutter drag reorders the block, syncs to the other pane, and undoes as o
 
   // The order changed in A and reached B over the wire (B shows the new
   // order as the update arrives).
-  await expect(wrappers(a, "a").first(), SETTLE).toHaveAttribute("data-block-id", lastId);
-  await expect(wrappers(b, "b").first(), SETTLE).toHaveAttribute("data-block-id", lastId);
+  await expect(wrappers(a, "a").first()).toHaveAttribute("data-block-id", lastId);
+  await expect(wrappers(b, "b").first()).toHaveAttribute("data-block-id", lastId);
 
   // The drag is A's local undo entry (one command, one undoable unit):
   // the order reverts in both panes.
   await a.keyboard.press("Control+z");
-  await expect(wrappers(a, "a").first(), SETTLE).not.toHaveAttribute("data-block-id", lastId);
-  await expect(wrappers(b, "b").first(), SETTLE).not.toHaveAttribute("data-block-id", lastId);
+  await expect(wrappers(a, "a").first()).not.toHaveAttribute("data-block-id", lastId);
+  await expect(wrappers(b, "b").first()).not.toHaveAttribute("data-block-id", lastId);
 
   await close();
 });
@@ -168,7 +168,7 @@ test("a gutter drag reorders the block, syncs to the other pane, and undoes as o
 test("a drag back to the same position issues no command", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "ui04b-noop");
 
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await expect(wrappers(a, "a")).toHaveCount(1);
   const firstId = await wrapperId(a, "a", 0);
   expect(firstId).not.toBe("");
 

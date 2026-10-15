@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /** Insert one v1 type at the root through the pane's harness control. */
@@ -84,11 +84,11 @@ test("a mermaid code block inserted in A renders the diagram in both panes", asy
     [b, "b"],
   ] as const) {
     const block = mermaidBlock(pane, client);
-    await expect(block, SETTLE).toHaveCount(1);
+    await expect(block).toHaveCount(1);
     // The seed diagram renders as an svg inside the block wrapper in both
     // panes: the text synced over the wire, the renderer is registered on
     // both (the harness demo).
-    await expect(block.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
+    await expect(block.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
     await expect(preview(pane, client)).toHaveAttribute("data-state", "diagram");
     // The editable code path stays in place (the diagram is the preview
     // below the editable, not a replacement of it).
@@ -108,7 +108,7 @@ test("typing in the code block re-renders the diagram in both panes", async ({ b
 
   await insertType(a, "a", "code-mermaid");
   const blockA = mermaidBlock(a, "a");
-  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
+  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
 
   // The seed is "graph TD\n A --> B": appending " --> C" on the last line
   // chains a third node into the diagram (a single-line continuation —
@@ -135,7 +135,7 @@ test("an invalid diagram keeps no svg and shows the error state", async ({ brows
 
   await insertType(a, "a", "code-mermaid");
   const blockA = mermaidBlock(a, "a");
-  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg'), SETTLE).toHaveCount(1);
+  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
 
   // Replace the seed with an incomplete diagram: select-all, delete (the
   // DOM input diff commits the empty text), then paste the invalid text
@@ -150,9 +150,9 @@ test("an invalid diagram keeps no svg and shows the error state", async ({ brows
   // (asserted by the attribute, not the look), and the message shows
   // (the Alert's triangle icon is chrome, not a diagram — the diagram
   // container itself is absent).
-  await expect(blockA.locator('[data-slot="docblocks/mermaid-diagram"]'), SETTLE).toHaveCount(0);
-  await expect(preview(a, "a"), SETTLE).toHaveAttribute("data-state", "error");
-  await expect(blockA.locator('[data-slot="docblocks/mermaid-error"]'), SETTLE).toHaveText("graph TD\n A -->");
+  await expect(blockA.locator('[data-slot="docblocks/mermaid-diagram"]')).toHaveCount(0);
+  await expect(preview(a, "a")).toHaveAttribute("data-state", "error");
+  await expect(blockA.locator('[data-slot="docblocks/mermaid-error"]')).toHaveText("graph TD\n A -->");
   expect(await blockA.locator('[data-slot="docblocks/mermaid-error-message"]').count()).toBe(1);
 
   // The page stayed alive through the rejected render: the pane still
@@ -175,13 +175,13 @@ test("a plain code block stays editable under the override", async ({ browser })
   // block must still edit through the built-in contenteditable path.
   await insertType(a, "a", "code");
   const block = a.locator('[data-block-type="code"][data-language="ts"]');
-  await expect(block, SETTLE).toHaveCount(1);
+  await expect(block).toHaveCount(1);
   expect(await block.locator('[data-slot="docblocks/block-content"] svg').count()).toBe(0);
 
   const inner = block.locator('[data-slot="docblocks/block-content"]');
   await inner.click();
   await a.keyboard.type("const x = 1;");
-  await expect(inner, SETTLE).toContainText("const x = 1;");
+  await expect(inner).toContainText("const x = 1;");
 
   await close();
 });

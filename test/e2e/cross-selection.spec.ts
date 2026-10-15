@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 function pane(page: Page, client: "a" | "b") {
@@ -56,7 +56,7 @@ async function blockOf(
  * block's end), both typed.
  */
 async function typeTwoBlocks(page: Page, client: "a" | "b"): Promise<void> {
-  await expect(inners(page, client), SETTLE).toHaveCount(1); // the starter has settled
+  await expect(inners(page, client)).toHaveCount(1); // the starter has settled
   await inners(page, client).first().click();
   await page.keyboard.type("hello world");
   await page.keyboard.press("End");
@@ -64,7 +64,7 @@ async function typeTwoBlocks(page: Page, client: "a" | "b"): Promise<void> {
   // The split lands in the DOM on the next store flush: wait for the new
   // row and re-seat the caret in it (a stale caret in the first block's
   // contenteditable would absorb the early keystrokes).
-  await expect(inners(page, client), SETTLE).toHaveCount(2);
+  await expect(inners(page, client)).toHaveCount(2);
   await inners(page, client).nth(1).click();
   await page.keyboard.type("another world");
 }
@@ -286,12 +286,12 @@ test("a divider inside the composed chain is skipped by the extension and remove
   // The room's starter is typed, then a second empty paragraph is split
   // off, a divider and a paragraph are appended, and the last is typed:
   // [p1, p2 (empty), divider, p3].
-  await expect(inners(a, "a"), SETTLE).toHaveCount(1);
+  await expect(inners(a, "a")).toHaveCount(1);
   await inners(a, "a").first().click();
   await a.keyboard.type("hello world");
   await a.keyboard.press("End");
   await a.keyboard.press("Enter");
-  await expect(inners(a, "a"), SETTLE).toHaveCount(2);
+  await expect(inners(a, "a")).toHaveCount(2);
   await insertBlockType(a, "a", "divider");
   await insertBlockType(a, "a", "paragraph");
   await inners(a, "a").last().click();
@@ -484,7 +484,7 @@ test("a mouse drag composes the cross selection (and the in-block drag stands)",
   expect(during!.startBlock).toBe(first.id);
   expect(during!.endBlock).toBe(second.id);
   await a.mouse.up();
-  const after = await domSelection(a)!;
+  const after = (await domSelection(a))!;
   expect(after.startBlock).toBe(first.id);
   expect(after.endBlock).toBe(second.id);
   // The toolbar stands over the cross range, and the document focus stands
@@ -510,7 +510,7 @@ test("a mouse drag composes the cross selection (and the in-block drag stands)",
         JSON.stringify(texts) ===
         JSON.stringify([firstText.slice(0, during!.startOffset), secondText.slice(during!.endOffset)])
       );
-    }, SETTLE)
+    })
     .toBe(true);
   expect((await blockOf(a, "a", first.id))?.content?.map((run) => run.text).join("")).toBe(
     firstText.slice(0, during!.startOffset)
@@ -522,7 +522,7 @@ test("a mouse drag composes the cross selection (and the in-block drag stands)",
   await a.mouse.move(box.x + 4, box.y + box.height / 2);
   await a.mouse.down();
   await a.mouse.move(box.x + 30, box.y + box.height / 2, { steps: 5 });
-  const inBlock = await domSelection(a)!;
+  const inBlock = (await domSelection(a))!;
   expect(inBlock.startBlock).toBe(inBlock.endBlock);
   await a.mouse.up();
 

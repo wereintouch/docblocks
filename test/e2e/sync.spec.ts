@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 async function docText(page: Page, client: "a" | "b"): Promise<string> {
@@ -86,7 +86,7 @@ test("presence tracks the remote caret and its new block", async ({ browser }) =
     .poll(async () => {
       const id = ((await current.getAttribute("data-testid")) ?? "").slice("block-a-".length);
       return id !== "" && id !== beforeId && new RegExp(`^a:${id}:\\d+$`).test(await presenceLine());
-    }, SETTLE)
+    })
     .toBe(true);
 
   await close();
@@ -102,7 +102,7 @@ test("reconnect resyncs and stays live", async ({ browser }) => {
   await expectDocContains(b, "b", "one");
 
   await b.getByTestId("reconnect-b").click();
-  await expect(b.getByTestId("status-b")).toHaveText("connected", SETTLE);
+  await expect(b.getByTestId("status-b")).toHaveText("connected");
 
   // The re-established socket is live for new updates... (A's caret stays
   // in the same block, so the append lands next to the pre-reconnect text).

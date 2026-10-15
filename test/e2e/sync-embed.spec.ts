@@ -16,7 +16,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string, cycle = false): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}${cycle ? "&cycle=1" : ""}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /** Insert one harness type at the root through the pane's insert control. */
@@ -62,7 +62,7 @@ test("a sync-embed inserted in A shows the master content in both panes and the 
     [b, "b"],
   ] as const) {
     const w = wrapper(pane, client);
-    await expect(w, SETTLE).toHaveCount(1);
+    await expect(w).toHaveCount(1);
     await expect(w).toHaveAttribute("data-state", "resolved");
     // The seeded master content renders inside the wrapper…
     await expect(w.getByText("Master heading")).toBeVisible();
@@ -87,7 +87,7 @@ test("an edit inside the embed reaches the master and the other pane's embed", a
   const { a, b, close } = await twoPanes(browser, "ext03-edit");
 
   await insertType(a, "a", "sync-embed");
-  await expect(wrapper(a, "a"), SETTLE).toHaveAttribute("data-state", "resolved");
+  await expect(wrapper(a, "a")).toHaveAttribute("data-state", "resolved");
 
   // Click into the master's seeded paragraph INSIDE the embed (pane A) and
   // type at its end: the keystrokes commit to the MASTER doc.
@@ -96,7 +96,7 @@ test("an edit inside the embed reaches the master and the other pane's embed", a
   await a.keyboard.type(" edited");
 
   // Pane B's embed sees it (the master room syncs the master)…
-  await expect(wrapper(b, "b").getByText("Master paragraph one edited"), SETTLE).toBeVisible();
+  await expect(wrapper(b, "b").getByText("Master paragraph one edited")).toBeVisible();
 
   // …and the outer doc's JSON stays the ref only.
   const jsonText = await a.getByTestId("json-a").innerText();
@@ -112,7 +112,7 @@ test("a subtree sync-embed shows only the subtree block and edits reach the mast
   await insertType(a, "a", "sync-embed-subtree");
 
   const w = wrapper(a, "a");
-  await expect(w, SETTLE).toHaveAttribute("data-state", "resolved");
+  await expect(w).toHaveAttribute("data-state", "resolved");
   // The embed region contains ONLY the seeded subtree paragraph; the
   // master's other blocks are absent from the region.
   await expect(w.getByText("Master subtree paragraph")).toBeVisible();
@@ -124,7 +124,7 @@ test("a subtree sync-embed shows only the subtree block and edits reach the mast
   await w.getByText("Master subtree paragraph").click();
   await a.keyboard.press("End");
   await a.keyboard.type(" edited");
-  await expect(wrapper(b, "b").getByText("Master subtree paragraph edited"), SETTLE).toBeVisible();
+  await expect(wrapper(b, "b").getByText("Master subtree paragraph edited")).toBeVisible();
 
   await close();
 });
@@ -135,7 +135,7 @@ async function masterState(
   client: "a" | "b"
 ): Promise<{ id: string; type: string | null; indent: number | undefined }[] | null> {
   return page.evaluate((letter) => {
-    const m = window.__masterDocs?.[letter as "a" | "b"];
+    const m = window.__masterDocs![letter as "a" | "b"]!;
     if (m === null) return null;
     return m.getChildren(m.meta.id).map((id) => {
       const block = m.getBlock(id);
@@ -155,9 +155,9 @@ test("a subtree embed: the split gesture commits to the master and a peer's nest
 
   await insertType(a, "a", "sync-embed-subtree");
   const wa = wrapper(a, "a");
-  await expect(wa, SETTLE).toHaveAttribute("data-state", "resolved");
+  await expect(wa).toHaveAttribute("data-state", "resolved");
   const wb = wrapper(b, "b");
-  await expect(wb, SETTLE).toHaveAttribute("data-state", "resolved");
+  await expect(wb).toHaveAttribute("data-state", "resolved");
   await expect(wa.getByText("Master subtree paragraph")).toBeVisible();
   await expect(wb.getByText("Master subtree paragraph")).toBeVisible();
 
@@ -187,7 +187,7 @@ test("a subtree embed: the split gesture commits to the master and a peer's nest
   // projection's re-derivation adds the row (no remount, no manual
   // refresh).
   const inserted = await b.evaluate(() => {
-    const m = window.__masterDocs?.b;
+    const m = window.__masterDocs!.b!;
     if (m === null) return null;
     return m.insertBlock("paragraph", { indent: 1 }, { parent: m.meta.id, after: "m0003" });
   });
@@ -195,8 +195,8 @@ test("a subtree embed: the split gesture commits to the master and a peer's nest
 
   // Both panes' embed region shows the nested row — pane A without a
   // local edit to its master client — and the embeds stay resolved.
-  await expect(wa.locator('[data-block-type="paragraph"]'), SETTLE).toHaveCount(2);
-  await expect(wb.locator('[data-block-type="paragraph"]'), SETTLE).toHaveCount(2);
+  await expect(wa.locator('[data-block-type="paragraph"]')).toHaveCount(2);
+  await expect(wb.locator('[data-block-type="paragraph"]')).toHaveCount(2);
   await expect(wa).toHaveAttribute("data-state", "resolved");
   await expect(wb).toHaveAttribute("data-state", "resolved");
 
@@ -213,7 +213,7 @@ test("a broken sync-embed (an unknown master id) renders the placeholder in both
     [b, "b"],
   ] as const) {
     const w = wrapper(pane, client);
-    await expect(w, SETTLE).toHaveCount(1);
+    await expect(w).toHaveCount(1);
     await expect(w).toHaveAttribute("data-state", "broken");
     expect((await w.getAttribute("data-doc-id")) ?? "").toBe("missing-master");
     await expect(w.locator('[data-slot="docblocks/sync-embed-placeholder"]')).toBeVisible();
@@ -239,7 +239,7 @@ test("a master that embeds the outer doc renders the cycle placeholder", async (
     [b, "b"],
   ] as const) {
     const w = wrapper(pane, client);
-    await expect(w, SETTLE).toHaveAttribute("data-state", "resolved");
+    await expect(w).toHaveAttribute("data-state", "resolved");
     // The master's own sync-embed (the ref points at the outer doc's id)
     // re-enters the ancestor doc chain: the visited-set stops it.
     await expect(w.locator('[data-block-type="sync-embed"]')).toHaveCount(1);

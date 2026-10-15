@@ -34,7 +34,7 @@ const STANDARD_TOKENS = `
 
 test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
   await page.goto(`/?syncUrl=ws://localhost:5199/shadcn-${Math.random().toString(36).slice(2, 8)}`);
-  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
   const editor = page.locator('[data-slot="docblocks/editor"]');
   await expect(editor).toBeVisible();
 

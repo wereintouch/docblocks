@@ -16,7 +16,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "typecheck": "npm run typecheck --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present && tsc -p test/e2e/tsconfig.json",
     "test": "npm run test --workspaces --if-present",
     "test:e2e": "playwright test",
     "build": "npm run build -w packages/core && npm run build -w packages/react-ui",

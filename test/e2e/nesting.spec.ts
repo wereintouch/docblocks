@@ -22,7 +22,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 function pane(page: Page, client: "a" | "b") {
@@ -185,7 +185,7 @@ test("the Tab boundary rules: the first block and the jump of more than one leve
   const outBefore = await outCount(a);
 
   // Tab on the first block: no preceding block, nothing to nest under.
-  const firstId = (await rootIds(a, "a"))[0];
+  const firstId = (await rootIds(a, "a"))[0]!;
   await innerOf(a, "a", firstId).click();
   await a.keyboard.press("Tab");
   expect(await outCount(a)).toBe(outBefore);
@@ -414,7 +414,7 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
   // Both panes render the item and its nested child row.
   await expect(a.locator(`[data-block-id="${seeded.item}"]`).first()).toBeVisible();
   await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
-  await expect(b.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible(SETTLE);
+  await expect(b.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
   const wireA = await outCount(a);
 
   const toggle = a
@@ -429,7 +429,7 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
   // The segment unmounts in A only (view state, per pane): the child row
   // is gone from A's DOM, stands in B, and the toggle issued no doc
   // update (the wire log stands).
-  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0, SETTLE);
+  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0);
   await expect(b.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
   expect(await outCount(a)).toBe(wireA);
   // The data stands: the child keeps its indent in the doc.
@@ -437,7 +437,7 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
 
   // The expand re-mounts the segment.
   await toggle.click();
-  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible(SETTLE);
+  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
   await close();
@@ -508,14 +508,14 @@ test("the collapse triangle: a paragraph's derived segment and the fill/visibili
   await expect(toggle).toHaveCSS("opacity", "1");
   await expect(triangle).toHaveCSS("rotate", "90deg");
   expect(await triangle.evaluate((el) => getComputedStyle(el).fill)).not.toBe("none");
-  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0, SETTLE);
+  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0);
   expect(await outCount(a)).toBe(wireA);
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
   // Expand re-mounts the segment.
   await row.hover();
   await toggle.click();
-  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible(SETTLE);
+  await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
   await close();

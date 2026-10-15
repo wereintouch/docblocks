@@ -1,7 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
 const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -13,7 +12,7 @@ async function openPane(browser: Browser, seed: string): Promise<{ a: Page; clos
   const contextA = await browser.newContext();
   const a = await contextA.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
-  await expect(a.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(a.getByTestId("status-a")).toHaveText("connected");
   return {
     a,
     close: async () => {

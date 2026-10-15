@@ -4,7 +4,6 @@ import { expect, test } from "@playwright/test";
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
 const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
 
 const ROOT = '[data-testid="doc-a"]';
 
@@ -13,7 +12,7 @@ test("the page/canvas view toggle renders the page miniature and the surface ele
 }) => {
   const room = `view-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?canvas=1&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
 
   const card = page.locator(`${ROOT} [data-slot="docblocks/page-card"]`);
   const area = page.locator(ROOT);
@@ -25,8 +24,8 @@ test("the page/canvas view toggle renders the page miniature and the surface ele
   // is taller than the canvas viewport (it scrolls inside the card), so the
   // checks are: the card center coincides with the canvas center (the
   // center-anchor origin) and the card substantially intersects the area.
-  const cardBox = await card.boundingBox();
-  const areaBox = await area.boundingBox();
+  const cardBox = (await card.boundingBox())!;
+  const areaBox = (await area.boundingBox())!;
   expect(cardBox, "the page card must be laid out").not.toBeNull();
   expect(Math.abs(cardBox.y + cardBox.height / 2 - (areaBox.y + areaBox.height / 2))).toBeLessThan(40);
   expect(cardBox.y).toBeLessThan(areaBox.y + areaBox.height);
@@ -42,7 +41,7 @@ test("the page/canvas view toggle renders the page miniature and the surface ele
   // within the surface (an unresolved endpoint skips the line — presence
   // is the assertion).
   await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas-item"]`)).toHaveCount(4);
-  const itemBox = await page.locator(`${ROOT} [data-slot="docblocks/canvas-item"]`).first().boundingBox();
+  const itemBox = (await page.locator(`${ROOT} [data-slot="docblocks/canvas-item"]`).first().boundingBox())!;
   expect(itemBox, "the first canvas item must be laid out inside the doc area").not.toBeNull();
   expect(itemBox.y).toBeGreaterThanOrEqual(areaBox.y);
   await expect(page.locator(`${ROOT} [data-slot="docblocks/connector-layer"] line`)).toHaveCount(1);
@@ -60,7 +59,7 @@ test("the page/canvas view toggle renders the page miniature and the surface ele
   // document data is untouched by the switch) and the layout is intact
   // (the card center is back at the canvas center).
   await page.getByTestId("view-a-canvas").click();
-  const cardBoxBack = await card.boundingBox();
+  const cardBoxBack = (await card.boundingBox())!;
   expect(cardBoxBack, "the page card must be laid out after switching back").not.toBeNull();
   expect(Math.abs(cardBoxBack.y + cardBoxBack.height / 2 - (areaBox.y + areaBox.height / 2))).toBeLessThan(40);
   await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas-item"]`)).toHaveCount(4);

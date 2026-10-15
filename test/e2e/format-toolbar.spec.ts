@@ -8,7 +8,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 function pane(page: Page, client: "a" | "b") {
@@ -34,8 +34,8 @@ async function firstBlock(
     const doc = window.__paneDocs?.[c];
     if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
     const json = doc.toJSON();
-    const id = doc.getChildren(json.id)[0];
-    return doc.getBlock(id);
+    const id = doc.getChildren(json.id)[0]!;
+    return doc.getBlock(id)!;
   }, client);
 }
 
@@ -107,7 +107,7 @@ test("the mark buttons apply and clear a mark over the selected range", async ({
   await expect
     .poll(async () => (await firstBlock(b, "b")).content?.find((run) => run.text === "hello world")?.marks.bold, SETTLE)
     .toBe(true);
-  await expect(inners(b, "b").first().locator("strong"), SETTLE).toHaveText("hello world");
+  await expect(inners(b, "b").first().locator("strong")).toHaveText("hello world");
 
   // Bold off: the same button clears the mark over the range.
   await bold.click();
@@ -178,9 +178,6 @@ test("the align buttons set the block's align attr and sync the data-align", asy
   await expect(wrapper.locator('[data-slot="docblocks/block-content"]')).toHaveCSS("text-align", "center");
 
   // The attr synced to the other pane.
-  await expect(pane(b, "b").locator('[data-block-type="paragraph"]').first(), SETTLE).toHaveAttribute(
-    "data-align",
-    "center"
-  );
+  await expect(pane(b, "b").locator('[data-block-type="paragraph"]').first()).toHaveAttribute("data-align", "center");
   await close();
 });

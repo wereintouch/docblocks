@@ -10,7 +10,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 function pane(page: Page, client: "a" | "b") {
@@ -73,15 +73,15 @@ test("an inserted block reaches both panes and its enter animation settles", asy
   const { a, b, close } = await twoPanes(browser, "ui03c-insert");
 
   // The room starts with pane "a"'s single starter.
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await expect(wrappers(a, "a")).toHaveCount(1);
 
   await insertBlockType(a, "a", "paragraph");
 
   // Both panes (the motion editor) render the block as it arrives...
-  await expect(wrappers(b, "b"), SETTLE).toHaveCount(2);
+  await expect(wrappers(b, "b")).toHaveCount(2);
   // ...and the enter animation settles in A (the block is current after
   // the insert, so it is labeled).
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
+  await expect(wrappers(a, "a")).toHaveCount(2);
   await expect
     .poll(
       async () => await currentWrapper(a, "a").evaluate((el) => getComputedStyle(el.parentElement!).opacity),
@@ -96,7 +96,7 @@ test("an inserted block reaches both panes and its enter animation settles", asy
 test("an in-place line break reflows without a size projection (the text is never scaled)", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "ui03c-linebreak");
 
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await expect(wrappers(a, "a")).toHaveCount(1);
   const content = wrappers(a, "a").nth(0).locator('[data-slot="docblocks/block-content"]');
   await content.click();
   await a.keyboard.type("hello");
@@ -164,7 +164,7 @@ test("a real-pointer gutter drag slides the crossed sibling, commits over the wi
 
   // The room's starter; the insert makes two
   // (the harness insert — no typing, deterministic under parallel load).
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await expect(wrappers(a, "a")).toHaveCount(1);
   await insertBlockType(a, "a", "paragraph");
   const thirdId = await insertBlockType(a, "a", "paragraph");
   await settled(a);
@@ -218,7 +218,7 @@ test("a real-pointer gutter drag slides the crossed sibling, commits over the wi
   // (the commit left the pane over the wire).
   const order = await wrappers(a, "a").evaluateAll((els) => els.map((el) => el.getAttribute("data-block-id")));
   expect(order[0]).toBe(thirdId);
-  await expect(wrappers(b, "b").nth(0), SETTLE).toHaveAttribute("data-block-id", thirdId);
+  await expect(wrappers(b, "b").nth(0)).toHaveAttribute("data-block-id", thirdId);
 
   // The move is A's local undo entry (one command, one undoable unit):
   // the order reverts in both panes. The undo hotkey reaches the doc only
@@ -226,8 +226,8 @@ test("a real-pointer gutter drag slides the crossed sibling, commits over the wi
   // focus outside).
   await wrappers(a, "a").nth(0).locator('[data-slot="docblocks/block-content"]').first().click();
   await a.keyboard.press("Control+z");
-  await expect(wrappers(a, "a").nth(0), SETTLE).not.toHaveAttribute("data-block-id", thirdId);
-  await expect(wrappers(b, "b").nth(0), SETTLE).not.toHaveAttribute("data-block-id", thirdId);
+  await expect(wrappers(a, "a").nth(0)).not.toHaveAttribute("data-block-id", thirdId);
+  await expect(wrappers(b, "b").nth(0)).not.toHaveAttribute("data-block-id", thirdId);
 
   await close();
 });
@@ -235,9 +235,9 @@ test("a real-pointer gutter drag slides the crossed sibling, commits over the wi
 test("a gutter deletion disappears in both panes (the exit animation completes)", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03c-delete");
 
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(1);
+  await expect(wrappers(a, "a")).toHaveCount(1);
   await insertBlockType(a, "a", "paragraph");
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(2);
+  await expect(wrappers(a, "a")).toHaveCount(2);
   const before = 2;
   const wrapper = wrappers(a, "a").nth(1);
   const gutter = wrapper.locator('button[data-slot="docblocks/gutter"]');
@@ -251,8 +251,8 @@ test("a gutter deletion disappears in both panes (the exit animation completes)"
 
   // The exit animation runs out (the leaving row is popped out of the
   // layout) and the block is gone in both panes.
-  await expect(wrappers(a, "a"), SETTLE).toHaveCount(before - 1);
-  await expect(wrappers(b, "b"), SETTLE).toHaveCount(before - 1);
+  await expect(wrappers(a, "a")).toHaveCount(before - 1);
+  await expect(wrappers(b, "b")).toHaveCount(before - 1);
   await expect(b.getByTestId(`block-b-${wrapperId}`)).toHaveCount(0);
 
   await close();

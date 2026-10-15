@@ -8,7 +8,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /**
@@ -104,9 +104,9 @@ test.describe("todo checkbox", () => {
 
       // Pane b renders the checked state (attr + strikethrough).
       const bBox = b.locator(`[data-block-id="${id}"] [data-slot="docblocks/checkbox"]`);
-      await expect(bBox).toHaveAttribute("aria-checked", "true", SETTLE);
+      await expect(bBox).toHaveAttribute("aria-checked", "true");
       const bInner = b.locator(`[data-block-id="${id}"] [data-slot="docblocks/block-content"]`);
-      await expect(bInner).toHaveCSS("text-decoration-line", "line-through", SETTLE);
+      await expect(bInner).toHaveCSS("text-decoration-line", "line-through");
       expect((await taskItem(b, "b", id))?.attrs).toMatchObject({ checked: true });
     } finally {
       await close();

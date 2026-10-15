@@ -1,7 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
 const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -15,9 +14,9 @@ async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; b: 
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
-  await expect(a.getByTestId("status-a")).toHaveText("connected", SETTLE);
+  await expect(a.getByTestId("status-a")).toHaveText("connected");
   await b.goto(`/?client=b&syncUrl=${RELAY}/${room}`);
-  await expect(b.getByTestId("status-b")).toHaveText("connected", SETTLE);
+  await expect(b.getByTestId("status-b")).toHaveText("connected");
   return {
     a,
     b,
@@ -76,11 +75,11 @@ test("slash: / opens the command menu; the query filters; Enter converts the emp
   // The block converted in place to a level-2 heading (the h2 tag) and the
   // typed query never reached the doc: the converted block has no text.
   const heading = a.locator('[data-testid="doc-a"] h2[data-block-type="heading"]');
-  await expect(heading, SETTLE).toHaveCount(1);
+  await expect(heading).toHaveCount(1);
   await expect(heading.locator('[data-slot="docblocks/block-content"]')).toHaveText("");
 
   // The conversion reached the other pane (the doc-level sync).
-  await expect(b.locator('[data-testid="doc-b"] h2[data-block-type="heading"]'), SETTLE).toHaveCount(1);
+  await expect(b.locator('[data-testid="doc-b"] h2[data-block-type="heading"]')).toHaveCount(1);
   await close();
 });
 
@@ -109,7 +108,7 @@ test("slash: a click picks the command", async ({ browser }) => {
   // The accessible name is the item's label text.
   await menu(a).getByRole("menuitem", { name: "Callout" }).click();
   await expect(menu(a)).toHaveCount(0);
-  await expect(a.locator('[data-testid="doc-a"] [data-block-type="callout"]'), SETTLE).toHaveCount(1);
+  await expect(a.locator('[data-testid="doc-a"] [data-block-type="callout"]')).toHaveCount(1);
   await close();
 });
 

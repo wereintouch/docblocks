@@ -8,7 +8,7 @@ const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 /** Poll a pane element's innerText until it contains `text`. */
@@ -89,7 +89,7 @@ test("the presence panel shows the remote selection", async ({ browser }) => {
       const first = lines[0];
       const second = lines[1];
       return first !== undefined && first.startsWith(`a:${id}:`) && second !== undefined && second.includes('"to"');
-    }, SETTLE)
+    })
     .toBe(true);
 
   await close();
@@ -100,7 +100,7 @@ test("the chaos bar drives the relay's frame chaos", async ({ browser }) => {
 
   // The delay mode is applied room-wide and shown in the bar.
   await a.getByTestId("chaos-delay").click();
-  await expect(a.getByTestId("chaos-state"), SETTLE).toHaveText(/delay/);
+  await expect(a.getByTestId("chaos-state")).toHaveText(/delay/);
 
   // Typing still converges under the delay (frames are deferred, not
   // dropped — no precise-timing assertion, the SETTLE window absorbs it).
@@ -111,7 +111,7 @@ test("the chaos bar drives the relay's frame chaos", async ({ browser }) => {
 
   // The mode resets on the display and the wire comes back.
   await a.getByTestId("chaos-none").click();
-  await expect(a.getByTestId("chaos-state"), SETTLE).toHaveText("none");
+  await expect(a.getByTestId("chaos-state")).toHaveText("none");
 
   await close();
 });

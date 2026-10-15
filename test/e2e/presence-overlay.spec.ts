@@ -4,11 +4,10 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
 const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
+  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
 }
 
 async function twoPanes(
@@ -68,13 +67,13 @@ test("the remote caret renders inside the peer's block and clears on blur", asyn
         barCenterY >= blockBox.y &&
         barCenterY <= blockBox.y + blockBox.height
       );
-    }, SETTLE)
+    })
     .toBe(true);
 
   // A blurs the editor (focus moves to a non-editable pane element, outside
   // the editor root) → the selection is published as null → B's caret goes away.
   await a.getByTestId("status-a").click();
-  await expect(b.locator('[data-slot="docblocks/presence-caret"]')).toHaveCount(0, SETTLE);
+  await expect(b.locator('[data-slot="docblocks/presence-caret"]')).toHaveCount(0);
 
   await close();
 });
