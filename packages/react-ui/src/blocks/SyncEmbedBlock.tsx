@@ -2,7 +2,8 @@ import type { BlockId, Doc, SyncEmbedBlock as SyncEmbedBlockType } from "docbloc
 
 import { Editor } from "../Editor";
 import { EditorProvider, useEditorContext } from "../EditorProvider";
-import { cn } from "../shared/ui/cn";
+import { Alert, AlertTitle } from "../shared/ui/Alert";
+import { Card } from "../shared/ui/Card";
 
 /**
  * The sync-embed render depth bound (spec: the cycle guards are a
@@ -39,21 +40,17 @@ function SyncEmbedContent({ master, blockId }: { master: Doc; blockId?: BlockId 
 /** The broken and cycle placeholders (no cascade: the block stays in its own doc). */
 function SyncEmbedPlaceholder({ state }: { state: Exclude<SyncEmbedState, "resolved"> }) {
   return (
-    <div
+    <Alert
       data-slot="docblocks/sync-embed-placeholder"
       data-state={state}
-      className={cn(
-        `
-          border-(length:--docblocks-table-border-width) border-dashed border-(--docblocks-table-border-color)
-          p-(--docblocks-code-padding) text-center
-        `,
-        state === "broken" && "text-(--docblocks-callout-border-color-danger)"
-      )}
+      variant={state === "broken" ? "destructive" : "default"}
     >
-      {state === "broken"
-        ? "The master document for this synced block is unavailable."
-        : "Circular synced block reference."}
-    </div>
+      <AlertTitle className="line-clamp-none">
+        {state === "broken"
+          ? "The master document for this synced block is unavailable."
+          : "Circular synced block reference."}
+      </AlertTitle>
+    </Alert>
   );
 }
 
@@ -78,23 +75,22 @@ function SyncEmbedBlock({ id, block }: { id: BlockId; block: SyncEmbedBlockType 
   const state: SyncEmbedState = cyclic ? "cycle" : master === null || stale ? "broken" : "resolved";
 
   return (
-    <div
+    <Card
       data-slot="docblocks/block"
       data-block-type="sync-embed"
       data-block-id={id}
       data-state={state}
       data-doc-id={ref.docId}
       className="
-        relative my-(--docblocks-block-spacing) rounded-(--docblocks-radius)
-        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
+        my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
+        border-(--docblocks-table-border-color) outline-none
       "
     >
       {state === "resolved" && master !== null && (
         <SyncEmbedContent key={`${ref.docId}:${ref.blockId ?? ""}`} master={master} blockId={ref.blockId} />
       )}
-      {state === "broken" && <SyncEmbedPlaceholder state="broken" />}
-      {state === "cycle" && <SyncEmbedPlaceholder state="cycle" />}
-    </div>
+      {state !== "resolved" && <SyncEmbedPlaceholder state={state} />}
+    </Card>
   );
 }
 
