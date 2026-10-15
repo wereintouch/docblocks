@@ -416,8 +416,14 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
   const gutterShift =
     flatListShift === undefined ? undefined : { left: `calc(var(--docblocks-gutter-left) - ${flatListShift})` };
 
-  /** The task checkbox position (the list marker gutter; the Checkbox primitive sizes itself). */
-  const checkboxClass = "absolute left-(--docblocks-checkbox-left) top-[0.25em]";
+  /**
+   * The task checkbox position (the list marker gutter; the Checkbox
+   * primitive sizes itself). Centered on the first line like the gutter
+   * band: the checkbox's box stands in the first line box, on the same
+   * axis as the row text.
+   */
+  const checkboxClass =
+    "absolute left-(--docblocks-checkbox-left) top-[calc((var(--docblocks-line-box-height)-var(--docblocks-checkbox-size))/2)]";
 
   /**
    * The collapse toggle: between the drag grip and the block content, in

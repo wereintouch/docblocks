@@ -115,4 +115,43 @@ describe("MotionEditor", () => {
     expect(screen.queryByText("drop")).toBeNull();
     expect(screen.getByText("keep")).toBeDefined();
   });
+
+  it("stands the typing flag on a text keypress and drops it on a pointer move", () => {
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    doc.insertText(doc.insertBlock("paragraph"), 0, "text");
+    const { container } = render(
+      <EditorProvider doc={doc}>
+        <MotionEditor />
+      </EditorProvider>
+    );
+    const root = container.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');
+    const inner = container.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+    expect(root).not.toBeNull();
+    expect(inner).not.toBeNull();
+    expect(root!.hasAttribute("data-docblocks-typing")).toBe(false);
+
+    // A text keypress in this editor's own content stands the flag.
+    inner!.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true, cancelable: true }));
+    expect(root!.hasAttribute("data-docblocks-typing")).toBe(true);
+
+    // A control key (the gesture) does not stand it.
+    root!.removeAttribute("data-docblocks-typing");
+    inner!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+    expect(root!.hasAttribute("data-docblocks-typing")).toBe(false);
+
+    // The first pointer move ends the typing session.
+    inner!.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true, cancelable: true }));
+    expect(root!.hasAttribute("data-docblocks-typing")).toBe(true);
+    window.dispatchEvent(new Event("pointermove"));
+    expect(root!.hasAttribute("data-docblocks-typing")).toBe(false);
+
+    // The focus leaving the editor ends it as well.
+    inner!.dispatchEvent(new KeyboardEvent("keydown", { key: "a", bubbles: true, cancelable: true }));
+    expect(root!.hasAttribute("data-docblocks-typing")).toBe(true);
+    act(() => {
+      inner!.focus();
+      inner!.blur();
+    });
+    expect(root!.hasAttribute("data-docblocks-typing")).toBe(false);
+  });
 });

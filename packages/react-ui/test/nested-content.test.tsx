@@ -196,7 +196,7 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     expect(document.querySelector('[data-slot="docblocks/nested"]')).not.toBeNull();
   });
 
-  it("Shift+Tab at the top level is a no-op", () => {
+  it("Shift+Tab at the top level is a no-op (the key is still owned)", () => {
     let p: BlockId = "";
     const doc = renderDoc((d) => {
       p = d.insertBlock("paragraph");
@@ -204,9 +204,12 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     });
 
     caretAtFlat(p, 0);
-    const prevented = key(wrapperOf(p), "Tab", { shiftKey: true });
+    const notSuppressed = key(wrapperOf(p), "Tab", { shiftKey: true });
 
-    expect(prevented).toBe(true);
+    // The top level has no outdent target, but the gesture still owns the
+    // key: the browser's default focus move must not run (the focus stays
+    // in the text).
+    expect(notSuppressed).toBe(false);
     expect(doc.getChildren(doc.meta.id)).toEqual([p]);
   });
 

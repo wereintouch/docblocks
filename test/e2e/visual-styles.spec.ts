@@ -208,14 +208,14 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // Nested under text: the flat model renders the indented segment as the
   // sequence's own rows (the per-level row step — no nested slot): the
   // indented paragraph steps one level (24px), the indented list item the
-  // step plus its marker zone (the row's first character, 24px + 18px).
+  // step plus its marker zone (the row's first character, 24px + 20px).
   const rowPaddingOf = (id: string) =>
     doc
       .locator(`[data-block-id="${id}"]`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
   expect(await rowPaddingOf("c0062")).toBe("24px");
-  expect(await rowPaddingOf("c0063")).toBe("42px");
+  expect(await rowPaddingOf("c0063")).toBe("44px");
   expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 
@@ -497,8 +497,26 @@ test("the editor root typography and the block spacing read the tokens", async (
   // edge minus the marker width.
   const collapse = root.locator('[data-slot="docblocks/collapse"]').first();
   const collapseStyle = await styleProps(collapse, "left", "top");
-  expect(collapseStyle["left"]).toBe("-42px");
+  expect(collapseStyle["left"]).toBe("-44px");
   expect(collapseStyle["top"]).toBe("2.8px");
+
+  // The list marker stands in the marker zone (the row's first character):
+  // its top edge at the content's top (the marker's own line box equals the
+  // first line box — the glyph centers with the first text line), the zone's
+  // left edge, the muted-foreground color (light).
+  const marker = root.locator('[data-slot="docblocks/row-marker"]').first();
+  const markerStyle = await styleProps(marker, "top", "left", "color");
+  expect(markerStyle["top"]).toBe("0px");
+  expect(markerStyle["left"]).toBe("-20px");
+  // The muted-foreground input (the harness loads the standard seed).
+  expect(markerStyle["color"]).toBe("oklch(0.556 0 0)");
+
+  // The task checkbox stands in the same zone, centered on the first line
+  // like the gutter band: the zone's left edge, (line box - 16px) / 2 down.
+  const checkbox = root.locator('[data-slot="docblocks/checkbox"]').first();
+  const checkboxStyle = await styleProps(checkbox, "left", "top");
+  expect(checkboxStyle["left"]).toBe("-20px");
+  expect(checkboxStyle["top"]).toBe("4.8px");
 
   // The flat list rows are standalone list items (outside a list element):
   // the UA marker dot is suppressed (the row's own marker span / checkbox

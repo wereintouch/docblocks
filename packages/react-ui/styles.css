@@ -136,14 +136,17 @@
   /* Task checkbox (list-item with list: "task"): the size of the
      Checkbox primitive (size-4); the position calcs below read it. */
   --docblocks-checkbox-size: 16px;
-  /* A flat list row's first-character zone: the checkbox (16px) plus 2px of
-     clearance from the text — the zone stands right before the row's text,
-     and the gutter band (grip / collapse triangle) stands to the zone's
-     left, so a list row's gutter columns match a text row's. */
-  --docblocks-marker-width: 18px;
-  /* The checkbox's left edge (derived: the marker zone's left edge, 2px
-     clear of the text). */
+  /* A flat list row's first-character zone: the checkbox (16px) plus a
+     gap-1 (4px) clearance from the text — the zone stands right before the
+     row's text, and the gutter band (grip / collapse triangle) stands to
+     the zone's left, so a list row's gutter columns match a text row's. */
+  --docblocks-marker-width: 20px;
+  /* The checkbox's left edge (derived: the marker zone's left edge, the
+     gap-1 clear of the text). */
   --docblocks-checkbox-left: calc(-1 * var(--docblocks-marker-width));
+  /* The list marker's color (the bullet / number glyphs stand a step
+     quieter than the row text). */
+  --docblocks-marker-color: var(--muted-foreground, #57606a);
 
   /* Callout. */
   --docblocks-callout-border-width: 4px;
@@ -216,6 +219,7 @@
 :is(.dark [data-slot="docblocks/editor"], [data-slot="docblocks/editor"].dark) {
   --docblocks-text-color: var(--foreground, #e6edf3);
   --docblocks-placeholder-color: var(--muted-foreground, #8b949e);
+  --docblocks-marker-color: var(--muted-foreground, #8b949e);
   --docblocks-link-color: #58a6ff;
   --docblocks-selection-background: rgba(56, 139, 253, 0.4);
   --docblocks-inline-code-background: var(--muted, rgba(110, 118, 129, 0.4));
@@ -253,9 +257,12 @@
  */
 [data-docblocks-motion] [data-slot="docblocks/row-marker"] {
   position: absolute;
-  top: 0.25em;
+  /* The marker's own line box equals the row's first line box (the
+     inherited font size and line height), so its top edge stands at the
+     content's top — the glyph centers with the first text line. */
+  top: 0;
   left: calc(-1 * var(--docblocks-marker-width));
-  color: var(--docblocks-text-color);
+  color: var(--docblocks-marker-color);
   pointer-events: none;
   user-select: none;
 }
@@ -291,4 +298,18 @@
   content: attr(data-placeholder);
   color: var(--docblocks-placeholder-color);
   pointer-events: none;
+}
+
+/*
+ * The hover grip stands hidden while the caret is typing: the typing
+ * session starts on the first text keypress and ends on the first pointer
+ * move or on the focus leaving the editor (the editor root stands/clears
+ * the data-docblocks-typing attribute — the unlayered rule below outranks
+ * the hover utility). A selected block's grip is a selection indicator,
+ * not a hover affordance — it stays visible while typing.
+ */
+[data-docblocks-typing] [data-slot="docblocks/row"]:not([data-selected]) > [data-slot="docblocks/gutter"],
+[data-docblocks-typing] [data-slot="docblocks/block"]:not([data-selected]) > [data-slot="docblocks/gutter"],
+[data-docblocks-typing] [data-slot="docblocks/list-item"]:not([data-selected]) > [data-slot="docblocks/gutter"] {
+  opacity: 0;
 }

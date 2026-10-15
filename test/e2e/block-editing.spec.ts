@@ -167,12 +167,12 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
   await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(1);
   // The sequence order stands (a Tab is an attr update, never a move), and
   // the indented row's left step is the indent step plus its marker zone
-  // (the row's first character, 24px + 18px).
+  // (the row's first character, 24px + 20px).
   expect(
     await a.evaluate((c) => window.__paneDocs?.[c as "a"]?.getChildren(window.__paneDocs[c as "a"]!.toJSON().id), "a")
   ).toEqual(rootOrder);
   const secondRow = a.locator(`[data-slot="docblocks/row"]:has([data-block-id="${secondId}"])`);
-  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("42px");
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("44px");
 
   // Shift+Tab in the indented item brings it back to the top level (the
   // gesture writes the indent as an explicit 0 — the writer omits the
@@ -181,7 +181,7 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
   await a.keyboard.press("Shift+Tab");
   await expect.poll(async () => indentOf("a", secondId), SETTLE).toBe(0);
   await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(0);
-  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("18px");
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("20px");
 
   await close();
 });
@@ -352,4 +352,74 @@ test("a reload does not re-seed the room (the content is stable across reloads)"
   await expect(inners(a, "a").nth(1)).toHaveText("an item");
 
   await context.close();
+});
+
+test("a no-op Tab keeps the caret in the text (the focus does not escape)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ui03b-tab-noop");
+
+  // The room starts with pane "a"'s single starter — the first block has
+  // no preceding block, so a Tab is a no-op.
+  await expect(inners(a, "a")).toHaveCount(1);
+  const inner = inners(a, "a").first();
+  await inner.click();
+  await a.keyboard.type("text");
+
+  const outBefore = await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count();
+  await a.keyboard.press("Tab");
+  // The gesture is a no-op: no doc command, no wire update.
+  await a.waitForTimeout(300);
+  expect(await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count()).toBe(outBefore);
+  // The browser's default Tab (focus to the next focusable element) is
+  // suppressed: the focus stays in the block's contenteditable.
+  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/block-content");
+
+  // A no-op Shift+Tab on the top level behaves the same.
+  await a.keyboard.press("Shift+Tab");
+  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/block-content");
+
+  await close();
+});
+
+test("the hover grip stands hidden while typing and returns on a pointer move", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ui03b-typing-grip");
+
+  await expect(inners(a, "a")).toHaveCount(1);
+  const inner = inners(a, "a").first();
+  await inner.click();
+  await a.keyboard.type("text");
+
+  const row = a.locator('[data-slot="docblocks/row"]').first();
+  const gripOpacity = () =>
+    row.evaluate((el) => getComputedStyle(el.querySelector('[data-slot="docblocks/gutter"]')!).opacity);
+
+  // Hover: the grip reveals (opacity 1).
+  await row.hover();
+  await expect.poll(gripOpacity, SETTLE).toBe("1");
+
+  // Typing (the mouse stands still on the row): the grip hides.
+  await inner.click();
+  await a.keyboard.type("x");
+  await expect.poll(gripOpacity, SETTLE).toBe("0");
+
+  // The first pointer move ends the typing session: with the mouse still
+  // on the row the hover reveal returns (opacity 1).
+  const box = (await row.boundingBox())!;
+  await a.mouse.move(box.x + box.width - 10, box.y + box.height / 2, { steps: 4 });
+  await expect.poll(gripOpacity, SETTLE).toBe("1");
+
+  // The same rule on a flat list row (the grip stands in its li wrapper —
+  // the list-item slot, not the block slot).
+  await insertType(a, "a", "list-item");
+  await expect(inners(a, "a")).toHaveCount(2);
+  const listInner = inners(a, "a").nth(1);
+  const listRow = a.locator('[data-slot="docblocks/row"]').nth(1);
+  const listGripOpacity = () =>
+    listRow.evaluate((el) => getComputedStyle(el.querySelector('[data-slot="docblocks/gutter"]')!).opacity);
+  await listRow.hover();
+  await expect.poll(listGripOpacity, SETTLE).toBe("1");
+  await listInner.click();
+  await a.keyboard.type("x");
+  await expect.poll(listGripOpacity, SETTLE).toBe("0");
+
+  await close();
 });

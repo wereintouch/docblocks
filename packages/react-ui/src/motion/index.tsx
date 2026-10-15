@@ -108,6 +108,48 @@ const SLIDE_SETTLE_MS = 400;
  */
 const HANDLE_GRAB_STYLE = '[data-docblocks-motion] [data-slot="docblocks/gutter"] { cursor: grab; }';
 
+/**
+ * The grip typing flag: the editor root holds `data-docblocks-typing` from
+ * the first text keypress in its own content until the first pointer move
+ * or the focus leaving the editor — the stylesheet's unlayered rule hides
+ * the hover grip while the attribute stands (a selected block's grip is a
+ * selection indicator and stays visible). The attribute is imperative: a
+ * React state would re-render every row per keypress.
+ */
+function useTypingFlag(rootRef: { current: HTMLDivElement | null }) {
+  useEffect(() => {
+    const root = rootRef.current;
+    if (root === null) return;
+    const setTyping = (typing: boolean) => {
+      if (typing) root.setAttribute("data-docblocks-typing", "");
+      else root.removeAttribute("data-docblocks-typing");
+    };
+    const onKeydown = (event: KeyboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target === null || target.closest('[data-slot="docblocks/editor"]') !== root) return;
+      if (target.closest('[data-slot="docblocks/block-content"]') === null) return;
+      // A text keypress only: a control key (Tab, the arrows, the mod
+      // hotkeys) is a gesture, not typing.
+      if (event.key.length !== 1 || event.key === "\t" || event.metaKey || event.ctrlKey || event.altKey) return;
+      setTyping(true);
+    };
+    const onPointerMove = () => setTyping(false);
+    const onFocusOut = () => {
+      const active = document.activeElement;
+      if (active instanceof Node && root.contains(active)) return;
+      setTyping(false);
+    };
+    document.addEventListener("keydown", onKeydown);
+    window.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("focusout", onFocusOut);
+    return () => {
+      document.removeEventListener("keydown", onKeydown);
+      window.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("focusout", onFocusOut);
+    };
+  }, [rootRef]);
+}
+
 interface RowItemProps {
   node: FlatNode;
   /** The position-only layout slide armed (a drag in flight, a structural settle): selects the rows' layout transition. */
@@ -198,6 +240,7 @@ const RowItem = memo(
       <Reorder.Item
         as="div"
         data-slot="docblocks/row"
+        data-selected={selected ? "true" : undefined}
         value={node.id}
         initial={ENTER}
         animate={ANIMATE}
@@ -287,6 +330,7 @@ function MotionEditor({
   const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
+  useTypingFlag(rootRef);
 
   // The flat page sequence, derived per render (the store stays a flat map
   // projection). The interning cache: the previous derivation's byId

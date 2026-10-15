@@ -340,6 +340,12 @@ function useBlockInput({
           const from = Math.min(anchor, focus);
           const to = Math.max(anchor, focus);
           seat = { from, to: to === from ? null : to };
+          // The gesture owns the key while the caret sits in this block's
+          // text — the browser's default Tab (focus to the next focusable
+          // element) must not run, even when the gesture itself is a
+          // no-op (a first block's Tab, a top-level Shift+Tab): the focus
+          // stays in the text.
+          event.preventDefault();
         }
         // The gesture's own inner element: the motion view's exit clone
         // keeps this node connected while the remount adds the survivor,
@@ -347,7 +353,6 @@ function useBlockInput({
         const exclude = innerRef.current ?? null;
         const acted = event.shiftKey ? outdentBlock(doc, id, context.parentId) : indentIn(doc, id, context.parentId);
         if (acted) {
-          event.preventDefault();
           // The flat gesture (updateBlock) keeps the block's element where
           // it stands in the flat-row view (no remount: the selection is
           // already seated). A remount (a base-view list item moving
