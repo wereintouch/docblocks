@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 
-import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
-import type { KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import type { CSSProperties, KeyboardEvent, MouseEvent as ReactMouseEvent, ReactNode } from "react";
 
 import type { Block, BlockId, TextRun } from "docblocks-core";
 
@@ -22,7 +22,10 @@ import { Checkbox } from "../shared/ui/Checkbox";
 import { cn } from "../shared/ui/cn";
 import { GripVertical, TriangleFilled } from "../shared/ui/icons";
 import { renderRunsInto } from "../text/runs-dom";
+import { CodeCaption } from "./CodeCaption";
 import { useBlockContext } from "./block-context";
+import { measureCodeLines } from "./code-metrics";
+import type { CodeLineMetric } from "./code-metrics";
 import { indentOf, markerCycle, numberMarkerLabel } from "./flat";
 
 /** The text-editable block types (the wrapper tag and data attrs are props). */
@@ -63,6 +66,27 @@ interface TextBlockProps {
   flat?: boolean;
   /** The run position of a `number` item (the marker label; 1-based). */
   number?: number;
+}
+
+/** The code body's collapsed clamp: the first 5 line boxes + the fade over the last 3 (the token-based calc). */
+const COLLAPSED_CLAMP: CSSProperties = {
+  maxHeight: "calc(5 * var(--docblocks-line-box-height))",
+  overflow: "hidden",
+  maskImage: "linear-gradient(to bottom, #000 calc(100% - 3 * var(--docblocks-line-box-height)), transparent 100%)",
+  WebkitMaskImage:
+    "linear-gradient(to bottom, #000 calc(100% - 3 * var(--docblocks-line-box-height)), transparent 100%)",
+};
+
+/** Whether two measured line layouts agree (the metrics re-measure guard). */
+function sameMetrics(a: CodeLineMetric[] | null, b: CodeLineMetric[] | null): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (x === undefined || y === undefined || x.top !== y.top || x.height !== y.height) return false;
+  }
+  return true;
 }
 
 const EMPTY_RUNS: TextRun[] = [];
@@ -298,6 +322,34 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
     innerRef.current = element;
   }, []);
 
+  // The code block's logical line metrics (the line-number anchors): the
+  // line boxes measured against the inner's live DOM after every render
+  // (a text / attr / selection re-render re-runs the measure; the guard
+  // keeps the metrics reference stable while the layout stands) and on a
+  // width change (the wrap reflows the lines).
+  const isCode = block.type === "code";
+  const [lineMetrics, setLineMetrics] = useState<CodeLineMetric[] | null>(null);
+  useLayoutEffect(() => {
+    if (!isCode) return;
+    const inner = innerRef.current;
+    if (inner === null) return;
+    const next = measureCodeLines(inner, textOf(block.content));
+    setLineMetrics((prev) => (sameMetrics(prev, next) ? prev : next));
+  });
+  useEffect(() => {
+    if (!isCode || typeof ResizeObserver === "undefined") return;
+    const inner = innerRef.current;
+    if (inner === null) return;
+    const observer = new ResizeObserver(() => {
+      const current = store.getState().blocks[id];
+      if (current === undefined || "content" in current === false) return;
+      const next = measureCodeLines(inner, textOf(current.content));
+      setLineMetrics((prev) => (sameMetrics(prev, next) ? prev : next));
+    });
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, [id, isCode, store]);
+
   /** Gutter click: a blocks selection on this block (Shift extends from the previous anchor). */
   const onGutterClick = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>) => {
@@ -343,6 +395,14 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
   );
 
   const align = alignOf(block);
+
+  // The code body state: the logical lines (the line-number rows and the
+  // collapsed clamp count), the wrap (the default stands for the absent
+  // attr), and the collapsed clamp (the absent attr reads as expanded).
+  const codeLines = isCode ? textOf(block.content).split("\n").length : 0;
+  const codeWrap = isCode ? (block.attrs?.wrap ?? true) : true;
+  const codeCollapsed = isCode && block.attrs?.collapsed === true;
+  const codeLineNumbers = isCode ? (block.attrs?.lineNumbers ?? true) : false;
 
   /**
    * The wrapper classes: the gutter positioning box (no focus outline).
@@ -400,7 +460,54 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
     block.type === "list-item" && block.attrs.checked && "line-through",
     (block.type === "code" || block.type === "latex") && "font-(family-name:--docblocks-mono-font-family)",
     align === "center" && "text-center",
-    align === "right" && "text-right"
+    align === "right" && "text-right",
+    // The wrap-OFF code: single-line rows + the horizontal scrollbar (the
+    // code-scroll container below scrolls; the wrap-ON default wraps).
+    block.type === "code" && !codeWrap && "whitespace-pre"
+  );
+
+  // The inner editable (every text type) — the code block wraps it into the
+  // code body (the line-number track + the wrap-aware scroll container).
+  const innerEditable = (
+    <div
+      ref={setInnerRef}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      data-slot="docblocks/block-content"
+      data-block-id={id}
+      data-placeholder={commandPalettePlaceholder}
+      className={innerClass}
+      onInput={commitDomDelta}
+      onPaste={onPaste}
+    />
+  );
+  const codeBody = isCode ? (
+    <div data-slot="docblocks/code-body" className="flex min-w-0" style={codeCollapsed ? COLLAPSED_CLAMP : undefined}>
+      {codeLineNumbers && (
+        <div
+          data-slot="docblocks/code-line-numbers"
+          aria-hidden
+          className="
+            relative w-10 shrink-0 pr-2 text-right font-(family-name:--docblocks-mono-font-family) text-muted-foreground
+            select-none
+          "
+        >
+          {lineMetrics === null
+            ? Array.from({ length: codeLines }, (_, i) => <div key={i}>{i + 1}</div>)
+            : lineMetrics.map((metric, i) => (
+                <span key={i} className="absolute block" style={{ top: metric.top, height: metric.height }}>
+                  {i + 1}
+                </span>
+              ))}
+        </div>
+      )}
+      <div data-slot="docblocks/code-scroll" className={cn("min-w-0 flex-1", !codeWrap && "overflow-x-auto")}>
+        {innerEditable}
+      </div>
+    </div>
+  ) : (
+    innerEditable
   );
 
   /**
@@ -459,100 +566,92 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
 
   const Tag = tag;
   return (
-    <Tag
-      ref={setRefs}
-      data-slot={tag === "li" ? "docblocks/list-item" : "docblocks/block"}
-      data-block-type={block.type}
-      data-block-id={id}
-      data-list={block.type === "list-item" ? block.attrs.list : undefined}
-      data-checked={block.type === "list-item" ? block.attrs.checked : undefined}
-      data-variant={block.type === "callout" ? block.attrs?.variant : undefined}
-      data-language={block.type === "code" ? block.attrs?.language : undefined}
-      data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
-      data-align={alignOf(block)}
-      data-depth={block.type === "list-item" ? cycle : undefined}
-      data-selected={selected ? "true" : undefined}
-      tabIndex={0}
-      className={cn("group", wrapperClass)}
-      onKeyDown={onKeydown}
-    >
-      {header}
-      <Button
-        type="button"
-        data-slot="docblocks/gutter"
-        aria-label="Select block"
-        variant="ghost"
-        size="icon"
-        onClick={onGutterClick}
-        onMouseDown={onControlMouseDown}
-        className={cn(gutterClass, "size-5")}
-        style={gutterShift}
+    <>
+      <Tag
+        ref={setRefs}
+        data-slot={tag === "li" ? "docblocks/list-item" : "docblocks/block"}
+        data-block-type={block.type}
+        data-block-id={id}
+        data-list={block.type === "list-item" ? block.attrs.list : undefined}
+        data-checked={block.type === "list-item" ? block.attrs.checked : undefined}
+        data-variant={block.type === "callout" ? block.attrs?.variant : undefined}
+        data-language={block.type === "code" ? block.attrs?.language : undefined}
+        data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
+        data-align={alignOf(block)}
+        data-depth={block.type === "list-item" ? cycle : undefined}
+        data-selected={selected ? "true" : undefined}
+        tabIndex={0}
+        className={cn("group", wrapperClass)}
+        onKeyDown={onKeydown}
       >
-        <GripVertical />
-      </Button>
-      {block.type === "list-item" && block.attrs.list === "task" && (
-        <Checkbox
-          data-slot="docblocks/checkbox"
-          checked={block.attrs.checked === true}
-          aria-label={block.attrs.checked ? "Mark task as not done" : "Mark task as done"}
-          // One command is its own transaction: one undo step, one wire update.
-          onCheckedChange={(checked) => {
-            doc.updateBlock(id, { checked: checked === true });
-          }}
-          onMouseDown={onControlMouseDown}
-          className={checkboxClass}
-        />
-      )}
-      {block.type === "quote" && (
-        <div
-          data-slot="docblocks/quote-rule"
-          aria-hidden
-          className="
-            pointer-events-none absolute top-0 bottom-0 left-0 w-(--docblocks-quote-border-width)
-            bg-(--docblocks-quote-border-color)
-          "
-        />
-      )}
-      {(flatMarkerIsNumber || flatMarkerIsBullet) && (
-        <span data-slot="docblocks/row-marker" data-cycle={cycle} data-kind={block.attrs.list}>
-          {flatMarkerIsNumber && number !== undefined ? numberMarkerLabel(number, cycle) : null}
-        </span>
-      )}
-      {collapsible && (
+        {header}
         <Button
           type="button"
-          data-slot="docblocks/collapse"
-          aria-label={collapsed ? "Expand children" : "Collapse children"}
-          aria-expanded={!collapsed}
+          data-slot="docblocks/gutter"
+          aria-label="Select block"
           variant="ghost"
-          // A view-state flip (no doc command, no wire update, not in the
-          // undo history) — the children unmount while hidden.
-          onClick={onCollapseClick}
+          size="icon"
+          onClick={onGutterClick}
           onMouseDown={onControlMouseDown}
-          className={cn(collapseClass, "p-0 has-[>svg]:p-0")}
-          style={
-            flatListShift === undefined
-              ? undefined
-              : { left: `calc(var(--docblocks-collapse-band-left) - ${flatListShift})` }
-          }
+          className={cn(gutterClass, "size-5")}
+          style={gutterShift}
         >
-          <TriangleFilled className={cn("size-2", collapsed ? "rotate-90" : "rotate-180")} />
+          <GripVertical />
         </Button>
-      )}
-      <div
-        ref={setInnerRef}
-        contentEditable
-        suppressContentEditableWarning
-        spellCheck={false}
-        data-slot="docblocks/block-content"
-        data-block-id={id}
-        data-placeholder={commandPalettePlaceholder}
-        className={innerClass}
-        onInput={commitDomDelta}
-        onPaste={onPaste}
-      />
-      {nested}
-    </Tag>
+        {block.type === "list-item" && block.attrs.list === "task" && (
+          <Checkbox
+            data-slot="docblocks/checkbox"
+            checked={block.attrs.checked === true}
+            aria-label={block.attrs.checked ? "Mark task as not done" : "Mark task as done"}
+            // One command is its own transaction: one undo step, one wire update.
+            onCheckedChange={(checked) => {
+              doc.updateBlock(id, { checked: checked === true });
+            }}
+            onMouseDown={onControlMouseDown}
+            className={checkboxClass}
+          />
+        )}
+        {block.type === "quote" && (
+          <div
+            data-slot="docblocks/quote-rule"
+            aria-hidden
+            className="
+              pointer-events-none absolute top-0 bottom-0 left-0 w-(--docblocks-quote-border-width)
+              bg-(--docblocks-quote-border-color)
+            "
+          />
+        )}
+        {(flatMarkerIsNumber || flatMarkerIsBullet) && (
+          <span data-slot="docblocks/row-marker" data-cycle={cycle} data-kind={block.attrs.list}>
+            {flatMarkerIsNumber && number !== undefined ? numberMarkerLabel(number, cycle) : null}
+          </span>
+        )}
+        {collapsible && (
+          <Button
+            type="button"
+            data-slot="docblocks/collapse"
+            aria-label={collapsed ? "Expand children" : "Collapse children"}
+            aria-expanded={!collapsed}
+            variant="ghost"
+            // A view-state flip (no doc command, no wire update, not in the
+            // undo history) — the children unmount while hidden.
+            onClick={onCollapseClick}
+            onMouseDown={onControlMouseDown}
+            className={cn(collapseClass, "p-0 has-[>svg]:p-0")}
+            style={
+              flatListShift === undefined
+                ? undefined
+                : { left: `calc(var(--docblocks-collapse-band-left) - ${flatListShift})` }
+            }
+          >
+            <TriangleFilled className={cn("size-2", collapsed ? "rotate-90" : "rotate-180")} />
+          </Button>
+        )}
+        {codeBody}
+        {nested}
+      </Tag>
+      {isCode ? <CodeCaption id={id} block={block} /> : null}
+    </>
   );
 }
 

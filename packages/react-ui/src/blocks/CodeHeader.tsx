@@ -13,7 +13,20 @@ import {
 } from "../shared/ui/DropdownMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { cn } from "../shared/ui/cn";
-import { Check, ChevronDown, CircleCheck, Copy, EllipsisVertical, Hash, Search, TextWrap } from "../shared/ui/icons";
+import {
+  Captions,
+  Check,
+  ChevronDown,
+  ChevronsDownUp,
+  ChevronsUpDown,
+  CircleCheck,
+  Copy,
+  EllipsisVertical,
+  Hash,
+  Search,
+  TextWrap,
+} from "../shared/ui/icons";
+import { requestCodeCaption } from "./CodeCaption";
 import { textOf } from "./TextBlock";
 
 /**
@@ -37,6 +50,15 @@ import { textOf } from "./TextBlock";
  * the numbers are a rendered affordance, not text) to the clipboard; the
  * button shows the circle-check feedback for ~1.5 s (a local timer, never
  * document data).
+ *
+ * Collapse: the block is clamped to the first 5 line boxes with the fade
+ * over the last 3 (the state is the `collapsed` attr — it syncs and
+ * survives a reload); the button is DISABLED (not hidden) while the block
+ * fits in the 5 lines (the logical line count — the line-break count + 1).
+ *
+ * Caption: seats the caret on the caption line below the block (the
+ * `caption` attr; a fresh line seats the caret at the last character and
+ * does nothing when the line is already focused with the caret there).
  *
  * "More": a non-modal dropdown with the two display toggles (line numbers
  * and wrap), both default ON (the absent attr reads as on); a toggle is an
@@ -86,7 +108,7 @@ interface CodeHeaderProps {
 }
 
 function CodeHeader({ id, block, center }: CodeHeaderProps) {
-  const { doc } = useEditorContext();
+  const { doc, store } = useEditorContext();
   const [languageOpen, setLanguageOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -126,6 +148,12 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
   // The display toggles read the absent attr as ON (the defaults).
   const lineNumbers = block.attrs?.lineNumbers ?? true;
   const wrap = block.attrs?.wrap ?? true;
+  const collapsed = block.attrs?.collapsed === true;
+  // The collapse button's enabled state: the block's LOGICAL lines (the
+  // line-break count + 1) — the wrapped continuations count into their
+  // logical line. A collapsed block is ALWAYS expandable (the clamp may
+  // hide wrapped line boxes even at ≤5 logical lines).
+  const lineCount = textOf(block.content).split("\n").length;
 
   // The controls' hover reveal: invisible (and unclickable) unless the
   // wrapper is hovered; the row's strip stands on hover or while the
@@ -230,6 +258,34 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
           onClick={onCopy}
         >
           {copied ? <CircleCheck className="size-4" /> : <Copy className="size-4" />}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          data-slot="docblocks/code-collapse"
+          aria-label={collapsed ? "Expand the code" : "Collapse the code"}
+          aria-expanded={!collapsed}
+          title={collapsed ? "Expand" : "Collapse"}
+          className="size-7 text-[length:inherit]"
+          // Disabled (not hidden) while the block fits in the clamp and is
+          // not already collapsed (a collapsed block always expands).
+          disabled={!collapsed && lineCount <= 5}
+          onClick={() => doc.updateBlock(id, { collapsed: !collapsed })}
+        >
+          {collapsed ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          data-slot="docblocks/code-caption-toggle"
+          aria-label={block.attrs?.caption ? "Edit the caption" : "Add a caption"}
+          title="Caption"
+          className="size-7 text-[length:inherit]"
+          onClick={() => requestCodeCaption(store, id)}
+        >
+          <Captions className="size-4" />
         </Button>
         <DropdownMenu modal={false} open={moreOpen} onOpenChange={setMoreOpen}>
           <DropdownMenuTrigger asChild>

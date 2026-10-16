@@ -66,10 +66,10 @@ async function textOf(page: Page, client: "a" | "b", id: string): Promise<string
   return (block?.content ?? []).map((run) => run.text).join("");
 }
 
-/** The inner editable of a block (the motion row renders the wrapper directly — no descendant carries the id twice). */
+/** The inner editable of a block (a descendant of the wrapper — the code block wraps it in the code body). */
 function innerOf(page: Page, client: "a" | "b", id: string) {
   return pane(page, client).locator(
-    `[data-slot="docblocks/block"][data-block-id="${id}"] > [data-slot="docblocks/block-content"], [data-slot="docblocks/list-item"][data-block-id="${id}"] > [data-slot="docblocks/block-content"]`
+    `[data-slot="docblocks/block"][data-block-id="${id}"] [data-slot="docblocks/block-content"], [data-slot="docblocks/list-item"][data-block-id="${id}"] [data-slot="docblocks/block-content"]`
   );
 }
 
