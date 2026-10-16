@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
@@ -27,6 +27,10 @@ import {
   SelectValue,
   Separator,
   Skeleton,
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -114,6 +118,34 @@ describe("shared/ui smoke", () => {
     expect(screen.getByRole("combobox")).toBeDefined();
     expect(screen.getByText("Pick a value")).toBeDefined();
     expect(screen.queryByText("Alpha")).toBeNull();
+  });
+
+  it("renders Tabs with a list, triggers, and the active panel", () => {
+    render(
+      <Tabs defaultValue="one">
+        <TabsList>
+          <TabsTrigger value="one">One</TabsTrigger>
+          <TabsTrigger value="two">Two</TabsTrigger>
+        </TabsList>
+        <TabsContent value="one">First panel</TabsContent>
+        <TabsContent value="two">Second panel</TabsContent>
+      </Tabs>
+    );
+    expect(document.querySelector('[data-slot="tabs-list"]')).not.toBeNull();
+    const tabs = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='tabs-trigger']"));
+    expect(tabs).toHaveLength(2);
+    expect(tabs[0]?.getAttribute("aria-selected")).toBe("true");
+    expect(tabs[1]?.getAttribute("aria-selected")).toBe("false");
+    expect(document.querySelector('[data-slot="tabs-content"]')?.textContent).toBe("First panel");
+    // Radix 1.2 activates a tab on mousedown (a real click includes it;
+    // a jsdom click-only dispatch would not reach the activation handler).
+    fireEvent.mouseDown(tabs[1]!);
+    expect(tabs[1]?.getAttribute("data-state")).toBe("active");
+    expect(tabs[1]?.getAttribute("aria-selected")).toBe("true");
+    const activeContent = [...document.querySelectorAll<HTMLElement>('[data-slot="tabs-content"]')].find(
+      (el) => el.getAttribute("data-state") === "active"
+    );
+    expect(activeContent?.textContent).toBe("Second panel");
   });
 
   it("renders Tooltip with a closed trigger", () => {

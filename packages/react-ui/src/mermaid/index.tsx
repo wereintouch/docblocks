@@ -8,11 +8,11 @@
  * A diagram is not a block type — it is the existing `code` block with
  * `language: "mermaid"` (zero schema change). Wire the renderer per
  * instance: `blockRenderers={{ code: MermaidCodeRenderer }}`. The
- * renderer dispatches on the language: a mermaid code block renders the
- * live diagram preview below the editable code, every other code block
- * falls through to the built-in plain code rendering (the same TextBlock
- * the built-in switch uses, so a consumer override keeps full editing for
- * non-mermaid code blocks).
+ * renderer dispatches on the language: a mermaid code block renders per
+ * its code/preview mode (the exclusive rendering — see below), every
+ * other code block falls through to the built-in plain code rendering
+ * (the same TextBlock the built-in switch uses, so a consumer override
+ * keeps full editing for non-mermaid code blocks).
  *
  * Security posture (v1): `mermaid.initialize` runs with
  * `securityLevel: "strict"` — the user's diagram source is sanitized and
@@ -25,16 +25,17 @@
  * theme; a theme-aware initialize is a follow-up.
  *
  * The code/preview mode (the `mermaidMode` attr, default `"code"` — it
- * persists and syncs): `code` renders the editable code with the live
- * diagram preview below it; `preview` renders the diagram only (the code
- * body is hidden — the editable stays mounted for the text sync). The
- * mode segment (the CodeXml / Eye buttons) stands in the header's center
- * slot, to the right of the language button, and is visible only while
- * the block is hovered (the header controls' reveal).
+ * persists and syncs) — the modes are exclusive: `code` renders the
+ * editable code only (the diagram stands hidden), `preview` renders the
+ * diagram only (the code body is hidden — the editable stays mounted for
+ * the text sync). The mode segment (the CodeXml / Eye toggle buttons with
+ * the sliding highlight) stands in the header's left group, right of the
+ * language button, and is visible only while the block is hovered (the
+ * header controls' reveal).
  */
 import mermaid from "mermaid";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { BlockId, CodeBlock } from "docblocks-core";
 
@@ -44,8 +45,8 @@ import { CodeHeader } from "../blocks/CodeHeader";
 import { TextBlock, textOf } from "../blocks/TextBlock";
 import type { BlockRendererProps } from "../blocks/renderers";
 import { Alert, AlertDescription, AlertTitle } from "../shared/ui/Alert";
-import { Button } from "../shared/ui/Button";
 import { Skeleton } from "../shared/ui/Skeleton";
+import { cn } from "../shared/ui/cn";
 import { CodeXml, Eye, LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 import { INLINE_CODE_CLASS } from "../text/runs";
 
@@ -133,70 +134,136 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
 
 /**
  * The code/preview mode segment of one mermaid code block's header (the
- * header's center slot — to the right of the language button). The mode
+ * header's left group — right of the language button). Two plain
+ * toggle buttons and one shared sliding pill (a framer-free CSS
+ * transition over the measured active-button geometry — the pill is the
+ * highlight; the active button carries no styling of its own). The mode
  * is the `mermaidMode` attr (default "code"); a switch is one
- * `updateBlock` (one undo step, one wire update) and a repeat of the
- * current mode is a no-op.
+ * `updateBlock` (one undo step, one wire update), a repeat of the
+ * current mode a no-op.
  */
 function MermaidModeSelector({ id, block }: { id: BlockId; block: CodeBlock }) {
   const { doc } = useEditorContext();
   const mode = block.attrs?.mermaidMode ?? "code";
+  const listRef = useRef<HTMLDivElement>(null);
+  /** The sliding pill's geometry (the active button's position and size in the list). */
+  const [pill, setPill] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  // Measure the active button before paint (no first-mount flash) and on
+  // every list resize (a font or theme change). The reference-equality
+  // guard keeps the state stable across re-renders.
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (list === null) return;
+    const measure = (): void => {
+      const button = list.querySelector<HTMLElement>(`[data-mermaid-mode-button="${mode}"]`);
+      if (button === null) return;
+      const listRect = list.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const next = {
+        left: buttonRect.left - listRect.left,
+        top: buttonRect.top - listRect.top,
+        width: buttonRect.width,
+        height: buttonRect.height,
+      };
+      setPill((prev) =>
+        prev !== null &&
+        prev.left === next.left &&
+        prev.top === next.top &&
+        prev.width === next.width &&
+        prev.height === next.height
+          ? prev
+          : next
+      );
+    };
+    measure();
+    // jsdom (and SSR) have no ResizeObserver — the measurement on mount and
+    // on every mode change still runs; the resize watch is a browser bonus.
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [mode]);
+
   const pick = (value: "code" | "preview"): void => {
     if (mode === value) return;
     doc.updateBlock(id, { mermaidMode: value });
   };
+
+  const buttonClass = (value: "code" | "preview"): string =>
+    cn(
+      `
+        relative z-10 flex size-6 items-center justify-center rounded-md transition-colors
+        focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
+        focus-visible:outline-ring
+      `,
+      mode === value ? "text-foreground" : "hover:text-foreground"
+    );
+
   return (
     <div
-      data-slot="docblocks/mermaid-mode"
+      ref={listRef}
       role="group"
       aria-label="Mermaid display mode"
-      className="flex items-center gap-0.5"
+      data-slot="docblocks/mermaid-mode"
+      className="relative inline-flex items-center rounded-lg bg-muted p-0.75 text-muted-foreground"
     >
-      <Button
+      {pill !== null && (
+        <span
+          data-slot="docblocks/mermaid-mode-pill"
+          aria-hidden
+          className="
+            absolute top-0 left-0 rounded-md bg-background shadow-sm transition-[transform,width,height] duration-200
+            ease-out
+          "
+          style={{
+            transform: `translate(${pill.left}px, ${pill.top}px)`,
+            width: pill.width,
+            height: pill.height,
+          }}
+        />
+      )}
+      <button
         type="button"
-        variant={mode === "code" ? "secondary" : "ghost"}
-        size="icon"
         data-mermaid-mode-button="code"
         aria-pressed={mode === "code"}
         aria-label="Show the code"
         title="Code"
-        className="size-7 text-[length:inherit]"
+        className={buttonClass("code")}
         onClick={() => pick("code")}
       >
         <CodeXml className="size-4" />
-      </Button>
-      <Button
+      </button>
+      <button
         type="button"
-        variant={mode === "preview" ? "secondary" : "ghost"}
-        size="icon"
         data-mermaid-mode-button="preview"
         aria-pressed={mode === "preview"}
         aria-label="Show the diagram preview"
         title="Preview"
-        className="size-7 text-[length:inherit]"
+        className={buttonClass("preview")}
         onClick={() => pick("preview")}
       >
         <Eye className="size-4" />
-      </Button>
+      </button>
     </div>
   );
 }
 
 /**
  * One code block with the diagram capability: a `language: "mermaid"`
- * block renders per its `mermaidMode` (default "code"): the editable
- * code with the live diagram preview below it, or the diagram only (the
- * code body hidden); every other code block is the plain built-in code
- * rendering.
+ * block renders per its `mermaidMode` (default "code") — the modes are
+ * exclusive: `code` renders the editable code only (the diagram stands
+ * hidden), `preview` renders the diagram only (the code body hidden —
+ * the editable stays mounted for the text sync); every other code block
+ * is the plain built-in code rendering.
  */
 function MermaidCodeBlock({ id, block }: { id: BlockId; block: CodeBlock }) {
   const nested = childrenSlot(id, block.children);
   if (block.attrs?.language !== "mermaid") {
     return <TextBlock id={id} block={block} tag="pre" header={<CodeHeader id={id} block={block} />} nested={nested} />;
   }
-  // The mode is the `mermaidMode` attr (default "code"): "preview" hides
-  // the code body (the diagram stands in its place) and "code" keeps the
-  // editable code above the preview.
+  // The mode is the `mermaidMode` attr (default "code"): the modes are
+  // exclusive — the preview renders the diagram instead of the code body.
   const mode = block.attrs?.mermaidMode ?? "code";
   return (
     <TextBlock
@@ -206,10 +273,14 @@ function MermaidCodeBlock({ id, block }: { id: BlockId; block: CodeBlock }) {
       header={<CodeHeader id={id} block={block} center={<MermaidModeSelector id={id} block={block} />} />}
       codeBodyHidden={mode === "preview"}
       nested={
-        <>
-          <MermaidDiagram id={id} text={textOf(block.content)} />
-          {nested}
-        </>
+        mode === "preview" ? (
+          <>
+            <MermaidDiagram id={id} text={textOf(block.content)} />
+            {nested}
+          </>
+        ) : (
+          nested
+        )
       }
     />
   );

@@ -43,5 +43,6 @@ export {
   SelectValue,
 } from "./Select";
 export { Skeleton } from "./Skeleton";
+export { Tabs, TabsContent, TabsList, TabsTrigger, tabsListVariants } from "./Tabs";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./Tooltip";
 export { cn } from "./cn";

@@ -18,10 +18,14 @@ const CREATED_AT = "2026-10-11T00:00:00.000Z";
 // here (the d3 layout pass needs a real DOM) — so the valid-diagram pin
 // lives in the browser (test/e2e/mermaid.spec.ts), not in this suite.
 
-/** The mermaid code block of a fresh doc, with the given diagram text. */
-function mermaidDoc(text: string) {
+/** The mermaid code block of a fresh doc, with the given diagram text (optionally a display mode). */
+function mermaidDoc(text: string, mode?: "code" | "preview") {
   const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-  doc.insertText(doc.insertBlock("code", { language: "mermaid" }), 0, text);
+  doc.insertText(
+    doc.insertBlock("code", { language: "mermaid", ...(mode !== undefined ? { mermaidMode: mode } : {}) }),
+    0,
+    text
+  );
   return doc;
 }
 
@@ -40,7 +44,7 @@ function firstBlockId(doc: ReturnType<typeof createDoc>): BlockId {
 describe("the code/preview mode selector (the mermaidMode attr)", () => {
   afterEach(cleanup);
 
-  it("stands in the header's center slot (right of the language button) for a mermaid block", () => {
+  it("stands right of the language button (the header's left group) for a mermaid block", () => {
     const { container } = render(
       <EditorProvider doc={mermaidDoc("graph TD\n A-->B")} blockRenderers={{ code: MermaidCodeRenderer }}>
         <Editor />
@@ -48,10 +52,12 @@ describe("the code/preview mode selector (the mermaidMode attr)", () => {
     );
     const selector = container.querySelector('[data-slot="docblocks/mermaid-mode"]');
     expect(selector, "the selector should stand in the header").not.toBeNull();
-    // The center slot: the first child of the actions group (between the
-    // language button and the right controls).
+    // The segment stands in the header's left group — the same parent as the
+    // language button — and NOT in the right actions group.
+    const language = container.querySelector('[data-slot="docblocks/code-language"]');
     const actions = container.querySelector('[data-slot="docblocks/code-header-actions"]');
-    expect(actions?.firstElementChild).toBe(selector);
+    expect(language?.parentElement).toBe(selector?.parentElement);
+    expect(actions?.contains(selector)).toBe(false);
   });
 
   it("does not stand for a non-mermaid code block", () => {
@@ -63,7 +69,7 @@ describe("the code/preview mode selector (the mermaidMode attr)", () => {
     expect(container.querySelector('[data-slot="docblocks/mermaid-mode"]')).toBeNull();
   });
 
-  it("defaults to code: the code button is pressed and the code body stands", () => {
+  it("defaults to code: the code tab is selected and the diagram stands hidden", () => {
     const { container } = render(
       <EditorProvider doc={mermaidDoc("graph TD\n A-->B")} blockRenderers={{ code: MermaidCodeRenderer }}>
         <Editor />
@@ -74,9 +80,17 @@ describe("the code/preview mode selector (the mermaidMode attr)", () => {
     const body = container.querySelector('[data-slot="docblocks/code-body"]');
     expect(body, "the code body should stand").not.toBeNull();
     expect(body!.classList.contains("hidden")).toBe(false);
+    // The modes are exclusive: the code mode renders no diagram.
+    expect(container.querySelector('[data-slot="docblocks/mermaid"]')).toBeNull();
+    // The shared sliding pill stands in the segment (the highlight itself,
+    // aria-hidden; jsdom measures zero geometry — the geometry is live-checked
+    // by the e2e).
+    const pill = container.querySelector('[data-slot="docblocks/mermaid-mode-pill"]');
+    expect(pill).not.toBeNull();
+    expect(pill?.getAttribute("aria-hidden")).toBe("true");
   });
 
-  it("switching to preview writes the attr and hides the code body (the diagram stands)", () => {
+  it("switching to preview writes the attr, hides the code body, and shows the diagram", () => {
     const doc = mermaidDoc("graph TD\n A-->B");
     const id = firstBlockId(doc);
     const { container } = render(
@@ -84,18 +98,20 @@ describe("the code/preview mode selector (the mermaidMode attr)", () => {
         <Editor />
       </EditorProvider>
     );
+    // The modes are exclusive: the code mode renders no diagram.
+    expect(container.querySelector('[data-slot="docblocks/mermaid"]')).toBeNull();
     act(() => {
       fireEvent.click(container.querySelector('[data-mermaid-mode-button="preview"]') as Element);
     });
     expect(doc.getBlock(id)).toMatchObject({ type: "code", attrs: { mermaidMode: "preview" } });
     const body = container.querySelector('[data-slot="docblocks/code-body"]');
     expect(body!.classList.contains("hidden")).toBe(true);
-    // The diagram area stands in the body's place (loading/diagram/error).
+    // The diagram stands in the body's place (loading/diagram/error).
     expect(container.querySelector('[data-slot="docblocks/mermaid"]')).not.toBeNull();
     expect(container.querySelector('[data-mermaid-mode-button="preview"]')?.getAttribute("aria-pressed")).toBe("true");
   });
 
-  it("switching back to code writes the attr and the code body stands again", () => {
+  it("switching back to code writes the attr, the code body stands, and the diagram drops", () => {
     const doc = mermaidDoc("graph TD\n A-->B");
     const id = firstBlockId(doc);
     doc.updateBlock(id, { mermaidMode: "preview" });
@@ -111,6 +127,8 @@ describe("the code/preview mode selector (the mermaidMode attr)", () => {
     });
     expect(doc.getBlock(id)).toMatchObject({ type: "code", attrs: { mermaidMode: "code" } });
     expect(body!.classList.contains("hidden")).toBe(false);
+    // The modes are exclusive: the code mode renders no diagram.
+    expect(container.querySelector('[data-slot="docblocks/mermaid"]')).toBeNull();
   });
 
   it("a repeat of the current mode is a no-op (the doc stands unchanged)", () => {
@@ -122,6 +140,7 @@ describe("the code/preview mode selector (the mermaidMode attr)", () => {
     );
     const before = JSON.stringify(doc.toJSON());
     act(() => {
+      // The plain toggle button's onClick (a real click).
       fireEvent.click(container.querySelector('[data-mermaid-mode-button="code"]') as Element);
     });
     expect(JSON.stringify(doc.toJSON())).toBe(before);
@@ -133,7 +152,8 @@ describe("MermaidCodeRenderer", () => {
 
   it("shows the error state (no svg) for an invalid diagram", async () => {
     const { container } = render(
-      <EditorProvider doc={mermaidDoc("graph TD\n A -->")} blockRenderers={{ code: MermaidCodeRenderer }}>
+      // The error state stands in the preview mode (the diagram only renders there).
+      <EditorProvider doc={mermaidDoc("graph TD\n A -->", "preview")} blockRenderers={{ code: MermaidCodeRenderer }}>
         <Editor />
       </EditorProvider>
     );

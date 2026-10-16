@@ -1,4 +1,4 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Browser, type Locator, type Page, expect, test } from "@playwright/test";
 
 import { insertBlockType } from "./helpers";
 
@@ -21,6 +21,37 @@ async function insertType(page: Page, client: "a" | "b", type: string): Promise<
 /** The pane's mermaid code block wrapper (the data-language attr comes from the block). */
 function mermaidBlock(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`).locator('[data-block-type="code"][data-language="mermaid"]');
+}
+
+/**
+ * Switch the pane's mermaid block to the preview mode: the header controls
+ * stand on the wrapper hover, the mode switch is one updateBlock (the attr
+ * syncs — the other pane renders the diagram too).
+ */
+async function switchToPreview(page: Page, client: "a" | "b"): Promise<void> {
+  const block = mermaidBlock(page, client);
+  await block.first().hover();
+  await block.first().locator('[data-mermaid-mode-button="preview"]').click();
+}
+
+/**
+ * The sliding pill sits exactly on the given button (the measured
+ * geometry). The delta is POLLED — `boundingBox` does not retry, so a
+ * single snapshot could sample the 200 ms slide transition mid-flight.
+ */
+async function pillOnButton(block: Locator, button: Locator): Promise<void> {
+  const pill = block.locator('[data-slot="docblocks/mermaid-mode-pill"]');
+  await expect
+    .poll(
+      async () => {
+        const p = await pill.boundingBox();
+        const t = await button.boundingBox();
+        if (p === null || t === null) return Number.POSITIVE_INFINITY;
+        return Math.abs(p.x - t.x) + Math.abs(p.y - t.y);
+      },
+      { timeout: SETTLE.timeout }
+    )
+    .toBeLessThan(1);
 }
 
 /** The diagram preview container of the pane's mermaid block. */
@@ -74,7 +105,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
   };
 }
 
-test("a mermaid code block inserted in A renders the diagram in both panes", async ({ browser }) => {
+test("a mermaid code block inserted in A switches to the diagram in both panes", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ext02-mermaid");
 
   await insertType(a, "a", "code-mermaid");
@@ -85,20 +116,42 @@ test("a mermaid code block inserted in A renders the diagram in both panes", asy
   ] as const) {
     const block = mermaidBlock(pane, client);
     await expect(block).toHaveCount(1);
-    // The seed diagram renders as an svg inside the block wrapper in both
-    // panes: the text synced over the wire, the renderer is registered on
-    // both (the harness demo).
-    await expect(block.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
-    await expect(preview(pane, client)).toHaveAttribute("data-state", "diagram");
-    // The editable code path stays in place (the diagram is the preview
-    // below the editable, not a replacement of it).
+    // The default mode (code): the editable code stands, the diagram is
+    // not rendered (the modes are exclusive).
+    expect(await block.locator('[data-slot="docblocks/mermaid"]').count()).toBe(0);
     expect(await block.locator('[data-slot="docblocks/block-content"]').count()).toBe(1);
+    // The sliding pill sits exactly on the active (code) button (the pill
+    // is the highlight; it slides on a mode switch).
+    await block.hover();
+    await pillOnButton(block, block.locator('[data-mermaid-mode-button="code"]'));
   }
 
-  // The JSON inspector of pane A shows the code type + the language attr.
+  // The preview switch in A writes the mode attr — it syncs over the
+  // wire, so both panes render the diagram from the synced text.
+  await switchToPreview(a, "a");
+
+  for (const [pane, client] of [
+    [a, "a"],
+    [b, "b"],
+  ] as const) {
+    const block = mermaidBlock(pane, client);
+    // The seed diagram renders as an svg inside the block wrapper in both
+    // panes (the renderer is registered on both — the harness demo).
+    await expect(block.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
+    await expect(preview(pane, client)).toHaveAttribute("data-state", "diagram");
+    // The editable stays mounted (the code body is hidden, not unmounted).
+    expect(await block.locator('[data-slot="docblocks/block-content"]').count()).toBe(1);
+    // The pill has slid to the preview button (the same geometry pin after
+    // the switch — the transition's end state).
+    await block.hover();
+    await pillOnButton(block, block.locator('[data-mermaid-mode-button="preview"]'));
+  }
+
+  // The JSON inspector of pane A shows the code type + the attrs.
   const jsonA = a.getByTestId("json-a");
   await expect.poll(async () => (await jsonA.innerText()).includes('"language": "mermaid"'), SETTLE).toBe(true);
   expect(await jsonA.innerText()).toContain('"type": "code"');
+  expect(await jsonA.innerText()).toContain('"mermaidMode": "preview"');
 
   await close();
 });
@@ -108,7 +161,6 @@ test("typing in the code block re-renders the diagram in both panes", async ({ b
 
   await insertType(a, "a", "code-mermaid");
   const blockA = mermaidBlock(a, "a");
-  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
 
   // The seed is "graph TD\n A --> B": appending " --> C" on the last line
   // chains a third node into the diagram (a single-line continuation —
@@ -121,8 +173,10 @@ test("typing in the code block re-renders the diagram in both panes", async ({ b
   await a.keyboard.press("End");
   await a.keyboard.type(" --> C");
 
-  // The svg re-renders from the real editing path: the new node label
-  // reaches the diagram in both panes (the text synced over the wire).
+  // The preview switch renders the diagram from the edited text: the new
+  // node label reaches the diagram in both panes (the text synced over
+  // the wire, the renderer picks the preview mode from the synced attr).
+  await switchToPreview(a, "a");
   await expect.poll(() => diagramHasNode(a, "a", "C"), SETTLE).toBe(true);
   await expect(preview(a, "a")).toHaveAttribute("data-state", "diagram");
   await expect.poll(() => diagramHasNode(b, "b", "C"), SETTLE).toBe(true);
@@ -135,21 +189,22 @@ test("an invalid diagram keeps no svg and shows the error state", async ({ brows
 
   await insertType(a, "a", "code-mermaid");
   const blockA = mermaidBlock(a, "a");
-  await expect(blockA.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
 
-  // Replace the seed with an incomplete diagram: select-all, delete (the
-  // DOM input diff commits the empty text), then paste the invalid text
-  // (the multi-line input route for code blocks, see pastePlainText).
+  // Replace the seed with an incomplete diagram IN THE CODE MODE (the
+  // editable stands there): select-all, delete (the DOM input diff commits
+  // the empty text), then paste the invalid text (the multi-line input
+  // route for code blocks, see pastePlainText).
   const inner = blockA.locator('[data-slot="docblocks/block-content"]');
   await inner.click();
   await a.keyboard.press("ControlOrMeta+a");
   await a.keyboard.press("Backspace");
   await pastePlainText(a, "graph TD\n A -->");
 
-  // No diagram: the error state renders the raw text with the error flag
-  // (asserted by the attribute, not the look), and the message shows
-  // (the Alert's triangle icon is chrome, not a diagram — the diagram
-  // container itself is absent).
+  // The preview switch renders the error state: no svg (the error state
+  // renders the raw text with the error flag — asserted by the attribute,
+  // not the look), and the message shows (the Alert's triangle icon is
+  // chrome, not a diagram — the diagram container itself is absent).
+  await switchToPreview(a, "a");
   await expect(blockA.locator('[data-slot="docblocks/mermaid-diagram"]')).toHaveCount(0);
   await expect(preview(a, "a")).toHaveAttribute("data-state", "error");
   await expect(blockA.locator('[data-slot="docblocks/mermaid-error"]')).toHaveText("graph TD\n A -->");
@@ -182,6 +237,35 @@ test("a plain code block stays editable under the override", async ({ browser })
   await inner.click();
   await a.keyboard.type("const x = 1;");
   await expect(inner).toContainText("const x = 1;");
+
+  await close();
+});
+
+test("the code header's controls stay visible while the more menu stands open (the portaled menu loses the block hover)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "ext02-mermaid-hover");
+
+  await insertType(a, "a", "code-mermaid");
+  const block = mermaidBlock(a, "a");
+  await block.hover();
+
+  const header = block.locator('[data-slot="docblocks/code-header"]');
+  const leftGroup = header.locator(":scope > div").first();
+  const actions = header.locator('[data-slot="docblocks/code-header-actions"]');
+  // The hover state: both header groups stand visible.
+  await expect(actions).toHaveCSS("opacity", "1");
+  await expect(leftGroup).toHaveCSS("opacity", "1");
+
+  // Open the more menu and move the pointer ONTO the menu itself (it is
+  // portaled outside the block — the block hover is gone): the controls
+  // must stay visible.
+  await block.locator('[data-slot="docblocks/code-more"]').click();
+  const menu = a.locator('[data-slot="docblocks/code-more-menu"]');
+  await expect(menu).toBeVisible();
+  await menu.hover();
+  await expect(actions).toHaveCSS("opacity", "1");
+  await expect(leftGroup).toHaveCSS("opacity", "1");
 
   await close();
 });

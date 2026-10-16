@@ -30,9 +30,9 @@ import { requestCodeCaption } from "./CodeCaption";
 import { textOf } from "./TextBlock";
 
 /**
- * The code block's header row: the language selector on the left and the
- * copy / "more" controls on the right (the right group carries a center
- * slot between the language button and the controls).
+ * The code block's header row: the language selector on the left (a
+ * center control stands right of it — the mermaid code/preview segment)
+ * and the copy / "more" controls on the right.
  *
  * Visibility: the row always occupies its space (no layout shift) and its
  * strip (the row's bottom border) is revealed while the wrapper is hovered
@@ -101,8 +101,8 @@ interface CodeHeaderProps {
   id: BlockId;
   block: CodeBlock;
   /**
-   * A center control between the language button and the right group (the
-   * mermaid code/preview selector, rendered by the `./mermaid` subpath).
+   * A control standing right of the language button (the left group) — the
+   * mermaid code/preview selector, rendered by the `./mermaid` subpath.
    */
   center?: ReactNode;
 }
@@ -158,94 +158,104 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
   // The controls' hover reveal: invisible (and unclickable) unless the
   // wrapper is hovered; the row's strip stands on hover or while the
   // block is focused (the typing state — the strip stands, the controls
-  // stay invisible).
-  const controlClass =
-    "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100";
+  // stay invisible). While a header menu stands open the controls stay
+  // visible: the menus are portaled OUTSIDE the block, so the pointer over
+  // them loses the block hover and the controls would fade away mid-use.
+  const menuOpen = languageOpen || moreOpen;
+  const controlClass = menuOpen
+    ? "opacity-100 transition-opacity"
+    : "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100";
 
   return (
     <div
       data-slot="docblocks/code-header"
-      className="
-        mb-1 flex items-center justify-between gap-2 border-b border-transparent pb-1 text-[0.8125em]
-        group-focus-within:border-border
-        group-hover:border-border
-      "
+      className={cn(
+        `
+          mb-1 flex items-center justify-between gap-2 border-b border-transparent pb-1 text-[0.8125em]
+          group-focus-within:border-border
+          group-hover:border-border
+        `,
+        // The open menus keep the row's strip with the controls.
+        menuOpen && "border-border"
+      )}
       // Keep the caret: a default mousedown would move the focus out of the
       // editable (the controls are chrome, never the text).
       onMouseDown={(event) => event.preventDefault()}
     >
-      <Popover modal={false} open={languageOpen} onOpenChange={setLanguageOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            data-slot="docblocks/code-language"
-            aria-label="Choose the code language"
-            className={cn("h-7 max-w-45 gap-1 px-2 text-[length:inherit]", controlClass)}
+      <div className={cn("flex items-center gap-1.5", controlClass)}>
+        <Popover modal={false} open={languageOpen} onOpenChange={setLanguageOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              data-slot="docblocks/code-language"
+              aria-label="Choose the code language"
+              className="h-7 max-w-45 gap-1 px-2 text-[length:inherit]"
+            >
+              <span className="truncate">{languageLabel(language)}</span>
+              <ChevronDown className="size-3.5 shrink-0" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="start"
+            sideOffset={6}
+            data-slot="docblocks/code-language-menu"
+            aria-label="Code language"
+            className="flex w-56 flex-col gap-2"
           >
-            <span className="truncate">{languageLabel(language)}</span>
-            <ChevronDown className="size-3.5 shrink-0" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          sideOffset={6}
-          data-slot="docblocks/code-language-menu"
-          aria-label="Code language"
-          className="flex w-56 flex-col gap-2"
-        >
-          <div className="relative">
-            <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              data-slot="docblocks/code-language-search"
-              type="text"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  const first = matches[0];
-                  if (first !== undefined) pickLanguage(first.value);
-                }
-              }}
-              placeholder="Search language…"
-              aria-label="Search language"
-              className="
-                h-8 w-full rounded-md border border-border bg-transparent pr-2 pl-7 text-sm outline-none
-                focus:border-ring
-              "
-            />
-          </div>
-          <div role="listbox" aria-label="Languages" className="max-h-64 overflow-y-auto py-0.5">
-            {matches.length === 0 ? (
-              <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
-            ) : (
-              matches.map((lang) => {
-                const selected = (language ?? "") === lang.value;
-                return (
-                  <div
-                    key={lang.value || "plain"}
-                    role="option"
-                    aria-selected={selected}
-                    data-lang-value={lang.value || "plain"}
-                    onClick={() => pickLanguage(lang.value)}
-                    className="
-                      flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm
-                      hover:bg-accent hover:text-accent-foreground
-                    "
-                  >
-                    <span className="truncate">{lang.label}</span>
-                    {selected && <Check className="size-4 shrink-0" />}
-                  </div>
-                );
-              })
-            )}
-          </div>
-        </PopoverContent>
-      </Popover>
-      <div data-slot="docblocks/code-header-actions" className={cn("flex items-center gap-0.5", controlClass)}>
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                data-slot="docblocks/code-language-search"
+                type="text"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    const first = matches[0];
+                    if (first !== undefined) pickLanguage(first.value);
+                  }
+                }}
+                placeholder="Search language…"
+                aria-label="Search language"
+                className="
+                  h-8 w-full rounded-md border border-border bg-transparent pr-2 pl-7 text-sm outline-none
+                  focus:border-ring
+                "
+              />
+            </div>
+            <div role="listbox" aria-label="Languages" className="max-h-64 overflow-y-auto py-0.5">
+              {matches.length === 0 ? (
+                <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
+              ) : (
+                matches.map((lang) => {
+                  const selected = (language ?? "") === lang.value;
+                  return (
+                    <div
+                      key={lang.value || "plain"}
+                      role="option"
+                      aria-selected={selected}
+                      data-lang-value={lang.value || "plain"}
+                      onClick={() => pickLanguage(lang.value)}
+                      className="
+                        flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm
+                        hover:bg-accent hover:text-accent-foreground
+                      "
+                    >
+                      <span className="truncate">{lang.label}</span>
+                      {selected && <Check className="size-4 shrink-0" />}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
         {center}
+      </div>
+      <div data-slot="docblocks/code-header-actions" className={cn("flex items-center gap-0.5", controlClass)}>
         <Button
           type="button"
           variant="ghost"

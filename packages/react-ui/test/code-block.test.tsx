@@ -63,14 +63,48 @@ describe("the code block header", () => {
     expect(header.className).toContain("group-hover:border-border");
     expect(header.className).toContain("group-focus-within:border-border");
     // The hover-reveal contract: the controls are invisible (and unclickable)
-    // until the wrapper is hovered (the language button and the actions
-    // group each carry the reveal classes).
+    // until the wrapper is hovered (the left group — the language button and
+    // the center slot — and the actions group each carry the reveal classes).
     const actions = header.querySelector('[data-slot="docblocks/code-header-actions"]') as HTMLElement;
     expect(actions.className).toContain("opacity-0");
     expect(actions.className).toContain("group-hover:opacity-100");
-    const lang = header.querySelector('[data-slot="docblocks/code-language"]') as HTMLElement;
-    expect(lang.className).toContain("opacity-0");
-    expect(lang.className).toContain("group-hover:opacity-100");
+    const langGroup = languageButton().parentElement as HTMLElement;
+    expect(langGroup.className).toContain("opacity-0");
+    expect(langGroup.className).toContain("group-hover:opacity-100");
+  });
+
+  it("keeps the header controls visible while a header menu stands open (the portaled menus lose the block hover)", () => {
+    renderCodeDoc((d) => {
+      d.insertText(d.insertBlock("code"), 0, "const x = 1;");
+    });
+    const header = headerOf();
+    const actions = header.querySelector('[data-slot="docblocks/code-header-actions"]') as HTMLElement;
+    const langGroup = languageButton().parentElement as HTMLElement;
+    // Closed: the hover reveal hides both groups.
+    expect(actions.className).toContain("opacity-0");
+    expect(langGroup.className).toContain("opacity-0");
+    // The "more" menu open (the radix dropdown trigger toggles on
+    // pointerdown): the pointer over the portaled menu loses the block
+    // hover — the controls and the row's strip stay visible.
+    act(() => {
+      fireEvent.pointerDown(header.querySelector('[data-slot="docblocks/code-more"]') as Element);
+    });
+    expect(
+      document.querySelector('[data-slot="docblocks/code-more-menu"]'),
+      "the more menu should be open"
+    ).not.toBeNull();
+    expect(actions.className).toContain("opacity-100");
+    expect(langGroup.className).toContain("opacity-100");
+    expect(header.className).toContain("border-border");
+    // The language popover keeps them visible too.
+    act(() => {
+      fireEvent.click(languageButton());
+    });
+    expect(
+      document.querySelector('[data-slot="docblocks/code-language-menu"]'),
+      "the language menu should be open"
+    ).not.toBeNull();
+    expect(actions.className).toContain("opacity-100");
   });
 
   it("shows the block's language as the label", () => {
