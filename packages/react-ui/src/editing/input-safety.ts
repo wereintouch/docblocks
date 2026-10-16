@@ -38,6 +38,12 @@ import { useSlashMenuApi } from "./slash";
  * page text block opens the slash command menu — the character and the
  * query typed after it enter the doc as plain text (the menu filters on
  * the live suffix; code and latex keep the "/" as plain text).
+ * Quote, callout, and code blocks share the soft-line gesture family:
+ * Enter on a non-empty line is a line break, Enter on the empty LAST line
+ * exits (the preceding lines stand as the block, a new empty paragraph
+ * takes the caret, a wholly empty one converts in place), and Backspace
+ * at offset 0 never merges a non-empty one with the previous block (the
+ * characters delete in place until the block is empty).
  * While a blocks selection is active (the wrapper is focused from the
  * gutter): Delete / Backspace remove the selected blocks, the arrows move
  * a single-block selection to the previous / next sibling, Escape clears it.
@@ -292,14 +298,14 @@ function useBlockInput({
           doc.insertText(id, offset, "\n");
           return;
         }
-        if (blockType === "quote" || blockType === "callout") {
-          // Quote and callout share the interactivity: the lines are soft
-          // breaks; Enter exits only where the caret's line is empty and is
-          // the block's LAST line (nothing follows the caret) — an empty
-          // line with a line after it takes a plain break, and so does a
-          // non-empty line. The preceding lines stand as the block and the
-          // empty last line becomes a new paragraph after it (a wholly
-          // empty one converts in place).
+        if (blockType === "quote" || blockType === "callout" || blockType === "code") {
+          // Quote, callout, and code share the interactivity: the lines
+          // are soft breaks; Enter exits only where the caret's line is
+          // empty and is the block's LAST line (nothing follows the
+          // caret) — an empty line with a line after it takes a plain
+          // break, and so does a non-empty line. The preceding lines
+          // stand as the block and the empty last line becomes a new
+          // paragraph after it (a wholly empty one converts in place).
           const text = doc.getText(id);
           const caretLineIsEmpty = offset === 0 || text[offset - 1] === "\n";
           if (!(caretLineIsEmpty && offset === text.length)) {
@@ -341,11 +347,12 @@ function useBlockInput({
         if (domSelection.anchorNode === null || !inner.contains(domSelection.anchorNode)) return;
         const offset = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
         if (offset !== 0) return; // inside the block: the input diff path handles it
-        // A non-empty quote/callout never merges with the previous block:
-        // the Backspace keeps deleting the block's own characters (line
-        // breaks included) until it is empty, and the empty-block gesture
-        // below then resets it to a paragraph.
-        if ((blockType === "quote" || blockType === "callout") && doc.getTextLength(id) > 0) return;
+        // A non-empty quote/callout/code never merges with the previous
+        // block: the Backspace keeps deleting the block's own characters
+        // (line breaks included) until it is empty, and the empty-block
+        // gesture below then resets it to a paragraph.
+        if ((blockType === "quote" || blockType === "callout" || blockType === "code") && doc.getTextLength(id) > 0)
+          return;
         const merged = mergeWithPrevious(doc, id, context.parentId);
         if (merged === null) return;
         event.preventDefault();

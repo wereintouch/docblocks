@@ -22,8 +22,15 @@
  * (without it mermaid leaves a visible temp element in `body` per failed
  * render). A looser mode is a consumer decision outside this package. The preview renders in
  * mermaid's default (light) theme in both the light and the dark editor
- * theme; a theme-aware initialize is a follow-up. The code stays visible
- * above the preview (v1: no show/hide toggle).
+ * theme; a theme-aware initialize is a follow-up.
+ *
+ * The code/preview mode (the `mermaidMode` attr, default `"code"` — it
+ * persists and syncs): `code` renders the editable code with the live
+ * diagram preview below it; `preview` renders the diagram only (the code
+ * body is hidden — the editable stays mounted for the text sync). The
+ * mode segment (the CodeXml / Eye buttons) stands in the header's center
+ * slot, to the right of the language button, and is visible only while
+ * the block is hovered (the header controls' reveal).
  */
 import mermaid from "mermaid";
 
@@ -31,13 +38,15 @@ import { useEffect, useState } from "react";
 
 import type { BlockId, CodeBlock } from "docblocks-core";
 
+import { useEditorContext } from "../EditorProvider";
 import { childrenSlot } from "../blocks/BlockView";
 import { CodeHeader } from "../blocks/CodeHeader";
 import { TextBlock, textOf } from "../blocks/TextBlock";
 import type { BlockRendererProps } from "../blocks/renderers";
 import { Alert, AlertDescription, AlertTitle } from "../shared/ui/Alert";
+import { Button } from "../shared/ui/Button";
 import { Skeleton } from "../shared/ui/Skeleton";
-import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
+import { CodeXml, Eye, LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 import { INLINE_CODE_CLASS } from "../text/runs";
 
 // The v1 security posture (see the module doc). Safe to run more than
@@ -123,22 +132,79 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
 }
 
 /**
+ * The code/preview mode segment of one mermaid code block's header (the
+ * header's center slot — to the right of the language button). The mode
+ * is the `mermaidMode` attr (default "code"); a switch is one
+ * `updateBlock` (one undo step, one wire update) and a repeat of the
+ * current mode is a no-op.
+ */
+function MermaidModeSelector({ id, block }: { id: BlockId; block: CodeBlock }) {
+  const { doc } = useEditorContext();
+  const mode = block.attrs?.mermaidMode ?? "code";
+  const pick = (value: "code" | "preview"): void => {
+    if (mode === value) return;
+    doc.updateBlock(id, { mermaidMode: value });
+  };
+  return (
+    <div
+      data-slot="docblocks/mermaid-mode"
+      role="group"
+      aria-label="Mermaid display mode"
+      className="flex items-center gap-0.5"
+    >
+      <Button
+        type="button"
+        variant={mode === "code" ? "secondary" : "ghost"}
+        size="icon"
+        data-mermaid-mode-button="code"
+        aria-pressed={mode === "code"}
+        aria-label="Show the code"
+        title="Code"
+        className="size-7 text-[length:inherit]"
+        onClick={() => pick("code")}
+      >
+        <CodeXml className="size-4" />
+      </Button>
+      <Button
+        type="button"
+        variant={mode === "preview" ? "secondary" : "ghost"}
+        size="icon"
+        data-mermaid-mode-button="preview"
+        aria-pressed={mode === "preview"}
+        aria-label="Show the diagram preview"
+        title="Preview"
+        className="size-7 text-[length:inherit]"
+        onClick={() => pick("preview")}
+      >
+        <Eye className="size-4" />
+      </Button>
+    </div>
+  );
+}
+
+/**
  * One code block with the diagram capability: a `language: "mermaid"`
- * block renders the preview below the editable code (the editable is the
- * built-in contenteditable path with its input safety and gestures),
- * every other code block is the plain built-in code rendering.
+ * block renders per its `mermaidMode` (default "code"): the editable
+ * code with the live diagram preview below it, or the diagram only (the
+ * code body hidden); every other code block is the plain built-in code
+ * rendering.
  */
 function MermaidCodeBlock({ id, block }: { id: BlockId; block: CodeBlock }) {
   const nested = childrenSlot(id, block.children);
   if (block.attrs?.language !== "mermaid") {
     return <TextBlock id={id} block={block} tag="pre" header={<CodeHeader id={id} block={block} />} nested={nested} />;
   }
+  // The mode is the `mermaidMode` attr (default "code"): "preview" hides
+  // the code body (the diagram stands in its place) and "code" keeps the
+  // editable code above the preview.
+  const mode = block.attrs?.mermaidMode ?? "code";
   return (
     <TextBlock
       id={id}
       block={block}
       tag="pre"
-      header={<CodeHeader id={id} block={block} />}
+      header={<CodeHeader id={id} block={block} center={<MermaidModeSelector id={id} block={block} />} />}
+      codeBodyHidden={mode === "preview"}
       nested={
         <>
           <MermaidDiagram id={id} text={textOf(block.content)} />

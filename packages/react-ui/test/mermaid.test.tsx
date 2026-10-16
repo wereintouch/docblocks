@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { act } from "react";
+
 import { createDoc } from "docblocks-core";
+import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/EditorProvider";
@@ -28,6 +31,102 @@ function codeDoc() {
   doc.insertText(doc.insertBlock("code", { language: "ts" }), 0, "const x = 1;");
   return doc;
 }
+
+/** The mermaid code block id of a fresh doc (the first root child). */
+function firstBlockId(doc: ReturnType<typeof createDoc>): BlockId {
+  return doc.getChildren(doc.meta.id)[0]!;
+}
+
+describe("the code/preview mode selector (the mermaidMode attr)", () => {
+  afterEach(cleanup);
+
+  it("stands in the header's center slot (right of the language button) for a mermaid block", () => {
+    const { container } = render(
+      <EditorProvider doc={mermaidDoc("graph TD\n A-->B")} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>
+    );
+    const selector = container.querySelector('[data-slot="docblocks/mermaid-mode"]');
+    expect(selector, "the selector should stand in the header").not.toBeNull();
+    // The center slot: the first child of the actions group (between the
+    // language button and the right controls).
+    const actions = container.querySelector('[data-slot="docblocks/code-header-actions"]');
+    expect(actions?.firstElementChild).toBe(selector);
+  });
+
+  it("does not stand for a non-mermaid code block", () => {
+    const { container } = render(
+      <EditorProvider doc={codeDoc()} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>
+    );
+    expect(container.querySelector('[data-slot="docblocks/mermaid-mode"]')).toBeNull();
+  });
+
+  it("defaults to code: the code button is pressed and the code body stands", () => {
+    const { container } = render(
+      <EditorProvider doc={mermaidDoc("graph TD\n A-->B")} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>
+    );
+    expect(container.querySelector('[data-mermaid-mode-button="code"]')?.getAttribute("aria-pressed")).toBe("true");
+    expect(container.querySelector('[data-mermaid-mode-button="preview"]')?.getAttribute("aria-pressed")).toBe("false");
+    const body = container.querySelector('[data-slot="docblocks/code-body"]');
+    expect(body, "the code body should stand").not.toBeNull();
+    expect(body!.classList.contains("hidden")).toBe(false);
+  });
+
+  it("switching to preview writes the attr and hides the code body (the diagram stands)", () => {
+    const doc = mermaidDoc("graph TD\n A-->B");
+    const id = firstBlockId(doc);
+    const { container } = render(
+      <EditorProvider doc={doc} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>
+    );
+    act(() => {
+      fireEvent.click(container.querySelector('[data-mermaid-mode-button="preview"]') as Element);
+    });
+    expect(doc.getBlock(id)).toMatchObject({ type: "code", attrs: { mermaidMode: "preview" } });
+    const body = container.querySelector('[data-slot="docblocks/code-body"]');
+    expect(body!.classList.contains("hidden")).toBe(true);
+    // The diagram area stands in the body's place (loading/diagram/error).
+    expect(container.querySelector('[data-slot="docblocks/mermaid"]')).not.toBeNull();
+    expect(container.querySelector('[data-mermaid-mode-button="preview"]')?.getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("switching back to code writes the attr and the code body stands again", () => {
+    const doc = mermaidDoc("graph TD\n A-->B");
+    const id = firstBlockId(doc);
+    doc.updateBlock(id, { mermaidMode: "preview" });
+    const { container } = render(
+      <EditorProvider doc={doc} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>
+    );
+    const body = container.querySelector('[data-slot="docblocks/code-body"]');
+    expect(body!.classList.contains("hidden")).toBe(true);
+    act(() => {
+      fireEvent.click(container.querySelector('[data-mermaid-mode-button="code"]') as Element);
+    });
+    expect(doc.getBlock(id)).toMatchObject({ type: "code", attrs: { mermaidMode: "code" } });
+    expect(body!.classList.contains("hidden")).toBe(false);
+  });
+
+  it("a repeat of the current mode is a no-op (the doc stands unchanged)", () => {
+    const doc = mermaidDoc("graph TD\n A-->B");
+    const { container } = render(
+      <EditorProvider doc={doc} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>
+    );
+    const before = JSON.stringify(doc.toJSON());
+    act(() => {
+      fireEvent.click(container.querySelector('[data-mermaid-mode-button="code"]') as Element);
+    });
+    expect(JSON.stringify(doc.toJSON())).toBe(before);
+  });
+});
 
 describe("MermaidCodeRenderer", () => {
   afterEach(cleanup);

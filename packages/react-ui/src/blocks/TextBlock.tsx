@@ -66,6 +66,13 @@ interface TextBlockProps {
   flat?: boolean;
   /** The run position of a `number` item (the marker label; 1-based). */
   number?: number;
+  /**
+   * Hide the code body (the number track + the scroll container) while a
+   * renderer's display mode stands in its place (the mermaid preview).
+   * The inner editable stays mounted — the text-sync path — but cannot
+   * take focus while hidden.
+   */
+  codeBodyHidden?: boolean;
 }
 
 /** The code body's collapsed clamp: the first 5 line boxes + the fade over the last 3 (the token-based calc). */
@@ -145,7 +152,17 @@ function alignOf(block: EditableBlock): "left" | "center" | "right" | undefined 
  * level (decimal / lower-alpha / lower-roman, cycled by the marker's
  * cycle index), from the run position (continuing across the sublist).
  */
-function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, number, header }: TextBlockProps) {
+function TextBlock({
+  id,
+  block,
+  tag,
+  nested,
+  collapsible = false,
+  flat = false,
+  number,
+  header,
+  codeBodyHidden = false,
+}: TextBlockProps) {
   const { doc, store, selection: selectionRef, commandPalettePlaceholder } = useEditorContext();
   const blockContext = useBlockContext();
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
@@ -483,7 +500,11 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
     />
   );
   const codeBody = isCode ? (
-    <div data-slot="docblocks/code-body" className="flex min-w-0" style={codeCollapsed ? COLLAPSED_CLAMP : undefined}>
+    <div
+      data-slot="docblocks/code-body"
+      className={cn("flex min-w-0", codeBodyHidden && "hidden")}
+      style={codeCollapsed ? COLLAPSED_CLAMP : undefined}
+    >
       {codeLineNumbers && (
         <div
           data-slot="docblocks/code-line-numbers"
