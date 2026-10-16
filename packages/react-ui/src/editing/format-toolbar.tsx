@@ -282,20 +282,36 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
         `[data-block-id="${range.blockId}"][data-slot="docblocks/block-content"]`
       ) ?? null;
     if (option === "paragraph") {
+      // A task's `checked` is dropped by the type change (the check state
+      // is not carried into plain text).
       if (single.type !== "paragraph") doc.transact(() => doc.changeBlockType(range.blockId, "paragraph"));
       restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
       return;
     }
     if (option === "quote") {
+      // A task's `checked` is a type-specific attr: the type change drops
+      // it (the check state is not carried into a non-list type).
       if (single.type !== "quote") doc.transact(() => doc.changeBlockType(range.blockId, "quote"));
       restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
       return;
     }
     const currentList = single.type === "list-item" ? single.attrs.list : null;
     if (currentList === option) return;
+    // A task converted away from the task kind loses its checked state
+    // (back to the unchecked default — converting back yields a fresh
+    // unchecked item). No mark is synthesized: the checked state renders
+    // the block's composition at 30% opacity, never a strike.
+    const isCheckedTask = single.type === "list-item" && single.attrs.list === "task" && single.attrs.checked === true;
     doc.transact(() => {
-      if (single.type === "list-item") doc.updateBlock(range.blockId, { list: option });
-      else doc.changeBlockType(range.blockId, "list-item", { list: option });
+      if (single.type === "list-item") {
+        if (isCheckedTask) {
+          doc.updateBlock(range.blockId, { list: option, checked: false });
+        } else {
+          doc.updateBlock(range.blockId, { list: option });
+        }
+      } else {
+        doc.changeBlockType(range.blockId, "list-item", { list: option });
+      }
     });
     restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
   };

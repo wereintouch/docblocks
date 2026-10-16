@@ -75,15 +75,9 @@ function insertSameTypeAfter(doc: Doc, block: Block, parent: BlockId, after: Blo
     case "heading":
       return doc.insertBlock("heading", { level: block.attrs.level, indent }, { parent, after });
     case "list-item":
-      return doc.insertBlock(
-        "list-item",
-        {
-          list: block.attrs.list,
-          ...(block.attrs.checked !== undefined ? { checked: block.attrs.checked } : {}),
-          indent,
-        },
-        { parent, after }
-      );
+      // A new item's check stands UNSET (a checked task's Enter must not
+      // spawn a checked sibling — the placeholder would stand struck).
+      return doc.insertBlock("list-item", { list: block.attrs.list, indent }, { parent, after });
     case "callout":
       return doc.insertBlock(
         "callout",

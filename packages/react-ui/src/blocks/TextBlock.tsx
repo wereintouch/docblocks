@@ -445,6 +445,10 @@ function TextBlock({
     "relative outline-none",
     tag !== "li" && "my-(--docblocks-block-spacing)",
     selected && "bg-(--docblocks-selected-background)",
+    // The done task's WHOLE composition stands at 30% opacity (the checked
+    // state fades the entire block — custom run colors and highlights
+    // included; never a strike, and the state is task-only).
+    block.type === "list-item" && block.attrs.list === "task" && block.attrs.checked && "opacity-30",
     block.type === "heading" && "font-(--docblocks-heading-font-weight)",
     headingSize,
     block.type === "callout" &&
@@ -469,12 +473,11 @@ function TextBlock({
   /**
    * The inner editable classes: no spacing of its own, the pre-wrap of the
    * line breaks, the zero-width line box of an empty editable (the caret
-   * target — the pseudo-element content is not text content), the done
-   * task's strike, and the block's alignment (left is the default).
+   * target — the pseudo-element content is not text content), and the
+   * block's alignment (left is the default).
    */
   const innerClass = cn(
     "m-0 whitespace-pre-wrap outline-none empty:after:content-['\\200b']",
-    block.type === "list-item" && block.attrs.checked && "line-through",
     (block.type === "code" || block.type === "latex") && "font-(family-name:--docblocks-mono-font-family)",
     align === "center" && "text-center",
     align === "right" && "text-right",

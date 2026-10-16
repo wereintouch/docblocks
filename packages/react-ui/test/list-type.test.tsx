@@ -172,6 +172,77 @@ describe("the list-type menu keeps the selection seated", () => {
   });
 });
 
+describe("the list-type menu's task-check reset", () => {
+  // A task converted away from the task kind loses its checked state
+  // (back to the unchecked default — no mark is synthesized: the checked
+  // state renders a muted text, never a strike).
+  it("a checked task swapped to bullet clears the check and sets no mark", () => {
+    let li: BlockId = "";
+    const doc = renderDoc((d) => {
+      li = d.insertBlock("list-item", { list: "task", checked: true });
+      d.insertText(li, 0, "done item");
+    });
+
+    selectRange(li, 0, 9);
+    pickListOption("bullet", li, 0, 9);
+
+    const block = doc.getBlock(li);
+    expect(block).toMatchObject({ type: "list-item" });
+    if (block?.type === "list-item") {
+      expect(block.attrs.list).toBe("bullet");
+      expect(block.attrs.checked).toBe(false);
+    }
+    // No mark is synthesized — the text stands as it was.
+    expect(doc.getRuns(li)).toEqual([{ text: "done item", marks: {} }]);
+  });
+
+  it("an unchecked task swapped to bullet keeps no check and sets no mark", () => {
+    let li: BlockId = "";
+    const doc = renderDoc((d) => {
+      li = d.insertBlock("list-item", { list: "task" });
+      d.insertText(li, 0, "open item");
+    });
+
+    selectRange(li, 0, 9);
+    pickListOption("bullet", li, 0, 9);
+
+    expect(doc.getRuns(li)).toEqual([{ text: "open item", marks: {} }]);
+    const block = doc.getBlock(li);
+    if (block?.type === "list-item") expect(block.attrs.checked).toBeUndefined();
+  });
+
+  it("a checked task turned into a paragraph drops the check (the type-specific attr)", () => {
+    let li: BlockId = "";
+    const doc = renderDoc((d) => {
+      li = d.insertBlock("list-item", { list: "task", checked: true });
+      d.insertText(li, 0, "done item");
+    });
+
+    selectRange(li, 0, 9);
+    pickListOption("paragraph", li, 0, 9);
+
+    expect(doc.getBlock(li)).toMatchObject({ type: "paragraph" });
+    expect(doc.getRuns(li)).toEqual([{ text: "done item", marks: {} }]);
+  });
+
+  it("a bullet swapped to task stands fresh and unchecked (the check is not carried back)", () => {
+    let li: BlockId = "";
+    const doc = renderDoc((d) => {
+      li = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(li, 0, "plain item");
+    });
+
+    selectRange(li, 0, 10);
+    pickListOption("task", li, 0, 10);
+
+    const block = doc.getBlock(li);
+    if (block?.type === "list-item") {
+      expect(block.attrs.list).toBe("task");
+      expect(block.attrs.checked).toBeUndefined();
+    }
+  });
+});
+
 /**
  * The type-change re-seat (paragraph -> list item, list item -> paragraph)
  * remounts the block's subtree and re-seats the gesture's range. That chain

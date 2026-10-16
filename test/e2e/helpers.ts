@@ -41,6 +41,7 @@ interface PaneDoc {
   getChildren(id: string): string[];
   getBlock(id: string): PaneBlock | null;
   getText(id: string): string;
+  getRuns(id: string): { text: string; marks: Record<string, unknown> }[];
   insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string; after?: string }): string;
   insertText(blockId: string, pos: number, text: string, marks?: Record<string, unknown>): void;
   updateBlock(id: string, attrs: Record<string, unknown>): void;

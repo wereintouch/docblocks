@@ -151,6 +151,31 @@ describe("Enter: block split", () => {
     expect(doc.getText(ids[1]!)).toBe("b");
   });
 
+  it("a checked task's split spawns an UNCHECKED sibling (the check is not inherited)", () => {
+    let t: BlockId = "";
+    const doc = renderDoc((d) => {
+      t = d.insertBlock("list-item", { list: "task", checked: true });
+      d.insertText(t, 0, "ab");
+    });
+
+    caretAtFlat(t, 2);
+    key(wrapperOf(t), "Enter");
+
+    const ids = doc.getChildren(doc.meta.id);
+    expect(ids).toHaveLength(2);
+    const next = doc.getBlock(ids[1]!);
+    expect(next?.type).toBe("list-item");
+    if (next?.type !== "list-item") throw new Error("expected a list-item sibling");
+    expect(next.attrs.list).toBe("task");
+    // The new item's check stands unset (a checked task's Enter must not
+    // spawn a checked sibling — its placeholder would stand struck).
+    expect(next.attrs.checked).toBeUndefined();
+    // The source item keeps its checked state.
+    const src = doc.getBlock(t);
+    expect(src?.type).toBe("list-item");
+    if (src?.type === "list-item") expect(src.attrs).toMatchObject({ list: "task", checked: true });
+  });
+
   it("resets an empty root list item to a plain paragraph (in place, one undo step)", () => {
     let intro: BlockId = "";
     let li: BlockId = "";

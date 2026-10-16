@@ -291,6 +291,28 @@ describe("Task checkbox", () => {
     const wrapper = document.querySelector(`[data-block-id="${id}"]`);
     expect(wrapper!.querySelector('[data-slot="docblocks/checkbox"]')).toBeNull();
   });
+
+  it("a done task's composition stands at 30% opacity (never struck); a stray checked on another kind does not fade", () => {
+    let task: BlockId = "";
+    let bullet: BlockId = "";
+    const doc = renderDoc((d) => {
+      task = d.insertBlock("list-item", { list: "task", checked: true });
+      d.insertText(task, 0, "done");
+      bullet = d.insertBlock("list-item", { list: "bullet", checked: true });
+      d.insertText(bullet, 0, "stray");
+    });
+    void doc;
+    const taskWrapper = document.querySelector(
+      `[data-block-id="${task}"][data-slot="docblocks/list-item"], [data-block-id="${task}"][data-slot="docblocks/block"]`
+    );
+    const bulletWrapper = document.querySelector(
+      `[data-block-id="${bullet}"][data-slot="docblocks/list-item"], [data-block-id="${bullet}"][data-slot="docblocks/block"]`
+    );
+    expect(taskWrapper?.className).toContain("opacity-30");
+    expect(bulletWrapper?.className).not.toContain("opacity-30");
+    const taskInner = document.querySelector(`[data-block-id="${task}"] [data-slot="docblocks/block-content"]`);
+    expect(taskInner?.className).not.toContain("line-through");
+  });
 });
 
 describe("Collapse toggle", () => {
