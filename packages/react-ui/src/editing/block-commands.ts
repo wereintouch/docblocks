@@ -616,6 +616,7 @@ function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: Bloc
 
 export {
   extendSelectionTo,
+  findParentId,
   focusCaretIn,
   indentIn,
   indentOf,

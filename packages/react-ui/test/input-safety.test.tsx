@@ -251,11 +251,11 @@ describe("text input safety", () => {
     expect(inner.querySelectorAll("br, div").length).toBe(0);
     expect(inner.childNodes.length).toBe(1);
     expect(inner.textContent).toBe("hexyllo");
-    // The caret rebased across the doc-driven rebuild: an insertion exactly
-    // at the offset does not move it (the core point rule).
+    // The caret stands at the end of the pasted content (the markdown
+    // pipeline's C7 landing — before the block's own suffix).
     const selection = window.getSelection()!;
     expect(selection.anchorNode!.textContent).toBe("hexyllo");
-    expect(selection.anchorOffset).toBe(2);
+    expect(selection.anchorOffset).toBe(4);
   });
 
   it("paste over a selection replaces the selected range", () => {

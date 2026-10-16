@@ -16,7 +16,7 @@ import {
   restoreSelectionIn,
   splitAt,
 } from "./block-commands";
-import { applyRichPaste } from "./clipboard";
+import { applyMdPaste, applyRichPaste } from "./clipboard";
 import { handleCrossRangeKey } from "./cross-range-keys";
 import { caretOffsetIn, editorRootOf, restoreSelection } from "./dom-offset";
 import { mapDomSelection, selectionsEqual } from "./selection-mapping";
@@ -97,25 +97,39 @@ function useBlockInput({
           const to = selection.to;
           // The seam outlives the transact via a property (a closure-
           // assigned variable is not flow-narrowed past the call).
-          const seam: { point: TextPoint | null; length: number } = { point: null, length: 0 };
+          const seam: { point: TextPoint | null; landing: { blockId: BlockId; offset: number } | null } = {
+            point: null,
+            landing: null,
+          };
           doc.transact(() => {
             const deleted = doc.deleteTextRange(from, to);
             if (deleted === null) return;
-            if (html !== "") seam.length = applyRichPaste(doc, deleted.blockId, deleted.offset, deleted.offset, html);
-            else if (text !== "") {
-              doc.insertText(deleted.blockId, deleted.offset, text);
-              seam.length = text.length;
+            if (html !== "") {
+              // The rich cross paste keeps the single-line pipeline.
+              const length = applyRichPaste(doc, deleted.blockId, deleted.offset, deleted.offset, html);
+              seam.landing = length > 0 ? { blockId: deleted.blockId, offset: deleted.offset + length } : null;
+            } else if (text !== "") {
+              // The plain cross paste goes through the markdown pipeline at
+              // the seam (one transact with the range deletion; the seam
+              // block keeps its id — the peer carets rebase onto it).
+              seam.landing = applyMdPaste(doc, deleted.blockId, deleted.offset, deleted.offset, text, {
+                keepSeat: true,
+              });
             }
             seam.point = deleted;
           });
           if (seam.point === null) return;
-          if (seam.length > 0) {
-            // Scope the caret seat to this editor's root: the seam block id
-            // also exists in the other panes' editors (same doc), and an
+          {
+            // The caret seat stands at the seam when the paste materialized
+            // nothing (the whitespace-only markdown — the range is deleted
+            // and the focus must not be lost).
+            const target = seam.landing ?? { blockId: seam.point.blockId, offset: seam.point.offset };
+            // Scope the caret seat to this editor's root: the landing block
+            // id also exists in the other panes' editors (same doc), and an
             // unscoped document query would seat the caret in the first
             // match in document order.
             const root = innerRef.current?.closest('[data-slot="docblocks/editor"]') ?? document;
-            focusCaretIn(seam.point.blockId, seam.point.offset + seam.length, root);
+            focusCaretIn(target.blockId, target.offset, root);
           }
           return;
         }
@@ -141,10 +155,26 @@ function useBlockInput({
       }
 
       if (text === "") return;
-      doc.transact(() => {
-        if (to > from) doc.deleteText(id, from, to);
-        doc.insertText(id, from, text);
-      });
+      // The selection must collapse before the apply: the store-driven
+      // rebuild re-seats the browser's multi-character selection, and the
+      // apply reads the caret from the DOM selection.
+      restoreSelection(el, to, null);
+      // The markdown paste (the text/plain branch, always-parsed): the
+      // blocks materialize at the caret (the caret block split; the
+      // code/latex targets take the raw text) — one transact.
+      const landing = applyMdPaste(doc, id, from, to, text);
+      if (landing !== null) {
+        if (landing.blockId === id) {
+          // The store-driven rebuild consumes the declaration (the DOM
+          // selection set before the apply would be re-seated by it).
+          declareLocalCaret(landing.offset);
+        } else {
+          // The caret block is new (the multi-block paste): focusCaretIn
+          // defers to the next frame, after the mount.
+          const root = innerRef.current?.closest('[data-slot="docblocks/editor"]') ?? document;
+          focusCaretIn(landing.blockId, landing.offset, root);
+        }
+      }
     },
     [doc, id, selectionRef]
   );
