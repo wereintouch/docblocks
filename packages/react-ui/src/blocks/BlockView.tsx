@@ -211,6 +211,18 @@ function dispatchBuiltIn(
           number={number}
         />
       );
+    case "quote":
+      return (
+        <TextBlock
+          id={id}
+          block={block}
+          tag="div"
+          nested={nested}
+          collapsible={collapsible}
+          flat={flat}
+          number={number}
+        />
+      );
     case "heading":
       return (
         <TextBlock
@@ -362,6 +374,7 @@ const BlockNodeView = memo(
     const custom = renderers[block.type];
     const builtInText =
       block.type === "paragraph" ||
+      block.type === "quote" ||
       block.type === "heading" ||
       block.type === "callout" ||
       block.type === "code" ||

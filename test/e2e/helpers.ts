@@ -33,12 +33,14 @@ interface PaneBlock {
  * public command signatures, loosened where core is generic).
  */
 interface PaneDoc {
+  meta: { id: string };
   toJSON(): {
     id: string;
     blocks: Record<string, PaneBlock>;
   };
   getChildren(id: string): string[];
   getBlock(id: string): PaneBlock | null;
+  getText(id: string): string;
   insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string; after?: string }): string;
   insertText(blockId: string, pos: number, text: string, marks?: Record<string, unknown>): void;
   setCell(

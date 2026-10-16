@@ -104,6 +104,13 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       align: ALIGN,
     },
   },
+  quote: {
+    content: true,
+    children: false,
+    rows: false,
+    legacyChildrenTypes: PAGE_BLOCK_TYPES,
+    attrs: { align: ALIGN },
+  },
   callout: {
     content: true,
     children: false,

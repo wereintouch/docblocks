@@ -171,14 +171,7 @@ const TAILWIND_ENTRY = path.join(import.meta.dirname, "packages", "react-ui", "e
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
-    ignores: [
-      "**/dist/**",
-      "test-results/**",
-      "playwright-report/**",
-      "coverage/**",
-      ".docs/**",
-      ".scratch-probes/**",
-    ],
+    ignores: ["**/dist/**", "test-results/**", "playwright-report/**", "coverage/**", ".docs/**", ".scratch-probes/**"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

@@ -36,6 +36,7 @@ describe("insertBlock", () => {
     const p = doc.insertBlock("paragraph");
     const h = doc.insertBlock("heading", { level: 1 });
     const li = doc.insertBlock("list-item", { list: "bullet" });
+    const q = doc.insertBlock("quote", { align: "center" });
     const c = doc.insertBlock("callout");
     const code = doc.insertBlock("code");
     const latex = doc.insertBlock("latex", { display: true });
@@ -64,6 +65,7 @@ describe("insertBlock", () => {
       p,
       h,
       li,
+      q,
       c,
       code,
       latex,
@@ -80,6 +82,7 @@ describe("insertBlock", () => {
     expect(doc.getChildren(surface)).toEqual([shape, connector, frame, canvasText]);
     expect(doc.getBlock(h)).toEqual({ type: "heading", attrs: { level: 1 } });
     expect(doc.getBlock(li)).toEqual({ type: "list-item", attrs: { list: "bullet" } });
+    expect(doc.getBlock(q)).toEqual({ type: "quote", attrs: { align: "center" } });
     expect(doc.getBlock(image)).toEqual({ type: "image", attrs: { src: "blobs/x.png" } });
     expect(doc.getBlock(embed)).toEqual({ type: "embed", attrs: { kind: "iframe", src: "https://example.com" } });
     expect(doc.getBlock(sync)).toEqual({ type: "sync-embed", attrs: { ref: { docId: "master-1", blockId: "b9" } } });

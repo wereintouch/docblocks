@@ -38,17 +38,19 @@
         "c0029",
         "c0030",
         "c0031",
-        "c0042",
-        "c0043",
+        "c0032",
+        "c0033",
         "c0044",
         "c0045",
         "c0046",
-        "c0049",
-        "c0059",
-        "c0060",
+        "c0047",
+        "c0048",
+        "c0051",
         "c0061",
         "c0062",
-        "c0063"
+        "c0063",
+        "c0064",
+        "c0065"
       ]
     },
     "c0001": {
@@ -336,6 +338,27 @@
       ]
     },
     "c0024": {
+      "type": "quote",
+      "content": [
+        {
+          "text": "quote first line\nquote second line",
+          "marks": {}
+        }
+      ]
+    },
+    "c0025": {
+      "type": "quote",
+      "attrs": {
+        "align": "center"
+      },
+      "content": [
+        {
+          "text": "quote (center)",
+          "marks": {}
+        }
+      ]
+    },
+    "c0026": {
       "type": "callout",
       "content": [
         {
@@ -344,7 +367,7 @@
         }
       ]
     },
-    "c0025": {
+    "c0027": {
       "type": "callout",
       "attrs": {
         "variant": "info"
@@ -356,7 +379,7 @@
         }
       ]
     },
-    "c0026": {
+    "c0028": {
       "type": "callout",
       "attrs": {
         "variant": "warning"
@@ -368,7 +391,7 @@
         }
       ]
     },
-    "c0027": {
+    "c0029": {
       "type": "callout",
       "attrs": {
         "variant": "danger"
@@ -380,7 +403,7 @@
         }
       ]
     },
-    "c0028": {
+    "c0030": {
       "type": "code",
       "attrs": {
         "language": "ts"
@@ -392,7 +415,7 @@
         }
       ]
     },
-    "c0029": {
+    "c0031": {
       "type": "code",
       "attrs": {
         "language": "mermaid"
@@ -404,7 +427,7 @@
         }
       ]
     },
-    "c0030": {
+    "c0032": {
       "type": "latex",
       "attrs": {
         "display": true
@@ -416,30 +439,16 @@
         }
       ]
     },
-    "c0031": {
+    "c0033": {
       "type": "table",
       "attrs": {
         "cols": 2
       },
-      "children": ["c0032", "c0037"]
-    },
-    "c0032": {
-      "type": "table-row",
-      "children": ["c0033", "c0035"]
-    },
-    "c0033": {
-      "type": "table-cell",
-      "content": [],
-      "children": ["c0034"]
+      "children": ["c0034", "c0039"]
     },
     "c0034": {
-      "type": "paragraph",
-      "content": [
-        {
-          "text": "cell 1-1",
-          "marks": {}
-        }
-      ]
+      "type": "table-row",
+      "children": ["c0035", "c0037"]
     },
     "c0035": {
       "type": "table-cell",
@@ -450,28 +459,28 @@
       "type": "paragraph",
       "content": [
         {
-          "text": "cell 1-2",
+          "text": "cell 1-1",
           "marks": {}
         }
       ]
     },
     "c0037": {
-      "type": "table-row",
-      "children": ["c0038", "c0040"]
-    },
-    "c0038": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0039"]
+      "children": ["c0038"]
     },
-    "c0039": {
+    "c0038": {
       "type": "paragraph",
       "content": [
         {
-          "text": "cell 2-1",
+          "text": "cell 1-2",
           "marks": {}
         }
       ]
+    },
+    "c0039": {
+      "type": "table-row",
+      "children": ["c0040", "c0042"]
     },
     "c0040": {
       "type": "table-cell",
@@ -482,28 +491,42 @@
       "type": "paragraph",
       "content": [
         {
-          "text": "cell 2-2",
+          "text": "cell 2-1",
           "marks": {}
         }
       ]
     },
     "c0042": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0043"]
+    },
+    "c0043": {
+      "type": "paragraph",
+      "content": [
+        {
+          "text": "cell 2-2",
+          "marks": {}
+        }
+      ]
+    },
+    "c0044": {
       "type": "image",
       "attrs": {
         "src": "demo-image"
       }
     },
-    "c0043": {
+    "c0045": {
       "type": "divider"
     },
-    "c0044": {
+    "c0046": {
       "type": "embed",
       "attrs": {
         "kind": "iframe",
         "src": "data:text/html,%3Chtml%3E%3Cbody%3E%3Cp%3Eembedded%20page%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"
       }
     },
-    "c0045": {
+    "c0047": {
       "type": "sync-embed",
       "attrs": {
         "ref": {
@@ -511,7 +534,7 @@
         }
       }
     },
-    "c0046": {
+    "c0048": {
       "type": "database",
       "attrs": {
         "columns": [
@@ -534,20 +557,20 @@
         ]
       },
       "rows": {
-        "c0047": {
+        "c0049": {
           "name": "First task",
           "done": false,
           "status": "active"
         },
-        "c0048": {
+        "c0050": {
           "name": "Second task",
           "done": true,
           "status": "done"
         }
       },
-      "rowOrder": ["c0047", "c0048"]
+      "rowOrder": ["c0049", "c0050"]
     },
-    "c0049": {
+    "c0051": {
       "type": "surface",
       "geometry": {
         "x": 0,
@@ -555,9 +578,9 @@
         "w": 900,
         "h": 500
       },
-      "children": ["c0050", "c0053", "c0054", "c0055", "c0056", "c0057", "c0058"]
+      "children": ["c0052", "c0055", "c0056", "c0057", "c0058", "c0059", "c0060"]
     },
-    "c0050": {
+    "c0052": {
       "type": "frame",
       "geometry": {
         "x": -180,
@@ -565,9 +588,9 @@
         "w": 280,
         "h": 160
       },
-      "children": ["c0051", "c0052"]
+      "children": ["c0053", "c0054"]
     },
-    "c0051": {
+    "c0053": {
       "type": "heading",
       "attrs": {
         "level": 2
@@ -579,7 +602,7 @@
         }
       ]
     },
-    "c0052": {
+    "c0054": {
       "type": "paragraph",
       "content": [
         {
@@ -588,7 +611,7 @@
         }
       ]
     },
-    "c0053": {
+    "c0055": {
       "type": "shape",
       "attrs": {
         "variant": "rect",
@@ -601,7 +624,7 @@
         "h": 80
       }
     },
-    "c0054": {
+    "c0056": {
       "type": "shape",
       "attrs": {
         "variant": "ellipse"
@@ -613,7 +636,7 @@
         "h": 80
       }
     },
-    "c0055": {
+    "c0057": {
       "type": "shape",
       "attrs": {
         "variant": "diamond"
@@ -625,7 +648,7 @@
         "h": 90
       }
     },
-    "c0056": {
+    "c0058": {
       "type": "shape",
       "attrs": {
         "variant": "line"
@@ -637,7 +660,7 @@
         "h": 60
       }
     },
-    "c0057": {
+    "c0059": {
       "type": "canvas-text",
       "geometry": {
         "x": 140,
@@ -652,19 +675,19 @@
         }
       ]
     },
-    "c0058": {
+    "c0060": {
       "type": "connector",
       "attrs": {
         "start": {
-          "blockId": "c0050"
+          "blockId": "c0052"
         },
         "end": {
-          "blockId": "c0053"
+          "blockId": "c0055"
         },
         "label": "relates to"
       }
     },
-    "c0059": {
+    "c0061": {
       "type": "paragraph",
       "content": [
         {
@@ -742,7 +765,7 @@
         }
       ]
     },
-    "c0060": {
+    "c0062": {
       "type": "paragraph",
       "content": [
         {
@@ -751,7 +774,7 @@
         }
       ]
     },
-    "c0061": {
+    "c0063": {
       "type": "paragraph",
       "content": [
         {
@@ -760,7 +783,7 @@
         }
       ]
     },
-    "c0062": {
+    "c0064": {
       "type": "paragraph",
       "attrs": {
         "indent": 1
@@ -772,7 +795,7 @@
         }
       ]
     },
-    "c0063": {
+    "c0065": {
       "type": "list-item",
       "attrs": {
         "list": "bullet",

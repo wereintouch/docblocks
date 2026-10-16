@@ -246,3 +246,39 @@ describe("changeBlockType", () => {
     expect(doc.getText(h)).toBe("title");
   });
 });
+
+describe("changeBlockType: quote", () => {
+  it("turns a paragraph into a quote (content survives, the shared align is carried)", () => {
+    const doc = newDoc();
+    const p = doc.insertBlock("paragraph", { align: "center" });
+    doc.insertText(p, 0, "borrowed words");
+
+    doc.changeBlockType(p, "quote");
+
+    const block = doc.getBlock(p);
+    expect(block?.type).toBe("quote");
+    if (block?.type !== "quote") throw new Error("the type did not change");
+    expect(block.attrs).toEqual({ align: "center" });
+    expect(doc.getText(p)).toBe("borrowed words");
+  });
+
+  it("turns a quote back into a paragraph (the content stands)", () => {
+    const doc = newDoc();
+    const q = doc.insertBlock("quote");
+    doc.insertText(q, 0, "first line\nsecond line");
+
+    doc.changeBlockType(q, "paragraph");
+
+    expect(doc.getBlock(q)?.type).toBe("paragraph");
+    expect(doc.getText(q)).toBe("first line\nsecond line");
+  });
+
+  it("rejects the quote inside a table cell (the cell holds the v1 leaf set only)", () => {
+    const doc = newDoc();
+    const table = doc.insertBlock("table", { cols: 1 });
+    const row = doc.insertBlock("table-row", undefined, { parent: table });
+    const cell = doc.insertBlock("table-cell", undefined, { parent: row });
+    const p = doc.insertBlock("paragraph", undefined, { parent: cell });
+    expectThrows(() => doc.changeBlockType(p, "quote"), InvalidChildError);
+  });
+});

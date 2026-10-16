@@ -108,7 +108,7 @@ way.
 ### Structure
 
 Structural styling hooks are `data-slot` attributes (`docblocks/editor`,
-`docblocks/block`, `docblocks/block-content`, …) plus `data-block-type`,
-`data-list`, `data-depth`, and the per-state attributes — see the stylesheet
-header for the full list. User content styling (run color / highlight) is
-document data, not theme, and is applied inline.
+`docblocks/block`, `docblocks/block-content`, `docblocks/quote-rule`, …) plus
+`data-block-type`, `data-list`, `data-depth`, and the per-state attributes — see
+the stylesheet header for the full list. User content styling (run color /
+highlight) is document data, not theme, and is applied inline.

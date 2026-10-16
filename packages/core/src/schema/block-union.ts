@@ -36,6 +36,7 @@ import type {
   ListItemBlock,
   ParagraphAttrs,
   ParagraphBlock,
+  QuoteBlock,
   RootBlock,
   SyncEmbedAttrs,
   SyncEmbedBlock,
@@ -49,6 +50,7 @@ import type {
 type Block =
   | WithGeometry<RootBlock>
   | WithGeometry<ParagraphBlock>
+  | WithGeometry<QuoteBlock>
   | WithGeometry<HeadingBlock>
   | WithGeometry<ListItemBlock>
   | WithGeometry<CalloutBlock>

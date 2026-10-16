@@ -45,6 +45,7 @@ describe("block registry", () => {
       "latex",
       "list-item",
       "paragraph",
+      "quote",
       "root",
       "shape",
       "surface",
@@ -62,7 +63,7 @@ describe("block registry", () => {
     // The remodeled page types: no children of their own; the LEGACY form
     // (still valid v1) keeps its child-type rules.
     const pageSet = [...(BLOCK_REGISTRY.root.childrenTypes ?? [])].sort();
-    for (const type of ["paragraph", "heading", "callout", "code", "latex"] as const) {
+    for (const type of ["paragraph", "quote", "heading", "callout", "code", "latex"] as const) {
       expect(BLOCK_REGISTRY[type].children, `${type} is structurally childless`).toBe(false);
       expect([...(BLOCK_REGISTRY[type].legacyChildrenTypes ?? [])].sort(), `${type} legacy form`).toEqual(pageSet);
     }
@@ -80,6 +81,7 @@ describe("block registry", () => {
   it("pins the indent attr: every page-sequence type, none on the structural-context types", () => {
     for (const type of [
       "paragraph",
+      "quote",
       "heading",
       "list-item",
       "callout",
@@ -119,6 +121,7 @@ describe("block registry", () => {
       "latex",
       "list-item",
       "paragraph",
+      "quote",
       "shape",
       "sync-embed",
       "table",
@@ -134,6 +137,7 @@ describe("block registry", () => {
       "latex",
       "list-item",
       "paragraph",
+      "quote",
       "sync-embed",
       "table",
     ]);
@@ -151,6 +155,7 @@ describe("block registry", () => {
       "latex",
       "list-item",
       "paragraph",
+      "quote",
       "surface",
       "sync-embed",
       "table",
@@ -223,10 +228,11 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["math"]>().toEqualTypeOf<{ tex: string } | undefined>();
   });
 
-  it("exposes the 20-type block union", () => {
+  it("exposes the 21-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
+      | "quote"
       | "heading"
       | "list-item"
       | "callout"

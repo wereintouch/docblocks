@@ -25,6 +25,7 @@ import {
   ListOrdered,
   Menu as MenuIcon,
   Pilcrow,
+  Quote,
   SquareCheck,
   Strikethrough,
   TextAlignCenter,
@@ -56,8 +57,8 @@ import { type FormatMark, markToggleAction } from "./keyboard";
  *
  * It is visible while the view's selection is a text range over a
  * toolbar-eligible target: a single block of an eligible type (paragraph,
- * heading, list-item, callout, latex; code and canvas-text have their own
- * formatting model) or a cross-block range whose chain text blocks are all
+ * quote, heading, list-item, callout, latex; code and canvas-text have their
+ * own formatting model) or a cross-block range whose chain text blocks are all
  * eligible. It floats above the selection (below it when there is no room
  * above) and disappears as soon as the selection collapses, leaves the
  * target, or becomes a blocks selection — the visibility is derived from
@@ -97,10 +98,15 @@ type ToolbarIcon = ComponentType<SVGProps<SVGSVGElement>>;
 const FORMAT_PALETTE: readonly string[] = ["#71717a", "#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
 
 /** The list-type menu options, in display order ("paragraph" = turn into text). */
-const LIST_MENU_OPTIONS: { option: "bullet" | "number" | "task" | "paragraph"; label: string; icon: ToolbarIcon }[] = [
+const LIST_MENU_OPTIONS: {
+  option: "bullet" | "number" | "task" | "quote" | "paragraph";
+  label: string;
+  icon: ToolbarIcon;
+}[] = [
   { option: "bullet", label: "Bullet list", icon: Dot },
   { option: "number", label: "Numbered list", icon: ListOrdered },
   { option: "task", label: "To-do list", icon: SquareCheck },
+  { option: "quote", label: "Quote", icon: Quote },
   { option: "paragraph", label: "Text", icon: Pilcrow },
 ];
 
@@ -280,6 +286,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
       return;
     }
+    if (option === "quote") {
+      if (single.type !== "quote") doc.transact(() => doc.changeBlockType(range.blockId, "quote"));
+      restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
+      return;
+    }
     const currentList = single.type === "list-item" ? single.attrs.list : null;
     if (currentList === option) return;
     doc.transact(() => {
@@ -310,7 +321,9 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       ? block.attrs.list
       : block !== undefined && block.type === "paragraph"
         ? "paragraph"
-        : "";
+        : block !== undefined && block.type === "quote"
+          ? "quote"
+          : "";
 
   return (
     <div
@@ -358,56 +371,60 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           <Icon className="size-4" />
         </Button>
       ))}
-      {!cross && (single.type === "paragraph" || single.type === "heading" || single.type === "list-item") && (
-        <>
-          <Separator orientation="vertical" className="h-5" />
-          <DropdownMenu modal={false} open={listMenuOpen} onOpenChange={setListMenuOpen}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                title="List type"
-                aria-label="List type"
-                className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
-              >
-                <MenuIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            {/* The portaled content keeps the bar's mousedown guard: a
+      {!cross &&
+        (single.type === "paragraph" ||
+          single.type === "quote" ||
+          single.type === "heading" ||
+          single.type === "list-item") && (
+          <>
+            <Separator orientation="vertical" className="h-5" />
+            <DropdownMenu modal={false} open={listMenuOpen} onOpenChange={setListMenuOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  title="List type"
+                  aria-label="List type"
+                  className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+                >
+                  <MenuIcon className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              {/* The portaled content keeps the bar's mousedown guard: a
                 default mousedown would blur the editable and kill the
                 selection the gesture is about to re-seat. Outside dismiss
                 (pointer and focus) is suppressed — the editor owns the
                 focus, and the selection state owns the visibility. */}
-            <DropdownMenuContent
-              align="start"
-              sideOffset={6}
-              data-slot="docblocks/format-list-menu"
-              onMouseDown={(event) => event.preventDefault()}
-              onPointerDownOutside={(event) => event.preventDefault()}
-              onFocusOutside={(event) => event.preventDefault()}
-            >
-              <DropdownMenuRadioGroup value={listValue}>
-                {LIST_MENU_OPTIONS.map(({ option, label, icon: Icon }) => {
-                  const disabled = false;
-                  return (
-                    <DropdownMenuRadioItem
-                      key={option}
-                      value={option}
-                      data-list-option={option}
-                      disabled={disabled}
-                      title={label}
-                      onSelect={() => onListOption(option)}
-                    >
-                      <Icon className="size-4" />
-                      {label}
-                    </DropdownMenuRadioItem>
-                  );
-                })}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </>
-      )}
+              <DropdownMenuContent
+                align="start"
+                sideOffset={6}
+                data-slot="docblocks/format-list-menu"
+                onMouseDown={(event) => event.preventDefault()}
+                onPointerDownOutside={(event) => event.preventDefault()}
+                onFocusOutside={(event) => event.preventDefault()}
+              >
+                <DropdownMenuRadioGroup value={listValue}>
+                  {LIST_MENU_OPTIONS.map(({ option, label, icon: Icon }) => {
+                    const disabled = false;
+                    return (
+                      <DropdownMenuRadioItem
+                        key={option}
+                        value={option}
+                        data-list-option={option}
+                        disabled={disabled}
+                        title={label}
+                        onSelect={() => onListOption(option)}
+                      >
+                        <Icon className="size-4" />
+                        {label}
+                      </DropdownMenuRadioItem>
+                    );
+                  })}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
       <Separator orientation="vertical" className="h-5" />
       <Popover modal={false} open={paletteOpen} onOpenChange={setPaletteOpen}>
         <PopoverTrigger asChild>

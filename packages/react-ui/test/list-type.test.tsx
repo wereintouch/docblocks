@@ -178,3 +178,39 @@ describe("the list-type menu keeps the selection seated", () => {
  * is pinned e2e (a real browser, where the remount timing is real): jsdom's
  * remount/selection timing is racy and not representative.
  */
+
+describe("the list-type menu's quote option", () => {
+  it("turns a paragraph into a quote (the type change, the content stands)", async () => {
+    let p: BlockId = "";
+    const doc = renderDoc((d) => {
+      p = d.insertBlock("paragraph");
+      d.insertText(p, 0, "borrowed");
+    });
+
+    selectRange(p, 0, 8);
+    pickListOption("quote", p, 0, 8);
+    expect(doc.getBlock(p)?.type).toBe("quote");
+    expect(doc.getText(p)).toBe("borrowed");
+    // The rule element stands (the wrapper carries the marker zone).
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${p}"][data-block-type="quote"]`);
+    expect(wrapper).not.toBeNull();
+    expect(wrapper?.querySelector('[data-slot="docblocks/quote-rule"]')).not.toBeNull();
+    await flushFrames();
+  });
+
+  it("stands for a quote range and the Text option converts it back", async () => {
+    let q: BlockId = "";
+    const doc = renderDoc((d) => {
+      q = d.insertBlock("quote");
+      d.insertText(q, 0, "borrowed");
+    });
+
+    // The menu trigger stands over a quote range (the eligibility includes
+    // the quote).
+    selectRange(q, 0, 8);
+    pickListOption("paragraph", q, 0, 8);
+    expect(doc.getBlock(q)?.type).toBe("paragraph");
+    expect(doc.getText(q)).toBe("borrowed");
+    await flushFrames();
+  });
+});

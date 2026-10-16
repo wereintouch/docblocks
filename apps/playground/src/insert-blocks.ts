@@ -6,6 +6,7 @@ import { MASTER_SUBTREE_BLOCK_ID } from "./master";
 const INSERTABLE_TYPES = [
   "paragraph",
   "heading",
+  "quote",
   "callout",
   "list-item",
   "code",

@@ -13,6 +13,7 @@ export { ListOrdered } from "./ListOrdered";
 export { LoaderCircle } from "./LoaderCircle";
 export { Menu } from "./Menu";
 export { Pilcrow } from "./Pilcrow";
+export { Quote } from "./Quote";
 export { Sigma } from "./Sigma";
 export { SquareCheck } from "./SquareCheck";
 export { SquareSplitVertical } from "./SquareSplitVertical";

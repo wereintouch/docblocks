@@ -26,6 +26,7 @@ import {
   List,
   ListOrdered,
   Pilcrow,
+  Quote,
   Sigma,
   SquareCheck,
   SquareSplitVertical,
@@ -101,6 +102,7 @@ type SlashCommand =
   | { label: string; icon: SlashIcon; type: "paragraph" }
   | { label: string; icon: SlashIcon; type: "heading"; attrs: { level: 1 | 2 | 3 } }
   | { label: string; icon: SlashIcon; type: "list-item"; attrs: { list: "bullet" | "number" | "task" } }
+  | { label: string; icon: SlashIcon; type: "quote" }
   | { label: string; icon: SlashIcon; type: "callout" }
   | { label: string; icon: SlashIcon; type: "code"; attrs?: { language?: string } }
   | { label: string; icon: SlashIcon; type: "latex"; attrs: { display: boolean } }
@@ -115,6 +117,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Bulleted list", icon: List, type: "list-item", attrs: { list: "bullet" } },
   { label: "Numbered list", icon: ListOrdered, type: "list-item", attrs: { list: "number" } },
   { label: "Task list", icon: SquareCheck, type: "list-item", attrs: { list: "task" } },
+  { label: "Quote", icon: Quote, type: "quote" },
   { label: "Callout", icon: TextQuote, type: "callout" },
   { label: "Code block", icon: CodeXml, type: "code" },
   { label: "Code block (mermaid)", icon: CodeXml, type: "code", attrs: { language: "mermaid" } },
@@ -256,6 +259,8 @@ function insertCommand(doc: Doc, command: SlashCommand, at?: InsertBlockPosition
       return doc.insertBlock("heading", { level: command.attrs.level, ...ind }, at);
     case "list-item":
       return doc.insertBlock("list-item", { list: command.attrs.list, ...ind }, at);
+    case "quote":
+      return doc.insertBlock("quote", ind.indent === undefined ? undefined : { ...ind }, at);
     case "callout":
       return doc.insertBlock("callout", ind.indent === undefined ? undefined : { ...ind }, at);
     case "code":
@@ -332,6 +337,9 @@ function applySlashPlan(
                 break;
               case "list-item":
                 doc.changeBlockType(blockId, "list-item", command.attrs);
+                break;
+              case "quote":
+                doc.changeBlockType(blockId, "quote");
                 break;
               case "callout":
                 doc.changeBlockType(blockId, "callout");

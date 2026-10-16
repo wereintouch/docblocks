@@ -99,6 +99,12 @@ interface CalloutAttrs {
   indent?: PageIndent;
 }
 
+interface QuoteAttrs {
+  align?: TextAlign;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
+}
+
 interface CodeAttrs {
   language?: string;
   /** Nesting depth in the page sequence (default 0). */
@@ -178,6 +184,14 @@ interface ListItemBlock {
 interface CalloutBlock {
   type: "callout";
   attrs?: CalloutAttrs;
+  content?: BlockContent;
+  /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
+  children?: BlockId[];
+}
+
+interface QuoteBlock {
+  type: "quote";
+  attrs?: QuoteAttrs;
   content?: BlockContent;
   /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
   children?: BlockId[];
@@ -291,6 +305,8 @@ export type {
   PageIndent,
   ParagraphAttrs,
   ParagraphBlock,
+  QuoteAttrs,
+  QuoteBlock,
   RootBlock,
   TableAttrs,
   TableBlock,

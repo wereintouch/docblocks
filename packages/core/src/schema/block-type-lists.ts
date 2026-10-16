@@ -26,6 +26,7 @@ const LEAF_BLOCK_TYPES: readonly BlockType[] = [
 /** Top-level page blocks: everything except `root` and table internals. */
 const PAGE_BLOCK_TYPES: readonly BlockType[] = [
   "paragraph",
+  "quote",
   "heading",
   "list-item",
   "callout",

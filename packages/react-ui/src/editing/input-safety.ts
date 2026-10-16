@@ -2,12 +2,14 @@ import { useCallback } from "react";
 import type { ClipboardEvent, KeyboardEvent, RefObject } from "react";
 
 import type { BlockId, BlockType, TextPoint } from "docblocks-core";
+import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
 import {
   focusCaretIn,
   indentIn,
+  indentOf,
   mergeWithPrevious,
   outdentBlock,
   restoreSelectionIn,
@@ -226,7 +228,7 @@ function useBlockInput({
       }
 
       // The slash trigger: a "/" with a collapsed caret in a page text block
-      // (paragraph, heading, list-item, callout — code and latex are
+      // (paragraph, heading, list-item, callout, quote — code and latex are
       // excluded: a "/" there is plain text) at any position and any indent
       // of the root page sequence (or the provider's entry root itself)
       // opens the command menu. The character stands in the doc as a regular
@@ -247,7 +249,8 @@ function useBlockInput({
         const block = store.getState().blocks[id];
         if (block === undefined) return;
         const type = block.type;
-        const isPageText = type === "paragraph" || type === "heading" || type === "list-item" || type === "callout";
+        const isPageText =
+          type === "paragraph" || type === "heading" || type === "list-item" || type === "callout" || type === "quote";
         const inPageSequence = context.parentId === rootBlockId || id === rootBlockId;
         if (isPageText && inPageSequence) {
           const caret = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
@@ -289,6 +292,44 @@ function useBlockInput({
           doc.insertText(id, offset, "\n");
           return;
         }
+        if (blockType === "quote" || blockType === "callout") {
+          // Quote and callout share the interactivity: the lines are soft
+          // breaks; Enter exits only where the caret's line is empty and is
+          // the block's LAST line (nothing follows the caret) — an empty
+          // line with a line after it takes a plain break, and so does a
+          // non-empty line. The preceding lines stand as the block and the
+          // empty last line becomes a new paragraph after it (a wholly
+          // empty one converts in place).
+          const text = doc.getText(id);
+          const caretLineIsEmpty = offset === 0 || text[offset - 1] === "\n";
+          if (!(caretLineIsEmpty && offset === text.length)) {
+            declareLocalCaret(offset + 1);
+            doc.insertText(id, offset, "\n");
+            return;
+          }
+          let focusId: BlockId = id;
+          try {
+            doc.transact(() => {
+              if (text === "") {
+                doc.changeBlockType(id, "paragraph");
+                return;
+              }
+              doc.deleteText(id, text.length - 1, text.length);
+              const indent = indentOf(doc, id);
+              focusId = doc.insertBlock("paragraph", indent !== 0 ? { indent } : undefined, {
+                parent: context.parentId,
+                after: id,
+              });
+            });
+          } catch (error) {
+            // The core's typed rejection rolls the transact back: the
+            // gesture is a no-op, not a crash.
+            if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
+            throw error;
+          }
+          focusCaretIn(focusId, 0, editorRootOf(inner));
+          return;
+        }
         const newId = splitAt(doc, id, context.parentId, offset);
         if (newId !== null) focusCaretIn(newId, 0, editorRootOf(inner));
         return;
@@ -300,6 +341,11 @@ function useBlockInput({
         if (domSelection.anchorNode === null || !inner.contains(domSelection.anchorNode)) return;
         const offset = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
         if (offset !== 0) return; // inside the block: the input diff path handles it
+        // A non-empty quote/callout never merges with the previous block:
+        // the Backspace keeps deleting the block's own characters (line
+        // breaks included) until it is empty, and the empty-block gesture
+        // below then resets it to a paragraph.
+        if ((blockType === "quote" || blockType === "callout") && doc.getTextLength(id) > 0) return;
         const merged = mergeWithPrevious(doc, id, context.parentId);
         if (merged === null) return;
         event.preventDefault();

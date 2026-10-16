@@ -112,6 +112,10 @@ function buildCatalogDoc(doc: Doc): void {
     listBlock(doc, "task", 3, "deepest task");
 
     // Callouts: the default (info) plus every registry variant.
+    const quote = doc.insertBlock("quote");
+    doc.insertText(quote, 0, "quote first line\nquote second line");
+    const quoteAligned = doc.insertBlock("quote", { align: "center" });
+    doc.insertText(quoteAligned, 0, "quote (center)");
     const calloutDefault = doc.insertBlock("callout");
     doc.insertText(calloutDefault, 0, "callout (default)");
     const calloutInfo = doc.insertBlock("callout", { variant: "info" });

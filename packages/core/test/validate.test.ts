@@ -382,6 +382,12 @@ describe("attributes", () => {
     );
     expectError(withBlock("c", { type: "callout", attrs: { variant: "error" } }), "blocks.c.attrs.variant", "one of");
     expectError(withBlock("l", { type: "list-item", attrs: { list: "star" } }), "blocks.l.attrs.list", "one of");
+    expectError(withBlock("q", { type: "quote", attrs: { align: "justify" } }), "blocks.q.attrs.align", "one of");
+  });
+
+  it("accepts a quote with the shared text attrs", () => {
+    expectValid(withBlock("q", { type: "quote", content: [run("borrowed")] }));
+    expectValid(withBlock("q", { type: "quote", attrs: { align: "center" }, content: [run("a\nb")] }));
   });
 });
 

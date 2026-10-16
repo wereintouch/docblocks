@@ -103,6 +103,10 @@ function insertSameTypeAfter(doc: Doc, block: Block, parent: BlockId, after: Blo
         parent,
         after,
       });
+    case "quote":
+      // The optional align does not ride the split: a new quote starts with
+      // the default alignment (the same as a new paragraph).
+      return doc.insertBlock("quote", indent !== 0 ? { indent } : undefined, { parent, after });
     default:
       return doc.insertBlock("paragraph", indent !== 0 ? { indent } : undefined, { parent, after });
   }
@@ -598,6 +602,7 @@ export {
   extendSelectionTo,
   focusCaretIn,
   indentIn,
+  indentOf,
   mergeWithPrevious,
   moveSegmentInSequence,
   outdentBlock,

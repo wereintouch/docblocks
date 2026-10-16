@@ -143,3 +143,39 @@ describe("built-in renderers: code and latex", () => {
     expect(hr!.getAttribute("data-block-type")).toBe("divider");
   });
 });
+
+describe("built-in renderers: quote", () => {
+  it("renders the editable text with the left rule element", () => {
+    let q: BlockId = "";
+    renderDoc((d) => {
+      q = d.insertBlock("quote");
+      d.insertText(q, 0, "first line\nsecond line");
+    });
+
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${q}"][data-block-type="quote"]`);
+    expect(wrapper).not.toBeNull();
+    // The editable inner carries the text (the breaks stand in the run text).
+    const inner = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+    expect(inner).not.toBeNull();
+    expect(inner!.textContent).toBe("first line\nsecond line");
+    // The left rule: the dedicated element stands in the marker zone.
+    const rule = wrapper!.querySelector<HTMLElement>('[data-slot="docblocks/quote-rule"]');
+    expect(rule).not.toBeNull();
+    expect(rule!.getAttribute("aria-hidden")).toBe("true");
+    // The wrapper carries the marker zone's padding (the rule stands left of the text).
+    expect(wrapper!.className).toContain("pl-(--docblocks-marker-width)");
+  });
+
+  it("renders without the rule for non-quote text blocks", () => {
+    renderDoc((d) => {
+      const p = d.insertBlock("paragraph");
+      d.insertText(p, 0, "plain");
+      const c = d.insertBlock("callout");
+      d.insertText(c, 0, "note");
+    });
+
+    expect(document.querySelector('[data-slot="docblocks/quote-rule"]')).toBeNull();
+    expect(document.querySelector('[data-block-type="paragraph"]')).not.toBeNull();
+    expect(document.querySelector('[data-block-type="callout"]')).not.toBeNull();
+  });
+});

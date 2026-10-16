@@ -73,13 +73,14 @@ describe("deriveSlash", () => {
 
 describe("filterCommands", () => {
   it("stands the full list on an empty query", () => {
-    expect(filterCommands("")).toHaveLength(12);
+    expect(filterCommands("")).toHaveLength(13);
   });
 
   it("filters by a case-insensitive substring of the label", () => {
     expect(filterCommands("head").map((c) => c.label)).toEqual(["Heading 1", "Heading 2", "Heading 3"]);
     expect(filterCommands("HEAD").map((c) => c.label)).toEqual(["Heading 1", "Heading 2", "Heading 3"]);
     expect(filterCommands("list").map((c) => c.label)).toEqual(["Bulleted list", "Numbered list", "Task list"]);
+    expect(filterCommands("quote").map((c) => c.label)).toEqual(["Quote"]);
   });
 
   it("stands at zero on a miss (the menu hides, not a placeholder)", () => {
@@ -115,6 +116,21 @@ describe("planSlashApply", () => {
     const block = textBlock("list-item", "todo/task", { list: "bullet" });
     const plan = planSlashApply(command("Task list"), block, "todo/task", 4, false);
     expect(plan).toEqual({ kind: "update", deleteFrom: 4, deleteTo: 9 });
+  });
+
+  it("converts a phrase-only block into a quote (the replace path) and keeps the phrase's tail over text", () => {
+    // Phrase-only: the empty result and a type change take the replace path.
+    const phraseOnly = textBlock("paragraph", "/quote");
+    expect(planSlashApply(command("Quote"), phraseOnly, "/quote", 0, false)).toEqual({ kind: "replace" });
+    // Text survives: the phrase is stripped, the block converts in place.
+    const withText = textBlock("paragraph", "my words/quote");
+    const plan = planSlashApply(command("Quote"), withText, "my words/quote", 8, false);
+    expect(plan).toEqual({ kind: "convert", deleteFrom: 8, deleteTo: 14 });
+  });
+
+  it("is a no-op when the block is already a quote", () => {
+    const block = textBlock("quote", "note/quote");
+    expect(planSlashApply(command("Quote"), block, "note/quote", 4, false)).toEqual({ kind: "noop" });
   });
 
   it("updates the attrs and strips the phrase when the block's attrs differ only by the patch's scope (a heading level change)", () => {

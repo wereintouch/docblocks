@@ -19,7 +19,14 @@ import type { FormatMark } from "./keyboard";
  */
 
 /** The block types the toolbar formats (a text range inside one of them). */
-const TOOLBAR_BLOCK_TYPES: ReadonlySet<string> = new Set(["paragraph", "heading", "list-item", "callout", "latex"]);
+const TOOLBAR_BLOCK_TYPES: ReadonlySet<string> = new Set([
+  "paragraph",
+  "quote",
+  "heading",
+  "list-item",
+  "callout",
+  "latex",
+]);
 
 /** The cross-block shape of the toolbar's target range. */
 interface CrossRange {
@@ -126,6 +133,8 @@ function uniformAlignOfRange(doc: Doc, range: CrossRange): TextAlign | undefined
 function alignOfBlock(block: Block): TextAlign | undefined {
   switch (block.type) {
     case "paragraph":
+      return block.attrs?.align;
+    case "quote":
       return block.attrs?.align;
     case "callout":
       return block.attrs?.align;

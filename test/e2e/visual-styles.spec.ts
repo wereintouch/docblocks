@@ -111,6 +111,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // step (no nested slot), and the list markers stand as rendered row
   // labels (no list element).
   expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(13);
+  expect(await doc.locator('[data-block-type="quote"]').count()).toBe(2);
   expect(await doc.locator('[data-block-type="heading"]').count()).toBe(8);
   expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(17);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
@@ -214,8 +215,8 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
       .locator(`[data-block-id="${id}"]`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
-  expect(await rowPaddingOf("c0062")).toBe("24px");
-  expect(await rowPaddingOf("c0063")).toBe("44px");
+  expect(await rowPaddingOf("c0064")).toBe("24px");
+  expect(await rowPaddingOf("c0065")).toBe("44px");
   expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 

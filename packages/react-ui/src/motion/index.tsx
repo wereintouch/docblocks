@@ -244,7 +244,7 @@ interface RowItemProps {
  * the data, not a wrapper.
  */
 /** The text types whose built-in renderer renders the row's gutter handle (the row-level one stands for every other type). */
-const TEXT_ROW_TYPES = new Set(["paragraph", "heading", "callout", "list-item", "code", "latex"]);
+const TEXT_ROW_TYPES = new Set(["paragraph", "quote", "heading", "callout", "list-item", "code", "latex"]);
 
 const RowItem = memo(
   function RowItem({

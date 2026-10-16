@@ -185,3 +185,17 @@ describe("flattenDoc — purity and byte-stability", () => {
     expect(flat.blocks.q).toEqual({ type: "paragraph", content: text("q"), attrs: { indent: 1 } });
   });
 });
+
+describe("flattenDoc — the quote legacy form", () => {
+  it("normalizes the quote's legacy nested form to the flat indent (the page types' shared rule)", () => {
+    const input = doc({
+      r: { type: "root", children: ["q1"] },
+      q1: { type: "quote", content: text("outer"), children: ["q2"] },
+      q2: { type: "quote", content: text("inner") },
+    });
+    const flat = flattenDoc(input);
+    expect(flat.blocks.r).toEqual({ type: "root", children: ["q1", "q2"] });
+    expect(flat.blocks.q1).toEqual({ type: "quote", content: text("outer") });
+    expect((flat.blocks.q2 as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+  });
+});

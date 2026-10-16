@@ -28,7 +28,7 @@ import { indentOf, markerCycle, numberMarkerLabel } from "./flat";
 /** The text-editable block types (the wrapper tag and data attrs are props). */
 type EditableBlock = Extract<
   Block,
-  { type: "paragraph" | "heading" | "callout" | "list-item" | "code" | "latex" | "canvas-text" }
+  { type: "paragraph" | "quote" | "heading" | "callout" | "list-item" | "code" | "latex" | "canvas-text" }
 >;
 
 interface TextBlockProps {
@@ -376,7 +376,11 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
       block.attrs?.variant === "danger" &&
       cn("border-l-(--docblocks-callout-border-color-danger)", "bg-(--docblocks-callout-background-danger)"),
     block.type === "code" &&
-      "rounded-(--docblocks-radius) bg-(--docblocks-code-background) p-(--docblocks-code-padding)"
+      "rounded-(--docblocks-radius) bg-(--docblocks-code-background) p-(--docblocks-code-padding)",
+    // The quote's marker zone: the left rule stands in the 20px zone left
+    // of the text (the list rows' checkbox / number axis) — the wrapper's
+    // own padding (every view, the rows add no zone padding for it).
+    block.type === "quote" && "pl-(--docblocks-marker-width)"
   );
 
   /**
@@ -490,6 +494,16 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
           }}
           onMouseDown={onControlMouseDown}
           className={checkboxClass}
+        />
+      )}
+      {block.type === "quote" && (
+        <div
+          data-slot="docblocks/quote-rule"
+          aria-hidden
+          className="
+            pointer-events-none absolute top-0 bottom-0 left-0 w-(--docblocks-quote-border-width)
+            bg-(--docblocks-quote-border-color)
+          "
         />
       )}
       {(flatMarkerIsNumber || flatMarkerIsBullet) && (
