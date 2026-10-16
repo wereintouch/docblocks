@@ -437,6 +437,13 @@ function TextBlock({
           ? "text-(length:--docblocks-heading-h3-font-size)"
           : undefined;
   // The block's wrapper classes (the old [data-slot="docblocks/block"]
+  // The done task's CONTENT stands at 30% opacity (the fade covers the
+  // block's text composition — the custom run colors and highlights
+  // included; never a strike; the checkbox, the gutter grip, and the
+  // collapse toggle stand full — they are the editor's chrome, not the
+  // content). The state is task-only.
+  const doneTask = block.type === "list-item" && block.attrs.list === "task" && block.attrs.checked === true;
+
   // rules as utilities). The selected background precedes the block-type
   // backgrounds: the merge drops it for a callout or code block (their
   // background wins — the way the unlayered callout/code CSS beat the
@@ -445,10 +452,6 @@ function TextBlock({
     "relative outline-none",
     tag !== "li" && "my-(--docblocks-block-spacing)",
     selected && "bg-(--docblocks-selected-background)",
-    // The done task's WHOLE composition stands at 30% opacity (the checked
-    // state fades the entire block — custom run colors and highlights
-    // included; never a strike, and the state is task-only).
-    block.type === "list-item" && block.attrs.list === "task" && block.attrs.checked && "opacity-30",
     block.type === "heading" && "font-(--docblocks-heading-font-weight)",
     headingSize,
     block.type === "callout" &&
@@ -478,6 +481,7 @@ function TextBlock({
    */
   const innerClass = cn(
     "m-0 whitespace-pre-wrap outline-none empty:after:content-['\\200b']",
+    doneTask && "opacity-30",
     (block.type === "code" || block.type === "latex") && "font-(family-name:--docblocks-mono-font-family)",
     align === "center" && "text-center",
     align === "right" && "text-right",

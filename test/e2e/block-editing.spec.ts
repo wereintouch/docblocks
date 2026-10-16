@@ -167,12 +167,12 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
   await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(1);
   // The sequence order stands (a Tab is an attr update, never a move), and
   // the indented row's left step is the indent step plus its marker zone
-  // (the row's first character, 24px + 20px).
+  // (the row's first character, 24px + 24px).
   expect(
     await a.evaluate((c) => window.__paneDocs?.[c as "a"]?.getChildren(window.__paneDocs[c as "a"]!.toJSON().id), "a")
   ).toEqual(rootOrder);
   const secondRow = a.locator(`[data-slot="docblocks/row"]:has([data-block-id="${secondId}"])`);
-  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("44px");
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("48px");
 
   // Shift+Tab in the indented item brings it back to the top level (the
   // gesture writes the indent as an explicit 0 — the writer omits the
@@ -181,7 +181,7 @@ test("Tab indents the list item (an indent attr update); Shift+Tab brings it bac
   await a.keyboard.press("Shift+Tab");
   await expect.poll(async () => indentOf("a", secondId), SETTLE).toBe(0);
   await expect.poll(async () => indentOf("b", secondId), SETTLE).toBe(0);
-  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("20px");
+  expect(await secondRow.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("24px");
 
   await close();
 });

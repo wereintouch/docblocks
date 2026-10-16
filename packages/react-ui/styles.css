@@ -138,12 +138,12 @@
      Checkbox primitive (size-4); the position calcs below read it. */
   --docblocks-checkbox-size: 16px;
   /* A flat list row's first-character zone: the checkbox (16px) plus a
-     gap-1 (4px) clearance from the text — the zone stands right before the
+     gap-2 (8px) clearance from the text — the zone stands right before the
      row's text, and the gutter band (grip / collapse triangle) stands to
      the zone's left, so a list row's gutter columns match a text row's. */
-  --docblocks-marker-width: 20px;
+  --docblocks-marker-width: 24px;
   /* The checkbox's left edge (derived: the marker zone's left edge, the
-     gap-1 clear of the text). */
+     gap-2 clear of the text). */
   --docblocks-checkbox-left: calc(-1 * var(--docblocks-marker-width));
   /* The list marker's color (the bullet / number glyphs stand a step
      quieter than the row text). */

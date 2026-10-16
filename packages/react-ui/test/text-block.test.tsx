@@ -292,7 +292,7 @@ describe("Task checkbox", () => {
     expect(wrapper!.querySelector('[data-slot="docblocks/checkbox"]')).toBeNull();
   });
 
-  it("a done task's composition stands at 30% opacity (never struck); a stray checked on another kind does not fade", () => {
+  it("a done task's content stands at 30% opacity (never struck); the chrome stands full; a stray checked on another kind does not fade", () => {
     let task: BlockId = "";
     let bullet: BlockId = "";
     const doc = renderDoc((d) => {
@@ -305,13 +305,20 @@ describe("Task checkbox", () => {
     const taskWrapper = document.querySelector(
       `[data-block-id="${task}"][data-slot="docblocks/list-item"], [data-block-id="${task}"][data-slot="docblocks/block"]`
     );
-    const bulletWrapper = document.querySelector(
-      `[data-block-id="${bullet}"][data-slot="docblocks/list-item"], [data-block-id="${bullet}"][data-slot="docblocks/block"]`
-    );
-    expect(taskWrapper?.className).toContain("opacity-30");
-    expect(bulletWrapper?.className).not.toContain("opacity-30");
+    // The fade stands on the inner content (the text composition) — not on
+    // the block wrapper (the gutter grip and the marker-zone chrome stand
+    // full).
+    expect(taskWrapper?.className).not.toContain("opacity-30");
     const taskInner = document.querySelector(`[data-block-id="${task}"] [data-slot="docblocks/block-content"]`);
+    expect(taskInner?.className).toContain("opacity-30");
+    const bulletInner = document.querySelector(`[data-block-id="${bullet}"] [data-slot="docblocks/block-content"]`);
+    expect(bulletInner?.className).not.toContain("opacity-30");
     expect(taskInner?.className).not.toContain("line-through");
+    // The checkbox stands outside the faded subtree (a sibling of the inner
+    // content, not a descendant of it).
+    const checkbox = taskWrapper?.querySelector('[data-slot="docblocks/checkbox"]') ?? null;
+    expect(checkbox, "the task should render its checkbox").not.toBeNull();
+    expect(taskInner !== null && checkbox !== null && taskInner.contains(checkbox)).toBe(false);
   });
 });
 

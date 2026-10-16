@@ -69,17 +69,20 @@ test.describe("todo checkbox", () => {
       await expect(box).toHaveAttribute("aria-checked", "true");
       const after = await taskItem(a, "a", id);
       expect(after?.attrs).toMatchObject({ checked: true });
-      // The done task's whole composition stands at 30% opacity (the
-      // checked state fades the block, never strikes it).
+      // The done task's content stands at 30% opacity (the checked state
+      // fades the text composition, never strikes it); the chrome stands
+      // full (the checkbox is never faded).
       const wrapper = a.locator(`[data-slot="docblocks/list-item"][data-block-id="${id}"]`);
       const inner = wrapper.locator('[data-slot="docblocks/block-content"]');
-      await expect(wrapper).toHaveCSS("opacity", "0.3");
+      await expect(inner).toHaveCSS("opacity", "0.3");
+      await expect(wrapper).toHaveCSS("opacity", "1");
+      await expect(box).toHaveCSS("opacity", "1");
       await expect(inner).not.toHaveCSS("text-decoration-line", "line-through");
 
       await box.click();
       await expect(box).toHaveAttribute("aria-checked", "false");
       expect((await taskItem(a, "a", id))?.attrs).toMatchObject({ checked: false });
-      await expect(wrapper).toHaveCSS("opacity", "1");
+      await expect(inner).toHaveCSS("opacity", "1");
     } finally {
       await close();
     }
@@ -105,12 +108,13 @@ test.describe("todo checkbox", () => {
       await expect(box).toBeVisible();
       await box.click();
 
-      // Pane b renders the checked state (attr + the faded composition).
+      // Pane b renders the checked state (attr + the faded content).
       const bBox = b.locator(`[data-block-id="${id}"] [data-slot="docblocks/checkbox"]`);
       await expect(bBox).toHaveAttribute("aria-checked", "true");
       const bWrapper = b.locator(`[data-slot="docblocks/list-item"][data-block-id="${id}"]`);
-      await expect(bWrapper).toHaveCSS("opacity", "0.3");
       const bInner = bWrapper.locator('[data-slot="docblocks/block-content"]');
+      await expect(bInner).toHaveCSS("opacity", "0.3");
+      await expect(bWrapper).toHaveCSS("opacity", "1");
       await expect(bInner).not.toHaveCSS("text-decoration-line", "line-through");
       expect((await taskItem(b, "b", id))?.attrs).toMatchObject({ checked: true });
     } finally {
@@ -134,7 +138,7 @@ test.describe("todo conversion and split", () => {
       }, id);
       const block = a.locator(`[data-slot="docblocks/list-item"][data-block-id="${id}"]`);
       const inner = block.locator('[data-slot="docblocks/block-content"]');
-      await expect(block).toHaveCSS("opacity", "0.3");
+      await expect(inner).toHaveCSS("opacity", "0.3");
 
       // Select the text and pick the list-type menu's Bulleted list.
       await inner.click();
@@ -145,13 +149,13 @@ test.describe("todo conversion and split", () => {
       await toolbar.locator('button[aria-label="List type"]').click();
       await a.locator('[data-slot="docblocks/format-list-menu"] [data-list-option="bullet"]').click();
 
-      // The swap: the kind stands bullet, the check is cleared, the block
-      // returns to full opacity — no strike mark is synthesized.
+      // The swap: the kind stands bullet, the check is cleared, the
+      // content returns to full opacity — no strike mark is synthesized.
       expect(await taskItem(a, "a", id)).toMatchObject({
         type: "list-item",
         attrs: { list: "bullet", checked: false },
       });
-      await expect(block).toHaveCSS("opacity", "1");
+      await expect(inner).toHaveCSS("opacity", "1");
       await expect(inner).not.toHaveCSS("text-decoration-line", "line-through");
     } finally {
       await close();
@@ -187,8 +191,8 @@ test.describe("todo conversion and split", () => {
       const next = await taskItem(a, "a", nextId!);
       expect(next?.attrs?.checked).toBeUndefined();
       const nextWrapper = a.locator(`[data-slot="docblocks/list-item"][data-block-id="${nextId}"]`);
-      await expect(nextWrapper).toHaveCSS("opacity", "1");
       const nextInner = nextWrapper.locator('[data-slot="docblocks/block-content"]');
+      await expect(nextInner).toHaveCSS("opacity", "1");
       await expect(nextInner).not.toHaveCSS("text-decoration-line", "line-through");
       const nextBox = a.locator(`[data-block-id="${nextId}"] [data-slot="docblocks/checkbox"]`);
       await expect(nextBox).toHaveAttribute("aria-checked", "false");
@@ -236,15 +240,15 @@ test.describe("todo conversion and split", () => {
       }, id);
       expect(runs).toEqual([{ text: "struck", marks: { strike: true } }]);
       await expect(inner.locator("s")).toHaveCSS("text-decoration-line", "line-through");
-      const wrapper = a.locator(`[data-slot="docblocks/list-item"][data-block-id="${id}"]`);
-      await expect(wrapper).toHaveCSS("opacity", "1");
+      await expect(inner).toHaveCSS("opacity", "1");
 
-      // Checking the box fades the whole composition to 30% opacity (on
-      // top of the strike mark) — the mark's strike and the check's fade
-      // are independent states.
+      // Checking the box fades the content to 30% opacity (on top of the
+      // strike mark) — the mark's strike and the check's fade are
+      // independent states; the checkbox stands full.
       const box = a.locator(`[data-block-id="${id}"] [data-slot="docblocks/checkbox"]`);
       await box.click();
-      await expect(wrapper).toHaveCSS("opacity", "0.3");
+      await expect(inner).toHaveCSS("opacity", "0.3");
+      await expect(box).toHaveCSS("opacity", "1");
       await expect(inner.locator("s")).toHaveCSS("text-decoration-line", "line-through");
     } finally {
       await close();
