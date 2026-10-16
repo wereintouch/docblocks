@@ -107,6 +107,16 @@ interface QuoteAttrs {
 
 interface CodeAttrs {
   language?: string;
+  /** The five-line collapsed view (default false). */
+  collapsed?: boolean;
+  /** The caption line below the block; the empty string means no caption (attrs are never removed). */
+  caption?: string;
+  /** The line-number column (default true). */
+  lineNumbers?: boolean;
+  /** Wrap at the container width instead of horizontal scroll (default true). */
+  wrap?: boolean;
+  /** The mermaid view mode (default "code"). */
+  mermaidMode?: "code" | "preview";
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }

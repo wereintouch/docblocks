@@ -123,7 +123,14 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     children: false,
     rows: false,
     legacyChildrenTypes: PAGE_BLOCK_TYPES,
-    attrs: { language: { kind: "string" } },
+    attrs: {
+      language: { kind: "string" },
+      collapsed: { kind: "boolean" },
+      caption: { kind: "string" },
+      lineNumbers: { kind: "boolean" },
+      wrap: { kind: "boolean" },
+      mermaidMode: { kind: "enum", values: ["code", "preview"] },
+    },
   },
   latex: {
     content: true,

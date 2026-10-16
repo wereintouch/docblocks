@@ -385,6 +385,43 @@ describe("attributes", () => {
     expectError(withBlock("q", { type: "quote", attrs: { align: "justify" } }), "blocks.q.attrs.align", "one of");
   });
 
+  it("accepts a code block with the display attrs (incl. the empty-string caption)", () => {
+    expectValid(
+      withBlock("co", {
+        type: "code",
+        attrs: {
+          language: "ts",
+          collapsed: true,
+          caption: "",
+          lineNumbers: false,
+          wrap: false,
+          mermaidMode: "preview",
+        },
+        content: [run("a")],
+      })
+    );
+    expectValid(withBlock("co", { type: "code", attrs: { mermaidMode: "code" }, content: [run("a")] }));
+  });
+
+  it("rejects out-of-domain values on the code display attrs", () => {
+    expectError(
+      withBlock("co", { type: "code", attrs: { collapsed: "yes" } }),
+      "blocks.co.attrs.collapsed",
+      "must be a boolean"
+    );
+    expectError(
+      withBlock("co", { type: "code", attrs: { caption: 5 } }),
+      "blocks.co.attrs.caption",
+      "must be a string"
+    );
+    expectError(withBlock("co", { type: "code", attrs: { wrap: null } }), "blocks.co.attrs.wrap", "must be a boolean");
+    expectError(
+      withBlock("co", { type: "code", attrs: { mermaidMode: "zoom" } }),
+      "blocks.co.attrs.mermaidMode",
+      "one of"
+    );
+  });
+
   it("accepts a quote with the shared text attrs", () => {
     expectValid(withBlock("q", { type: "quote", content: [run("borrowed")] }));
     expectValid(withBlock("q", { type: "quote", attrs: { align: "center" }, content: [run("a\nb")] }));

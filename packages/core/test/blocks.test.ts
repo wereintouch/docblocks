@@ -243,6 +243,25 @@ describe("updateBlock", () => {
     expect(doc.getBlock(li)).toEqual({ type: "list-item", attrs: { list: "task", checked: false } });
   });
 
+  it("sets the code display attrs (the absent ones stay absent; the empty caption is the removed state)", () => {
+    const doc = newDoc();
+    const co = doc.insertBlock("code", { language: "ts" });
+    expect(doc.getBlock(co)).toEqual({ type: "code", attrs: { language: "ts" } });
+    doc.updateBlock(co, { collapsed: true, caption: "fig 1", lineNumbers: false, wrap: false, mermaidMode: "preview" });
+    const attrs = {
+      language: "ts",
+      collapsed: true,
+      caption: "fig 1",
+      lineNumbers: false,
+      wrap: false,
+      mermaidMode: "preview",
+    };
+    expect(doc.getBlock(co)).toEqual({ type: "code", attrs });
+    expect(doc.toJSON().blocks[co]).toEqual({ type: "code", attrs });
+    doc.updateBlock(co, { caption: "" });
+    expect(doc.toJSON().blocks[co]).toEqual({ type: "code", attrs: { ...attrs, caption: "" } });
+  });
+
   it("sets the text align on the text block types (an attr-less paragraph gains an attrs object)", () => {
     const doc = newDoc();
     const p = doc.insertBlock("paragraph");

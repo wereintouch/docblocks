@@ -106,6 +106,19 @@ describe("block registry", () => {
     }
   });
 
+  it("pins the code block's display attrs (the code-block header state)", () => {
+    const attrs = BLOCK_REGISTRY.code.attrs;
+    expect(attrs?.language).toEqual({ kind: "string" });
+    expect(attrs?.collapsed).toEqual({ kind: "boolean" });
+    expect(attrs?.caption).toEqual({ kind: "string" });
+    expect(attrs?.lineNumbers).toEqual({ kind: "boolean" });
+    expect(attrs?.wrap).toEqual({ kind: "boolean" });
+    expect(attrs?.mermaidMode).toEqual({ kind: "enum", values: ["code", "preview"] });
+    expect(Object.keys(attrs ?? {}).sort()).toEqual(
+      ["caption", "collapsed", "indent", "language", "lineNumbers", "mermaidMode", "wrap"].sort()
+    );
+  });
+
   it("pins the canvas child sets: surface (no nested surface), frame (page blocks only)", () => {
     expect([...(BLOCK_REGISTRY.surface.childrenTypes ?? [])].sort()).toEqual([
       "callout",
