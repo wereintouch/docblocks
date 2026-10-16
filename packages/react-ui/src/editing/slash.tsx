@@ -698,7 +698,7 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps)
       role="menu"
       data-slot="docblocks/slash-menu"
       className={cn(
-        "absolute z-modal min-w-32 max-h-80 overflow-y-auto rounded-md border border-border bg-popover p-1",
+        "absolute z-modal max-h-80 min-w-32 overflow-y-auto rounded-md border border-border bg-popover p-1",
         "text-popover-foreground shadow-md",
         position === null && "opacity-0"
       )}

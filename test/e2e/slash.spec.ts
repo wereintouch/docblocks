@@ -174,9 +174,8 @@ test("the menu open does not scroll the page (the unpositioned first frame must 
   const midId = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) return null;
-    let id = "";
     doc.transact(() => {
-      for (let i = 0; i < 40; i += 1) id = doc.insertBlock("paragraph");
+      for (let i = 0; i < 40; i += 1) doc.insertBlock("paragraph");
     });
     const ids = doc.getChildren(doc.meta.id);
     return ids[15];
@@ -210,28 +209,81 @@ test("a divider landing at the document end gets a trailing empty paragraph (the
   await a.keyboard.press("Enter");
 
   // A trailing empty paragraph stands after the divider (the divider is
-  // not editable — without it there is no way to keep typing), and the
-  // caret stands in it (typing continues in the trailing block).
-  const types = await a.evaluate(() => {
+  // not editable — without it there is no way to keep typing). The room
+  // may carry re-run leftovers before the suffix (the relay keeps rooms
+  // for its lifetime) — the suffix is the contract.
+  const suffix = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) return null;
-    return doc.getChildren(doc.meta.id).map((id) => doc.getBlock(id)?.type ?? null);
+    const ids = doc.getChildren(doc.meta.id);
+    return ids.slice(-2).map((id) => ({ id, type: doc.getBlock(id)?.type ?? null }));
   });
-  expect(types).toEqual(["divider", "paragraph"]);
+  expect(suffix).toEqual([
+    { id: expect.any(String), type: "divider" },
+    { id: expect.any(String), type: "paragraph" },
+  ]);
   // The caret seats in the trailing paragraph in the next frame (the
   // post-apply focus move) — wait for it before typing.
+  const trailingId = suffix?.[1]?.id ?? "";
+  expect(trailingId).toEqual(expect.any(String));
+  const trailingInner = a.locator(`[data-block-id="${trailingId}"] [data-slot="docblocks/block-content"]`);
   await a.waitForFunction(() => {
     const ae = document.activeElement;
     return ae instanceof HTMLElement && ae.getAttribute("data-slot") === "docblocks/block-content";
   });
+  await trailingInner.click();
   await a.keyboard.type("hello");
-  const text = await a.evaluate(() => {
+  const text = await a.evaluate((id) => {
+    const doc = window.__paneDocs?.a ?? null;
+    return doc === null || id === "" ? null : doc.getText(id);
+  }, trailingId ?? "");
+  expect(text).toBe("hello");
+  await close();
+});
+
+test("a divider in the middle of the document gets no trailing paragraph", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux08-slash-divider-middle");
+
+  // Two seeded paragraphs after the starter: the trigger stands in the
+  // middle (the replacement lands between two live blocks). The room may
+  // carry re-run leftovers — the assertion scopes to the seeded tail.
+  const seeded = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) return null;
-    const ids = doc.getChildren(doc.meta.id);
-    return doc.getText(ids[ids.length - 1]!);
+    let mid = "";
+    let tail = "";
+    doc.transact(() => {
+      mid = doc.insertBlock("paragraph");
+      tail = doc.insertBlock("paragraph");
+      doc.insertText(tail, 0, "middle");
+    });
+    return { mid, tail };
   });
-  expect(text).toBe("hello");
+  expect(seeded?.mid).toEqual(expect.any(String));
+  const midInner = a.locator(`[data-block-id="${seeded?.mid}"] [data-slot="docblocks/block-content"]`);
+  await midInner.click();
+  await a.keyboard.type("/divider");
+  await expect(menu(a)).toBeVisible();
+  await a.keyboard.press("Enter");
+
+  // The divider lands in the middle: a paragraph stands before it, and
+  // the sequence continues with the seeded tail (no trailing paragraph
+  // is synthesized — the tail is the seeded block, not a new empty one).
+  const shape = await a.evaluate((tail) => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null || tail === "") return null;
+    const ids = doc.getChildren(doc.meta.id);
+    const at = ids.indexOf(tail);
+    if (at < 2) return null;
+    const before2 = doc.getBlock(ids[at - 2]!);
+    const before1 = doc.getBlock(ids[at - 1]!);
+    return {
+      before2: before2 === null || before2 === undefined ? null : before2.type,
+      before1: before1 === null || before1 === undefined ? null : before1.type,
+      tailText: doc.getText(tail),
+    };
+  }, seeded?.tail ?? "");
+  expect(shape).toEqual({ before2: "paragraph", before1: "divider", tailText: "middle" });
   await close();
 });
 
@@ -243,31 +295,47 @@ test("a trailing divider deletes through its row's gutter (the blocks selection'
   await expect(menu(a)).toBeVisible();
   await a.keyboard.press("Enter");
 
+  // The LAST divider of the sequence (the room may carry re-run
+  // leftovers — the freshly inserted one stands at the end, before its
+  // trailing paragraph).
   const divId = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) return null;
+    let hit: string | null = null;
     for (const id of doc.getChildren(doc.meta.id)) {
-      if (doc.getBlock(id)?.type === "divider") return id;
+      if (doc.getBlock(id)?.type === "divider") hit = id;
     }
-    return null;
+    return hit;
   });
   expect(divId).not.toBeNull();
+  const dividerCountBefore = await a.locator('[data-slot="docblocks/divider"]').count();
 
   // The motion view's row-level gutter stands for the non-text rows: the
   // gutter click selects the block (the row takes the focus — the editor
-  // root owns the selection keys), Delete removes the divider.
-  const row = a.locator('[data-slot="docblocks/row"]').filter({ has: a.locator('[data-slot="docblocks/divider"]') });
+  // root owns the selection keys). Scoped to the fresh divider's row
+  // (re-run leftovers stand as their own rows).
+  const row = a.locator('[data-slot="docblocks/row"]').filter({ has: a.locator(`[data-block-id="${divId}"]`) });
   await row.locator('[data-slot="docblocks/gutter"]').click();
   await expect(row).toHaveAttribute("data-selected", "true");
+  // Escape clears the selection (the row stands, the divider survives).
+  await a.keyboard.press("Escape");
+  await expect(row).not.toHaveAttribute("data-selected");
+  await expect(a.locator(`[data-block-id="${divId}"]`)).toHaveCount(1);
+  await row.locator('[data-slot="docblocks/gutter"]').click();
   await a.keyboard.press("Delete");
 
-  // The divider is gone; the trailing paragraph stands.
-  const types = await a.evaluate(() => {
+  // The divider is gone (the count dropped by one); its trailing
+  // paragraph stands as the sequence's last block.
+  await expect(a.locator(`[data-block-id="${divId}"]`)).toHaveCount(0);
+  expect(await a.locator('[data-slot="docblocks/divider"]').count()).toBe(dividerCountBefore - 1);
+  const lastType = await a.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) return null;
-    return doc.getChildren(doc.meta.id).map((id) => doc.getBlock(id)?.type ?? null);
+    const ids = doc.getChildren(doc.meta.id);
+    const last = ids[ids.length - 1];
+    return last === undefined ? null : (doc.getBlock(last)?.type ?? null);
   });
-  expect(types).toEqual(["paragraph"]);
+  expect(lastType).toBe("paragraph");
   await close();
 });
 
@@ -390,7 +458,16 @@ test("a phrase-only block converts by replacement (the converted block stands em
   browser,
 }) => {
   const { a, b, close } = await openPanes(browser, "ux07-slash-replace");
-  const target = inner(a, "a");
+  // Seed our own phrase-only block: the room's doc is not fresh on a
+  // re-run (the relay keeps the rooms for its lifetime — the leftovers
+  // stand), so the assertions scope to the seeded id.
+  const seedId = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    return doc.insertBlock("paragraph");
+  });
+  expect(seedId).not.toBeNull();
+  const target = a.locator(`[data-block-id="${seedId}"] [data-slot="docblocks/block-content"]`);
   await target.click();
 
   await a.keyboard.type("/head");
@@ -400,19 +477,39 @@ test("a phrase-only block converts by replacement (the converted block stands em
   await expect(menu(a)).toHaveCount(0);
 
   // The block's whole text was the trigger phrase: it converts by the
-  // replace path — an empty heading (the phrase stripped, nothing else to
-  // keep), synced to the other pane; the caret stands in the new block
-  // (one undo step restores the phrase and the paragraph).
-  const heading = a.locator('[data-testid="doc-a"] h2[data-block-type="heading"]');
-  await expect(heading).toHaveCount(1);
-  await expect(heading.locator('[data-slot="docblocks/block-content"]')).toHaveText("");
-  await expect(b.locator('[data-testid="doc-b"] h2[data-block-type="heading"]')).toHaveCount(1);
+  // replace path — the empty heading stands as the sequence's last block
+  // (the seed was the last one; a re-run's leftovers stand before it, so
+  // the pane-wide counts do not pin).
+  const headingId = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    const ids = doc.getChildren(doc.meta.id);
+    const last = ids[ids.length - 1];
+    if (last === undefined) return null;
+    const block = doc.getBlock(last);
+    return block !== null && block !== undefined && block.type === "heading" && block.attrs?.level === 2 ? last : null;
+  });
+  expect(headingId).not.toBeNull();
+  expect(headingId).not.toBe(seedId);
+  await expect(a.locator(`[data-block-id="${headingId}"] [data-slot="docblocks/block-content"]`)).toHaveText("");
+  // Synced to the other pane (scoped by the block id; the wrapper level —
+  // the inner contenteditable carries the block id too).
+  await expect(b.locator(`[data-slot="docblocks/block"][data-block-id="${headingId}"]`)).toHaveCount(1);
 
   const outBefore = await outCount(a, "a");
   await a.keyboard.press("Control+z");
   await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 1);
-  await expect(a.locator('[data-testid="doc-a"] h2[data-block-type="heading"]')).toHaveCount(0);
-  await expect(target).toHaveText("/head");
+  // One undo step restores the seed with the phrase (the removed block
+  // stands again) and the new heading is gone.
+  await expect
+    .poll(async () => {
+      return a.evaluate((id) => {
+        const doc = window.__paneDocs?.a ?? null;
+        return doc === null || id === "" ? null : doc.getText(id);
+      }, seedId ?? "");
+    })
+    .toBe("/head");
+  await expect(a.locator(`[data-block-id="${headingId}"]`)).toHaveCount(0);
   await close();
 });
 
