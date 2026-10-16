@@ -221,6 +221,18 @@ describe("the code block body", () => {
     expect(inner!.className).toContain("empty:after:content-['\\200b']");
   });
 
+  it("does not show the slash-menu placeholder (code keeps the '/' as plain text)", () => {
+    renderCodeDoc((d) => {
+      d.insertBlock("paragraph"); // the paragraph keeps the hint
+      d.insertBlock("code");
+    });
+    const inners = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/block-content']"));
+    const codeInner = inners.find((el) => el.closest("pre") !== null);
+    const paragraphInner = inners.find((el) => el.closest("pre") === null);
+    expect(codeInner?.getAttribute("data-placeholder")).toBeNull();
+    expect(paragraphInner?.getAttribute("data-placeholder")).toBe("Type '/' for commands");
+  });
+
   it("wraps long lines by default and scrolls horizontally when wrap is off", () => {
     let code: BlockId = "";
     const doc = renderCodeDoc((d) => {

@@ -493,7 +493,10 @@ function TextBlock({
       spellCheck={false}
       data-slot="docblocks/block-content"
       data-block-id={id}
-      data-placeholder={commandPalettePlaceholder}
+      // The empty-block hint names the slash command menu — code keeps the
+      // "/" as plain text (the menu never opens there), so the hint stands
+      // for every other text type only.
+      data-placeholder={block.type === "code" ? undefined : commandPalettePlaceholder}
       className={innerClass}
       onInput={commitDomDelta}
       onPaste={onPaste}
