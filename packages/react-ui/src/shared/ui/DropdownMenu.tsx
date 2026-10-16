@@ -32,7 +32,8 @@ function DropdownMenuContent({
         className={cn(
           `
             z-modal max-h-(--radix-dropdown-menu-content-available-height) min-w-32
-            origin-(--radix-dropdown-menu-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border
+            origin-(--radix-dropdown-menu-content-transform-origin) scrollbar-thin
+            [scrollbar-color:var(--border)_transparent] overflow-x-hidden overflow-y-auto rounded-md border
             border-border bg-popover p-1 text-popover-foreground shadow-md
             data-[side=bottom]:slide-in-from-top-2
             data-[side=left]:slide-in-from-right-2

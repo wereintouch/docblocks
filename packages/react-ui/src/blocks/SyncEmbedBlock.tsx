@@ -4,6 +4,7 @@ import { Editor } from "../Editor";
 import { EditorProvider, useEditorContext } from "../EditorProvider";
 import { Alert, AlertTitle } from "../shared/ui/Alert";
 import { Card } from "../shared/ui/Card";
+import { ScrollArea } from "../shared/ui/ScrollArea";
 
 /**
  * The sync-embed render depth bound (spec: the cycle guards are a
@@ -29,11 +30,14 @@ type SyncEmbedState = "resolved" | "broken" | "cycle";
  */
 function SyncEmbedContent({ master, blockId }: { master: Doc; blockId?: BlockId }) {
   return (
-    <div data-slot="docblocks/sync-embed-body" className="max-h-(--docblocks-sync-embed-max-height) overflow-y-auto">
+    <ScrollArea
+      data-slot="docblocks/sync-embed-body"
+      className="max-h-(--docblocks-sync-embed-max-height) overflow-x-hidden"
+    >
       <EditorProvider doc={master} rootBlockId={blockId}>
         <Editor />
       </EditorProvider>
-    </div>
+    </ScrollArea>
   );
 }
 

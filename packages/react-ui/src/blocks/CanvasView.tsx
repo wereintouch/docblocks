@@ -6,6 +6,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
+import { ScrollArea } from "../shared/ui/ScrollArea";
 import { BlockGroups } from "./BlockView";
 import { CanvasItem } from "./CanvasItem";
 import { ConnectorLayer } from "./ConnectorLayer";
@@ -79,18 +80,18 @@ function CanvasView() {
         bg-size-[var(--docblocks-canvas-view-grid)_var(--docblocks-canvas-view-grid)]
       "
     >
-      <div
+      <ScrollArea
         data-slot="docblocks/page-card"
         style={pageCardStyle(root)}
         className="
-          box-border overflow-auto rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
+          box-border rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
           p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
         "
       >
         <BlockContext.Provider value={pageContext}>
           <BlockGroups ids={pageChildren} />
         </BlockContext.Provider>
-      </div>
+      </ScrollArea>
       {surfaces.map(({ id, children }) => (
         <SurfaceLayer key={id} id={id} children={children} />
       ))}

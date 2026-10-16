@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
   Popover,
   PopoverTrigger,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -72,6 +73,26 @@ describe("shared/ui smoke", () => {
     expect(screen.getByRole("alert")).toBeDefined();
     expect(screen.getByText("Heads up")).toBeDefined();
     expect(screen.getByText("Something happened")).toBeDefined();
+  });
+
+  it("renders ScrollArea with the thin-scrollbar contract (the consumer classes merge)", () => {
+    render(
+      <ScrollArea className="max-h-40 p-2">
+        <p>scrollable content</p>
+      </ScrollArea>
+    );
+    const el = document.querySelector('[data-slot="scroll-area"]');
+    expect(el).not.toBeNull();
+    // The thin native scrollbar (the theme border color over a transparent
+    // track) + the keyboard-scroll focus ring stand on the base classes.
+    expect(el!.className).toContain("[scrollbar-color:var(--border)_transparent]");
+    expect(el!.className).toContain("scrollbar-thin");
+    expect(el!.className).toContain("overflow-auto");
+    // The consumer's classes merge in (twMerge: the max-h/p stand, no
+    // class is dropped by the base).
+    expect(el!.className).toContain("max-h-40");
+    expect(el!.className).toContain("p-2");
+    expect(screen.getByText("scrollable content")).toBeDefined();
   });
 
   it("renders Checkbox", () => {

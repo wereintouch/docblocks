@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "../shared/ui/DropdownMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
+import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
 import {
   Captions,
@@ -226,7 +227,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                 "
               />
             </div>
-            <div role="listbox" aria-label="Languages" className="max-h-64 overflow-y-auto py-0.5">
+            <ScrollArea role="listbox" aria-label="Languages" className="max-h-64 overflow-x-hidden py-0.5">
               {matches.length === 0 ? (
                 <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
               ) : (
@@ -250,7 +251,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                   );
                 })
               )}
-            </div>
+            </ScrollArea>
           </PopoverContent>
         </Popover>
         {center}

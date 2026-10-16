@@ -19,6 +19,7 @@ import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { Button } from "../shared/ui/Button";
 import { Checkbox } from "../shared/ui/Checkbox";
+import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
 import { GripVertical, TriangleFilled } from "../shared/ui/icons";
 import { renderRunsInto } from "../text/runs-dom";
@@ -533,9 +534,12 @@ function TextBlock({
               ))}
         </div>
       )}
-      <div data-slot="docblocks/code-scroll" className={cn("min-w-0 flex-1", !codeWrap && "overflow-x-auto")}>
+      <ScrollArea
+        data-slot="docblocks/code-scroll"
+        className={cn("min-w-0 flex-1", !codeWrap && "overflow-x-auto overflow-y-hidden")}
+      >
         {innerEditable}
-      </div>
+      </ScrollArea>
     </div>
   ) : (
     innerEditable

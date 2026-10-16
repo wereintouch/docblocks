@@ -42,6 +42,7 @@ export {
   SelectTrigger,
   SelectValue,
 } from "./Select";
+export { ScrollArea } from "./ScrollArea";
 export { Skeleton } from "./Skeleton";
 export { Tabs, TabsContent, TabsList, TabsTrigger, tabsListVariants } from "./Tabs";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./Tooltip";

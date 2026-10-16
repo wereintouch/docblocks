@@ -17,6 +17,7 @@ import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
+import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
 import {
   CodeXml,
@@ -693,12 +694,12 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps)
 
   if (!visible) return null;
   return (
-    <div
+    <ScrollArea
       ref={menuRef}
       role="menu"
       data-slot="docblocks/slash-menu"
       className={cn(
-        "absolute z-modal max-h-80 min-w-32 overflow-y-auto rounded-md border border-border bg-popover p-1",
+        "absolute z-modal max-h-80 min-w-32 overflow-x-hidden rounded-md border border-border bg-popover p-1",
         "text-popover-foreground shadow-md",
         position === null && "opacity-0"
       )}
@@ -730,7 +731,7 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps)
           {command.label}
         </div>
       ))}
-    </div>
+    </ScrollArea>
   );
 }
 

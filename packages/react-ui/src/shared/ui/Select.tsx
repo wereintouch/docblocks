@@ -75,7 +75,7 @@ function SelectContent({
         className={cn(
           `
             relative z-modal max-h-(--radix-select-content-available-height) min-w-32
-            origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border
+            origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-hidden rounded-md border
             border-border bg-popover text-popover-foreground shadow-md
             data-[side=bottom]:slide-in-from-top-2
             data-[side=left]:slide-in-from-right-2
@@ -99,7 +99,7 @@ function SelectContent({
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
-            "p-1",
+            "scrollbar-thin [scrollbar-color:var(--border)_transparent] p-1",
             position === "popper" &&
               "h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width) scroll-my-1"
           )}

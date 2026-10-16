@@ -67,6 +67,7 @@ export {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
+  ScrollArea,
   Separator,
   Skeleton,
   Tabs,

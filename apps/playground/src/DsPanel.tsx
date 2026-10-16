@@ -19,6 +19,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  ScrollArea,
   Select,
   SelectContent,
   SelectItem,
@@ -136,6 +137,13 @@ function DsPanel() {
           </TooltipTrigger>
           <TooltipContent>The tooltip content</TooltipContent>
         </Tooltip>
+        <ScrollArea data-testid="ds-scroll-area" className="h-24 w-40 rounded-md border border-border p-2">
+          <div style={{ fontSize: 12, lineHeight: "18px" }}>
+            {Array.from({ length: 12 }, (_, i) => (
+              <div key={i}>Row {i + 1}</div>
+            ))}
+          </div>
+        </ScrollArea>
       </div>
 
       <div style={{ display: "grid", gap: 12 }}>
