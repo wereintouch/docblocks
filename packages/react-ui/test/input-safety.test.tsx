@@ -55,11 +55,11 @@ function caretAt(el: HTMLElement, offset: number): void {
   selection!.addRange(range);
 }
 
-/** Dispatch a paste event whose clipboard holds the given plain text. */
-function dispatchPaste(el: HTMLElement, plainText: string): boolean {
+/** Dispatch a paste event whose clipboard holds the given plain text (and optionally the html). */
+function dispatchPaste(el: HTMLElement, plainText: string, htmlText = ""): boolean {
   const event = new Event("paste", { bubbles: true, cancelable: true });
   Object.defineProperty(event, "clipboardData", {
-    value: { getData: (format: string) => (format === "text/plain" ? plainText : "") },
+    value: { getData: (format: string) => (format === "text/plain" ? plainText : htmlText) },
   });
   return el.dispatchEvent(event);
 }
@@ -634,5 +634,98 @@ describe("code gestures (the soft-line family: Enter line break / exit, Backspac
 
     expect(blockCount(doc)).toBe(2);
     expect(doc.getBlock(blockId)?.type).toBe("paragraph");
+  });
+});
+
+describe("the code/latex paste target (the raw text)", () => {
+  let codeId: BlockId = "";
+
+  /** A doc with one code block (the optional text). */
+  function renderCode(text = ""): TestDoc {
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    codeId = doc.insertBlock("code");
+    if (text !== "") doc.insertText(codeId, 0, text);
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+    return doc;
+  }
+
+  function codeInner(): HTMLElement {
+    const el = document.querySelector<HTMLElement>(`[data-block-id="${codeId}"]`);
+    const inner = el?.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
+    expect(inner, "the code block should carry the inner editable").not.toBeNull();
+    return inner!;
+  }
+
+  /** Seat the caret on the (text-node-less) empty inner editable itself. */
+  function caretAtEmpty(inner: HTMLElement): void {
+    const range = document.createRange();
+    range.selectNodeContents(inner);
+    range.collapse(true);
+    const selection = window.getSelection();
+    expect(selection).not.toBeNull();
+    selection!.removeAllRanges();
+    selection!.addRange(range);
+  }
+
+  it("the code target stands the plain payload when the html is present (the indentation and the lines stand)", () => {
+    const doc = renderCode();
+    const inner = codeInner();
+    caretAtEmpty(inner);
+
+    act(() => {
+      dispatchPaste(inner, "def main():\n    x = 1\n\n    return x", "<pre>def main():\n    x = 1</pre>");
+    });
+
+    // the raw text stands verbatim (the html pipeline's line-flattening
+    // never runs on the code target)
+    expect(doc.getText(codeId)).toBe("def main():\n    x = 1\n\n    return x");
+    expect(blockCount(doc)).toBe(2); // root + the code
+  });
+
+  it("the code target keeps the exact whitespace (the tabs, the blank lines, the trailing newline)", () => {
+    const doc = renderCode("start\n");
+    const inner = codeInner();
+    caretAt(inner, 6);
+
+    act(() => {
+      dispatchPaste(inner, "\ta\n\tb  \n");
+    });
+
+    expect(doc.getText(codeId)).toBe("start\n\ta\n\tb  \n");
+  });
+
+  it("the CRLF clipboard line endings normalize to the doc's LF", () => {
+    const doc = renderCode();
+    const inner = codeInner();
+    caretAtEmpty(inner);
+
+    act(() => {
+      dispatchPaste(inner, "a\r\nb\rc");
+    });
+
+    expect(doc.getText(codeId)).toBe("a\nb\nc");
+  });
+
+  it("the latex target stands the plain payload when the html is present", () => {
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const id = doc.insertBlock("latex", { display: true });
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+    const inner = document.querySelector<HTMLElement>(`[data-block-id="${id}"] [data-slot="docblocks/block-content"]`);
+    expect(inner, "the latex block should carry the inner editable").not.toBeNull();
+    caretAtEmpty(inner!);
+
+    act(() => {
+      dispatchPaste(inner!, "$$ y = x $$\n$$ z $$", "<pre>$$ y = x $$</pre>");
+    });
+
+    expect(doc.getText(id)).toBe("$$ y = x $$\n$$ z $$");
   });
 });

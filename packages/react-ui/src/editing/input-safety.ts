@@ -82,6 +82,11 @@ function useBlockInput({
       const html = event.clipboardData.getData("text/html");
       const text = event.clipboardData.getData("text/plain");
 
+      // The code/latex targets take the plain payload even when the html is
+      // present (their data is the raw text — the html pipeline flattens
+      // the lines and destroys the indentation).
+      const plainWins = blockType === "code" || blockType === "latex";
+
       // A cross-block range: the range is deleted as text and the paste
       // content lands at the seam — one transaction (one undo step, one
       // wire update), the single-block insert pipeline reused as-is. A
@@ -104,7 +109,9 @@ function useBlockInput({
           doc.transact(() => {
             const deleted = doc.deleteTextRange(from, to);
             if (deleted === null) return;
-            if (html !== "") {
+            const seamBlock = doc.getBlock(deleted.blockId);
+            const seamRaw = seamBlock !== null && (seamBlock.type === "code" || seamBlock.type === "latex");
+            if (html !== "" && !(seamRaw && text !== "")) {
               // The rich cross paste keeps the single-line pipeline.
               const length = applyRichPaste(doc, deleted.blockId, deleted.offset, deleted.offset, html);
               seam.landing = length > 0 ? { blockId: deleted.blockId, offset: deleted.offset + length } : null;
@@ -148,7 +155,10 @@ function useBlockInput({
       // A rich payload: apply the whitelist-flattened runs as doc commands;
       // the selection collapses to its end first, so the store-driven
       // rebuild lands the caret after the inserted text (the rebase path).
-      if (html !== "") {
+      // The code/latex targets stand the plain payload (the plainWins gate
+      // above) — the raw text is their data; the html-only fallback keeps
+      // the old behavior when there is no plain to stand on.
+      if (html !== "" && (!plainWins || text === "")) {
         restoreSelection(el, to, null);
         applyRichPaste(doc, id, from, to, html);
         return;

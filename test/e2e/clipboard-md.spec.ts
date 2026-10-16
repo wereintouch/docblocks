@@ -64,6 +64,21 @@ async function writePlainClipboard(page: Page, text: string): Promise<void> {
   }, text);
 }
 
+/** Seed the clipboard with BOTH payloads (the code copied from an editor: the html + the plain). */
+async function writeCodeClipboard(page: Page, plain: string, html: string): Promise<void> {
+  await page.evaluate(
+    async (arg) => {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/html": new Blob([arg.html], { type: "text/html" }),
+          "text/plain": new Blob([arg.plain], { type: "text/plain" }),
+        }),
+      ]);
+    },
+    { plain, html }
+  );
+}
+
 /** Paste the OS clipboard into the focused element (headless Chromium does not synthesize the paste event). */
 async function pasteFromClipboard(page: Page): Promise<void> {
   await page.evaluate(async () => {
@@ -158,7 +173,7 @@ test("the whole multi-block paste is one undo step", async ({ browser }) => {
 });
 
 test("the code target takes the markdown as raw text (no parsing, no new blocks)", async ({ browser }) => {
-  const { a, close } = await openPanes(browser, "clip-md-code");
+  const { a, b, close } = await openPanes(browser, "clip-md-code");
   try {
     const codeId = await a.evaluate(
       ({ client }) => {
@@ -171,7 +186,11 @@ test("the code target takes the markdown as raw text (no parsing, no new blocks)
     await expect.poll(async () => (await rootBlocks(a, "a"))?.length, SETTLE).toBe(2); // the starter paragraph + the code block
 
     await innerOf(a, "a", codeId).click();
-    await writePlainClipboard(a, "# not a heading\n- not a list\n```\nfn(){}\n```\n");
+    // both payloads (a copy from an editor): the plain stands verbatim
+    // (the indentation and the lines — the html pipeline's flattening
+    // never runs on the code target)
+    const code = "def main():\n\treturn [1, 2]\n\n\tif True:\n\t\tx = 1\n";
+    await writeCodeClipboard(a, code, "<pre>def main():\n\treturn [1, 2]</pre>");
     await pasteFromClipboard(a);
 
     await expect
@@ -183,9 +202,20 @@ test("the code target takes the markdown as raw text (no parsing, no new blocks)
           }),
         SETTLE
       )
-      .toBe("# not a heading\n- not a list\n```\nfn(){}\n```\n");
+      .toBe(code);
     // the block count stands (the fence never parsed into blocks)
     expect((await rootBlocks(a, "a"))?.length).toBe(2);
+    // the other pane sees the same raw text over the wire
+    await expect
+      .poll(
+        async () =>
+          b.evaluate(({ client, id }) => window.__paneDocs?.[client]?.getText(id) ?? "", {
+            client: "b" as const,
+            id: codeId,
+          }),
+        SETTLE
+      )
+      .toBe(code);
   } finally {
     await close();
   }

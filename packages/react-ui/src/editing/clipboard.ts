@@ -249,13 +249,16 @@ function applyMdPaste(
   const seat = doc.getBlock(seatId);
   if (seat === null) return null;
 
-  // The code/latex target: the raw text, no parsing.
+  // The code/latex target: the raw text, no parsing (the fence/`$$`
+  // syntax is their data). The clipboard's line endings are the
+  // platform's; the doc model is the LF.
   if (seat.type === "code" || seat.type === "latex") {
+    const raw = markdown.replace(/\r\n?/g, "\n");
     doc.transact(() => {
       if (to > from) doc.deleteText(seatId, from, to);
-      doc.insertText(seatId, from, markdown);
+      doc.insertText(seatId, from, raw);
     });
-    return { blockId: seatId, offset: from + markdown.length };
+    return { blockId: seatId, offset: from + raw.length };
   }
 
   const parsed = mdToBlocks(markdown);
