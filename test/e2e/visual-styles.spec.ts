@@ -117,10 +117,15 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
   expect(await doc.locator('[data-block-type="code"]').count()).toBe(2);
   expect(await doc.locator('[data-block-type="code"][data-language="mermaid"]').count()).toBe(1);
-  // The mermaid block renders the diagram (not the plain code view): wait
-  // for the async render, then pin the preview state.
-  await expect(doc.locator('[data-slot="docblocks/mermaid"] svg')).toHaveCount(1);
-  await expect(doc.locator('[data-slot="docblocks/mermaid"][data-state="diagram"]')).toHaveCount(1);
+  // The mermaid block stands in its default code mode (the exclusive
+  // modes): the editable code with the line numbers stands, the diagram
+  // is not rendered (the preview render is pinned by the mermaid spec).
+  expect(await doc.locator('[data-slot="docblocks/mermaid"]').count()).toBe(0);
+  expect(
+    await doc
+      .locator('[data-block-type="code"][data-language="mermaid"] [data-slot="docblocks/code-line-numbers"]')
+      .count()
+  ).toBe(1);
   expect(await doc.locator('[data-block-type="latex"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="table"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="image"]').count()).toBe(1);
@@ -167,8 +172,8 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
 
   // Code blocks: the language attrs (the ts block is the mono pin below —
   // the preflight makes pre mono on its own, so the pin reads the inner
-  // content element the class lands on; the mermaid block renders the
-  // diagram — waited for above).
+  // content element the class lands on; the mermaid block stands in its
+  // default code mode, pinned above).
   const pre = doc.locator('pre[data-block-type="code"][data-language="ts"]');
   expect(await pre.getAttribute("data-language")).toBe("ts");
   expect(
@@ -399,8 +404,11 @@ test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) 
   );
   expect(bodyStyle).toEqual({ "max-height": "200px", "overflow-y": "auto" });
 
-  // The mermaid preview (the ./mermaid subpath, once the diagram settles):
-  // the spacing below the editable code.
+  // The mermaid preview (the ./mermaid subpath): the catalog's mermaid
+  // block stands in its default code mode — switch it to preview (the mode
+  // attr) so the diagram stands, and read the spacing below the code body
+  // once the async render settles.
+  await page.evaluate(() => window.__catalogDoc?.updateBlock("c0031", { mermaidMode: "preview" }));
   const mermaid = doc.locator('[data-slot="docblocks/mermaid"]');
   await expect(mermaid.locator("svg")).toHaveCount(1);
   expect((await styleProps(mermaid, "margin-top"))["margin-top"]).toBe("8px");

@@ -43,6 +43,7 @@ interface PaneDoc {
   getText(id: string): string;
   insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string; after?: string }): string;
   insertText(blockId: string, pos: number, text: string, marks?: Record<string, unknown>): void;
+  updateBlock(id: string, attrs: Record<string, unknown>): void;
   setCell(
     databaseId: string,
     rowId: string,

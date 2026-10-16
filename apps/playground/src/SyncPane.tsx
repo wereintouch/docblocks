@@ -38,10 +38,10 @@ declare global {
 
 /**
  * The pane's renderer map (the demo of the `./mermaid` subpath): a
- * `code` block with `language: "mermaid"` renders the live diagram
- * preview, every other code block falls through to the built-in
- * rendering inside the renderer. Module-level: the provider reads the
- * map per render, so the reference must be stable.
+ * `code` block with `language: "mermaid"` renders the code/preview modes
+ * (the default code mode) — every other code block falls through to the
+ * built-in rendering inside the renderer. Module-level: the provider
+ * reads the map per render, so the reference must be stable.
  */
 const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
 
