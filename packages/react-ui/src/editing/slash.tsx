@@ -69,7 +69,9 @@ const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
  * (no focus machinery): it never takes the focus — the caret stays in the
  * block while it is open — and anchors at the left edge of the "/"
  * character: below the line, or above it when the below placement would
- * overrun the viewport bottom. Zero filter matches hide the list (the
+ * overrun the viewport bottom (the list is bounded and scrolls, so the
+ * flip stays close to the caret). Zero filter matches hide the list
+ * (the
  * state stays open, so deleting the query back to a match brings it
  * back); the keys are Escape (close), ArrowUp/ArrowDown (move the active
  * item while a list stands), and Enter (apply). Printable keys, Backspace,
@@ -319,7 +321,18 @@ function applySlashPlan(
           after === undefined ? undefined : { parent: parentId, after },
           indent
         );
-        focusCaretIn(newId, 0, scope);
+        // A non-text landing (a divider) is not editable: when it takes
+        // the sequence's end, an empty paragraph stands after it (the
+        // caret seats there — without the trailing block there is no way
+        // to keep typing, and no caret stands in the divider itself).
+        let caretId = newId;
+        if (command.type === "divider") {
+          const sequence = doc.getChildren(parentId);
+          if (sequence[sequence.length - 1] === newId) {
+            caretId = doc.insertBlock("paragraph", undefined, { parent: parentId, after: newId });
+          }
+        }
+        focusCaretIn(caretId, 0, scope);
       });
       return;
     case "update":
@@ -632,11 +645,11 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps)
   const visible = items.length > 0;
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 
-  // Anchor at the "/" character — below the line, above it when the
-  // below placement overruns the viewport bottom. Measured in a layout
-  // effect (the first frame stands hidden until the rects stand);
-  // environments without layout (jsdom — no range rects) leave the menu
-  // unpositioned.
+  // Anchor at the "/" character: below the line, or above it when the
+  // below placement overruns the viewport bottom (the bounded list keeps
+  // the flip close to the caret). Measured in a layout effect (the first
+  // frame stands hidden until the rects stand); environments without
+  // layout (jsdom — no range rects) leave the menu unpositioned.
   const menuRef = useRef<HTMLDivElement | null>(null);
   const [position, setPosition] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   useLayoutEffect(() => {
@@ -658,11 +671,25 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps)
     const left = rect.left - rootRect.left;
     const height = menuRef.current?.offsetHeight ?? 0;
     if (rect.bottom + height + 8 > window.innerHeight) {
-      setPosition({ left, bottom: rect.top - rootRect.top });
+      // `bottom` is measured from the root's BOTTOM edge (the css absolute
+      // posture): the menu's bottom edge stands at the caret's top.
+      setPosition({ left, bottom: rootRect.bottom - rect.top });
     } else {
       setPosition({ left, top: rect.bottom - rootRect.top });
     }
   }, [visible, state.blockId, state.slashOffset, text, rootRef]);
+
+  // The keyboard-navigated active item stands visible inside the bounded
+  // list (the minimal scroll of the menu's own overflow; jsdom has no
+  // scrollIntoView — the guard stands). Skipped while the menu is
+  // unpositioned: the first frame stands at the document's end, and a
+  // scrollIntoView there would scroll the page (the menu takes its
+  // position on the next commit).
+  useLayoutEffect(() => {
+    if (!visible || position === null) return;
+    const activeEl = menuRef.current?.querySelector<HTMLElement>("[data-slot='docblocks/slash-item'][data-active]");
+    activeEl?.scrollIntoView?.({ block: "nearest" });
+  }, [active, visible, position]);
 
   if (!visible) return null;
   return (
@@ -671,7 +698,7 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps)
       role="menu"
       data-slot="docblocks/slash-menu"
       className={cn(
-        "absolute z-modal min-w-32 overflow-hidden rounded-md border border-border bg-popover p-1",
+        "absolute z-modal min-w-32 max-h-80 overflow-y-auto rounded-md border border-border bg-popover p-1",
         "text-popover-foreground shadow-md",
         position === null && "opacity-0"
       )}

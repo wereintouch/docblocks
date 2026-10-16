@@ -12,8 +12,8 @@ import {
   indentOf,
   mergeWithPrevious,
   outdentBlock,
+  removeBlocksSelection,
   restoreSelectionIn,
-  segmentRange,
   splitAt,
 } from "./block-commands";
 import { applyRichPaste } from "./clipboard";
@@ -188,25 +188,7 @@ function useBlockInput({
         // The wrapper is focused (gutter click): the selection keys act on it.
         if (event.key === "Delete" || event.key === "Backspace") {
           event.preventDefault();
-          doc.transact(() => {
-            // Each selected block's derived segment (its deeper
-            // followers) goes with it: the core's removeBlock cascades
-            // the segment, so the removals run head-first and skip what
-            // a previous cascade already took (the cross-range
-            // commands' skip-already-removed pattern) — a single-block
-            // selection is one removeBlock, a multi-block selection one
-            // transact (one undo step).
-            for (const blockId of selection.ids) {
-              if (doc.getBlock(blockId) === null) continue; // a previous cascade took it
-              const segment = segmentRange(doc, context.parentId, blockId);
-              if (segment === null) continue;
-              const sequence = doc.getChildren(context.parentId);
-              for (let i = segment.start; i < segment.end; i += 1) {
-                const segId = sequence[i];
-                if (segId !== undefined && doc.getBlock(segId) !== null) doc.removeBlock(segId);
-              }
-            }
-          });
+          removeBlocksSelection(doc, context.parentId, selection.ids);
           view.set({ kind: "none" });
           return;
         }

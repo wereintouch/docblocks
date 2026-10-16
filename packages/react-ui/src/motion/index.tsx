@@ -258,6 +258,7 @@ const RowItem = memo(
     onDragMove,
   }: RowItemProps) {
     const dragControls = useDragControls();
+    const rowRef = useRef<HTMLDivElement | null>(null);
     const { doc, store, selection: selectionRef } = useEditorContext();
     const blockContext = useBlockContext();
     const isList = node.kind !== undefined;
@@ -305,6 +306,9 @@ const RowItem = memo(
         } else {
           view.set({ kind: "blocks", ids: [id], anchorId: id });
         }
+        // The row takes the focus: the selection keys (Delete/Backspace/
+        // Escape) bubble to the editor root's handler.
+        rowRef.current?.focus();
       },
       [blockContext, doc, node.id, selectionRef]
     );
@@ -317,9 +321,11 @@ const RowItem = memo(
     return (
       <Reorder.Item
         as="div"
+        ref={rowRef}
         data-slot="docblocks/row"
         data-selected={selected ? "true" : undefined}
         value={node.id}
+        tabIndex={0}
         initial={animated ? ENTER : false}
         animate={ANIMATE}
         exit={EXIT}
@@ -347,7 +353,7 @@ const RowItem = memo(
         onDragEnd={onDragEnd}
         onDrag={onDragMove}
         onPointerDown={onRowPointerDown}
-        className={needsRowGutter ? "group" : undefined}
+        className={cn(needsRowGutter && "group", "outline-none")}
         style={{
           position: "relative",
           // The indent steps, plus the list row's marker zone (the row's

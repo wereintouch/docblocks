@@ -68,6 +68,28 @@ function segmentRange(doc: Doc, contextId: BlockId, id: BlockId): { start: numbe
   return { start, end };
 }
 
+/**
+ * The gutter (blocks) selection removal: each selected block's derived
+ * segment (its deeper followers) goes with it — the core's removeBlock
+ * cascades the segment, so the removals run head-first and skip what a
+ * previous cascade already took. One transact (one undo step, one wire
+ * update).
+ */
+function removeBlocksSelection(doc: Doc, parentId: BlockId, ids: BlockId[]): void {
+  doc.transact(() => {
+    for (const blockId of ids) {
+      if (doc.getBlock(blockId) === null) continue; // a previous cascade took it
+      const segment = segmentRange(doc, parentId, blockId);
+      if (segment === null) continue;
+      const sequence = doc.getChildren(parentId);
+      for (let i = segment.start; i < segment.end; i += 1) {
+        const segId = sequence[i];
+        if (segId !== undefined && doc.getBlock(segId) !== null) doc.removeBlock(segId);
+      }
+    }
+  });
+}
+
 /** Inserts a block of the same type and attrs as `block`, right after `after` under `parent` (the indent stands). */
 function insertSameTypeAfter(doc: Doc, block: Block, parent: BlockId, after: BlockId): BlockId {
   const indent = indentOf(doc, after);
@@ -600,6 +622,7 @@ export {
   mergeWithPrevious,
   moveSegmentInSequence,
   outdentBlock,
+  removeBlocksSelection,
   restoreSelectionIn,
   segmentRange,
   splitAt,

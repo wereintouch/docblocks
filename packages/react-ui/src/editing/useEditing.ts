@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import type { ClipboardEvent, KeyboardEvent, PointerEvent, RefObject } from "react";
 
 import { useEditorContext } from "../EditorProvider";
+import { entrySequenceParent } from "../blocks/flat";
+import { removeBlocksSelection } from "./block-commands";
 import { crossRangeClipboardContent } from "./cross-copy";
 import { useCrossDrag } from "./cross-drag";
 import { mapDomSelection, selectionsEqual } from "./selection-mapping";
@@ -30,7 +32,7 @@ interface EditingHandle {
  * so a render-time value would be a stale null.
  */
 function useEditing(): EditingHandle {
-  const { doc, selection: selectionRef } = useEditorContext();
+  const { doc, rootBlockId, selection: selectionRef } = useEditorContext();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const crossDrag = useCrossDrag(rootRef, doc);
 
@@ -55,6 +57,28 @@ function useEditing(): EditingHandle {
     const target = event.target instanceof Element ? event.target : null;
     const nearest = target?.closest('[data-slot="docblocks/editor"]') ?? null;
     if (root !== null && nearest !== null && nearest !== root) return;
+    const view = selectionRef.view;
+    if (view !== null) {
+      const selection = view.get();
+      if (selection.kind === "blocks") {
+        // The blocks (gutter) selection's keys on a row no per-block
+        // handler owns (the non-text rows: the row wrapper is focused and
+        // its keydown bubbles here). A text row's own wrapper handles the
+        // same keys earlier on the event path and resets the view to
+        // none, so there is no double fire.
+        if (event.key === "Delete" || event.key === "Backspace") {
+          event.preventDefault();
+          removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), selection.ids);
+          view.set({ kind: "none" });
+          return;
+        }
+        if (event.key === "Escape") {
+          event.preventDefault();
+          view.set({ kind: "none" });
+          return;
+        }
+      }
+    }
     const mod = event.metaKey || event.ctrlKey;
     if (!mod) return;
     const key = event.key.toLowerCase();
