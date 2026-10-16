@@ -8,6 +8,7 @@ import type { Block, BlockId, ListItemAttrs } from "docblocks-core";
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
 import { cn } from "../shared/ui/cn";
+import { CodeHeader } from "./CodeHeader";
 import { DatabaseBlock } from "./DatabaseBlock";
 import { EmbedBlock } from "./EmbedBlock";
 import { FrameBlock } from "./FrameBlock";
@@ -265,6 +266,7 @@ function dispatchBuiltIn(
           id={id}
           block={block}
           tag="pre"
+          header={<CodeHeader id={id} block={block} />}
           nested={nested}
           collapsible={collapsible}
           flat={flat}

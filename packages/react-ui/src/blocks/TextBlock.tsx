@@ -44,6 +44,12 @@ interface TextBlockProps {
    */
   nested?: ReactNode;
   /**
+   * A block-specific header row rendered as the wrapper's first child
+   * (the code block's header; its visibility is managed by the header
+   * itself through the wrapper's `group` hover / focus state).
+   */
+  header?: ReactNode;
+  /**
    * A block with a non-empty derived segment (the flat model's
    * "children"): the row shows the collapse toggle (a per-instance view
    * state, never document data).
@@ -115,7 +121,7 @@ function alignOf(block: EditableBlock): "left" | "center" | "right" | undefined 
  * level (decimal / lower-alpha / lower-roman, cycled by the marker's
  * cycle index), from the run position (continuing across the sublist).
  */
-function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, number }: TextBlockProps) {
+function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, number, header }: TextBlockProps) {
   const { doc, store, selection: selectionRef, commandPalettePlaceholder } = useEditorContext();
   const blockContext = useBlockContext();
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
@@ -470,6 +476,7 @@ function TextBlock({ id, block, tag, nested, collapsible = false, flat = false, 
       className={cn("group", wrapperClass)}
       onKeyDown={onKeydown}
     >
+      {header}
       <Button
         type="button"
         data-slot="docblocks/gutter"

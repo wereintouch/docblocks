@@ -32,6 +32,7 @@ import { useEffect, useState } from "react";
 import type { BlockId, CodeBlock } from "docblocks-core";
 
 import { childrenSlot } from "../blocks/BlockView";
+import { CodeHeader } from "../blocks/CodeHeader";
 import { TextBlock, textOf } from "../blocks/TextBlock";
 import type { BlockRendererProps } from "../blocks/renderers";
 import { Alert, AlertDescription, AlertTitle } from "../shared/ui/Alert";
@@ -130,13 +131,14 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
 function MermaidCodeBlock({ id, block }: { id: BlockId; block: CodeBlock }) {
   const nested = childrenSlot(id, block.children);
   if (block.attrs?.language !== "mermaid") {
-    return <TextBlock id={id} block={block} tag="pre" nested={nested} />;
+    return <TextBlock id={id} block={block} tag="pre" header={<CodeHeader id={id} block={block} />} nested={nested} />;
   }
   return (
     <TextBlock
       id={id}
       block={block}
       tag="pre"
+      header={<CodeHeader id={id} block={block} />}
       nested={
         <>
           <MermaidDiagram id={id} text={textOf(block.content)} />
