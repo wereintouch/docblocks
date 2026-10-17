@@ -58,6 +58,21 @@ interface PaneDoc {
   changeBlockType(id: string, type: string, attrs?: Record<string, unknown>): void;
   setGeometry(id: string, geometry: { x?: number; y?: number; w?: number; h?: number; rotation?: number } | null): void;
   setMark(blockId: string, from: number, to: number, mark: unknown): void;
+  insertTableRow(tableId: string, at?: number): string;
+  removeTableRow(tableId: string, rowId: string): void;
+  moveTableRow(tableId: string, rowId: string, toIndex: number): void;
+  duplicateTableRow(tableId: string, rowId: string): string;
+  clearTableRow(tableId: string, rowId: string): void;
+  insertTableColumn(tableId: string, at?: number): void;
+  removeTableColumn(tableId: string, index: number): void;
+  moveTableColumn(tableId: string, fromIndex: number, toIndex: number): void;
+  duplicateTableColumn(tableId: string, index: number): void;
+  clearTableColumn(tableId: string, index: number): void;
+  setTableColumnColor(tableId: string, index: number, color: string | null): void;
+  setTableColumnWidth(tableId: string, index: number, width: number): void;
+  removeBlock(id: string): void;
+  undo(): void;
+  redo(): void;
   transact(fn: () => void): void;
 }
 
