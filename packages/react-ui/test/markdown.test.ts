@@ -511,9 +511,9 @@ describe("mdToBlocks — the integration", () => {
     expect(blocks.map((b) => b.type)).toEqual(["heading", "paragraph", "list-item"]);
   });
 
-  it("the raw HTML line degrades to the literal text", () => {
+  it("the wrapper tags drop with the content kept (the inline tag pass)", () => {
     const block = single("<div>html</div>");
     expect(block.type).toBe("paragraph");
-    expect(textOf(block.runs)).toBe("<div>html</div>");
+    expect(textOf(block.runs)).toBe("html");
   });
 });

@@ -12,8 +12,21 @@ import type { MarkSet, TextRun } from "docblocks-core";
  * are line-based (fences, the setext-vs-thematic `---` discriminator, the
  * 2–4-space list/quote depth, the GFM table shape), and the inline pass
  * resolves the standard emphasis/strike/code/link/math delimiters with
- * nesting and backslash escapes. Everything the v1 registry cannot
- * express (raw HTML blocks, reference-style links, the inline image in
+ * nesting and backslash escapes.
+ *
+ * Inline HTML tags share the same inline pass (a line resolves markdown
+ * delimiters and `<tag>` at once): the standard inline tags map to the v1
+ * marks (`b`/`strong`, `i`/`em`, `u`, `s`/`strike`/`del`, `code`, `mark`,
+ * `a[href]`), `<br>` is the soft line break, and a line that OPENS with a
+ * structural tag (`h1`–`h6`, `p`, `ul`, `ol`, `li`, `blockquote`, `pre`,
+ * `table`, `hr`) keeps the tags as literal text (no structure). The `code`
+ * span is exclusive (its content is raw and carries no other mark, the
+ * backtick span's contract). Any other tag (unknown, wrappers, `img`,
+ * `sub`/`sup`, unclosed) is dropped with its content kept plain; `style`
+ * and the other attributes are ignored.
+ * HTML entities are decoded once, AFTER the tag scan, so the decoded
+ * `<`/`>` never re-enters the tag parsing.
+ * Everything else the v1 registry cannot express (raw HTML blocks, reference-style links, the inline image in
  * the middle of a line, unbalanced delimiters) degrades to literal text —
  * the paste never fails on valid markdown.
  *
@@ -42,6 +55,133 @@ interface MdPasteBlock {
 }
 
 const IMAGE_LINE = /^ {0,3}!\[([^\]]*)\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)$/;
+
+/** The highlight color of a parsed `<mark>` (the standard HTML `mark` yellow). */
+const MARK_HIGHLIGHT = "#ffff00";
+
+/**
+ * A line that opens with a structural tag (the lenient paste posture: the
+ * tags stay literal text, no structure is born — `h1`–`h6`, `p`, `ul`,
+ * `ol`, `li`, `blockquote`, `pre`, `table`, `hr`).
+ */
+const STRUCTURAL_TAG_LINE = /^<\/?(?:h[1-6]|p|ul|ol|li|blockquote|pre|table|hr)(?=[\s>/])/i;
+
+/** An open inline tag: the name, the raw attrs, the optional self-closing slash. */
+const OPEN_TAG = /^<([a-zA-Z][a-zA-Z0-9-]*)((?:\s+[\w-]+(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'<>]+))?)*)\s*(\/?)>/;
+
+/** A closing tag (dropped at the level where no opener pairs with it). */
+const STRAY_CLOSE_TAG = /^<\/[a-zA-Z][a-zA-Z0-9-]*\s*\/?\s*>/;
+
+/** The `href` attribute value (any quoting, case-insensitive). */
+const TAG_HREF = /\bhref\s*=\s*("[^"]*"|'[^']*'|[^\s"'<>]+)/i;
+
+/** The named entities the paste decodes (the pragmatic common set). */
+const NAMED_ENTITIES: Record<string, string> = {
+  lt: "<",
+  gt: ">",
+  amp: "&",
+  quot: '"',
+  apos: "\u0027",
+  nbsp: "\u00a0",
+  mdash: "\u2014",
+  ndash: "\u2013",
+  hellip: "\u2026",
+  copy: "\u00a9",
+  reg: "\u00ae",
+  trade: "\u2122",
+  rsquo: "\u2019",
+  lsquo: "\u2018",
+  rdquo: "\u201d",
+  ldquo: "\u201c",
+  laquo: "\u00ab",
+  raquo: "\u00bb",
+  middot: "\u00b7",
+  bull: "\u2022",
+  deg: "\u00b0",
+  plusmn: "\u00b1",
+  times: "\u00d7",
+  divide: "\u00f7",
+  euro: "\u20ac",
+  pound: "\u00a3",
+  cent: "\u00a2",
+  yen: "\u00a5",
+  szlig: "\u00df",
+  sect: "\u00a7",
+  para: "\u00b6",
+  permil: "\u2030",
+  frac12: "\u00bd",
+  sup1: "\u00b9",
+  sup2: "\u00b2",
+  sup3: "\u00b3",
+  larr: "\u2190",
+  rarr: "\u2192",
+  uarr: "\u2191",
+  darr: "\u2193",
+};
+
+const ENTITY = /&#x([0-9a-f]+);|&#(\d+);|&([a-z][a-z0-9]*);/gi;
+
+/**
+ * One decode pass (the lenient posture): numeric and the known named
+ * entities decode, the unknown named stays literal. A left-to-right single
+ * pass never re-scans a decoded replacement, so `&amp;lt;` decodes to the
+ * text `&lt;` (not a further `<`).
+ */
+function decodeEntities(value: string): string {
+  return value.replace(ENTITY, (match, hex, dec, named) => {
+    if (hex !== undefined) {
+      const code = Number.parseInt(hex, 16);
+      return Number.isFinite(code) && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    if (dec !== undefined) {
+      const code = Number.parseInt(dec, 10);
+      return Number.isFinite(code) && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    return NAMED_ENTITIES[named ?? ""] ?? match;
+  });
+}
+
+/** The open tag at `i` of `text` (the name lower-cased; `null` for a bare `<`). */
+function inlineTagAt(
+  text: string,
+  i: number
+): { name: string; attrs: string; selfClosing: boolean; end: number } | null {
+  const m = OPEN_TAG.exec(text.slice(i));
+  if (m === null) return null;
+  return { name: m[1]!.toLowerCase(), attrs: m[2] ?? "", selfClosing: m[3] === "/", end: i + m[0]!.length };
+}
+
+/** The v1 mark an open tag maps to (`null` = the tag drops, content stays plain). */
+function inlineTagMarks(tag: { name: string; attrs: string }): MarkSet | null {
+  switch (tag.name) {
+    case "b":
+    case "strong":
+      return { bold: true };
+    case "i":
+    case "em":
+      return { italic: true };
+    case "u":
+      return { underline: true };
+    case "s":
+    case "strike":
+    case "del":
+      return { strike: true };
+    case "code":
+      return { code: true };
+    case "mark":
+      return { highlight: { value: MARK_HIGHLIGHT } };
+    case "a": {
+      const m = TAG_HREF.exec(tag.attrs);
+      if (m === null) return null;
+      let href = m[1]!;
+      if (href.startsWith('"') || href.startsWith("'")) href = href.slice(1, -1);
+      // The entities decode once, at the run-level pass (the single-pass rule).
+      return href !== "" ? { link: { href } } : null;
+    }
+    default:
+      return null;
+  }
+}
 
 /** Whether a line is a GFM table separator row (`| --- | :---: |` shapes). */
 function isTableSeparator(line: string): boolean {
@@ -144,8 +284,54 @@ function parseInline(source: string): TextRun[] {
         continue;
       }
 
-      // The autolink: <https://…> / <mailto:…> (the http/https/mailto schemes only).
+      // The inline HTML tag: a stray closing tag drops (no opener at this
+      // level); `<br>` is the soft break, the known inline tags are mark
+      // spans (a closed pair only — the unclosed open degrades to the plain
+      // content), and any other tag (unknown, wrappers, `img`, structural,
+      // self-closing) drops with its content kept on the current marks. A
+      // bare `<` falls through to the autolink / literal.
       if (ch === "<") {
+        const strayClose = STRAY_CLOSE_TAG.exec(text.slice(i));
+        if (strayClose !== null) {
+          i += strayClose[0]!.length;
+          continue;
+        }
+        const tag = inlineTagAt(text, i);
+        if (tag !== null) {
+          if (tag.name === "br") {
+            flush();
+            push("\n", marks);
+            i = tag.end;
+            continue;
+          }
+          if (tag.selfClosing) {
+            i = tag.end;
+            continue;
+          }
+          const innerMark = inlineTagMarks(tag);
+          const close = new RegExp(`</${tag.name}\\s*/?\\s*>`, "i").exec(text.slice(tag.end));
+          if (close !== null) {
+            const contentEnd = tag.end + close.index;
+            if (tag.name === "code") {
+              // The code span is exclusive: the content is raw and carries
+              // no other mark (the backtick span's contract; core rejects
+              // the exclusive mark composed with others).
+              flush();
+              push(text.slice(tag.end, contentEnd), { code: true });
+              i = contentEnd + close[0]!.length;
+              continue;
+            }
+            flush();
+            parseSpan(text.slice(tag.end, contentEnd), innerMark !== null ? { ...marks, ...innerMark } : marks);
+            i = contentEnd + close[0]!.length;
+            continue;
+          }
+          // The unclosed open tag: drop it, the content keeps the current marks.
+          i = tag.end;
+          continue;
+        }
+
+        // The autolink: <https://…> / <mailto:…> (the http/https/mailto schemes only).
         const end = text.indexOf(">", i + 1);
         if (end !== -1) {
           const href = text.slice(i + 1, end);
@@ -237,14 +423,25 @@ function parseInline(source: string): TextRun[] {
   return runs;
 }
 
+/** A paragraph line with the structural-tag literal flag (the line keeps its tags as text). */
+interface MdParagraphLine {
+  text: string;
+  literal: boolean;
+}
+
 /** The paragraph join: the soft break is a space, the hard break (two spaces / `\`) is a `\n`. */
-function joinParagraphLines(lineTexts: string[]): TextRun[] {
+function joinParagraphLines(lines: MdParagraphLine[]): TextRun[] {
   const runs: TextRun[] = [];
   const hardBreakAt = (text: string): boolean => /(?: {2,}|\\)$/.test(text);
-  lineTexts.forEach((text, index) => {
+  lines.forEach((line, index) => {
     // The hard break belongs to the line that ENDS at the break (the previous one).
-    if (index > 0) runs.push({ text: hardBreakAt(lineTexts[index - 1]!) ? "\n" : " ", marks: {} });
-    const body = hardBreakAt(text) ? text.replace(/(?: {2,}|\\)$/, "") : text;
+    if (index > 0) runs.push({ text: hardBreakAt(lines[index - 1]!.text) ? "\n" : " ", marks: {} });
+    // The structural-tag line keeps the whole text verbatim (no inline pass).
+    if (line.literal) {
+      runs.push({ text: line.text, marks: {} });
+      return;
+    }
+    const body = hardBreakAt(line.text) ? line.text.replace(/(?: {2,}|\\)$/, "") : line.text;
     runs.push(...parseInline(body.trim()));
   });
   // Re-merge the adjacent equal-mark runs the line joins may have split.
@@ -272,10 +469,10 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
   while (lines.length > 0 && lines[lines.length - 1]!.trim() === "") lines.pop();
 
   const blocks: MdPasteBlock[] = [];
-  let paragraph: string[] = [];
+  let paragraph: MdParagraphLine[] = [];
   const closeParagraph = (): void => {
     if (paragraph.length === 0) return;
-    const text = paragraph.join("\n");
+    const text = paragraph.map((l) => l.text).join("\n");
     if (text.trim() !== "")
       blocks.push({ type: "paragraph", indent: 0, attrs: {}, runs: joinParagraphLines(paragraph) });
     paragraph = [];
@@ -340,8 +537,8 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
       }
       if (!closed) {
         // The unclosed $$ degrades to literal text (the lenient posture).
-        paragraph.push("$$");
-        for (const c of content) paragraph.push(c);
+        paragraph.push({ text: "$$", literal: false });
+        for (const c of content) paragraph.push({ text: c, literal: false });
         continue;
       }
       blocks.push({
@@ -360,7 +557,7 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
       if (tableCellsOf(lines[i + 1] ?? "").length !== headerCells.length) {
         // The width mismatch: not a table (the `---` line falls through to the
         // setext/thematic-break pass below).
-        paragraph.push(trimmed);
+        paragraph.push({ text: trimmed, literal: false });
         i += 1;
         continue;
       }
@@ -438,10 +635,13 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
     const continuation = /^(\s{1,})(\S.*)$/.exec(line);
     const continuationTarget = lastBlock();
     if (continuation !== null && continuationTarget !== undefined && continuationTarget.type === "list-item") {
+      const continuationText = continuation[2]!;
       continuationTarget.runs = [
         ...continuationTarget.runs,
         { text: "\n", marks: {} },
-        ...parseInline(continuation[2]!),
+        ...(STRUCTURAL_TAG_LINE.test(continuationText)
+          ? [{ text: continuationText.trim(), marks: {} }]
+          : parseInline(continuationText)),
       ];
       i += 1;
       continue;
@@ -489,12 +689,34 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
       continue;
     }
 
-    // The paragraph accumulation.
-    paragraph.push(line.replace(/^ {0,3}/, ""));
+    // The paragraph accumulation (the structural-tag line is flagged literal).
+    paragraph.push({ text: line.replace(/^ {0,3}/, ""), literal: STRUCTURAL_TAG_LINE.test(line.trim()) });
     i += 1;
   }
   closeParagraph();
-  return blocks;
+  return blocks.map(decodeBlockEntities);
+}
+
+/** The one-pass entity decode over a run list (the text, the link href, the math tex). */
+function decodeRuns(runs: TextRun[]): TextRun[] {
+  return runs.map((run) => {
+    const marks: MarkSet = { ...run.marks };
+    if (marks.link !== undefined) marks.link = { href: decodeEntities(marks.link.href) };
+    if (marks.math !== undefined) marks.math = { tex: decodeEntities(marks.math.tex) };
+    return { text: decodeEntities(run.text), marks };
+  });
+}
+
+/** The entity decode over a parsed block (the runs, the table cells, the image src). */
+function decodeBlockEntities(block: MdPasteBlock): MdPasteBlock {
+  const attrs: Record<string, unknown> = { ...block.attrs };
+  if (block.type === "image" && typeof attrs.src === "string") attrs.src = decodeEntities(attrs.src);
+  return {
+    ...block,
+    attrs,
+    runs: decodeRuns(block.runs),
+    rows: block.rows !== undefined ? block.rows.map((row) => row.map(decodeRuns)) : undefined,
+  };
 }
 
 export { mdToBlocks };

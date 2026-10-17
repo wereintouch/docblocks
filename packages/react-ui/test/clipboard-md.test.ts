@@ -5,7 +5,8 @@
  * (prefix/suffix), the empty-block in-place conversion, the code/latex
  * targets (raw text), the cross-seam landing, the demotion in a
  * table-cell target, the indent re-base, the one-transact undo (one undo
- * step over the whole paste).
+ * step over the whole paste), and the inline html tags (the unified pass
+ * over the real doc).
  */
 import { describe, expect, it } from "vitest";
 
@@ -247,6 +248,32 @@ describe("applyMdPaste: the code/latex targets (the raw text)", () => {
     const latexId = doc.insertBlock("latex", { display: true });
     applyMdPaste(doc, latexId, 0, 0, "$$ y = $$");
     expect(contentOf(doc, latexId)).toBe("$$ y = $$");
+  });
+});
+
+describe("applyMdPaste: the inline html tags (the unified pass)", () => {
+  it("the marks land over the doc (the heading span, the br break, the structural line literal)", () => {
+    const { doc, seat } = docWithParagraph("");
+    applyMdPaste(doc, seat, 0, 0, "# T <b>жирный</b>\n- пункт <br> дальше\n<p>литерал</p>");
+    const [headingId, itemId, paraId] = doc.getChildren(doc.meta.id);
+    const heading = doc.getBlock(headingId!) as unknown as {
+      content: Array<{ text: string; marks: Record<string, unknown> }>;
+    };
+    expect(heading.content).toEqual([
+      { text: "T ", marks: {} },
+      { text: "жирный", marks: { bold: true } },
+    ]);
+    const item = doc.getBlock(itemId!) as unknown as { content: Array<{ text: string }> };
+    expect(item.content.map((r) => r.text).join("")).toBe("пункт \n дальше");
+    const para = doc.getBlock(paraId!) as unknown as { content: Array<{ text: string }> };
+    expect(para.content.map((r) => r.text).join("")).toBe("<p>литерал</p>");
+  });
+
+  it("the code target takes the tags raw (no parsing)", () => {
+    const { doc } = docWithParagraph("");
+    const codeId = doc.insertBlock("code", { language: "html" });
+    applyMdPaste(doc, codeId, 0, 0, "<b>не жирный</b>\n<p>не абзац</p>");
+    expect(contentOf(doc, codeId)).toBe("<b>не жирный</b>\n<p>не абзац</p>");
   });
 });
 
