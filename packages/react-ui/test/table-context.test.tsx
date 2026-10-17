@@ -64,15 +64,22 @@ function rightClick(cell: HTMLElement, x = 40, y = 30): boolean {
   return fireEvent.contextMenu(cell, { clientX: x, clientY: y, button: 2 });
 }
 
-/** The open cell menu's content (portaled into the body). */
-function cellMenu(): HTMLElement {
-  const el = document.querySelector<HTMLElement>('[data-slot="docblocks/table-cell-menu"]');
-  expect(el, "the cell menu should be open").not.toBeNull();
-  return el!;
-}
-
 /** The flush: the frame the store-driven re-render and the async menu actions land on. */
 const flushFrames = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 20));
+
+/**
+ * The deferred open (`setTimeout(0)` past the pointerup) lands late under the
+ * parallel suite load: poll the item until it stands (1 s deadline).
+ */
+async function cellMenuItem(label: string): Promise<HTMLElement> {
+  const deadline = Date.now() + 1000;
+  for (;;) {
+    const el = screen.queryByText(label, { selector: '[data-slot="dropdown-menu-item"]' });
+    if (el !== null) return el;
+    if (Date.now() >= deadline) throw new Error(`the ${label} menu item should stand (the deferred open)`);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 /** Install a stub clipboard (writeText / read) and return the spies.
  * `plain` undefined = an HTML-only payload (the degradation branch). */
@@ -207,9 +214,8 @@ describe("the cell's right-click menu", () => {
     await flushFrames();
 
     expect(result).toBe(false);
-    expect(cellMenu()).not.toBeNull();
     for (const label of ["Copy", "Paste", "Clear"]) {
-      expect(screen.getByText(label, { selector: '[data-slot="dropdown-menu-item"]' })).not.toBeNull();
+      await cellMenuItem(label);
     }
   });
 
@@ -224,7 +230,7 @@ describe("the cell's right-click menu", () => {
 
     rightClick(cellAt(0, 0));
     await flushFrames();
-    fireEvent.click(screen.getByText("Copy", { selector: '[data-slot="dropdown-menu-item"]' }));
+    fireEvent.click(await cellMenuItem("Copy"));
     await flushFrames();
 
     expect(writeSpy).toHaveBeenCalledWith("aa\nbb");
@@ -237,7 +243,7 @@ describe("the cell's right-click menu", () => {
 
     rightClick(cellAt(1, 1));
     await flushFrames();
-    fireEvent.click(screen.getByText("Paste", { selector: '[data-slot="dropdown-menu-item"]' }));
+    fireEvent.click(await cellMenuItem("Paste"));
     await flushFrames();
 
     const children = doc.getChildren(cellId);
@@ -254,7 +260,7 @@ describe("the cell's right-click menu", () => {
 
     rightClick(cellAt(0, 1));
     await flushFrames();
-    fireEvent.click(screen.getByText("Paste", { selector: '[data-slot="dropdown-menu-item"]' }));
+    fireEvent.click(await cellMenuItem("Paste"));
     await flushFrames();
 
     expect(doc.getRuns(p1)).toEqual([{ text: "aabb", marks: {} }]);
@@ -271,7 +277,7 @@ describe("the cell's right-click menu", () => {
 
     rightClick(cellAt(0, 0));
     await flushFrames();
-    fireEvent.click(screen.getByText("Clear", { selector: '[data-slot="dropdown-menu-item"]' }));
+    fireEvent.click(await cellMenuItem("Clear"));
     expect(doc.getChildren(cellId)).toEqual([]);
 
     doc.undo();
