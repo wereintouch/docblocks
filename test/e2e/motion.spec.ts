@@ -315,3 +315,70 @@ test("a gutter deletion disappears in both panes (the exit animation completes)"
 
   await close();
 });
+
+test("a mid-document insert animates only the new row (existing rows never restart the enter animation)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "ui03c-insert-restart");
+  try {
+    // Three paragraphs, and an open enter-animation gate (A types).
+    await insertBlockType(a, "a", "paragraph");
+    await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
+    await a.keyboard.type("one");
+    await insertBlockType(a, "a", "paragraph");
+    await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
+    await a.keyboard.type("two");
+    await expect(wrappers(a, "a")).toHaveCount(3);
+    await settled(a);
+
+    // Watch every existing row's style attribute: the contract is that none
+    // of them ever stands a numeric (mid-animation) height while the new
+    // row runs its enter — a restarted enter would write the height values
+    // from the ENTER geometry (a collapse and regrowth).
+    const watchIds = await a.evaluate(() => {
+      const rows = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-testid="doc-a"] [data-slot="docblocks/row"]')
+      );
+      const seen: Record<string, string[]> = {};
+      (window as unknown as { __restartWatch: unknown }).__restartWatch = { seen, stop: null as null | (() => void) };
+      const observer = new MutationObserver((records) => {
+        for (const record of records) {
+          if (record.type !== "attributes" || record.attributeName !== "style") continue;
+          const row = record.target as HTMLElement;
+          const key = row.querySelector<HTMLElement>("[data-block-id]")?.getAttribute("data-block-id") ?? "?";
+          const height = row.style.height;
+          if (height !== "" && height !== "auto") {
+            (seen[key] ??= []).push(height);
+          }
+        }
+      });
+      for (const row of rows) observer.observe(row, { attributes: true, attributeFilter: ["style"] });
+      (window as unknown as { __restartWatch: { stop: null | (() => void) } }).__restartWatch.stop = () =>
+        observer.disconnect();
+      return rows.map((row) => row.querySelector<HTMLElement>("[data-block-id]")?.getAttribute("data-block-id") ?? "?");
+    });
+    expect(watchIds).toHaveLength(3);
+
+    // The insert (mid-document, after the second row).
+    await a.evaluate((afterId) => {
+      const doc = window.__paneDocs?.a;
+      if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+      doc.insertBlock("paragraph", undefined, { parent: doc.meta.id, after: afterId });
+    }, watchIds[1]);
+    await expect(wrappers(a, "a")).toHaveCount(4);
+    await settled(a);
+
+    // No existing row ran a height animation: the recorded numeric heights
+    // are absent (the new row's own enter animation is out of scope — it
+    // was not under observation).
+    const numericHeights = await a.evaluate(() => {
+      const watch = (window as unknown as { __restartWatch: { seen: Record<string, string[]>; stop: () => void } })
+        .__restartWatch;
+      watch.stop();
+      return watch.seen;
+    });
+    expect(Object.values(numericHeights).flat()).toEqual([]);
+  } finally {
+    await close();
+  }
+});
