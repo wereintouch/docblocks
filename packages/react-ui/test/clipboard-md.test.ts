@@ -98,12 +98,19 @@ describe("applyMdPaste: the block materialization", () => {
     const tableId = rows[0]!;
     const rowIds = doc.getChildren(tableId);
     expect(rowIds).toHaveLength(2);
-    const cellTexts = (rowId: BlockId): string[] => doc.getChildren(rowId).map((cellId) => contentOf(doc, cellId));
+    // A cell is a mini-doc: its text stands in a child paragraph (not the
+    // cell's own content — the renderer draws the children sequence).
+    const cellTexts = (rowId: BlockId): string[] =>
+      doc.getChildren(rowId).map((cellId) => {
+        const children = doc.getChildren(cellId);
+        return children.length === 0 ? "" : contentOf(doc, children[0]!);
+      });
     expect(cellTexts(rowIds[0]!)).toEqual(["a", "b"]);
     expect(cellTexts(rowIds[1]!)).toEqual(["1", "2"]);
-    // the bold mark rides the cell run
+    // the bold mark rides the cell paragraph's run
     const firstRowCells = doc.getChildren(rowIds[0]!);
-    const bRuns = (doc.getBlock(firstRowCells[1]!)! as Extract<Block, { type: "table-cell" }>).content;
+    const bPara = doc.getChildren(firstRowCells[1]!)[0]!;
+    const bRuns = (doc.getBlock(bPara)! as Extract<Block, { type: "paragraph" }>).content;
     expect(bRuns).toEqual([{ text: "b", marks: { bold: true } }]);
   });
 

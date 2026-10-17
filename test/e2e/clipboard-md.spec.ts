@@ -282,3 +282,49 @@ test("the paste splits the caret block (the prefix stands, the tail lands in the
     await close();
   }
 });
+
+test("the markdown table paste lands as a native table with editable cell paragraphs", async ({ browser }) => {
+  const { a, b, close } = await openPanes(browser, "clip-md-table");
+  try {
+    await firstInner(a, "a").click();
+    await writePlainClipboard(a, "| h1 | h2 |\n| --- | --- |\n| x | y |");
+    await pasteFromClipboard(a);
+
+    // The native table stands in A: two rows, the cell texts in the cells.
+    const tableA = a.locator('[data-testid="doc-a"] table[data-block-type="table"]');
+    await expect.poll(async () => tableA.count(), SETTLE).toBe(1);
+    expect(await tableA.locator("tr").count()).toBe(2);
+    expect(await tableA.locator("td").count()).toBe(4);
+    await expect(tableA.locator("td").first()).toHaveText("h1");
+    // The cell texts stand in child paragraphs — the cells are editable
+    // (the inner editables stand), and the doc JSON carries the child
+    // paragraph shape (the cell's own content stays empty).
+    const cellShape = await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) return null;
+      const ids = doc.getChildren(doc.meta.id);
+      const tableId = ids.find((id) => doc.getBlock(id)?.type === "table");
+      if (tableId === undefined) return null;
+      const rowIds = doc.getChildren(tableId);
+      const cellIds = doc.getChildren(rowIds[0]!);
+      const cell = doc.getBlock(cellIds[0]!)!;
+      const paraId = doc.getChildren(cellIds[0]!)[0];
+      return {
+        cellType: cell.type,
+        cellOwnText: ("content" in cell ? (cell as { content: { text: string }[] }).content : [])
+          .map((r) => r.text)
+          .join(""),
+        paraText: paraId === undefined ? null : (doc.getText(paraId) ?? null),
+        paraCount: cellIds.map((cid) => doc.getChildren(cid).length),
+      };
+    });
+    expect(cellShape).toEqual({ cellType: "table-cell", cellOwnText: "", paraText: "h1", paraCount: [1, 1] });
+
+    // B stands the same rendered table over the wire.
+    const tableB = b.locator('[data-testid="doc-b"] table[data-block-type="table"]');
+    await expect.poll(async () => tableB.locator("td").count(), SETTLE).toBe(4);
+    await expect(tableB.locator("td").first()).toHaveText("h1");
+  } finally {
+    await close();
+  }
+});

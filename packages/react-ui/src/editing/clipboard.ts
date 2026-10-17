@@ -558,7 +558,11 @@ function insertTable(
     let prevCell: BlockId | null = null;
     for (const cell of row) {
       const cellId: BlockId = doc.insertBlock("table-cell", undefined, { parent: rowId, after: prevCell ?? undefined });
-      if (cell.length > 0) insertRuns(doc, cellId, 0, cell);
+      // A cell is a mini-doc: its text stands in a child paragraph (the
+      // renderer draws the children sequence, not the cell's own content;
+      // a cell without a paragraph stands empty, small, and uneditable).
+      const paraId = doc.insertBlock("paragraph", undefined, { parent: cellId });
+      if (cell.length > 0) insertRuns(doc, paraId, 0, cell);
       prevCell = cellId;
     }
     prevRow = rowId;

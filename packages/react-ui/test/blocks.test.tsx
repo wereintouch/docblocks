@@ -9,6 +9,7 @@ import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/EditorProvider";
+import { applyMdPaste } from "../src/editing/clipboard";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;
@@ -64,6 +65,26 @@ describe("built-in renderers: table", () => {
       doc.insertText(paragraphIds[0]!, 0, "x");
     });
     expect(screen.getByText("xcell 0-0")).toBeDefined();
+  });
+
+  it("a pasted markdown table renders the cell texts in editable paragraphs", () => {
+    renderDoc((d) => {
+      const seat = d.insertBlock("paragraph");
+      act(() => {
+        applyMdPaste(d, seat, 0, 0, "| a | b |\n| --- | --- |\n| 1 | 2 |");
+      });
+    });
+
+    const table = document.querySelector<HTMLElement>("table[data-block-type='table']");
+    expect(table).not.toBeNull();
+    expect(table!.querySelectorAll("tr").length).toBe(2);
+    // The cell texts stand in the rendered cells (not in the cell's own
+    // content field — the renderer draws the children sequence).
+    expect(table!.querySelectorAll("td").length).toBe(4);
+    expect(screen.getByText("a").closest("td")).not.toBeNull();
+    expect(screen.getByText("2").closest("td")).not.toBeNull();
+    // Every cell is editable (the child paragraph's inner stands).
+    expect(table!.querySelectorAll("td [data-slot='docblocks/block-content'").length).toBe(4);
   });
 });
 
