@@ -249,19 +249,51 @@ describe("the moveBlock + removeBlock race (the dangling child id)", () => {
       },
     } as DocJSON).encode();
 
-  it("converges to an equal, valid state (the lenient read drops the re-inserted id)", () => {
+  it("converges to an equal, valid state (either race outcome is valid)", () => {
     const a = loadDoc(makeSeed());
     const b = loadDoc(makeSeed());
 
     // The race: A moves b2 to the end (delete + reinsert in the root
-    // order), B removes b2 (the order id + the block entry).
+    // order), B removes b2 (the order id + the block entry). The two
+    // order-array writes are concurrent, and the merge winner is the
+    // client-id order (random per run) — either outcome is a valid
+    // converged state: the remove wins (the id is dropped), or the move
+    // wins (the re-inserted id stands, and the entry may stand with it —
+    // the moved block survives the race).
     a.moveBlock("b2", "d-race", 3);
     b.removeBlock("b2");
     exchange(a, b);
 
+    // Convergence: the peers are equal, and the doc stands the strict
+    // validator in either outcome (a survivor block is a normal block).
     expect(a.toJSON()).toEqual(b.toJSON());
-    const children = a.getChildren("d-race");
-    expect(children).toEqual(["b1", "b3"]);
+    expect(validateDoc(a.toJSON())).toEqual([]);
+
+    // The lenient read's contract: the JSON's children are the raw order
+    // (deduped) filtered by the entry's presence — a dangling id (order id
+    // without an entry) is dropped, a survivor id (the entry stands) keeps
+    // its slot.
+    const raw = a.getChildren("d-race");
+    expect(raw.slice(0, 2)).toEqual(["b1", "b3"]);
+    const entryAlive = a.getBlock("b2") !== null;
+    if (raw[2] !== undefined) expect(raw[2]).toBe("b2");
+    const rootJson = a.toJSON().blocks["d-race"] as { children?: string[] };
+    expect(rootJson?.children).toEqual(raw.filter((id) => id !== "b2" || entryAlive));
+  });
+
+  it("drops the dangling order id on the read (deterministic raw-level pin)", () => {
+    // The race's dangling case, pinned without the race: the order id
+    // stands with no block entry (the raw Yjs layer is the escape hatch —
+    // the data is not rewritten) — the read drops the id, the doc stays
+    // valid, and the raw array keeps the id (doc.raw is the escape hatch).
+    const a = createDoc({ id: "d-dangle", createdAt: CREATED_AT });
+    const p = a.insertBlock("paragraph");
+    a.raw.getMap("blocks").delete(p);
+
+    expect(a.getChildren("d-dangle")).toEqual([]);
+    expect(a.getBlock(p)).toBeNull();
+    // The raw layer keeps the id (the lenient read filters, not the data).
+    expect(a.raw.getArray("rootOrder").toArray()).toEqual([p]);
     expect(validateDoc(a.toJSON())).toEqual([]);
   });
 });
