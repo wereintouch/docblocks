@@ -1,10 +1,17 @@
 import { useStore } from "zustand";
 
 import { memo, useLayoutEffect, useRef, useState } from "react";
-import type { CSSProperties, ClipboardEvent, KeyboardEvent, ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties,
+  ClipboardEvent,
+  KeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  ReactNode,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 
-import type { BlockId, TableBlock as TableBlockType } from "docblocks-core";
-import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
+import type { BlockId, Doc, TableBlock as TableBlockType } from "docblocks-core";
+import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { focusCaretIn } from "../editing/block-commands";
@@ -41,6 +48,10 @@ const ADD_BUTTON_SIZE = 24;
 // The pointer travel before a handle press becomes a drag (a shorter press
 // is a click and opens the handle's menu).
 const DRAG_THRESHOLD = 4;
+
+/** The minimum width a column can be resized to (px; a drag below it clamps).
+ */
+const MIN_COLUMN_WIDTH = 50;
 
 // The add chips stand hidden until the table frame is hovered or holds the
 // focus (typing in a cell keeps them up), like the code header's controls.
@@ -95,6 +106,91 @@ function sameSequence(a: readonly (string | number)[], b: readonly (string | num
   return a.length === b.length && a.every((value, i) => value === b[i]);
 }
 
+/**
+ * The plain text of the cell's content (the context menu's copy payload):
+ * the text children's text (the soft breaks stand as the run's
+ * `\n`) joined with `\n` between the blocks; the non-text children
+ * contribute nothing (v1).
+ */
+function cellPlainText(doc: Doc, cellId: BlockId): string {
+  const cell = doc.getBlock(cellId);
+  if (cell === null || cell.type !== "table-cell") return "";
+  const parts: string[] = [];
+  for (const child of cell.children ?? []) {
+    const block = doc.getBlock(child);
+    if (block === null || !BLOCK_REGISTRY[block.type].content) continue;
+    parts.push(doc.getText(child));
+  }
+  return parts.join("\n");
+}
+
+/**
+ * The context menu's paste: the plain text lands at the end of the cell's
+ * LAST text child (the menu carries no caret context, v1); a cell without
+ * a text child gets a fresh paragraph. One transact (one undo step, one
+ * wire update); the multi-line text stands as soft breaks — the cell
+ * paragraphs are plain text only, like the cell's paste pipeline.
+ */
+function pasteCellText(doc: Doc, cellId: BlockId, text: string): { blockId: BlockId; offset: number } | null {
+  if (text === "") return null;
+  const normalized = text.replace(/\r\n?/g, "\n");
+  // The seat target survives the transact via a property (a closure-
+  // assigned variable is not flow-narrowed past the call).
+  const seat: { target: { blockId: BlockId; offset: number } | null } = { target: null };
+  doc.transact(() => {
+    const cell = doc.getBlock(cellId);
+    if (cell === null || cell.type !== "table-cell") return;
+    const children = cell.children ?? [];
+    let existing: BlockId | null = null;
+    for (let i = children.length - 1; i >= 0; i--) {
+      const child = doc.getBlock(children[i]!);
+      if (child !== null && BLOCK_REGISTRY[child.type].content) {
+        existing = children[i]!;
+        break;
+      }
+    }
+    if (existing !== null) {
+      const length = doc.getTextLength(existing);
+      doc.insertText(existing, length, normalized);
+      seat.target = { blockId: existing, offset: length + normalized.length };
+    } else {
+      const paragraph = doc.insertBlock("paragraph", undefined, { parent: cellId });
+      doc.insertText(paragraph, 0, normalized);
+      seat.target = { blockId: paragraph, offset: normalized.length };
+    }
+  });
+  return seat.target;
+}
+
+/**
+ * The clipboard's plain text (the context menu's paste payload): the
+ * text/plain item wins; an html-only payload degrades to its plain text
+ * (the marks are dropped — the cell paragraphs stand plain text only).
+ * An unreadable clipboard (a read the page may not allow) stands an empty
+ * string (the paste is a no-op).
+ */
+async function readClipboardText(): Promise<string> {
+  let items: ClipboardItems;
+  try {
+    items = await navigator.clipboard.read();
+  } catch {
+    return "";
+  }
+  let html = "";
+  for (const item of items) {
+    const types = item.types;
+    if (types.includes("text/plain")) {
+      const blob = await item.getType("text/plain");
+      return blob.text();
+    }
+    if (html === "" && types.includes("text/html")) {
+      const blob = await item.getType("text/html");
+      html = await blob.text();
+    }
+  }
+  return html === "" ? "" : plainTextOfHtml(html);
+}
+
 type HandleKind = "row" | "column";
 
 type HandleAction = "insert-after" | "insert-before" | "move-next" | "move-prev" | "duplicate" | "clear" | "remove";
@@ -126,6 +222,23 @@ interface TableDragPreview {
   index: number;
   dx: number;
   dy: number;
+}
+
+/**
+ * The in-flight column-resize press: the column (the one LEFT of the seam)
+ * and the press-time width the drag's delta applies to; `width` is the
+ * live (clamped) width the preview renders and the release commits.
+ */
+interface ColumnResizeSession {
+  col: number;
+  startX: number;
+  startWidth: number;
+  width: number;
+}
+
+/** The resize width's clamp: the 50 px floor, no ceiling (the overflow scrolls). */
+function clampColumnWidth(width: number): number {
+  return Math.max(Math.round(width), MIN_COLUMN_WIDTH);
 }
 
 /**
@@ -166,10 +279,18 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const palette = useFormatPalette();
   const rows = block.children ?? EMPTY_IDS;
   const contextValue = useBlockContextValue(id, rows, "table");
-  const widths = Array.from(
+  // The doc's column widths and the rendered ones (the resize drag's live
+  // preview overrides the dragged column locally — no wire traffic until
+  // the release commits the width).
+  const docWidths = Array.from(
     { length: block.attrs.cols },
     (_, index) => block.attrs.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH
   );
+  const [resizePreview, setResizePreview] = useState<{ col: number; width: number } | null>(null);
+  const widths =
+    resizePreview !== null
+      ? docWidths.map((width, i) => (i === resizePreview.col - 1 ? resizePreview.width : width))
+      : docWidths;
   const tableWidth = widths.reduce((sum, width) => sum + width, 0);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [rowButtonLeft, setRowButtonLeft] = useState(0);
@@ -178,6 +299,11 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const [preview, setPreview] = useState<TableDragPreview | null>(null);
   const [rowMetrics, setRowMetrics] = useState<{ top: number; height: number }[]>([]);
   const sessionRef = useRef<TableHandleSession | null>(null);
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  // The cell context menu (the right-click): the anchor point (frame-relative)
+  // and the cell; the menu's content carries the copy/paste/clear items.
+  const [ctx, setCtx] = useState<{ x: number; y: number; cellId: BlockId } | null>(null);
+  const resizeSessionRef = useRef<ColumnResizeSession | null>(null);
 
   // The add-row chip's left offset: the center of the visible part of the
   // table (no scroll listeners — the chip is pinned to the frame, not the
@@ -292,6 +418,112 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     setPreview(null);
   };
 
+  /**
+   * A seam press: starts the resize session (the native click / selection
+   * is suppressed — the release commits the width or stands a no-op).
+   */
+  const onSeamPointerDown = (col: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || resizeSessionRef.current !== null) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    const startWidth = docWidths[col - 1] ?? MIN_COLUMN_WIDTH;
+    resizeSessionRef.current = { col, startX: event.clientX, startWidth, width: startWidth };
+  };
+
+  const onSeamPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const session = resizeSessionRef.current;
+    if (session === null) return;
+    session.width = clampColumnWidth(session.startWidth + (event.clientX - session.startX));
+    setResizePreview({ col: session.col, width: session.width });
+  };
+
+  /**
+   * The seam release: the clamped width commits when it changed (one
+   * command, one undo step); a 0 px drag stands a no-op (no wire traffic).
+   */
+  const onSeamPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const session = resizeSessionRef.current;
+    resizeSessionRef.current = null;
+    setResizePreview(null);
+    if (session === null || session.width === session.startWidth) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    try {
+      doc.setTableColumnWidth(id, session.col - 1, session.width);
+    } catch {
+      // A rejected width (a concurrent structural change won the race):
+      // the doc stands as-is, the preview stands the doc's width.
+    }
+  };
+
+  const onSeamPointerCancel = () => {
+    resizeSessionRef.current = null;
+    setResizePreview(null);
+  };
+
+  /**
+   * The right-click on a cell: suppresses the native menu and anchors the
+   * cell's menu (copy / paste / clear) at the pointer (frame-relative —
+   * the anchor div stands in the frame, not the scrolled content).
+   */
+  const onTableContextMenu = (event: ReactMouseEvent<HTMLTableElement>) => {
+    const cell = (event.target as HTMLElement).closest<HTMLTableCellElement>("td[data-block-id]");
+    if (cell === null) return;
+    const frame = frameRef.current;
+    const rect = frame?.getBoundingClientRect();
+    if (rect === undefined) return;
+    event.preventDefault();
+    // The open defers past the right-click's pointerup (the input order is
+    // down → contextmenu → up): a synchronous open puts the first item under
+    // the release point, and a Radix item treats an up without its own down
+    // as a select — the release would "click" the first item and close the
+    // menu. A task later (imperceptible for a context menu) stands clear of
+    // the gesture.
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const cellId = cell.dataset.blockId ?? "";
+    window.setTimeout(() => setCtx({ x, y, cellId }), 0);
+  };
+
+  const cellScope = () => frameRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]') ?? document;
+
+  /** The copy: the cell's plain text to the clipboard (the blocks joined
+   * with the line break); an unreadable clipboard stands a no-op (v1). */
+  const onCellCopy = async () => {
+    if (ctx === null) return;
+    const text = cellPlainText(doc, ctx.cellId);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // The page may not hold the write (permissions) — the v1 no-op.
+    }
+  };
+
+  /** The paste: the clipboard's plain text into the cell (the seat is the
+   * last text child's end; an empty cell materializes its paragraph) —
+   * the caret seats in the landed text. */
+  const onCellPaste = async () => {
+    if (ctx === null) return;
+    const text = await readClipboardText();
+    if (text === "") return;
+    const seat = pasteCellText(doc, ctx.cellId, text);
+    if (seat !== null) focusCaretIn(seat.blockId, seat.offset, cellScope());
+  };
+
+  /** The clear: the cell's children cascade out (one transact, one undo
+   * step); the cell stands the activation layer. */
+  const onCellClear = () => {
+    if (ctx === null) return;
+    try {
+      doc.transact(() => {
+        const cell = doc.getBlock(ctx.cellId);
+        if (cell === null || cell.type !== "table-cell") return;
+        for (const child of cell.children ?? []) doc.removeBlock(child);
+      });
+    } catch {
+      // A rejected removal (the cell re-parented mid-gesture): no-op.
+    }
+  };
+
   /** The drag's release commit (the stale-drop guard, then the move command). */
   const commitHandleDrag = (session: TableHandleSession, clientX: number, clientY: number) => {
     const live = doc.getBlock(id);
@@ -404,6 +636,18 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     }
   }
 
+  // The column seams' x (seam i stands at the LEFT edge of column i — the
+  // boundary between column i-1 and i; the seam resizes the column to its
+  // LEFT, the first column's left edge has no seam).
+  const seamXs: number[] = [];
+  {
+    let acc = HANDLE_ZONE;
+    for (const width of widths) {
+      seamXs.push(acc);
+      acc += width;
+    }
+  }
+
   const isPreview = (kind: HandleKind, index: number): boolean =>
     preview !== null && preview.kind === kind && preview.index === index;
 
@@ -426,7 +670,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     rowMetrics.length > 0 ? rowMetrics[rowMetrics.length - 1]!.top + rowMetrics[rowMetrics.length - 1]!.height : 0;
 
   return (
-    <div data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">
+    <div ref={frameRef} data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">
       <div ref={scrollRef} className="scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-x-auto">
         <div
           className="relative w-max pt-5 pl-5"
@@ -439,6 +683,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
             data-block-id={id}
             className="relative m-0 table-fixed border-collapse"
             style={{ width: tableWidth }}
+            onContextMenu={onTableContextMenu}
           >
             <colgroup>
               {widths.map((width, index) => (
@@ -536,6 +781,33 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               />
             </HandleMenu>
           ))}
+          {seamXs.map((x, index) =>
+            index === 0 ? null : (
+              <div
+                key={`seam-${index}`}
+                data-slot="docblocks/table-col-resize"
+                data-index={index - 1}
+                className={cn(
+                  `
+                    absolute flex w-1.5 -translate-x-1/2 cursor-col-resize items-stretch justify-center opacity-0
+                    transition-opacity
+                    hover:opacity-100
+                  `,
+                  resizePreview?.col === index && "opacity-100"
+                )}
+                style={{ left: x, top: HANDLE_ZONE, height: tableHeight }}
+                onPointerDown={onSeamPointerDown(index)}
+                onPointerMove={onSeamPointerMove}
+                onPointerUp={onSeamPointerUp}
+                onPointerCancel={onSeamPointerCancel}
+              >
+                <div
+                  data-slot="docblocks/table-col-resize-line"
+                  className="h-full w-0.5 rounded bg-(--muted-foreground)"
+                />
+              </div>
+            )
+          )}
           <Button
             type="button"
             data-slot="docblocks/table-add-column"
@@ -562,6 +834,28 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
       >
         <Plus />
       </Button>
+      {/* The cell's right-click menu: the 0×0 trigger stands at the pointer
+          (frame-relative) while the menu is open — the content anchors to
+          the cursor, like a native context menu. */}
+      <DropdownMenu modal={false} open={ctx !== null} onOpenChange={(open) => !open && setCtx(null)}>
+        <DropdownMenuTrigger asChild>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute size-0"
+            style={{ left: ctx?.x ?? 0, top: ctx?.y ?? 0 }}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          data-slot="docblocks/table-cell-menu"
+          aria-label="Cell options"
+          sideOffset={4}
+          onFocusOutside={(event) => event.preventDefault()}
+        >
+          <DropdownMenuItem onSelect={onCellCopy}>Copy</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onCellPaste}>Paste</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onCellClear}>Clear</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
@@ -906,5 +1200,13 @@ function CellActivation({ cellId }: { cellId: BlockId }) {
   );
 }
 
-export { TableBlock, columnDropPosition, rowDropPosition };
-export type { HandleKind, TableHandleSession, TableDragPreview };
+export {
+  TableBlock,
+  cellPlainText,
+  columnDropPosition,
+  pasteCellText,
+  readClipboardText,
+  rowDropPosition,
+  clampColumnWidth,
+};
+export type { ColumnResizeSession, HandleKind, TableHandleSession, TableDragPreview };
