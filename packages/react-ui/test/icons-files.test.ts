@@ -16,6 +16,7 @@ const ICON_SET = [
   "CodeXml",
   "Copy",
   "Dot",
+  "Ellipsis",
   "EllipsisVertical",
   "Eye",
   "GripVertical",

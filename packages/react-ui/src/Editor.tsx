@@ -7,6 +7,7 @@ import { BlockGroups } from "./blocks/BlockView";
 import { CanvasView } from "./blocks/CanvasView";
 import { BlockContext } from "./blocks/block-context";
 import { entrySequenceParent } from "./blocks/flat";
+import { FormatPaletteContext } from "./blocks/format-palette-context";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
@@ -81,9 +82,11 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
         onPointerDown={onPointerDown}
       >
         <SlashMenuContext.Provider value={slash.api}>
-          <BlockContext.Provider value={rootContext}>
-            {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
-          </BlockContext.Provider>
+          <FormatPaletteContext.Provider value={formatPalette}>
+            <BlockContext.Provider value={rootContext}>
+              {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
+            </BlockContext.Provider>
+          </FormatPaletteContext.Provider>
         </SlashMenuContext.Provider>
         <PresenceCaretOverlay rootRef={rootRef} />
         {slash.menuNode}

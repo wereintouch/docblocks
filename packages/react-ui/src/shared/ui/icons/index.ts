@@ -9,6 +9,7 @@ export { CircleCheck } from "./CircleCheck";
 export { CodeXml } from "./CodeXml";
 export { Copy } from "./Copy";
 export { Dot } from "./Dot";
+export { Ellipsis } from "./Ellipsis";
 export { EllipsisVertical } from "./EllipsisVertical";
 export { Eye } from "./Eye";
 export { GripVertical } from "./GripVertical";

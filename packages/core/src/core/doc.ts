@@ -238,12 +238,12 @@ class Doc {
   }
 
   /**
-   * Appends an empty row to a table (the cells have no content blocks
-   * until edited) and returns the row id; with `afterRowId`, the row
-   * lands right after it.
+   * Inserts an empty row into a table at `at` (0 = the first row, the row
+   * count = the last; appended when omitted; the cells have no content
+   * blocks until edited) and returns the row id.
    */
-  insertTableRow(tableId: BlockId, afterRowId?: BlockId): BlockId {
-    return insertTableRowCommand(this.#ydoc, this.#generateId, tableId, afterRowId);
+  insertTableRow(tableId: BlockId, at?: number): BlockId {
+    return insertTableRowCommand(this.#ydoc, this.#generateId, tableId, at);
   }
 
   /** Removes a table row; the last row converts the table into a paragraph in place. */
@@ -272,11 +272,12 @@ class Doc {
   }
 
   /**
-   * Inserts an empty column (100 px wide) after `afterIndex` (appended
-   * when omitted); `cols` and `columnWidths` stay in sync.
+   * Inserts an empty column (100 px wide) into a table at `at` (0 = the
+   * first column, the column count = the last; appended when omitted);
+   * `cols` and `columnWidths` stay in sync.
    */
-  insertTableColumn(tableId: BlockId, afterIndex?: number): void {
-    insertTableColumnCommand(this.#ydoc, this.#generateId, tableId, afterIndex);
+  insertTableColumn(tableId: BlockId, at?: number): void {
+    insertTableColumnCommand(this.#ydoc, this.#generateId, tableId, at);
   }
 
   /** Removes the table column at `index`; the last column converts the table into a paragraph in place. */

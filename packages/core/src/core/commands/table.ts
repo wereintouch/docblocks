@@ -86,6 +86,13 @@ function assertIndex(index: number, cols: number, what: string): void {
   }
 }
 
+/** The insert position check (inclusive both ends: 0 = first, count = append). */
+function assertInsertIndex(index: number, count: number, what: string): void {
+  if (!Number.isInteger(index) || index < 0 || index > count) {
+    throw new InvalidRangeError(`${what} position must be an integer in [0, ${count}] (got ${index}).`);
+  }
+}
+
 /** The width value check (the validator's item rule, no silent clamp). */
 function assertWidth(width: number, tableId: string): void {
   if (typeof width !== "number" || !Number.isFinite(width) || width < MIN_COLUMN_WIDTH) {
@@ -200,26 +207,20 @@ function convertToParagraph(ydoc: Y.Doc, tableId: string): void {
 }
 
 /**
- * Appends an empty row (cells without content blocks — an empty cell has
- * no data until a paragraph is placed in it) and returns the row id. With
- * `afterRowId`, the row lands right after it.
+ * Inserts an empty row (cells without content blocks — an empty cell has
+ * no data until a paragraph is placed in it) at `at` (0 = the first row,
+ * the row count = the last; appended when omitted) and returns the row id.
  */
-function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, afterRowId?: string): string {
+function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, at?: number): string {
   const table = tableOf(ydoc, tableId);
   const rows = rowsOf(table, tableId);
   const cols = readCols(ydoc, tableId);
   if (cols === null) {
     throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
   }
-  const rowIds = rows.toArray();
-  let index = rowIds.length;
-  if (afterRowId !== undefined) {
-    const afterIndex = rowIds.indexOf(afterRowId);
-    if (afterIndex === -1) {
-      throw new DetachedBlockError(`Row "${afterRowId}" is not a child of table "${tableId}".`);
-    }
-    index = afterIndex + 1;
-  }
+  const rowCount = rows.length;
+  if (at !== undefined) assertInsertIndex(at, rowCount, "Row");
+  const index = at ?? rowCount;
   const rowId = generateId();
   const cellIds = Array.from({ length: cols }, () => generateId());
   localTransact(ydoc, () => {
@@ -353,16 +354,16 @@ function setTableRowColor(ydoc: Y.Doc, tableId: string, rowId: string, color: st
 
 /**
  * Inserts an empty column (100 px wide, cells without content blocks)
- * after `afterIndex` (appended when omitted) and keeps `cols` and
- * `columnWidths` in sync.
+ * at `at` (0 = the first column, the column count = the last; appended
+ * when omitted) and keeps `cols` and `columnWidths` in sync.
  */
-function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: string, afterIndex?: number): void {
+function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: string, at?: number): void {
   const table = tableOf(ydoc, tableId);
   const rows = rowsOf(table, tableId);
   const cols = readCols(ydoc, tableId);
   if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
-  const index = afterIndex === undefined ? cols : afterIndex + 1;
-  if (afterIndex !== undefined) assertIndex(afterIndex, cols, "Column");
+  if (at !== undefined) assertInsertIndex(at, cols, "Column");
+  const index = at ?? cols;
   const rowIds = rows.toArray();
   const cellIds = rowIds.map(() => generateId());
   localTransact(ydoc, () => {

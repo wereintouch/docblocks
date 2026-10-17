@@ -126,19 +126,22 @@ describe("the table row commands", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("insertTableRow lands right after afterRowId", () => {
+  it("insertTableRow lands at the given position (before the first, in the middle)", () => {
     const doc = newDoc();
     const { table, rowIds } = buildTable(doc, 2, 3);
-    const row = doc.insertTableRow(table, rowIds[1]!);
-    expect(doc.getChildren(table)).toEqual([rowIds[0]!, rowIds[1]!, row, rowIds[2]!]);
+    const middle = doc.insertTableRow(table, 1);
+    expect(doc.getChildren(table)).toEqual([rowIds[0]!, middle, rowIds[1]!, rowIds[2]!]);
+    const first = doc.insertTableRow(table, 0);
+    expect(doc.getChildren(table)).toEqual([first, rowIds[0]!, middle, rowIds[1]!, rowIds[2]!]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("insertTableRow rejects a foreign afterRowId", () => {
+  it("insertTableRow rejects an out-of-range position", () => {
     const doc = newDoc();
-    const { table, rowIds } = buildTable(doc, 2, 1);
-    const stranger = doc.insertBlock("paragraph");
-    expectThrows(() => doc.insertTableRow(table, stranger), DetachedBlockError);
-    expectThrows(() => doc.insertTableRow(stranger, rowIds[0]!), InvalidOperationError);
+    const { table } = buildTable(doc, 2, 1);
+    expectThrows(() => doc.insertTableRow(table, -1), InvalidRangeError);
+    expectThrows(() => doc.insertTableRow(table, 2), InvalidRangeError);
+    expectThrows(() => doc.insertTableRow(table, 0.5), InvalidRangeError);
   });
 
   it("removeTableRow removes the row and its cells; the last row converts the table", () => {
@@ -248,14 +251,29 @@ describe("the table row commands", () => {
 });
 
 describe("the table column commands", () => {
-  it("insertTableColumn appends a 100 px column and keeps cols/widths in sync", () => {
+  it("insertTableColumn inserts at the position and keeps cols/widths in sync", () => {
     const doc = newDoc();
     const { table, rowIds } = buildTable(doc, 2, 2);
     doc.setTableColumnWidth(table, 0, 150);
-    doc.insertTableColumn(table, 0);
+    doc.insertTableColumn(table, 1);
     expect(tableAttrs(doc, table)).toMatchObject({ cols: 3, columnWidths: [150, 100, 100] });
     for (const row of rowIds) expect(cellsOf(doc, row)).toHaveLength(3);
     expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("insertTableColumn lands at the first position (the widths follow)", () => {
+    const doc = newDoc();
+    const { table } = buildTable(doc, 2, 2);
+    doc.setTableColumnWidth(table, 0, 150);
+    doc.insertTableColumn(table, 0);
+    expect(tableAttrs(doc, table)).toMatchObject({ cols: 3, columnWidths: [100, 150, 100] });
+  });
+
+  it("insertTableColumn rejects an out-of-range position", () => {
+    const doc = newDoc();
+    const { table } = buildTable(doc, 2, 2);
+    expectThrows(() => doc.insertTableColumn(table, -1), InvalidRangeError);
+    expectThrows(() => doc.insertTableColumn(table, 3), InvalidRangeError);
   });
 
   it("insertTableColumn without an index appends at the end", () => {

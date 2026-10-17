@@ -69,6 +69,7 @@ import { CanvasView } from "../blocks/CanvasView";
 import { BlockContext, useBlockContext } from "../blocks/block-context";
 import { deriveFlat, entrySequenceParent, visibleRows } from "../blocks/flat";
 import type { FlatNode } from "../blocks/flat";
+import { FormatPaletteContext } from "../blocks/format-palette-context";
 import { segmentRange } from "../editing/block-commands";
 import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
@@ -650,34 +651,36 @@ function MotionEditor({
       >
         <style>{HANDLE_GRAB_STYLE}</style>
         <SlashMenuContext.Provider value={slash.api}>
-          <BlockContext.Provider value={rootContext}>
-            {view === "canvas" ? (
-              <CanvasView />
-            ) : (
-              <Reorder.Group as="div" axis="y" values={order} onReorder={(next) => setOrder(next as BlockId[])}>
-                <AnimatePresence initial={false} mode="sync">
-                  {order.map((id) => {
-                    const node = nodesById.get(id);
-                    if (node === undefined) return null;
-                    return (
-                      <RowItem
-                        key={id}
-                        node={node}
-                        layoutSlide={layoutSlide || draggingKey !== null}
-                        isDragged={draggingKey === id}
-                        animated={enterGate.current}
-                        previewIndent={draggingKey === id ? previewIndent : null}
-                        onDragStart={() => onRowDragStart(id)}
-                        onDragEnd={(event) => onRowDragEnd(id, event)}
-                        onDragMove={(event) => onRowDragMove(id, event)}
-                      />
-                    );
-                  })}
-                </AnimatePresence>
-              </Reorder.Group>
-            )}
-            <PresenceCaretOverlay rootRef={rootRef} />
-          </BlockContext.Provider>
+          <FormatPaletteContext.Provider value={formatPalette}>
+            <BlockContext.Provider value={rootContext}>
+              {view === "canvas" ? (
+                <CanvasView />
+              ) : (
+                <Reorder.Group as="div" axis="y" values={order} onReorder={(next) => setOrder(next as BlockId[])}>
+                  <AnimatePresence initial={false} mode="sync">
+                    {order.map((id) => {
+                      const node = nodesById.get(id);
+                      if (node === undefined) return null;
+                      return (
+                        <RowItem
+                          key={id}
+                          node={node}
+                          layoutSlide={layoutSlide || draggingKey !== null}
+                          isDragged={draggingKey === id}
+                          animated={enterGate.current}
+                          previewIndent={draggingKey === id ? previewIndent : null}
+                          onDragStart={() => onRowDragStart(id)}
+                          onDragEnd={(event) => onRowDragEnd(id, event)}
+                          onDragMove={(event) => onRowDragMove(id, event)}
+                        />
+                      );
+                    })}
+                  </AnimatePresence>
+                </Reorder.Group>
+              )}
+              <PresenceCaretOverlay rootRef={rootRef} />
+            </BlockContext.Provider>
+          </FormatPaletteContext.Provider>
         </SlashMenuContext.Provider>
         {slash.menuNode}
         {format.toolbarNode}
