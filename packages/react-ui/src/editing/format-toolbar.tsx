@@ -57,7 +57,8 @@ import { type FormatMark, markToggleAction } from "./keyboard";
  *
  * It is visible while the view's selection is a text range over a
  * toolbar-eligible target: a single block of an eligible type (paragraph,
- * quote, heading, list-item, callout, latex; code and canvas-text have their
+ * quote, heading, list-item, callout, latex, table-cell; code and
+ * canvas-text have their
  * own formatting model) or a cross-block range whose chain text blocks are all
  * eligible. It floats above the selection (below it when there is no room
  * above) and disappears as soon as the selection collapses, leaves the

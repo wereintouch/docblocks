@@ -150,6 +150,9 @@ function buildCatalogDoc(doc: Doc): void {
         const cellId = doc.insertBlock("table-cell", undefined, { parent: rowId });
         if (row === 1) doc.updateBlock(cellId, { rowColor: "#10b981" });
         if (col === 2) doc.updateBlock(cellId, { columnColor: "#3b82f6" });
+        // The first cell also carries its own runs (the text-cell shape:
+        // the cell's own content stands above its children block).
+        if (row === 1 && col === 1) doc.insertText(cellId, 0, "own runs");
         const cellText = doc.insertBlock("paragraph", undefined, { parent: cellId });
         doc.insertText(cellText, 0, `cell ${row}-${col}`);
       }

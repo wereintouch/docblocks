@@ -168,10 +168,14 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="callout"][data-variant="danger"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="callout"]:not([data-variant])').count()).toBe(1);
 
-  // Table 2x2, the cell text via its child paragraph.
+  // Table 2x2, the cell text via its child paragraph; the first cell also
+  // carries its own runs (the text-cell shape — the runs layer stands
+  // above the children).
   expect(await doc.locator("tr").count()).toBe(2);
   expect(await doc.locator('td[data-slot="docblocks/table-cell"]').count()).toBe(4);
-  await expect(doc.locator("td").first()).toHaveText("cell 1-1");
+  const firstCell = doc.locator("td").first();
+  await expect(firstCell.locator('[data-slot="docblocks/block-content"]').first()).toHaveText("own runs");
+  await expect(firstCell.locator('[data-block-type="paragraph"]').first()).toHaveText("cell 1-1");
 
   // Code blocks: the language attrs (the ts block is the mono pin below —
   // the preflight makes pre mono on its own, so the pin reads the inner

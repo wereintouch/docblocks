@@ -26,6 +26,7 @@ const TOOLBAR_BLOCK_TYPES: ReadonlySet<string> = new Set([
   "list-item",
   "callout",
   "latex",
+  "table-cell",
 ]);
 
 /** The cross-block shape of the toolbar's target range. */
@@ -142,6 +143,8 @@ function alignOfBlock(block: Block): TextAlign | undefined {
     case "latex":
     case "list-item":
       return block.attrs.align;
+    case "table-cell":
+      return block.attrs?.align;
     default:
       return undefined;
   }

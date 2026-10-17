@@ -196,12 +196,16 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
       const edge = event.key === "ArrowUp" ? 0 : doc.getTextLength(focusBlockId);
       if (!domSelection.isCollapsed && !event.shiftKey) return;
       if (focus !== edge) return;
-      const target = findSiblingTextBlock(
-        doc,
-        focusBlockId,
-        parentBlockIdOf(focusBlock, doc),
-        event.key === "ArrowUp" ? "previous" : "next"
-      );
+      // The cell's own content layer's down edge: the layer's text is
+      // above the cell's children sequence (not beside it in the row), so
+      // the first text child takes the caret; without children the row's
+      // sibling walk stands (the next cell). The up edge keeps the
+      // sibling walk (the previous cell).
+      const isDown = event.key === "ArrowDown";
+      const descend = isDown ? cellDescendTarget(doc, focusBlockId) : null;
+      const target =
+        descend ??
+        findSiblingTextBlock(doc, focusBlockId, parentBlockIdOf(focusBlock, doc), isDown ? "next" : "previous");
       if (target === null) return;
       event.preventDefault();
       if (event.shiftKey) {
@@ -232,6 +236,24 @@ function parentBlockIdOf(blockEl: HTMLElement, doc: Doc): BlockId {
   const wrapper = blockEl.parentElement;
   const parent = wrapper?.parentElement?.closest<HTMLElement>("[data-block-id]") ?? null;
   return parent?.dataset.blockId ?? doc.meta.id;
+}
+
+/**
+ * The down-edge descent of a focused text block's cell's own content
+ * layer: the layer stands above the cell's children sequence, so the
+ * first text child takes the caret (the row's sibling walk finds the next
+ * cell instead). Null for every other block or edge.
+ */
+function cellDescendTarget(doc: Doc, focusBlockId: BlockId): { id: BlockId; length: number } | null {
+  const block = doc.getBlock(focusBlockId);
+  if (block === null || block.type !== "table-cell") return null;
+  for (const childId of doc.getChildren(focusBlockId)) {
+    if (childId === undefined) return null;
+    const child = doc.getBlock(childId);
+    if (child === null || !BLOCK_REGISTRY[child.type].content) continue;
+    return { id: childId, length: doc.getTextLength(childId) };
+  }
+  return null;
 }
 
 export { markToggleAction, useBlockKeyboard };

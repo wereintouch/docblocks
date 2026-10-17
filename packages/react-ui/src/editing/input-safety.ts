@@ -76,12 +76,12 @@ function useBlockInput({
 }) {
   const { doc, selection: selectionRef, store, rootBlockId } = useEditorContext();
   const slash = useSlashMenuApi();
-  // The cell context (the block's parent is a table cell): the cell
+  // The cell context (the block is a table cell or lives in one): the cell
   // gestures own the keys — Enter is a soft line break at every position
   // (no split / no exit), Backspace at the line start is a no-op (no
   // merge), and the paste is plain text only (the markdown pipeline does
   // not run in a cell).
-  const inCell = context.parentType === "table-cell";
+  const inCell = context.parentType === "table-cell" || blockType === "table-cell";
 
   const onPaste = useCallback(
     (event: ClipboardEvent<HTMLElement>) => {

@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 
-import { memo, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   CSSProperties,
   ClipboardEvent,
@@ -10,11 +10,11 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 
-import type { BlockId, Doc, TableBlock as TableBlockType } from "docblocks-core";
+import type { Block, BlockId, Doc, TableBlock as TableBlockType } from "docblocks-core";
 import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
-import { focusCaretIn } from "../editing/block-commands";
+import { focusCaretIn, focusCellActivation } from "../editing/block-commands";
 import { plainTextOfHtml } from "../editing/clipboard";
 import { useBlock } from "../hooks";
 import { Button } from "../shared/ui";
@@ -30,8 +30,9 @@ import {
 import { cn } from "../shared/ui/cn";
 import { Ellipsis, EllipsisVertical, Plus } from "../shared/ui/icons";
 import { BlockGroups } from "./BlockView";
-import { BlockContext, useBlockContextValue } from "./block-context";
+import { BlockContext, useBlockContext, useBlockContextValue } from "./block-context";
 import { useFormatPalette } from "./format-palette-context";
+import { useTextInner } from "./text-inner";
 
 const EMPTY_IDS: BlockId[] = [];
 
@@ -108,14 +109,18 @@ function sameSequence(a: readonly (string | number)[], b: readonly (string | num
 
 /**
  * The plain text of the cell's content (the context menu's copy payload):
- * the text children's text (the soft breaks stand as the run's
- * `\n`) joined with `\n` between the blocks; the non-text children
- * contribute nothing (v1).
+ * the cell's own text (the soft breaks stand as the run's `\n`) first, then
+ * the text children's text joined with `\n` between the blocks; the
+ * non-text children contribute nothing (v1). Parts the cell carries no
+ * text in are skipped.
  */
 function cellPlainText(doc: Doc, cellId: BlockId): string {
   const cell = doc.getBlock(cellId);
   if (cell === null || cell.type !== "table-cell") return "";
   const parts: string[] = [];
+  // The cell's own content stands above the children (the text-cell shape).
+  const own = doc.getText(cellId);
+  if (own !== "") parts.push(own);
   for (const child of cell.children ?? []) {
     const block = doc.getBlock(child);
     if (block === null || !BLOCK_REGISTRY[block.type].content) continue;
@@ -125,10 +130,12 @@ function cellPlainText(doc: Doc, cellId: BlockId): string {
 }
 
 /**
- * The context menu's paste: the plain text lands at the end of the cell's
- * LAST text child (the menu carries no caret context, v1); a cell without
- * a text child gets a fresh paragraph. One transact (one undo step, one
- * wire update); the multi-line text stands as soft breaks — the cell
+ * The context menu's paste seat: the plain text lands at the end of the
+ * cell's LAST text child (the menu carries no caret context, v1); a cell
+ * without a text child gets a fresh paragraph (a cell whose own runs
+ * stand still takes the children — the layer is the typed-text surface,
+ * the menu paste is the block-content one). One transact (one undo step,
+ * one wire update); the multi-line text stands as soft breaks — the cell
  * paragraphs are plain text only, like the cell's paste pipeline.
  */
 function pasteCellText(doc: Doc, cellId: BlockId, text: string): { blockId: BlockId; offset: number } | null {
@@ -509,14 +516,16 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     if (seat !== null) focusCaretIn(seat.blockId, seat.offset, cellScope());
   };
 
-  /** The clear: the cell's children cascade out (one transact, one undo
-   * step); the cell stands the activation layer. */
+  /** The clear: the cell's own content and the children cascade out
+   * (one transact, one undo step); the cell stands the activation layer. */
   const onCellClear = () => {
     if (ctx === null) return;
     try {
       doc.transact(() => {
         const cell = doc.getBlock(ctx.cellId);
         if (cell === null || cell.type !== "table-cell") return;
+        const ownLength = doc.getTextLength(ctx.cellId);
+        if (ownLength > 0) doc.deleteText(ctx.cellId, 0, ownLength);
         for (const child of cell.children ?? []) doc.removeBlock(child);
       });
     } catch {
@@ -1082,6 +1091,10 @@ const TableCell = memo(function TableCell({ id, dragX }: { id: BlockId; dragX: n
     ...(background !== undefined ? { background } : {}),
     ...(dragX !== 0 ? { transform: `translateX(${dragX}px)`, position: "relative", zIndex: 10 } : {}),
   };
+  // The cell's own content (the text-cell shape: the runs stand in
+  // addition to the children blocks) renders as an editable layer above
+  // the children; a wholly empty cell takes the activation layer.
+  const hasOwnText = (cell.content ?? []).some((run) => run.text !== "");
   return (
     <td
       data-slot="docblocks/table-cell"
@@ -1093,11 +1106,82 @@ const TableCell = memo(function TableCell({ id, dragX }: { id: BlockId; dragX: n
       style={style}
     >
       <BlockContext.Provider value={contextValue}>
-        {children.length === 0 ? <CellActivation cellId={id} /> : <BlockGroups ids={children} />}
+        {hasOwnText ? <CellContent id={id} block={cell} /> : null}
+        {children.length === 0 && !hasOwnText ? <CellActivation cellId={id} /> : <BlockGroups ids={children} />}
       </BlockContext.Provider>
     </td>
   );
 });
+
+/**
+ * The cell's own content layer: the cell's runs render as an editable
+ * text layer at the top of the cell (the v1 text-cell shape — a cell may
+ * carry its own text in addition to its children blocks). The cell
+ * gestures own the keys: Enter is a soft line break at every position,
+ * Backspace at the line start is a no-op, and the paste is plain text
+ * only (the inCell model, the same as the cell's paragraphs).
+ */
+function CellContent({ id, block }: { id: BlockId; block: Extract<Block, { type: "table-cell" }> }) {
+  const context = useBlockContext();
+  const { doc } = useEditorContext();
+  const { innerRef, onInput, onPaste, onKeydown } = useTextInner({
+    id,
+    block,
+    blockType: "table-cell",
+    context,
+  });
+  const align = block.attrs?.align;
+  /** True while the browser focus stands in the layer (the unmount park). */
+  const focusInRef = useRef(false);
+  /** The editor root the seat scopes to (captured at focus time). */
+  const scopeRef = useRef<ParentNode>(document);
+
+  // The layer unmounts with the last character deleted (the cell normalizes
+  // to content: []): the browser drops the focus to the document — park it
+  // (the undo hotkey reach) where the caret can stand: the first text child
+  // (the reading order continues in the children) or the activation layer
+  // in a childless cell. A focus that left the layer (the user moved on)
+  // must not be stolen.
+  useEffect(
+    () => () => {
+      if (!focusInRef.current) return;
+      const cell = doc.getBlock(id);
+      if (cell === null || cell.type !== "table-cell") return;
+      const child = (cell.children ?? []).find((childId) => {
+        const b = doc.getBlock(childId);
+        return b !== null && BLOCK_REGISTRY[b.type].content;
+      });
+      if (child !== undefined) focusCaretIn(child, 0, scopeRef.current);
+      else focusCellActivation(id, scopeRef.current);
+    },
+    [doc, id]
+  );
+  return (
+    <div
+      ref={innerRef}
+      contentEditable
+      suppressContentEditableWarning
+      spellCheck={false}
+      data-slot="docblocks/block-content"
+      data-block-id={id}
+      className={cn(
+        "m-0 whitespace-pre-wrap outline-none",
+        align === "center" && "text-center",
+        align === "right" && "text-right"
+      )}
+      onFocus={() => {
+        focusInRef.current = true;
+        scopeRef.current = innerRef.current?.closest<HTMLElement>("[data-slot='docblocks/editor']") ?? document;
+      }}
+      onBlur={() => {
+        focusInRef.current = false;
+      }}
+      onInput={onInput}
+      onPaste={onPaste}
+      onKeyDown={onKeydown}
+    />
+  );
+}
 
 /**
  * The empty-cell activation layer: a local contenteditable that holds the

@@ -285,6 +285,24 @@ describe("the cell's right-click menu", () => {
     expect(children.length).toBe(2);
     expect(doc.getRuns(children[0]!)).toEqual([{ text: "aa", marks: {} }]);
   });
+
+  it("Clear empties the cell's own content too (one undo step)", async () => {
+    const { doc, tableId } = renderTableDoc();
+    const cellId = cellIdAt(doc, tableId, 0, 0);
+    doc.insertText(cellId, 0, "own");
+    const p1 = doc.insertBlock("paragraph", undefined, { parent: cellId });
+    doc.insertText(p1, 0, "aa");
+
+    rightClick(cellAt(0, 0));
+    await flushFrames();
+    fireEvent.click(await cellMenuItem("Clear"));
+    expect(doc.getText(cellId)).toBe("");
+    expect(doc.getChildren(cellId)).toEqual([]);
+
+    doc.undo();
+    expect(doc.getText(cellId)).toBe("own");
+    expect(doc.getChildren(cellId).length).toBe(1);
+  });
 });
 
 describe("the column seam resize", () => {
