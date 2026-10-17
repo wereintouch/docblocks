@@ -95,7 +95,7 @@ test("the / is a plain doc character — the doc and the wire see it; Backspace 
   await expect(menu(a)).toBeVisible();
   await expect(target).toHaveText("/");
   await expect(inner(b, "b")).toHaveText("/");
-  expect(await outCount(a, "a")).toBe(outBefore + 1);
+  await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 1); // the wire log lags the update — polled
 
   // Backspace deletes the "/" like any other character: the anchor vanishes
   // and the menu closes.
@@ -103,7 +103,7 @@ test("the / is a plain doc character — the doc and the wire see it; Backspace 
   await expect(menu(a)).toHaveCount(0);
   await expect(target).toHaveText("");
   await expect(inner(b, "b")).toHaveText("");
-  expect(await outCount(a, "a")).toBe(outBefore + 2);
+  await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 2); // the wire log lags the update — polled
   await close();
 });
 
@@ -438,7 +438,7 @@ test("/ triggers in a non-empty, indented block; the apply converts the type and
   expect(attrs).toEqual({ list: "task", indent: 1 });
 
   // One command: one wire update; the other pane stands the same.
-  expect(await outCount(a, "a")).toBe(outBefore + 1);
+  await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 1); // the wire log lags the update — polled
   const bItem = b.locator('[data-block-type="list-item"]');
   await expect(bItem).toHaveCount(1);
   await expect(bItem.locator('[data-slot="docblocks/block-content"]')).toHaveText("todo");
@@ -513,6 +513,57 @@ test("a phrase-only block converts by replacement (the converted block stands em
   await close();
 });
 
+test("an undo inside the apply's focus gap still undoes (the keyboard scope stands on the root)", async ({
+  browser,
+}) => {
+  const { a, close } = await openPanes(browser, "ux09-slash-gap-undo");
+  const seedId = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    return doc.insertBlock("paragraph");
+  });
+  expect(seedId).not.toBeNull();
+  const target = a.locator(`[data-block-id="${seedId}"] [data-slot="docblocks/block-content"]`);
+  await target.click();
+
+  await a.keyboard.type("/head");
+  await expect(menu(a)).toBeVisible();
+
+  // The ArrowDown + Enter (the apply) and the Ctrl+Z (the undo) are
+  // dispatched back to back in one evaluate: the store rebuild's rAF
+  // caret re-seating has not run, so the undo lands inside the focus gap
+  // (the focused inner unmounts in the rebuild; the focus stands on the
+  // editor root until the re-seat). The apply's sync flush runs inside
+  // the first dispatch, so the gap is live when the second dispatch lands.
+  const result = await a.evaluate((id) => {
+    if (id === null) return null;
+    const inner = document.querySelector(`[data-block-id="${id}"][data-slot="docblocks/block-content"]`);
+    if (inner === null) return null;
+    inner.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true, cancelable: true }));
+    inner.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+    const undoTarget = document.activeElement;
+    if (undoTarget === null) return null;
+    undoTarget.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "z", ctrlKey: true, bubbles: true, cancelable: true })
+    );
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    const children = doc.getChildren(doc.meta.id);
+    return {
+      // the replace inserted the heading and removed the seed: the undo
+      // removes the heading and restores the seed — a net one-block drop
+      seedRestored: children.includes(id),
+      seedText: children.includes(id) ? doc.getText(id) : "GONE",
+      headingStands: children.some((cid) => doc.getBlock(cid)?.type === "heading"),
+    };
+  }, seedId);
+  // The seed stands again with the phrase; the converted heading is gone.
+  expect(result?.seedRestored).toBe(true);
+  expect(result?.seedText).toBe("/head");
+  expect(result?.headingStands).toBe(false);
+  await close();
+});
+
 test("a same-type command is an attrs update: the kind swap keeps the text", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "ux08-slash-kindswap");
   const target = inner(a, "a");
@@ -550,7 +601,7 @@ test("a same-type command is an attrs update: the kind swap keeps the text", asy
   }, "a");
   expect(attrs).toEqual({ list: "task" });
   // One composed command: one wire update.
-  expect(await outCount(a, "a")).toBe(outBefore + 1);
+  await expect.poll(async () => outCount(a, "a")).toBe(outBefore + 1); // the wire log lags the update — polled
   await close();
 });
 

@@ -293,6 +293,18 @@ function indentOf(block: Block): number {
 }
 
 /**
+ * Hold the editor root's focus across a structural rebuild: the focused
+ * inner editable unmounts during the store-driven re-render, and the
+ * browser drops the focus to <body> until the next-frame caret re-seating
+ * lands. Focusing the (tabIndex -1) root before the rebuild keeps the
+ * focus — and the keyboard scope — inside the editor while the gap lasts
+ * (the root's keydown handler still owns the hotkeys).
+ */
+function holdFocus(scope: ParentNode): void {
+  if (scope instanceof HTMLElement && scope.isConnected) scope.focus({ preventScroll: true });
+}
+
+/**
  * Execute the apply plan (one transaction for the non-replace kinds —
  * one undo step, one wire update). The validation-first ordering stands:
  * the type change / the attrs patch validate before the text deletion
@@ -335,6 +347,9 @@ function applySlashPlan(
         }
         focusCaretIn(caretId, 0, scope);
       });
+      // The seed's inner unmounts in the rebuild — hold the keyboard
+      // scope on the root until the caret re-seats on the next frame.
+      holdFocus(scope);
       return;
     case "update":
     case "convert": {
@@ -377,8 +392,10 @@ function applySlashPlan(
         throw error;
       }
       // A type change remounts the row (the wrapper tag swap drops the
-      // focus): re-seat the caret in the survivor at the rebase position
-      // (the deletion start — the caret's rebase rule).
+      // focus): hold the keyboard scope on the root and re-seat the caret
+      // in the survivor at the rebase position (the deletion start — the
+      // caret's rebase rule) on the next frame.
+      if (plan.kind === "convert") holdFocus(scope);
       focusCaretIn(blockId, plan.deleteFrom, scope);
       return;
     }
