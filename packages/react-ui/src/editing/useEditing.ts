@@ -6,7 +6,7 @@ import { entrySequenceParent } from "../blocks/flat";
 import { removeBlocksSelection } from "./block-commands";
 import { crossRangeClipboardContent } from "./cross-copy";
 import { useCrossDrag } from "./cross-drag";
-import { mapDomSelection, selectionsEqual } from "./selection-mapping";
+import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
 
 interface EditingHandle {
   /** Attach to the editor root element. */
@@ -42,6 +42,15 @@ function useEditing(): EditingHandle {
       const view = selectionRef.view;
       if (root === null || view === null) return;
       const next = mapDomSelection(root, window.getSelection(), doc);
+      const current = view.get();
+      // A `blocks` view (the gutter / canvas selection) has no DOM
+      // expression: a selection settling outside the editables (the canvas
+      // chrome, the stale residue, a `none` mapping) cannot express it, so
+      // the mapping never clobbers a blocks view there. A caret inside an
+      // editable still wins (the page's gutter→text click); a gutter
+      // selection is cleared by the explicit paths (Escape, a new
+      // selection, the delete), not by the background click.
+      if (current.kind === "blocks" && !domSelectionInEditable(window.getSelection())) return;
       // The view emits even on no-op sets — only push a real change.
       if (!selectionsEqual(next, view.get())) view.set(next);
     };

@@ -1,24 +1,27 @@
 import { useStore } from "zustand";
 
 import { useMemo, useRef, useState } from "react";
-import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { CanvasDock } from "../canvas/CanvasDock";
-import { marqueeRect, penStroke, rectsIntersect, screenToCanvas } from "../canvas/viewport";
+import { canvasToScreen, marqueeRect, penStroke, rectsIntersect, screenToCanvas } from "../canvas/viewport";
+import type { Box, ResizeHandle } from "../canvas/viewport";
 import { useCanvasViewport } from "../canvas/viewport-state";
+import type { MovePreview } from "../canvas/viewport-state";
 import { useBlock } from "../hooks";
 import { Button } from "../shared/ui";
 import { ScrollArea } from "../shared/ui/ScrollArea";
+import { cn } from "../shared/ui/cn";
 import { Minus } from "../shared/ui/icons/Minus";
 import { Plus } from "../shared/ui/icons/Plus";
 import { BlockGroups } from "./BlockView";
 import { CanvasItem } from "./CanvasItem";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { BlockContext, useBlockContextValue } from "./block-context";
-import { pageCardStyle } from "./canvas-geometry";
+import { effectiveGeometry, pageCardStyle } from "./canvas-geometry";
 
 /**
  * One surface's layer on the document canvas (the canvas view): its
@@ -32,16 +35,29 @@ function SurfaceLayer({
   id,
   children,
   pendingConnector,
+  movePreview,
+  resizePreview,
+  rotatePreview,
 }: {
   id: BlockId;
   children: BlockId[];
   pendingConnector: string | null;
+  movePreview: MovePreview | null;
+  resizePreview: { id: string; box: Box } | null;
+  rotatePreview: { id: string; rotation: number } | null;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
   return (
     <BlockContext.Provider value={contextValue}>
       {children.map((childId) => (
-        <CanvasItem key={childId} id={childId} pendingConnector={pendingConnector} />
+        <CanvasItem
+          key={childId}
+          id={childId}
+          pendingConnector={pendingConnector}
+          movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
+          resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
+          rotatePreview={rotatePreview !== null && rotatePreview.id === childId ? rotatePreview.rotation : null}
+        />
       ))}
       <ConnectorLayer id={id} />
     </BlockContext.Provider>
@@ -54,6 +70,41 @@ function SurfaceLayer({
  * data, no awareness. `onMouseDown` keeps the default out (a click on the
  * chrome must not steal the pointer into a canvas session).
  */
+/** The eight resize handles' positions (box percentages) + cursors. */
+const RESIZE_HANDLE_POSITIONS: { handle: ResizeHandle; className: string; style: CSSProperties }[] = [
+  { handle: "nw", className: "cursor-nwse-resize", style: { left: 0, top: 0, transform: "translate(-50%, -50%)" } },
+  { handle: "n", className: "cursor-ns-resize", style: { left: "50%", top: 0, transform: "translate(-50%, -50%)" } },
+  {
+    handle: "ne",
+    className: "cursor-nesw-resize",
+    style: { left: "100%", top: 0, transform: "translate(-50%, -50%)" },
+  },
+  {
+    handle: "e",
+    className: "cursor-ew-resize",
+    style: { left: "100%", top: "50%", transform: "translate(-50%, -50%)" },
+  },
+  {
+    handle: "se",
+    className: "cursor-nwse-resize",
+    style: { left: "100%", top: "100%", transform: "translate(-50%, -50%)" },
+  },
+  {
+    handle: "s",
+    className: "cursor-ns-resize",
+    style: { left: "50%", top: "100%", transform: "translate(-50%, -50%)" },
+  },
+  {
+    handle: "sw",
+    className: "cursor-nesw-resize",
+    style: { left: 0, top: "100%", transform: "translate(-50%, -50%)" },
+  },
+  { handle: "w", className: "cursor-ew-resize", style: { left: 0, top: "50%", transform: "translate(-50%, -50%)" } },
+];
+
+/** The rotate handle's offset above the box top edge (screen px). */
+const HANDLE_ROTATE_OFFSET_PX = 24;
+
 function ZoomControls({
   zoom,
   onStep,
@@ -95,6 +146,9 @@ type CanvasSession =
   | { kind: "marquee" }
   | { kind: "pen"; points: { x: number; y: number }[] };
 
+/** The page-card scrollbar-strip guard width (the native thin bar's reach). */
+const SCROLLBAR_GUARD_PX = 12;
+
 /**
  * The document's canvas view (the `view === "canvas"` mode): the document's
  * page rendered as a page miniature — a positioned vertical rectangle of
@@ -122,6 +176,9 @@ function CanvasView() {
   const { store, doc, rootBlockId, selection } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   const blocks = useStore(store, (state) => state.blocks);
+  // The reactive selection (the handles' render condition): the context's
+  // `selection` handle is stable, so the store slice drives the re-render.
+  const storeSelection = useStore(store, (state) => state.selection);
   const root = useBlock(rootBlockId);
   const viewport = useCanvasViewport(doc);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -146,6 +203,26 @@ function CanvasView() {
   }, [rootChildren, blocks]);
 
   const pageContext = useBlockContextValue(rootBlockId, pageChildren, "root");
+
+  // The handles' target: a single block selection with an effective box
+  // (the stored geometry or the synthesized default; the connector is
+  // excluded — it carries no own geometry). The rotation preview / the
+  // resize preview stand over the stored values while in flight.
+  const handleTarget = useMemo(() => {
+    if (storeSelection?.kind !== "blocks" || storeSelection.ids.length !== 1) return null;
+    const id = storeSelection.ids[0]!;
+    const block = blocks[id];
+    if (block === undefined || block.type === "connector") return null;
+    return { id, box: effectiveGeometry(block), rotation: block.geometry?.rotation ?? 0 };
+  }, [storeSelection, blocks]);
+  const displayBox =
+    handleTarget !== null && viewport.resizePreview !== null && viewport.resizePreview.id === handleTarget.id
+      ? viewport.resizePreview.box
+      : (handleTarget?.box ?? null);
+  const displayRotation =
+    handleTarget !== null && viewport.rotatePreview !== null && viewport.rotatePreview.id === handleTarget.id
+      ? viewport.rotatePreview.rotation
+      : (handleTarget?.rotation ?? null);
 
   if (root === undefined) return null;
 
@@ -228,16 +305,73 @@ function CanvasView() {
       return;
     }
 
-    if (isPageCard(event.target)) return;
+    // The resize / rotate handles (the single-selection overlay): the
+    // press starts the session (the pan mode / the held space stand
+    // before this — space+drag over a handle pans).
+    const handle =
+      event.target instanceof Element
+        ? (event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-handle"]') ?? null)
+        : null;
+    if (handle !== null && handleTarget !== null) {
+      containerRef.current?.focus();
+      if (handle.dataset.handle === "rotate") {
+        viewport.beginRotate(
+          handleTarget.id,
+          { x: handleTarget.box.x, y: handleTarget.box.y },
+          event.clientX,
+          event.clientY
+        );
+      } else {
+        const resizeHandle = handle.dataset.handle as ResizeHandle | undefined;
+        if (resizeHandle !== undefined)
+          viewport.beginResize(handleTarget.id, resizeHandle, event.clientX, event.clientY);
+      }
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
 
     const item =
       event.target instanceof Element ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]') : null;
     if (item !== null) {
       const id = item.getAttribute("data-block-id");
       if (id !== null) {
-        selection.view?.set({ kind: "blocks", ids: [id], anchorId: id });
+        // Group-aware selection: an item inside the current block selection
+        // keeps the group (the group is what moves); otherwise it stands
+        // alone. The check stands BEFORE the page-card guard: an item
+        // paints over the card, so a press on it is an item press (not a
+        // card press).
+        const sel = selection.view?.get();
+        const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
+        selection.view?.set({ kind: "blocks", ids, anchorId: id });
         containerRef.current?.focus();
+        viewport.beginMove(ids, event.clientX, event.clientY);
+        event.currentTarget.setPointerCapture?.(event.pointerId);
       }
+      return;
+    }
+
+    if (isPageCard(event.target)) {
+      // The card's scroll element is the card itself (the consumer
+      // data-slot stands on the ScrollArea's root div).
+      const card =
+        event.target instanceof Element
+          ? (event.target.closest('[data-slot="docblocks/page-card"]') as HTMLElement | null)
+          : null;
+      if (card !== null && card.scrollHeight > card.clientHeight) {
+        // The card's native thin scrollbar strip (non-contenteditable):
+        // the press belongs to the scrollbar drag, not the card move.
+        const rect = card.getBoundingClientRect();
+        const inStrip =
+          event.clientX > rect.right - SCROLLBAR_GUARD_PX || event.clientY > rect.bottom - SCROLLBAR_GUARD_PX;
+        if (inStrip) return;
+      }
+      // The page miniature moves from its non-editing areas (the content
+      // keeps the caret): the one-item selection + move session over the
+      // root (the selection stands the handles' target).
+      containerRef.current?.focus();
+      selection.view?.set({ kind: "blocks", ids: [rootBlockId], anchorId: rootBlockId });
+      viewport.beginMove([rootBlockId], event.clientX, event.clientY);
+      event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
 
@@ -247,6 +381,12 @@ function CanvasView() {
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // The move / resize / rotate sessions (item / page-card / handle
+    // press) run without a container session; the feeders are no-ops
+    // while none is open.
+    viewport.moveDrag(event.clientX, event.clientY);
+    viewport.resizeDrag(event.clientX, event.clientY, event.shiftKey);
+    viewport.rotateDrag(centerRelativePoint(event), event.clientX, event.clientY, event.shiftKey);
     const session = sessionRef.current;
     if (session === null) return;
     const point = centerRelativePoint(event);
@@ -266,6 +406,9 @@ function CanvasView() {
   };
 
   const onPointerUp = () => {
+    viewport.endMove();
+    viewport.endResize();
+    viewport.endRotate();
     const session = sessionRef.current;
     if (session === null) return;
     sessionRef.current = null;
@@ -302,6 +445,10 @@ function CanvasView() {
       const center = { x: containerRect.width / 2, y: containerRect.height / 2 };
       const ids: BlockId[] = [];
       for (const el of containerRef.current.querySelectorAll<HTMLElement>('[data-slot="docblocks/canvas-item"]')) {
+        const id = el.getAttribute("data-block-id");
+        // The connector's wrapper is an empty origin box (its line lives
+        // in the overlay): it is not marquee-selectable.
+        if (id === null || blocks[id]?.type === "connector") continue;
         const box = el.getBoundingClientRect();
         const itemRect = {
           left: box.left - containerRect.left - center.x,
@@ -309,8 +456,7 @@ function CanvasView() {
           width: box.width,
           height: box.height,
         };
-        const id = el.getAttribute("data-block-id");
-        if (id !== null && rectsIntersect(rect, itemRect)) ids.push(id);
+        if (rectsIntersect(rect, itemRect)) ids.push(id);
       }
       selection.view?.set(ids.length > 0 ? { kind: "blocks", ids, anchorId: ids[0]! } : { kind: "none" });
       // The focus parks on the canvas container (the Delete keydown has to
@@ -318,6 +464,18 @@ function CanvasView() {
       // handler).
       containerRef.current?.focus();
     }
+  };
+
+  // A pointer cancel (the OS/browser takeover) drops every in-flight
+  // session: the move's preview would otherwise stand until the next
+  // release, and that release would commit a stale setGeometry.
+  const onPointerCancel = () => {
+    sessionRef.current = null;
+    viewport.cancelMove();
+    viewport.cancelResize();
+    viewport.cancelRotate();
+    viewport.setMarquee(null);
+    viewport.setPenPoints([]);
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -338,6 +496,21 @@ function CanvasView() {
       viewport.setPendingConnector(null);
       viewport.setPenPoints([]);
       sessionRef.current = null;
+      return;
+    }
+    if (event.key === "Escape" && viewport.movePreview !== null) {
+      // The in-flight move's cancel: the preview is dropped, nothing is
+      // written, the selection stands.
+      event.stopPropagation();
+      viewport.cancelMove();
+      return;
+    }
+    if (event.key === "Escape" && (viewport.resizePreview !== null || viewport.rotatePreview !== null)) {
+      // The in-flight resize / rotate's cancel (the same contract as the
+      // move's: the preview is dropped, nothing is written).
+      event.stopPropagation();
+      viewport.cancelResize();
+      viewport.cancelRotate();
       return;
     }
     if (event.key === " " && !event.repeat) {
@@ -381,6 +554,32 @@ function CanvasView() {
         ? "cursor-grab"
         : "cursor-default";
 
+  // The page miniature's display style (the committed style + the session
+  // previews: the move offset, the resize box, the rotation — the same
+  // composition as the CanvasItem's).
+  const pageCardDisplayStyle = (() => {
+    const style = pageCardStyle(root);
+    if (handleTarget === null || handleTarget.id !== rootBlockId) return style;
+    const isMoving = viewport.movePreview !== null && viewport.movePreview.ids.includes(rootBlockId);
+    const previewBox =
+      viewport.resizePreview !== null && viewport.resizePreview.id === rootBlockId ? viewport.resizePreview.box : null;
+    const rotation = displayRotation ?? 0;
+    if (isMoving === false && previewBox === null && rotation === (root.geometry?.rotation ?? 0)) return style;
+    if (previewBox !== null) {
+      style.left = `calc(50% + ${previewBox.x}px)`;
+      style.top = `calc(50% + ${previewBox.y}px)`;
+      style.width = `${previewBox.w}px`;
+      style.height = `${previewBox.h}px`;
+    }
+    const parts = ["translate(-50%, -50%)"];
+    // The move offset stands BEFORE the rotation (the Δ is in the canvas
+    // axes; a trailing translate would land in the rotated frame).
+    if (isMoving) parts.push(`translate(${viewport.movePreview!.dx}px, ${viewport.movePreview!.dy}px)`);
+    if (rotation !== 0) parts.push(`rotate(${rotation}deg)`);
+    style.transform = parts.join(" ");
+    return style;
+  })();
+
   return (
     <div
       data-slot="docblocks/canvas-view"
@@ -401,6 +600,7 @@ function CanvasView() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
     >
@@ -414,7 +614,7 @@ function CanvasView() {
       >
         <ScrollArea
           data-slot="docblocks/page-card"
-          style={pageCardStyle(root)}
+          style={pageCardDisplayStyle}
           className="
             box-border rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
             p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
@@ -425,7 +625,15 @@ function CanvasView() {
           </BlockContext.Provider>
         </ScrollArea>
         {surfaces.map(({ id, children }) => (
-          <SurfaceLayer key={id} id={id} children={children} pendingConnector={viewport.pendingConnector} />
+          <SurfaceLayer
+            key={id}
+            id={id}
+            children={children}
+            pendingConnector={viewport.pendingConnector}
+            movePreview={viewport.movePreview}
+            resizePreview={viewport.resizePreview}
+            rotatePreview={viewport.rotatePreview}
+          />
         ))}
         {viewport.penPoints.length > 1 && (
           <svg
@@ -460,6 +668,49 @@ function CanvasView() {
           }}
         />
       )}
+      {handleTarget !== null &&
+        viewport.activeTool === null &&
+        viewport.movePreview === null &&
+        displayBox !== null && (
+          // The selection's handles (the eight box handles + the rotate
+          // handle above the top edge): screen-space, over the world
+          // (they keep their on-screen size at any zoom). Hidden while a
+          // move preview is in flight (the box is stale then).
+          <div
+            data-slot="docblocks/canvas-handles"
+            className="pointer-events-none absolute z-40"
+            style={{
+              left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
+              top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y}px)`,
+              width: displayBox.w * viewport.zoom,
+              height: displayBox.h * viewport.zoom,
+              transform: `translate(-50%, -50%) rotate(${displayRotation ?? 0}deg)`,
+            }}
+          >
+            {RESIZE_HANDLE_POSITIONS.map(({ handle: handleId, className, style }) => (
+              <div
+                key={handleId}
+                data-slot="docblocks/canvas-handle"
+                data-handle={handleId}
+                className={cn(
+                  "pointer-events-auto absolute size-2 rounded-full",
+                  "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background)",
+                  className
+                )}
+                style={style}
+              />
+            ))}
+            <div
+              data-slot="docblocks/canvas-handle"
+              data-handle="rotate"
+              className={cn(
+                "pointer-events-auto absolute size-3 cursor-grab rounded-full",
+                "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background)"
+              )}
+              style={{ left: "50%", top: -HANDLE_ROTATE_OFFSET_PX, transform: "translate(-50%, -50%)" }}
+            />
+          </div>
+        )}
       <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={() => viewport.setZoom(1)} />
       <CanvasDock viewport={viewport} />
     </div>

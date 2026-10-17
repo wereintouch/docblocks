@@ -288,4 +288,20 @@ function syncDomSelection(root: HTMLElement, doc: Doc, view: SelectionView): voi
   if (!selectionsEqual(next, view.get())) view.set(next);
 }
 
-export { mapDomSelection, selectionsEqual, syncDomSelection };
+/**
+ * Whether the DOM selection's endpoints stand inside a contenteditable
+ * (of any editor root): the caret is live in an editable, so the
+ * selection's mapping expresses a real edit position. A selection
+ * collapsed outside the editables (the chrome, the stale residue) does
+ * not — the mapping must not clobber a `blocks` view there.
+ */
+function domSelectionInEditable(domSelection: Selection | null): boolean {
+  if (domSelection === null || domSelection.rangeCount === 0) return false;
+  const elementOf = (node: Node | null): Element | null =>
+    node instanceof Element ? node : node === null ? null : node.parentElement;
+  const anchor = elementOf(domSelection.anchorNode);
+  const focus = elementOf(domSelection.focusNode);
+  return anchor?.closest('[contenteditable="true"]') !== null && focus?.closest('[contenteditable="true"]') !== null;
+}
+
+export { domSelectionInEditable, mapDomSelection, selectionsEqual, syncDomSelection };

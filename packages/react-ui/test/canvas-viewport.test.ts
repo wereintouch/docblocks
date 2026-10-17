@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_ZOOM,
   MIN_ZOOM,
+  RESIZE_FLOOR_PX,
   TOOL_SIZES,
   ZOOM_STEP,
   canvasToScreen,
@@ -13,9 +14,63 @@ import {
   marqueeRect,
   penStroke,
   rectsIntersect,
+  resizeBox,
+  rotateAngle,
   screenToCanvas,
   stepZoom,
 } from "../src/canvas/viewport";
+
+describe("resizeBox", () => {
+  const box = { x: 100, y: 100, w: 200, h: 100 };
+
+  it("moves the handle's edge(s), the opposite edge(s) stand, the center re-derives", () => {
+    expect(resizeBox(box, "e", 30, 0, false)).toEqual({ x: 115, y: 100, w: 230, h: 100 });
+    expect(resizeBox(box, "w", -40, 0, false)).toEqual({ x: 80, y: 100, w: 240, h: 100 });
+    expect(resizeBox(box, "n", 0, -20, false)).toEqual({ x: 100, y: 90, w: 200, h: 120 });
+    expect(resizeBox(box, "se", 10, 10, false)).toEqual({ x: 105, y: 105, w: 210, h: 110 });
+  });
+
+  it("floors the moving edge at the floor against the standing edge", () => {
+    // The w edge dragged far right: the width floors (the e edge stands).
+    expect(resizeBox(box, "w", 500, 0, false)).toEqual({ x: 190, y: 100, w: RESIZE_FLOOR_PX, h: 100 });
+    // The n edge dragged far down: the s edge stands, the height floors.
+    expect(resizeBox(box, "n", 0, 500, false)).toEqual({ x: 100, y: 140, w: 200, h: RESIZE_FLOOR_PX });
+  });
+
+  it("is a no-op (equal-value box) for a zero delta", () => {
+    expect(resizeBox(box, "se", 0, 0, false)).toEqual(box);
+  });
+
+  it("keeps the aspect on a shift corner (the dominant axis decides)", () => {
+    // Both axes at 1.5x.
+    expect(resizeBox(box, "se", 100, 25, true)).toEqual({ x: 150, y: 125, w: 300, h: 150 });
+    // The height axis dominates (2x over 1.25x): the width follows.
+    expect(resizeBox(box, "se", 50, 100, true)).toEqual({ x: 200, y: 150, w: 400, h: 200 });
+    // The opposite corner is the anchor (the nw drag grows around the se corner).
+    expect(resizeBox(box, "nw", -100, -50, true)).toEqual({ x: 50, y: 75, w: 300, h: 150 });
+  });
+
+  it("floors the shift corner at the anchor (no flip-past)", () => {
+    expect(resizeBox(box, "se", -198, -98, true)).toEqual({ x: 10, y: 60, w: RESIZE_FLOOR_PX, h: RESIZE_FLOOR_PX });
+  });
+});
+
+describe("rotateAngle", () => {
+  const center = { x: 0, y: 0 };
+
+  it("reads the pointer angle clockwise from up (0..359)", () => {
+    expect(rotateAngle(center, { x: 0, y: -100 }, false)).toBe(0);
+    expect(rotateAngle(center, { x: 100, y: 0 }, false)).toBe(90);
+    expect(rotateAngle(center, { x: 0, y: 100 }, false)).toBe(180);
+    expect(rotateAngle(center, { x: -100, y: 0 }, false)).toBe(270);
+  });
+
+  it("snaps to the 15 degree grid on shift", () => {
+    expect(rotateAngle(center, { x: 34.2, y: -93.97 }, true)).toBe(15);
+    expect(rotateAngle(center, { x: 17.1, y: -98.48 }, true)).toBe(15);
+    expect(rotateAngle(center, { x: 50, y: -86.6 }, true)).toBe(30);
+  });
+});
 
 describe("clampZoom", () => {
   it("keeps a zoom inside the 25%–400% bounds", () => {

@@ -81,4 +81,26 @@ function pageCardStyle(root: Block): CSSProperties {
   };
 }
 
-export { DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, canvasItemStyle, endpointOf, isCanvasSubType, pageCardStyle };
+/**
+ * The effective geometry box the element stands at (the stored geometry
+ * or the synthesized default: the page miniature gets the default page
+ * size, every other canvas element the default item size). The move
+ * commit writes a complete x/y/w/h patch from this snapshot, so a
+ * geometry-less element moves into a fresh complete geometry.
+ */
+function effectiveGeometry(block: Block): { x: number; y: number; w: number; h: number } {
+  const geometry = block.geometry;
+  if (geometry !== undefined) return { x: geometry.x, y: geometry.y, w: geometry.w, h: geometry.h };
+  const size = block.type === "root" ? DEFAULT_PAGE_SIZE : { w: DEFAULT_CANVAS_ITEM_SIZE, h: DEFAULT_CANVAS_ITEM_SIZE };
+  return { x: 0, y: 0, w: size.w, h: size.h };
+}
+
+export {
+  DEFAULT_CANVAS_ITEM_SIZE,
+  DEFAULT_PAGE_SIZE,
+  canvasItemStyle,
+  effectiveGeometry,
+  endpointOf,
+  isCanvasSubType,
+  pageCardStyle,
+};

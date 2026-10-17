@@ -17,6 +17,8 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
 /** The zoom button step (25%). */
 const ZOOM_STEP = 0.25;
+/** The move session's drag threshold (screen px): below it, the press is a click. */
+const MOVE_THRESHOLD_PX = 3;
 
 /** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
 type CanvasTool = "rect" | "ellipse" | "diamond" | "line" | "text" | "frame" | "connector" | "pen";
@@ -77,6 +79,97 @@ function canvasToScreen(point: CanvasPoint, zoom: number, pan: ScreenPoint): Scr
   return { x: point.x * zoom + pan.x, y: point.y * zoom + pan.y };
 }
 
+/**
+ * The screen delta → the canvas delta (the zoom divides; the pan is
+ * constant during a session and cancels out). Below the threshold the
+ * press was a click, not a drag (null).
+ */
+function screenDeltaToCanvas(dx: number, dy: number, zoom: number): CanvasPoint | null {
+  if (Math.hypot(dx, dy) < MOVE_THRESHOLD_PX) return null;
+  return { x: dx / zoom, y: dy / zoom };
+}
+
+/** The resize handle ids (the eight box handles + the rotate handle). */
+type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
+
+/** The box floor of a resize (canvas px, per axis). */
+const RESIZE_FLOOR_PX = 20;
+
+/** A complete box (the center-anchor geometry shape). */
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * The resize math (center-anchor semantics, the Miro edge model): the
+ * handle's edge(s) move by the delta, the opposite edge(s) stand, and
+ * the center re-derives. Shift on a corner keeps the aspect (the
+ * dominant axis decides the scale; the opposite corner stays anchored).
+ * The size floors at RESIZE_FLOOR_PX per axis. No-op (a sub-floor / zero
+ * delta) results in an equal-value box — the commit's no-op guard drops
+ * it.
+ */
+function resizeBox(box: Box, handle: ResizeHandle, dx: number, dy: number, shift: boolean): Box {
+  const left = box.x - box.w / 2;
+  const top = box.y - box.h / 2;
+  const right = box.x + box.w / 2;
+  const bottom = box.y + box.h / 2;
+
+  if (shift && handle.length === 2) {
+    // The corner + shift: the aspect stands (the dominant axis decides
+    // the scale), the opposite corner is the anchor, and the size floors
+    // at the anchor (a past-anchor drag clamps at the floor — no flip).
+    // The moving edge's new position gives the scale (the nw/sw handles
+    // move the west edge — the width changes by −dx; the ne/se, the east
+    // edge — by +dx; the n/s, the height analogously).
+    const newWidth = handle.includes("w") ? right - (left + dx) : right + dx - left;
+    const newHeight = handle.includes("n") ? bottom - (top + dy) : bottom + dy - top;
+    const scaleX = newWidth / box.w;
+    const scaleY = newHeight / box.h;
+    const scale = Math.abs(scaleX) >= Math.abs(scaleY) ? scaleX : scaleY;
+    const w = Math.max(RESIZE_FLOOR_PX, box.w * Math.abs(scale));
+    const h = Math.max(RESIZE_FLOOR_PX, box.h * Math.abs(scale));
+    const nLeft = handle === "nw" || handle === "sw" ? right - w : left;
+    const nRight = handle === "ne" || handle === "se" ? left + w : right;
+    const nTop = handle === "nw" || handle === "ne" ? bottom - h : top;
+    const nBottom = handle === "sw" || handle === "se" ? top + h : bottom;
+    return { x: (nLeft + nRight) / 2, y: (nTop + nBottom) / 2, w: nRight - nLeft, h: nBottom - nTop };
+  }
+
+  // The moving edge(s) move by the delta; each clamps at the floor
+  // against the standing edge.
+  let nLeft = left;
+  let nTop = top;
+  let nRight = right;
+  let nBottom = bottom;
+  if (handle.includes("w")) nLeft = Math.min(left + dx, right - RESIZE_FLOOR_PX);
+  if (handle.includes("e")) nRight = Math.max(right + dx, left + RESIZE_FLOOR_PX);
+  if (handle.includes("n")) nTop = Math.min(top + dy, bottom - RESIZE_FLOOR_PX);
+  if (handle.includes("s")) nBottom = Math.max(bottom + dy, top + RESIZE_FLOOR_PX);
+
+  return {
+    x: (nLeft + nRight) / 2,
+    y: (nTop + nBottom) / 2,
+    w: nRight - nLeft,
+    h: nBottom - nTop,
+  };
+}
+
+/**
+ * The rotate handle's angle (degrees, clockwise, 0° = up — the handle's
+ * home position above the box center). `shift` snaps to the 15° grid.
+ * The result normalizes to 0..359 (0 stands for no rotation).
+ */
+function rotateAngle(center: ScreenPoint, pointer: ScreenPoint, shift: boolean): number {
+  const angle = (Math.atan2(pointer.x - center.x, center.y - pointer.y) * 180) / Math.PI;
+  let normalized = ((angle % 360) + 360) % 360;
+  if (shift) normalized = (Math.round(normalized / 15) * 15) % 360;
+  return (Math.round(normalized * 100) / 100) % 360;
+}
+
 /** The marquee rectangle from the drag's two corners (normalized). */
 function marqueeRect(start: ScreenPoint, end: ScreenPoint): ScreenRect {
   return {
@@ -127,6 +220,8 @@ function penStroke(points: CanvasPoint[]): PenStroke | null {
 export {
   MAX_ZOOM,
   MIN_ZOOM,
+  MOVE_THRESHOLD_PX,
+  RESIZE_FLOOR_PX,
   TOOL_SIZES,
   ZOOM_STEP,
   canvasToScreen,
@@ -134,7 +229,10 @@ export {
   marqueeRect,
   penStroke,
   rectsIntersect,
+  resizeBox,
+  rotateAngle,
+  screenDeltaToCanvas,
   screenToCanvas,
   stepZoom,
 };
-export type { CanvasMode, CanvasPoint, CanvasTool, PenStroke, ScreenPoint, ScreenRect };
+export type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle, ScreenPoint, ScreenRect };
