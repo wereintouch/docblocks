@@ -690,3 +690,80 @@ test("the drag's live preview stands the moving row at the seam's candidate (the
 
   await close();
 });
+
+test("a peer deleting the dragged row mid-drag leaves the pane resynced (no stuck drag session)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ui04b-drag-stuck");
+  try {
+    // Three paragraphs (the starter + two inserts) with unique texts.
+    await insertBlockType(a, "a", "paragraph");
+    await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
+    await a.keyboard.type("one");
+    await insertBlockType(a, "a", "paragraph");
+    await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
+    await a.keyboard.type("two");
+    await expect(wrappers(a, "a")).toHaveCount(3);
+
+    const draggedId = await wrapperId(a, "a", 1);
+    expect(draggedId).not.toBe("");
+    const handle = gutter(a, "a", 1);
+    await handle.hover();
+    const from = await handle.boundingBox();
+    const lastRow = await rowOf(a, await wrapperId(a, "a", 2)).boundingBox();
+    if (from === null || lastRow === null) throw new Error("the rows have no boxes");
+    const fromY = from.y + from.height / 2;
+    const toY = lastRow.y + lastRow.height + 30;
+
+    // The drag: press the handle, move the row below the last one...
+    await a.mouse.move(from.x, fromY);
+    await a.mouse.down();
+    for (let i = 1; i <= 10; i += 1) {
+      await a.mouse.move(from.x, fromY + ((toY - fromY) * i) / 10);
+      await a.waitForTimeout(30);
+    }
+    // ...and the peer deletes the dragged row while the pointer is down.
+    await b.evaluate((id) => {
+      const doc = window.__paneDocs?.b;
+      if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+      doc.removeBlock(id);
+    }, draggedId);
+    await a.waitForTimeout(400);
+    await a.mouse.up();
+
+    // The pane resyncs: the rendered rows stand the store's sequence
+    // (the dragged row is gone, the survivors in the doc order).
+    await expect
+      .poll(async () => {
+        const { order } = await rootState(a, "a");
+        const rows = await a.evaluate((client) => {
+          const root = document.querySelector(`[data-testid="doc-${client}"]`);
+          if (root === null) return null;
+          return Array.from(root.querySelectorAll('[data-slot="docblocks/row"]')).map((row) => {
+            const el = row.querySelector<HTMLElement>("[data-block-id]");
+            return el === null ? null : el.getAttribute("data-block-id");
+          });
+        }, "a");
+        if (rows === null) return false;
+        return rows.length === order.length && rows.every((id, i) => id === order[i]);
+      }, SETTLE)
+      .toBe(true);
+
+    // The resync stays alive: a peer insert reaches the pane (a stuck
+    // session would skip the render-phase resync and hide it).
+    await b.evaluate(() => {
+      const doc = window.__paneDocs?.b;
+      if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+      const seq = doc.getChildren(doc.meta.id);
+      const id = doc.insertBlock("paragraph", undefined, { parent: doc.meta.id, after: seq[0] });
+      doc.insertText(id, 0, "fresh");
+      return id;
+    });
+    const freshText = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]', {
+      hasText: "fresh",
+    });
+    await expect(freshText).toBeVisible();
+  } finally {
+    await close();
+  }
+});

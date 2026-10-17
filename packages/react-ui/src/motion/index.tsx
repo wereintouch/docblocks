@@ -48,7 +48,11 @@
  * Known accepted edges: a remote doc update mid-drag re-derives the row
  * list; the in-flight drag may visually restart, and a release whose
  * derived final order is stale against the store is dropped (no commit —
- * the local order resyncs to the store). Framer's own reorder detection
+ * the local order resyncs to the store). A peer that deletes the dragged
+ * row mid-drag unmounts it: the session state is released in the render
+ * phase — the release does not depend on framer delivering onDragEnd for
+ * the unmounted row — and the local order resyncs to the store. Framer's
+ * own reorder detection
  * on a long downward drag can cascade the virtual index toward the
  * bottom (accepted as the experimental base — if it proves unacceptable
  * in e2e, the commit's stale-drop guard is the backstop: the release
@@ -483,6 +487,16 @@ function MotionEditor({
   useLayoutEffect(() => {
     orderRef.current = order;
   }, [order]);
+
+  // The drag's row vanished (a peer deleted it mid-drag): the session
+  // state (the dragging key and the seam preview) is released here — the
+  // release does not depend on framer delivering onDragEnd for the
+  // unmounted row. The resync below (the next render, the dragging key
+  // cleared) snaps the local order back to the store.
+  if (draggingKey !== null && !rowKeys.includes(draggingKey)) {
+    setDraggingKey(null);
+    setPreviewIndent(null);
+  }
 
   // A store change (remote or local, drag-free) resyncs the local order.
   // The render-phase setState (not an effect) keeps the committed DOM in
