@@ -70,6 +70,9 @@ function useEditing(): EditingHandle {
           event.preventDefault();
           removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), selection.ids);
           view.set({ kind: "none" });
+          // The deleted rows unmount and the browser would drop the focus to
+          // the document: park it on the editor root (the undo hotkey reach).
+          root?.focus();
           return;
         }
         if (event.key === "Escape") {

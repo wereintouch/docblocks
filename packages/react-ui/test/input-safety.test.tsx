@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { act } from "react";
@@ -8,7 +8,8 @@ import { createDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
+import { EditorProvider, useEditorContext } from "../src/EditorProvider";
+import type { EditorContextValue } from "../src/EditorProvider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;
@@ -727,5 +728,49 @@ describe("the code/latex paste target (the raw text)", () => {
     });
 
     expect(doc.getText(id)).toBe("$$ y = x $$\n$$ z $$");
+  });
+});
+
+describe("the blocks (gutter) selection removal", () => {
+  it("the delete key removes the selected rows and parks the focus on the editor root", () => {
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const p1 = doc.insertBlock("paragraph");
+    doc.insertText(p1, 0, "one");
+    const p2 = doc.insertBlock("paragraph");
+    doc.insertText(p2, 0, "two");
+
+    let context: EditorContextValue | undefined;
+    const Capture = () => {
+      context = useEditorContext();
+      return null;
+    };
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+        <Capture />
+      </EditorProvider>
+    );
+    const view = context!.selection.view;
+    expect(view, "the selection view should stand").not.toBeNull();
+    act(() => {
+      view!.set({ kind: "blocks", ids: [p1, p2], anchorId: p1 });
+    });
+
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${p1}"]`);
+    expect(wrapper, "the selected row should render").not.toBeNull();
+    wrapper!.focus();
+    act(() => {
+      fireEvent.keyDown(wrapper!, { key: "Delete" });
+    });
+
+    // Both rows are gone (the doc and the DOM).
+    expect(doc.getBlock(p1)).toBeNull();
+    expect(doc.getBlock(p2)).toBeNull();
+    expect(document.querySelector(`[data-block-id="${p2}"]`)).toBeNull();
+
+    // The deleted rows unmounted with the focus: the editor root stands
+    // focused so the undo hotkey reaches the doc.
+    const root = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');
+    expect(document.activeElement).toBe(root);
   });
 });

@@ -211,6 +211,43 @@ test("gutter click selects the block; Delete removes it in both panes", async ({
   await close();
 });
 
+test("the gutter multi-select delete is undone by the hotkey (the focus stays inside the editor)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ui03b-gutter-multi-undo");
+
+  // The room's starter plus two inserted paragraphs: three text rows.
+  await expect(wrappers(a, "a")).toHaveCount(1);
+  await insertBlockType(a, "a", "paragraph");
+  await insertBlockType(a, "a", "paragraph");
+  await expect(wrappers(a, "a")).toHaveCount(3);
+
+  const first = wrappers(a, "a").nth(1);
+  const second = wrappers(a, "a").nth(2);
+  await first.hover();
+  await first.locator('button[data-slot="docblocks/gutter"]').click();
+  await expect(first).toHaveAttribute("data-selected", "true");
+  await second.hover();
+  await second.locator('button[data-slot="docblocks/gutter"]').click({ modifiers: ["Shift"] });
+  await expect(first).toHaveAttribute("data-selected", "true");
+  await expect(second).toHaveAttribute("data-selected", "true");
+
+  // The focused row (the last clicked — the gutter click parks the focus)
+  // owns the delete key; both rows go with their segments, the starter
+  // stands.
+  await a.keyboard.press("Delete");
+  await expect(wrappers(a, "a")).toHaveCount(1);
+  await expect(wrappers(b, "b")).toHaveCount(1);
+
+  // The deleted rows unmounted with the focus: the hotkey reach is the
+  // editor root, and the undo restores the rows in both panes.
+  await a.keyboard.press("Control+z");
+  await expect(wrappers(a, "a")).toHaveCount(3);
+  await expect(wrappers(b, "b")).toHaveCount(3);
+
+  await close();
+});
+
 // The empty-block editing rules (Enter / Backspace): a root-level empty
 // non-text block resets its type to a plain paragraph; a child empty block
 // outdents one level (the type stands, until the indent reaches 0, where

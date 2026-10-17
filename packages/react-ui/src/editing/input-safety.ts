@@ -266,6 +266,9 @@ function useBlockInput({
           event.preventDefault();
           removeBlocksSelection(doc, context.parentId, selection.ids);
           view.set({ kind: "none" });
+          // The deleted rows unmount and the browser would drop the focus to
+          // the document: park it on the editor root (the undo hotkey reach).
+          wrapperRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]')?.focus();
           return;
         }
         if (event.key === "Escape") {
