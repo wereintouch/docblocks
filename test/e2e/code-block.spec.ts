@@ -1,11 +1,13 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-// The code block's affordances (requirements code.md C1–C10): the header's
-// hover/typing reveal, the language picker (the attr over the wire), the
-// clipboard copy, the collapse/clamp sync, the caption line sync, the
-// "more" menu's display toggles, the logical line numbers, the keyboard
-// gestures (the quote/callout soft-line family), and the language pick
-// that reveals the mermaid mode segment.
+// The code block's affordances: the header's hover/typing reveal, the
+// language picker (the attr over the wire), the clipboard copy, the
+// collapse/clamp sync, the caption line sync, the "more" menu's display
+// toggles, the logical line numbers, the keyboard gestures (the
+// quote/callout soft-line family), the language pick that reveals the
+// mermaid mode segment, and the curated-language syntax highlight layer
+// (the paint, the edit/language-change re-paint over the wire, and the
+// wrap-off alignment).
 const RELAY = "ws://localhost:5199";
 
 /**
@@ -353,5 +355,86 @@ test("Backspace at the start of a non-empty code never merges; the empty one res
   expect((await blockOf(a, "a", ids.code))?.type).toBe("paragraph");
   expect(await rootIds(a, "a")).toHaveLength(3); // the starter + prev + the converted paragraph
   expect((await blockOf(b, "b", ids.code))?.type).toBe("paragraph");
+  await close();
+});
+
+test("the highlight layer paints for a curated language and follows the edits (both panes)", async ({ browser }) => {
+  const { a, b, close } = await openPanes(browser, "ux17-code-highlight");
+  const id = await seedCode(a, "a", "", { language: "python" });
+  await a.waitForTimeout(600);
+
+  const layer = blockWrapper(a, "a", id).locator('[data-slot="docblocks/code-highlight"]');
+
+  // The curated language stands the token-colored layer behind the
+  // transparent inner ink; typing commits the doc and the layer re-paints
+  // with the new tokens.
+  const inner = innerOf(a, "a", id);
+  await inner.click();
+  await a.keyboard.type("def main():");
+  await expect.poll(async () => (await layer.evaluate((el) => el.innerHTML)).includes("hljs-keyword")).toBe(true);
+  await a.keyboard.press("Enter"); // the code line break (a \n in the text)
+  await a.keyboard.type("return 1");
+  await expect.poll(async () => (await layer.evaluate((el) => el.innerHTML)).includes("hljs-number")).toBe(true);
+
+  // The remote pane re-paints its own layer over the wire — the doc text
+  // is the sync channel, the highlight is derived from it.
+  const layerB = blockWrapper(b, "b", id).locator('[data-slot="docblocks/code-highlight"]');
+  await expect.poll(async () => (await layerB.evaluate((el) => el.innerHTML)).includes("hljs-number")).toBe(true);
+
+  // The inner ink is transparent behind the layer (the caret stands;
+  // getComputedStyle serializes the transparent keyword as rgba(0,0,0,0)).
+  expect(await inner.evaluate((el) => getComputedStyle(el).color)).toBe("rgba(0, 0, 0, 0)");
+  await close();
+});
+
+test("a language pick through the header re-highlights the layer", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux17-code-highlight-lang");
+  const id = await seedCode(a, "a", '{"x": 1}\n', { language: "python" });
+  await a.waitForTimeout(600);
+
+  const block = blockWrapper(a, "a", id);
+  const layer = block.locator('[data-slot="docblocks/code-highlight"]');
+  await expect.poll(async () => (await layer.evaluate((el) => el.innerHTML)).includes("hljs-string")).toBe(true);
+  expect(await layer.evaluate((el) => el.innerHTML)).not.toContain("hljs-attr");
+
+  // Pick json through the header menu (the real UI path).
+  await block.hover();
+  await block.locator('[data-slot="docblocks/code-language"]').click();
+  const search = a.locator('[data-slot="docblocks/code-language-search"]');
+  await expect(search).toBeVisible();
+  await search.fill("jso");
+  await search.press("Enter"); // the first match (JSON)
+
+  // The json grammar paints the key as an attr — the re-paint, not the
+  // raw text.
+  await expect.poll(async () => (await layer.evaluate((el) => el.innerHTML)).includes("hljs-attr")).toBe(true);
+  await close();
+});
+
+test("the highlight layer aligns with the inner in the wrap-off horizontal scroll", async ({ browser }) => {
+  const { a, close } = await openPanes(browser, "ux17-code-highlight-wrap");
+  const longLine = "const payload = " + "x".repeat(160) + ";";
+  const id = await seedCode(a, "a", longLine + "\nconst done = true;", {
+    language: "javascript",
+    wrap: false,
+  });
+  await a.waitForTimeout(600);
+
+  const block = blockWrapper(a, "a", id);
+  const layer = block.locator('[data-slot="docblocks/code-highlight"]');
+  await expect.poll(async () => (await layer.evaluate((el) => el.innerHTML)).includes("hljs-keyword")).toBe(true);
+
+  // The wrap-off scroll stands (the long line overflows the viewport).
+  const scroll = block.locator('[data-slot="docblocks/code-scroll"]');
+  expect(await scroll.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(0);
+
+  // The layer and the inner share the scroll content box — the boxes align
+  // (the same typography and the same content, no horizontal drift).
+  const inner = innerOf(a, "a", id);
+  const innerBox = await inner.boundingBox();
+  const layerBox = await layer.boundingBox();
+  if (innerBox === null || layerBox === null) throw new Error("the boxes stand");
+  expect(Math.abs(innerBox.width - layerBox.width)).toBeLessThan(1);
+  expect(Math.abs(innerBox.height - layerBox.height)).toBeLessThan(1);
   await close();
 });
