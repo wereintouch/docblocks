@@ -225,3 +225,43 @@ describe("deterministic reseed (duplicate order entries)", () => {
     expect((a.toJSON().blocks.d1 as RootBlock).children).toEqual(["c0", "c1", "c2"]);
   });
 });
+
+/**
+ * A concurrent moveBlock + removeBlock of the same block: the move's
+ * delete + reinsert races the remove's delete on the same order element,
+ * so the re-inserted child id can survive with no block entry (a dangling
+ * order id). The lenient read drops it: getChildren and toJSON stay
+ * well-formed on both peers (the raw Yjs layer keeps the id — doc.raw is
+ * the escape hatch; the data is not rewritten).
+ */
+describe("the moveBlock + removeBlock race (the dangling child id)", () => {
+  const makeSeed = (): Uint8Array =>
+    fromJSON({
+      v: 1,
+      id: "d-race",
+      title: "",
+      createdAt: CREATED_AT,
+      blocks: {
+        "d-race": { type: "root", children: ["b1", "b2", "b3"] },
+        b1: { type: "paragraph", content: [{ text: "one", marks: {} }] },
+        b2: { type: "paragraph", content: [{ text: "two", marks: {} }] },
+        b3: { type: "paragraph", content: [{ text: "three", marks: {} }] },
+      },
+    } as DocJSON).encode();
+
+  it("converges to an equal, valid state (the lenient read drops the re-inserted id)", () => {
+    const a = loadDoc(makeSeed());
+    const b = loadDoc(makeSeed());
+
+    // The race: A moves b2 to the end (delete + reinsert in the root
+    // order), B removes b2 (the order id + the block entry).
+    a.moveBlock("b2", "d-race", 3);
+    b.removeBlock("b2");
+    exchange(a, b);
+
+    expect(a.toJSON()).toEqual(b.toJSON());
+    const children = a.getChildren("d-race");
+    expect(children).toEqual(["b1", "b3"]);
+    expect(validateDoc(a.toJSON())).toEqual([]);
+  });
+});

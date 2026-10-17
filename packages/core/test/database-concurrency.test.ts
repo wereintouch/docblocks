@@ -4,6 +4,7 @@ import * as Y from "yjs";
 import { fromJSON, loadDoc } from "../src/core";
 import type { Doc } from "../src/core";
 import type { DatabaseCellValue, DocJSON } from "../src/schema";
+import { validateDoc } from "../src/schema";
 
 /**
  * The field-level merge claim of the database block (property test,
@@ -12,12 +13,12 @@ import type { DatabaseCellValue, DocJSON } from "../src/schema";
  * sides editing the same cell — insertRow, removeRow, moveRow), applied
  * to a random side, and then the updates are exchanged (deltas, then the
  * full states in a random order with duplicates, the convergence-test
- * pattern). The final state is asserted EQUAL between the two docs; a
- * same-cell conflict resolves to whatever Yjs's last-write semantics
- * converge to (no specific value is asserted). (The final state's
- * validity is NOT asserted: a concurrent moveRow + removeRow of the same
- * row can leave the re-inserted order id behind — the same pre-existing
- * CRDT limitation the moveBlock + removeBlock race has for blocks.)
+ * pattern). The final state is asserted EQUAL between the two docs and
+ * VALID (the lenient read drops the dangling order id a concurrent
+ * moveRow + removeRow of the same row can leave behind — the raw Yjs
+ * layer keeps it; doc.raw is the escape hatch); a same-cell conflict
+ * resolves to whatever Yjs's last-write semantics converge to (no
+ * specific value is asserted).
  */
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -193,5 +194,35 @@ describe("field-level merge (property test)", () => {
     // The database block survived on both sides.
     expect(a.toJSON().blocks[DB_ID]?.type).toBe("database");
     expect(b.toJSON().blocks[DB_ID]?.type).toBe("database");
+
+    // The final state stands the strict validator: the lenient read drops
+    // the dangling order id a concurrent moveRow + removeRow can leave
+    // (the deterministic race pins the mechanism; this asserts the
+    // property window stays valid across all three seeds).
+    expect(validateDoc(a.toJSON())).toEqual([]);
+  });
+});
+
+describe("the moveRow + removeRow race (the dangling order id)", () => {
+  it("converges to an equal, valid state (the lenient read drops the re-inserted id)", () => {
+    const seedBytes = fromJSON(SEED).encode();
+    const a = loadDoc(seedBytes);
+    const b = loadDoc(seedBytes);
+
+    // The race: A moves r2 to the front (delete + reinsert in rowOrder),
+    // B removes r2 (the cells entry + the order id). The re-inserted id
+    // has no counterpart on B — the raw array keeps it after the exchange.
+    a.moveRow(DB_ID, "r2", 0);
+    b.removeRow(DB_ID, "r2");
+    exchange(a, b);
+
+    // The converged state is equal and stands the strict validator: the
+    // dangling r2 order id is dropped by the read (the raw Yjs layer keeps
+    // it — doc.raw is the escape hatch; the data is not rewritten).
+    expect(a.toJSON()).toEqual(b.toJSON());
+    const json = a.toJSON();
+    const order = (json.blocks[DB_ID] as { rowOrder: string[] }).rowOrder;
+    expect(order).toEqual(["r1"]);
+    expect(validateDoc(json)).toEqual([]);
   });
 });

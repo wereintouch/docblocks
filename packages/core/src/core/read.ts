@@ -93,17 +93,25 @@ function readChildren(ydoc: Y.Doc, id: string): BlockId[] {
   if (!yblock) return [];
   const type = yblock.get("type");
   if (!isKnownBlockType(type) || !BLOCK_REGISTRY[type].children) return [];
+  // A concurrent move + remove of the same block can converge to a
+  // re-inserted order id with no block entry (the move's delete + reinsert
+  // and the remove's delete race on the same array element). The lenient
+  // reader drops the dangling id (the raw Yjs layer keeps it — doc.raw is
+  // the escape hatch); the strict validator still rejects it in JSON.
+  const present = (childId: string) => getBlockMap(ydoc, childId) !== null;
   // The root block's order lives in the registered rootOrder array.
   if (id === rootBlockIdOf(ydoc)) {
     return dedupeOrder(
       rootOrderOf(ydoc)
         .toArray()
-        .filter((childId): childId is string => typeof childId === "string")
+        .filter((childId): childId is string => typeof childId === "string" && present(childId))
     );
   }
   const children = yblock.get("children");
   if (!(children instanceof Y.Array)) return [];
-  return dedupeOrder(children.toArray().filter((childId): childId is string => typeof childId === "string"));
+  return dedupeOrder(
+    children.toArray().filter((childId): childId is string => typeof childId === "string" && present(childId))
+  );
 }
 
 /** Flattened run text; "" for non-text types or missing blocks. */
@@ -201,10 +209,16 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
       });
     }
     const rowOrder = yblock.get("rowOrder");
+    const hasCells = (rowId: string) => rowsMap instanceof Y.Map && rowsMap.has(rowId);
     block.rows = rows;
+    // A concurrent moveRow + removeRow of the same row can converge to a
+    // re-inserted order id with no cells entry (the move's delete +
+    // reinsert races the remove's delete on the same array element). The
+    // lenient reader drops the dangling id; the strict validator still
+    // rejects it in JSON.
     block.rowOrder =
       rowOrder instanceof Y.Array
-        ? rowOrder.toArray().filter((rowId): rowId is string => typeof rowId === "string")
+        ? rowOrder.toArray().filter((rowId): rowId is string => typeof rowId === "string" && hasCells(rowId))
         : [];
   }
 
