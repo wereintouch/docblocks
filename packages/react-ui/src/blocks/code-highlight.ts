@@ -112,25 +112,47 @@ function grammarOf(language: string | undefined): string | null {
   return HIGHLIGHT_GRAMMARS[language] ?? null;
 }
 
+/** Whether the language carries a highlight (the curated set). */
+function isHighlightable(language: string | undefined): boolean {
+  return grammarOf(language) !== null;
+}
+
+/** Whether the grammar is registered (a settled load). */
+function isGrammarLoaded(grammar: string): boolean {
+  return hljs.getLanguage(grammar) !== undefined;
+}
+
 /**
- * Turn the code text into the overlay's HTML fragment. Resolves to null
- * (never rejects) when the language has no highlight (plain text), when
- * the grammar load fails, when a grammar edge case throws, or when the
- * output fails the structure guard — the caller then renders no layer.
+ * Turn the code text into the overlay's HTML fragment synchronously (the
+ * grammar must be loaded — see `loadGrammar`). Returns null when the
+ * language has no highlight, the grammar is not loaded, a grammar edge
+ * case throws, or the output fails the structure guard.
  */
-async function highlightCode(code: string, language: string | undefined): Promise<string | null> {
+function highlightSync(code: string, language: string | undefined): string | null {
   const grammar = grammarOf(language);
-  if (grammar === null) return null;
-  await loadGrammar(grammar).catch(() => undefined); // a failed load degrades to the unknown-language null below
+  if (grammar === null || isGrammarLoaded(grammar) === false) return null;
   let value: string;
   try {
     value = hljs.highlight(code, { language: grammar, ignoreIllegals: true }).value;
   } catch {
-    // a grammar edge case (or a missing grammar after a failed load)
-    // must never take the block down: plain text
+    // a grammar edge case must never take the block down: plain text
     return null;
   }
   return guardOutput(value) ? value : null;
+}
+
+/**
+ * Turn the code text into the overlay's HTML fragment (async: the grammar
+ * load included). Resolves to null (never rejects) when the language has
+ * no highlight (plain text), when the grammar load fails, when a grammar
+ * edge case throws, or when the output fails the structure guard — the
+ * caller then renders no layer.
+ */
+async function highlightCode(code: string, language: string | undefined): Promise<string | null> {
+  const grammar = grammarOf(language);
+  if (grammar === null) return null;
+  await loadGrammar(grammar).catch(() => undefined); // a failed load degrades to the missing-grammar null below
+  return highlightSync(code, language);
 }
 
 /**
@@ -143,4 +165,4 @@ function guardOutput(html: string): boolean {
   return !/<(?!\/?span[\s>])/u.test(html);
 }
 
-export { highlightCode, loadGrammar };
+export { grammarOf, highlightCode, highlightSync, isGrammarLoaded, isHighlightable, loadGrammar };

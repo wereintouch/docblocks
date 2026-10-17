@@ -24,7 +24,9 @@ import { cn } from "../shared/ui/cn";
 import { GripVertical, TriangleFilled } from "../shared/ui/icons";
 import { renderRunsInto } from "../text/runs-dom";
 import { CodeCaption } from "./CodeCaption";
+import { CodeHighlight } from "./CodeHighlight";
 import { useBlockContext } from "./block-context";
+import { isHighlightable } from "./code-highlight";
 import { measureCodeLines } from "./code-metrics";
 import type { CodeLineMetric } from "./code-metrics";
 import { indentOf, markerCycle, numberMarkerLabel } from "./flat";
@@ -418,9 +420,14 @@ function TextBlock({
   // collapsed clamp count), the wrap (the default stands for the absent
   // attr), and the collapsed clamp (the absent attr reads as expanded).
   const codeLines = isCode ? textOf(block.content).split("\n").length : 0;
+  const codeText = isCode ? textOf(block.content) : "";
   const codeWrap = isCode ? (block.attrs?.wrap ?? true) : true;
   const codeCollapsed = isCode && block.attrs?.collapsed === true;
   const codeLineNumbers = isCode ? (block.attrs?.lineNumbers ?? true) : false;
+  // The highlight layer's gate: a curated language carries the background
+  // layer (and the inner's transparent ink); every other language (plain,
+  // unknown, mermaid) stands the plain visible text, no layer.
+  const highlightableCode = isCode && isHighlightable(block.attrs?.language);
 
   /**
    * The wrapper classes: the gutter positioning box (no focus outline).
@@ -484,6 +491,10 @@ function TextBlock({
     "m-0 whitespace-pre-wrap outline-none empty:after:content-['\\200b']",
     doneTask && "opacity-30",
     (block.type === "code" || block.type === "latex") && "font-(family-name:--docblocks-mono-font-family)",
+    // The highlight layer stands the visible ink: the inner's text goes
+    // transparent (the caret keeps the text color, the selection stands —
+    // both are CSS properties, not text color).
+    highlightableCode && "relative z-10 text-transparent caret-(--docblocks-text-color)",
     align === "center" && "text-center",
     align === "right" && "text-right",
     // The wrap-OFF code: single-line rows + the horizontal scrollbar (the
@@ -538,7 +549,12 @@ function TextBlock({
         data-slot="docblocks/code-scroll"
         className={cn("min-w-0 flex-1", !codeWrap && "overflow-x-auto overflow-y-hidden")}
       >
-        {innerEditable}
+        {/* The highlight layer (behind the inner, the same scroll box —
+            no scroll desync) and the inner editable in one relative stack. */}
+        <div data-slot="docblocks/code-highlight-stack" className="relative min-w-full">
+          {highlightableCode && <CodeHighlight code={codeText} language={block.attrs?.language} wrap={codeWrap} />}
+          {innerEditable}
+        </div>
       </ScrollArea>
     </div>
   ) : (

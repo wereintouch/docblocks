@@ -40,17 +40,18 @@
         "c0031",
         "c0032",
         "c0033",
-        "c0044",
+        "c0034",
         "c0045",
         "c0046",
         "c0047",
         "c0048",
-        "c0051",
-        "c0061",
+        "c0049",
+        "c0052",
         "c0062",
         "c0063",
         "c0064",
-        "c0065"
+        "c0065",
+        "c0066"
       ]
     },
     "c0001": {
@@ -418,6 +419,18 @@
     "c0031": {
       "type": "code",
       "attrs": {
+        "language": "python"
+      },
+      "content": [
+        {
+          "text": "def catalog():\n    return 1\n",
+          "marks": {}
+        }
+      ]
+    },
+    "c0032": {
+      "type": "code",
+      "attrs": {
         "language": "mermaid"
       },
       "content": [
@@ -427,7 +440,7 @@
         }
       ]
     },
-    "c0032": {
+    "c0033": {
       "type": "latex",
       "attrs": {
         "display": true
@@ -439,23 +452,23 @@
         }
       ]
     },
-    "c0033": {
+    "c0034": {
       "type": "table",
       "attrs": {
         "cols": 2
       },
-      "children": ["c0034", "c0039"]
-    },
-    "c0034": {
-      "type": "table-row",
-      "children": ["c0035", "c0037"]
+      "children": ["c0035", "c0040"]
     },
     "c0035": {
-      "type": "table-cell",
-      "content": [],
-      "children": ["c0036"]
+      "type": "table-row",
+      "children": ["c0036", "c0038"]
     },
     "c0036": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0037"]
+    },
+    "c0037": {
       "type": "paragraph",
       "content": [
         {
@@ -464,12 +477,12 @@
         }
       ]
     },
-    "c0037": {
+    "c0038": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0038"]
+      "children": ["c0039"]
     },
-    "c0038": {
+    "c0039": {
       "type": "paragraph",
       "content": [
         {
@@ -478,16 +491,16 @@
         }
       ]
     },
-    "c0039": {
-      "type": "table-row",
-      "children": ["c0040", "c0042"]
-    },
     "c0040": {
-      "type": "table-cell",
-      "content": [],
-      "children": ["c0041"]
+      "type": "table-row",
+      "children": ["c0041", "c0043"]
     },
     "c0041": {
+      "type": "table-cell",
+      "content": [],
+      "children": ["c0042"]
+    },
+    "c0042": {
       "type": "paragraph",
       "content": [
         {
@@ -496,12 +509,12 @@
         }
       ]
     },
-    "c0042": {
+    "c0043": {
       "type": "table-cell",
       "content": [],
-      "children": ["c0043"]
+      "children": ["c0044"]
     },
-    "c0043": {
+    "c0044": {
       "type": "paragraph",
       "content": [
         {
@@ -510,23 +523,23 @@
         }
       ]
     },
-    "c0044": {
+    "c0045": {
       "type": "image",
       "attrs": {
         "src": "demo-image"
       }
     },
-    "c0045": {
+    "c0046": {
       "type": "divider"
     },
-    "c0046": {
+    "c0047": {
       "type": "embed",
       "attrs": {
         "kind": "iframe",
         "src": "data:text/html,%3Chtml%3E%3Cbody%3E%3Cp%3Eembedded%20page%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"
       }
     },
-    "c0047": {
+    "c0048": {
       "type": "sync-embed",
       "attrs": {
         "ref": {
@@ -534,7 +547,7 @@
         }
       }
     },
-    "c0048": {
+    "c0049": {
       "type": "database",
       "attrs": {
         "columns": [
@@ -557,20 +570,20 @@
         ]
       },
       "rows": {
-        "c0049": {
+        "c0050": {
           "name": "First task",
           "done": false,
           "status": "active"
         },
-        "c0050": {
+        "c0051": {
           "name": "Second task",
           "done": true,
           "status": "done"
         }
       },
-      "rowOrder": ["c0049", "c0050"]
+      "rowOrder": ["c0050", "c0051"]
     },
-    "c0051": {
+    "c0052": {
       "type": "surface",
       "geometry": {
         "x": 0,
@@ -578,9 +591,9 @@
         "w": 900,
         "h": 500
       },
-      "children": ["c0052", "c0055", "c0056", "c0057", "c0058", "c0059", "c0060"]
+      "children": ["c0053", "c0056", "c0057", "c0058", "c0059", "c0060", "c0061"]
     },
-    "c0052": {
+    "c0053": {
       "type": "frame",
       "geometry": {
         "x": -180,
@@ -588,9 +601,9 @@
         "w": 280,
         "h": 160
       },
-      "children": ["c0053", "c0054"]
+      "children": ["c0054", "c0055"]
     },
-    "c0053": {
+    "c0054": {
       "type": "heading",
       "attrs": {
         "level": 2
@@ -602,7 +615,7 @@
         }
       ]
     },
-    "c0054": {
+    "c0055": {
       "type": "paragraph",
       "content": [
         {
@@ -611,7 +624,7 @@
         }
       ]
     },
-    "c0055": {
+    "c0056": {
       "type": "shape",
       "attrs": {
         "variant": "rect",
@@ -624,7 +637,7 @@
         "h": 80
       }
     },
-    "c0056": {
+    "c0057": {
       "type": "shape",
       "attrs": {
         "variant": "ellipse"
@@ -636,7 +649,7 @@
         "h": 80
       }
     },
-    "c0057": {
+    "c0058": {
       "type": "shape",
       "attrs": {
         "variant": "diamond"
@@ -648,7 +661,7 @@
         "h": 90
       }
     },
-    "c0058": {
+    "c0059": {
       "type": "shape",
       "attrs": {
         "variant": "line"
@@ -660,7 +673,7 @@
         "h": 60
       }
     },
-    "c0059": {
+    "c0060": {
       "type": "canvas-text",
       "geometry": {
         "x": 140,
@@ -675,19 +688,19 @@
         }
       ]
     },
-    "c0060": {
+    "c0061": {
       "type": "connector",
       "attrs": {
         "start": {
-          "blockId": "c0052"
+          "blockId": "c0053"
         },
         "end": {
-          "blockId": "c0055"
+          "blockId": "c0056"
         },
         "label": "relates to"
       }
     },
-    "c0061": {
+    "c0062": {
       "type": "paragraph",
       "content": [
         {
@@ -765,7 +778,7 @@
         }
       ]
     },
-    "c0062": {
+    "c0063": {
       "type": "paragraph",
       "content": [
         {
@@ -774,7 +787,7 @@
         }
       ]
     },
-    "c0063": {
+    "c0064": {
       "type": "paragraph",
       "content": [
         {
@@ -783,7 +796,7 @@
         }
       ]
     },
-    "c0064": {
+    "c0065": {
       "type": "paragraph",
       "attrs": {
         "indent": 1
@@ -795,7 +808,7 @@
         }
       ]
     },
-    "c0065": {
+    "c0066": {
       "type": "list-item",
       "attrs": {
         "list": "bullet",

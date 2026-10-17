@@ -127,6 +127,11 @@ function buildCatalogDoc(doc: Doc): void {
 
     const code = doc.insertBlock("code", { language: "ts" });
     doc.insertText(code, 0, "const catalog: number = 1;");
+    // The curated-language code block: the background highlight layer
+    // stands behind the transparent inner ink (the token-colored overlay —
+    // the visual regression pins its alignment with the line boxes).
+    const codeHighlight = doc.insertBlock("code", { language: "python" });
+    doc.insertText(codeHighlight, 0, "def catalog():\n    return 1\n");
     // Mermaid: a small 2-node graph (the ./mermaid subpath renders it per
     // its code/preview mode — the default code mode; the renderer is
     // registered on every pane).

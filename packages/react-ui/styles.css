@@ -166,6 +166,19 @@
   /* Code block. */
   --docblocks-code-background: var(--muted, rgba(175, 184, 193, 0.15));
   --docblocks-code-padding: 8px 12px;
+  /* Code highlight tokens (the background layer's token colors — package
+     literals: the standard shadcn set has no syntax-token counterpart).
+     The unthemed light look. */
+  --docblocks-code-token-keyword: #cf222e;
+  --docblocks-code-token-string: #032f62;
+  --docblocks-code-token-number: #005cc5;
+  --docblocks-code-token-comment: #6e7781;
+  --docblocks-code-token-function: #8250df;
+  --docblocks-code-token-section: #0550ae;
+  --docblocks-code-token-type: #953800;
+  --docblocks-code-token-tag: #116329;
+  --docblocks-code-token-attr: #0550ae;
+  --docblocks-code-token-variable: #663900;
 
   /* Divider. */
   --docblocks-divider-border-color: var(--border, rgba(175, 184, 193, 0.4));
@@ -230,6 +243,16 @@
   --docblocks-inline-code-background: var(--muted, rgba(110, 118, 129, 0.4));
 
   --docblocks-code-background: var(--muted, rgba(110, 118, 129, 0.35));
+  --docblocks-code-token-keyword: #ff7b72;
+  --docblocks-code-token-string: #a5d6ff;
+  --docblocks-code-token-number: #79c0ff;
+  --docblocks-code-token-comment: #8b949e;
+  --docblocks-code-token-function: #d2a8ff;
+  --docblocks-code-token-section: #7ee787;
+  --docblocks-code-token-type: #ffa657;
+  --docblocks-code-token-tag: #7ee787;
+  --docblocks-code-token-attr: #79c0ff;
+  --docblocks-code-token-variable: #ffa657;
   --docblocks-divider-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-table-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
@@ -317,4 +340,70 @@
 [data-docblocks-typing] [data-slot="docblocks/block"]:not([data-selected]) > [data-slot="docblocks/gutter"],
 [data-docblocks-typing] [data-slot="docblocks/list-item"]:not([data-selected]) > [data-slot="docblocks/gutter"] {
   opacity: 0;
+}
+
+/*
+ * The code highlight layer's token colors (the background layer's hljs
+ * classes read the tokens — the light and dark sets flip with the theme).
+ * A class without a rule (punctuation, bold/italic, …) falls through to
+ * the inherited text color.
+ */
+[data-slot="docblocks/code-highlight"] .hljs-comment,
+[data-slot="docblocks/code-highlight"] .hljs-quote,
+[data-slot="docblocks/code-highlight"] .hljs-meta,
+[data-slot="docblocks/code-highlight"] .hljs-doctag {
+  color: var(--docblocks-code-token-comment, #6e7781);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-keyword {
+  color: var(--docblocks-code-token-keyword, #cf222e);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-string,
+[data-slot="docblocks/code-highlight"] .hljs-regexp,
+[data-slot="docblocks/code-highlight"] .hljs-selector-string {
+  color: var(--docblocks-code-token-string, #032f62);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-number,
+[data-slot="docblocks/code-highlight"] .hljs-literal {
+  color: var(--docblocks-code-token-number, #005cc5);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-title {
+  color: var(--docblocks-code-token-function, #8250df);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-section,
+[data-slot="docblocks/code-highlight"] .hljs-selector-id {
+  color: var(--docblocks-code-token-section, #0550ae);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-type,
+[data-slot="docblocks/code-highlight"] .hljs-built_in {
+  color: var(--docblocks-code-token-type, #953800);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-tag,
+[data-slot="docblocks/code-highlight"] .hljs-name,
+[data-slot="docblocks/code-highlight"] .hljs-selector-tag {
+  color: var(--docblocks-code-token-tag, #116329);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-attr,
+[data-slot="docblocks/code-highlight"] .hljs-attribute,
+[data-slot="docblocks/code-highlight"] .hljs-selector-attr {
+  color: var(--docblocks-code-token-attr, #0550ae);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-variable,
+[data-slot="docblocks/code-highlight"] .hljs-template-variable,
+[data-slot="docblocks/code-highlight"] .hljs-params,
+[data-slot="docblocks/code-highlight"] .hljs-selector-class {
+  color: var(--docblocks-code-token-variable, #663900);
+}
+
+[data-slot="docblocks/code-highlight"] .hljs-link,
+[data-slot="docblocks/code-highlight"] .hljs-link-reference {
+  color: var(--docblocks-link-color, #0969da);
 }

@@ -115,8 +115,11 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="heading"]').count()).toBe(8);
   expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(17);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
-  expect(await doc.locator('[data-block-type="code"]').count()).toBe(2);
+  expect(await doc.locator('[data-block-type="code"]').count()).toBe(3);
   expect(await doc.locator('[data-block-type="code"][data-language="mermaid"]').count()).toBe(1);
+  // The curated-language code block renders the highlight layer behind the
+  // inner (the plain/unknown-language blocks stand no layer).
+  expect(await doc.locator('[data-slot="docblocks/code-highlight"]').count()).toBe(1);
   // The mermaid block stands in its default code mode (the exclusive
   // modes): the editable code with the line numbers stands, the diagram
   // is not rendered (the preview render is pinned by the mermaid spec).
@@ -220,8 +223,8 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
       .locator(`[data-block-id="${id}"]`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
-  expect(await rowPaddingOf("c0064")).toBe("24px");
-  expect(await rowPaddingOf("c0065")).toBe("48px");
+  expect(await rowPaddingOf("c0065")).toBe("24px");
+  expect(await rowPaddingOf("c0066")).toBe("48px");
   expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 
@@ -408,7 +411,7 @@ test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) 
   // block stands in its default code mode — switch it to preview (the mode
   // attr) so the diagram stands, and read the spacing below the code body
   // once the async render settles.
-  await page.evaluate(() => window.__catalogDoc?.updateBlock("c0031", { mermaidMode: "preview" }));
+  await page.evaluate(() => window.__catalogDoc?.updateBlock("c0032", { mermaidMode: "preview" }));
   const mermaid = doc.locator('[data-slot="docblocks/mermaid"]');
   await expect(mermaid.locator("svg")).toHaveCount(1);
   expect((await styleProps(mermaid, "margin-top"))["margin-top"]).toBe("8px");
