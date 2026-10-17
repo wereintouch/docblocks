@@ -419,3 +419,15 @@
 [data-slot="docblocks/code-highlight"] .hljs-link-reference {
   color: var(--docblocks-link-color, #0969da);
 }
+
+/*
+ * A portaled popper's wrapper stands pointer-events auto while its closed
+ * content runs the exit animation (the content itself is already
+ * pointer-events-none): a press landing over the wrapper in that window
+ * would be swallowed instead of reaching the row / cell below. The wrapper
+ * is the closed content's direct parent, so it is transparent while it
+ * carries a closed piece of content only.
+ */
+[data-radix-popper-content-wrapper]:has(> [data-state="closed"]) {
+  pointer-events: none;
+}
