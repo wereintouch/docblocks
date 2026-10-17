@@ -30,6 +30,7 @@ const ICON_SET = [
   "LoaderCircle",
   "Menu",
   "Pilcrow",
+  "Plus",
   "Quote",
   "Search",
   "Sigma",

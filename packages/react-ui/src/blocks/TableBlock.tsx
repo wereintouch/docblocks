@@ -1,16 +1,30 @@
-import { memo, useRef } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { ClipboardEvent, KeyboardEvent } from "react";
 
 import type { BlockId, TableBlock as TableBlockType } from "docblocks-core";
+import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { focusCaretIn } from "../editing/block-commands";
 import { plainTextOfHtml } from "../editing/clipboard";
 import { useBlock } from "../hooks";
+import { Button } from "../shared/ui";
+import { cn } from "../shared/ui/cn";
+import { Plus } from "../shared/ui/icons";
 import { BlockGroups } from "./BlockView";
 import { BlockContext, useBlockContextValue } from "./block-context";
 
 const EMPTY_IDS: BlockId[] = [];
+
+// The add-row / add-column chip size (px) — the row button's left offset is
+// computed against it.
+const ADD_BUTTON_SIZE = 24;
+
+// The add buttons stand hidden until the table frame is hovered or holds
+// the focus (typing in a cell keeps them up), like the code header's
+// controls.
+const ADD_BUTTON_CLASSES =
+  "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
 /**
  * A table: one <tr> per row block, one <td> per cell; each cell renders
@@ -23,25 +37,97 @@ const EMPTY_IDS: BlockId[] = [];
  * cell renders the activation layer (a local editable that holds the
  * caret without writing to the doc; the first input materializes the
  * paragraph) instead of a child paragraph — an empty cell has no data.
+ *
+ * Layout: the table's width is the sum of the column widths (the
+ * `columnWidths` attr; an absent entry falls back to the default width)
+ * under `table-layout: fixed` — the text wraps and the row height adapts.
+ * A wider-than-the-page table scrolls horizontally (the thin scrollbar);
+ * the add-column chip stands at the table's right edge and scrolls with
+ * it. The add-row chip stands below the table, centered on the visible
+ * part of it (the table's center when it fits, the editor's center when
+ * part of the table is scrolled out). The chips drive the core's
+ * `insertTableRow` / `insertTableColumn` (one command each).
  */
 function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
+  const { doc } = useEditorContext();
   const rows = block.children ?? EMPTY_IDS;
   const contextValue = useBlockContextValue(id, rows, "table");
+  const widths = Array.from(
+    { length: block.attrs.cols },
+    (_, index) => block.attrs.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH
+  );
+  const tableWidth = widths.reduce((sum, width) => sum + width, 0);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [rowButtonLeft, setRowButtonLeft] = useState(0);
+
+  // The add-row chip's left offset: the center of the visible part of the
+  // table (no scroll listeners — the chip is pinned to the frame, not the
+  // scrolled content). jsdom has no ResizeObserver; the offset stays 0.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el === null) return;
+    const update = () => setRowButtonLeft(Math.max(0, Math.min(tableWidth, el.clientWidth) / 2 - ADD_BUTTON_SIZE / 2));
+    update();
+    if (typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver(update);
+      observer.observe(el);
+      return () => observer.disconnect();
+    }
+  }, [tableWidth]);
+
   return (
-    <table
-      data-slot="docblocks/table"
-      data-block-type="table"
-      data-block-id={id}
-      className="mx-0 my-(--docblocks-block-spacing) border-collapse"
-    >
-      <tbody>
-        <BlockContext.Provider value={contextValue}>
-          {rows.map((rowId) => (
-            <TableRow key={rowId} id={rowId} />
-          ))}
-        </BlockContext.Provider>
-      </tbody>
-    </table>
+    <div data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">
+      <div ref={scrollRef} className="scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-x-auto">
+        <div className="relative w-max">
+          <table
+            data-slot="docblocks/table"
+            data-block-type="table"
+            data-block-id={id}
+            className="m-0 table-fixed border-collapse"
+            style={{ width: tableWidth }}
+          >
+            <colgroup>
+              {widths.map((width, index) => (
+                <col key={index} style={{ width }} />
+              ))}
+            </colgroup>
+            <tbody>
+              <BlockContext.Provider value={contextValue}>
+                {rows.map((rowId) => (
+                  <TableRow key={rowId} id={rowId} />
+                ))}
+              </BlockContext.Provider>
+            </tbody>
+          </table>
+          <Button
+            type="button"
+            data-slot="docblocks/table-add-column"
+            aria-label="Add column"
+            variant="ghost"
+            size="icon"
+            onClick={() => doc.insertTableColumn(id)}
+            className={cn(
+              ADD_BUTTON_CLASSES,
+              "absolute top-1/2 left-full size-6 -translate-x-1/2 -translate-y-1/2 rounded-full"
+            )}
+          >
+            <Plus />
+          </Button>
+        </div>
+      </div>
+      <Button
+        type="button"
+        data-slot="docblocks/table-add-row"
+        aria-label="Add row"
+        variant="ghost"
+        size="icon"
+        onClick={() => doc.insertTableRow(id)}
+        className={cn(ADD_BUTTON_CLASSES, "absolute top-full size-6 -translate-y-1/2 rounded-full")}
+        style={{ left: rowButtonLeft }}
+      >
+        <Plus />
+      </Button>
+    </div>
   );
 }
 

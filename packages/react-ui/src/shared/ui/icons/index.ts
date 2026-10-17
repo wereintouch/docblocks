@@ -23,6 +23,7 @@ export { ListOrdered } from "./ListOrdered";
 export { LoaderCircle } from "./LoaderCircle";
 export { Menu } from "./Menu";
 export { Pilcrow } from "./Pilcrow";
+export { Plus } from "./Plus";
 export { Quote } from "./Quote";
 export { Search } from "./Search";
 export { Sigma } from "./Sigma";

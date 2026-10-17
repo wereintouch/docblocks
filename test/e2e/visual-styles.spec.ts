@@ -369,12 +369,19 @@ test("the callout, divider and table read the zone-2 tokens", async ({ page }) =
   });
 
   // The table: the collapsed borders + the cell width/padding tokens.
-  // The table's vertical margins collapse with the neighbors' — the
-  // non-collapsing margin-right pins the margin token instead.
+  // The frame's (the scroll wrapper's) vertical margins collapse with the
+  // neighbors' — the non-collapsing margin-right pins the margin token
+  // instead; the fixed layout pins the explicit-layout contract.
   const table = doc.locator('table[data-slot="docblocks/table"]');
   await expect(table).toHaveCount(1);
-  const tableStyle = await styleProps(table, "border-collapse", "margin-top", "margin-right");
-  expect(tableStyle).toEqual({ "border-collapse": "collapse", "margin-top": "8px", "margin-right": "0px" });
+  const tableStyle = await styleProps(table, "border-collapse", "table-layout");
+  expect(tableStyle).toEqual({ "border-collapse": "collapse", "table-layout": "fixed" });
+  const frameStyle = await styleProps(
+    doc.locator('[data-slot="docblocks/table-scroll"]'),
+    "margin-top",
+    "margin-right"
+  );
+  expect(frameStyle).toEqual({ "margin-top": "8px", "margin-right": "0px" });
   const cellStyle = await styleProps(table.locator("td").first(), "border-top-width", "padding");
   expect(cellStyle).toEqual({ "border-top-width": "1px", padding: "4px 8px" });
 });
