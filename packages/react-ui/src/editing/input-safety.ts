@@ -7,6 +7,7 @@ import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks/block-context";
 import {
+  findParentId,
   focusCaretIn,
   indentIn,
   indentOf,
@@ -16,7 +17,7 @@ import {
   restoreSelectionIn,
   splitAt,
 } from "./block-commands";
-import { applyMdPaste, applyRichPaste } from "./clipboard";
+import { applyMdPaste, applyRichPaste, plainTextOfHtml } from "./clipboard";
 import { handleCrossRangeKey } from "./cross-range-keys";
 import { caretOffsetIn, editorRootOf, restoreSelection } from "./dom-offset";
 import { mapDomSelection, selectionsEqual } from "./selection-mapping";
@@ -75,6 +76,12 @@ function useBlockInput({
 }) {
   const { doc, selection: selectionRef, store, rootBlockId } = useEditorContext();
   const slash = useSlashMenuApi();
+  // The cell context (the block's parent is a table cell): the cell
+  // gestures own the keys — Enter is a soft line break at every position
+  // (no split / no exit), Backspace at the line start is a no-op (no
+  // merge), and the paste is plain text only (the markdown pipeline does
+  // not run in a cell).
+  const inCell = context.parentType === "table-cell";
 
   const onPaste = useCallback(
     (event: ClipboardEvent<HTMLElement>) => {
@@ -111,7 +118,19 @@ function useBlockInput({
             if (deleted === null) return;
             const seamBlock = doc.getBlock(deleted.blockId);
             const seamRaw = seamBlock !== null && (seamBlock.type === "code" || seamBlock.type === "latex");
-            if (html !== "" && !(seamRaw && text !== "")) {
+            const seamCellId = findParentId(doc, deleted.blockId);
+            // The cell seam takes the plain payload only (no markdown
+            // pipeline in a cell; an html-only payload degrades to its
+            // text), like the code/latex targets keep the raw text.
+            const seamCell = seamCellId !== null && doc.getBlock(seamCellId)?.type === "table-cell";
+            if (seamCell) {
+              const plain = text !== "" ? text : plainTextOfHtml(html);
+              if (plain !== "") {
+                const normalized = plain.replace(/\r\n?/g, "\n");
+                doc.insertText(deleted.blockId, deleted.offset, normalized);
+                seam.landing = { blockId: deleted.blockId, offset: deleted.offset + normalized.length };
+              }
+            } else if (html !== "" && !(seamRaw && text !== "")) {
               // The rich cross paste keeps the single-line pipeline.
               const length = applyRichPaste(doc, deleted.blockId, deleted.offset, deleted.offset, html);
               seam.landing = length > 0 ? { blockId: deleted.blockId, offset: deleted.offset + length } : null;
@@ -156,15 +175,32 @@ function useBlockInput({
       // the selection collapses to its end first, so the store-driven
       // rebuild lands the caret after the inserted text (the rebase path).
       // The code/latex targets stand the plain payload (the plainWins gate
-      // above) — the raw text is their data; the html-only fallback keeps
-      // the old behavior when there is no plain to stand on.
-      if (html !== "" && (!plainWins || text === "")) {
+      // above) — the raw text is their data; the cell paragraphs stand
+      // plain text only (the markdown pipeline does not run in a cell);
+      // the html-only fallback keeps the old behavior for every other
+      // target when there is no plain to stand on.
+      if (html !== "" && !inCell && (!plainWins || text === "")) {
         restoreSelection(el, to, null);
         applyRichPaste(doc, id, from, to, html);
         return;
       }
 
-      if (text === "") return;
+      if (text === "" && !inCell) return;
+      // The cell paragraphs take plain text only (the multi-line paste
+      // stands as soft breaks; an html-only payload degrades to its text —
+      // the marks are dropped).
+      if (inCell) {
+        const plain = text !== "" ? text : plainTextOfHtml(html);
+        if (plain === "") return;
+        restoreSelection(el, to, null);
+        const normalized = plain.replace(/\r\n?/g, "\n");
+        doc.transact(() => {
+          if (from < to) doc.deleteText(id, from, to);
+          doc.insertText(id, from, normalized);
+        });
+        declareLocalCaret(from + normalized.length);
+        return;
+      }
       // The selection must collapse before the apply: the store-driven
       // rebuild re-seats the browser's multi-character selection, and the
       // apply reads the caret from the DOM selection.
@@ -186,7 +222,7 @@ function useBlockInput({
         }
       }
     },
-    [doc, id, selectionRef]
+    [doc, id, selectionRef, context]
   );
 
   const onKeyDown = useCallback(
@@ -310,6 +346,14 @@ function useBlockInput({
         )
           return;
         const offset = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
+        if (inCell) {
+          // The cell context: Enter is a soft line break at every position
+          // (the split / exit gestures are the page-level ones — a cell
+          // paragraph never splits into a second paragraph).
+          declareLocalCaret(offset + 1);
+          doc.insertText(id, offset, "\n");
+          return;
+        }
         if (event.shiftKey) {
           // Shift+Enter is a line break inside the block: one `\n` at the
           // caret. The caret lands after the break — declared before the
@@ -369,6 +413,9 @@ function useBlockInput({
         if (domSelection.anchorNode === null || !inner.contains(domSelection.anchorNode)) return;
         const offset = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
         if (offset !== 0) return; // inside the block: the input diff path handles it
+        // The cell context: Backspace at the line start is a no-op — no
+        // merge with the previous in-cell paragraph and no exit.
+        if (inCell) return;
         // A non-empty quote/callout/code never merges with the previous
         // block: the Backspace keeps deleting the block's own characters
         // (line breaks included) until it is empty, and the empty-block

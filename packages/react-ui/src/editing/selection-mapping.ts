@@ -21,6 +21,9 @@ import { caretOffsetIn } from "./dom-offset";
  *   the blocks the range touches (no per-block text range);
  * - a selection inside a nested editor (a sync-embed) or outside the
  *   editor root maps to `none` (the nested editor owns the selection);
+ * - a selection whose endpoint stands in the empty-cell activation layer
+ *   maps to `none` (the layer holds a view-local caret — the cell holds no
+ *   doc blocks while the layer stands);
  * - `reverse` comes from the anchor/focus order (a right-to-left drag).
  *
  * The engine fills the cross-block `blocks` chain on `set` — the mapping
@@ -35,6 +38,11 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
   // A selection inside a nested editor (a sync-embed) belongs to that
   // editor's own scope; this root maps it to `none`.
   if (!ownScopeOf(anchorNode, root) || !ownScopeOf(focusNode, root)) return { kind: "none" };
+  // A caret in the empty-cell activation layer is view-local (the cell
+  // holds no doc blocks while the layer stands): a `blocks` selection
+  // would flag the table row as selected and hand it to the
+  // Delete/Backspace gesture, so the layer's selection maps to `none`.
+  if (inActivationLayer(anchorNode) || inActivationLayer(focusNode)) return { kind: "none" };
 
   const range = domSelection.getRangeAt(0);
   const anchorBlock = textBlockOf(anchorNode, root);
@@ -77,6 +85,16 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
     to,
     ...(!anchorIsFirst ? { reverse: true } : {}),
   };
+}
+
+/**
+ * Whether the endpoint stands inside the empty-cell activation layer: the
+ * endpoint is the layer itself or a node it contains (the layer's text is
+ * local, never doc-derived).
+ */
+function inActivationLayer(node: Node): boolean {
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return element?.closest('[data-slot="docblocks/cell-activation"]') !== null;
 }
 
 /** One DOM selection endpoint and its closest text-editable block. */

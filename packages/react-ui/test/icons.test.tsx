@@ -40,6 +40,7 @@ const ICON_SET = [
   "SquareCheck",
   "SquareSplitVertical",
   "Strikethrough",
+  "Table",
   "TextAlignCenter",
   "TextAlignEnd",
   "TextAlignStart",

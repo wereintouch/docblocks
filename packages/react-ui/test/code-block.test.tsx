@@ -250,9 +250,12 @@ describe("the code block body", () => {
     const track = document.querySelector<HTMLElement>("[data-slot='docblocks/code-line-numbers']");
     expect(track).not.toBeNull();
     expect([...track!.querySelectorAll("div")].map((el) => el.textContent)).toEqual(["1"]);
-    // The zero-width line box of the empty editable (the caret target).
+    // The zero-width line box of the empty editable (the caret target) is
+    // a structural CSS rule (the :empty::after zero-width space), not a
+    // class — the inner stands empty and unstyled by a utility here.
     const inner = document.querySelector<HTMLElement>("[data-slot='docblocks/block-content']");
-    expect(inner!.className).toContain("empty:after:content-['\\200b']");
+    expect(inner!.textContent).toBe("");
+    expect(inner!.className).not.toContain("content-");
   });
 
   it("does not show the slash-menu placeholder (code keeps the '/' as plain text)", () => {

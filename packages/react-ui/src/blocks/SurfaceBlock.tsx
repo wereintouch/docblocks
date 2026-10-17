@@ -18,7 +18,7 @@ const EMPTY_IDS: BlockId[] = [];
  */
 function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
   const children = block.children ?? EMPTY_IDS;
-  const contextValue = useBlockContextValue(id, children);
+  const contextValue = useBlockContextValue(id, children, "surface");
   return (
     <div
       data-slot="docblocks/block"

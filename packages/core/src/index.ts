@@ -9,6 +9,7 @@ const PACKAGE = "docblocks-core" as const;
 
 export { Doc, createDoc, fromJSON, loadDoc } from "./core";
 export {
+  DEFAULT_TABLE_COLUMN_WIDTH,
   DetachedBlockError,
   DestroyedViewError,
   DocBlocksError,

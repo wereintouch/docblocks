@@ -168,6 +168,10 @@ function TextBlock({
 }: TextBlockProps) {
   const { doc, store, selection: selectionRef, commandPalettePlaceholder } = useEditorContext();
   const blockContext = useBlockContext();
+  // The cell context (the block's parent is a table cell): the block
+  // keeps its text path, but the row chrome (the drag grip) and the
+  // slash-command hint do not stand in a cell.
+  const inCell = blockContext.parentType === "table-cell";
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
   // The marker's cycle index (1|2|3) from the block's indent — the
@@ -488,7 +492,7 @@ function TextBlock({
    * block's alignment (left is the default).
    */
   const innerClass = cn(
-    "m-0 whitespace-pre-wrap outline-none empty:after:content-['\\200b']",
+    "m-0 whitespace-pre-wrap outline-none",
     doneTask && "opacity-30",
     (block.type === "code" || block.type === "latex") && "font-(family-name:--docblocks-mono-font-family)",
     // The highlight layer stands the visible ink: the inner's text goes
@@ -513,9 +517,9 @@ function TextBlock({
       data-slot="docblocks/block-content"
       data-block-id={id}
       // The empty-block hint names the slash command menu — code keeps the
-      // "/" as plain text (the menu never opens there), so the hint stands
-      // for every other text type only.
-      data-placeholder={block.type === "code" ? undefined : commandPalettePlaceholder}
+      // "/" as plain text (the menu never opens there), and the cell
+      // paragraphs stand without the hint (the cell keeps no row chrome).
+      data-placeholder={block.type === "code" || inCell ? undefined : commandPalettePlaceholder}
       className={innerClass}
       onInput={commitDomDelta}
       onPaste={onPaste}
@@ -636,19 +640,21 @@ function TextBlock({
         onKeyDown={onKeydown}
       >
         {header}
-        <Button
-          type="button"
-          data-slot="docblocks/gutter"
-          aria-label="Select block"
-          variant="ghost"
-          size="icon"
-          onClick={onGutterClick}
-          onMouseDown={onControlMouseDown}
-          className={cn(gutterClass, "size-5")}
-          style={gutterShift}
-        >
-          <GripVertical />
-        </Button>
+        {!inCell && (
+          <Button
+            type="button"
+            data-slot="docblocks/gutter"
+            aria-label="Select block"
+            variant="ghost"
+            size="icon"
+            onClick={onGutterClick}
+            onMouseDown={onControlMouseDown}
+            className={cn(gutterClass, "size-5")}
+            style={gutterShift}
+          >
+            <GripVertical />
+          </Button>
+        )}
         {block.type === "list-item" && block.attrs.list === "task" && (
           <Checkbox
             data-slot="docblocks/checkbox"

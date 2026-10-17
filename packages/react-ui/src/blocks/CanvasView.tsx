@@ -22,7 +22,7 @@ import { pageCardStyle } from "./canvas-geometry";
  * surface paints on top: the DOM order is the z-order).
  */
 function SurfaceLayer({ id, children }: { id: BlockId; children: BlockId[] }) {
-  const contextValue = useBlockContextValue(id, children);
+  const contextValue = useBlockContextValue(id, children, "surface");
   return (
     <BlockContext.Provider value={contextValue}>
       {children.map((childId) => (
@@ -67,7 +67,7 @@ function CanvasView() {
     return { pageChildren: page, surfaces: list };
   }, [rootChildren, blocks]);
 
-  const pageContext = useBlockContextValue(rootBlockId, pageChildren);
+  const pageContext = useBlockContextValue(rootBlockId, pageChildren, "root");
 
   if (root === undefined) return null;
 

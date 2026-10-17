@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo } from "react";
 
-import type { BlockId } from "docblocks-core";
+import type { BlockId, BlockType } from "docblocks-core";
 
 /**
  * Per-block structural context: the parent block id and the parent's
@@ -19,6 +19,8 @@ import type { BlockId } from "docblocks-core";
 interface BlockContextValue {
   /** The parent block id (the document id for top-level blocks). */
   parentId: BlockId;
+  /** The parent's type (absent when the provider does not know it). */
+  parentType?: BlockType;
   /** The parent's children in reading order, including the block itself. */
   siblings: BlockId[];
 }
@@ -31,11 +33,11 @@ const BlockContext = createContext<BlockContextValue | null>(null);
  * a content-equal one — without the content key the context value would
  * churn and re-render every consumer of the subtree.
  */
-function useBlockContextValue(parentId: BlockId, siblings: BlockId[]): BlockContextValue {
+function useBlockContextValue(parentId: BlockId, siblings: BlockId[], parentType?: BlockType): BlockContextValue {
   const key = siblings.join("\u0000");
   // The key is content-equal whenever the siblings list is unchanged, so
   // the closure's captured siblings stay valid for a cached value.
-  return useMemo(() => ({ parentId, siblings }), [parentId, key]);
+  return useMemo(() => ({ parentId, parentType, siblings }), [parentId, parentType, key]);
 }
 
 /** Read the block context; throws outside a block context provider. */

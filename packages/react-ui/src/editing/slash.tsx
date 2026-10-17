@@ -13,7 +13,7 @@ import type { ComponentType, KeyboardEvent, RefObject, SVGProps } from "react";
 
 import type { Block, BlockId, Doc } from "docblocks-core";
 import type { InsertBlockPosition } from "docblocks-core";
-import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
+import { DEFAULT_TABLE_COLUMN_WIDTH, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
@@ -31,9 +31,10 @@ import {
   Sigma,
   SquareCheck,
   SquareSplitVertical,
+  Table,
   TextQuote,
 } from "../shared/ui/icons";
-import { focusCaretIn, segmentRange } from "./block-commands";
+import { focusCaretIn, focusCellActivation, segmentRange } from "./block-commands";
 import { caretOffsetIn, locatePosition, selectionInside } from "./dom-offset";
 
 /**
@@ -92,9 +93,12 @@ const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
  *
  * The command list (v1): the page block types creatable from default
  * attrs — text, headings 1-3, the three list kinds, callout, code (plain
- * and mermaid), latex, and divider. Structurally seeded or externally
- * referenced types (table, database, image, embed, sync-embed, the
- * canvas types) are not offered; they stay command-API inserts.
+ * and mermaid), latex, divider, and table. The table is the only insert
+ * command: it lands after the caret block (2×2, the default widths), the
+ * caret block stands, and the caret seats in the table's first cell (the
+ * empty-cell activation). Externally referenced types (database, image,
+ * embed, sync-embed, the canvas types) are not offered; they stay
+ * command-API inserts.
  */
 
 /** A 24px-stroke icon component (the package icon set). */
@@ -109,7 +113,8 @@ type SlashCommand =
   | { label: string; icon: SlashIcon; type: "callout" }
   | { label: string; icon: SlashIcon; type: "code"; attrs?: { language?: string } }
   | { label: string; icon: SlashIcon; type: "latex"; attrs: { display: boolean } }
-  | { label: string; icon: SlashIcon; type: "divider" };
+  | { label: string; icon: SlashIcon; type: "divider" }
+  | { label: string; icon: SlashIcon; type: "table" };
 
 /** The v1 command list (filterable by the typed query). */
 const SLASH_COMMANDS: SlashCommand[] = [
@@ -126,6 +131,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Code block (mermaid)", icon: CodeXml, type: "code", attrs: { language: "mermaid" } },
   { label: "Formula", icon: Sigma, type: "latex", attrs: { display: false } },
   { label: "Divider", icon: SquareSplitVertical, type: "divider" },
+  { label: "Table", icon: Table, type: "table" },
 ];
 
 /** The command list filtered by the query (empty query = the full list). */
@@ -203,6 +209,10 @@ function planSlashApply(
 ): SlashApplyPlan {
   if (sameAttrs(block, command)) return { kind: "noop" };
   const queryEnd = deriveSlash(text, slashOffset, text.length).queryEnd;
+  // The table is an insert, not a convert: the caret block stands (the
+  // trigger phrase stripped) and the table lands after it — the replace
+  // path is never taken (it would take the caret block's slot).
+  if (command.type === "table") return { kind: "update", deleteFrom: slashOffset, deleteTo: queryEnd };
   const stripped = text.slice(0, slashOffset) + text.slice(queryEnd);
   if (stripped === "" && !hasFollowers && command.type !== block.type) return { kind: "replace" };
   // A divider cannot stand the block's text (the core rejects the type
@@ -280,6 +290,22 @@ function insertCommand(doc: Doc, command: SlashCommand, at?: InsertBlockPosition
       return doc.insertBlock("latex", { display: command.attrs.display, ...ind }, at);
     case "divider":
       return doc.insertBlock("divider", ind.indent === undefined ? undefined : { ...ind }, at);
+    case "table": {
+      // A 2×2 table with the default column widths; the cells stand empty
+      // (no child paragraph until the first input activates one).
+      const tableId = doc.insertBlock(
+        "table",
+        { cols: 2, columnWidths: [DEFAULT_TABLE_COLUMN_WIDTH, DEFAULT_TABLE_COLUMN_WIDTH], ...ind },
+        at
+      );
+      for (let row = 0; row < 2; row++) {
+        const rowId = doc.insertBlock("table-row", undefined, { parent: tableId });
+        for (let col = 0; col < 2; col++) {
+          doc.insertBlock("table-cell", undefined, { parent: rowId });
+        }
+      }
+      return tableId;
+    }
     default:
       throw new Error(`Unknown slash command type "${(command as { type: string }).type}".`);
   }
@@ -354,6 +380,7 @@ function applySlashPlan(
     case "update":
     case "convert": {
       const attrs = "attrs" in command && command.attrs !== undefined ? command.attrs : undefined;
+      let tableId: BlockId | null = null;
       try {
         doc.transact(() => {
           if (plan.kind === "convert") {
@@ -386,10 +413,28 @@ function applySlashPlan(
             doc.updateBlock(blockId, attrs);
           }
           doc.deleteText(blockId, plan.deleteFrom, plan.deleteTo);
+          // The table command is an insert, not a convert: the table stands
+          // after the caret block (a 2×2 at the trigger's attach level).
+          if (command.type === "table") {
+            tableId = insertCommand(doc, command, { parent: parentId, after: blockId }, indent);
+          }
         });
       } catch (error) {
         if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
         throw error;
+      }
+      if (tableId !== null) {
+        // The first cell stands the activation layer (the empty cell has no
+        // paragraph yet): seat the caret there on the next frame, after the
+        // rebuild mounts the table's rows.
+        const rows = doc.getChildren(tableId);
+        const firstRow = rows[0];
+        const firstCell = firstRow === undefined ? undefined : doc.getChildren(firstRow)[0];
+        if (firstCell !== undefined) {
+          holdFocus(scope);
+          focusCellActivation(firstCell, scope);
+          return;
+        }
       }
       // A type change remounts the row (the wrapper tag swap drops the
       // focus): hold the keyboard scope on the root and re-seat the caret

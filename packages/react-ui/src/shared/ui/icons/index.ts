@@ -29,6 +29,7 @@ export { Sigma } from "./Sigma";
 export { SquareCheck } from "./SquareCheck";
 export { SquareSplitVertical } from "./SquareSplitVertical";
 export { Strikethrough } from "./Strikethrough";
+export { Table } from "./Table";
 export { TextAlignCenter } from "./TextAlignCenter";
 export { TextAlignEnd } from "./TextAlignEnd";
 export { TextAlignStart } from "./TextAlignStart";

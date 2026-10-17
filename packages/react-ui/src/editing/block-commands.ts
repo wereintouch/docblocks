@@ -473,6 +473,24 @@ function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = docu
   });
 }
 
+/**
+ * Focus the empty-cell activation layer of a table cell: the local
+ * editable that holds the caret while the cell holds no blocks (the first
+ * input materializes the paragraph). The layer is not a doc block, so the
+ * seat is a plain focus of the element (the caret lands at the start of
+ * the empty layer). Like focusCaretIn the query is scoped to one editor
+ * root.
+ */
+function focusCellActivation(cellId: BlockId, scope: ParentNode = document): void {
+  afterFrame(() => {
+    const root = liveScope(scope);
+    const cell = root.querySelector<HTMLElement>(`[data-slot="docblocks/table-cell"][data-block-id="${cellId}"]`);
+    const activation = cell?.querySelector<HTMLElement>('[data-slot="docblocks/cell-activation"]');
+    if (activation == null || !activation.isConnected) return;
+    activation.focus();
+  });
+}
+
 /** The parent block id per the DOM: the wrapper above the block's own wrapper; null at the doc root. */
 function domParentBlockIdOf(el: HTMLElement): BlockId | null {
   const ownWrapper = el.parentElement?.closest<HTMLElement>("[data-block-id]");
@@ -618,6 +636,7 @@ export {
   extendSelectionTo,
   findParentId,
   focusCaretIn,
+  focusCellActivation,
   indentIn,
   indentOf,
   mergeWithPrevious,

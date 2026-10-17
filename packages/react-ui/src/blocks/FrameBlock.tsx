@@ -18,7 +18,7 @@ function FrameContent({ id }: { id: BlockId }) {
   const block = useBlock(id);
   if (block === undefined || block.type !== "frame") return null;
   const children = block.children ?? EMPTY_IDS;
-  const contextValue = useBlockContextValue(id, children);
+  const contextValue = useBlockContextValue(id, children, "frame");
   return (
     <BlockContext.Provider value={contextValue}>
       <BlockGroups ids={children} />

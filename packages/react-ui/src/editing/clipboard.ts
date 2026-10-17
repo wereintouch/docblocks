@@ -570,4 +570,14 @@ function insertTable(
   return tableId;
 }
 
-export { applyRichPaste, applyMdPaste, htmlToRuns };
+/**
+ * The text content of a rich payload: the cell paste stands the plain text
+ * even for an HTML-only clipboard (the cell's data is plain text — the
+ * marks are dropped).
+ */
+function plainTextOfHtml(html: string): string {
+  const parsed = new DOMParser().parseFromString(html, "text/html");
+  return parsed.body?.textContent ?? "";
+}
+
+export { applyRichPaste, applyMdPaste, htmlToRuns, plainTextOfHtml };

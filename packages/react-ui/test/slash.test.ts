@@ -73,7 +73,7 @@ describe("deriveSlash", () => {
 
 describe("filterCommands", () => {
   it("stands the full list on an empty query", () => {
-    expect(filterCommands("")).toHaveLength(13);
+    expect(filterCommands("")).toHaveLength(14);
   });
 
   it("filters by a case-insensitive substring of the label", () => {
@@ -81,6 +81,7 @@ describe("filterCommands", () => {
     expect(filterCommands("HEAD").map((c) => c.label)).toEqual(["Heading 1", "Heading 2", "Heading 3"]);
     expect(filterCommands("list").map((c) => c.label)).toEqual(["Bulleted list", "Numbered list", "Task list"]);
     expect(filterCommands("quote").map((c) => c.label)).toEqual(["Quote"]);
+    expect(filterCommands("table").map((c) => c.label)).toEqual(["Table"]);
   });
 
   it("stands at zero on a miss (the menu hides, not a placeholder)", () => {
@@ -97,6 +98,25 @@ describe("planSlashApply", () => {
   it("replaces a phrase-only block with the command's type (the v1 empty-block path)", () => {
     const block = textBlock("paragraph", "/head");
     expect(planSlashApply(command("Heading 2"), block, "/head", 0, false)).toEqual({ kind: "replace" });
+  });
+
+  it("is an insert for the table, never a convert: the caret block stands and the phrase is stripped", () => {
+    // A phrase-only block (the replace path would take its slot) converts
+    // in place: the table lands after it.
+    const phraseOnly = textBlock("paragraph", "/tab");
+    expect(planSlashApply(command("Table"), phraseOnly, "/tab", 0, false)).toEqual({
+      kind: "update",
+      deleteFrom: 0,
+      deleteTo: 4,
+    });
+    // A non-empty block keeps its prefix and suffix; the trigger phrase
+    // between them is stripped.
+    const withText = textBlock("paragraph", "keep /tab tail");
+    expect(planSlashApply(command("Table"), withText, "keep /tab tail", 5, false)).toEqual({
+      kind: "update",
+      deleteFrom: 5,
+      deleteTo: 9,
+    });
   });
 
   it("does not replace a phrase-only block that owns a derived segment (the removal would cascade it) — it converts in place", () => {
