@@ -328,3 +328,43 @@ test("the markdown table paste lands as a native table with editable cell paragr
     await close();
   }
 });
+
+test("a paste into a nested-list seat lands the shallower tail after the seat's segment (the displaced follower is not dangled)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await openPanes(browser, "clip-md-toside");
+  try {
+    // The seat: a nested list item with a deeper follower (its derived
+    // segment). The paste's tail (a top-level paragraph) must not dangle
+    // the follower — it lands after the segment.
+    const seatId = await a.evaluate(() => {
+      const doc = window.__paneDocs?.a;
+      if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+      const top = doc.insertBlock("list-item", { list: "bullet" });
+      doc.insertText(top, 0, "top");
+      const seat = doc.insertBlock("list-item", { list: "bullet", indent: 1 }, { parent: doc.meta.id, after: top });
+      doc.insertBlock("list-item", { list: "bullet", indent: 2 }, { parent: doc.meta.id, after: seat });
+      return seat;
+    });
+    const inner = a.locator(`div[data-block-id="${seatId}"][data-slot="docblocks/block-content"]`);
+    await inner.waitFor({ state: "visible", timeout: SETTLE.timeout });
+    await inner.click();
+    await writePlainClipboard(a, "  - x\ny");
+    await pasteFromClipboard(a);
+
+    // The pane stands a starter paragraph ahead of the seeded list — the
+    // paste's shape is the tail of the sequence.
+    const shape = (blocks: { id: string; type: string | null; text: string }[] | null) =>
+      blocks === null ? null : blocks.map((blk) => `${blk.type}:${blk.text}`).slice(1);
+    await expect
+      .poll(async () => shape(await rootBlocks(a, "a")), SETTLE)
+      .toEqual(["list-item:top", "list-item:x", "list-item:", "paragraph:y"]);
+    // The doc stands the jump rule (no dangled follower) and the other
+    // pane converges over the wire.
+    await expect
+      .poll(async () => shape(await rootBlocks(b, "b")), SETTLE)
+      .toEqual(["list-item:top", "list-item:x", "list-item:", "paragraph:y"]);
+  } finally {
+    await close();
+  }
+});

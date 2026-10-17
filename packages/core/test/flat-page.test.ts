@@ -156,6 +156,47 @@ describe("the flat page model (commands)", () => {
     expectThrows(() => empty.insertBlock("paragraph", { indent: 1 }), InvalidAttrsError);
   });
 
+  it("insertBlock rejects an insert that would dangle the displaced block (the TO side)", () => {
+    const doc = newDoc();
+    const a = doc.insertBlock("paragraph");
+    const b = doc.insertBlock("paragraph");
+    doc.updateBlock(b, { indent: 1 });
+    const c = doc.insertBlock("paragraph");
+    doc.updateBlock(c, { indent: 2 });
+    // [a(0), b(1), c(2)]: a same-indent insert after a displaces b (1 <=
+    // 0 + 1) — accepted.
+    expect(doc.insertBlock("paragraph", { indent: 0 }, { after: a })).toBeDefined();
+    // [a(0), n(0), b(1), c(2)]: an indent-0 insert after b displaces c (2
+    // > 0 + 1) — the displaced pair breaks, rejected.
+    expectThrows(() => doc.insertBlock("paragraph", { indent: 0 }, { after: b }), InvalidAttrsError);
+    // The doc stands (no partial mutation).
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("moveBlock rejects a landing that would dangle the displaced block (the TO side)", () => {
+    const doc = newDoc();
+    const root = doc.meta.id;
+    const a = doc.insertBlock("paragraph");
+    const b = doc.insertBlock("paragraph");
+    doc.updateBlock(b, { indent: 1 });
+    const c = doc.insertBlock("paragraph");
+    doc.updateBlock(c, { indent: 2 });
+    const t = doc.insertBlock("paragraph");
+    doc.updateBlock(t, { indent: 3 });
+    const l = doc.insertBlock("paragraph");
+    doc.updateBlock(l, { indent: 1 });
+    // [a(0), b(1), c(2), t(3), l(1)]: l landing after c passes its own
+    // check (1 <= 2 + 1), but t would then stand after l (3 > 1 + 1) —
+    // the displaced pair breaks, rejected.
+    expectThrows(() => doc.moveBlock(l, root, 3), InvalidOperationError);
+    // The doc stands.
+    expect(doc.getChildren(root)).toEqual([a, b, c, t, l]);
+    // A landing that keeps the displaced pair is accepted (the end has no
+    // displaced block).
+    doc.moveBlock(l, root, 1); // after a: t is not displaced, l's pair (0, 1) holds
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
   it("moveBlock keeps the indent-jump rule at the landed position", () => {
     const doc = newDoc();
     const root = doc.meta.id;

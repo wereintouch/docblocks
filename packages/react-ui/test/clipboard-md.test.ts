@@ -332,6 +332,57 @@ describe("applyMdPaste: the indent re-base", () => {
   });
 });
 
+describe("applyMdPaste: the TO-side landing (the displaced block)", () => {
+  it("a shallower tail lands after the seat's segment (the displaced follower is not dangled)", () => {
+    const doc = createDoc({ id: "doc-clip-md-toside", createdAt: CREATED_AT });
+    const top = doc.insertBlock("list-item", { list: "bullet" });
+    doc.insertText(top, 0, "top");
+    const seat = doc.insertBlock("list-item", { list: "bullet", indent: 1 }, { parent: doc.meta.id, after: top });
+    const child = doc.insertBlock("list-item", { list: "bullet", indent: 2 }, { parent: doc.meta.id, after: seat });
+    doc.insertText(child, 0, "child");
+    // The re-base (delta 0): the first block merges into the seat; the
+    // tail paragraph (indent 0) would dangle the follower (2 > 0 + 1) —
+    // it lands after the segment instead (the paste never writes an
+    // invalid sequence).
+    const landing = applyMdPaste(doc, seat, 0, 0, "  - x\ny");
+    const blocks = rootBlocks(doc);
+    expect(blocks.map((b) => [b.type, b.attrs.indent ?? 0, b.text])).toEqual([
+      ["list-item", 0, "top"],
+      ["list-item", 1, "x"],
+      ["list-item", 2, "child"],
+      ["paragraph", 0, "y"],
+    ]);
+    expect(landing).toEqual({ blockId: doc.getChildren(doc.meta.id)[3], offset: 1 });
+  });
+
+  it("the tail slides past a multi-block stretch (the doc stands valid)", () => {
+    const doc = createDoc({ id: "doc-clip-md-toside2", createdAt: CREATED_AT });
+    const p = doc.insertBlock("list-item", { list: "bullet" });
+    doc.insertText(p, 0, "p");
+    const q = doc.insertBlock("list-item", { list: "bullet", indent: 1 }, { parent: doc.meta.id, after: p });
+    doc.insertText(q, 0, "q");
+    const seat = doc.insertBlock("list-item", { list: "bullet", indent: 2 }, { parent: doc.meta.id, after: q });
+    const c = doc.insertBlock("list-item", { list: "bullet", indent: 3 }, { parent: doc.meta.id, after: seat });
+    doc.insertText(c, 0, "c");
+    const d = doc.insertBlock("list-item", { list: "bullet", indent: 2 }, { parent: doc.meta.id, after: c });
+    doc.insertText(d, 0, "d");
+    // The re-based tail ("y" at indent 0) would dangle the stretch after
+    // the seat (3 > 0 + 1, 2 > 0 + 1) — the landing slides past the whole
+    // stretch to the sequence end.
+    const landing = applyMdPaste(doc, seat, 0, 0, "    - x\ny");
+    const blocks = rootBlocks(doc);
+    expect(blocks.map((b) => [b.attrs.indent ?? 0, b.text])).toEqual([
+      [0, "p"],
+      [1, "q"],
+      [2, "x"],
+      [3, "c"],
+      [2, "d"],
+      [0, "y"],
+    ]);
+    expect(landing).toEqual({ blockId: doc.getChildren(doc.meta.id)[5], offset: 1 });
+  });
+});
+
 describe("applyMdPaste: the one-transact undo", () => {
   it("the whole multi-block paste is one undo step", () => {
     const { doc, seat } = docWithParagraph("");

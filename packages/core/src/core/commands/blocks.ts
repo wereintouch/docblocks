@@ -143,6 +143,19 @@ function insertBlock(
     if (violation !== null) {
       throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${violation}.`);
     }
+    // The displaced block (the one standing at the index before the
+    // insert) gets the new block as its new predecessor: a new block with
+    // a shallower indent would dangle the displaced deeper block (the TO
+    // side of the jump rule) — rejected the same way.
+    const displaced = childIds[index];
+    if (displaced !== undefined) {
+      const displacedIndent = indentOfBlock(ydoc, displaced);
+      if (displacedIndent > newIndent + 1) {
+        throw new InvalidAttrsError(
+          `The block of type "${type}" cannot be inserted here: the displaced block's indent (${displacedIndent}) must not exceed the new block's indent (${newIndent}) by more than 1.`
+        );
+      }
+    }
   }
 
   // A row stays full: a new cell is allowed only while the row holds fewer
@@ -222,12 +235,37 @@ function moveBlock(ydoc: Y.Doc, id: string, toParent: string, toIndex: number): 
 
   // The flat page model: the landed position must keep the
   // sequence's jump rule (the block's indent does not change on a move).
+  // (The open-transaction marker is the Yjs `_transaction` slot: set while
+  // any transaction on the doc is in flight, null otherwise.)
+  const inBatch = (ydoc as unknown as { _transaction?: unknown })._transaction !== null;
   if (parentSpec.sequence) {
     const post = toChildren.toArray().filter((child) => child !== id);
     post.splice(insertAt, 0, id);
     const violation = indentJumpViolation(ydoc, post, insertAt, indentOfBlock(ydoc, id));
     if (violation !== null) {
       throw new InvalidOperationError(`Block "${id}" cannot move to position ${insertAt}: ${violation}.`);
+    }
+    // The displaced block (the one standing at the landing before the
+    // insert) gets the moved block as its new predecessor: its pair must
+    // keep the rule too — a shallower block landing mid-segment would
+    // otherwise dangle the displaced deeper block (the TO side of the
+    // jump rule; the stranding guard is the FROM-side complement). The
+    // check stands only for a command that commits its own transaction —
+    // a batched composition (the UI's seam drag) moves the block at its
+    // old indent and updates the indent in the same atomic transact, so
+    // the mid-transact pair is a transient the composition resolves
+    // (the seam rule owns the final state); the same posture as the
+    // stranding guard below.
+    if (!inBatch) {
+      const displaced = post[insertAt + 1];
+      if (displaced !== undefined) {
+        const displacedViolation = indentJumpViolation(ydoc, post, insertAt + 1, indentOfBlock(ydoc, displaced));
+        if (displacedViolation !== null) {
+          throw new InvalidOperationError(
+            `Block "${id}" cannot move to position ${insertAt}: block "${displaced}" would be displaced (${displacedViolation}).`
+          );
+        }
+      }
     }
   }
 
@@ -243,9 +281,6 @@ function moveBlock(ydoc: Y.Doc, id: string, toParent: string, toIndex: number): 
   // transaction's atomicity keeps it off the wire and off every listener.
   // The check runs over the post-move from-sequence at the first
   // follower's landing.
-  // (The open-transaction marker is the Yjs `_transaction` slot: set while
-  // any transaction on the doc is in flight, null otherwise.)
-  const inBatch = (ydoc as unknown as { _transaction?: unknown })._transaction !== null;
   if (!inBatch && isPageSequence(ydoc, fromParent)) {
     const fromIds = fromChildren.toArray();
     const ownIndent = indentOfBlock(ydoc, id);

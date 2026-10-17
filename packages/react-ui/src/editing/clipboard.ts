@@ -1,4 +1,4 @@
-import { BLOCK_REGISTRY } from "docblocks-core";
+import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 import type { BlockId, BlockType, Doc, MarkSet, TextRun } from "docblocks-core";
 
 import { LINE_ANCHOR_SLOT } from "../text/runs-dom";
@@ -302,8 +302,6 @@ function applyMdPaste(
   const delta = seatIndent - parsed[0]!.indent; // the re-base to the caret's level
   let lastTextType: BlockType | null = null;
   const clamp = (raw: number, prev: number): number => Math.max(0, Math.min(raw + delta, prev + 1));
-  let prevId = seatId;
-  let prevIndent = seatIndent;
   let lastTextId: BlockId | null = null;
   let lastTextLen = 0;
   let landingOffset = 0;
@@ -326,83 +324,133 @@ function applyMdPaste(
   // merges into it — the block id stands, the peer carets rebase onto it).
   const removeSeat = prefix === "" && seat.type === "paragraph" && !hasSegment && opts?.keepSeat !== true;
 
-  doc.transact(() => {
-    doc.deleteText(seatId, from, seatText.length);
-
-    const first = material[0]!;
-    // The merge: the first pasted block continues the caret block (the same
-    // text type — the block's own type and attrs stand).
-    if (isTextType(first.type) && first.type === seat.type) {
-      lastTextId = seatId;
-      lastTextType = seat.type;
-      lastTextLen = insertRuns(doc, seatId, from, first.runs);
-    } else if (prefix === "" && suffix === "" && first.type !== seat.type && isTextType(first.type)) {
-      // The empty caret block converts in place (the block id stands — the
-      // undo chain and the peer carets rebase onto it). The non-text types
-      // never convert (the core's content-loss guard): they are inserted
-      // below (the empty paragraph seat is removed by the removeSeat path).
-      const converted = changeToType(doc, seatId, first);
-      lastTextId = seatId;
-      lastTextType = converted;
-      lastTextLen = first.runs.length > 0 ? insertRuns(doc, seatId, 0, first.runs) : 0;
-    } else {
-      const anchor = removeSeat ? (beforeSeat ?? undefined) : prevId;
-      if (removeSeat) doc.removeBlock(seatId);
-      const indent = clamp(first.indent, prevIndent);
-      prevId = insertNative(doc, first, parentId, anchor, indent);
-      if (removeSeat && beforeSeat === undefined) doc.moveBlock(prevId, parentId, 0);
-      prevIndent = indent;
-      const firstBlock = doc.getBlock(prevId);
-      if (firstBlock !== null && isTextType(firstBlock.type)) {
-        lastTextId = prevId;
-        lastTextType = firstBlock.type;
-        lastTextLen = doc.getText(prevId).length;
-      }
+  // The TO-side landing: the paste stands between the seat and the block
+  // it displaces — the displaced block's pair must keep the jump rule (the
+  // core rejects an insert that would dangle it), so the paste's last
+  // inserted block (the one adjacent to the displaced block) must stand at
+  // at least the displaced block's indent - 1. Its indent (the same re-
+  // based clamp chain the transact applies) is precomputed over the seat-
+  // started chain; the slide itself can only shrink the effective tail
+  // (a slid anchor clamps tighter than the seat), so the precomputed
+  // value is an upper bound on the tail the inserts stand — when the
+  // stretch after the seat runs deeper than the bound + 1, the anchor
+  // slides past it (the paste lands after the deeper run) and the insert
+  // chain restarts at the anchor's indent. A rare under-slide (the bound
+  // overestimates the real tail) is the core's typed rejection — the
+  // catch's no-op posture below.
+  const firstMerges = isTextType(material[0]!.type) && material[0]!.type === seat.type;
+  const firstConverts =
+    !firstMerges && prefix === "" && suffix === "" && material[0]!.type !== seat.type && isTextType(material[0]!.type);
+  const lastMaterial = material[material.length - 1]!;
+  const suffixOwnParagraph = suffix !== "" && !(isTextType(lastMaterial.type) && lastMaterial.type === "paragraph");
+  const insertsAnything = !firstMerges || (!firstConverts && material.length > 1) || suffixOwnParagraph;
+  let anchorId = seatId;
+  if (!removeSeat && insertsAnything) {
+    let tailIndent = seatIndent;
+    for (let i = firstMerges || firstConverts ? 1 : 0; i < material.length; i += 1) {
+      tailIndent = clamp(material[i]!.indent, tailIndent);
     }
-
-    for (let i = 1; i < material.length; i += 1) {
-      const m = material[i]!;
-      const indent = clamp(m.indent, prevIndent);
-      prevId = insertNative(doc, m, parentId, prevId, indent);
-      prevIndent = indent;
-      if (m.type !== "table" && isTextType(m.type)) {
-        lastTextId = prevId;
-        lastTextType = m.type;
-        lastTextLen = doc.getText(prevId).length;
-      }
+    if (suffixOwnParagraph) tailIndent = clamp(parsed[parsed.length - 1]!.indent, tailIndent);
+    for (let i = seatIndex + 1; i < sequenceBefore.length; i += 1) {
+      const id = sequenceBefore[i];
+      if (id === undefined || indentOf(doc, id) <= tailIndent + 1) break;
+      anchorId = id;
     }
+  }
+  let prevId = removeSeat ? seatId : anchorId;
+  let prevIndent = removeSeat ? seatIndent : indentOf(doc, anchorId);
 
-    // The caret landing: the end of the pasted content (before the suffix —
-    // the caret stands ready to continue the paste, the block's own tail
-    // after it).
-    landingOffset = lastTextLen;
+  try {
+    doc.transact(() => {
+      doc.deleteText(seatId, from, seatText.length);
 
-    // The suffix: the caret block's own tail lands in the last pasted
-    // paragraph (a new trailing paragraph when the last block is not one).
-    if (suffix !== "") {
-      if (lastTextId !== null && lastTextType === "paragraph") {
-        doc.insertText(lastTextId, lastTextLen, suffix);
-        lastTextLen += suffix.length;
+      const first = material[0]!;
+      // The merge: the first pasted block continues the caret block (the same
+      // text type — the block's own type and attrs stand).
+      if (isTextType(first.type) && first.type === seat.type) {
+        lastTextId = seatId;
+        lastTextType = seat.type;
+        lastTextLen = insertRuns(doc, seatId, from, first.runs);
+      } else if (prefix === "" && suffix === "" && first.type !== seat.type && isTextType(first.type)) {
+        // The empty caret block converts in place (the block id stands — the
+        // undo chain and the peer carets rebase onto it). The non-text types
+        // never convert (the core's content-loss guard): they are inserted
+        // below (the empty paragraph seat is removed by the removeSeat path).
+        const converted = changeToType(doc, seatId, first);
+        lastTextId = seatId;
+        lastTextType = converted;
+        lastTextLen = first.runs.length > 0 ? insertRuns(doc, seatId, 0, first.runs) : 0;
       } else {
-        const indent = clamp(parsed[parsed.length - 1]!.indent, prevIndent);
-        prevId = insertBlockWithIndent(doc, "paragraph", parentId, prevId, indent);
+        const anchor = removeSeat ? (beforeSeat ?? undefined) : prevId;
+        if (removeSeat) doc.removeBlock(seatId);
+        const indent = clamp(first.indent, prevIndent);
+        prevId = insertNative(doc, first, parentId, anchor, indent);
+        if (removeSeat && beforeSeat === undefined) doc.moveBlock(prevId, parentId, 0);
         prevIndent = indent;
-        doc.insertText(prevId, 0, suffix);
+        const firstBlock = doc.getBlock(prevId);
+        if (firstBlock !== null && isTextType(firstBlock.type)) {
+          lastTextId = prevId;
+          lastTextType = firstBlock.type;
+          lastTextLen = doc.getText(prevId).length;
+        }
       }
-    }
 
-    // The non-text landing at the sequence end (a table / image / divider):
-    // the trailing empty paragraph (the caret has nowhere to type otherwise
-    // — the same contract as the slash divider).
-    const sequenceNow = doc.getChildren(parentId);
-    const tail = sequenceNow[sequenceNow.length - 1];
-    if (tail === prevId) {
-      const tailBlock = doc.getBlock(prevId);
-      if (tailBlock !== null && !isTextType(tailBlock.type)) {
-        prevId = insertBlockWithIndent(doc, "paragraph", parentId, prevId, 0);
+      for (let i = 1; i < material.length; i += 1) {
+        const m = material[i]!;
+        const indent = clamp(m.indent, prevIndent);
+        prevId = insertNative(doc, m, parentId, prevId, indent);
+        prevIndent = indent;
+        if (m.type !== "table" && isTextType(m.type)) {
+          lastTextId = prevId;
+          lastTextType = m.type;
+          lastTextLen = doc.getText(prevId).length;
+        }
       }
+
+      // The caret landing: the end of the pasted content (before the suffix —
+      // the caret stands ready to continue the paste, the block's own tail
+      // after it).
+      landingOffset = lastTextLen;
+
+      // The suffix: the caret block's own tail lands in the last pasted
+      // paragraph (a new trailing paragraph when the last block is not one).
+      if (suffix !== "") {
+        if (lastTextId !== null && lastTextType === "paragraph") {
+          doc.insertText(lastTextId, lastTextLen, suffix);
+          lastTextLen += suffix.length;
+        } else {
+          const indent = clamp(parsed[parsed.length - 1]!.indent, prevIndent);
+          prevId = insertBlockWithIndent(doc, "paragraph", parentId, prevId, indent);
+          prevIndent = indent;
+          doc.insertText(prevId, 0, suffix);
+        }
+      }
+
+      // The non-text landing at the sequence end (a table / image / divider):
+      // the trailing empty paragraph (the caret has nowhere to type otherwise
+      // — the same contract as the slash divider).
+      const sequenceNow = doc.getChildren(parentId);
+      const tail = sequenceNow[sequenceNow.length - 1];
+      if (tail === prevId) {
+        const tailBlock = doc.getBlock(prevId);
+        if (tailBlock !== null && !isTextType(tailBlock.type)) {
+          prevId = insertBlockWithIndent(doc, "paragraph", parentId, prevId, 0);
+        }
+      }
+    });
+  } catch (error) {
+    // The core's typed rejection (a landing the re-based content cannot
+    // keep valid — the jump rule over a block the paste displaces): the
+    // transact rolled back (the doc stands, the peers converge) — the
+    // paste is a no-op (the caret stands where it was). The nested call
+    // (the cross-seam composition inside the caller's open transact) is
+    // rethrown: the caller's batch must roll back as a whole (a partial
+    // paste would stand committed next to the deleted range).
+    if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) {
+      if (opts?.keepSeat !== true) return { blockId: seatId, offset: from };
     }
-  });
+    throw error;
+  }
 
   // The caret landing: the text landing is the end of the last pasted text
   // block (when it is the paste's last block); the non-text landing (a
