@@ -140,12 +140,16 @@ function buildCatalogDoc(doc: Doc): void {
     const latex = doc.insertBlock("latex", { display: true });
     doc.insertText(latex, 0, "E = mc^2");
 
-    // Table 2x2 with a paragraph in every cell.
-    const table = doc.insertBlock("table", { cols: 2 });
+    // Table 2x2 with a paragraph in every cell, explicit column widths, and
+    // a row color (the first row) and a column color (the second column —
+    // the column paints over the row where they cross).
+    const table = doc.insertBlock("table", { cols: 2, columnWidths: [140, 120] });
     for (let row = 1; row <= 2; row++) {
       const rowId = doc.insertBlock("table-row", undefined, { parent: table });
       for (let col = 1; col <= 2; col++) {
         const cellId = doc.insertBlock("table-cell", undefined, { parent: rowId });
+        if (row === 1) doc.updateBlock(cellId, { rowColor: "#10b981" });
+        if (col === 2) doc.updateBlock(cellId, { columnColor: "#3b82f6" });
         const cellText = doc.insertBlock("paragraph", undefined, { parent: cellId });
         doc.insertText(cellText, 0, `cell ${row}-${col}`);
       }

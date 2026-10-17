@@ -455,7 +455,8 @@
     "c0034": {
       "type": "table",
       "attrs": {
-        "cols": 2
+        "cols": 2,
+        "columnWidths": [140, 120]
       },
       "children": ["c0035", "c0040"]
     },
@@ -465,6 +466,9 @@
     },
     "c0036": {
       "type": "table-cell",
+      "attrs": {
+        "rowColor": "#10b981"
+      },
       "content": [],
       "children": ["c0037"]
     },
@@ -479,6 +483,10 @@
     },
     "c0038": {
       "type": "table-cell",
+      "attrs": {
+        "rowColor": "#10b981",
+        "columnColor": "#3b82f6"
+      },
       "content": [],
       "children": ["c0039"]
     },
@@ -511,6 +519,9 @@
     },
     "c0043": {
       "type": "table-cell",
+      "attrs": {
+        "columnColor": "#3b82f6"
+      },
       "content": [],
       "children": ["c0044"]
     },
