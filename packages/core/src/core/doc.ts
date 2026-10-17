@@ -31,6 +31,21 @@ import {
 import { setGeometry as setGeometryCommand } from "./commands/geometry";
 import { setMark as setMarkCommand, unsetMark as unsetMarkCommand } from "./commands/marks";
 import type { MarkInput } from "./commands/marks";
+import {
+  clearTableColumn as clearTableColumnCommand,
+  clearTableRow as clearTableRowCommand,
+  duplicateTableColumn as duplicateTableColumnCommand,
+  duplicateTableRow as duplicateTableRowCommand,
+  insertTableColumn as insertTableColumnCommand,
+  insertTableRow as insertTableRowCommand,
+  moveTableColumn as moveTableColumnCommand,
+  moveTableRow as moveTableRowCommand,
+  removeTableColumn as removeTableColumnCommand,
+  removeTableRow as removeTableRowCommand,
+  setTableColumnColor as setTableColumnColorCommand,
+  setTableColumnWidth as setTableColumnWidthCommand,
+  setTableRowColor as setTableRowColorCommand,
+} from "./commands/table";
 import { deleteText as deleteTextCommand, insertText as insertTextCommand } from "./commands/text";
 import { deleteTextRange as deleteTextRangeCommand, setMarkRange as setMarkRangeCommand } from "./commands/text-range";
 import { changeBlockType as changeBlockTypeCommand } from "./commands/types";
@@ -220,6 +235,78 @@ class Doc {
   /** Moves a database row to `toIndex` (pre-move index semantics). */
   moveRow(databaseId: BlockId, rowId: string, toIndex: number): void {
     moveRowCommand(this.#ydoc, databaseId, rowId, toIndex);
+  }
+
+  /**
+   * Appends an empty row to a table (the cells have no content blocks
+   * until edited) and returns the row id; with `afterRowId`, the row
+   * lands right after it.
+   */
+  insertTableRow(tableId: BlockId, afterRowId?: BlockId): BlockId {
+    return insertTableRowCommand(this.#ydoc, this.#generateId, tableId, afterRowId);
+  }
+
+  /** Removes a table row; the last row converts the table into a paragraph in place. */
+  removeTableRow(tableId: BlockId, rowId: BlockId): void {
+    removeTableRowCommand(this.#ydoc, tableId, rowId);
+  }
+
+  /** Moves a table row to `toIndex` (pre-move index semantics, like moveRow). */
+  moveTableRow(tableId: BlockId, rowId: BlockId, toIndex: number): void {
+    moveTableRowCommand(this.#ydoc, tableId, rowId, toIndex);
+  }
+
+  /** Duplicates a table row right below it (cells deep-copied) and returns the new row id. */
+  duplicateTableRow(tableId: BlockId, rowId: BlockId): BlockId {
+    return duplicateTableRowCommand(this.#ydoc, this.#generateId, tableId, rowId);
+  }
+
+  /** Clears the cell content of every cell in a row (the cells stay, empty). */
+  clearTableRow(tableId: BlockId, rowId: BlockId): void {
+    clearTableRowCommand(this.#ydoc, tableId, rowId);
+  }
+
+  /** Sets (or removes, `null`) the row background color on every cell of a row. */
+  setTableRowColor(tableId: BlockId, rowId: BlockId, color: string | null): void {
+    setTableRowColorCommand(this.#ydoc, tableId, rowId, color);
+  }
+
+  /**
+   * Inserts an empty column (100 px wide) after `afterIndex` (appended
+   * when omitted); `cols` and `columnWidths` stay in sync.
+   */
+  insertTableColumn(tableId: BlockId, afterIndex?: number): void {
+    insertTableColumnCommand(this.#ydoc, this.#generateId, tableId, afterIndex);
+  }
+
+  /** Removes the table column at `index`; the last column converts the table into a paragraph in place. */
+  removeTableColumn(tableId: BlockId, index: number): void {
+    removeTableColumnCommand(this.#ydoc, tableId, index);
+  }
+
+  /** Moves a column (cells in every row + its width entry) from `fromIndex` to `toIndex` (pre-move). */
+  moveTableColumn(tableId: BlockId, fromIndex: number, toIndex: number): void {
+    moveTableColumnCommand(this.#ydoc, tableId, fromIndex, toIndex);
+  }
+
+  /** Duplicates the column at `index` right of it (cells deep-copied, width entry copied). */
+  duplicateTableColumn(tableId: BlockId, index: number): void {
+    duplicateTableColumnCommand(this.#ydoc, this.#generateId, tableId, index);
+  }
+
+  /** Clears the cell content of every cell in a column (the cells stay, empty). */
+  clearTableColumn(tableId: BlockId, index: number): void {
+    clearTableColumnCommand(this.#ydoc, tableId, index);
+  }
+
+  /** Sets (or removes, `null`) the column background color on every cell of a column. */
+  setTableColumnColor(tableId: BlockId, index: number, color: string | null): void {
+    setTableColumnColorCommand(this.#ydoc, tableId, index, color);
+  }
+
+  /** Sets the width of the column at `index` (>= 50; an equal-value set emits no update). */
+  setTableColumnWidth(tableId: BlockId, index: number, width: number): void {
+    setTableColumnWidthCommand(this.#ydoc, tableId, index, width);
   }
 
   /**

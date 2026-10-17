@@ -20,6 +20,7 @@ export {
   UnknownColumnError,
   UnknownRowError,
 } from "./errors";
+export { DEFAULT_TABLE_COLUMN_WIDTH } from "./commands/table";
 export type { InsertBlockArgs, InsertBlockPosition } from "./commands/blocks";
 export type { ChangeBlockTypeArgs } from "./commands/types";
 export type { MarkInput } from "./commands/marks";

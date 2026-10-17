@@ -131,11 +131,17 @@ interface LatexAttrs {
 
 interface TableCellAttrs {
   align?: TextAlign;
+  /** The column background color (hex); the display priority layer over the row color. */
+  columnColor?: string;
+  /** The row background color (hex); stands under the column color. */
+  rowColor?: string;
 }
 
 interface TableAttrs {
   /** Column count; every row holds exactly `cols` cells. */
   cols: number;
+  /** The per-column widths in px (column order); absent — the default width per column. */
+  columnWidths?: number[];
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }

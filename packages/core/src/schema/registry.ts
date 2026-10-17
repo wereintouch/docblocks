@@ -46,6 +46,8 @@ interface AttrSpec {
   positive?: boolean;
   /** `string`: must be non-empty. */
   nonEmpty?: boolean;
+  /** `string`: must be a hex color #RRGGBB(AA). */
+  hexColor?: boolean;
 }
 
 /** Structural description of a block type. */
@@ -144,7 +146,13 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     children: true,
     rows: false,
     childrenTypes: ["table-row"],
-    attrs: { cols: { kind: "number", integer: true, min: 1, required: true } },
+    attrs: {
+      cols: { kind: "number", integer: true, min: 1, required: true },
+      // The per-column widths, in column order (the entry follows the
+      // column through a move/duplicate); absent — every column takes the
+      // reader's default width.
+      columnWidths: { kind: "array", items: { kind: "number", min: 50 } },
+    },
   },
   "table-row": { content: false, children: true, rows: false, childrenTypes: ["table-cell"] },
   "table-cell": {
@@ -153,7 +161,13 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     rows: false,
     childrenTypes: LEAF_BLOCK_TYPES,
     sequence: true,
-    attrs: { align: ALIGN },
+    attrs: {
+      align: ALIGN,
+      // The two background layers: the column color (set column-wide) is
+      // the priority layer, the row color stands underneath it.
+      columnColor: { kind: "string", hexColor: true },
+      rowColor: { kind: "string", hexColor: true },
+    },
   },
   image: {
     content: false,

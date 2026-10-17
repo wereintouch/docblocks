@@ -273,5 +273,7 @@ export {
   rootBlockIdOf,
   rootOrderOf,
   writeAttrValue,
+  writeBlock,
   writeDocument,
 };
+export type { WritableBlock };

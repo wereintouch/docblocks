@@ -87,6 +87,8 @@ function validateAttrValue(
         errors.push({ path, message: `Attribute "${name}" must be a string (got ${show(value)}).` });
       } else if (spec.nonEmpty && value.length === 0) {
         errors.push({ path, message: `Attribute "${name}" must be a non-empty string.` });
+      } else if (spec.hexColor && !isHexColor(value)) {
+        errors.push({ path, message: `Attribute "${name}" must be a hex color #RRGGBB(AA) (got ${show(value)}).` });
       }
       break;
     case "number":
@@ -788,6 +790,20 @@ function validateDoc(json: unknown): ValidationError[] {
       errors.push({
         path: `blocks.${id}.children`,
         message: `A table row must have exactly ${cols} cell(s); found ${Array.isArray(children) ? children.length : 0}.`,
+      });
+    }
+  }
+
+  // The tables' columnWidths invariants (one entry per column), once each.
+  for (const [id, block] of Object.entries(blocks)) {
+    if (!isPlainObject(block) || block.type !== "table") continue;
+    const cols = (block as { attrs?: { cols?: unknown } }).attrs?.cols;
+    if (typeof cols !== "number" || !Number.isInteger(cols) || cols < 1) continue; // invalid cols is reported on the table
+    const widths = (block as { attrs?: { columnWidths?: unknown } }).attrs?.columnWidths;
+    if (Array.isArray(widths) && widths.length !== cols) {
+      errors.push({
+        path: `blocks.${id}.attrs.columnWidths`,
+        message: `The table's columnWidths must hold exactly ${cols} width(s); found ${widths.length}.`,
       });
     }
   }
