@@ -19,15 +19,19 @@ import { canvasItemStyle, endpointOf, isCanvasSubType } from "./canvas-geometry"
  * built-in canvas renderers HERE (not through BlockView — they render
  * ONLY inside a surface; a stray one at the page root falls to the
  * placeholder). A consumer renderer for a canvas-only type wins over the
- * built-in. No gutter / selection handle (the interaction stage adds
- * those). The canvas-text's font attrs are data (not theme): inline
- * styles on the wrapper.
+ * built-in. The selection indicator (`data-selected`): the canvas view's
+ * marquee/click selection (the shared `blocks` selection) tints the item.
+ * No gutter (the canvas rows have no reading order to drag). The
+ * canvas-text's font attrs are data (not theme): inline styles on the
+ * wrapper.
  */
-function CanvasItem({ id }: { id: BlockId }) {
+function CanvasItem({ id, pendingConnector = null }: { id: BlockId; pendingConnector?: string | null }) {
   const { store, renderers } = useEditorContext();
   const { siblings } = useBlockContext();
   const block = useBlock(id);
   const blocks = useStore(store, (state) => state.blocks);
+  const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
+  const connectorPending = pendingConnector === id;
   if (block === undefined) return null;
   let content: ReactNode;
   if (isCanvasSubType(block.type)) {
@@ -68,7 +72,15 @@ function CanvasItem({ id }: { id: BlockId }) {
       endpointOf(block.attrs.end, siblings, blocks) === null);
 
   return (
-    <div data-slot="docblocks/canvas-item" data-block-id={id} data-missing={missing || undefined} style={style}>
+    <div
+      data-slot="docblocks/canvas-item"
+      data-block-id={id}
+      data-selected={selected || undefined}
+      data-connector-pending={connectorPending || undefined}
+      data-missing={missing || undefined}
+      className={selected || connectorPending ? "bg-(--docblocks-selected-background)" : undefined}
+      style={style}
+    >
       {content}
     </div>
   );
