@@ -144,6 +144,24 @@ describe("the table row commands", () => {
     expectThrows(() => doc.insertTableRow(table, 0.5), InvalidRangeError);
   });
 
+  it("insertTableRow's new cells inherit the column colors (the column's band stands)", () => {
+    const doc = newDoc();
+    const { table } = buildTable(doc, 3, 2);
+    doc.setTableColumnColor(table, 0, "#112233");
+    doc.setTableColumnColor(table, 2, "#445566");
+    const row = doc.insertTableRow(table, 1);
+    const cells = cellsOf(doc, row);
+    expect(cellAttrs(doc, cells[0]!)).toMatchObject({ columnColor: "#112233" });
+    // A column without a color writes no attr (the second column stands plain).
+    expect(cellAttrs(doc, cells[1]!)).toBeUndefined();
+    expect(cellAttrs(doc, cells[2]!)).toMatchObject({ columnColor: "#445566" });
+    // A table without column colors inherits none (no attr is written).
+    const { table: plainTable } = buildTable(doc, 2, 1);
+    const plain = doc.insertTableRow(plainTable);
+    for (const cell of cellsOf(doc, plain)) expect(cellAttrs(doc, cell)).toBeUndefined();
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
   it("removeTableRow removes the row and its cells; the last row converts the table", () => {
     const doc = newDoc();
     const { table, rowIds } = buildTable(doc, 2, 3);
@@ -282,6 +300,19 @@ describe("the table column commands", () => {
     doc.insertTableColumn(table);
     expect(tableAttrs(doc, table)).toMatchObject({ cols: 3, columnWidths: [100, 100, 100] });
     expect(cellsOf(doc, rowIds[0]!)).toHaveLength(3);
+  });
+
+  it("insertTableColumn's new cells inherit the row colors (the row's band stands)", () => {
+    const doc = newDoc();
+    const { table, rowIds } = buildTable(doc, 2, 3);
+    doc.setTableRowColor(table, rowIds[0]!, "#778899");
+    doc.setTableRowColor(table, rowIds[2]!, "#aabbcc");
+    doc.insertTableColumn(table, 1);
+    const rowCells = rowIds.map((row) => cellsOf(doc, row));
+    expect(cellAttrs(doc, rowCells[0]![1]!)).toMatchObject({ rowColor: "#778899" });
+    expect(cellAttrs(doc, rowCells[1]![1]!)).toBeUndefined();
+    expect(cellAttrs(doc, rowCells[2]![1]!)).toMatchObject({ rowColor: "#aabbcc" });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
   it("removeTableColumn removes the cells in every row and the width entry", () => {

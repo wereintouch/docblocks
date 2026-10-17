@@ -206,10 +206,23 @@ function convertToParagraph(ydoc: Y.Doc, tableId: string): void {
   changeBlockType(ydoc, tableId, "paragraph", undefined);
 }
 
+/** Reads one color attr of a cell (null when absent or invalid). */
+function readCellColor(ydoc: Y.Doc, cellId: string, key: "rowColor" | "columnColor"): string | null {
+  const cell = getBlockMap(ydoc, cellId);
+  if (cell === null) return null;
+  const attrs = cell.get("attrs");
+  if (!(attrs instanceof Y.Map)) return null;
+  const value = (attrs as Y.Map<unknown>).get(key);
+  return typeof value === "string" ? value : null;
+}
+
 /**
  * Inserts an empty row (cells without content blocks — an empty cell has
  * no data until a paragraph is placed in it) at `at` (0 = the first row,
  * the row count = the last; appended when omitted) and returns the row id.
+ * The new cells inherit the column colors (a column's color stands on every
+ * cell of the column — an uncolored new cell would break the column's
+ * band).
  */
 function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, at?: number): string {
   const table = tableOf(ydoc, tableId);
@@ -225,7 +238,25 @@ function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, 
   const cellIds = Array.from({ length: cols }, () => generateId());
   localTransact(ydoc, () => {
     const blocks = getBlocks(ydoc);
-    cellIds.forEach((cellId) => writeBlock(blocks, cellId, { type: "table-cell" }));
+    const existingRows = rows.toArray();
+    const columnColors: (string | null)[] = [];
+    for (let ci = 0; ci < cols; ci++) {
+      let color: string | null = null;
+      for (const rowId of existingRows) {
+        const row = getBlockMap(ydoc, rowId);
+        const cells = row !== null ? (row.get("children") as Y.Array<string> | undefined) : undefined;
+        const cellId = cells instanceof Y.Array ? cells.get(ci) : undefined;
+        if (cellId === undefined) continue;
+        color = readCellColor(ydoc, cellId, "columnColor");
+        if (color !== null) break;
+      }
+      columnColors.push(color);
+    }
+    cellIds.forEach((cellId, ci) => {
+      writeBlock(blocks, cellId, { type: "table-cell" });
+      const color = columnColors[ci]!;
+      if (color !== null) setCellColor(ydoc, cellId, "columnColor", color);
+    });
     writeBlock(blocks, rowId, { type: "table-row", children: cellIds });
     rows.insert(index, [rowId]);
   });
@@ -355,7 +386,9 @@ function setTableRowColor(ydoc: Y.Doc, tableId: string, rowId: string, color: st
 /**
  * Inserts an empty column (100 px wide, cells without content blocks)
  * at `at` (0 = the first column, the column count = the last; appended
- * when omitted) and keeps `cols` and `columnWidths` in sync.
+ * when omitted) and keeps `cols` and `columnWidths` in sync. The new
+ * cells inherit the row colors (a row's color stands on every cell of the
+ * row — an uncolored new cell would break the row's band).
  */
 function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: string, at?: number): void {
   const table = tableOf(ydoc, tableId);
@@ -376,6 +409,13 @@ function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: strin
       }
       const cellId = cellIds[i]!;
       writeBlock(blocks, cellId, { type: "table-cell" });
+      for (const existingId of cells.toArray()) {
+        const color = readCellColor(ydoc, existingId, "rowColor");
+        if (color !== null) {
+          setCellColor(ydoc, cellId, "rowColor", color);
+          break;
+        }
+      }
       cells.insert(index, [cellId]);
     });
     writeCols(table, cols + 1);
