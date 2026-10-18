@@ -66,6 +66,14 @@ function useEditing(): EditingHandle {
     const target = event.target instanceof Element ? event.target : null;
     const nearest = target?.closest('[data-slot="docblocks/editor"]') ?? null;
     if (root !== null && nearest !== null && nearest !== root) return;
+    // A key from a portaled form control (the shape toolbar's hex input
+    // stands in the document body): the DOM path never crosses the root,
+    // and the control owns its own keys (a Backspace in the input must
+    // not delete the blocks selection). A dropped focus (the target
+    // body/document) is NOT a form control — the undo hotkey must still
+    // reach the doc from there (the focus-parking contract).
+    const formControl = target?.closest("input, textarea, [contenteditable='true']") ?? null;
+    if (root !== null && target !== null && formControl !== null && !root.contains(target)) return;
     const view = selectionRef.view;
     if (view !== null) {
       const selection = view.get();

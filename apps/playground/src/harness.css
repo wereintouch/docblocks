@@ -8,3 +8,12 @@ body {
   background: var(--background);
   color: var(--foreground);
 }
+
+/* The package primitives (the popover / dropdown / select / tooltip
+   content) stack with the consumer-defined `z-modal` utility — the
+   consumer-side stacking contract; the harness supplies it above the
+   canvas chrome (z-40/50), so a palette never falls under the
+   selection handles. */
+.z-modal {
+  z-index: 60;
+}

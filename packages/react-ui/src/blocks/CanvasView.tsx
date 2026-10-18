@@ -7,6 +7,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { CanvasDock } from "../canvas/CanvasDock";
+import { ShapeToolbar } from "../canvas/ShapeToolbar";
 import { canvasToScreen, marqueeRect, penStroke, rectsIntersect, screenToCanvas } from "../canvas/viewport";
 import type { Box, ResizeHandle } from "../canvas/viewport";
 import { useCanvasViewport } from "../canvas/viewport-state";
@@ -104,6 +105,10 @@ const RESIZE_HANDLE_POSITIONS: { handle: ResizeHandle; className: string; style:
 
 /** The rotate handle's offset above the box top edge (screen px). */
 const HANDLE_ROTATE_OFFSET_PX = 24;
+
+/** The shape toolbar's offset above the box top edge (screen px): it
+ * stands over the rotate handle (24px), so it clears the handle zone. */
+const TOOLBAR_OFFSET_PX = 48;
 
 function ZoomControls({
   zoom,
@@ -224,6 +229,18 @@ function CanvasView() {
       ? viewport.rotatePreview.rotation
       : (handleTarget?.rotation ?? null);
 
+  // The color toolbar's target: a single `shape` selection (the fill /
+  // stroke attrs); absent for the other canvas types, the multi
+  // selection, an active tool, or an in-flight session.
+  const shapeToolbarTarget = (() => {
+    if (handleTarget === null || viewport.activeTool !== null) return null;
+    if (viewport.movePreview !== null || viewport.resizePreview !== null || viewport.rotatePreview !== null)
+      return null;
+    const block = blocks[handleTarget.id];
+    if (block === undefined || block.type !== "shape") return null;
+    return { id: handleTarget.id, fill: block.attrs?.fill, stroke: block.attrs?.stroke };
+  })();
+
   if (root === undefined) return null;
 
   // The event point in the container space, center-relative (px) — the
@@ -255,6 +272,13 @@ function CanvasView() {
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    // The DOM containment guard: React's synthetic events bubble through
+    // the FIBER tree, not the DOM tree — the portaled popover content
+    // (the shape toolbar's palettes) stands in `document.body`, but its
+    // pointer presses reach this handler through the component chain
+    // (target = the portaled element). A press outside the container's
+    // DOM subtree belongs to the portal content, not to the canvas.
+    if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
     if (isChrome(event.target)) return;
     const point = centerRelativePoint(event);
 
@@ -479,6 +503,12 @@ function CanvasView() {
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    // The same DOM-containment rule as the pointer handler: React's
+    // synthetic events bubble through the fiber tree, so a key from a
+    // portaled element (the shape toolbar's palette content, tabIndex
+    // -1) reaches this handler with a target the container does not
+    // contain — and would delete the selection (Delete / Backspace).
+    if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
     if (isEditingSurface(event.target)) return;
     // The canvas items' delete (the page's removeBlocksSelection path
     // stands the root's page sequence — the canvas items are not in it).
@@ -711,6 +741,21 @@ function CanvasView() {
             />
           </div>
         )}
+      {shapeToolbarTarget !== null && displayBox !== null && (
+        // The shape's color toolbar (the single `shape` selection): the
+        // fill/stroke sections above the box top edge. Hidden for the
+        // non-shape blocks, the multi selection, an active tool, and the
+        // in-flight sessions (the box is stale then).
+        <ShapeToolbar
+          id={shapeToolbarTarget.id}
+          fill={shapeToolbarTarget.fill}
+          stroke={shapeToolbarTarget.stroke}
+          style={{
+            left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
+            top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y - (displayBox.h / 2) * viewport.zoom - TOOLBAR_OFFSET_PX}px)`,
+          }}
+        />
+      )}
       <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={() => viewport.setZoom(1)} />
       <CanvasDock viewport={viewport} />
     </div>
