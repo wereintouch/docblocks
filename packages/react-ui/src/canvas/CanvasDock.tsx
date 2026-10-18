@@ -15,6 +15,7 @@ import {
   Diagonal,
   Diamond,
   Hand,
+  MousePointer2,
   Pen,
   Square,
   SquareSplitVertical,
@@ -101,15 +102,18 @@ function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
         "
         onMouseDown={(event) => event.preventDefault()}
       >
+        {/* The mode's button: the icon stands the current mode (the
+            select pointer / the pan hand) — the press toggles it. The M
+            key stands the select mode from the keyboard. */}
         <Button
           variant="ghost"
           size="xl"
-          aria-label={mode === "pan" ? "Switch to the default pointer" : "Switch to the pan mode"}
+          aria-label={mode === "pan" ? "Switch to the select mode" : "Switch to the pan mode"}
           aria-pressed={mode === "pan"}
           className={mode === "pan" ? "bg-accent text-accent-foreground" : undefined}
           onClick={toggleHand}
         >
-          <Hand className="size-6" />
+          {mode === "pan" ? <Hand className="size-6" /> : <MousePointer2 className="size-6" />}
         </Button>
         <span className="flex items-center gap-0.5">
           <Separator orientation="vertical" className="h-6" />

@@ -79,18 +79,21 @@ describe("clampZoom", () => {
     expect(clampZoom(1)).toBe(1);
   });
 
-  it("snaps to the step grid", () => {
-    expect(clampZoom(0.31)).toBe(0.25);
-    expect(clampZoom(0.38)).toBe(0.5);
-    expect(clampZoom(1.16)).toBe(1.25);
-    expect(ZOOM_STEP).toBe(0.25);
+  it("snaps to the nearest stop (the 10% grid + the 25% floor)", () => {
+    expect(clampZoom(0.31)).toBe(0.3);
+    expect(clampZoom(0.38)).toBe(0.4);
+    expect(clampZoom(1.16)).toBe(1.2);
+    expect(clampZoom(0.26)).toBe(0.25);
+    expect(ZOOM_STEP).toBe(0.1);
   });
 });
 
 describe("stepZoom", () => {
-  it("steps by the zoom step", () => {
-    expect(stepZoom(1, 1)).toBe(1.25);
-    expect(stepZoom(1.25, -1)).toBe(1);
+  it("steps by one stop (the 10% step)", () => {
+    expect(stepZoom(1, 1)).toBe(1.1);
+    expect(stepZoom(1.1, -1)).toBe(1);
+    expect(stepZoom(0.3, -1)).toBe(0.25);
+    expect(stepZoom(0.25, 1)).toBe(0.3);
   });
 
   it("clamps at the bounds", () => {

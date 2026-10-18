@@ -117,6 +117,9 @@ interface CanvasViewportState {
   placePreview: PlacePreview | null;
   setZoom: (zoom: number) => void;
   stepZoom: (direction: 1 | -1) => void;
+  /** The zoom step at the screen point (the wheel): the point under the
+   * cursor stays fixed (the pan compensates the zoom change). */
+  zoomAt: (point: ScreenPoint, direction: 1 | -1) => void;
   setPan: (pan: ScreenPoint) => void;
   setMode: (mode: CanvasMode) => void;
   setActiveTool: (tool: CanvasTool | null) => void;
@@ -185,6 +188,25 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
 
   const setZoom = useCallback((next: number) => setZoomState(next), []);
   const step = useCallback((direction: 1 | -1) => setZoomState((current) => stepZoom(current, direction)), []);
+
+  // The wheel's zoom at the cursor: the canvas point under the screen
+  // point stands fixed — the pan moves by the screen delta the point's
+  // new position would bring (screen = zoom * canvas + pan). The step
+  // stands no-op at the bounds (the zoom and the pan keep).
+  const zoomAt = useCallback(
+    (point: ScreenPoint, direction: 1 | -1) => {
+      const next = stepZoom(zoom, direction);
+      if (next === zoom) return;
+      setZoomState(next);
+      // The two-decimal round: the float drift of the ratio (the stop
+      // grid's decimals stand the exact value) stands no phantom px.
+      setPan({
+        x: Number((point.x - (point.x - pan.x) * (next / zoom)).toFixed(2)),
+        y: Number((point.y - (point.y - pan.y) * (next / zoom)).toFixed(2)),
+      });
+    },
+    [zoom, pan]
+  );
 
   // The click-to-place: the block lands at the point in one transact
   // (insert + setGeometry). A placement failure (a validator rejection)
@@ -463,6 +485,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     placePreview,
     setZoom,
     stepZoom: step,
+    zoomAt,
     setPan,
     setMode,
     setActiveTool,

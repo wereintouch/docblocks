@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
@@ -125,6 +125,10 @@ const HANDLE_ROTATE_OFFSET_PX = 24;
  * stands over the rotate handle (24px), so it clears the handle zone. */
 const TOOLBAR_OFFSET_PX = 48;
 
+/** The wheel's zoom step's delta threshold (a mouse notch's ~100 px; the
+ * trackpad's small deltas accumulate to the same step). */
+const WHEEL_ZOOM_DELTA = 100;
+
 function ZoomControls({
   zoom,
   onStep,
@@ -233,7 +237,37 @@ function CanvasView() {
   // the page's content (the two-click contract) — the flag drops the
   // compatibility mousedown's default (the caret / the focus move).
   const cardPressRef = useRef(false);
+  // The wheel's delta accumulator (the zoom step crosses the threshold —
+  // the remainder stands over to the next event, the trackpad's
+  // momentum feel).
+  const wheelDeltaRef = useRef(0);
   const [spacePan, setSpacePan] = useState(false);
+
+  // The wheel's zoom at the cursor (both modes, any tool): the canvas
+  // point under the pointer stands fixed. The native non-passive
+  // listener (React's onWheel is passive at the root — the
+  // preventDefault would not stand) stops the page's scroll. The delta
+  // accumulates to the step threshold (the mouse's notch, the
+  // trackpad's small events).
+  useEffect(() => {
+    const container = containerRef.current;
+    if (container === null) return;
+    const onWheel = (event: WheelEvent) => {
+      const rect = container.getBoundingClientRect();
+      const point = {
+        x: event.clientX - (rect.left + rect.width / 2),
+        y: event.clientY - (rect.top + rect.height / 2),
+      };
+      wheelDeltaRef.current += event.deltaY;
+      if (Math.abs(wheelDeltaRef.current) < WHEEL_ZOOM_DELTA) return;
+      const direction = wheelDeltaRef.current > 0 ? -1 : 1;
+      wheelDeltaRef.current = 0;
+      viewport.zoomAt(point, direction);
+      event.preventDefault();
+    };
+    container.addEventListener("wheel", onWheel, { passive: false });
+    return () => container.removeEventListener("wheel", onWheel);
+  }, [viewport.zoomAt]);
 
   // Split the root's children into the page (the non-surface blocks, in
   // reading order) and the surfaces (each rendered as its own layer).
@@ -782,6 +816,22 @@ function CanvasView() {
     // -1) reaches this handler with a target the container does not
     // contain — and would delete the selection (Delete / Backspace).
     if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
+    // The M key: the select mode (the mode's keyboard switch — the dock's
+    // button icon shows the current mode, the hand is the pan). The app
+    // level hotkey wins over the editing surfaces (the "m" stands no
+    // character over the text); the live caret (the editing state) stands
+    // the view — the focus parks on the container (the undo hotkey reach).
+    if (event.key.toLowerCase() === "m") {
+      event.preventDefault();
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.isContentEditable) {
+        window.getSelection()?.removeAllRanges();
+        active.blur();
+        containerRef.current?.focus();
+      }
+      viewport.setMode("default");
+      return;
+    }
     if (isEditingSurface(event.target)) return;
     // The canvas items' delete (the page's removeBlocksSelection path
     // stands the root's page sequence — the canvas items are not in it).

@@ -103,7 +103,7 @@ async function seedShape(
 
 async function zoomTo50(page: Page, client: "a" | "b"): Promise<void> {
   const zoom = zoomToolbar(page, client);
-  for (let i = 0; i < 2; i += 1) await zoom.getByLabel("Zoom out").click();
+  for (let i = 0; i < 5; i += 1) await zoom.getByLabel("Zoom out").click();
   expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("50%");
 }
 
@@ -319,7 +319,7 @@ test.describe("the canvas resize / rotate handles", () => {
       // The page card is large: zoom to 25% so its box handles stand on
       // screen (the card's half-height is 120px at 25%).
       const zoom = zoomToolbar(a, "a");
-      for (let i = 0; i < 4; i += 1) await zoom.getByLabel("Zoom out").click();
+      for (let i = 0; i < 8; i += 1) await zoom.getByLabel("Zoom out").click();
       expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("25%");
 
       const root = await a.evaluate(() => {

@@ -31,6 +31,7 @@ export { List } from "./List";
 export { ListOrdered } from "./ListOrdered";
 export { LoaderCircle } from "./LoaderCircle";
 export { Menu } from "./Menu";
+export { MousePointer2 } from "./MousePointer2";
 export { Minus } from "./Minus";
 export { Pen } from "./Pen";
 export { Pilcrow } from "./Pilcrow";

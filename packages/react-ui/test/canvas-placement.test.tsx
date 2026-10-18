@@ -148,6 +148,7 @@ describe("the dock", () => {
       mode: "default",
       activeTool: null,
       pendingConnector: null,
+      zoomAt: noop,
       marquee: null,
       penPoints: [],
       movePreview: null,
@@ -235,7 +236,19 @@ describe("the dock", () => {
     rerender(<CanvasDock viewport={fakeViewport({ activeTool: "ellipse" })} />);
     expect(screen.getByLabelText("Shapes").getAttribute("aria-pressed")).toBe("true");
     rerender(<CanvasDock viewport={fakeViewport({ mode: "pan" })} />);
-    expect(screen.getByLabelText("Switch to the default pointer").getAttribute("aria-pressed")).toBe("true");
+    // The mode's button: the label and the icon stand the current mode
+    // (the hand for the pan, the pointer for the select).
+    expect(screen.getByLabelText("Switch to the select mode").getAttribute("aria-pressed")).toBe("true");
+    // The icon's path stands the current mode (the hand's first path /
+    // the pointer's path).
+    expect(screen.getByLabelText("Switch to the select mode").querySelector("svg path")?.getAttribute("d")).toBe(
+      "M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"
+    );
+    rerender(<CanvasDock viewport={fakeViewport({ mode: "default" })} />);
+    expect(screen.getByLabelText("Switch to the pan mode").getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByLabelText("Switch to the pan mode").querySelector("svg path")?.getAttribute("d")).toBe(
+      "M4.037 4.688a.495.495 0 0 1 .651-.651l16 6.5a.5.5 0 0 1-.063.947l-6.124 1.58a2 2 0 0 0-1.438 1.435l-1.579 6.126a.5.5 0 0 1-.947.063z"
+    );
   });
 
   it("the hand toggle switches the mode and drops the active tool", () => {

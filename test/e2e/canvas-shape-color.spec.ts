@@ -210,7 +210,7 @@ test.describe("the shape color toolbar", () => {
       // free, so the marquee starts inside the container but off the
       // page card (the card would catch the press as its move).
       const zoom = canvasView(a, "a").getByRole("toolbar", { name: "Canvas zoom" });
-      for (let i = 0; i < 4; i += 1) await zoom.getByLabel("Zoom out").click();
+      for (let i = 0; i < 8; i += 1) await zoom.getByLabel("Zoom out").click();
       expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("25%");
 
       const [s1, s2] = await a.evaluate(() => {

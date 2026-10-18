@@ -104,9 +104,9 @@ describe("the drag-to-size placement", () => {
     expect(mine?.geometry).toEqual({ x: 100, y: 100, w: 160, h: 80 });
   });
 
-  it("divides the drag by the zoom (the place at a 1.5x zoom)", () => {
+  it("divides the drag by the zoom (the place at a 1.2x zoom)", () => {
     const { doc, view } = renderCanvas();
-    // Two zoom-in steps (the 0.25 step grid): the zoom is 1.5.
+    // Two zoom-in steps (the 10% step grid): the zoom is 1.2.
     fireEvent.click(screen.getByLabelText("Zoom in"));
     fireEvent.click(screen.getByLabelText("Zoom in"));
     pickShapeTool(view, "Ellipse");
@@ -118,11 +118,11 @@ describe("the drag-to-size placement", () => {
     const shapes = placedShapes(doc).find((shape) => shape.variant === "ellipse");
     expect(shapes?.geometry).not.toBeNull();
     // The screen delta (100/60) divided by the zoom: the canvas box is
-    // 66.67x40 at the drag's canvas midpoint.
-    expect(shapes?.geometry?.w).toBeCloseTo(100 / 1.5, 5);
-    expect(shapes?.geometry?.h).toBeCloseTo(60 / 1.5, 5);
-    expect(shapes?.geometry?.x).toBeCloseTo(100 / 1.5 + 100 / 3, 5);
-    expect(shapes?.geometry?.y).toBeCloseTo(100 / 1.5 + 30 / 1.5, 5);
+    // 83.33x50 at the drag's canvas midpoint.
+    expect(shapes?.geometry?.w).toBeCloseTo(100 / 1.2, 5);
+    expect(shapes?.geometry?.h).toBeCloseTo(60 / 1.2, 5);
+    expect(shapes?.geometry?.x).toBeCloseTo(100 / 1.2 + 100 / 2.4, 5);
+    expect(shapes?.geometry?.y).toBeCloseTo(100 / 1.2 + 30 / 1.2, 5);
   });
 
   it("drops the session on the button-less move (the stale release writes nothing)", () => {

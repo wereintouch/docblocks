@@ -38,6 +38,7 @@ const ICON_SET = [
   "ListOrdered",
   "LoaderCircle",
   "Menu",
+  "MousePointer2",
   "Minus",
   "Pen",
   "Pilcrow",

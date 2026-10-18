@@ -98,7 +98,7 @@ async function seedShape(
 /** Zoom the pane out to 25% (four steps down from 100%). */
 async function zoomTo25(page: Page, client: "a" | "b"): Promise<void> {
   const zoom = zoomToolbar(page, client);
-  for (let i = 0; i < 4; i += 1) await zoom.getByLabel("Zoom out").click();
+  for (let i = 0; i < 8; i += 1) await zoom.getByLabel("Zoom out").click();
   expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("25%");
 }
 

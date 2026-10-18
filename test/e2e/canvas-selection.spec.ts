@@ -187,7 +187,7 @@ test.describe("the canvas mouse selection", () => {
       const { left, right } = await seedShapes(a, "a");
       // The 25% zoom (the page miniature stands small — the marquee's
       // start point stands off the card, the shapes stand near the center).
-      for (let i = 0; i < 3; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
       await a.waitForTimeout(300);
 
       const cL = await itemCenter(a, "a", left);
@@ -280,7 +280,7 @@ test.describe("the canvas mouse selection", () => {
       // border, the 50% fill (the same cyan). The 25% zoom stands the drag
       // off the page miniature (the start point would stand on the card
       // otherwise).
-      for (let i = 0; i < 3; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
       await a.waitForTimeout(300);
       const center = await canvasCenter(a, "a");
       await a.mouse.move(center.x + 120, center.y - 100);

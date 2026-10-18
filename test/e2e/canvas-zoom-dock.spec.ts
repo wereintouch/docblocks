@@ -135,21 +135,151 @@ test.describe("the canvas zoom controls", () => {
 
       expect((await worldTransform(a, "a")).scale).toBe(1);
       await zoomToolbar(a, "a").getByLabel("Zoom in").click();
-      expect((await worldTransform(a, "a")).scale).toBeCloseTo(1.25);
-      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("125%");
+      expect((await worldTransform(a, "a")).scale).toBeCloseTo(1.1);
+      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("110%");
       await zoomToolbar(a, "a").getByLabel("Reset zoom").click();
       expect((await worldTransform(a, "a")).scale).toBe(1);
       await zoomToolbar(a, "a").getByLabel("Zoom out").click();
-      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("75%");
+      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("90%");
 
-      // The zoom clamps at the 25% floor.
-      for (let i = 0; i < 4; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      // The zoom clamps at the 25% floor (the 10% step's eight outs).
+      for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
       expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("25%");
 
       // The zoom is the pane's view state: the other pane stands at 100%,
       // and no zoom write reaches the doc.
       expect((await worldTransform(b, "b")).scale).toBe(1);
       expect(await blockShapes(a, "a")).toEqual(before);
+    } finally {
+      await close();
+    }
+  });
+});
+
+test.describe("the wheel's zoom at the cursor", () => {
+  test("a wheel notch zooms at the pointer (the point under the cursor stands fixed, both modes)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "canvas-wheel-zoom");
+    try {
+      await toCanvas(a, "a");
+      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      expect(id).toBeTruthy();
+
+      // The shape's on-screen center at the 100% zoom (the canvas point
+      // (0, 0) at the screen center — the world transform 1/0/0).
+      const wrapper = a.locator(`[data-testid="doc-a"] [data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
+      const before = (await wrapper.boundingBox())!;
+      const centerOf = (box: { x: number; y: number; width: number; height: number }) => ({
+        x: box.x + box.width / 2,
+        y: box.y + box.height / 2,
+      });
+      const cursor = centerOf(before);
+
+      // The wheel's notch in (negative deltaY): the zoom steps 1 → 1.25
+      // and the shape's screen CENTER stands fixed (the pan compensates
+      // the zoom — the cursor's canvas point keeps; the box grows with
+      // the zoom around the center anchor).
+      await a.mouse.move(cursor.x, cursor.y);
+      await a.mouse.wheel(0, -120);
+      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("110%");
+      const after = centerOf((await wrapper.boundingBox())!);
+      expect(Math.abs(after.x - cursor.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(after.y - cursor.y)).toBeLessThanOrEqual(2);
+
+      // The doc stands (the zoom is the view state).
+      const shapes = await blockShapes(a, "a");
+      expect(shapes[id]?.geometry).toEqual({ x: 0, y: 0, w: 120, h: 80 });
+
+      // The pan mode: the wheel stands the zoom too (not a grab drag).
+      await dock(a, "a").getByLabel("Switch to the pan mode").click();
+      const before2 = (await wrapper.boundingBox())!;
+      const cursor2 = centerOf(before2);
+      await a.mouse.move(cursor2.x, cursor2.y);
+      await a.mouse.wheel(0, 120);
+      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("100%");
+      const after2 = centerOf((await wrapper.boundingBox())!);
+      expect(Math.abs(after2.x - cursor2.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(after2.y - cursor2.y)).toBeLessThanOrEqual(2);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the M key stands the select mode (the dock's mode icon stands the current mode)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-wheel-mode");
+    try {
+      await toCanvas(a, "a");
+
+      // The select mode: the pointer's icon.
+      const modeButton = a.locator('[data-slot="docblocks/canvas-dock"]').first();
+      const iconPath = async () => modeButton.locator("button").first().locator("svg path").first().getAttribute("d");
+      const pointerPath = await iconPath();
+      expect(pointerPath).toContain("M4.037 4.688");
+      expect(await modeButton.locator("button").first().getAttribute("aria-label")).toBe("Switch to the pan mode");
+
+      // The hand's toggle: the pan mode stands the hand's icon.
+      await modeButton.locator("button").first().click();
+      expect(await iconPath()).toContain("M18 11V6");
+      expect(await modeButton.locator("button").first().getAttribute("aria-label")).toBe("Switch to the select mode");
+
+      // The M key: back to the select mode (the pointer's icon). The
+      // focus parks on the canvas container (the keydown reach — the
+      // dock's mousedown preventDefault keeps the focus off the button).
+      await a.locator('[data-slot="docblocks/canvas-view"]').evaluate((el) => el.focus());
+      await a.keyboard.press("m");
+      expect(await modeButton.locator("button").first().getAttribute("aria-label")).toBe("Switch to the pan mode");
+      expect(await iconPath()).toContain("M4.037 4.688");
+    } finally {
+      await close();
+    }
+  });
+
+  test("the M key over the live caret stands the view (no m character, the focus parks)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-wheel-m-caret");
+    try {
+      await toCanvas(a, "a");
+      // The 25% zoom: the page miniature's text stands on screen (at
+      // 100% the page's top stands above the viewport). The 10% step's
+      // eight outs stand the 25% floor.
+      for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      await a.waitForTimeout(300);
+      // Seed the paragraph and stand the caret over it (the two-click
+      // contract's second press).
+      const pid = await a.evaluate(() => {
+        const doc = window.__paneDocs?.a;
+        if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+        const p = doc.insertBlock("paragraph");
+        doc.insertText(p, 0, "the line");
+        return p;
+      });
+      expect(pid).toBeTruthy();
+      const text = a.locator(
+        `[data-testid="doc-a"] [data-slot="docblocks/page-card"] [data-block-id="${pid}"] [data-slot="docblocks/block-content"]`
+      );
+      const box = (await text.boundingBox())!;
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+      await a.mouse.click(point.x, point.y);
+      await a.mouse.click(point.x, point.y);
+      expect(await a.evaluate(() => (document.activeElement as HTMLElement | null)?.isContentEditable ?? false)).toBe(
+        true
+      );
+
+      // The M key from the editing state: the caret drops (the focus
+      // parks on the canvas view, the selection clears), the "m" stands
+      // no character, and the mode stands the select.
+      await a.keyboard.press("m");
+      const state = await a.evaluate(() => ({
+        editable: (document.activeElement as HTMLElement | null)?.isContentEditable ?? false,
+        focus: document.activeElement?.getAttribute("data-slot") ?? null,
+        ranges: document.getSelection()?.rangeCount ?? 0,
+      }));
+      expect(state).toEqual({ editable: false, focus: "docblocks/canvas-view", ranges: 0 });
+      const value = await a.evaluate((id) => {
+        const block = window.__paneDocs?.a?.getBlock(id) as { content?: { text: string }[] } | null | undefined;
+        return (block?.content ?? []).map((r) => r.text).join("");
+      }, pid);
+      expect(value).toBe("the line");
     } finally {
       await close();
     }
@@ -166,7 +296,7 @@ test.describe("the canvas pan", () => {
 
       // The hand toggle (the dock's first button).
       await dock(a, "a").getByLabel("Switch to the pan mode").click();
-      expect(await dock(a, "a").getByLabel("Switch to the default pointer").getAttribute("aria-pressed")).toBe("true");
+      expect(await dock(a, "a").getByLabel("Switch to the select mode").getAttribute("aria-pressed")).toBe("true");
 
       // Drag from the page miniature's empty lower area (outside the
       // dock's band, not an editing surface): a +120/+50 screen delta.
@@ -231,8 +361,9 @@ test.describe("the canvas pan", () => {
       await toCanvas(a, "a");
       const center = await canvasCenter(a, "a");
       // The 25% zoom: the page miniature's text stands on screen (at
-      // 100% the page's top stands above the viewport).
-      for (let i = 0; i < 3; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      // 100% the page's top stands above the viewport). The 10% step's
+      // eight outs stand the 25% floor.
+      for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
       await a.waitForTimeout(300);
       await dock(a, "a").getByLabel("Switch to the pan mode").click();
 
@@ -270,7 +401,7 @@ test.describe("the canvas marquee selection", () => {
       // miniature shrinks to the (±45, ±60) center box — the marquee's
       // corners are the empty canvas around them.
       const zoom = zoomToolbar(a, "a");
-      for (let i = 0; i < 3; i += 1) await zoom.getByLabel("Zoom out").click();
+      for (let i = 0; i < 8; i += 1) await zoom.getByLabel("Zoom out").click();
       expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("25%");
 
       const center = await canvasCenter(a, "a");

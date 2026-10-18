@@ -15,8 +15,35 @@
 /** The zoom bounds (25%–400%). */
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 4;
-/** The zoom button step (25%). */
-const ZOOM_STEP = 0.25;
+/** The zoom step (10%). */
+const ZOOM_STEP = 0.1;
+
+/**
+ * The zoom stops: the 10% grid (0.3, 0.4, …, 4.0) + the 25% floor. The
+ * step moves one stop at a time (the grid stands path-independent — the
+ * float drift is dropped by the two-decimal round).
+ */
+const ZOOM_STOPS: number[] = (() => {
+  const stops = [MIN_ZOOM];
+  for (let stop = Math.ceil(MIN_ZOOM / ZOOM_STEP) * ZOOM_STEP; stop <= MAX_ZOOM + 1e-9; stop += ZOOM_STEP) {
+    stops.push(Number(stop.toFixed(2)));
+  }
+  return stops;
+})();
+
+/** The zoom's stop index (the nearest stop; the float drift stands the epsilon). */
+function zoomStopIndex(zoom: number): number {
+  let index = 0;
+  let delta = Infinity;
+  ZOOM_STOPS.forEach((stop, stopIndex) => {
+    const candidate = Math.abs(zoom - stop);
+    if (candidate < delta) {
+      delta = candidate;
+      index = stopIndex;
+    }
+  });
+  return index;
+}
 /** The move session's drag threshold (screen px): below it, the press is a click. */
 const MOVE_THRESHOLD_PX = 3;
 
@@ -58,15 +85,17 @@ const TOOL_SIZES: Record<CanvasTool, { w: number; h: number }> = {
   pen: { w: 0, h: 0 }, // the pen's geometry is the stroke's bounding box
 };
 
-/** Clamps and snaps a zoom value to the step grid (the 25%–400% bounds). */
+/** Clamps and snaps a zoom value to the nearest stop (the 25%–400% bounds). */
 function clampZoom(zoom: number): number {
-  const snapped = Math.round(zoom / ZOOM_STEP) * ZOOM_STEP;
-  return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, snapped));
+  return ZOOM_STOPS[zoomStopIndex(zoom)]!;
 }
 
-/** The zoom step from a button (direction ±1), clamped to the bounds. */
+/** The zoom step (direction ±1): one stop, clamped at the stops' bounds. */
 function stepZoom(zoom: number, direction: 1 | -1): number {
-  return clampZoom(zoom + direction * ZOOM_STEP);
+  const index = zoomStopIndex(zoom);
+  const next = index + direction;
+  if (next < 0 || next >= ZOOM_STOPS.length) return ZOOM_STOPS[index]!;
+  return ZOOM_STOPS[next]!;
 }
 
 /** The screen point (center-relative) → the canvas point. */
