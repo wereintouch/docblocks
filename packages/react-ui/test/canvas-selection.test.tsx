@@ -195,7 +195,7 @@ describe("the visual contract", () => {
     expect(r.wrapperOf(r.b).className).toBe("");
   });
 
-  it("stands the marquee's line only (no fill)", () => {
+  it("stands the marquee's line + the 50% fill (the cyan selection tokens)", () => {
     const r = renderCanvas();
     const start = r.view.getBoundingClientRect();
     const cx = start.x + start.width / 2;
@@ -206,6 +206,7 @@ describe("the visual contract", () => {
     expect(marquee).not.toBeNull();
     expect(marquee!.className).toContain("border-(--docblocks-canvas-selection-border-color)");
     expect(marquee!.className).toContain("border-(length:--docblocks-canvas-selection-border-width)");
+    expect(marquee!.className).toContain("bg-(--docblocks-canvas-selection-fill)");
     expect(marquee!.className).not.toContain("bg-(--docblocks-selected-background)");
     expect(marquee!.className).not.toContain("border-(--docblocks-formatbar-border-color)");
     fireEvent.pointerUp(r.view, { pointerId: 4 });

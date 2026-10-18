@@ -216,6 +216,14 @@
      outline share the cyan): the base cyan on the light canvas. */
   --docblocks-canvas-selection-border-color: #0891b2;
   --docblocks-canvas-selection-border-width: 1px;
+  /* The marquee's fill (the same cyan at 50% — the border token, so it
+     follows the theme flip). Declared once, theme-independent (like the
+     width). */
+  --docblocks-canvas-selection-fill: color-mix(
+    in srgb,
+    var(--docblocks-canvas-selection-border-color) 50%,
+    transparent
+  );
 
   /* The floating format toolbar (the selection's formatting layer). */
   --docblocks-formatbar-background: var(--popover, #ffffff);

@@ -789,7 +789,7 @@ function CanvasView() {
           data-slot="docblocks/canvas-marquee"
           className="
             pointer-events-none absolute z-40 border-(length:--docblocks-canvas-selection-border-width)
-            border-(--docblocks-canvas-selection-border-color)
+            border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
           "
           style={{
             left: `calc(50% + ${viewport.marqueeRect.left}px)`,

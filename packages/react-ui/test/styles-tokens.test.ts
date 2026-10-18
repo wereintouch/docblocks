@@ -96,8 +96,10 @@ describe("styles.css token contract", () => {
     const darkScope = STYLES.slice(STYLES.indexOf(':is(.dark [data-slot="docblocks/editor"]'));
     expect(STYLES).toContain("--docblocks-canvas-selection-border-color: #0891b2;");
     expect(STYLES).toContain("--docblocks-canvas-selection-border-width: 1px;");
+    expect(STYLES).toContain("--docblocks-canvas-selection-fill: color-mix(");
     expect(darkScope).toContain("--docblocks-canvas-selection-border-color: #39c5cf;");
     expect(darkScope).not.toContain("--docblocks-canvas-selection-border-width");
+    expect(darkScope).not.toContain("--docblocks-canvas-selection-fill");
   });
 });
 

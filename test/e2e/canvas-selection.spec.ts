@@ -260,9 +260,10 @@ test.describe("the canvas mouse selection", () => {
       expect(outline!.token).toBe("#39c5cf");
       expect(outline!.color).toBe("rgb(57, 197, 207)");
 
-      // The marquee's line (the in-flight drag): the token's border, no
-      // fill. The 25% zoom stands the drag off the page miniature (the
-      // start point would stand on the card otherwise).
+      // The marquee's line + fill (the in-flight drag): the token's
+      // border, the 50% fill (the same cyan). The 25% zoom stands the drag
+      // off the page miniature (the start point would stand on the card
+      // otherwise).
       for (let i = 0; i < 3; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
       await a.waitForTimeout(300);
       const center = await canvasCenter(a, "a");
@@ -284,7 +285,8 @@ test.describe("the canvas mouse selection", () => {
       expect(marquee).not.toBeNull();
       expect(marquee!.width).toBe("1px");
       expect(marquee!.border).toBe("rgb(57, 197, 207)");
-      expect(marquee!.background).toBe("rgba(0, 0, 0, 0)");
+      // The 50% fill resolves to the srgb color space (the color-mix).
+      expect(marquee!.background).toBe("color(srgb 0.223529 0.772549 0.811765 / 0.5)");
 
       // The light flip (the base cyan): the token recomputes.
       await a.evaluate(() => document.documentElement.classList.remove("dark"));
