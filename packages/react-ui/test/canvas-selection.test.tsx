@@ -211,6 +211,18 @@ describe("the visual contract", () => {
     expect(marquee!.className).not.toContain("border-(--docblocks-formatbar-border-color)");
     fireEvent.pointerUp(r.view, { pointerId: 4 });
   });
+
+  it("stands the selection's handles on the accent (the cyan selection fill)", () => {
+    const r = renderCanvas();
+    click(r.view, r.a);
+    const handles = Array.from(r.view.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-handle']"));
+    expect(handles.length).toBe(9); // the eight box handles + the rotate handle
+    for (const handle of handles) {
+      expect(handle.className).toContain("bg-(--docblocks-canvas-selection-border-color)");
+    }
+    // The handle keeps the theme's thin border (the contrast ring).
+    expect(handles[0]!.className).toContain("border-(--docblocks-formatbar-border-color)");
+  });
 });
 
 describe("the Escape clear", () => {

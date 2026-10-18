@@ -1011,7 +1011,7 @@ function CanvasView() {
                 data-handle={handleId}
                 className={cn(
                   "pointer-events-auto absolute size-2 rounded-full",
-                  "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background)",
+                  "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)",
                   className
                 )}
                 style={style}
@@ -1022,7 +1022,7 @@ function CanvasView() {
               data-handle="rotate"
               className={cn(
                 "pointer-events-auto absolute size-3 cursor-grab rounded-full",
-                "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background)"
+                "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)"
               )}
               style={{ left: "50%", top: -HANDLE_ROTATE_OFFSET_PX, transform: "translate(-50%, -50%)" }}
             />

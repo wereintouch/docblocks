@@ -260,6 +260,22 @@ test.describe("the canvas mouse selection", () => {
       expect(outline!.token).toBe("#39c5cf");
       expect(outline!.color).toBe("rgb(57, 197, 207)");
 
+      // The selection's handles stand the accent too (the same cyan
+      // token's fill, the theme's thin border).
+      const handle = await a.evaluate((client) => {
+        const view = document.querySelector(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
+        if (view === null) return null;
+        const el = view.querySelector<HTMLElement>('[data-slot="docblocks/canvas-handle"][data-handle="n"]');
+        if (el === null) return null;
+        const style = getComputedStyle(el);
+        return { background: style.backgroundColor, border: style.borderTopColor };
+      }, "a");
+      expect(handle).not.toBeNull();
+      expect(handle!.background).toBe("rgb(57, 197, 207)");
+      // The border reads the standard token seed's dark value (the
+      // shipped utility layer carries it; the harness defines no theme).
+      expect(handle!.border).toBe("oklch(1 0 0 / 0.1)");
+
       // The marquee's line + fill (the in-flight drag): the token's
       // border, the 50% fill (the same cyan). The 25% zoom stands the drag
       // off the page miniature (the start point would stand on the card
