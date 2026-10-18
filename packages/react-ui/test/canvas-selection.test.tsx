@@ -269,4 +269,52 @@ describe("the Escape clear", () => {
   });
 });
 
+describe("the multi-selection's summary box", () => {
+  it("stands the union box over two selected items (the token's line + fill + offset)", () => {
+    const r = renderCanvas();
+    click(r.view, r.a);
+    shiftClick(r.view, r.b);
+    const box = r.view.querySelector<HTMLElement>("[data-slot='docblocks/canvas-multi-selection']");
+    expect(box).not.toBeNull();
+    expect(box!.className).toContain("border-(--docblocks-canvas-selection-border-color)");
+    expect(box!.className).toContain("border-(length:--docblocks-canvas-selection-border-width)");
+    expect(box!.className).toContain("bg-(--docblocks-canvas-selection-fill)");
+    // The offset is the CSS token (the style's calc reads it — no px
+    // literal for the breath).
+    expect(box!.style.left).toContain("var(--docblocks-canvas-selection-box-offset)");
+    expect(box!.style.width).toContain("2 * var(--docblocks-canvas-selection-box-offset)");
+  });
+
+  it("stands no box for a single selection (the item's outline stands)", () => {
+    const r = renderCanvas();
+    click(r.view, r.a);
+    expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).toBeNull();
+  });
+
+  it("stands no box over a selection with a connector only (no own geometry)", () => {
+    const r = renderCanvas();
+    // The shift-click on the connector's wrapper toggles the id (the
+    // wrapper's press stands the toggle — the hit path is the e2e's
+    // path). The selection is a + connector: the only box-carrying
+    // member is one — no union.
+    click(r.view, r.a);
+    shiftClick(r.view, r.connector);
+    expect(selectedIds(r.view)).toEqual([r.a, r.connector]);
+    expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).toBeNull();
+  });
+
+  it("stands no box while a move preview is in flight (the union is stale)", () => {
+    const r = renderCanvas();
+    click(r.view, r.a);
+    shiftClick(r.view, r.b);
+    expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).not.toBeNull();
+    // The group drag (the preview stands): the box stands down.
+    const wrapper = r.wrapperOf(r.a);
+    fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, buttons: 1, pointerId: 21 });
+    fireEvent.pointerMove(r.view, { clientX: 60, clientY: 10, buttons: 1, pointerId: 21 });
+    expect(r.view.querySelector("[data-slot='docblocks/canvas-multi-selection']")).toBeNull();
+    fireEvent.pointerUp(r.view, { pointerId: 21 });
+  });
+});
+
 afterEach(cleanup);

@@ -248,6 +248,31 @@ function CanvasView() {
     handleTarget !== null && viewport.resizePreview !== null && viewport.resizePreview.id === handleTarget.id
       ? viewport.resizePreview.box
       : (handleTarget?.box ?? null);
+
+  // The multi-selection's summary box: the union of the selected items'
+  // effective boxes (the connector is excluded — it carries no own
+  // geometry). Hidden while a move preview is in flight (the union is
+  // stale then, like the single-selection handles).
+  const multiSelectionBox = useMemo(() => {
+    if (storeSelection?.kind !== "blocks" || storeSelection.ids.length < 2) return null;
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    let count = 0;
+    for (const id of storeSelection.ids) {
+      const block = blocks[id];
+      if (block === undefined || block.type === "connector") continue;
+      const box = effectiveGeometry(block);
+      minX = Math.min(minX, box.x - box.w / 2);
+      minY = Math.min(minY, box.y - box.h / 2);
+      maxX = Math.max(maxX, box.x + box.w / 2);
+      maxY = Math.max(maxY, box.y + box.h / 2);
+      count += 1;
+    }
+    if (count < 2 || !Number.isFinite(minX)) return null;
+    return { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+  }, [storeSelection, blocks]);
   const displayRotation =
     handleTarget !== null && viewport.rotatePreview !== null && viewport.rotatePreview.id === handleTarget.id
       ? viewport.rotatePreview.rotation
@@ -824,6 +849,26 @@ function CanvasView() {
           </svg>
         )}
       </div>
+      {multiSelectionBox !== null && viewport.movePreview === null && (
+        // The multi-selection's summary rectangle (the union of the
+        // selected items' boxes + the on-screen offset, the token's
+        // line + fill — screen-space like the marquee, constant at any
+        // zoom). The offset is the CSS token (the style's calc reads
+        // it — the px stand no literal here).
+        <div
+          data-slot="docblocks/canvas-multi-selection"
+          className="
+            pointer-events-none absolute z-30 border-(length:--docblocks-canvas-selection-border-width)
+            border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
+          "
+          style={{
+            left: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).x}px - var(--docblocks-canvas-selection-box-offset))`,
+            top: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).y}px - var(--docblocks-canvas-selection-box-offset))`,
+            width: `calc(${multiSelectionBox.width * viewport.zoom}px + 2 * var(--docblocks-canvas-selection-box-offset))`,
+            height: `calc(${multiSelectionBox.height * viewport.zoom}px + 2 * var(--docblocks-canvas-selection-box-offset))`,
+          }}
+        />
+      )}
       {viewport.marqueeRect !== null && (
         <div
           data-slot="docblocks/canvas-marquee"

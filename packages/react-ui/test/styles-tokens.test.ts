@@ -97,9 +97,13 @@ describe("styles.css token contract", () => {
     expect(STYLES).toContain("--docblocks-canvas-selection-border-color: #0891b2;");
     expect(STYLES).toContain("--docblocks-canvas-selection-border-width: 1px;");
     expect(STYLES).toContain("--docblocks-canvas-selection-fill: color-mix(");
+    // The multi-selection box's offset (the on-screen px, declared
+    // once, theme-independent — like the width / the fill).
+    expect(STYLES).toContain("--docblocks-canvas-selection-box-offset: 4px;");
     expect(darkScope).toContain("--docblocks-canvas-selection-border-color: #39c5cf;");
     expect(darkScope).not.toContain("--docblocks-canvas-selection-border-width");
     expect(darkScope).not.toContain("--docblocks-canvas-selection-fill");
+    expect(darkScope).not.toContain("--docblocks-canvas-selection-box-offset");
   });
 });
 

@@ -224,6 +224,10 @@
     var(--docblocks-canvas-selection-border-color) 50%,
     transparent
   );
+  /* The multi-selection's summary box: the breath from the items' edges
+     (the on-screen px, constant at any zoom). Declared once,
+     theme-independent. */
+  --docblocks-canvas-selection-box-offset: 4px;
 
   /* The floating format toolbar (the selection's formatting layer). */
   --docblocks-formatbar-background: var(--popover, #ffffff);

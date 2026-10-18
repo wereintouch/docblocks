@@ -301,4 +301,63 @@ test.describe("the canvas mouse selection", () => {
       await close();
     }
   });
+
+  test("the multi-selection's summary box (the union + the 4px offset, the cyan tokens)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "cvs-sel-multi");
+    try {
+      await toCanvas(a, "a");
+      const { left, right } = await seedShapes(a, "a");
+      const cL = await itemCenter(a, "a", left);
+      const cR = await itemCenter(a, "a", right);
+      await a.mouse.click(cL.x, cL.y);
+      await a.keyboard.down("Shift");
+      await a.mouse.click(cR.x, cR.y);
+      await a.keyboard.up("Shift");
+
+      // The box: the union of the two shapes' boxes + the 4px offset
+      // (the on-screen px — 8px total per side).
+      const box = await a.evaluate(
+        ({ ids }) => {
+          const sel = document.querySelector('[data-slot="docblocks/canvas-multi-selection"]');
+          if (sel === null) return null;
+          const items = ids
+            .map((id) => document.querySelector(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`))
+            .filter((el): el is HTMLElement => el !== null);
+          let minX = Infinity;
+          let minY = Infinity;
+          let maxX = -Infinity;
+          let maxY = -Infinity;
+          for (const el of items) {
+            const r = el.getBoundingClientRect();
+            minX = Math.min(minX, r.left);
+            minY = Math.min(minY, r.top);
+            maxX = Math.max(maxX, r.right);
+            maxY = Math.max(maxY, r.bottom);
+          }
+          const style = getComputedStyle(sel);
+          return {
+            left: sel.getBoundingClientRect().left,
+            top: sel.getBoundingClientRect().top,
+            width: sel.getBoundingClientRect().width,
+            height: sel.getBoundingClientRect().height,
+            union: { minX, minY, maxX, maxY },
+            border: style.borderColor,
+            background: style.backgroundColor,
+          };
+        },
+        { ids: [left, right] }
+      );
+      expect(box).not.toBeNull();
+      const OFF = 4;
+      expect(box!.left).toBeCloseTo(box!.union.minX - OFF, 5);
+      expect(box!.top).toBeCloseTo(box!.union.minY - OFF, 5);
+      expect(box!.width).toBeCloseTo(box!.union.maxX - box!.union.minX + 2 * OFF, 5);
+      expect(box!.height).toBeCloseTo(box!.union.maxY - box!.union.minY + 2 * OFF, 5);
+      // The cyan contract (the dark pane): the border token + the 50% fill.
+      expect(box!.border).toBe("rgb(57, 197, 207)");
+      expect(box!.background).toBe("color(srgb 0.223529 0.772549 0.811765 / 0.5)");
+    } finally {
+      await close();
+    }
+  });
 });
