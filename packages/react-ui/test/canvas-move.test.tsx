@@ -379,7 +379,7 @@ describe("the move preview on a rotated item", () => {
     // transform stands translate(Δ) BEFORE rotate(θ) (a trailing
     // translate would land in the rotated frame).
     fireEvent.pointerDown(wrapper, { clientX: 100, clientY: 100 });
-    fireEvent.pointerMove(view, { clientX: 140, clientY: 120 });
+    fireEvent.pointerMove(view, { clientX: 140, clientY: 120, buttons: 1 });
     expect(wrapper.style.transform).toBe("translate(-50%, -50%) translate(40px, 20px) rotate(90deg)");
 
     // The release commits the canvas-axis delta (the rotation stands).

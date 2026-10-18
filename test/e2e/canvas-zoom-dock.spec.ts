@@ -185,6 +185,76 @@ test.describe("the canvas pan", () => {
       await close();
     }
   });
+
+  test("the plain moves never chase the world (the lost release's contract)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-pan-stale");
+    try {
+      await toCanvas(a, "a");
+      const center = await canvasCenter(a, "a");
+      await dock(a, "a").getByLabel("Switch to the pan mode").click();
+
+      // The pan drag (a +100/+40 delta), then the lost release: the
+      // synthetic lostpointercapture (a real mouse drops the capture
+      // without a pointerup when the pointer leaves the window — the
+      // headless mouse stands the button, so this is the browser pin
+      // of the plain-moves contract; the gate's stale drop is
+      // unit-pinned over the button-less move).
+      await a.mouse.move(center.x + 250, center.y + 200);
+      await a.mouse.down();
+      await a.mouse.move(center.x + 150, center.y + 160, { steps: 5 });
+      await a.evaluate(() => {
+        const view = document.querySelector('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]');
+        view?.dispatchEvent(new Event("lostpointercapture"));
+      });
+      const panned = await worldTransform(a, "a");
+      await a.mouse.up();
+      await a.mouse.move(center.x, center.y, { steps: 3 });
+
+      // The button-less moves stand the world (the stale session is
+      // dropped — the world must not chase the cursor).
+      await a.mouse.move(center.x + 80, center.y + 40, { steps: 4 });
+      const after = await worldTransform(a, "a");
+      expect(after.tx).toBeCloseTo(panned.tx);
+      expect(after.ty).toBeCloseTo(panned.ty);
+      await a.mouse.move(center.x + 200, center.y + 120, { steps: 4 });
+      const after2 = await worldTransform(a, "a");
+      expect(after2.tx).toBeCloseTo(panned.tx);
+      expect(after2.ty).toBeCloseTo(panned.ty);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the hand pans from the page miniature's text (no caret, no text selection)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-pan-text");
+    try {
+      await toCanvas(a, "a");
+      const center = await canvasCenter(a, "a");
+      // The 25% zoom: the page miniature's text stands on screen (at
+      // 100% the page's top stands above the viewport).
+      for (let i = 0; i < 3; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
+      await a.waitForTimeout(300);
+      await dock(a, "a").getByLabel("Switch to the pan mode").click();
+
+      // The grab stands on the page miniature's text (the starter
+      // paragraph's editable): the hand's contract — a grab anywhere
+      // pans (the press is prevented: no caret, no text selection).
+      const text = a.locator(
+        '[data-testid="doc-a"] [data-slot="docblocks/page-card"] [data-slot="docblocks/block-content"]'
+      );
+      const box = (await text.boundingBox())!;
+      await a.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await a.mouse.down();
+      await a.mouse.move(center.x + 150, center.y + 120, { steps: 5 });
+      await a.mouse.up();
+      const moved = await worldTransform(a, "a");
+      expect(Math.abs(moved.tx) + Math.abs(moved.ty)).toBeGreaterThan(30);
+      // No text selection stood on the surface (the drag was the pan).
+      expect(await a.evaluate(() => window.getSelection()?.type)).not.toBe("Range");
+    } finally {
+      await close();
+    }
+  });
 });
 
 test.describe("the canvas marquee selection", () => {

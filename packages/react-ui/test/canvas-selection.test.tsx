@@ -158,7 +158,7 @@ describe("the shift-marquee union", () => {
       y: r.view.getBoundingClientRect().y + r.view.clientHeight / 2,
     };
     fireEvent.pointerDown(r.view, { clientX: start.x - 60, clientY: start.y - 40, shiftKey: true, pointerId: 2 });
-    fireEvent.pointerMove(r.view, { clientX: start.x + 60, clientY: start.y + 40, pointerId: 2 });
+    fireEvent.pointerMove(r.view, { clientX: start.x + 60, clientY: start.y + 40, buttons: 1, pointerId: 2 });
     fireEvent.pointerUp(r.view, { pointerId: 2 });
     // The union: a (the pre-marquee) + b (the marquee's pick).
     expect(selectedIds(r.view).sort()).toEqual([r.a, r.b].sort());
@@ -201,7 +201,7 @@ describe("the visual contract", () => {
     const cx = start.x + start.width / 2;
     const cy = start.y + start.height / 2;
     fireEvent.pointerDown(r.view, { clientX: cx - 40, clientY: cy - 30, pointerId: 4 });
-    fireEvent.pointerMove(r.view, { clientX: cx + 40, clientY: cy + 30, pointerId: 4 });
+    fireEvent.pointerMove(r.view, { clientX: cx + 40, clientY: cy + 30, buttons: 1, pointerId: 4 });
     const marquee = r.view.querySelector<HTMLElement>("[data-slot='docblocks/canvas-marquee']");
     expect(marquee).not.toBeNull();
     expect(marquee!.className).toContain("border-(--docblocks-canvas-selection-border-color)");
@@ -230,7 +230,7 @@ describe("the Escape clear", () => {
     const r = renderCanvas();
     const wrapper = r.wrapperOf(r.a);
     fireEvent.pointerDown(wrapper, { clientX: 100, clientY: 100, pointerId: 5 });
-    fireEvent.pointerMove(r.view, { clientX: 140, clientY: 100, pointerId: 5 }); // the preview stands
+    fireEvent.pointerMove(r.view, { clientX: 140, clientY: 100, buttons: 1, pointerId: 5 }); // the preview stands
     expect(wrapper.style.transform).toContain("translate(40px, 0px)");
 
     // The Escape drops the preview; the selection STANDS.
@@ -262,7 +262,7 @@ describe("the Escape clear", () => {
     // The shift-marquee stands off every item (the 0x0 jsdom boxes stand
     // at the origin) — the empty union keeps the base selection.
     fireEvent.pointerDown(r.view, { button: 0, shiftKey: true, clientX: 500, clientY: 500, pointerId: 8 });
-    fireEvent.pointerMove(r.view, { clientX: 600, clientY: 560, pointerId: 8 });
+    fireEvent.pointerMove(r.view, { clientX: 600, clientY: 560, buttons: 1, pointerId: 8 });
     fireEvent.pointerUp(r.view, { pointerId: 8 });
     expect(selectedIds(r.view)).toEqual([r.a]);
     expect(JSON.stringify(r.json())).toBe(before);

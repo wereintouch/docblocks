@@ -361,9 +361,16 @@ function CanvasView() {
       return;
     }
 
-    if (isEditingSurface(event.target)) return;
-
+    // The pan (the dock's hand, the held space) wins over the editing
+    // surfaces it lands on (the hand's contract: a grab anywhere pans —
+    // the press is prevented, so the drag stands no caret / text
+    // selection on the surface).
     if (viewport.mode === "pan" || spacePan) {
+      // The press stands the pan (the surfaces keep no caret / text
+      // selection); the focus parks on the container (the preventDefault
+      // drops the default focus change — the keydown reach stands).
+      event.preventDefault();
+      containerRef.current?.focus();
       sessionRef.current = {
         kind: "pan",
         startClientX: event.clientX,
@@ -374,6 +381,8 @@ function CanvasView() {
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
+
+    if (isEditingSurface(event.target)) return;
 
     // The resize / rotate handles (the single-selection overlay): the
     // press starts the session (the pan mode / the held space stand
@@ -487,6 +496,17 @@ function CanvasView() {
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // The release can be lost (the pointer leaves the window mid-drag
+    // and the capture is dropped without a pointerup / pointercancel):
+    // a button-less move then stands over a surviving session and the
+    // world chases the cursor (the next release would commit a stale
+    // geometry). A button-less move drops every standing session; a
+    // real drag carries the primary button.
+    if ((event.buttons & 1) === 0) {
+      dropCanvasSessions();
+      return;
+    }
+
     // The move / resize / rotate sessions (item / page-card / handle
     // press) run without a container session; the feeders are no-ops
     // while none is open.
@@ -591,16 +611,35 @@ function CanvasView() {
     }
   };
 
-  // A pointer cancel (the OS/browser takeover) drops every in-flight
+  // The OS / browser takeover (a pointer cancel, a lost capture, a
+  // button-less move over a surviving session) drops every in-flight
   // session: the move's preview would otherwise stand until the next
-  // release, and that release would commit a stale setGeometry.
-  const onPointerCancel = () => {
+  // release, and that release would commit a stale setGeometry. The
+  // no-session calls are no-ops (the state stays, no re-render).
+  const dropCanvasSessions = () => {
+    // The no-session no-op: a button-less mouse move over the idle
+    // canvas must not write state (no re-render) — the setX calls stand
+    // fresh values (a new array for the pen points).
+    if (
+      sessionRef.current === null &&
+      viewport.movePreview === null &&
+      viewport.resizePreview === null &&
+      viewport.rotatePreview === null &&
+      viewport.marquee === null &&
+      viewport.penPoints.length === 0
+    ) {
+      return;
+    }
     sessionRef.current = null;
     viewport.cancelMove();
     viewport.cancelResize();
     viewport.cancelRotate();
     viewport.setMarquee(null);
     viewport.setPenPoints([]);
+  };
+
+  const onPointerCancel = () => {
+    dropCanvasSessions();
   };
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -732,6 +771,7 @@ function CanvasView() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
+      onLostPointerCapture={dropCanvasSessions}
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
     >

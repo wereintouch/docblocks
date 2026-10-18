@@ -84,7 +84,7 @@ describe("the render conditions", () => {
     // The marquee over the empty canvas (both items' jsdom boxes stand at
     // the origin): a crossing drag selects the group.
     fireEvent.pointerDown(view, { clientX: -5, clientY: -5 });
-    fireEvent.pointerMove(view, { clientX: 5, clientY: 5 });
+    fireEvent.pointerMove(view, { clientX: 5, clientY: 5, buttons: 1 });
     fireEvent.pointerUp(view);
 
     expect(toolbar()).toBeNull();
