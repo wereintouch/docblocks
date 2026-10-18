@@ -170,6 +170,27 @@ it("a Backspace on the portaled palette content never deletes the selection (the
   expect(doc.getBlock(shape) !== null).toBe(true);
 });
 
+it("the sections are mutually exclusive (the other palette closes)", () => {
+  const { doc, shape } = seededDoc();
+  const { container } = renderCanvas(doc);
+  selectBlock(container, shape);
+
+  // The non-modal popover does not close on an outside click: the fill
+  // palette stands open until the toolbar's own state closes it. The
+  // stroke trigger's open must close the fill (a per-section open state
+  // would let both palettes stand at once).
+  fireEvent.click(screen.getByLabelText("Shape fill color"));
+  expect(screen.queryByRole("toolbar", { name: "Shape colors" })).toBeTruthy();
+  const fillPalette = document.querySelector("[data-slot='docblocks/shape-fill-palette']");
+  expect(fillPalette).not.toBeNull();
+
+  fireEvent.click(screen.getByLabelText("Shape stroke color"));
+  expect(document.querySelector("[data-slot='docblocks/shape-fill-palette']")).toBeNull();
+  expect(document.querySelector("[data-slot='docblocks/shape-stroke-palette']")).not.toBeNull();
+  // the doc stands (the toggle applies nothing)
+  expect(validateDoc(doc.toJSON())).toEqual([]);
+});
+
 describe("the applies", () => {
   it("applies the fill swatch in one undo step (the svg fill stands)", () => {
     const { doc, shape } = seededDoc();

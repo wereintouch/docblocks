@@ -22,13 +22,18 @@ function normalizeHex(raw: string): string | null {
   return digits === undefined ? null : `#${digits.toLowerCase()}`;
 }
 
-/** One color section of the shape toolbar (the fill or the stroke). */
+/** One color section of the shape toolbar (the fill or the stroke). The
+ * open state is the toolbar's (the sections are mutually exclusive — the
+ * non-modal popover does not close on an outside click, so a per-section
+ * state would let both palettes stand open at once). */
 function ColorSection({
   target,
   label,
   current,
   chipStyle,
   icon,
+  open,
+  onOpenChange,
   onApply,
 }: {
   target: "fill" | "stroke";
@@ -37,17 +42,18 @@ function ColorSection({
   /** The button's chip style (the current value's preview). */
   chipStyle: CSSProperties;
   icon: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   onApply: (value: string) => void;
 }) {
   const palette = useFormatPalette();
-  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const none = current === undefined || current === "none";
 
   // The draft is the open popover's state — a closed section starts
   // fresh (a stale valid draft would re-apply on the next Enter). The
   // effect (not the popover's onOpenChange) also covers the programmatic
-  // closes (the apply paths call setOpen(false) directly).
+  // closes (the apply paths close the section directly).
   useEffect(() => {
     if (!open) setDraft("");
   }, [open]);
@@ -55,20 +61,20 @@ function ColorSection({
   const apply = (value: string | null) => {
     if (value === null) return;
     onApply(value);
-    setOpen(false);
+    onOpenChange(false);
   };
 
   const commitDraft = () => {
     const normalized = normalizeHex(draft);
     if (normalized !== null) {
       onApply(normalized);
-      setOpen(false);
+      onOpenChange(false);
     }
     // The invalid draft is ignored (the input keeps its text).
   };
 
   return (
-    <Popover modal={false} open={open} onOpenChange={setOpen}>
+    <Popover modal={false} open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
@@ -191,6 +197,10 @@ function ShapeToolbar({
   style: CSSProperties;
 }) {
   const { doc } = useEditorContext();
+  // The open section (the sections are mutually exclusive — the
+  // non-modal popover does not close on an outside click, so a
+  // per-section state would let both palettes stand open at once).
+  const [openSection, setOpenSection] = useState<"fill" | "stroke" | null>(null);
 
   const apply = (target: "fill" | "stroke", value: string) => {
     doc.transact(() => {
@@ -230,6 +240,8 @@ function ShapeToolbar({
           current={fill}
           chipStyle={{ background: fill ?? "transparent" }}
           icon={<Fill className="size-4" />}
+          open={openSection === "fill"}
+          onOpenChange={(value) => setOpenSection(value ? "fill" : null)}
           onApply={(value) => apply("fill", value)}
         />
         <ColorSection
@@ -238,6 +250,8 @@ function ShapeToolbar({
           current={stroke}
           chipStyle={{ border: `2px solid ${stroke ?? "currentColor"}` }}
           icon={<Stroke className="size-4" />}
+          open={openSection === "stroke"}
+          onOpenChange={(value) => setOpenSection(value ? "stroke" : null)}
           onApply={(value) => apply("stroke", value)}
         />
       </div>

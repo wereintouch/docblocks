@@ -165,13 +165,27 @@ test.describe("the shape color toolbar", () => {
       const shape = await seedShape(a, "a");
       await selectShape(a, "a");
 
+      // The sections are mutually exclusive: the non-modal popover does
+      // not close on an outside click, so the fill palette stands open
+      // until the toolbar's own state closes it — the stroke trigger's
+      // open must close the fill (a per-section state would let both
+      // palettes stand at once).
+      await a.locator('[data-slot="docblocks/shape-toolbar-fill"]').click();
+      expect(await a.locator('[data-slot="docblocks/shape-fill-palette"]').count()).toBe(1);
+      await a.locator('[data-slot="docblocks/shape-toolbar-stroke"]').click();
+      expect(await a.locator('[data-slot="docblocks/shape-fill-palette"]').count()).toBe(0);
+      expect(await a.locator('[data-slot="docblocks/shape-stroke-palette"]').count()).toBe(1);
+
       // The invalid draft: no apply (the value stands absent). A real
       // mouse click focuses the input (the toolbar wrapper's mousedown
-      // guard must not swallow the portaled input's focus transfer).
+      // guard must not swallow the portaled input's focus transfer). The
+      // reopened fill starts with an empty draft (the section switch
+      // closed it — the draft is the open popover's state).
       await a.locator('[data-slot="docblocks/shape-toolbar-fill"]').click();
       const hex = a.locator('[data-slot="docblocks/shape-fill-hex"]');
       await hex.click();
       expect(await hex.evaluate((el) => document.activeElement === el)).toBe(true);
+      expect(await hex.inputValue()).toBe("");
       await hex.fill("zzz");
       await hex.press("Enter");
       expect(await shapeAttrs(a, "a", shape)).toEqual({ fill: undefined, stroke: undefined });
