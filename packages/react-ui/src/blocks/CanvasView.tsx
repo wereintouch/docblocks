@@ -7,6 +7,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { CanvasDock } from "../canvas/CanvasDock";
+import { ConnectorToolbar } from "../canvas/ConnectorToolbar";
 import { ShapeToolbar } from "../canvas/ShapeToolbar";
 import { canvasToScreen, marqueeRect, penStroke, rectsIntersect, screenToCanvas } from "../canvas/viewport";
 import type { Box, ResizeHandle } from "../canvas/viewport";
@@ -22,6 +23,7 @@ import { BlockGroups } from "./BlockView";
 import { CanvasItem } from "./CanvasItem";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { BlockContext, useBlockContextValue } from "./block-context";
+import { connectorPath, endpointBoxOf } from "./canvas-geometry";
 import { effectiveGeometry, pageCardStyle } from "./canvas-geometry";
 
 /**
@@ -241,6 +243,28 @@ function CanvasView() {
     return { id: handleTarget.id, fill: block.attrs?.fill, stroke: block.attrs?.stroke };
   })();
 
+  // The connector type toolbar's target: a single `connector` selection
+  // whose endpoints resolve within the surface (the toolbar seats at the
+  // line's midpoint; absent for the multi selection, an active tool, or
+  // an in-flight session).
+  const connectorToolbarTarget = (() => {
+    if (viewport.activeTool !== null) return null;
+    if (viewport.movePreview !== null || viewport.resizePreview !== null || viewport.rotatePreview !== null)
+      return null;
+    if (storeSelection?.kind !== "blocks" || storeSelection.ids.length !== 1) return null;
+    const id = storeSelection.ids[0]!;
+    const block = blocks[id];
+    if (block === undefined || block.type !== "connector" || block.attrs === undefined) return null;
+    const surface = surfaces.find((entry) => entry.children.includes(id));
+    if (surface === undefined) return null;
+    const childIds = surface.children;
+    const start = endpointBoxOf(block.attrs.start, childIds, blocks);
+    const end = endpointBoxOf(block.attrs.end, childIds, blocks);
+    if (start === null || end === null) return null;
+    const mid = connectorPath(start, end, block.attrs.variant ?? "straight").mid;
+    return { id, variant: block.attrs.variant, mid };
+  })();
+
   if (root === undefined) return null;
 
   // The event point in the container space, center-relative (px) — the
@@ -370,6 +394,23 @@ function CanvasView() {
         containerRef.current?.focus();
         viewport.beginMove(ids, event.clientX, event.clientY);
         event.currentTarget.setPointerCapture?.(event.pointerId);
+      }
+      return;
+    }
+
+    // The connector's hit path (the wide transparent stroke, the overlay
+    // paints over the items): the click selects the connector — group-
+    // aware as the items', but NO move session (the connectors carry no
+    // geometry — the line follows the endpoint blocks).
+    const connectorHit =
+      event.target instanceof Element ? event.target.closest<SVGElement>("[data-connector-hit]") : null;
+    if (connectorHit !== null) {
+      const id = connectorHit.getAttribute("data-connector-hit");
+      if (id !== null) {
+        const sel = selection.view?.get();
+        const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
+        selection.view?.set({ kind: "blocks", ids, anchorId: id });
+        containerRef.current?.focus();
       }
       return;
     }
@@ -741,6 +782,18 @@ function CanvasView() {
             />
           </div>
         )}
+      {connectorToolbarTarget !== null && (
+        // The connector's type toolbar (the single `connector`
+        // selection): the three line types above the line's midpoint.
+        <ConnectorToolbar
+          id={connectorToolbarTarget.id}
+          variant={connectorToolbarTarget.variant}
+          style={{
+            left: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).x}px)`,
+            top: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).y - TOOLBAR_OFFSET_PX}px)`,
+          }}
+        />
+      )}
       {shapeToolbarTarget !== null && displayBox !== null && (
         // The shape's color toolbar (the single `shape` selection): the
         // fill/stroke sections above the box top edge. Hidden for the

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { act } from "react";
@@ -96,6 +96,8 @@ interface RenderOptions {
   blockRenderers?: BlockRendererMap;
   /** The doc seed (the canvas scene by default). */
   seed?: (doc: TestDoc) => void;
+  /** The editor's view (page by default). */
+  view?: "page" | "canvas";
 }
 
 function renderScene(options?: RenderOptions) {
@@ -103,7 +105,7 @@ function renderScene(options?: RenderOptions) {
   (options?.seed ?? seedCanvasScene)(doc);
   render(
     <EditorProvider doc={doc} blockRenderers={options?.blockRenderers}>
-      <Editor />
+      <Editor view={options?.view} />
     </EditorProvider>
   );
   return doc;
@@ -143,6 +145,19 @@ function seedStrayShape(doc: TestDoc): void {
 }
 
 afterEach(cleanup);
+
+/** Parses the path's numeric coordinate pairs (the M/L/C sequence). */
+function parsePathPoints(d: string): { x: number; y: number }[] {
+  const numbers = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number) ?? [];
+  const points: { x: number; y: number }[] = [];
+  for (let i = 0; i + 1 < numbers.length; i += 2) {
+    const x = numbers[i];
+    const y = numbers[i + 1];
+    if (x === undefined || y === undefined) break;
+    points.push({ x, y });
+  }
+  return points;
+}
 
 describe("canvas scene", () => {
   it("renders the surface container with the elements in z-order (DOM order)", () => {
@@ -233,16 +248,30 @@ describe("canvas scene", () => {
     expect(editable.getAttribute("contenteditable")).toBe("true");
   });
 
-  it("renders the connector line between the resolved centers and skips the broken one (data-missing)", () => {
-    renderScene();
+  it("renders the connector line between the resolved EDGES and skips the broken one (data-missing)", () => {
+    renderScene({ view: "canvas" });
     const layer = document.querySelector<SVGElement>("[data-slot='docblocks/connector-layer']")!;
-    const line = layer.querySelector<SVGElement>(`[data-connector-id="${IDS.connector}"]`)!;
-    expect(line.tagName.toLowerCase()).toBe("line");
-    // The centers: the rect (-100, -40), the ellipse (120, 0).
-    expect(line.getAttribute("x1")).toBe("-100");
-    expect(line.getAttribute("y1")).toBe("-40");
-    expect(line.getAttribute("x2")).toBe("120");
-    expect(line.getAttribute("y2")).toBe("0");
+    const line = layer.querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
+    expect(line.tagName.toLowerCase()).toBe("path");
+    // The edge anchors: the rect (-100, -40, 120x80) -> the ellipse
+    // (120, 0, 60x60): the direction (220, 40) exits the rect's east edge
+    // at (-40, -40 + 40 * 60/220) and enters the ellipse's west edge at
+    // (90, -40 * 30/220).
+    const points = parsePathPoints(line.getAttribute("d")!);
+    expect(points.length).toBe(2);
+    const from = points[0];
+    const to = points[1];
+    if (from === undefined || to === undefined) throw new Error("the path is malformed");
+    expect(from.x).toBeCloseTo(-40);
+    expect(from.y).toBeCloseTo(-40 + 40 * (60 / 220));
+    expect(to.x).toBeCloseTo(90);
+    expect(to.y).toBeCloseTo(-40 * (30 / 220));
+    // The arrowhead marker (the per-surface def).
+    expect(line.getAttribute("marker-end")).toBe("url(#docblocks-conn-arrow-c0001)");
+    expect(layer.querySelector("marker")).not.toBeNull();
+    // The hit path (the wide transparent stroke the line clicks on).
+    expect(layer.querySelector(`[data-connector-hit="${IDS.connector}"]`)).not.toBeNull();
+
     const label = layer.querySelector<SVGElement>(`[data-connector-label="${IDS.connector}"]`)!;
     expect(label.textContent).toBe("link");
 
@@ -261,11 +290,65 @@ describe("canvas scene", () => {
     )!;
     expect(docIdRef.getAttribute("data-missing")).toBe("true");
 
-    // The points connector: a single polyline from the start center
-    // (-100, -40) through the waypoints to the end center (120, 0).
-    const polyline = layer.querySelector<SVGElement>(`[data-connector-id="${IDS.pointsConnector}"]`)!;
-    expect(polyline.tagName.toLowerCase()).toBe("polyline");
-    expect(polyline.getAttribute("points")).toBe("-100,-40 10,10 40,20 120,0");
+    // The points connector: a single path from the start edge anchor
+    // through the waypoints to the end edge anchor (the points keep the
+    // priority over the variant — the absent variant's straight shape).
+    const polyline = layer.querySelector<SVGPathElement>(`[data-connector-id="${IDS.pointsConnector}"]`)!;
+    const polyPoints = parsePathPoints(polyline.getAttribute("d")!);
+    expect(polyPoints.length).toBe(4);
+    const [p0, p1, p2, p3] = polyPoints;
+    if (p0 === undefined || p1 === undefined || p2 === undefined || p3 === undefined) {
+      throw new Error("the path is malformed");
+    }
+    // The waypoints stand as stored; the endpoints are the centers (the
+    // pre-variant points behavior stands as-is — the variant math applies
+    // to the points-less connectors only).
+    expect(p0).toEqual({ x: -100, y: -40 });
+    expect(p1).toEqual({ x: 10, y: 10 });
+    expect(p2).toEqual({ x: 40, y: 20 });
+    expect(p3).toEqual({ x: 120, y: 0 });
+  });
+
+  it("renders the variant shapes (the orthogonal elbow and the curved bow)", () => {
+    const doc = renderScene();
+    const layer = () => document.querySelector<SVGElement>("[data-slot='docblocks/connector-layer']")!;
+
+    // The absent variant stands straight (the default).
+    const straight = layer().querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
+    expect(straight.getAttribute("d")!.startsWith("M ")).toBe(true);
+    expect(straight.getAttribute("d")!.includes("C ")).toBe(false);
+
+    act(() => {
+      doc.updateBlock(IDS.connector, { variant: "orthogonal" });
+    });
+    // The horizontal-dominant elbow: out of the east mid-edge (-40, -40),
+    // the vertical bend at the mid x ((-40 + 90)/2 = 25), into the west
+    // mid-edge (90, 0).
+    const orthogonal = layer().querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
+    expect(orthogonal.getAttribute("d")).toBe("M -40 -40 L 25 -40 L 25 0 L 90 0");
+
+    act(() => {
+      doc.updateBlock(IDS.connector, { variant: "curved" });
+    });
+    // The curved: the cubic bezier (the control points ride the anchored
+    // edges' outward normals — the east and the west).
+    const curved = layer().querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
+    expect(curved.getAttribute("d")!.includes(" C ")).toBe(true);
+    const curvedPoints = parsePathPoints(curved.getAttribute("d")!);
+    expect(curvedPoints.length).toBe(4);
+  });
+
+  it("stands the selected stroke on the selected connector", () => {
+    renderScene({ view: "canvas" });
+    // The click on the hit path selects the connector (no move session —
+    // the connectors carry no geometry).
+    const hit = document.querySelector<SVGPathElement>(`[data-connector-hit="${IDS.connector}"]`)!;
+    fireEvent.pointerDown(hit, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(hit, { pointerId: 1 });
+    const line = document.querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
+    expect(line.getAttribute("data-selected")).toBe("true");
+    expect(line.style.stroke).toBe("var(--docblocks-canvas-selected-stroke, var(--accent, #388bfd))");
+    expect(line.getAttribute("stroke-width")).toBe("2");
   });
 });
 

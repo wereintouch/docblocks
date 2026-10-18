@@ -75,7 +75,7 @@ export function placeFrame(doc: Doc, point: CanvasPoint, size: { w: number; h: n
 
 /**
  * A placed connector between two canvas items of the same surface (the
- * endpoint refs; no own geometry — the overlay resolves the centers).
+ * endpoint refs; no own geometry — the overlay resolves the edge anchors).
  * Returns the new block id. Throws (and the transaction rolls back) when
  * the endpoints are not siblings of one surface.
  */

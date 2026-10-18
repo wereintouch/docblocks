@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
-import { createDoc, fromJSON } from "../src/core";
+import { InvalidAttrsError, createDoc, fromJSON } from "../src/core";
 import type { Doc } from "../src/core";
 import type { DocJSON } from "../src/schema";
 import { validateDoc } from "../src/schema";
@@ -59,6 +59,7 @@ const canvasDoc = (): DocJSON => ({
         end: { blockId: "sh1" },
         points: [[0, 30]],
         label: "link",
+        variant: "orthogonal",
         strokeStyle: "dot",
       },
     },
@@ -145,6 +146,22 @@ describe("strict validation (validateDoc)", () => {
     const noRefs = validateDoc(withBlock("c1", { type: "connector" }));
     expect(noRefs.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
     expect(noRefs.some((e) => e.path === "blocks.c1.attrs.end")).toBe(true);
+  });
+
+  it("rejects the connector variant enum (registry-driven)", () => {
+    const invalid = validateDoc(
+      withBlock("c1", {
+        type: "connector",
+        attrs: { start: { blockId: "f1" }, end: { blockId: "sh1" }, variant: "squiggly" },
+      })
+    );
+    expect(invalid.some((e) => e.path === "blocks.c1.attrs.variant")).toBe(true);
+    // The variant is optional: the absent variant stands (the default is
+    // the reader/renderer's, not the validator's).
+    const absent = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1" }, end: { blockId: "sh1" } } })
+    );
+    expect(absent.some((e) => e.path === "blocks.c1.attrs.variant")).toBe(false);
   });
 
   it("rejects a malformed geometry of any block (the strict shape)", () => {
@@ -297,6 +314,26 @@ describe("round-trip", () => {
     const restored = fromJSON(before);
     expect(restored.toJSON()).toEqual(before);
   });
+
+  it("the connector variant patch: updateBlock sets and re-sets it (one transact)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const b = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const id = doc.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
+
+    doc.updateBlock(id, { variant: "curved" });
+    expect(doc.getBlock(id)).toMatchObject({ type: "connector", attrs: { variant: "curved" } });
+    doc.updateBlock(id, { variant: "straight" });
+    expect(doc.getBlock(id)).toMatchObject({ type: "connector", attrs: { variant: "straight" } });
+    // The widened BlockAttrsPatch lets the type stand a shape variant on
+    // any block: the per-type runtime validation rejects it.
+    expect(() => doc.updateBlock(a, { variant: "straight" })).toThrow(InvalidAttrsError);
+    // The other attrs stand through the variant patch.
+    doc.updateBlock(id, { label: "link" });
+    expect(doc.getBlock(id)).toMatchObject({ attrs: { variant: "straight", label: "link" } });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
 });
 
 describe("lenient reader (newer-minor data)", () => {
@@ -317,6 +354,34 @@ describe("lenient reader (newer-minor data)", () => {
     expect(target.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "hexagon" } });
     const error = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${shape}.attrs.variant`);
     expect(error?.message).toContain("hexagon");
+  });
+
+  it("reads an unknown connector variant as-is; the validator flags it", () => {
+    const source = newDoc();
+    const surface = source.insertBlock("surface");
+    const a = source.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const b = source.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const connector = source.insertBlock(
+      "connector",
+      { start: { blockId: a }, end: { blockId: b } },
+      { parent: surface }
+    );
+    // A variant this core's enum does not know, written at the CRDT level:
+    // the way newer-minor data arrives (over the wire, not via the commands).
+    source.raw.transact(() => {
+      const block = source.raw.getMap("blocks").get(connector) as Y.Map<unknown>;
+      (block.get("attrs") as Y.Map<unknown>).set("variant", "squiggly");
+    });
+
+    const target = newDoc();
+    target.applyUpdate(source.encode()); // the CRDT level applies remote data without validation
+
+    const applied = target.getBlock(connector);
+    expect(applied).not.toBeNull();
+    if (applied === null || applied.type !== "connector") throw new Error("the connector must stand");
+    expect(applied.attrs).toMatchObject({ variant: "squiggly" });
+    const error = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${connector}.attrs.variant`);
+    expect(error?.message).toContain("squiggly");
   });
 
   it("reads an unknown geometry field as-is; the validator flags it", () => {

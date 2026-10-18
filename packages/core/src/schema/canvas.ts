@@ -57,6 +57,9 @@ interface ConnectorAttrs {
   points?: [number, number][];
   /** A label rendered at the midpoint. */
   label?: string;
+  /** The line's shape (absent = "straight"). Pure rendering data: the
+   * endpoints stay the block refs (the line re-derives from the blocks' geometry). */
+  variant?: "straight" | "orthogonal" | "curved";
   strokeStyle?: "solid" | "dash" | "dot";
 }
 

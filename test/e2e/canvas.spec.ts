@@ -82,7 +82,7 @@ test("inserting a canvas in A renders the scene in both panes (shapes, the frame
     await expect(c.getByText("Frame heading")).toBeVisible();
     await expect(c.getByText("Frame paragraph on the canvas.")).toBeVisible();
     // The connector line is present (both endpoints resolve within the surface).
-    await expect(c.locator('[data-slot="docblocks/connector-layer"] line')).toHaveCount(1);
+    await expect(c.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]')).toHaveCount(1);
     // The DOM order of the wrappers is the scene's z-order (the seed order).
     const order = await canvasItemOrder(pane, client);
     expect(order.length).toBe(7);

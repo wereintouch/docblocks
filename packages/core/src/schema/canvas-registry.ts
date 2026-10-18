@@ -64,6 +64,11 @@ const CANVAS_BLOCK_SPECS: Pick<
       },
       points: { kind: "array" },
       label: { kind: "string" },
+      // The line's shape (absent = "straight"): straight = the edge-to-
+      // edge segment, orthogonal = the right-angled elbow, curved = the
+      // bezier bow. Pure rendering data — the endpoints stay the block
+      // refs (the line re-derives from the blocks' geometry).
+      variant: { kind: "enum", values: ["straight", "orthogonal", "curved"] },
       strokeStyle: { kind: "enum", values: ["solid", "dash", "dot"] },
     },
   },

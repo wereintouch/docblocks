@@ -44,7 +44,7 @@ test("the page/canvas view toggle renders the page miniature and the surface ele
   const itemBox = (await page.locator(`${ROOT} [data-slot="docblocks/canvas-item"]`).first().boundingBox())!;
   expect(itemBox, "the first canvas item must be laid out inside the doc area").not.toBeNull();
   expect(itemBox.y).toBeGreaterThanOrEqual(areaBox.y);
-  await expect(page.locator(`${ROOT} [data-slot="docblocks/connector-layer"] line`)).toHaveCount(1);
+  await expect(page.locator(`${ROOT} [data-slot="docblocks/connector-layer"] path[data-connector-id]`)).toHaveCount(1);
   // The embedded surface viewport (the page-view rendering) is absent in
   // the canvas view.
   await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas"]`)).toHaveCount(0);

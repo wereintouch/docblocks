@@ -38,7 +38,7 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
           {children.map((childId) => (
             <CanvasItem key={childId} id={childId} />
           ))}
-          <ConnectorLayer id={id} />
+          <ConnectorLayer id={id} interactive={false} />
         </BlockContext.Provider>
       </div>
     </div>

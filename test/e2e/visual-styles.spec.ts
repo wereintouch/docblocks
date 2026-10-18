@@ -213,7 +213,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   await expect(doc.locator('[data-slot="docblocks/shape"]')).toHaveCount(4);
   expect(await doc.locator('[data-slot="docblocks/frame"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="canvas-text"]').count()).toBe(1);
-  await expect(doc.locator('[data-slot="docblocks/connector-layer"] line')).toHaveCount(1);
+  await expect(doc.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]')).toHaveCount(1);
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);

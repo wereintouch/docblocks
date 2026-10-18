@@ -119,7 +119,14 @@ function CanvasItem({
       data-selected={selected || undefined}
       data-connector-pending={connectorPending || undefined}
       data-missing={missing || undefined}
-      className={selected || connectorPending ? "bg-(--docblocks-selected-background)" : undefined}
+      // The connector stands no wrapper tint: its emphasis is the line's
+      // selected stroke (the 100x100 default box at the origin would stand
+      // a phantom square over the page miniature).
+      className={
+        (selected || connectorPending) && block.type !== "connector"
+          ? "bg-(--docblocks-selected-background)"
+          : undefined
+      }
       style={style}
     >
       {content}
