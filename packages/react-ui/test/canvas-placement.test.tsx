@@ -151,6 +151,7 @@ describe("the dock", () => {
       marquee: null,
       penPoints: [],
       movePreview: null,
+      placePreview: null,
       resizePreview: null,
       rotatePreview: null,
       setZoom: noop,
@@ -163,6 +164,8 @@ describe("the dock", () => {
       setPenPoints: noop,
       marqueeRect: null,
       onPlace: noop,
+      onPlaceSize: noop,
+      setPlacePreview: noop,
       onConnectorPick: noop,
       onPen: noop,
       beginMove: noop,
@@ -181,30 +184,46 @@ describe("the dock", () => {
     };
   }
 
-  it("lists the hand toggle and the eight tools", () => {
+  it("lists the hand toggle, the shapes' single button, and the other tools", () => {
     render(<CanvasDock viewport={fakeViewport()} />);
     expect(screen.getByRole("toolbar", { name: "Canvas tools" })).toBeTruthy();
     expect(screen.getByLabelText("Switch to the pan mode")).toBeTruthy();
-    for (const label of ["Rectangle", "Ellipse", "Diamond", "Line", "Text", "Frame", "Connector", "Pen"]) {
+    for (const label of ["Shapes", "Text", "Frame", "Connector", "Pen"]) {
+      expect(screen.getByLabelText(label)).toBeTruthy();
+    }
+    // The shape types stand behind the shapes' button (not on the dock
+    // itself).
+    expect(screen.queryByLabelText("Rectangle")).toBeNull();
+  });
+
+  it("opens the horizontal shapes menu (the four types) on the shapes' button", () => {
+    render(<CanvasDock viewport={fakeViewport()} />);
+    // The radix dropdown trigger toggles on pointerdown.
+    fireEvent.pointerDown(screen.getByLabelText("Shapes"));
+    const menu = screen.getByLabelText("Shapes menu");
+    expect((menu.getAttribute("class") ?? "").includes("flex flex-row")).toBe(true);
+    for (const label of ["Rectangle", "Ellipse", "Diamond", "Line"]) {
       expect(screen.getByLabelText(label)).toBeTruthy();
     }
   });
 
-  it("activates a tool and cancels it on the re-click", () => {
+  it("picks a shape tool from the menu and cancels it on the re-pick", () => {
     const setActiveTool = vi.fn();
     const setMode = vi.fn();
     const setPendingConnector = vi.fn();
     const { rerender } = render(
       <CanvasDock viewport={fakeViewport({ activeTool: null, setActiveTool, setMode, setPendingConnector })} />
     );
+    fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     fireEvent.click(screen.getByLabelText("Rectangle"));
     expect(setActiveTool).toHaveBeenLastCalledWith("rect");
     // The pick moves the mode back to the default.
     expect(setMode).toHaveBeenLastCalledWith("default");
-    // The re-click (the tool is now active) cancels it.
+    // The re-pick (the tool is now active) cancels it.
     rerender(
       <CanvasDock viewport={fakeViewport({ activeTool: "rect", setActiveTool, setMode, setPendingConnector })} />
     );
+    fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     fireEvent.click(screen.getByLabelText("Rectangle"));
     expect(setActiveTool).toHaveBeenLastCalledWith(null);
   });
@@ -212,7 +231,9 @@ describe("the dock", () => {
   it("marks the active tool (aria-pressed) and the hand state", () => {
     const { rerender } = render(<CanvasDock viewport={fakeViewport({ activeTool: "pen" })} />);
     expect(screen.getByLabelText("Pen").getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByLabelText("Rectangle").getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByLabelText("Shapes").getAttribute("aria-pressed")).toBe("false");
+    rerender(<CanvasDock viewport={fakeViewport({ activeTool: "ellipse" })} />);
+    expect(screen.getByLabelText("Shapes").getAttribute("aria-pressed")).toBe("true");
     rerender(<CanvasDock viewport={fakeViewport({ mode: "pan" })} />);
     expect(screen.getByLabelText("Switch to the default pointer").getAttribute("aria-pressed")).toBe("true");
   });

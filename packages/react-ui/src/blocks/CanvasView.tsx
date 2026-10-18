@@ -9,8 +9,15 @@ import { useEditorContext } from "../EditorProvider";
 import { CanvasDock } from "../canvas/CanvasDock";
 import { ConnectorToolbar } from "../canvas/ConnectorToolbar";
 import { ShapeToolbar } from "../canvas/ShapeToolbar";
-import { canvasToScreen, marqueeRect, penStroke, rectsIntersect, screenToCanvas } from "../canvas/viewport";
-import type { Box, ResizeHandle } from "../canvas/viewport";
+import {
+  MOVE_THRESHOLD_PX,
+  canvasToScreen,
+  marqueeRect,
+  penStroke,
+  rectsIntersect,
+  screenToCanvas,
+} from "../canvas/viewport";
+import type { Box, CanvasPoint, CanvasTool, ResizeHandle } from "../canvas/viewport";
 import { useCanvasViewport } from "../canvas/viewport-state";
 import type { MovePreview } from "../canvas/viewport-state";
 import { useBlock } from "../hooks";
@@ -22,6 +29,7 @@ import { Plus } from "../shared/ui/icons/Plus";
 import { BlockGroups } from "./BlockView";
 import { CanvasItem } from "./CanvasItem";
 import { ConnectorLayer } from "./ConnectorLayer";
+import { ShapeSvg } from "./ShapeSvg";
 import { BlockContext, useBlockContextValue } from "./block-context";
 import { connectorPath, endpointBoxOf } from "./canvas-geometry";
 import { effectiveGeometry, pageCardStyle } from "./canvas-geometry";
@@ -147,11 +155,15 @@ function ZoomControls({
   );
 }
 
+/** The shape placement tools (the drag-to-size gesture's tools). */
+type ShapeTool = Extract<CanvasTool, "rect" | "ellipse" | "diamond" | "line">;
+
 /** The in-flight canvas pointer session (the primary button only). */
 type CanvasSession =
   | { kind: "pan"; startClientX: number; startClientY: number; startPanX: number; startPanY: number }
   | { kind: "marquee"; additive: boolean }
-  | { kind: "pen"; points: { x: number; y: number }[] };
+  | { kind: "pen"; points: { x: number; y: number }[] }
+  | { kind: "place"; tool: ShapeTool; start: CanvasPoint; startClientX: number; startClientY: number };
 
 /**
  * The shift-click selection toggle (the additive select): the id joins or
@@ -287,7 +299,12 @@ function CanvasView() {
       return null;
     const block = blocks[handleTarget.id];
     if (block === undefined || block.type !== "shape") return null;
-    return { id: handleTarget.id, fill: block.attrs?.fill, stroke: block.attrs?.stroke };
+    return {
+      id: handleTarget.id,
+      fill: block.attrs?.fill,
+      stroke: block.attrs?.stroke,
+      variant: block.attrs?.variant,
+    };
   })();
 
   // The connector type toolbar's target: a single `connector` selection
@@ -363,8 +380,25 @@ function CanvasView() {
     }
 
     if (viewport.activeTool !== null && viewport.activeTool !== "connector") {
-      // The click-to-place tools: the block lands at the click point (the
-      // center anchor), the tool resets.
+      const tool = viewport.activeTool;
+      if (tool === "rect" || tool === "ellipse" || tool === "diamond" || tool === "line") {
+        // The shape's drag-to-size: the press starts the session (no
+        // commit yet), the drag stands the preview (the marquee's
+        // gesture), the release commits the dragged size (a click stands
+        // the default-size place).
+        const start = screenToCanvas(point, viewport.zoom, viewport.pan);
+        sessionRef.current = {
+          kind: "place",
+          tool: tool as ShapeTool,
+          start,
+          startClientX: event.clientX,
+          startClientY: event.clientY,
+        };
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        return;
+      }
+      // The click-to-place tools (text / frame): the block lands at the
+      // click point (the center anchor), the tool resets.
       viewport.onPlace(screenToCanvas(point, viewport.zoom, viewport.pan));
       return;
     }
@@ -550,19 +584,51 @@ function CanvasView() {
     } else if (session.kind === "marquee") {
       const start = viewport.marquee?.start ?? point;
       viewport.setMarquee({ start, end: point });
-    } else {
+    } else if (session.kind === "place") {
+      // The drag-to-size preview: the box is the drag's extent (the
+      // marquee's math), the center anchor is the drag's midpoint.
+      const current = screenToCanvas(point, viewport.zoom, viewport.pan);
+      viewport.setPlacePreview({
+        variant: session.tool,
+        x: (session.start.x + current.x) / 2,
+        y: (session.start.y + current.y) / 2,
+        w: Math.max(Math.abs(current.x - session.start.x), 1),
+        h: Math.max(Math.abs(current.y - session.start.y), 1),
+      });
+    } else if (session.kind === "pen") {
       session.points.push(screenToCanvas(point, viewport.zoom, viewport.pan));
       viewport.setPenPoints([...session.points]);
     }
   };
 
-  const onPointerUp = () => {
+  const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     viewport.endMove();
     viewport.endResize();
     viewport.endRotate();
     const session = sessionRef.current;
     if (session === null) return;
     sessionRef.current = null;
+
+    if (session.kind === "place") {
+      // The release commits: a sub-threshold drag is the click place (the
+      // default size), a real drag lands the dragged size at the drag's
+      // midpoint (one transact, the tool resets, the preview drops).
+      const current = screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan);
+      if (Math.hypot(event.clientX - session.startClientX, event.clientY - session.startClientY) < MOVE_THRESHOLD_PX) {
+        viewport.onPlace(session.start);
+      } else {
+        viewport.onPlaceSize(
+          session.tool,
+          { x: (session.start.x + current.x) / 2, y: (session.start.y + current.y) / 2 },
+          {
+            w: Math.max(Math.abs(current.x - session.start.x), 1),
+            h: Math.max(Math.abs(current.y - session.start.y), 1),
+          }
+        );
+      }
+      viewport.setPlacePreview(null);
+      return;
+    }
 
     if (session.kind === "pen") {
       const stroke = penStroke(session.points);
@@ -651,11 +717,13 @@ function CanvasView() {
       viewport.resizePreview === null &&
       viewport.rotatePreview === null &&
       viewport.marquee === null &&
-      viewport.penPoints.length === 0
+      viewport.penPoints.length === 0 &&
+      viewport.placePreview === null
     ) {
       return;
     }
     sessionRef.current = null;
+    viewport.setPlacePreview(null);
     viewport.cancelMove();
     viewport.cancelResize();
     viewport.cancelRotate();
@@ -690,6 +758,7 @@ function CanvasView() {
       viewport.setActiveTool(null);
       viewport.setPendingConnector(null);
       viewport.setPenPoints([]);
+      viewport.setPlacePreview(null);
       sessionRef.current = null;
       return;
     }
@@ -831,6 +900,38 @@ function CanvasView() {
             rotatePreview={viewport.rotatePreview}
           />
         ))}
+        {viewport.placePreview !== null && (
+          // The drag-to-size placement preview (the shape's figure at the
+          // dragged box, the dashed cyan line; the world's space, so it
+          // scales with the zoom).
+          <div
+            data-slot="docblocks/canvas-place-preview"
+            className="pointer-events-none absolute"
+            style={{
+              left: `calc(50% + ${viewport.placePreview.x}px)`,
+              top: `calc(50% + ${viewport.placePreview.y}px)`,
+              width: `${viewport.placePreview.w}px`,
+              height: `${viewport.placePreview.h}px`,
+              transform: "translate(-50%, -50%)",
+              color: "var(--docblocks-canvas-selection-border-color)",
+              opacity: 0.6,
+            }}
+          >
+            <ShapeSvg
+              id="docblocks-place-preview"
+              block={{
+                type: "shape",
+                attrs: { variant: viewport.placePreview.variant, stroke: "currentColor", strokeStyle: "dash" },
+                geometry: {
+                  x: 0,
+                  y: 0,
+                  w: viewport.placePreview.w,
+                  h: viewport.placePreview.h,
+                },
+              }}
+            />
+          </div>
+        )}
         {viewport.penPoints.length > 1 && (
           <svg
             data-slot="docblocks/canvas-pen-preview"
@@ -948,6 +1049,7 @@ function CanvasView() {
           id={shapeToolbarTarget.id}
           fill={shapeToolbarTarget.fill}
           stroke={shapeToolbarTarget.stroke}
+          variant={shapeToolbarTarget.variant}
           style={{
             left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
             top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y - (displayBox.h / 2) * viewport.zoom - TOOLBAR_OFFSET_PX}px)`,

@@ -313,9 +313,14 @@ test.describe("the canvas dock", () => {
       await toCanvas(b, "b");
       const center = await canvasCenter(a, "a");
 
-      const rect = dock(a, "a").getByLabel("Rectangle");
-      await rect.click();
-      expect(await rect.getAttribute("aria-pressed")).toBe("true");
+      // The shape tools are picked through the dock's shapes menu.
+      const shapes = dock(a, "a").getByLabel("Shapes");
+      await shapes.click();
+      const menu = a.locator('[data-slot="docblocks/canvas-shapes-menu"]');
+      await expect(menu).toBeVisible();
+      expect(await menu.getAttribute("class")).toContain("flex flex-row");
+      await menu.getByLabel("Rectangle").click();
+      expect(await shapes.getAttribute("aria-pressed")).toBe("true");
       expect((await canvasView(a, "a").getAttribute("class")) ?? "").toContain("cursor-crosshair");
 
       // The click lands the shape at the canvas center (zoom 1, pan 0:
@@ -330,8 +335,87 @@ test.describe("the canvas dock", () => {
       expect(geometry).toMatchObject({ w: 160, h: 80 });
 
       // The tool resets after the placement; the shape syncs to the other pane.
-      expect(await rect.getAttribute("aria-pressed")).toBe("false");
+      expect(await shapes.getAttribute("aria-pressed")).toBe("false");
       await expect.poll(async () => (await shapeIds(b, "b")).includes(placed![0]), SETTLE).toBe(true);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the drag-to-size lands the dragged box at the drag's midpoint (the click stands the default)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "canvas-dock-dragsize");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const viewBox = (await canvasView(a, "a").boundingBox())!;
+      const center = await canvasCenter(a, "a");
+      // The rightward reach stays inside the view (the e2e viewport is
+      // narrow: the release may stand outside the view — the pointer
+      // capture carries the session; the click's press must not).
+      const dx = Math.min(380, viewBox.width / 2 - 60);
+
+      const shapes = dock(a, "a").getByLabel("Shapes");
+      await shapes.click();
+      const menu = a.locator('[data-slot="docblocks/canvas-shapes-menu"]');
+      await expect(menu).toBeVisible();
+      await menu.getByLabel("Ellipse").click();
+
+      // The drag: the preview stands during the drag, the release
+      // commits the dragged box (zoom 1, pan 0: the screen delta IS the
+      // canvas size).
+      const start = { x: center.x + dx - 70, y: center.y - 80 };
+      const end = { x: center.x + dx + 70, y: center.y + 40 };
+      await a.mouse.move(start.x, start.y);
+      await a.mouse.down();
+      await a.mouse.move(end.x, end.y, { steps: 8 });
+      const preview = a.locator('[data-slot="docblocks/canvas-place-preview"]');
+      await expect(preview).toBeVisible();
+      await a.mouse.up();
+      await expect(preview).toBeHidden();
+
+      const blocks = await blockShapes(a, "a");
+      const placed = Object.entries(blocks).find(([id, block]) => {
+        void id;
+        const geometry = block.geometry as { w?: number; h?: number } | undefined;
+        return block.type === "shape" && geometry?.w === 140 && geometry?.h === 120;
+      });
+      expect(placed).toBeDefined();
+      const geometry = placed![1].geometry as { x: number; y: number; w: number; h: number };
+      expect(geometry).toMatchObject({ x: dx, y: -20, w: 140, h: 120 });
+      // One undo step reverts the placement (the focus stands on the
+      // canvas container from the press).
+      await a.keyboard.press("Control+z");
+      await expect.poll(async () => Object.keys(await blockShapes(a, "a")).includes(placed![0]), SETTLE).toBe(false);
+
+      // The shape (before the undo) synced to the other pane; the undo
+      // syncs the removal.
+      await expect.poll(async () => (await shapeIds(b, "b")).includes(placed![0]), SETTLE).toBe(false);
+
+      // The click (the sub-threshold drag) stands the default-size
+      // place (the closed menu's exit animation unmounts first).
+      await expect.poll(async () => a.locator('[data-slot="docblocks/canvas-shapes-menu"]').count(), SETTLE).toBe(0);
+      await shapes.click();
+      await a.locator('[data-slot="docblocks/canvas-shapes-menu"]').getByLabel("Diamond").click();
+      const clickX = center.x + Math.min(300, viewBox.width / 2 - 60);
+      const clickY = center.y + Math.min(200, viewBox.height / 2 - 120);
+      await a.mouse.click(clickX, clickY);
+      const clicked = await a.evaluate(() => {
+        const doc = window.__paneDocs?.a;
+        if (doc === null || doc === undefined) return null;
+        const entry = Object.entries(doc.toJSON().blocks).find(
+          ([, block]) => block.type === "shape" && block.attrs?.variant === "diamond"
+        );
+        if (entry === undefined) return null;
+        const geometry = (entry[1] as { geometry?: { x: number; y: number; w: number; h: number } }).geometry;
+        return geometry ?? null;
+      });
+      expect(clicked).not.toBeNull();
+      expect(clicked!.w).toBe(90);
+      expect(clicked!.h).toBe(90);
+      expect(clicked!.x).toBeCloseTo(clickX - center.x, 1);
+      expect(clicked!.y).toBeCloseTo(clickY - center.y, 1);
     } finally {
       await close();
     }

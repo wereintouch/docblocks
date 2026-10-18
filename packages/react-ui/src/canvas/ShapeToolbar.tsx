@@ -5,12 +5,34 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useFormatPalette } from "../blocks/format-palette-context";
-import { Button } from "../shared/ui";
+import { Button, DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "../shared/ui";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { cn } from "../shared/ui/cn";
-import { Fill } from "../shared/ui/icons/Fill";
-import { Stroke } from "../shared/ui/icons/Stroke";
-import { X } from "../shared/ui/icons/X";
+import { Circle, Diagonal, Diamond, Fill, Square, Stroke, X } from "../shared/ui/icons";
+
+/** The shape types (the dock's shapes menu and the toolbar's type picker). */
+const SHAPE_VARIANTS = [
+  { id: "rect", label: "Rectangle", icon: Square },
+  { id: "ellipse", label: "Ellipse", icon: Circle },
+  { id: "diamond", label: "Diamond", icon: Diamond },
+  { id: "line", label: "Line", icon: Diagonal },
+] as const;
+
+type ShapeVariantId = (typeof SHAPE_VARIANTS)[number]["id"];
+
+/** The current variant's icon (the type picker's trigger face). */
+function variantIcon(variant: ShapeVariantId | undefined) {
+  switch (variant) {
+    case "ellipse":
+      return Circle;
+    case "diamond":
+      return Diamond;
+    case "line":
+      return Diagonal;
+    default:
+      return Square;
+  }
+}
 
 /** The hex input's accepted form (3 or 6 digits, the `#` optional). */
 const HEX_RE = /^(?:#)?([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -189,14 +211,17 @@ function ShapeToolbar({
   id,
   fill,
   stroke,
+  variant,
   style,
 }: {
   id: BlockId;
   fill: string | undefined;
   stroke: string | undefined;
+  variant: ShapeVariantId | undefined;
   style: CSSProperties;
 }) {
   const { doc } = useEditorContext();
+  const VariantIcon = variantIcon(variant);
   // The open section (the sections are mutually exclusive — the
   // non-modal popover does not close on an outside click, so a
   // per-section state would let both palettes stand open at once).
@@ -206,6 +231,16 @@ function ShapeToolbar({
     doc.transact(() => {
       if (target === "fill") doc.updateBlock(id, { fill: value });
       else doc.updateBlock(id, { stroke: value });
+    });
+  };
+
+  // The type switch (the shape's figure): one updateBlock in one
+  // transact (one undo step, one wire update). A freehand shape keeps
+  // its points (the stroke path wins over the variant — the v1 limit).
+  const applyVariant = (next: ShapeVariantId) => {
+    if (next === variant) return;
+    doc.transact(() => {
+      doc.updateBlock(id, { variant: next });
     });
   };
 
@@ -234,6 +269,33 @@ function ShapeToolbar({
           bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
         "
       >
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              data-slot="docblocks/shape-toolbar-variant"
+              aria-label="Shape type"
+              title="Shape type"
+            >
+              <VariantIcon className="size-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" sideOffset={8} aria-label="Shape types">
+            {SHAPE_VARIANTS.map(({ id: variantId, label, icon: Icon }) => (
+              <DropdownMenuCheckboxItem
+                key={variantId}
+                aria-label={label}
+                data-variant={variantId}
+                checked={variant === variantId}
+                onSelect={() => applyVariant(variantId)}
+              >
+                <Icon />
+                {label}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
         <ColorSection
           target="fill"
           label="Shape fill color"

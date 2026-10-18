@@ -107,6 +107,8 @@ describe("the render conditions", () => {
 
     selectBlock(container, shape);
     expect(toolbar()).toBeTruthy();
+    // The shape tools are picked through the dock's shapes menu.
+    fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     fireEvent.click(screen.getByLabelText("Rectangle"));
     expect(toolbar()).toBeNull();
   });
@@ -269,5 +271,48 @@ describe("the applies", () => {
     fireEvent.change(input3, { target: { value: "nope" } });
     fireEvent.blur(input3);
     expect(shapeAttr(doc, shape, "fill")).toBe("#a1b2c3");
+  });
+});
+
+describe("the shape type picker", () => {
+  function shapeVariant(doc: TestDoc, id: string): string | undefined {
+    const block = doc.getBlock(id);
+    if (block === null || block.type !== "shape") return undefined;
+    return block.attrs?.variant;
+  }
+
+  it("stands the four variants (the current one checked) and switches the type", () => {
+    const { doc, shape } = seededDoc();
+    const { container } = renderCanvas(doc);
+    selectBlock(container, shape);
+    expect(toolbar()).toBeTruthy();
+
+    // The radix dropdown trigger toggles on pointerdown.
+    fireEvent.pointerDown(screen.getByLabelText("Shape type"));
+    const menu = screen.getByLabelText("Shape types");
+    expect(menu).toBeTruthy();
+    for (const label of ["Rectangle", "Ellipse", "Diamond", "Line"]) {
+      expect(screen.getByRole("menuitemcheckbox", { name: label })).toBeTruthy();
+    }
+    // The current variant (rect) is the checked one.
+    expect(screen.getByRole("menuitemcheckbox", { name: "Rectangle" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("menuitemcheckbox", { name: "Diamond" }).getAttribute("aria-checked")).toBe("false");
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Diamond" }));
+    expect(shapeVariant(doc, shape)).toBe("diamond");
+    // One undo step: the type switch is a single transact.
+    doc.undo();
+    expect(shapeVariant(doc, shape)).toBe("rect");
+  });
+
+  it("the re-pick of the current variant writes nothing", () => {
+    const { doc, shape } = seededDoc();
+    const { container } = renderCanvas(doc);
+    selectBlock(container, shape);
+    const before = doc.toJSON();
+
+    fireEvent.pointerDown(screen.getByLabelText("Shape type"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Rectangle" }));
+    expect(doc.toJSON()).toEqual(before);
   });
 });

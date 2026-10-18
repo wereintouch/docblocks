@@ -24,6 +24,15 @@ import type {
   ScreenRect,
 } from "./viewport";
 
+/** The in-flight shape placement's preview (the center anchor, canvas coords). */
+interface PlacePreview {
+  variant: "rect" | "ellipse" | "diamond" | "line";
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 /** The marquee's corners during the drag (the container space, center-relative). */
 interface MarqueeState {
   start: ScreenPoint;
@@ -104,6 +113,8 @@ interface CanvasViewportState {
   resizePreview: { id: string; box: Box } | null;
   /** The rendered rotate preview (null outside an in-flight drag). */
   rotatePreview: { id: string; rotation: number } | null;
+  /** The in-flight shape placement's preview (canvas coords, the center anchor); null outside a drag. */
+  placePreview: PlacePreview | null;
   setZoom: (zoom: number) => void;
   stepZoom: (direction: 1 | -1) => void;
   setPan: (pan: ScreenPoint) => void;
@@ -116,6 +127,13 @@ interface CanvasViewportState {
   marqueeRect: ScreenRect | null;
   /** The click-to-place command (the tool lands at the point; the tool resets). */
   onPlace: (point: CanvasPoint) => void;
+  /**
+   * The drag-to-size place: the shape lands at the point with the given
+   * box (the marquee gesture's result) in one transact; the tool resets,
+   * the preview drops. A rejected placement resets nothing else.
+   */
+  onPlaceSize: (tool: CanvasTool, point: CanvasPoint, size: { w: number; h: number }) => void;
+  setPlacePreview: (preview: PlacePreview | null) => void;
   /** The connector's endpoint pick (the second pick creates the connector). */
   onConnectorPick: (id: string) => void;
   /** The pen stroke commit (the released drag). */
@@ -162,6 +180,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [marquee, setMarquee] = useState<MarqueeState | null>(null);
   const [penPoints, setPenPoints] = useState<CanvasPoint[]>([]);
   const [movePreview, setMovePreview] = useState<MovePreview | null>(null);
+  const [placePreview, setPlacePreview] = useState<PlacePreview | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
 
   const setZoom = useCallback((next: number) => setZoomState(next), []);
@@ -196,6 +215,30 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       setActiveTool(null);
     },
     [activeTool, doc]
+  );
+
+  // The drag-to-size place: the shape's box is the dragged size (the
+  // marquee gesture), the center anchor is the drag's midpoint — one
+  // transact (the insert + the setGeometry, like the click place).
+  const onPlaceSize = useCallback(
+    (tool: CanvasTool, point: CanvasPoint, size: { w: number; h: number }) => {
+      setPlacePreview(null);
+      try {
+        switch (tool) {
+          case "rect":
+          case "ellipse":
+          case "diamond":
+          case "line":
+            placeShape(doc, tool, point, size);
+            break;
+        }
+      } catch {
+        // A rejected placement (the size against a validator bound):
+        // the tool resets, nothing is created.
+      }
+      setActiveTool(null);
+    },
+    [doc]
   );
 
   const onConnectorPick = useCallback(
@@ -417,6 +460,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     movePreview,
     resizePreview,
     rotatePreview,
+    placePreview,
     setZoom,
     stepZoom: step,
     setPan,
@@ -427,6 +471,8 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     setPenPoints,
     marqueeRect: marquee === null ? null : marqueeRect(marquee.start, marquee.end),
     onPlace,
+    onPlaceSize,
+    setPlacePreview,
     onConnectorPick,
     onPen,
     beginMove,
