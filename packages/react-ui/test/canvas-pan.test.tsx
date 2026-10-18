@@ -94,16 +94,21 @@ describe("the hand over the editing surfaces", () => {
     fireEvent.pointerUp(r.view, { pointerId: 1 });
   });
 
-  it("keeps the caret over the page miniature's text in the pointer mode (the guard stands)", () => {
+  it("stands the card's selection (not a pan) over the page text in the pointer mode", () => {
     const r = renderCanvas();
     const text = pageText(r.view);
     const before = panOf(r.view);
-    // The pointer mode (no pan): the editing surface keeps the press (the
-    // text's caret / selection), the canvas stands.
+    // The two-click contract: the first press selects the page card (the
+    // move session, no caret) — the pan stands (the pointer mode is not a
+    // grab); the second press (the card selected) keeps the caret press.
     fireEvent.pointerDown(text, { clientX: 100, clientY: 100, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 160, clientY: 130, buttons: 1, pointerId: 1 });
     expect(panOf(r.view)).toEqual(before);
     fireEvent.pointerUp(r.view, { pointerId: 1 });
+    fireEvent.pointerDown(text, { clientX: 100, clientY: 100, buttons: 1, pointerId: 2 });
+    fireEvent.pointerMove(r.view, { clientX: 160, clientY: 130, buttons: 1, pointerId: 2 });
+    expect(panOf(r.view)).toEqual(before);
+    fireEvent.pointerUp(r.view, { pointerId: 2 });
   });
 });
 

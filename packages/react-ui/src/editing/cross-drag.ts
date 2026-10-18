@@ -199,6 +199,12 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
       // A text inner of THIS editor (a nested editor's inner is handled by
       // that editor's own session).
       if (target?.closest('[data-slot="docblocks/editor"]') !== root) return;
+      // The page miniature (the canvas view): the card's two-click contract
+      // owns the presses over its content — the session's release would
+      // plant a DOM caret over a press the canvas view consumed (the
+      // first-click select). The miniature's text selection is the
+      // browser's native gesture (the second press keeps the plain press).
+      if (target.closest('[data-slot="docblocks/page-card"]') !== null) return;
       const inner = target.closest<HTMLElement>('[data-slot="docblocks/block-content"]');
       if (inner === null) return;
       const anchor = positionAtPoint(doc, root, event.clientX, event.clientY);

@@ -310,12 +310,14 @@ test.describe("the canvas resize / rotate handles", () => {
     }
   });
 
-  test("the page miniature rotates through its own rotate handle (the root's geometry)", async ({ browser }) => {
-    const { a, close } = await twoPanes(browser, "canvas-rotate-page");
+  test("the page miniature stands the box handles, no rotate (the rotation affordance is off for the editor)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "canvas-rotate-page-off");
     try {
       await toCanvas(a, "a");
-      // The page card is large: zoom to 25% so its rotate handle stands
-      // on screen (the card's half-height is 120px at 25%).
+      // The page card is large: zoom to 25% so its box handles stand on
+      // screen (the card's half-height is 120px at 25%).
       const zoom = zoomToolbar(a, "a");
       for (let i = 0; i < 4; i += 1) await zoom.getByLabel("Zoom out").click();
       expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("25%");
@@ -327,18 +329,13 @@ test.describe("the canvas resize / rotate handles", () => {
       expect(root).toBeTruthy();
 
       // The card's bottom padding (non-contenteditable) click selects the
-      // page (the no-op press writes nothing) and stands the handles.
+      // page (the no-op press writes nothing) and stands the eight box
+      // handles — the rotate handle stands no more for the editor.
       const center = await canvasCenter(a, "a");
       await a.mouse.click(center.x, center.y + 100);
       expect(await handles(a, "a").count()).toBe(1);
-
-      const start = await handleCenter(a, "a", "rotate");
-      await a.mouse.move(start.x, start.y);
-      await a.mouse.down();
-      await a.mouse.move(center.x + 100, center.y, { steps: 8 });
-      await a.mouse.up();
-
-      expect((await blockShapes(a, "a"))[root as string]?.geometry?.rotation).toBe(90);
+      expect(await handle(a, "a", "rotate").count()).toBe(0);
+      expect(await handle(a, "a", "nw").count()).toBe(1);
     } finally {
       await close();
     }

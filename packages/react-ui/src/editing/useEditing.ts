@@ -51,6 +51,12 @@ function useEditing(): EditingHandle {
       // selection is cleared by the explicit paths (Escape, a new
       // selection, the delete), not by the background click.
       if (current.kind === "blocks" && !domSelectionInEditable(window.getSelection())) return;
+      // The canvas view's page miniature (the two-click contract): the
+      // blocks (card) selection stands over the caret the second press
+      // plants (the caret is the editing path, not a selection clobber).
+      const anchorNode = window.getSelection()?.anchorNode ?? null;
+      const anchorHost = anchorNode instanceof Element ? anchorNode : (anchorNode?.parentElement ?? null);
+      if (anchorHost?.closest('[data-slot="docblocks/page-card"]') !== null) return;
       // The view emits even on no-op sets — only push a real change.
       if (!selectionsEqual(next, view.get())) view.set(next);
     };

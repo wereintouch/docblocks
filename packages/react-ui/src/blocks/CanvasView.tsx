@@ -1,7 +1,12 @@
 import { useStore } from "zustand";
 
 import { useMemo, useRef, useState } from "react";
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
+import type {
+  CSSProperties,
+  KeyboardEvent as ReactKeyboardEvent,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react";
 
 import type { BlockId, SelectionView } from "docblocks-core";
 
@@ -224,6 +229,10 @@ function CanvasView() {
   const viewport = useCanvasViewport(doc);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<CanvasSession | null>(null);
+  // The page miniature's first press stands the card's move session over
+  // the page's content (the two-click contract) — the flag drops the
+  // compatibility mousedown's default (the caret / the focus move).
+  const cardPressRef = useRef(false);
   const [spacePan, setSpacePan] = useState(false);
 
   // Split the root's children into the page (the non-surface blocks, in
@@ -441,7 +450,24 @@ function CanvasView() {
       return;
     }
 
-    if (isEditingSurface(event.target)) return;
+    if (isEditingSurface(event.target)) {
+      // The editing surfaces outside the page miniature (the frame's
+      // content, the canvas-text's inner) keep the plain caret press;
+      // the page miniature's content stands the two-click contract: the
+      // first press selects the card (the root's one-item selection +
+      // the move session, like an item press — the caret stands only on
+      // the second press, the card already selected).
+      if (!isPageCard(event.target) || event.shiftKey) return;
+      const sel = selection.view?.get();
+      if (sel?.kind === "blocks" && sel.ids.includes(rootBlockId)) return; // the caret
+      event.preventDefault();
+      containerRef.current?.focus();
+      selection.view?.set({ kind: "blocks", ids: [rootBlockId], anchorId: rootBlockId });
+      viewport.beginMove([rootBlockId], event.clientX, event.clientY);
+      cardPressRef.current = true;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
 
     // The resize / rotate handles (the single-selection overlay): the
     // press starts the session (the pan mode / the held space stand
@@ -545,6 +571,7 @@ function CanvasView() {
       containerRef.current?.focus();
       selection.view?.set({ kind: "blocks", ids: [rootBlockId], anchorId: rootBlockId });
       viewport.beginMove([rootBlockId], event.clientX, event.clientY);
+      cardPressRef.current = true;
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
@@ -602,6 +629,7 @@ function CanvasView() {
   };
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+    cardPressRef.current = false;
     viewport.endMove();
     viewport.endResize();
     viewport.endRotate();
@@ -702,6 +730,17 @@ function CanvasView() {
     }
   };
 
+  // The page miniature's two-click contract (the compatibility
+  // mousedown): the first press over the page's content starts the card's
+  // move session — the mousedown's default (the caret / the focus move)
+  // stands no more. The flag stands until the release (the second press
+  // stands no session, so its mousedown keeps the default).
+  const onMouseDown = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    if (cardPressRef.current) {
+      event.preventDefault();
+    }
+  };
+
   // The OS / browser takeover (a pointer cancel, a lost capture, a
   // button-less move over a surviving session) drops every in-flight
   // session: the move's preview would otherwise stand until the next
@@ -732,6 +771,7 @@ function CanvasView() {
   };
 
   const onPointerCancel = () => {
+    cardPressRef.current = false;
     dropCanvasSessions();
   };
 
@@ -818,6 +858,11 @@ function CanvasView() {
         ? "cursor-grab"
         : "cursor-default";
 
+  // The page miniature's selection (the two-click contract's first press):
+  // the card stands the shared selection's outline (like an item) when the
+  // root is in the blocks selection.
+  const pageCardSelected = storeSelection?.kind === "blocks" && storeSelection.ids.includes(rootBlockId);
+
   // The page miniature's display style (the committed style + the session
   // previews: the move offset, the resize box, the rotation — the same
   // composition as the CanvasItem's).
@@ -866,6 +911,7 @@ function CanvasView() {
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onLostPointerCapture={dropCanvasSessions}
+      onMouseDown={onMouseDown}
       onKeyDown={onKeyDown}
       onKeyUp={onKeyUp}
     >
@@ -880,10 +926,17 @@ function CanvasView() {
         <ScrollArea
           data-slot="docblocks/page-card"
           style={pageCardDisplayStyle}
-          className="
-            box-border rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
-            p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
-          "
+          className={cn(
+            `
+              box-border rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
+              p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
+            `,
+            pageCardSelected &&
+              `
+                outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1
+                outline-(--docblocks-canvas-selection-border-color) outline-solid
+              `
+          )}
         >
           <BlockContext.Provider value={pageContext}>
             <BlockGroups ids={pageChildren} />
@@ -1017,15 +1070,19 @@ function CanvasView() {
                 style={style}
               />
             ))}
-            <div
-              data-slot="docblocks/canvas-handle"
-              data-handle="rotate"
-              className={cn(
-                "pointer-events-auto absolute size-3 cursor-grab rounded-full",
-                "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)"
-              )}
-              style={{ left: "50%", top: -HANDLE_ROTATE_OFFSET_PX, transform: "translate(-50%, -50%)" }}
-            />
+            {handleTarget.id !== rootBlockId && (
+              // The page miniature stands no rotate handle (the rotation
+              // affordance is off for the editor; the shapes keep it).
+              <div
+                data-slot="docblocks/canvas-handle"
+                data-handle="rotate"
+                className={cn(
+                  "pointer-events-auto absolute size-3 cursor-grab rounded-full",
+                  "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)"
+                )}
+                style={{ left: "50%", top: -HANDLE_ROTATE_OFFSET_PX, transform: "translate(-50%, -50%)" }}
+              />
+            )}
           </div>
         )}
       {connectorToolbarTarget !== null && (

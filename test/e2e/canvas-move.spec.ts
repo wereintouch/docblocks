@@ -122,6 +122,92 @@ async function rootId(page: Page, client: "a" | "b"): Promise<string> {
   );
 }
 
+test.describe("the two-click contract (the editor over the canvas)", () => {
+  test("the first click over the page text selects the card (no caret); the second stands the caret", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "canvas-page-card-2click");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      await zoomTo25(a, "a");
+
+      // Seed a deterministic paragraph and target it by block id (the
+      // room doc's starter content stands too).
+      const pid = await a.evaluate(() => {
+        const docs = window.__paneDocs;
+        const doc = docs?.a;
+        if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+        const p = doc.insertBlock("paragraph");
+        doc.insertText(p, 0, "two-click");
+        return p;
+      });
+      expect(pid).toBeTruthy();
+      const text = a.locator(
+        `[data-testid="doc-a"] [data-slot="docblocks/page-card"] [data-block-id="${pid}"] [data-slot="docblocks/block-content"]`
+      );
+      await expect(text).toBeVisible();
+      const box = (await text.boundingBox())!;
+      const point = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+      // The first click: the card selects (the cyan outline stands), no
+      // caret (the press is prevented — the focus parks on the canvas
+      // view, no text selection).
+      await a.mouse.click(point.x, point.y);
+      const card = a.locator('[data-testid="doc-a"] [data-slot="docblocks/page-card"]');
+      expect(await card.evaluate((el) => getComputedStyle(el).outlineColor)).toBe("rgb(57, 197, 207)");
+      expect(
+        await a.evaluate(() => ({
+          focus: document.activeElement?.getAttribute("data-slot") ?? null,
+          editable: (document.activeElement as HTMLElement | null)?.isContentEditable ?? false,
+          ranges: window.getSelection()?.rangeCount ?? 0,
+        }))
+      ).toEqual({ focus: "docblocks/canvas-view", editable: false, ranges: 0 });
+
+      // The second click: the caret stands (the card is already
+      // selected) and the typing path works.
+      await a.mouse.click(point.x, point.y);
+      const caret = await a.evaluate(() => (document.activeElement as HTMLElement | null)?.isContentEditable ?? false);
+      expect(caret).toBe(true);
+      await a.keyboard.press("End");
+      await a.keyboard.type("42");
+      await expect
+        .poll(
+          async () =>
+            a.evaluate(
+              ({ id }) => {
+                const block = window.__paneDocs?.a?.getBlock(id) as
+                  { type: string; content?: { text: string }[] } | null | undefined;
+                if (block === null || block === undefined || block.type !== "paragraph") return null;
+                return (block.content ?? []).map((r) => r.text).join("");
+              },
+              { id: pid as string }
+            ),
+          SETTLE
+        )
+        .toContain("two-click42");
+      // The edit reaches the other pane over the wire.
+      await expect
+        .poll(
+          async () =>
+            b.evaluate(
+              ({ id }) => {
+                const block = window.__paneDocs?.b?.getBlock(id) as
+                  { type: string; content?: { text: string }[] } | null | undefined;
+                if (block === null || block === undefined || block.type !== "paragraph") return null;
+                return (block.content ?? []).map((r) => r.text).join("");
+              },
+              { id: pid as string }
+            ),
+          SETTLE
+        )
+        .toContain("two-click42");
+    } finally {
+      await close();
+    }
+  });
+});
+
 test.describe("the canvas move session", () => {
   test("a pointer drag moves the page miniature (the root's geometry, the default page box)", async ({ browser }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-move-page");
