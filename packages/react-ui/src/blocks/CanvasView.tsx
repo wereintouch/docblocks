@@ -3,7 +3,7 @@ import { useStore } from "zustand";
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
-import type { BlockId } from "docblocks-core";
+import type { BlockId, SelectionView } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { CanvasDock } from "../canvas/CanvasDock";
@@ -150,8 +150,30 @@ function ZoomControls({
 /** The in-flight canvas pointer session (the primary button only). */
 type CanvasSession =
   | { kind: "pan"; startClientX: number; startClientY: number; startPanX: number; startPanY: number }
-  | { kind: "marquee" }
+  | { kind: "marquee"; additive: boolean }
   | { kind: "pen"; points: { x: number; y: number }[] };
+
+/**
+ * The shift-click selection toggle (the additive select): the id joins or
+ * leaves the current block selection — the anchor stands on the clicked
+ * id when it joins and keeps the old anchor (or the first remaining id)
+ * when it leaves. A pure view-state mutation: no document update.
+ */
+function toggleCanvasSelection(view: SelectionView, id: BlockId): void {
+  const sel = view.get();
+  const ids = sel.kind === "blocks" ? sel.ids : [];
+  if (ids.includes(id)) {
+    const next = ids.filter((existing) => existing !== id);
+    if (next.length === 0) {
+      view.set({ kind: "none" });
+      return;
+    }
+    const anchorId = sel.kind === "blocks" && next.includes(sel.anchorId) ? sel.anchorId : next[0]!;
+    view.set({ kind: "blocks", ids: next, anchorId });
+    return;
+  }
+  view.set({ kind: "blocks", ids: [...ids, id], anchorId: id });
+}
 
 /** The page-card scrollbar-strip guard width (the native thin bar's reach). */
 const SCROLLBAR_GUARD_PX = 12;
@@ -383,6 +405,13 @@ function CanvasView() {
     if (item !== null) {
       const id = item.getAttribute("data-block-id");
       if (id !== null) {
+        if (event.shiftKey) {
+          // The shift toggle (no move session — the selection stands; the
+          // focus parks on the container so the keys reach the view).
+          containerRef.current?.focus();
+          if (selection.view !== null) toggleCanvasSelection(selection.view, id);
+          return;
+        }
         // Group-aware selection: an item inside the current block selection
         // keeps the group (the group is what moves); otherwise it stands
         // alone. The check stands BEFORE the page-card guard: an item
@@ -407,6 +436,13 @@ function CanvasView() {
     if (connectorHit !== null) {
       const id = connectorHit.getAttribute("data-connector-hit");
       if (id !== null) {
+        if (event.shiftKey) {
+          // The shift toggle (the same contract as the item's: no move —
+          // the connectors carry no geometry at all).
+          containerRef.current?.focus();
+          if (selection.view !== null) toggleCanvasSelection(selection.view, id);
+          return;
+        }
         const sel = selection.view?.get();
         const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
         selection.view?.set({ kind: "blocks", ids, anchorId: id });
@@ -416,6 +452,11 @@ function CanvasView() {
     }
 
     if (isPageCard(event.target)) {
+      if (event.shiftKey) {
+        // The shift press stands the selection (the additive contract —
+        // no root move, no clear).
+        return;
+      }
       // The card's scroll element is the card itself (the consumer
       // data-slot stands on the ScrollArea's root div).
       const card =
@@ -440,7 +481,7 @@ function CanvasView() {
       return;
     }
 
-    sessionRef.current = { kind: "marquee" };
+    sessionRef.current = { kind: "marquee", additive: event.shiftKey };
     viewport.setMarquee({ start: point, end: point });
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -497,13 +538,15 @@ function CanvasView() {
     }
 
     if (session.kind === "marquee") {
+      const additive = session.additive;
       const marquee = viewport.marquee;
       viewport.setMarquee(null);
       if (marquee === null || containerRef.current === null) return;
       const rect = marqueeRect(marquee.start, marquee.end);
       if (rect.width < 3 || rect.height < 3) {
-        // A click on the empty canvas (no drag): clear the selection.
-        selection.view?.set({ kind: "none" });
+        // A click on the empty canvas (no drag): clear the selection —
+        // the additive press (the shift down) keeps it.
+        if (additive === false) selection.view?.set({ kind: "none" });
         return;
       }
       const containerRect = containerRef.current.getBoundingClientRect();
@@ -523,7 +566,24 @@ function CanvasView() {
         };
         if (rectsIntersect(rect, itemRect)) ids.push(id);
       }
-      selection.view?.set(ids.length > 0 ? { kind: "blocks", ids, anchorId: ids[0]! } : { kind: "none" });
+      if (additive) {
+        // The shift-marquee's union: the pre-marquee selection stands first
+        // (the marquee extends it — an empty union keeps the selection).
+        const sel = selection.view?.get();
+        const base = sel?.kind === "blocks" ? sel.ids : [];
+        const merged = [...base, ...ids.filter((id) => !base.includes(id))];
+        selection.view?.set(
+          merged.length > 0
+            ? {
+                kind: "blocks",
+                ids: merged,
+                anchorId: base.length > 0 && sel?.kind === "blocks" ? sel.anchorId : merged[0]!,
+              }
+            : { kind: "none" }
+        );
+      } else {
+        selection.view?.set(ids.length > 0 ? { kind: "blocks", ids, anchorId: ids[0]! } : { kind: "none" });
+      }
       // The focus parks on the canvas container (the Delete keydown has to
       // bubble through it — the editor-root focus would skip the container
       // handler).
@@ -728,8 +788,8 @@ function CanvasView() {
         <div
           data-slot="docblocks/canvas-marquee"
           className="
-            pointer-events-none absolute z-40 border border-(--docblocks-formatbar-border-color)
-            bg-(--docblocks-selected-background)
+            pointer-events-none absolute z-40 border-(length:--docblocks-canvas-selection-border-width)
+            border-(--docblocks-canvas-selection-border-color)
           "
           style={{
             left: `calc(50% + ${viewport.marqueeRect.left}px)`,

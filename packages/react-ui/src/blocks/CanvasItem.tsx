@@ -119,12 +119,17 @@ function CanvasItem({
       data-selected={selected || undefined}
       data-connector-pending={connectorPending || undefined}
       data-missing={missing || undefined}
-      // The connector stands no wrapper tint: its emphasis is the line's
-      // selected stroke (the 100x100 default box at the origin would stand
-      // a phantom square over the page miniature).
+      // The connector stands no wrapper tint or outline: its emphasis is
+      // the line's selected stroke (the 100x100 default box at the origin
+      // would stand a phantom square over the page miniature). The
+      // selected item's thin cyan outline (the shared selection token) stands
+      // over the tint.
       className={
         (selected || connectorPending) && block.type !== "connector"
-          ? "bg-(--docblocks-selected-background)"
+          ? `
+            bg-(--docblocks-selected-background) outline-(length:--docblocks-canvas-selection-border-width)
+            outline-offset-1 outline-(color:--docblocks-canvas-selection-border-color) outline-solid
+          `
           : undefined
       }
       style={style}

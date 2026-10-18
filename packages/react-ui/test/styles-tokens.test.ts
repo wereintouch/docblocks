@@ -88,6 +88,17 @@ describe("styles.css token contract", () => {
   it("carries the dark mapping under the .dark scope (ancestor or self)", () => {
     expect(STYLES).toMatch(/:is\(\.dark \[data-slot="docblocks\/editor"\], \[data-slot="docblocks\/editor"\]\.dark\)/);
   });
+
+  it("stands the canvas selection's cyan (the base light, the muted dark)", () => {
+    // The selection token pair (the marquee's line and the selected item's
+    // outline share it): the package literals — the light base cyan and
+    // the dark theme's muted cyan; the width stands theme-independent.
+    const darkScope = STYLES.slice(STYLES.indexOf(':is(.dark [data-slot="docblocks/editor"]'));
+    expect(STYLES).toContain("--docblocks-canvas-selection-border-color: #0891b2;");
+    expect(STYLES).toContain("--docblocks-canvas-selection-border-width: 1px;");
+    expect(darkScope).toContain("--docblocks-canvas-selection-border-color: #39c5cf;");
+    expect(darkScope).not.toContain("--docblocks-canvas-selection-border-width");
+  });
 });
 
 describe("theme.css seed", () => {
