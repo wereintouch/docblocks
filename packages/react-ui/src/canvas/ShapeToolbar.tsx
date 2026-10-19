@@ -6,7 +6,14 @@ import type { BlockId } from "docblocks-core";
 import { useEditorContext } from "../EditorProvider";
 import { useCanvasTextEdit } from "../blocks/canvas-text-edit-context";
 import { useFormatPalette } from "../blocks/format-palette-context";
-import { Button, DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "../shared/ui";
+import {
+  Button,
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+  FigureBorderSelector,
+} from "../shared/ui";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { Separator } from "../shared/ui/Separator";
 import { cn } from "../shared/ui/cn";
@@ -15,6 +22,7 @@ import {
   Diamond,
   Fill,
   Italic,
+  Minus,
   Palette,
   Square,
   SquareRounded,
@@ -26,6 +34,16 @@ import {
   X,
 } from "../shared/ui/icons";
 import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "./text-fonts";
+
+// The border's width stand (the FigureBorderSelector's dots, the px).
+const BORDER_WIDTH_POINTS: readonly number[] = [1, 2, 3, 4];
+
+// The width's dot index (the absent / the out-of-stand fall to the
+// default 2 px = the index 1; the in-stand map to their own dot).
+function borderWidthIndex(strokeWidth: number | undefined): number {
+  const index = BORDER_WIDTH_POINTS.indexOf(Math.round(strokeWidth ?? 2));
+  return index === -1 ? 1 : index;
+}
 
 /** The shape types (the dock's shapes menu and the toolbar's type picker). */
 const SHAPE_VARIANTS = [
@@ -237,6 +255,8 @@ function ShapeToolbar({
   id,
   fill,
   stroke,
+  strokeWidth,
+  strokeStyle,
   variant,
   text,
   fontSize,
@@ -249,6 +269,10 @@ function ShapeToolbar({
   id: BlockId;
   fill: string | undefined;
   stroke: string | undefined;
+  /** The border's width in px (the 1–4 stand; the absent stand is 2). */
+  strokeWidth: number | undefined;
+  /** The border's style (solid / dash; the absent stand is the solid line). */
+  strokeStyle: "solid" | "dash" | "dot" | undefined;
   variant: ShapeVariantId | undefined;
   text: string | undefined;
   fontSize: number | undefined;
@@ -268,6 +292,7 @@ function ShapeToolbar({
   // The size field's draft (the typed stand; the attr stands the commit).
   const [sizeDraft, setSizeDraft] = useState("");
   const hasText = (text ?? "").length > 0;
+  const borderNone = stroke === "none";
   const sizeListId = `docblocks-shape-size-${id}`;
 
   const applyAttr = (patch: Record<string, unknown>) => {
@@ -506,6 +531,58 @@ function ShapeToolbar({
           onOpenChange={(value) => setOpenSection(value ? "stroke" : null)}
           onApply={(value) => applyAttr({ stroke: value })}
         />
+        {/* The border's width (the 1–4 px dots; the absent stand is the
+            2 px default) + the style (the solid / the dashed / none). */}
+        <FigureBorderSelector
+          points={BORDER_WIDTH_POINTS.length}
+          value={borderWidthIndex(strokeWidth)}
+          onChange={(index) => applyAttr({ strokeWidth: BORDER_WIDTH_POINTS[index] })}
+          label="Shape border width"
+          title="Border width (1–4 px)"
+          className="mr-0.5"
+        />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              data-slot="docblocks/shape-toolbar-border-style"
+              aria-label="Shape border style"
+              title="Border style"
+            >
+              {borderNone ? <X className="size-4" /> : <Minus className="size-4" />}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" sideOffset={8} aria-label="Border styles">
+            <DropdownMenuCheckboxItem
+              checked={!borderNone && (strokeStyle ?? "solid") === "solid"}
+              onCheckedChange={(checked) => {
+                if (!checked) return;
+                applyAttr({ strokeStyle: "solid" });
+              }}
+            >
+              Solid line
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={!borderNone && strokeStyle === "dash"}
+              onCheckedChange={(checked) => {
+                if (!checked) return;
+                applyAttr({ strokeStyle: "dash" });
+              }}
+            >
+              Dashed
+            </DropdownMenuCheckboxItem>
+            <DropdownMenuCheckboxItem
+              checked={borderNone}
+              onCheckedChange={(checked) => {
+                if (!checked) return;
+                applyAttr({ stroke: "none" });
+              }}
+            >
+              No border
+            </DropdownMenuCheckboxItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

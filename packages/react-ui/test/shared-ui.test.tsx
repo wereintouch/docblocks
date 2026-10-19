@@ -2,6 +2,8 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { useState } from "react";
+
 import {
   Alert,
   AlertDescription,
@@ -18,6 +20,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  FigureBorderSelector,
   Popover,
   PopoverTrigger,
   ScrollArea,
@@ -178,5 +181,79 @@ describe("shared/ui smoke", () => {
     );
     expect(screen.getByRole("button", { name: "Show tip" })).toBeDefined();
     expect(screen.queryByText("Bubble")).toBeNull();
+  });
+});
+
+describe("FigureBorderSelector (the border's width dots)", () => {
+  it("renders the dots (the handle stands on the current dot, the aria slider stands)", () => {
+    render(<FigureBorderSelector points={4} value={1} onChange={() => undefined} label="Border width" />);
+    const slider = screen.getByRole("slider", { name: "Border width" });
+    expect(slider.getAttribute("aria-valuemax")).toBe("3");
+    expect(slider.getAttribute("aria-valuenow")).toBe("1");
+    expect(slider.getAttribute("aria-valuetext")).toBe("2");
+    // The four dots (the track's line + the handle + the dots' spans: 4 dots).
+    const dots = slider.querySelectorAll(".rounded-full");
+    expect(dots.length).toBe(5); // the 4 dots + the handle
+  });
+
+  it("steps by the keyboard (the arrows / the edges, the clamped stand)", () => {
+    const changes: number[] = [];
+    function StatefulSelector({ start }: { start: number }) {
+      const [value, setValue] = useState(start);
+      return (
+        <FigureBorderSelector
+          points={4}
+          value={value}
+          onChange={(index) => {
+            changes.push(index);
+            setValue(index);
+          }}
+          label="Border width"
+        />
+      );
+    }
+    render(<StatefulSelector start={0} />);
+    const slider = screen.getByRole("slider", { name: "Border width" });
+
+    fireEvent.keyDown(slider, { key: "ArrowLeft" }); // the floor (0)
+    expect(changes).toEqual([]);
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(changes).toEqual([1, 2]);
+
+    changes.length = 0;
+    cleanup();
+    render(<StatefulSelector start={2} />);
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Border width" }), { key: "End" });
+    fireEvent.keyDown(screen.getByRole("slider", { name: "Border width" }), { key: "Home" });
+    expect(changes).toEqual([3, 0]);
+  });
+
+  it("snaps to the nearest dot on the pointer's stand (the magnet's drag)", () => {
+    const changes: number[] = [];
+    function StatefulSelector() {
+      const [value, setValue] = useState(0);
+      return (
+        <FigureBorderSelector
+          points={4}
+          value={value}
+          onChange={(index) => {
+            changes.push(index);
+            setValue(index);
+          }}
+          label="Border width"
+        />
+      );
+    }
+    render(<StatefulSelector />);
+    const slider = screen.getByRole("slider", { name: "Border width" });
+    // The press + the move stand the snap's arithmetic on the stubbed
+    // rect (the drag's real geometry is the e2e's pin).
+    const rect = { left: 0, width: 64, top: 0, height: 20, right: 64, bottom: 20, x: 0, y: 0, toJSON: () => ({}) };
+    Object.defineProperty(slider, "getBoundingClientRect", { value: () => rect, configurable: true });
+    fireEvent.pointerDown(slider, { clientX: 58 }); // ~90% -> the dot 3
+    expect(changes).toEqual([3]);
+    fireEvent.pointerMove(slider, { clientX: 8, buttons: 1 }); // ~12% -> the dot 0
+    expect(changes).toEqual([3, 0]);
   });
 });

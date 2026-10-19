@@ -3,6 +3,7 @@ export { Badge, badgeVariants } from "./Badge";
 export { Button, buttonVariants } from "./Button";
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Card";
 export { Checkbox } from "./Checkbox";
+export { FigureBorderSelector } from "./FigureBorderSelector";
 export {
   DropdownMenu,
   DropdownMenuCheckboxItem,

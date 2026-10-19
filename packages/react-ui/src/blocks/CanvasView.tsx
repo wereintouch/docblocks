@@ -464,6 +464,8 @@ function CanvasView() {
       id: handleTarget.id,
       fill: block.attrs?.fill,
       stroke: block.attrs?.stroke,
+      strokeWidth: block.attrs?.strokeWidth,
+      strokeStyle: block.attrs?.strokeStyle,
       variant: block.attrs?.variant,
       text: block.attrs?.text,
       fontSize: block.attrs?.fontSize,
@@ -1501,6 +1503,8 @@ function CanvasView() {
             id={shapeToolbarTarget.id}
             fill={shapeToolbarTarget.fill}
             stroke={shapeToolbarTarget.stroke}
+            strokeWidth={shapeToolbarTarget.strokeWidth}
+            strokeStyle={shapeToolbarTarget.strokeStyle}
             variant={shapeToolbarTarget.variant}
             text={shapeToolbarTarget.text}
             fontSize={shapeToolbarTarget.fontSize}
