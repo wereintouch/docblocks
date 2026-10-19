@@ -739,3 +739,169 @@ test("the cells stand no grips and no placeholder (the page rows around them do)
     await close();
   }
 });
+
+// ====================================================================
+// The table's structure: the last column's right-edge seam, the add
+// chips' drag (the multi add / remove), and the size stand.
+// ====================================================================
+
+/** The add chip's press + drag (the chip stands pointer-events-none until
+ * the frame's hover — the first move over the chip's box seeds it). */
+async function dragAddChip(page: Page, slot: string, dx: number, dy: number): Promise<void> {
+  const chip = page.locator(`[data-slot="${slot}"]`);
+  const box = await chip.boundingBox();
+  if (box === null) throw new Error(`the ${slot} chip has no box`);
+  const x = box.x + box.width / 2;
+  const y = box.y + box.height / 2;
+  // The chips stand pointer-events-none until the frame's hover (the row
+  // chip's box stands below the frame — the hover seeds over the table
+  // itself first, then the move stands the chip).
+  const tableBox = await tableEl(page).boundingBox();
+  if (tableBox === null) throw new Error("the table has no box");
+  await page.mouse.move(tableBox.x + tableBox.width / 2, tableBox.y + 20);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  const steps = 6;
+  for (let step = 1; step <= steps; step++) {
+    await page.mouse.move(x + (dx * step) / steps, y + (dy * step) / steps);
+  }
+  await page.mouse.up();
+}
+
+test("the last column resizes at the table's right edge (the right-edge seam)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "ux19-table-lastcol");
+  try {
+    const tableId = await seedTable(
+      a,
+      "a",
+      [
+        ["a1", "a2"],
+        ["b1", "b2"],
+      ],
+      [100, 150]
+    );
+    await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
+
+    // The right-edge seam (data-index 1 = the last column's index) stands
+    // at the table's right edge; the drag +40 px commits the last
+    // column's width (the other stands). The grab stands the seam's top
+    // part — the add-column chip (centered at the edge) covers the middle
+    // band (the chip stands over the seam there).
+    const seamBox = await seam(a, 1).boundingBox();
+    if (seamBox === null) throw new Error("the right-edge seam has no box");
+    const tableBox = await tableEl(a).boundingBox();
+    if (tableBox === null) throw new Error("the table has no box");
+    // The seam's center stands the table's right edge (the border's
+    // half stands the sub-pixel, the 1.5 px tolerance).
+    expect(Math.abs(seamBox.x + seamBox.width / 2 - (tableBox.x + tableBox.width))).toBeLessThanOrEqual(1.5);
+
+    const sx = seamBox.x + seamBox.width / 2;
+    const sy = seamBox.y + 8;
+    await dragTo(a, { x: sx, y: sy }, { x: sx + 40, y: sy });
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.widths, SETTLE).toEqual([100, 190]);
+  } finally {
+    await close();
+  }
+});
+
+test("the add-row chip's drag appends / removes several rows (one undo step per drag)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "ux19-table-rowdrag");
+  try {
+    const tableId = await seedTable(a, "a", [
+      ["a1", "a2"],
+      ["b1", "b2"],
+    ]);
+    await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
+
+    // The drag down 48 px = two rows (the step's 24 px): A and B.
+    await dragAddChip(a, "docblocks/table-add-row", 0, 48);
+    await expect.poll(async () => (await tableSnapshot(a, "a", tableId))?.rows.length, SETTLE).toBe(4);
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(4);
+
+    // One undo step: the whole drag is one transact.
+    await a.evaluate(() => {
+      const doc = window.__paneDocs?.a;
+      if (doc === null || doc === undefined) throw new Error("the doc is not mounted");
+      doc.undo();
+    });
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(2);
+
+    // The drag up 24 px = one removal (the last row).
+    await dragAddChip(a, "docblocks/table-add-row", 0, -24);
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(1);
+  } finally {
+    await close();
+  }
+});
+
+test("the add-column chip's drag appends / removes several columns (the ghosts stand, the size stand updates)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ux19-table-coldrag");
+  try {
+    const tableId = await seedTable(a, "a", [
+      ["a1", "a2"],
+      ["b1", "b2"],
+    ]);
+    await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
+
+    // The size stand (the resulting size) is hidden at rest — it stands
+    // only during the add chips' drag.
+    const badge = a.locator('[data-slot="docblocks/table-size"]');
+    await expect(badge).toHaveCount(0);
+
+    // The drag right: 100 px = one base column width = one column
+    // (the ghosts stand on the drag, the stand stands the result).
+    const chip = a.locator('[data-slot="docblocks/table-add-column"]');
+    const chipBox = await chip.boundingBox();
+    if (chipBox === null) throw new Error("the chip has no box");
+    const cx = chipBox.x + chipBox.width / 2;
+    const cy = chipBox.y + chipBox.height / 2;
+    await a.mouse.move(cx, cy);
+    await a.mouse.down();
+    await a.mouse.move(cx + 100, cy);
+    expect(await a.locator('[data-slot="docblocks/table-ghost-column"]').count()).toBe(1);
+    await expect(badge).toHaveText("3 × 2");
+    await a.mouse.move(cx + 200, cy);
+    expect(await a.locator('[data-slot="docblocks/table-ghost-column"]').count()).toBe(2);
+    await expect(badge).toHaveText("4 × 2");
+    await a.mouse.up();
+    await expect.poll(async () => (await tableSnapshot(a, "a", tableId))?.cols, SETTLE).toBe(4);
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.cols, SETTLE).toBe(4);
+    // The release: the stand is gone.
+    await expect(badge).toHaveCount(0);
+
+    // The drag left 100 px = one removal (the last column), the stand
+    // stands the result on the drag.
+    await dragAddChip(a, "docblocks/table-add-column", -100, 0);
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.cols, SETTLE).toBe(3);
+    await expect(badge).toHaveCount(0);
+
+    // One undo step per drag (the second drag's undo stands).
+    await a.evaluate(() => {
+      const doc = window.__paneDocs?.a;
+      if (doc === null || doc === undefined) throw new Error("the doc is not mounted");
+      doc.undo();
+    });
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.cols, SETTLE).toBe(4);
+
+    // The drag back to the zero-count stands nothing: the release issues
+    // no command and the capture's following click inserts nothing (the
+    // visual stood the no-op — the stand and the ghosts are gone).
+    const chip2 = a.locator('[data-slot="docblocks/table-add-column"]');
+    const chipBox2 = await chip2.boundingBox();
+    if (chipBox2 === null) throw new Error("the chip has no box");
+    const cx2 = chipBox2.x + chipBox2.width / 2;
+    const cy2 = chipBox2.y + chipBox2.height / 2;
+    await a.mouse.move(cx2, cy2);
+    await a.mouse.down();
+    await a.mouse.move(cx2 + 100, cy2); // the one-count
+    await a.mouse.move(cx2 + 20, cy2); // back to the zero-count
+    await expect(a.locator('[data-slot="docblocks/table-ghost-column"]')).toHaveCount(0);
+    await expect(badge).toHaveCount(0);
+    await a.mouse.up();
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.cols, SETTLE).toBe(4);
+  } finally {
+    await close();
+  }
+});

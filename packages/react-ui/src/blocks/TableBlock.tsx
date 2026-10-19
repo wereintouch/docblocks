@@ -49,6 +49,14 @@ const ADD_BUTTON_SIZE = 24;
 // The pointer travel before a handle press becomes a drag (a shorter press
 // is a click and opens the handle's menu).
 const DRAG_THRESHOLD = 4;
+// The add chip's drag step: the rows stand the row's travel (24 px per
+// row), the columns stand the base column's width (a whole column's
+// travel adds one — the ghosts stand the same width).
+const ADD_ROW_DRAG_STEP_PX = 24;
+const ADD_COLUMN_DRAG_STEP_PX = DEFAULT_TABLE_COLUMN_WIDTH;
+// The ghost row's height (the add preview's rows stand the table's minimum
+// row height — the real rows' heights are content-dependent).
+const GHOST_ROW_HEIGHT = 28;
 
 /** The minimum width a column can be resized to (px; a drag below it clamps).
  */
@@ -249,6 +257,36 @@ function clampColumnWidth(width: number): number {
 }
 
 /**
+ * The add chip's drag delta -> the count (positive = the add, negative =
+ * the remove): the nearest step's count (the rows' step 24 px, the
+ * columns' the base width 100 px); the floor clamps the removal to keep
+ * at least one row / column (the full removal is the handle's menu
+ * delete only — the paragraph conversion), the add stands unclamped (the
+ * travel's count is the intent).
+ */
+function addDragCount(kind: HandleKind, total: number, delta: number): number {
+  const step = kind === "row" ? ADD_ROW_DRAG_STEP_PX : ADD_COLUMN_DRAG_STEP_PX;
+  const raw = Math.round(delta / step);
+  if (raw >= 0) return raw;
+  return Math.max(1 - total, raw);
+}
+
+/**
+ * The in-flight add-chip press: the captured geometry and the press-time
+ * snapshot (the row ids / the cols / the widths) the release commit
+ * validates against (the stale guard, the handle's contract).
+ */
+interface AddChipSession {
+  kind: HandleKind;
+  startX: number;
+  startY: number;
+  dragging: boolean;
+  rows: string[];
+  cols: number;
+  widths: number[] | null;
+}
+
+/**
  * A table: one <tr> per row block, one <td> per cell; each cell renders
  * its flat content sequence (a page context: the `indent` attr carries
  * the nesting) through the flat sequence renderer, so a paragraph cell is
@@ -279,7 +317,14 @@ function clampColumnWidth(width: number): number {
  * insert commands: the add-column chip stands at the table's right edge and
  * scrolls with it; the add-row chip stands below the table, centered on
  * the visible part of it (the table's center when it fits, the editor's
- * center when part of the table is scrolled out).
+ * center when part of the table is scrolled out). A chip press and drag
+ * adds or removes SEVERAL at once (the vertical delta for the rows, the
+ * horizontal for the columns, one per 24 px — down / right adds, up /
+ * left removes the last N, the floor keeps one; the live preview stands
+ * the ghost rows / columns or the dimmed last ones, view state only; the
+ * release commits the count in one transact, the stale guard stands the
+ * handle's contract). The size stand (the columns × the rows) stands the
+ * frame's top-left corner.
  */
 function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const { doc } = useEditorContext();
@@ -311,6 +356,16 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // and the cell; the menu's content carries the copy/paste/clear items.
   const [ctx, setCtx] = useState<{ x: number; y: number; cellId: BlockId } | null>(null);
   const resizeSessionRef = useRef<ColumnResizeSession | null>(null);
+  // The add chip's drag session + the live count's preview (positive = the
+  // ghost rows / columns, negative = the dimmed last ones) — view state:
+  // the doc stands the commit on the release only.
+  const addSessionRef = useRef<AddChipSession | null>(null);
+  const [addPreview, setAddPreview] = useState<{ kind: HandleKind; count: number } | null>(null);
+  // The click that follows the drag's release (the pointer capture keeps
+  // the click on the chip): the chip's onClick skips it (the visual stood
+  // the drag's outcome — the multi-commit or the no-op — either way the
+  // click must not insert a stray one).
+  const addDragClickRef = useRef(false);
 
   // The add-row chip's left offset: the center of the visible part of the
   // table (no scroll listeners — the chip is pinned to the frame, not the
@@ -465,6 +520,107 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const onSeamPointerCancel = () => {
     resizeSessionRef.current = null;
     setResizePreview(null);
+  };
+
+  /**
+   * The add chip's press: starts the drag session (the capture keeps the
+   * moves / the release on the chip). No preventDefault — the press's
+   * click must stand (the no-drag release's single insert is the click
+   * path; the pointerdown's preventDefault would suppress it).
+   */
+  const onAddChipPointerDown = (kind: HandleKind) => (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (
+      event.button !== 0 ||
+      addSessionRef.current !== null ||
+      sessionRef.current !== null ||
+      resizeSessionRef.current !== null
+    )
+      return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    addSessionRef.current = {
+      kind,
+      startX: event.clientX,
+      startY: event.clientY,
+      dragging: false,
+      rows: [...rows],
+      cols: block.attrs.cols,
+      widths: block.attrs.columnWidths ?? null,
+    };
+  };
+
+  const onAddChipPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const session = addSessionRef.current;
+    if (session === null) return;
+    const dx = event.clientX - session.startX;
+    const dy = event.clientY - session.startY;
+    if (!session.dragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+      session.dragging = true;
+    }
+    if (!session.dragging) return;
+    const total = session.kind === "row" ? session.rows.length : session.cols;
+    const delta = session.kind === "row" ? dy : dx;
+    setAddPreview({ kind: session.kind, count: addDragCount(session.kind, total, delta) });
+  };
+
+  const onAddChipPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const session = addSessionRef.current;
+    addSessionRef.current = null;
+    setAddPreview(null);
+    if (session === null) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    if (!session.dragging) return; // the click path (the chip's onClick) adds one
+    // The drag's release: whatever the commit's outcome (the count's
+    // commit, the zero-count no-op, the stale guard's rejection), the
+    // capture's click stands the drag, not a new press — suppress it.
+    addDragClickRef.current = true;
+    commitAddDrag(session, event.clientX, event.clientY);
+  };
+
+  const onAddChipPointerCancel = () => {
+    addSessionRef.current = null;
+    setAddPreview(null);
+  };
+
+  /**
+   * The chip drag's release commit: the count's appends (at the end) or
+   * the last-count removals in one transact (one undo step, one wire
+   * update); a concurrent structural change invalidates the drop (the
+   * stale guard, the handle's contract) — no command, the rows resync.
+   */
+  const commitAddDrag = (session: AddChipSession, clientX: number, clientY: number) => {
+    const total = session.kind === "row" ? session.rows.length : session.cols;
+    const delta = session.kind === "row" ? clientY - session.startY : clientX - session.startX;
+    const count = addDragCount(session.kind, total, delta);
+    if (count === 0) return;
+    const live = doc.getBlock(id);
+    if (live === null || live.type !== "table") return;
+    if (!sameSequence(doc.getChildren(id), session.rows)) return;
+    if (live.attrs.cols !== session.cols) return;
+    if (session.kind === "column" && !sameSequence(live.attrs.columnWidths ?? [], session.widths ?? [])) return;
+    try {
+      doc.transact(() => {
+        const current = doc.getBlock(id);
+        if (current === null || current.type !== "table") return;
+        if (count > 0) {
+          for (let i = 0; i < count; i++) {
+            if (session.kind === "row") doc.insertTableRow(id);
+            else doc.insertTableColumn(id);
+          }
+        } else {
+          for (let i = 0; i < -count; i++) {
+            if (session.kind === "row") {
+              const rowId = session.rows[session.rows.length - 1 - i];
+              if (rowId !== undefined) doc.removeTableRow(id, rowId);
+            } else {
+              doc.removeTableColumn(id, session.cols - 1 - i);
+            }
+          }
+        }
+      });
+    } catch {
+      // A rejected command (a concurrent structural change won the race):
+      // the doc stands as-is, the preview stands the doc's structure.
+    }
   };
 
   /**
@@ -646,8 +802,10 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   }
 
   // The column seams' x (seam i stands at the LEFT edge of column i — the
-  // boundary between column i-1 and i; the seam resizes the column to its
-  // LEFT, the first column's left edge has no seam).
+  // boundary between column i-1 and i; a seam resizes the column to its
+  // LEFT, the first column's left edge has no seam). The rendered seams
+  // stand at every column's RIGHT edge (the boundary of col + 1, or the
+  // table's right edge for the last column).
   const seamXs: number[] = [];
   {
     let acc = HANDLE_ZONE;
@@ -708,8 +866,28 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                     dragOffsetY={isPreview("row", rowIndex) ? preview!.dy : 0}
                     dragColumnIndex={preview !== null && preview.kind === "column" ? preview.index : -1}
                     columnDragDx={preview !== null && preview.kind === "column" ? preview.dx : 0}
+                    dimmed={
+                      addPreview !== null &&
+                      addPreview.kind === "row" &&
+                      addPreview.count < 0 &&
+                      rowIndex >= rows.length + addPreview.count
+                    }
                   />
                 ))}
+                {addPreview !== null && addPreview.kind === "row" && addPreview.count > 0
+                  ? Array.from({ length: addPreview.count }, (_, i) => (
+                      <tr key={`ghost-row-${i}`} aria-hidden data-slot="docblocks/table-ghost-row">
+                        <td
+                          colSpan={block.attrs.cols}
+                          className="
+                            border-(length:--docblocks-table-border-width) border-dashed
+                            border-(--docblocks-table-border-color) bg-muted/40
+                          "
+                          style={{ height: GHOST_ROW_HEIGHT }}
+                        />
+                      </tr>
+                    ))
+                  : null}
               </BlockContext.Provider>
             </tbody>
           </table>
@@ -790,22 +968,28 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               />
             </HandleMenu>
           ))}
-          {seamXs.map((x, index) =>
-            index === 0 ? null : (
+          {widths.map((_, col) => {
+            // The seam stands at the column's RIGHT edge (the interior
+            // boundary, or the table's right edge for the last column —
+            // the last column resizes there too).
+            const seamIndex = col + 1;
+            const x =
+              col + 1 < widths.length ? (seamXs[seamIndex] ?? HANDLE_ZONE + tableWidth) : HANDLE_ZONE + tableWidth;
+            return (
               <div
-                key={`seam-${index}`}
+                key={`seam-${seamIndex}`}
                 data-slot="docblocks/table-col-resize"
-                data-index={index - 1}
+                data-index={col}
                 className={cn(
                   `
                     absolute flex w-1.5 -translate-x-1/2 cursor-col-resize items-stretch justify-center opacity-0
                     transition-opacity
                     hover:opacity-100
                   `,
-                  resizePreview?.col === index && "opacity-100"
+                  resizePreview?.col === seamIndex && "opacity-100"
                 )}
                 style={{ left: x, top: HANDLE_ZONE, height: tableHeight }}
-                onPointerDown={onSeamPointerDown(index)}
+                onPointerDown={onSeamPointerDown(seamIndex)}
                 onPointerMove={onSeamPointerMove}
                 onPointerUp={onSeamPointerUp}
                 onPointerCancel={onSeamPointerCancel}
@@ -815,17 +999,66 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                   className="h-full w-0.5 rounded bg-(--muted-foreground)"
                 />
               </div>
-            )
-          )}
+            );
+          })}
+          {addPreview !== null && addPreview.kind === "column" && addPreview.count > 0
+            ? Array.from({ length: addPreview.count }, (_, i) => (
+                <div
+                  key={`ghost-col-${i}`}
+                  aria-hidden
+                  data-slot="docblocks/table-ghost-column"
+                  className="pointer-events-none absolute border-dashed border-border bg-muted/40"
+                  style={{
+                    left: HANDLE_ZONE + tableWidth + i * DEFAULT_TABLE_COLUMN_WIDTH,
+                    top: HANDLE_ZONE,
+                    width: DEFAULT_TABLE_COLUMN_WIDTH,
+                    height: tableHeight,
+                  }}
+                />
+              ))
+            : null}
+          {addPreview !== null && addPreview.kind === "column" && addPreview.count < 0
+            ? Array.from({ length: -addPreview.count }, (_, i) => {
+                const col = widths.length - 1 - i;
+                const left = HANDLE_ZONE + widths.slice(0, col).reduce((sum, w) => sum + w, 0);
+                return (
+                  <div
+                    key={`ghost-col-remove-${i}`}
+                    aria-hidden
+                    data-slot="docblocks/table-ghost-column-remove"
+                    className="pointer-events-none absolute bg-(--muted-foreground)/30"
+                    style={{ left, top: HANDLE_ZONE, width: widths[col] ?? 0, height: tableHeight }}
+                  />
+                );
+              })
+            : null}
           <Button
             type="button"
             data-slot="docblocks/table-add-column"
             aria-label="Add column"
             variant="ghost"
             size="icon"
-            onClick={() => doc.insertTableColumn(id)}
+            onClick={() => {
+              if (addDragClickRef.current) {
+                addDragClickRef.current = false;
+                return;
+              }
+              doc.insertTableColumn(id);
+            }}
+            onPointerDown={onAddChipPointerDown("column")}
+            onPointerMove={onAddChipPointerMove}
+            onPointerUp={onAddChipPointerUp}
+            onPointerCancel={onAddChipPointerCancel}
             className={cn(ADD_BUTTON_CLASSES, "absolute size-6 -translate-x-1/2 -translate-y-1/2 rounded-full")}
-            style={{ left: HANDLE_ZONE + tableWidth, top: HANDLE_ZONE + tableHeight / 2 }}
+            style={{
+              left:
+                HANDLE_ZONE +
+                tableWidth +
+                (addPreview !== null && addPreview.kind === "column" && addPreview.count > 0
+                  ? addPreview.count * DEFAULT_TABLE_COLUMN_WIDTH
+                  : 0),
+              top: HANDLE_ZONE + tableHeight / 2,
+            }}
           >
             <Plus />
           </Button>
@@ -837,12 +1070,37 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         aria-label="Add row"
         variant="ghost"
         size="icon"
-        onClick={() => doc.insertTableRow(id)}
+        onClick={() => {
+          if (addDragClickRef.current) {
+            addDragClickRef.current = false;
+            return;
+          }
+          doc.insertTableRow(id);
+        }}
+        onPointerDown={onAddChipPointerDown("row")}
+        onPointerMove={onAddChipPointerMove}
+        onPointerUp={onAddChipPointerUp}
+        onPointerCancel={onAddChipPointerCancel}
         className={cn(ADD_BUTTON_CLASSES, "absolute top-full size-6 -translate-y-1/2 rounded-full")}
         style={{ left: rowButtonLeft }}
       >
         <Plus />
       </Button>
+      {/* The table's size stand (the columns x the rows' RESULTING size):
+          stands only during the add chips' drag (the add / remove's
+          preview — the count stands nonzero), the frame's top-left
+          corner (the handle band's free zone), muted. */}
+      {addPreview !== null && addPreview.count !== 0 ? (
+        <div
+          data-slot="docblocks/table-size"
+          aria-hidden
+          className="pointer-events-none absolute top-0.5 left-1.5 text-xs text-(--muted-foreground) select-none"
+        >
+          {`${
+            addPreview.kind === "column" ? block.attrs.cols + addPreview.count : block.attrs.cols
+          } × ${addPreview.kind === "row" ? rows.length + addPreview.count : rows.length}`}
+        </div>
+      ) : null}
       {/* The cell's right-click menu: the 0×0 trigger stands at the pointer
           (frame-relative) while the menu is open — the content anchors to
           the cursor, like a native context menu. */}
@@ -1053,11 +1311,13 @@ const TableRow = memo(function TableRow({
   dragOffsetY,
   dragColumnIndex,
   columnDragDx,
+  dimmed,
 }: {
   id: BlockId;
   dragOffsetY: number;
   dragColumnIndex: number;
   columnDragDx: number;
+  dimmed: boolean;
 }) {
   const row = useBlock(id);
   const cells = row !== undefined && row.type === "table-row" ? (row.children ?? EMPTY_IDS) : EMPTY_IDS;
@@ -1067,7 +1327,16 @@ const TableRow = memo(function TableRow({
   return (
     <tr
       data-block-id={id}
-      style={dragging ? { transform: `translateY(${dragOffsetY}px)`, position: "relative", zIndex: 10 } : undefined}
+      style={
+        dragging || dimmed
+          ? {
+              ...(dragging
+                ? { transform: `translateY(${dragOffsetY}px)`, position: "relative" as const, zIndex: 10 }
+                : {}),
+              ...(dimmed ? { opacity: 0.4 } : {}),
+            }
+          : undefined
+      }
     >
       <BlockContext.Provider value={contextValue}>
         {cells.map((cellId, cellIndex) => (

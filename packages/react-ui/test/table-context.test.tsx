@@ -306,11 +306,14 @@ describe("the cell's right-click menu", () => {
 });
 
 describe("the column seam resize", () => {
-  it("stand between the columns (one per interior boundary) and hidden at rest", () => {
+  it("stand at every column's right edge (the interior boundaries + the table's right) and hidden at rest", () => {
     renderTableDoc([120, 140]);
-    // Two columns → the single interior seam (data-index 0, the column LEFT of it).
+    // Two columns -> two seams: the interior boundary (data-index 0, the
+    // column LEFT of it) and the table's right edge (data-index 1 — the
+    // last column resizes there too).
     expect(seam(0)).not.toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/table-col-resize"][data-index="1"]')).toBeNull();
+    expect(seam(1)).not.toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/table-col-resize"][data-index="2"]')).toBeNull();
     expect(seam(0).className).toContain("opacity-0");
     expect(seam(0).className).toContain("cursor-col-resize");
   });
