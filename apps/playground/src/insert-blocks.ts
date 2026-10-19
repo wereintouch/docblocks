@@ -1,3 +1,6 @@
+import { createMemoryBlobStore } from "docblocks-react-ui";
+import type { BlobRef, BlobStore } from "docblocks-react-ui";
+
 import type { BlockId, DatabaseAttrs, Doc } from "docblocks-core";
 
 import { MASTER_SUBTREE_BLOCK_ID } from "./master";
@@ -109,10 +112,22 @@ const BLOB_SOURCES: Record<string, string> = {
     ),
 };
 
-/** The harness's blob resolver: the fixed keys above, "" for unknown keys. */
-function blobResolver(key: string): string {
-  return BLOB_SOURCES[key] ?? "";
-}
+/** The in-memory half of the harness's blob store (the slash Image uploads). */
+const memoryBlobs = createMemoryBlobStore();
+
+/**
+ * The harness's blob store: the fixed keys above (the catalog image),
+ * then the in-memory uploads (one per page — the A/B panes share it).
+ */
+const blobStore: BlobStore = {
+  resolve: async (key: string): Promise<BlobRef> => {
+    const url = BLOB_SOURCES[key];
+    if (url !== undefined) return { url, meta: { subtype: "image" } };
+    return memoryBlobs.resolve(key);
+  },
+  upload: (file, meta) => memoryBlobs.upload(file, meta),
+  remove: (key) => memoryBlobs.remove?.(key) ?? Promise.resolve(),
+};
 
 /**
  * Insert one block of `type` at the root with the harness attrs (heading
@@ -184,5 +199,5 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
   return id;
 }
 
-export { blobResolver, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedCanvas, seedDatabase };
+export { blobStore, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedCanvas, seedDatabase };
 export type { InsertableType };

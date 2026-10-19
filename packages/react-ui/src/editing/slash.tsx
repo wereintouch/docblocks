@@ -24,6 +24,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  Image as ImageIcon,
   List,
   ListOrdered,
   Pilcrow,
@@ -96,9 +97,14 @@ const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
  * and mermaid), latex, divider, and table. The table is the only insert
  * command: it lands after the caret block (2×2, the default widths), the
  * caret block stands, and the caret seats in the table's first cell (the
- * empty-cell activation). Externally referenced types (database, image,
- * embed, sync-embed, the canvas types) are not offered; they stay
- * command-API inserts.
+ * empty-cell activation). The image is an upload insert (the blob bridge,
+ * decision 2026-10-19): the caret block stands (the trigger phrase
+ * stripped), the file picker opens over the open menu, and the image
+ * lands after the caret block in one transact once the upload resolved —
+ * the doc holds only the committed key; a refused or cancelled pick
+ * commits nothing. Externally referenced types (database, embed,
+ * sync-embed, the canvas types) are not offered; they stay command-API
+ * inserts.
  */
 
 /** A 24px-stroke icon component (the package icon set). */
@@ -114,6 +120,7 @@ type SlashCommand =
   | { label: string; icon: SlashIcon; type: "code"; attrs?: { language?: string } }
   | { label: string; icon: SlashIcon; type: "latex"; attrs: { display: boolean } }
   | { label: string; icon: SlashIcon; type: "divider" }
+  | { label: string; icon: SlashIcon; type: "image" }
   | { label: string; icon: SlashIcon; type: "table" };
 
 /** The v1 command list (filterable by the typed query). */
@@ -131,6 +138,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Code block (mermaid)", icon: CodeXml, type: "code", attrs: { language: "mermaid" } },
   { label: "Formula", icon: Sigma, type: "latex", attrs: { display: false } },
   { label: "Divider", icon: SquareSplitVertical, type: "divider" },
+  { label: "Image", icon: ImageIcon, type: "image" },
   { label: "Table", icon: Table, type: "table" },
 ];
 
@@ -490,10 +498,15 @@ interface OpenMenuKey {
  * tree).
  */
 function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuApi; menuNode: ReactNode } {
-  const { doc, store } = useEditorContext();
+  const { doc, store, blobStore } = useEditorContext();
   const [state, setState] = useState<SlashMenuState | null>(null);
   const stateRef = useRef<SlashMenuState | null>(null);
   stateRef.current = state;
+  // The slash Image upload: the picker's open ref (registered by the
+  // menu's hidden file input) + the pending pick context (the caret block
+  // and the slash anchor), committed on the file pick.
+  const imageClickRef = useRef<{ open: () => void } | null>(null);
+  const pendingImageRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
 
   const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
     setState({ blockId, parentId, slashOffset, active: 0 });
@@ -551,8 +564,16 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       // The clamped highlight index (the menu renders the clamped value):
       // a filtered-down list keeps the last item active.
       const command = items.length === 0 ? undefined : items[Math.min(index, items.length - 1)];
-      setState(null);
       if (command === undefined) return;
+      // The image is an upload insert: the menu stays open (the phrase is
+      // intact, the derivation stays live) while the picker stands; the
+      // commit (phrase strip + the insert) lands on the file pick.
+      if (command.type === "image") {
+        pendingImageRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
+        imageClickRef.current?.open();
+        return;
+      }
+      setState(null);
       const segment = segmentRange(doc, s.parentId, s.blockId);
       const hasFollowers = segment !== null && segment.end > segment.start + 1;
       const plan = planSlashApply(command, block, text, s.slashOffset, hasFollowers);
@@ -567,6 +588,61 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
    * printable keys, Backspace, and space flow through the normal input
    * path (they grow, shrink, or end the query).
    */
+  /**
+   * The file pick of the slash Image command: the upload runs first (the
+   * doc holds only a committed key), then one transact — the trigger
+   * phrase strip (when it still stands at its anchor) + the image insert
+   * after the caret block, a trailing empty paragraph when the image
+   * takes the sequence's end (the caret seats there), and the caret
+   * re-seat. A refused or cancelled pick commits nothing (the menu stays
+   * open on the phrase).
+   */
+  const handleImageFile = useCallback(
+    (file: File | null) => {
+      const pending = pendingImageRef.current;
+      pendingImageRef.current = null;
+      if (pending === null || file === null) return;
+      const { blockId, parentId, slashOffset } = pending;
+      if (doc.getBlock(blockId) === null) return;
+      blobStore
+        .upload(file, { name: file.name })
+        .then((key) => {
+          const scope = rootRef.current ?? document;
+          try {
+            doc.transact(() => {
+              const current = doc.getBlock(blockId);
+              if (current === null) return;
+              const indent = indentOf(current);
+              const ind = indent !== 0 ? { indent } : {};
+              const text = blockTextOf(current);
+              if (text.charAt(slashOffset) === "/") {
+                let queryEnd = slashOffset + 1;
+                while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
+                doc.deleteText(blockId, slashOffset, queryEnd);
+              }
+              const imageId = doc.insertBlock("image", { src: key, ...ind }, { parent: parentId, after: blockId });
+              const sequence = doc.getChildren(parentId);
+              if (sequence[sequence.length - 1] === imageId) {
+                const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: imageId });
+                focusCaretIn(trailingId, 0, scope);
+              } else {
+                focusCaretIn(blockId, slashOffset, scope);
+              }
+            });
+          } catch (error) {
+            if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
+            throw error;
+          }
+          close();
+        })
+        .catch(() => {
+          // The upload was refused (or the legacy resolver holds no upload
+          // path): nothing commits; the menu stands open on the phrase.
+        });
+    },
+    [blobStore, close, doc, rootRef]
+  );
+
   const handleOpenMenuKey = useCallback(
     (key: OpenMenuKey, blockId: BlockId): boolean => {
       const s = stateRef.current;
@@ -667,7 +743,17 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
 
   const api = useMemo(() => ({ onKeyDown, onSlashKey }), [onKeyDown, onSlashKey]);
   const menuNode =
-    state !== null ? <SlashMenu rootRef={rootRef} state={state} onHover={hover} onPick={pick} onClose={close} /> : null;
+    state !== null ? (
+      <SlashMenu
+        rootRef={rootRef}
+        state={state}
+        onHover={hover}
+        onPick={pick}
+        onClose={close}
+        onImageFile={handleImageFile}
+        imageClickRef={imageClickRef}
+      />
+    ) : null;
 
   return { api, menuNode };
 }
@@ -678,6 +764,8 @@ interface SlashMenuProps {
   onHover: (index: number) => void;
   onPick: (index: number) => void;
   onClose: () => void;
+  onImageFile: (file: File | null) => void;
+  imageClickRef: RefObject<{ open: () => void } | null>;
 }
 
 /**
@@ -687,9 +775,21 @@ interface SlashMenuProps {
  * query back to a match brings the list back). The mousedown suppression
  * keeps the block's selection (and focus) alive across an item click.
  */
-function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps) {
+function SlashMenu({ rootRef, state, onHover, onPick, onClose, onImageFile, imageClickRef }: SlashMenuProps) {
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
+
+  // The hidden file input of the Image command: a programmatic click
+  // opens the picker (no pointer events reach the menu), and it stands
+  // while the menu is open — the phrase stays intact during the pick, so
+  // the derivation (and the menu) stays live until the file lands.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    imageClickRef.current = { open: () => fileInputRef.current?.click() };
+    return () => {
+      imageClickRef.current = null;
+    };
+  }, [imageClickRef]);
 
   // The derivation, live (the block text from the store + the caret from
   // the DOM selection — the browser settles the DOM before the store
@@ -774,6 +874,19 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose }: SlashMenuProps)
             }
       }
     >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        data-slot="docblocks/slash-file-input"
+        className="pointer-events-none absolute h-0 w-0 opacity-0"
+        onChange={(event) => {
+          const files = event.target.files;
+          const file = files !== null && files.length > 0 ? (files[0] ?? null) : null;
+          event.target.value = "";
+          onImageFile(file);
+        }}
+      />
       {items.map((command, index) => (
         <div
           key={command.label}
