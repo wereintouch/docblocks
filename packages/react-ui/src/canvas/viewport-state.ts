@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from "react";
 import type { Doc } from "docblocks-core";
 
 import { effectiveGeometry, portsOf } from "../blocks/canvas-geometry";
+import type { CanvasPort } from "../blocks/canvas-geometry";
 import { findParentSurface, firstSurface, placeCanvasText, placeFrame, placePenStroke, placeShape } from "./insert";
 import {
   TOOL_SIZES,
@@ -115,6 +116,51 @@ interface EndpointDrag {
   which: "start" | "end";
 }
 
+/** The endpoint drag's port snap (the sibling block + the port). */
+interface EndpointSnap {
+  blockId: string;
+  port: CanvasPort;
+}
+
+/** The endpoint drag's live preview (the raw point + the port snap, if any). */
+interface EndpointPreview {
+  point: CanvasPoint;
+  snap: EndpointSnap | null;
+}
+
+/** The port snap: the nearest edge midpoint of a surface sibling within the
+ * snap radius (the canvas px, the zoom-blind space). The dragged endpoint's
+ * own block is excluded (the release on the source detaches to the free
+ * point — re-anchoring to the same block is a no-op the detach rule
+ * covers). */
+function snapEndpointPort(
+  doc: Doc,
+  surfaceId: string,
+  connectorId: string,
+  which: "start" | "end",
+  point: CanvasPoint
+): EndpointSnap | null {
+  const block = doc.getBlock(connectorId);
+  const ownBlock = block !== null && block.type === "connector" ? block.attrs?.[which]?.blockId : undefined;
+  let snap: EndpointSnap | null = null;
+  let best = ENDPOINT_SNAP_RADIUS;
+  for (const siblingId of doc.getChildren(surfaceId)) {
+    if (siblingId === connectorId || siblingId === ownBlock) continue;
+    const sibling = doc.getBlock(siblingId);
+    if (sibling === null) continue;
+    const ports = portsOf(effectiveGeometry(sibling));
+    for (const port of ["north", "east", "south", "west"] as const) {
+      const p = ports[port];
+      const dist = Math.hypot(p.x - point.x, p.y - point.y);
+      if (dist < best) {
+        best = dist;
+        snap = { blockId: siblingId, port };
+      }
+    }
+  }
+  return snap;
+}
+
 /**
  * The canvas viewport's view state (zoom / pan / the pointer mode / the
  * active placement tool / the pending connector endpoint / the in-flight
@@ -148,8 +194,8 @@ interface CanvasViewportState {
   connectorPreview: CanvasPoint | null;
   /** The in-flight connector endpoint drag (the handles' target); null outside a drag. */
   connectorEndpoint: EndpointDrag | null;
-  /** The endpoint drag's preview point (canvas px); null outside a drag. */
-  connectorEndpointPreview: CanvasPoint | null;
+  /** The endpoint drag's live preview (the point + the port snap); null outside a drag. */
+  connectorEndpointPreview: EndpointPreview | null;
   setZoom: (zoom: number) => void;
   stepZoom: (direction: 1 | -1) => void;
   /** The zoom step at the screen point (the wheel): the point under the
@@ -264,7 +310,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [placePreview, setPlacePreview] = useState<PlacePreview | null>(null);
   const [connectorPreview, setConnectorPreview] = useState<CanvasPoint | null>(null);
   const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
-  const [connectorEndpointPreview, setConnectorEndpointPreview] = useState<CanvasPoint | null>(null);
+  const [connectorEndpointPreview, setConnectorEndpointPreview] = useState<EndpointPreview | null>(null);
   const endpointRef = useRef<EndpointSession | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
 
@@ -475,10 +521,15 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       const session = endpointRef.current;
       if (session === null) return;
       session.dragging = true;
-      session.point = screenToCanvas(pointer, zoom, pan);
-      setConnectorEndpointPreview(session.point);
+      const point = screenToCanvas(pointer, zoom, pan);
+      session.point = point;
+      // The live snap: within the radius the preview stands at the PORT
+      // (the line's end sticks to it — the release commits the same snap
+      // against the same point).
+      const snap = snapEndpointPort(doc, session.surfaceId, session.connectorId, session.which, point);
+      setConnectorEndpointPreview({ point, snap });
     },
-    [zoom, pan]
+    [doc, zoom, pan]
   );
 
   const endConnectorEndpoint = useCallback(
@@ -498,29 +549,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       ) {
         return;
       }
-      // The port snap: the nearest edge midpoint of a surface sibling
-      // within the snap radius (the canvas px, the zoom-blind space). The
-      // dragged endpoint's own block is excluded (the release on the source
-      // detaches to the free point — re-anchoring to the same block is a
-      // no-op the owner's detach rule covers).
-      const block = doc.getBlock(session.connectorId);
-      const ownBlock = block !== null && block.type === "connector" ? block.attrs?.[session.which]?.blockId : undefined;
-      let snap: { blockId: string; port: "north" | "east" | "south" | "west" } | null = null;
-      let best = ENDPOINT_SNAP_RADIUS;
-      for (const siblingId of doc.getChildren(session.surfaceId)) {
-        if (siblingId === session.connectorId || siblingId === ownBlock) continue;
-        const sibling = doc.getBlock(siblingId);
-        if (sibling === null) continue;
-        const ports = portsOf(effectiveGeometry(sibling));
-        for (const port of ["north", "east", "south", "west"] as const) {
-          const p = ports[port];
-          const dist = Math.hypot(p.x - session.point.x, p.y - session.point.y);
-          if (dist < best) {
-            best = dist;
-            snap = { blockId: siblingId, port };
-          }
-        }
-      }
+      // The port snap (the same search as the live preview — the release
+      // commits what the preview stood).
+      const snap = snapEndpointPort(doc, session.surfaceId, session.connectorId, session.which, session.point);
       const ref =
         snap !== null
           ? { blockId: snap.blockId, port: snap.port }
@@ -773,4 +804,4 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
 }
 
 export { useCanvasViewport };
-export type { CanvasViewportState, MovePreview };
+export type { CanvasViewportState, EndpointDrag, EndpointPreview, EndpointSnap, MovePreview };

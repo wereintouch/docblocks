@@ -34,6 +34,7 @@ const ICON_SET = [
   "Heading3",
   "Image",
   "Italic",
+  "Link",
   "List",
   "ListOrdered",
   "LoaderCircle",

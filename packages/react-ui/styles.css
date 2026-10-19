@@ -228,6 +228,12 @@
      (the on-screen px, constant at any zoom). Declared once,
      theme-independent. */
   --docblocks-canvas-selection-box-offset: 4px;
+  /* The selected connector's line (the selection's cyan — visible on the
+     dark canvas; the base cyan on the light canvas). */
+  --docblocks-canvas-selected-stroke: #0891b2;
+  /* The connect indicator (the endpoint drag's port snap: the badge's
+     green + the snapped port dot). */
+  --docblocks-canvas-connect-color: #16a34a;
 
   /* The floating format toolbar (the selection's formatting layer). */
   --docblocks-formatbar-background: var(--popover, #ffffff);
@@ -277,6 +283,8 @@
   --docblocks-frame-background: var(--card, #161b22);
   /* The slightly muted selection cyan (the dark theme's base). */
   --docblocks-canvas-selection-border-color: #39c5cf;
+  --docblocks-canvas-selected-stroke: #39c5cf;
+  --docblocks-canvas-connect-color: #4ade80;
 
   --docblocks-callout-border-color-info: var(--primary, #58a6ff);
   --docblocks-callout-background-info: color-mix(in srgb, var(--primary, #388bfd) 15%, transparent);

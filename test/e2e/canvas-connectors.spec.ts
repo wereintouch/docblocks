@@ -536,13 +536,24 @@ test.describe("the connector arrows", () => {
       // Drag the START endpoint to the right box's south port (the snap
       // radius stands at 12 canvas px — the release stands on it): the
       // commit is the port ref, one wire update, the other pane's line
-      // re-draws from the port.
+      // re-draws from the port. The drag stands 6px SHORT of the port
+      // (the stick): the line's end jumps to the port while the cursor
+      // stands off it — the snap's live effect.
       const handleBox = (await startHandle.boundingBox())!;
       const southPort = { x: center.x + 300, y: center.y + 150 };
       await a.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
       await a.mouse.down();
       await a.mouse.move((handleBox.x + southPort.x) / 2, (handleBox.y + southPort.y) / 2, { steps: 8 });
-      await a.mouse.move(southPort.x, southPort.y, { steps: 8 });
+      await a.mouse.move(southPort.x, southPort.y - 6, { steps: 8 });
+      // The live snap stands while the drag is in flight: the green
+      // connect badge over the line, the snapped port dot in the connect
+      // green, and the line's end stuck at the port (not the cursor).
+      await expect(a.locator(`[data-connector-snap-badge="${connId}"]`)).toHaveCount(1);
+      const snappedDot = a.locator("[data-canvas-port-snapped]");
+      await expect(snappedDot).toHaveCount(1);
+      await expect(snappedDot).toHaveAttribute("data-canvas-port", "south");
+      const stuckD = await a.locator(`[data-connector-id="${connId}"]`).getAttribute("d");
+      expect(stuckD!.startsWith("M 300 150")).toBe(true);
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)

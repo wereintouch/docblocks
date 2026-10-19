@@ -347,7 +347,7 @@ describe("canvas scene", () => {
     fireEvent.pointerUp(hit, { pointerId: 1 });
     const line = document.querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
     expect(line.getAttribute("data-selected")).toBe("true");
-    expect(line.style.stroke).toBe("var(--docblocks-canvas-selected-stroke, var(--accent, #388bfd))");
+    expect(line.style.stroke).toBe("var(--docblocks-canvas-selected-stroke)");
     expect(line.getAttribute("stroke-width")).toBe("2");
   });
 });

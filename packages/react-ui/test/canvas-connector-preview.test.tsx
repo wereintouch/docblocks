@@ -296,6 +296,37 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     if (connector === null || connector.type !== "connector") throw new Error("the connector vanished");
     expect(connector.attrs.end).toEqual({ blockId: r.a, port: "south" });
   });
+
+  it("the drag's live snap: the line sticks to the port, the green badge and the snapped dot stand (the release commits the snap)", () => {
+    const r = renderWithConnector();
+    act(() => {
+      r.setSelection("blocks", [r.connectorId]);
+    });
+    // The end handle (the sticky anchor at (50, 0)) drags to (−100, 24) —
+    // 6px from a's south port (−100, 30), inside the 12px snap radius.
+    const endHandle = r.handle("end");
+    expect(endHandle).not.toBeNull();
+    fireEvent.pointerDown(endHandle!, { clientX: 50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerMove(r.view, { clientX: -100, clientY: 24, buttons: 1, pointerId: 1 });
+    // The stick: the line's end stands at the PORT (not the raw cursor
+    // point) — the straight path's last point is the port.
+    const path = r.view.querySelector<SVGPathElement>(`[data-connector-id="${r.connectorId}"]`)!;
+    expect(path.getAttribute("d")!.endsWith("-100 30")).toBe(true);
+    // The connect badge (the green Link over the line's midpoint).
+    const badge = r.view.querySelector(`[data-connector-snap-badge="${r.connectorId}"]`);
+    expect(badge).not.toBeNull();
+    // The snapped port dot stands the connect green (the badge's parity).
+    const snappedDot = r.view.querySelector("[data-canvas-port-snapped]");
+    expect(snappedDot).not.toBeNull();
+    expect(snappedDot!.getAttribute("data-canvas-port")).toBe("south");
+    // The release commits the same snap (the preview stood the truth).
+    fireEvent.pointerUp(r.view, { clientX: -100, clientY: 24, pointerId: 1 });
+    const connector = r.doc.getBlock(r.connectorId);
+    if (connector === null || connector.type !== "connector") throw new Error("the connector vanished");
+    expect(connector.attrs.end).toEqual({ blockId: r.a, port: "south" });
+    // The badge drops with the drag.
+    expect(r.view.querySelector(`[data-connector-snap-badge="${r.connectorId}"]`)).toBeNull();
+  });
 });
 
 describe("the previews' svgs stand 1x1 (the 0x0 rasterization)", () => {
