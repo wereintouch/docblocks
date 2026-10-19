@@ -97,7 +97,7 @@ describe("the render conditions", () => {
     const { view } = renderCanvas(doc);
     selectBlock(view as HTMLElement, shape);
     expect(toolbar()).toBeNull();
-    expect(screen.queryByRole("toolbar", { name: "Shape colors" })).toBeTruthy();
+    expect(screen.queryByRole("toolbar", { name: "Shape options" })).toBeTruthy();
   });
 
   it("hides the toolbar for the multi selection", () => {

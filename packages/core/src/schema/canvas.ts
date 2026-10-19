@@ -55,7 +55,7 @@ interface CanvasRef {
 
 interface ShapeAttrs {
   /** The shape kind. */
-  variant: "rect" | "ellipse" | "diamond" | "line";
+  variant: "rect" | "rounded" | "ellipse" | "diamond";
   /** Stroke color (CSS color). */
   stroke?: string;
   /** Fill color (CSS color). */
@@ -67,6 +67,20 @@ interface ShapeAttrs {
   opacity?: number;
   /** Freehand points [x, y][] in block-local px within the w/h box. */
   points?: [number, number][];
+  /** The shape's text (a plain string, the soft breaks as \n — the shape
+   * is not a text block: no runs / marks, the style is uniform). */
+  text?: string;
+  /** The text's font size in px (8–512; absent = the 16px stand). */
+  fontSize?: number;
+  /** The text's font family (the self-hosted set's name, or a
+   * consumer-loaded font's name). */
+  fontFamily?: string;
+  /** The text's color (CSS hex color). */
+  textColor?: string;
+  /** The text's style (the weight x the slant). */
+  textStyle?: "regular" | "semibold" | "light" | "light-italic" | "italic" | "semibold-italic";
+  /** The text's alignment. */
+  textAlign?: "left" | "center" | "right";
 }
 
 interface ConnectorAttrs {

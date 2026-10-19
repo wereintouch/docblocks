@@ -157,6 +157,8 @@ describe("the dock", () => {
       connectorPreview: null,
       connectorEndpoint: null,
       connectorEndpointPreview: null,
+      shapeTextEditing: null,
+      setShapeTextEditing: noop,
       resizePreview: null,
       rotatePreview: null,
       setZoom: noop,
@@ -214,7 +216,7 @@ describe("the dock", () => {
     fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     const menu = screen.getByLabelText("Shapes menu");
     expect((menu.getAttribute("class") ?? "").includes("flex flex-row")).toBe(true);
-    for (const label of ["Rectangle", "Ellipse", "Diamond", "Line"]) {
+    for (const label of ["Rectangle", "Rounded Rectangle", "Ellipse", "Diamond"]) {
       expect(screen.getByLabelText(label)).toBeTruthy();
     }
   });

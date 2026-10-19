@@ -68,7 +68,7 @@ async function worldTransform(page: Page, client: "a" | "b"): Promise<{ scale: n
 async function seedShape(
   page: Page,
   client: "a" | "b",
-  variant: "rect" | "ellipse" | "diamond" | "line",
+  variant: "rect" | "rounded" | "ellipse" | "diamond",
   geometry: { x: number; y: number; w: number; h: number }
 ): Promise<string> {
   return page.evaluate(
@@ -450,7 +450,7 @@ test.describe("the canvas dock", () => {
       const menu = a.locator('[data-slot="docblocks/canvas-shapes-menu"]');
       await expect(menu).toBeVisible();
       expect(await menu.getAttribute("class")).toContain("flex flex-row");
-      await menu.getByLabel("Rectangle").click();
+      await menu.getByLabel("Rectangle", { exact: true }).click();
       expect(await shapes.getAttribute("aria-pressed")).toBe("true");
       expect((await canvasView(a, "a").getAttribute("class")) ?? "").toContain("cursor-crosshair");
 

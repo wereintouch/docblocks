@@ -12,12 +12,12 @@ import { cn } from "../shared/ui/cn";
 import {
   ArrowRight,
   Circle,
-  Diagonal,
   Diamond,
   Hand,
   MousePointer2,
   Pen,
   Square,
+  SquareRounded,
   SquareSplitVertical,
   Type,
 } from "../shared/ui/icons";
@@ -37,9 +37,9 @@ interface DockTool {
 /** The shape types (the dock's single shapes button opens them as a row). */
 const SHAPE_TOOLS: DockTool[] = [
   { id: "rect", label: "Rectangle", icon: Square },
+  { id: "rounded", label: "Rounded Rectangle", icon: SquareRounded },
   { id: "ellipse", label: "Ellipse", icon: Circle },
   { id: "diamond", label: "Diamond", icon: Diamond },
-  { id: "line", label: "Line", icon: Diagonal },
 ];
 
 const SHAPE_IDS: CanvasTool[] = SHAPE_TOOLS.map((tool) => tool.id);

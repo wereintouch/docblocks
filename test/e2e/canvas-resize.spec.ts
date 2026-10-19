@@ -82,7 +82,7 @@ async function blockShapes(
 async function seedShape(
   page: Page,
   client: "a" | "b",
-  variant: "rect" | "ellipse" | "diamond" | "line",
+  variant: "rect" | "rounded" | "ellipse" | "diamond",
   geometry: { x: number; y: number; w: number; h: number }
 ): Promise<string> {
   return page.evaluate(

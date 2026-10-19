@@ -143,7 +143,7 @@ describe("the drag-to-size placement", () => {
 
   it("the Escape cancels the in-flight placement (the tool resets, nothing lands)", () => {
     const { doc, view } = renderCanvas();
-    pickShapeTool(view, "Line");
+    pickShapeTool(view, "Rounded Rectangle");
 
     fireEvent.pointerDown(view, { clientX: 100, clientY: 100, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(view, { clientX: 150, clientY: 130, buttons: 1, pointerId: 1 });
@@ -154,6 +154,6 @@ describe("the drag-to-size placement", () => {
     expect(view.querySelector('[data-tool="shapes"]')?.getAttribute("aria-pressed")).toBe("false");
 
     fireEvent.pointerUp(view, { clientX: 150, clientY: 130, pointerId: 1 });
-    expect(placedShapes(doc).find((shape) => shape.variant === "line")).toBeUndefined();
+    expect(placedShapes(doc).find((shape) => shape.variant === "rounded")).toBeUndefined();
   });
 });

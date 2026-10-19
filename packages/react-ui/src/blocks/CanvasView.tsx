@@ -45,6 +45,7 @@ import {
   pageCardStyle,
   portsOf,
 } from "./canvas-geometry";
+import { CanvasTextEditProvider } from "./canvas-text-edit-context";
 
 /**
  * One surface's layer on the document canvas (the canvas view): its
@@ -278,7 +279,7 @@ function ZoomControls({
 }
 
 /** The shape placement tools (the drag-to-size gesture's tools). */
-type ShapeTool = Extract<CanvasTool, "rect" | "ellipse" | "diamond" | "line">;
+type ShapeTool = Extract<CanvasTool, "rect" | "rounded" | "ellipse" | "diamond">;
 
 /** The in-flight canvas pointer session (the primary button only). */
 type CanvasSession =
@@ -464,6 +465,12 @@ function CanvasView() {
       fill: block.attrs?.fill,
       stroke: block.attrs?.stroke,
       variant: block.attrs?.variant,
+      text: block.attrs?.text,
+      fontSize: block.attrs?.fontSize,
+      fontFamily: block.attrs?.fontFamily,
+      textColor: block.attrs?.textColor,
+      textStyle: block.attrs?.textStyle,
+      textAlign: block.attrs?.textAlign,
     };
   })();
 
@@ -583,7 +590,7 @@ function CanvasView() {
 
     if (viewport.activeTool !== null && viewport.activeTool !== "connector") {
       const tool = viewport.activeTool;
-      if (tool === "rect" || tool === "ellipse" || tool === "diamond" || tool === "line") {
+      if (tool === "rect" || tool === "rounded" || tool === "ellipse" || tool === "diamond") {
         // The shape's drag-to-size: the press starts the session (no
         // commit yet), the drag stands the preview (the marquee's
         // gesture), the release commits the dragged size (a click stands
@@ -1020,6 +1027,29 @@ function CanvasView() {
     }
   };
 
+  // The shape's text double-click: the
+  // press's pointer capture retargets the dblclick to THIS container
+  // (the event's target is the container, not the shape) — the shape
+  // stands the point's element (the hit test through the world's
+  // transform). The page's inert surfaces stand no container handler
+  // (the read-only stand there).
+  const onShapeTextDoubleClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    // A retargeted event stands the target's closest first (the bubbling
+    // path); the capture-retargeted one (the target IS the container)
+    // falls to the point's element (the hit test through the world's
+    // transform).
+    const fromTarget =
+      event.target instanceof Element
+        ? event.target.closest<HTMLElement>("[data-slot='docblocks/shape-text-target']")
+        : null;
+    const element = fromTarget !== null ? fromTarget : document.elementFromPoint(event.clientX, event.clientY);
+    const target = element instanceof Element ? element.closest("[data-slot='docblocks/shape-text-target']") : null;
+    if (target === null) return;
+    const id =
+      target.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ?? null;
+    if (id !== null) viewport.setShapeTextEditing(id);
+  };
+
   // The OS / browser takeover (a pointer cancel, a lost capture, a
   // button-less move over a surviving session) drops every in-flight
   // session: the move's preview would otherwise stand until the next
@@ -1198,285 +1228,296 @@ function CanvasView() {
   })();
 
   return (
-    <div
-      data-slot="docblocks/canvas-view"
-      ref={containerRef}
-      tabIndex={-1}
-      className={
-        "relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background) " +
-        "bg-[radial-gradient(circle,var(--docblocks-canvas-view-dot)_1px,transparent_1px)] focus:outline-none " +
-        cursor
-      }
-      style={{
-        // The dot grid follows the pan/zoom (the background position is the
-        // container center offset by the pan, the cell is the grid step
-        // scaled by the zoom).
-        backgroundPosition: `calc(50% + ${viewport.pan.x}px) calc(50% + ${viewport.pan.y}px)`,
-        backgroundSize: `${24 * viewport.zoom}px ${24 * viewport.zoom}px`,
-      }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerCancel}
-      onLostPointerCapture={dropCanvasSessions}
-      onMouseDown={onMouseDown}
-      onKeyDown={onKeyDown}
-      onKeyUp={onKeyUp}
-    >
+    <CanvasTextEditProvider editingId={viewport.shapeTextEditing} setEditingId={viewport.setShapeTextEditing}>
       <div
-        data-slot="docblocks/canvas-world"
-        className="absolute inset-0"
+        data-slot="docblocks/canvas-view"
+        ref={containerRef}
+        tabIndex={-1}
+        className={
+          "relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background) " +
+          "bg-[radial-gradient(circle,var(--docblocks-canvas-view-dot)_1px,transparent_1px)] focus:outline-none " +
+          cursor
+        }
         style={{
-          transform: `translate(${viewport.pan.x}px, ${viewport.pan.y}px) scale(${viewport.zoom})`,
-          transformOrigin: "center",
+          // The dot grid follows the pan/zoom (the background position is the
+          // container center offset by the pan, the cell is the grid step
+          // scaled by the zoom).
+          backgroundPosition: `calc(50% + ${viewport.pan.x}px) calc(50% + ${viewport.pan.y}px)`,
+          backgroundSize: `${24 * viewport.zoom}px ${24 * viewport.zoom}px`,
         }}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
+        onLostPointerCapture={dropCanvasSessions}
+        onMouseDown={onMouseDown}
+        onDoubleClick={onShapeTextDoubleClick}
+        onKeyDown={onKeyDown}
+        onKeyUp={onKeyUp}
       >
-        <ScrollArea
-          data-slot="docblocks/page-card"
-          style={pageCardDisplayStyle}
-          className={cn(
-            `
-              box-border rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
-              p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
-            `,
-            pageCardSelected &&
-              `
-                outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1
-                outline-(--docblocks-canvas-selection-border-color) outline-solid
-              `
-          )}
+        <div
+          data-slot="docblocks/canvas-world"
+          className="absolute inset-0"
+          style={{
+            transform: `translate(${viewport.pan.x}px, ${viewport.pan.y}px) scale(${viewport.zoom})`,
+            transformOrigin: "center",
+          }}
         >
-          <BlockContext.Provider value={pageContext}>
-            <BlockGroups ids={pageChildren} />
-          </BlockContext.Provider>
-        </ScrollArea>
-        {surfaces.map(({ id, children }) => (
-          <SurfaceLayer
-            key={id}
-            id={id}
-            children={children}
-            pendingConnector={viewport.pendingConnector}
-            movePreview={viewport.movePreview}
-            resizePreview={viewport.resizePreview}
-            rotatePreview={viewport.rotatePreview}
-            endpointDrag={viewport.connectorEndpoint}
-            endpointPreview={viewport.connectorEndpointPreview}
-            endpointSnap={
-              viewport.connectorEndpoint !== null ? (viewport.connectorEndpointPreview?.snap ?? null) : null
-            }
-            onEndpointDrag={(connectorId, which, pointerId, clientX, clientY) => {
-              const container = containerRef.current;
-              if (container === null) return;
-              // The container keeps the pointer (the release outside the
-              // window would otherwise stand the session open — the
-              // card-press capture's contract). The endpoint drag's
-              // release commit reads the session, not the release target
-              // (the capture retargets the pointerup to the container —
-              // unlike the connector pick's release, the drag's commit
-              // stands off the target).
-              container.setPointerCapture?.(pointerId);
-              const rect = container.getBoundingClientRect();
-              viewport.beginConnectorEndpoint(
-                connectorId,
-                which,
-                {
-                  x: clientX - rect.left - rect.width / 2,
-                  y: clientY - rect.top - rect.height / 2,
-                },
-                clientX,
-                clientY
-              );
-            }}
-            showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
-          />
-        ))}
-        {viewport.placePreview !== null && (
-          // The drag-to-size placement preview (the shape's figure at the
-          // dragged box, the dashed cyan line; the world's space, so it
-          // scales with the zoom).
-          <div
-            data-slot="docblocks/canvas-place-preview"
-            className="pointer-events-none absolute"
-            style={{
-              left: `calc(50% + ${viewport.placePreview.x}px)`,
-              top: `calc(50% + ${viewport.placePreview.y}px)`,
-              width: `${viewport.placePreview.w}px`,
-              height: `${viewport.placePreview.h}px`,
-              transform: "translate(-50%, -50%)",
-              color: "var(--docblocks-canvas-selection-border-color)",
-              opacity: 0.6,
-            }}
+          <ScrollArea
+            data-slot="docblocks/page-card"
+            style={pageCardDisplayStyle}
+            className={cn(
+              `
+                box-border rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
+                p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
+              `,
+              pageCardSelected &&
+                `
+                  outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1
+                  outline-(--docblocks-canvas-selection-border-color) outline-solid
+                `
+            )}
           >
-            <ShapeSvg
-              id="docblocks-place-preview"
-              block={{
-                type: "shape",
-                attrs: { variant: viewport.placePreview.variant, stroke: "currentColor", strokeStyle: "dash" },
-                geometry: {
-                  x: 0,
-                  y: 0,
-                  w: viewport.placePreview.w,
-                  h: viewport.placePreview.h,
-                },
-              }}
-            />
-          </div>
-        )}
-        {(viewport.pendingConnector !== null || viewport.pendingFree !== null) &&
-          viewport.connectorPreview !== null &&
-          viewport.pendingConnector !== undefined && (
-            // The connector's pending preview line: the dashed segment
-            // from the pending stand (the block's edge anchor toward the
-            // cursor, or the free stand's own point) to the cursor (the
-            // world's space, so it scales with the zoom).
-            <ConnectorPreviewLine
-              id={viewport.pendingConnector ?? undefined}
-              from={
-                viewport.pendingFree !== null
-                  ? viewport.pendingFree
-                  : viewport.pendingConnector !== null
-                    ? (() => {
-                        const block = blocks[viewport.pendingConnector!];
-                        return block === undefined
-                          ? { x: 0, y: 0 }
-                          : edgeAnchor(effectiveGeometry(block), viewport.connectorPreview!);
-                      })()
-                    : { x: 0, y: 0 }
+            <BlockContext.Provider value={pageContext}>
+              <BlockGroups ids={pageChildren} />
+            </BlockContext.Provider>
+          </ScrollArea>
+          {surfaces.map(({ id, children }) => (
+            <SurfaceLayer
+              key={id}
+              id={id}
+              children={children}
+              pendingConnector={viewport.pendingConnector}
+              movePreview={viewport.movePreview}
+              resizePreview={viewport.resizePreview}
+              rotatePreview={viewport.rotatePreview}
+              endpointDrag={viewport.connectorEndpoint}
+              endpointPreview={viewport.connectorEndpointPreview}
+              endpointSnap={
+                viewport.connectorEndpoint !== null ? (viewport.connectorEndpointPreview?.snap ?? null) : null
               }
-              point={viewport.connectorPreview}
+              onEndpointDrag={(connectorId, which, pointerId, clientX, clientY) => {
+                const container = containerRef.current;
+                if (container === null) return;
+                // The container keeps the pointer (the release outside the
+                // window would otherwise stand the session open — the
+                // card-press capture's contract). The endpoint drag's
+                // release commit reads the session, not the release target
+                // (the capture retargets the pointerup to the container —
+                // unlike the connector pick's release, the drag's commit
+                // stands off the target).
+                container.setPointerCapture?.(pointerId);
+                const rect = container.getBoundingClientRect();
+                viewport.beginConnectorEndpoint(
+                  connectorId,
+                  which,
+                  {
+                    x: clientX - rect.left - rect.width / 2,
+                    y: clientY - rect.top - rect.height / 2,
+                  },
+                  clientX,
+                  clientY
+                );
+              }}
+              showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
             />
-          )}
-        {viewport.penPoints.length > 1 && (
-          <svg
-            data-slot="docblocks/canvas-pen-preview"
-            className="pointer-events-none absolute top-1/2 left-1/2 overflow-visible"
-            width={1}
-            height={1}
-          >
-            <path
-              d={viewport.penPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ")}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        )}
-      </div>
-      {multiSelectionBox !== null && viewport.movePreview === null && (
-        // The multi-selection's summary rectangle (the union of the
-        // selected items' boxes + the on-screen offset, the token's
-        // line + fill — screen-space like the marquee, constant at any
-        // zoom). The offset is the CSS token (the style's calc reads
-        // it — the px stand no literal here).
-        <div
-          data-slot="docblocks/canvas-multi-selection"
-          className="
-            pointer-events-none absolute z-30 border-(length:--docblocks-canvas-selection-border-width)
-            border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
-          "
-          style={{
-            left: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).x}px - var(--docblocks-canvas-selection-box-offset))`,
-            top: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).y}px - var(--docblocks-canvas-selection-box-offset))`,
-            width: `calc(${multiSelectionBox.width * viewport.zoom}px + 2 * var(--docblocks-canvas-selection-box-offset))`,
-            height: `calc(${multiSelectionBox.height * viewport.zoom}px + 2 * var(--docblocks-canvas-selection-box-offset))`,
-          }}
-        />
-      )}
-      {viewport.marqueeRect !== null && (
-        <div
-          data-slot="docblocks/canvas-marquee"
-          className="
-            pointer-events-none absolute z-40 border-(length:--docblocks-canvas-selection-border-width)
-            border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
-          "
-          style={{
-            left: `calc(50% + ${viewport.marqueeRect.left}px)`,
-            top: `calc(50% + ${viewport.marqueeRect.top}px)`,
-            width: viewport.marqueeRect.width,
-            height: viewport.marqueeRect.height,
-          }}
-        />
-      )}
-      {handleTarget !== null &&
-        viewport.activeTool === null &&
-        viewport.movePreview === null &&
-        displayBox !== null && (
-          // The selection's handles (the eight box handles + the rotate
-          // handle above the top edge): screen-space, over the world
-          // (they keep their on-screen size at any zoom). Hidden while a
-          // move preview is in flight (the box is stale then).
-          <div
-            data-slot="docblocks/canvas-handles"
-            className="pointer-events-none absolute z-40"
-            style={{
-              left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
-              top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y}px)`,
-              width: displayBox.w * viewport.zoom,
-              height: displayBox.h * viewport.zoom,
-              transform: `translate(-50%, -50%) rotate(${displayRotation ?? 0}deg)`,
-            }}
-          >
-            {RESIZE_HANDLE_POSITIONS.map(({ handle: handleId, className, style }) => (
-              <div
-                key={handleId}
-                data-slot="docblocks/canvas-handle"
-                data-handle={handleId}
-                className={cn(
-                  "pointer-events-auto absolute size-2 rounded-full",
-                  "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)",
-                  className
-                )}
-                style={style}
+          ))}
+          {viewport.placePreview !== null && (
+            // The drag-to-size placement preview (the shape's figure at the
+            // dragged box, the dashed cyan line; the world's space, so it
+            // scales with the zoom).
+            <div
+              data-slot="docblocks/canvas-place-preview"
+              className="pointer-events-none absolute"
+              style={{
+                left: `calc(50% + ${viewport.placePreview.x}px)`,
+                top: `calc(50% + ${viewport.placePreview.y}px)`,
+                width: `${viewport.placePreview.w}px`,
+                height: `${viewport.placePreview.h}px`,
+                transform: "translate(-50%, -50%)",
+                color: "var(--docblocks-canvas-selection-border-color)",
+                opacity: 0.6,
+              }}
+            >
+              <ShapeSvg
+                id="docblocks-place-preview"
+                block={{
+                  type: "shape",
+                  attrs: { variant: viewport.placePreview.variant, stroke: "currentColor", strokeStyle: "dash" },
+                  geometry: {
+                    x: 0,
+                    y: 0,
+                    w: viewport.placePreview.w,
+                    h: viewport.placePreview.h,
+                  },
+                }}
               />
-            ))}
-            {handleTarget.id !== rootBlockId && (
-              // The page miniature stands no rotate handle (the rotation
-              // affordance is off for the editor; the shapes keep it).
-              <div
-                data-slot="docblocks/canvas-handle"
-                data-handle="rotate"
-                className={cn(
-                  "pointer-events-auto absolute size-3 cursor-grab rounded-full",
-                  "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)"
-                )}
-                style={{ left: "50%", top: -HANDLE_ROTATE_OFFSET_PX, transform: "translate(-50%, -50%)" }}
+            </div>
+          )}
+          {(viewport.pendingConnector !== null || viewport.pendingFree !== null) &&
+            viewport.connectorPreview !== null &&
+            viewport.pendingConnector !== undefined && (
+              // The connector's pending preview line: the dashed segment
+              // from the pending stand (the block's edge anchor toward the
+              // cursor, or the free stand's own point) to the cursor (the
+              // world's space, so it scales with the zoom).
+              <ConnectorPreviewLine
+                id={viewport.pendingConnector ?? undefined}
+                from={
+                  viewport.pendingFree !== null
+                    ? viewport.pendingFree
+                    : viewport.pendingConnector !== null
+                      ? (() => {
+                          const block = blocks[viewport.pendingConnector!];
+                          return block === undefined
+                            ? { x: 0, y: 0 }
+                            : edgeAnchor(effectiveGeometry(block), viewport.connectorPreview!);
+                        })()
+                      : { x: 0, y: 0 }
+                }
+                point={viewport.connectorPreview}
               />
             )}
-          </div>
+          {viewport.penPoints.length > 1 && (
+            <svg
+              data-slot="docblocks/canvas-pen-preview"
+              className="pointer-events-none absolute top-1/2 left-1/2 overflow-visible"
+              width={1}
+              height={1}
+            >
+              <path
+                d={viewport.penPoints
+                  .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+                  .join(" ")}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
+        </div>
+        {multiSelectionBox !== null && viewport.movePreview === null && (
+          // The multi-selection's summary rectangle (the union of the
+          // selected items' boxes + the on-screen offset, the token's
+          // line + fill — screen-space like the marquee, constant at any
+          // zoom). The offset is the CSS token (the style's calc reads
+          // it — the px stand no literal here).
+          <div
+            data-slot="docblocks/canvas-multi-selection"
+            className="
+              pointer-events-none absolute z-30 border-(length:--docblocks-canvas-selection-border-width)
+              border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
+            "
+            style={{
+              left: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).x}px - var(--docblocks-canvas-selection-box-offset))`,
+              top: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).y}px - var(--docblocks-canvas-selection-box-offset))`,
+              width: `calc(${multiSelectionBox.width * viewport.zoom}px + 2 * var(--docblocks-canvas-selection-box-offset))`,
+              height: `calc(${multiSelectionBox.height * viewport.zoom}px + 2 * var(--docblocks-canvas-selection-box-offset))`,
+            }}
+          />
         )}
-      {connectorToolbarTarget !== null && (
-        // The connector's type toolbar (the single `connector`
-        // selection): the three line types above the line's midpoint.
-        <ConnectorToolbar
-          id={connectorToolbarTarget.id}
-          variant={connectorToolbarTarget.variant}
-          style={{
-            left: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).x}px)`,
-            top: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).y - TOOLBAR_OFFSET_PX}px)`,
-          }}
-        />
-      )}
-      {shapeToolbarTarget !== null && displayBox !== null && (
-        // The shape's color toolbar (the single `shape` selection): the
-        // fill/stroke sections above the box top edge. Hidden for the
-        // non-shape blocks, the multi selection, an active tool, and the
-        // in-flight sessions (the box is stale then).
-        <ShapeToolbar
-          id={shapeToolbarTarget.id}
-          fill={shapeToolbarTarget.fill}
-          stroke={shapeToolbarTarget.stroke}
-          variant={shapeToolbarTarget.variant}
-          style={{
-            left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
-            top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y - (displayBox.h / 2) * viewport.zoom - TOOLBAR_OFFSET_PX}px)`,
-          }}
-        />
-      )}
-      <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={() => viewport.setZoom(1)} />
-      <CanvasDock viewport={viewport} />
-    </div>
+        {viewport.marqueeRect !== null && (
+          <div
+            data-slot="docblocks/canvas-marquee"
+            className="
+              pointer-events-none absolute z-40 border-(length:--docblocks-canvas-selection-border-width)
+              border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
+            "
+            style={{
+              left: `calc(50% + ${viewport.marqueeRect.left}px)`,
+              top: `calc(50% + ${viewport.marqueeRect.top}px)`,
+              width: viewport.marqueeRect.width,
+              height: viewport.marqueeRect.height,
+            }}
+          />
+        )}
+        {handleTarget !== null &&
+          viewport.activeTool === null &&
+          viewport.movePreview === null &&
+          displayBox !== null && (
+            // The selection's handles (the eight box handles + the rotate
+            // handle above the top edge): screen-space, over the world
+            // (they keep their on-screen size at any zoom). Hidden while a
+            // move preview is in flight (the box is stale then).
+            <div
+              data-slot="docblocks/canvas-handles"
+              className="pointer-events-none absolute z-40"
+              style={{
+                left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
+                top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y}px)`,
+                width: displayBox.w * viewport.zoom,
+                height: displayBox.h * viewport.zoom,
+                transform: `translate(-50%, -50%) rotate(${displayRotation ?? 0}deg)`,
+              }}
+            >
+              {RESIZE_HANDLE_POSITIONS.map(({ handle: handleId, className, style }) => (
+                <div
+                  key={handleId}
+                  data-slot="docblocks/canvas-handle"
+                  data-handle={handleId}
+                  className={cn(
+                    "pointer-events-auto absolute size-2 rounded-full",
+                    "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)",
+                    className
+                  )}
+                  style={style}
+                />
+              ))}
+              {handleTarget.id !== rootBlockId && (
+                // The page miniature stands no rotate handle (the rotation
+                // affordance is off for the editor; the shapes keep it).
+                <div
+                  data-slot="docblocks/canvas-handle"
+                  data-handle="rotate"
+                  className={cn(
+                    "pointer-events-auto absolute size-3 cursor-grab rounded-full",
+                    "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)"
+                  )}
+                  style={{ left: "50%", top: -HANDLE_ROTATE_OFFSET_PX, transform: "translate(-50%, -50%)" }}
+                />
+              )}
+            </div>
+          )}
+        {connectorToolbarTarget !== null && (
+          // The connector's type toolbar (the single `connector`
+          // selection): the three line types above the line's midpoint.
+          <ConnectorToolbar
+            id={connectorToolbarTarget.id}
+            variant={connectorToolbarTarget.variant}
+            style={{
+              left: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).x}px)`,
+              top: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).y - TOOLBAR_OFFSET_PX}px)`,
+            }}
+          />
+        )}
+        {shapeToolbarTarget !== null && displayBox !== null && (
+          // The shape's color toolbar (the single `shape` selection): the
+          // fill/stroke sections above the box top edge. Hidden for the
+          // non-shape blocks, the multi selection, an active tool, and the
+          // in-flight sessions (the box is stale then).
+          <ShapeToolbar
+            id={shapeToolbarTarget.id}
+            fill={shapeToolbarTarget.fill}
+            stroke={shapeToolbarTarget.stroke}
+            variant={shapeToolbarTarget.variant}
+            text={shapeToolbarTarget.text}
+            fontSize={shapeToolbarTarget.fontSize}
+            fontFamily={shapeToolbarTarget.fontFamily}
+            textColor={shapeToolbarTarget.textColor}
+            textStyle={shapeToolbarTarget.textStyle}
+            textAlign={shapeToolbarTarget.textAlign}
+            style={{
+              left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
+              top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y - (displayBox.h / 2) * viewport.zoom - TOOLBAR_OFFSET_PX}px)`,
+            }}
+          />
+        )}
+        <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={() => viewport.setZoom(1)} />
+        <CanvasDock viewport={viewport} />
+      </div>
+    </CanvasTextEditProvider>
   );
 }
 
