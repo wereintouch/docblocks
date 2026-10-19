@@ -332,7 +332,12 @@ function connectorPath(start: Box, end: Box, variant: ConnectorVariant): Connect
  * candidates stand no route (the endpoint boxes nearly touch — the
  * corridor is sealed), the two-bend-line (U) candidates stand — the
  * shortest clear U; the fallback is the default elbow (the crossing
- * stands when no candidate is clear — the best effort).
+ * stands when no candidate is clear — the best effort). The candidate's
+ * SELECTION is the shortest CLEAR route over the whole pool (the
+ * single-bend's candidates + the U's; the list order — the default elbow
+ * first — breaks the length ties), so an unrelated obstacle's far edge
+ * cannot beat a near detour (a clear scene stands the default elbow
+ * byte-for-byte — it is the shortest clear candidate).
  */
 const ORTHO_STUB_PX = 12;
 /** The orthogonal detour's offset beyond the endpoints' span (canvas px). */
@@ -382,6 +387,19 @@ function routeHitsObstacles(points: readonly RoutePoint[], obstacles: readonly B
     }
   }
   return false;
+}
+
+/** The route's total length (the Manhattan span of the consecutive
+ * segments — the detour comparison's measure). */
+function routeLength(points: readonly RoutePoint[]): number {
+  let length = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i];
+    const q = points[i + 1];
+    if (p === undefined || q === undefined) continue;
+    length += Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
+  }
+  return length;
 }
 
 function connectorPathPoints(
@@ -470,43 +488,33 @@ function connectorPathPoints(
       points.push(b);
       return points;
     };
-    let points: RoutePoint[] | null = null;
-    for (let i = 0; i < structures.length && points === null; i++) {
+    // The selection pool: the single-bend's CLEAR candidates stand first
+    // (the list order — the default elbow first), the U's append (the
+    // sealed corridor's only clear set). The shortest stands; the pool's
+    // order breaks the length ties (deterministic).
+    const pool: { points: RoutePoint[]; length: number }[] = [];
+    for (let i = 0; i < structures.length; i++) {
       const structure = structures[i];
       const ts = tsList[i];
       if (structure === undefined || ts === undefined) continue;
       for (const t of ts) {
         const candidate = routeOf(structure(t));
         if (avoid && routeHitsObstacles(candidate, obstacles)) continue;
-        points = candidate;
-        break;
+        // The obstacle-free scene: the lengths stand equal (0) and the
+        // pool's first entry (the default elbow) stands the pick.
+        pool.push({ points: candidate, length: avoid ? routeLength(candidate) : 0 });
       }
     }
-    // The two-bend-line (U) candidates: the single-bend set stands no
-    // route when the endpoint boxes nearly touch (the corridor is sealed
-    // on both sides — no single bend line runs clear) — the U detour
-    // stands the route around the sealed side. Both orientations (the
-    // exit vertical / horizontal first), the corner's coords stand the
-    // span + the obstacle detours; the shortest CLEAR U stands (the
-    // length-ordered deterministic pick).
-    if (avoid && points === null) {
+    if (avoid) {
+      // The two-bend-line (U) candidates: both orientations (the exit
+      // vertical / horizontal first), the corner's coords stand the span +
+      // the obstacle detours.
       const xs = [Math.min(aOut.x, bIn.x) - ORTHO_DETOUR_PX, Math.max(aOut.x, bIn.x) + ORTHO_DETOUR_PX];
       const ys = [Math.min(aOut.y, bIn.y) - ORTHO_DETOUR_PX, Math.max(aOut.y, bIn.y) + ORTHO_DETOUR_PX];
       for (const r of obstacles ?? []) {
         xs.push(r.x - r.w / 2 - ORTHO_AVOID_MARGIN_PX, r.x + r.w / 2 + ORTHO_AVOID_MARGIN_PX);
         ys.push(r.y - r.h / 2 - ORTHO_AVOID_MARGIN_PX, r.y + r.h / 2 + ORTHO_AVOID_MARGIN_PX);
       }
-      const lengthOf = (pts: RoutePoint[]): number => {
-        let length = 0;
-        for (let i = 0; i < pts.length - 1; i++) {
-          const p = pts[i];
-          const q = pts[i + 1];
-          if (p === undefined || q === undefined) continue;
-          length += Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
-        }
-        return length;
-      };
-      const clear: { points: RoutePoint[]; length: number }[] = [];
       for (const y1 of ys) {
         for (const x1 of xs) {
           // F1: aOut -> (x1, aOut.y) -> (x1, y1) -> (bIn.x, y1) -> bIn
@@ -516,7 +524,7 @@ function connectorPathPoints(
             { x: x1, y: y1 },
             { x: bIn.x, y: y1 },
           ]);
-          if (!routeHitsObstacles(f1, obstacles)) clear.push({ points: f1, length: lengthOf(f1) });
+          if (!routeHitsObstacles(f1, obstacles)) pool.push({ points: f1, length: routeLength(f1) });
           // F2: aOut -> (aOut.x, y1) -> (x1, y1) -> (x1, bIn.y) -> bIn
           // (the exit vertical first).
           const f2 = routeOf([
@@ -524,13 +532,18 @@ function connectorPathPoints(
             { x: x1, y: y1 },
             { x: x1, y: bIn.y },
           ]);
-          if (!routeHitsObstacles(f2, obstacles)) clear.push({ points: f2, length: lengthOf(f2) });
+          if (!routeHitsObstacles(f2, obstacles)) pool.push({ points: f2, length: routeLength(f2) });
         }
       }
-      if (clear.length > 0) {
-        clear.sort((u, v) => u.length - v.length);
-        points = clear[0]!.points;
+    }
+    let points: RoutePoint[] | null = null;
+    if (pool.length > 0) {
+      let best = 0;
+      for (let i = 1; i < pool.length; i++) {
+        const length = pool[i]!.length;
+        if (length < pool[best]!.length) best = i;
       }
+      points = pool[best]!.points;
     }
     // The fallback (no clear candidate): the default elbow stands on its
     // OWN axis (the crossing stands when no route is clear).
