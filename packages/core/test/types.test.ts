@@ -340,6 +340,7 @@ describe("type shapes", () => {
     expectTypeOf<DatabaseCellValue>().toEqualTypeOf<string | number | boolean | string[]>();
     expectTypeOf<DatabaseBlock["rows"]>().toEqualTypeOf<Record<string, Record<string, DatabaseCellValue>>>();
     expectTypeOf<DatabaseBlock["rowOrder"]>().toEqualTypeOf<string[]>();
-    expectTypeOf<AttrsFor<"database">["columns"]>().toEqualTypeOf<DatabaseColumn[]>();
+    expectTypeOf<AttrsFor<"database">["columns"]>().toEqualTypeOf<DatabaseColumn[] | undefined>();
+    expectTypeOf<AttrsFor<"database">["tableId"]>().toEqualTypeOf<string | undefined>();
   });
 });

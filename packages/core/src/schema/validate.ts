@@ -350,8 +350,20 @@ function checkDatabaseCellValue(
  */
 function validateDatabaseBlock(block: Record<string, unknown>, path: string, errors: ValidationError[]): void {
   const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
+  // The dual shape: the external form (a non-empty `tableId` reference)
+  // carries no inline schema or rows — the rows and the columns live in
+  // the consumer's relational table; the inline form requires `columns`.
+  // The mutual exclusion is a database-level rule, like the type-dependent
+  // options presence.
+  const tableId = attrs !== undefined ? attrs.tableId : undefined;
+  const external = typeof tableId === "string" && tableId.length > 0;
   const columns: Array<{ id: string; type: string; options?: string[] }> = [];
-  if (attrs !== undefined && Array.isArray(attrs.columns)) {
+  if (external && attrs !== undefined && attrs.columns !== undefined) {
+    errors.push({
+      path: `${path}.attrs.columns`,
+      message: `The external form (the "tableId" reference) must not carry the inline "columns" schema.`,
+    });
+  } else if (attrs !== undefined && Array.isArray(attrs.columns)) {
     for (const column of attrs.columns) {
       if (!isPlainObject(column)) continue; // the column shape is reported by the attrs spec
       const id = typeof column.id === "string" ? column.id : "";
@@ -384,51 +396,74 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
       }
     }
   }
+  if (!external && attrs !== undefined && attrs.columns === undefined) {
+    errors.push({
+      path: `${path}.attrs.columns`,
+      message: `Missing required field "columns" (the inline form); the external form sets "tableId".`,
+    });
+  }
 
   const rows = isPlainObject(block.rows) ? block.rows : undefined;
   if (rows === undefined) {
+    if (!external && block.rows === undefined) {
+      errors.push({ path: `${path}.rows`, message: `Missing required field "rows".` });
+    } else if (block.rows !== undefined) {
+      errors.push({
+        path: `${path}.rows`,
+        message: `rows must be a plain object (got ${show(block.rows)}).`,
+      });
+    }
+  } else if (external && Object.keys(rows).length > 0) {
     errors.push({
       path: `${path}.rows`,
-      message:
-        block.rows === undefined
-          ? `Missing required field "rows".`
-          : `rows must be a plain object (got ${show(block.rows)}).`,
+      message: `The external form (the "tableId" reference) must not carry inline rows.`,
     });
   }
-  for (const [rowId, cells] of Object.entries(rows ?? {})) {
-    if (!isPlainObject(cells)) {
-      errors.push({
-        path: `${path}.rows.${rowId}`,
-        message: `Row "${rowId}" must be a plain object of cell values (got ${show(cells)}).`,
-      });
-      continue;
-    }
-    for (const [colId, value] of Object.entries(cells)) {
-      const column = columns.find((entry) => entry.id === colId);
-      if (column === undefined) {
+  if (!external) {
+    for (const [rowId, cells] of Object.entries(rows ?? {})) {
+      if (!isPlainObject(cells)) {
         errors.push({
-          path: `${path}.rows.${rowId}.${colId}`,
-          message: `Unknown column id "${colId}" in row "${rowId}".`,
+          path: `${path}.rows.${rowId}`,
+          message: `Row "${rowId}" must be a plain object of cell values (got ${show(cells)}).`,
         });
         continue;
       }
-      const violation = checkDatabaseCellValue(column.type, column.options, value);
-      if (violation !== null) {
-        errors.push({
-          path: `${path}.rows.${rowId}.${colId}`,
-          message: `Cell (row "${rowId}", column "${colId}") ${violation} (got ${show(value)}).`,
-        });
+      for (const [colId, value] of Object.entries(cells)) {
+        const column = columns.find((entry) => entry.id === colId);
+        if (column === undefined) {
+          errors.push({
+            path: `${path}.rows.${rowId}.${colId}`,
+            message: `Unknown column id "${colId}" in row "${rowId}".`,
+          });
+          continue;
+        }
+        const violation = checkDatabaseCellValue(column.type, column.options, value);
+        if (violation !== null) {
+          errors.push({
+            path: `${path}.rows.${rowId}.${colId}`,
+            message: `Cell (row "${rowId}", column "${colId}") ${violation} (got ${show(value)}).`,
+          });
+        }
       }
     }
   }
 
   const rowOrder = block.rowOrder;
   if (rowOrder === undefined) {
-    errors.push({ path: `${path}.rowOrder`, message: `Missing required field "rowOrder".` });
+    if (!external) errors.push({ path: `${path}.rowOrder`, message: `Missing required field "rowOrder".` });
     return;
   }
   if (!Array.isArray(rowOrder)) {
     errors.push({ path: `${path}.rowOrder`, message: `rowOrder must be an array of row ids (got ${show(rowOrder)}).` });
+    return;
+  }
+  if (external) {
+    if (rowOrder.length > 0) {
+      errors.push({
+        path: `${path}.rowOrder`,
+        message: `The external form (the "tableId" reference) must not carry inline row order.`,
+      });
+    }
     return;
   }
   const orderIds: string[] = [];

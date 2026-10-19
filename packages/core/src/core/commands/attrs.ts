@@ -51,8 +51,10 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   }
 
   // A database's post-patch columns must keep the strict invariants against
-  // the existing rows (like a table's cols against its row cell counts).
-  if (type === "database" && patch.columns !== undefined) {
+  // the existing rows (like a table's cols against its row cell counts);
+  // a post-patch `tableId` (the external form) must keep them too — the
+  // inline form's columns cannot stand next to the reference.
+  if (type === "database" && (patch.columns !== undefined || patch.tableId !== undefined)) {
     assertValidDatabasePatch(snapshot, merged, id);
   }
 

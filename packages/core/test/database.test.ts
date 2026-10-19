@@ -266,7 +266,9 @@ describe("caller-state isolation (no aliasing into the CRDT)", () => {
     column.name = "MUTATED";
     const block = doc.getBlock(db);
     if (block === null || block.type !== "database") throw new Error("unreachable: the block must be a database");
-    expect(block.attrs.columns).toHaveLength(1);
-    expect(block.attrs.columns[0]?.name).toBe("Name");
+    const columns = block.attrs.columns;
+    if (columns === undefined) throw new Error("unreachable: the block must carry its columns");
+    expect(columns).toHaveLength(1);
+    expect(columns[0]?.name).toBe("Name");
   });
 });

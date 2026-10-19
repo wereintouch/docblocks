@@ -87,6 +87,18 @@ class UnknownColumnError extends DocBlocksError {
   }
 }
 
+/**
+ * The command targets a database block in the external form (the
+ * `tableId` reference): the rows and the schema live in the consumer's
+ * relational database, not in the document — the row commands refuse.
+ */
+class ExternalDatabaseError extends DocBlocksError {
+  constructor(message: string) {
+    super(message);
+    this.name = "ExternalDatabaseError";
+  }
+}
+
 /** A cell value does not match the column type's value contract. */
 class InvalidCellValueError extends DocBlocksError {
   constructor(message: string) {
@@ -152,6 +164,7 @@ export {
   DetachedBlockError,
   DestroyedViewError,
   DocBlocksError,
+  ExternalDatabaseError,
   InvalidAttrsError,
   InvalidCellValueError,
   InvalidChildError,
