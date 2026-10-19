@@ -46,6 +46,8 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
             onEndpointDrag={() => {
               /* The page view's embedded surface stands the overlay inert. */
             }}
+            movePreview={null}
+            resizePreview={null}
           />
         </BlockContext.Provider>
       </div>
