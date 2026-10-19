@@ -735,6 +735,64 @@ test.describe("the connector arrows", () => {
       await close();
     }
   });
+
+  test("the single drag re-anchors the endpoint to the same block's other port (the own port only stands the detach)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-reanchor");
+    try {
+      await toCanvas(a, "a");
+      const { left, right } = await seedShapes(a, "a");
+      const connId = await a.evaluate(
+        ({ left, right }) => {
+          const doc = window.__paneDocs?.a ?? null;
+          if (doc === null) throw new Error("the pane's doc is not mounted");
+          const json = doc.toJSON();
+          const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+          if (surfaceId === undefined) throw new Error("the surface is missing");
+          return doc.insertBlock(
+            "connector",
+            { start: { blockId: left, port: "east" }, end: { blockId: right, port: "west" } },
+            { parent: surfaceId }
+          );
+        },
+        { left, right }
+      );
+      const center = await canvasCenter(a, "a");
+      // The line's click selects it: the endpoint handles stand.
+      const mid = await lineMid(a, "a", connId);
+      await a.mouse.click(mid.x, mid.y);
+      const endHandle = a.locator(
+        `[data-connector-endpoint="end"][data-connector-endpoint-id="${connId}"] circle:nth-child(2)`
+      );
+
+      // The SINGLE continuous drag: the end at the right box's WEST port,
+      // into the air, then to the right box's EAST port — the re-anchor
+      // stands in one drag (the old detach rule excluded the whole own
+      // block and the snap never stood). The connect badge stands BESIDE
+      // the port (not the line's
+      // midpoint) while over it.
+      const endBox = (await endHandle.boundingBox())!;
+      const rightEast = { x: center.x + 400, y: center.y + 100 };
+      await a.mouse.move(endBox.x + endBox.width / 2, endBox.y + endBox.height / 2);
+      await a.mouse.down();
+      await a.mouse.move((endBox.x + center.x - 50) / 2, (endBox.y + center.y + 150) / 2, { steps: 8 });
+      await a.mouse.move(rightEast.x, rightEast.y, { steps: 8 });
+      const badge = a.locator(`[data-connector-snap-badge="${connId}"]`);
+      await expect(badge).toHaveCount(1);
+      // The badge's circle stands the port point + the east normal's
+      // offset (400 + 16, 100).
+      const badgeBox = (await badge.boundingBox())!;
+      expect(Math.abs(badgeBox.x + badgeBox.width / 2 - (center.x + 416))).toBeLessThan(2);
+      expect(Math.abs(badgeBox.y + badgeBox.height / 2 - (center.y + 100))).toBeLessThan(2);
+      await a.mouse.up();
+      await expect
+        .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
+        .toEqual(expect.objectContaining({ end: { blockId: right, port: "east" } }));
+    } finally {
+      await close();
+    }
+  });
 });
 
 /** The connector's full endpoint refs (the blockId / the port / the free x-y). */

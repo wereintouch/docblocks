@@ -325,9 +325,15 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     // point) — the straight path's last point is the port.
     const path = r.view.querySelector<SVGPathElement>(`[data-connector-id="${r.connectorId}"]`)!;
     expect(path.getAttribute("d")!.endsWith("-100 30")).toBe(true);
-    // The connect badge (the green Link over the line's midpoint).
+    // The connect badge stands BESIDE the snapped port (the port point +
+    // the outward normal's offset — not the line's midpoint):
+    // a.south port at (-100, 30), the south
+    // normal → the badge center at (-100, 46).
     const badge = r.view.querySelector(`[data-connector-snap-badge="${r.connectorId}"]`);
     expect(badge).not.toBeNull();
+    const badgeCircle = badge!.querySelector("circle")!;
+    expect(badgeCircle.getAttribute("cx")).toBe("-100");
+    expect(badgeCircle.getAttribute("cy")).toBe("46");
     // The snapped port dot stands the connect green (the badge's parity).
     const snappedDot = r.view.querySelector("[data-canvas-port-snapped]");
     expect(snappedDot).not.toBeNull();
@@ -339,6 +345,45 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     expect(connector.attrs.end).toEqual({ blockId: r.a, port: "south" });
     // The badge drops with the drag.
     expect(r.view.querySelector(`[data-connector-snap-badge="${r.connectorId}"]`)).toBeNull();
+  });
+
+  it("the drag re-anchors the endpoint to the SAME block's other port (the own port only stands the detach)", () => {
+    const r = renderWithConnector();
+    act(() => {
+      r.setSelection("blocks", [r.connectorId]);
+    });
+    // The end's anchor stands b's WEST edge (the sticky anchor toward a —
+    // the excluded pair is { b, west }). The drag to b's EAST port (b
+    // (100, 0, 100x60): the east port at (150, 0)) re-anchors to the
+    // other port in one continuous drag (the owner's detach-then-restick
+    // workaround stands no longer needed — the edge's side takes the
+    // frozen direction over).
+    const endHandle = r.handle("end");
+    expect(endHandle).not.toBeNull();
+    fireEvent.pointerDown(endHandle!, { clientX: 50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerMove(r.view, { clientX: 100, clientY: 60, buttons: 1, pointerId: 1 });
+    fireEvent.pointerMove(r.view, { clientX: 150, clientY: 0, buttons: 1, pointerId: 1 });
+    // The live snap stands while over the other port (the badge + the
+    // stuck line's end at the port).
+    const path = r.view.querySelector<SVGPathElement>(`[data-connector-id="${r.connectorId}"]`)!;
+    expect(r.view.querySelector(`[data-connector-snap-badge="${r.connectorId}"]`)).not.toBeNull();
+    expect(path.getAttribute("d")!.endsWith("150 0")).toBe(true);
+    fireEvent.pointerUp(r.view, { clientX: 150, clientY: 0, pointerId: 1 });
+    const connector = r.doc.getBlock(r.connectorId);
+    if (connector === null || connector.type !== "connector") throw new Error("the connector vanished");
+    expect(connector.attrs.end).toEqual({ blockId: r.b, port: "east" });
+    // The release on the endpoint's OWN anchor port still detaches (the
+    // no-op re-anchor): the end back to b's west side stands the free
+    // point (no snap — the pair is excluded).
+    const endHandle2 = r.handle("end");
+    expect(endHandle2).not.toBeNull();
+    fireEvent.pointerDown(endHandle2!, { clientX: 150, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
+    fireEvent.pointerMove(r.view, { clientX: 100, clientY: 100, buttons: 1, pointerId: 1 });
+    fireEvent.pointerMove(r.view, { clientX: 60, clientY: 20, buttons: 1, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { clientX: 60, clientY: 20, pointerId: 1 });
+    const connector2 = r.doc.getBlock(r.connectorId);
+    if (connector2 === null || connector2.type !== "connector") throw new Error("the connector vanished");
+    expect(connector2.attrs.end).toEqual(expect.objectContaining({ x: 60, y: 20, port: "east" }));
   });
 });
 

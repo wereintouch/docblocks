@@ -39,9 +39,10 @@ const LABEL_FONT_SIZE = 12;
 const HANDLE_RADIUS = 4;
 /** The endpoint handle's hit area (the wider invisible circle). */
 const HANDLE_HIT_RADIUS = 8;
-/** The connect badge's radius (canvas px, above the line's midpoint). */
+/** The connect badge's radius (canvas px, beside the snapped port). */
 const SNAP_BADGE_RADIUS = 10;
-/** The connect badge's lift over the line's midpoint (canvas px). */
+/** The connect badge's offset from the snapped port along its outward
+ * normal (canvas px — the badge stands outside the box, beside the port). */
 const SNAP_BADGE_LIFT = 16;
 
 /** The selected line's endpoint handle data (the draw point + the key). */
@@ -284,25 +285,27 @@ function ConnectorLayer({
       ) : null;
 
     // The connect badge (the endpoint drag's port snap): the green Link
-    // over the line's midpoint (the lift keeps it off the stroke) — the
-    // "the point is connected" indicator.
+    // beside the SNAPPED PORT (the port point + the outward normal's
+    // offset — the "the point is connected" indicator; it follows the port, not the line's midpoint).
     // A nested svg stands the icon at the badge's center (the icon
     // component's props spread onto its own svg element — the x / y stand
     // the nested viewport).
+    const dragDraw =
+      draggingThis && endpointDrag !== null ? (endpointDrag.which === "start" ? startDraw : endDraw) : null;
     const snapBadge =
-      draggingThis && endpointPreview !== null && endpointPreview.snap !== null ? (
+      draggingThis && dragDraw !== null && endpointPreview !== null && endpointPreview.snap !== null ? (
         <g data-connector-snap-badge={childId} pointerEvents="none">
           <circle
-            cx={path.mid.x}
-            cy={path.mid.y - SNAP_BADGE_LIFT}
+            cx={dragDraw.x + dragDraw.nx * SNAP_BADGE_LIFT}
+            cy={dragDraw.y + dragDraw.ny * SNAP_BADGE_LIFT}
             r={SNAP_BADGE_RADIUS}
             fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
             stroke={CONNECT_COLOR}
             strokeWidth={1.5}
           />
           <Link
-            x={path.mid.x - 7}
-            y={path.mid.y - SNAP_BADGE_LIFT - 7}
+            x={dragDraw.x + dragDraw.nx * SNAP_BADGE_LIFT - 7}
+            y={dragDraw.y + dragDraw.ny * SNAP_BADGE_LIFT - 7}
             width={14}
             height={14}
             viewBox="0 0 24 24"
