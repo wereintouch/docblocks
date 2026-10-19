@@ -151,13 +151,24 @@ interface EndpointPoint {
   ny: number;
 }
 
-/** The port side's outward normal (the curved line bows out from it). */
+/** The port's outward normal (the curved line bows out from it). */
 const PORT_NORMAL: Record<CanvasPort, { nx: number; ny: number }> = {
   north: { nx: 0, ny: -1 },
   east: { nx: 1, ny: 0 },
   south: { nx: 0, ny: 1 },
   west: { nx: -1, ny: 0 },
 };
+
+/** The port the unit normal stands (the direction's frozen form — the
+ * detach keeps the last anchor's side); null on the zero vector (a
+ * directionless endpoint stands no port). */
+function portOfNormal(nx: number, ny: number): CanvasPort | null {
+  if (nx === 1) return "east";
+  if (nx === -1) return "west";
+  if (ny === 1) return "south";
+  if (ny === -1) return "north";
+  return null;
+}
 
 /**
  * The connector endpoint resolved to a POINT in the surface coordinate
@@ -177,7 +188,14 @@ function endpointPointOf(
   blocks: Record<BlockId, Block>,
   toward: { x: number; y: number }
 ): EndpointPoint | null {
-  if (ref.x !== undefined && ref.y !== undefined) return { x: ref.x, y: ref.y, nx: 0, ny: 0 };
+  if (ref.x !== undefined && ref.y !== undefined) {
+    // The free point stands as-is. The port (when present) stands the
+    // FROZEN direction the line leaves the point at (the last anchor's
+    // side, kept while the endpoint stands off the blocks); absent — the
+    // zero normal (the line bows out along the segment at render time).
+    const normal = ref.port !== undefined ? PORT_NORMAL[ref.port] : { nx: 0, ny: 0 };
+    return { x: ref.x, y: ref.y, nx: normal.nx, ny: normal.ny };
+  }
   if (ref.docId !== undefined || ref.blockId === undefined) return null;
   if (!siblings.includes(ref.blockId)) return null;
   const target = blocks[ref.blockId];
@@ -359,6 +377,7 @@ export {
   endpointPointOf,
   isCanvasSubType,
   pageCardStyle,
+  portOfNormal,
   portsOf,
 };
 

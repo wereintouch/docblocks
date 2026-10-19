@@ -564,7 +564,9 @@ test.describe("the connector arrows", () => {
         .toEqual(expect.objectContaining({ start: { blockId: right, port: "south" } }));
 
       // Drag the END endpoint to the empty canvas (no port in reach): the
-      // free point at the release (surface-local).
+      // free point at the release (surface-local) WITH the FROZEN direction
+      // (the end's last anchor stood the right box's south edge toward the
+      // south port — the line stands its direction while in the air).
       const endBox = (await endHandle.boundingBox())!;
       const freeTo = { x: center.x - 50, y: center.y + 400 };
       await a.mouse.move(endBox.x + endBox.width / 2, endBox.y + endBox.height / 2);
@@ -574,7 +576,7 @@ test.describe("the connector arrows", () => {
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
-        .toEqual(expect.objectContaining({ end: { x: -50, y: 400 } }));
+        .toEqual(expect.objectContaining({ end: { x: -50, y: 400, port: "south" } }));
       const wireAfter = await outCount(a, "a");
       expect(wireAfter).toBe(wireBefore + 1); // one update per endpoint commit
 
@@ -660,6 +662,75 @@ test.describe("the connector arrows", () => {
       // The follow stands in the other pane (the sync pin): the line
       // re-anchors from the committed geometry.
       await expect.poll(async () => lineD(b, "b", connector), SETTLE).toBe(d2);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the detached endpoint stands its last direction (the frozen port in the free ref; the re-connection takes the edge's side)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-free-dir");
+    try {
+      await toCanvas(a, "a");
+      const { left, right } = await seedShapes(a, "a");
+      const connId = await a.evaluate(
+        ({ left, right }) => {
+          const doc = window.__paneDocs?.a ?? null;
+          if (doc === null) throw new Error("the pane's doc is not mounted");
+          const json = doc.toJSON();
+          const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+          if (surfaceId === undefined) throw new Error("the surface is missing");
+          return doc.insertBlock(
+            "connector",
+            { start: { blockId: left }, end: { blockId: right }, variant: "curved" },
+            { parent: surfaceId }
+          );
+        },
+        { left, right }
+      );
+      const center = await canvasCenter(a, "a");
+      // The line's click selects it: the endpoint handles stand.
+      const mid = await lineMid(a, "a", connId);
+      await a.mouse.click(mid.x, mid.y);
+      const endHandle = a.locator(
+        `[data-connector-endpoint="end"][data-connector-endpoint-id="${connId}"] circle:nth-child(2)`
+      );
+
+      // The end's anchor stands the right box's WEST edge (the legacy
+      // anchor toward the left box). The drag to the empty canvas keeps
+      // the direction in the air: the curved line's c2 control point
+      // stands WEST of the free point (the frozen west normal — the line
+      // leaves the point the way it left the box).
+      const endBox = (await endHandle.boundingBox())!;
+      const freeTo = { x: center.x - 50, y: center.y + 150 };
+      await a.mouse.move(endBox.x + endBox.width / 2, endBox.y + endBox.height / 2);
+      await a.mouse.down();
+      await a.mouse.move((endBox.x + freeTo.x) / 2, (endBox.y + freeTo.y) / 2, { steps: 8 });
+      await a.mouse.move(freeTo.x, freeTo.y, { steps: 8 });
+      const dFree = (await lineD(a, "a", connId))!;
+      const c2xFree = Number(dFree.split("C ")[1]!.split(",")[1]!.trim().split(" ")[0]);
+      expect(c2xFree).toBeLessThan(-50);
+      await a.mouse.up();
+      const attrsFree = await fullEndpointAttrs(a, "a", connId);
+      // The free ref stands the FROZEN direction (the last anchor's side).
+      expect(attrsFree?.end).toEqual({ x: -50, y: 150, port: "west" });
+
+      // The re-connection to the right box's EAST port takes the edge's
+      // side over the frozen one: the c2 control point stands EAST of
+      // the port (the line leaves the port outward).
+      const rightEast = { x: center.x + 400, y: center.y + 100 };
+      const endBox2 = (await endHandle.boundingBox())!;
+      await a.mouse.move(endBox2.x + endBox2.width / 2, endBox2.y + endBox2.height / 2);
+      await a.mouse.down();
+      await a.mouse.move(rightEast.x, rightEast.y, { steps: 10 });
+      await a.mouse.up();
+      await expect
+        .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
+        .toEqual(expect.objectContaining({ end: { blockId: right, port: "east" } }));
+      const dPort = (await lineD(a, "a", connId))!;
+      const c2xPort = Number(dPort.split("C ")[1]!.split(",")[1]!.trim().split(" ")[0]);
+      expect(c2xPort).toBeGreaterThan(400);
     } finally {
       await close();
     }

@@ -1,8 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 
-import type { Doc } from "docblocks-core";
+import type { Block, Doc } from "docblocks-core";
 
-import { effectiveGeometry, portsOf } from "../blocks/canvas-geometry";
+import { effectiveGeometry, endpointPointOf, portOfNormal, portsOf } from "../blocks/canvas-geometry";
 import type { CanvasPort } from "../blocks/canvas-geometry";
 import { findParentSurface, firstSurface, placeCanvasText, placeFrame, placePenStroke, placeShape } from "./insert";
 import {
@@ -108,6 +108,10 @@ interface EndpointSession {
   dragging: boolean;
   /** The last preview point (canvas px), fed by the move. */
   point: CanvasPoint;
+  /** The endpoint's frozen direction (the last anchor's side — the free
+   *  point commit keeps it; the re-connection to an edge takes the
+   *  edge's side over it). */
+  direction: CanvasPort | null;
 }
 
 /** The rendered endpoint drag target (the handles' live preview). */
@@ -501,6 +505,22 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       const surfaceId = findParentSurface(doc, connectorId);
       if (surfaceId === null) return;
       const canvas = screenToCanvas(pointer, zoom, pan);
+      // The frozen direction: the free
+      // point commit keeps the endpoint's last direction (the port's side
+      // / the legacy anchor's edge / the stored frozen port — the line
+      // stands its direction while the endpoint is in the air).
+      const attrs = block.attrs;
+      const children = doc.getChildren(surfaceId);
+      const blocks: Record<string, Block> = {};
+      for (const childId of children) {
+        const child = doc.getBlock(childId);
+        if (child !== null) blocks[childId] = child;
+      }
+      const other = attrs[which === "start" ? "end" : "start"];
+      const otherResolved = endpointPointOf(other, children, blocks, { x: 0, y: 0 });
+      const toward = otherResolved !== null ? { x: otherResolved.x, y: otherResolved.y } : { x: 0, y: 0 };
+      const resolved = endpointPointOf(attrs[which], children, blocks, toward);
+      const direction = resolved !== null ? portOfNormal(resolved.nx, resolved.ny) : null;
       endpointRef.current = {
         connectorId,
         surfaceId,
@@ -509,6 +529,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
         startClientY,
         dragging: false,
         point: canvas,
+        direction,
       };
       setConnectorEndpoint({ connectorId, which });
       setConnectorEndpointPreview(null);
@@ -555,7 +576,11 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       const ref =
         snap !== null
           ? { blockId: snap.blockId, port: snap.port }
-          : { x: Number(session.point.x.toFixed(2)), y: Number(session.point.y.toFixed(2)) };
+          : {
+              x: Number(session.point.x.toFixed(2)),
+              y: Number(session.point.y.toFixed(2)),
+              ...(session.direction !== null ? { port: session.direction } : {}),
+            };
       try {
         doc.transact(() => {
           doc.updateBlock(session.connectorId, session.which === "start" ? { start: ref } : { end: ref });

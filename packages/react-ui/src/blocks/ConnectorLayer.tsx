@@ -168,14 +168,11 @@ function ConnectorLayer({
     const endFree = attrs.end.x !== undefined && attrs.end.y !== undefined ? { x: attrs.end.x, y: attrs.end.y } : null;
     const startToward = endBox !== null ? { x: endBox.x, y: endBox.y } : (endFree ?? { x: 0, y: 0 });
     const endToward = startBox !== null ? { x: startBox.x, y: startBox.y } : (startFree ?? { x: 0, y: 0 });
-    const startPoint =
-      startFree !== null
-        ? { x: startFree.x, y: startFree.y, nx: 0, ny: 0 }
-        : endpointPointOf(attrs.start, childIds, previewBlocks, startToward);
-    const endPoint =
-      endFree !== null
-        ? { x: endFree.x, y: endFree.y, nx: 0, ny: 0 }
-        : endpointPointOf(attrs.end, childIds, previewBlocks, endToward);
+    // The resolution stands the stored attrs (the previewed blocks): a
+    // free point with a port stands the frozen direction (the normal),
+    // a block ref the port / the legacy anchor.
+    const startPoint = endpointPointOf(attrs.start, childIds, previewBlocks, startToward);
+    const endPoint = endpointPointOf(attrs.end, childIds, previewBlocks, endToward);
     if (startPoint === null || endPoint === null) continue; // skipped: the wrapper carries data-missing
 
     const selected = selectedIds.includes(childId);
@@ -185,36 +182,39 @@ function ConnectorLayer({
     // normal on the preview: the free point bows out at render time.
     // The live snap (the drag's stick effect): within the snap radius the
     // preview stands at the PORT (the line's end sticks to it) — not the
-    // raw cursor point.
-    const snapPoint = (which: "start" | "end"): { x: number; y: number } | null => {
+    // raw cursor point. The snap stands the PORT's normal (the curve bows
+    // out from it); the in-air preview stands the STOREd endpoint's
+    // direction (the frozen normal — the line stands its direction while
+    // the endpoint is in the air).
+    const snapPoint = (which: "start" | "end"): EndpointPoint | null => {
       if (!draggingThis || endpointDrag === null || endpointDrag.which !== which || endpointPreview === null) {
         return null;
       }
       const snap = endpointPreview.snap;
-      if (snap === null) return endpointPreview.point;
+      const point = { x: endpointPreview.point.x, y: endpointPreview.point.y };
+      if (snap === null) {
+        // The frozen direction: the stored endpoint's resolved normal
+        // (startPoint / endPoint stand the stored attrs — the drag stands
+        // no doc write).
+        const stored = which === "start" ? startPoint : endPoint;
+        return { ...point, nx: stored.nx, ny: stored.ny };
+      }
       const sibling = previewBlocks[snap.blockId];
-      if (sibling === undefined) return endpointPreview.point;
+      if (sibling === undefined) return { ...point, nx: 0, ny: 0 };
       const p = portsOf(effectiveGeometry(sibling))[snap.port];
-      return { x: p.x, y: p.y };
+      return {
+        x: p.x,
+        y: p.y,
+        nx: snap.port === "east" ? 1 : snap.port === "west" ? -1 : 0,
+        ny: snap.port === "south" ? 1 : snap.port === "north" ? -1 : 0,
+      };
     };
     const startDraw: EndpointPoint =
       draggingThis && endpointDrag !== null && endpointDrag.which === "start"
-        ? {
-            x: snapPoint("start")?.x ?? startPoint.x,
-            y: snapPoint("start")?.y ?? startPoint.y,
-            nx: 0,
-            ny: 0,
-          }
+        ? (snapPoint("start") ?? startPoint)
         : startPoint;
     const endDraw: EndpointPoint =
-      draggingThis && endpointDrag !== null && endpointDrag.which === "end"
-        ? {
-            x: snapPoint("end")?.x ?? endPoint.x,
-            y: snapPoint("end")?.y ?? endPoint.y,
-            nx: 0,
-            ny: 0,
-          }
-        : endPoint;
+      draggingThis && endpointDrag !== null && endpointDrag.which === "end" ? (snapPoint("end") ?? endPoint) : endPoint;
 
     const stroke = selected ? SELECTED_STROKE : STROKE;
     const strokeWidth = selected ? SELECTED_STROKE_WIDTH : CONNECTOR_STROKE_WIDTH;

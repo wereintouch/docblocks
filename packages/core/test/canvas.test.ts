@@ -148,13 +148,18 @@ describe("strict validation (validateDoc)", () => {
     expect(noRefs.some((e) => e.path === "blocks.c1.attrs.end")).toBe(true);
   });
 
-  it("accepts the endpoint shapes (the port on a ref, the free point) and rejects their malformed forms", () => {
-    // A ref + port and a free point: both valid (2026-10-15 additive).
+  it("accepts the endpoint shapes (the port on a ref, the free point, the frozen direction) and rejects their malformed forms", () => {
+    // A ref + port, a free point, and a free point WITH a port (the
+    // frozen direction — the last anchor's side): all valid (2026-10-15 additive).
     const ported = validateDoc(
       withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1", port: "east" }, end: { x: 120, y: -40 } } })
     );
     expect(ported).toEqual([]);
-    // A port without a ref is meaningless.
+    const frozen = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: { x: 40, y: 90, port: "south" }, end: { blockId: "sh1" } } })
+    );
+    expect(frozen).toEqual([]);
+    // A port without a ref or a free point is meaningless.
     const portAlone = validateDoc(
       withBlock("c1", { type: "connector", attrs: { start: { port: "north" }, end: { blockId: "sh1" } } })
     );
