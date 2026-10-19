@@ -320,12 +320,76 @@ function connectorPath(start: Box, end: Box, variant: ConnectorVariant): Connect
 /**
  * The connector's path between the RESOLVED endpoint points (the variant's
  * shape): the free-port generalization of connectorPath — straight is the
- * segment, orthogonal the right-angled elbow through the dominant axis'
- * midpoint, curved the cubic bow (a zero normal — the free point — bows
- * out along the segment's own direction, so the line leaves the point the
- * way it arrived).
+ * segment, orthogonal the right-angled elbow (the port endpoints stand a
+ * STUB along their normal — the line leaves / enters the edge at a right
+ * angle, the 12-px minimum offset from the block), curved the cubic bow (a zero normal — the free point —
+ * bows out along the segment's own direction, so the line leaves the
+ * point the way it arrived). The orthogonal's AVOIDANCE: when
+ * `obstacles` stand (the surface's sibling
+ * boxes), the bend line runs the first CLEAR candidate (the default
+ * elbow, then the alternatives, then the outer detours) — the line never
+ * crosses a figure when a clear route stands; when the single-bend
+ * candidates stand no route (the endpoint boxes nearly touch — the
+ * corridor is sealed), the two-bend-line (U) candidates stand — the
+ * shortest clear U; the fallback is the default elbow (the crossing
+ * stands when no candidate is clear — the best effort).
  */
-function connectorPathPoints(a: EndpointPoint, b: EndpointPoint, variant: ConnectorVariant): ConnectorPath {
+const ORTHO_STUB_PX = 12;
+/** The orthogonal detour's offset beyond the endpoints' span (canvas px). */
+const ORTHO_DETOUR_PX = 24;
+/** The obstacle detour's clearance from the obstacle's edge (canvas px —
+ * the parity with the stub's offset). */
+const ORTHO_AVOID_MARGIN_PX = 12;
+/** The route-avoidance's boundary tolerance (canvas px — a route 0.5px
+ * off a figure's edge stands clear of it). */
+const ROUTE_EPS = 0.5;
+
+/** A point of the computed route (the orthogonal's bend space). */
+interface RoutePoint {
+  x: number;
+  y: number;
+}
+
+/** Whether the axis-aligned segment crosses the rect's INTERIOR (the
+ * boundary stand clear — a route along the edge is not a crossing).
+ * The 0.5-px tolerance keeps a route hugging the edge from standing as
+ * clear. */
+function segmentHitsRect(x1: number, y1: number, x2: number, y2: number, r: Box): boolean {
+  const left = r.x - r.w / 2 + ROUTE_EPS;
+  const right = r.x + r.w / 2 - ROUTE_EPS;
+  const top = r.y - r.h / 2 + ROUTE_EPS;
+  const bottom = r.y + r.h / 2 - ROUTE_EPS;
+  if (right <= left || bottom <= top) return false;
+  if (Math.abs(x1 - x2) < 1e-9) {
+    const yLo = Math.min(y1, y2);
+    const yHi = Math.max(y1, y2);
+    return x1 > left && x1 < right && yLo < bottom && yHi > top;
+  }
+  const xLo = Math.min(x1, x2);
+  const xHi = Math.max(x1, x2);
+  return y1 > top && y1 < bottom && xLo < right && xHi > left;
+}
+
+/** Whether the route (the axis-aligned consecutive segments) crosses any
+ * obstacle's interior. */
+function routeHitsObstacles(points: readonly RoutePoint[], obstacles: readonly Box[]): boolean {
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i];
+    const q = points[i + 1];
+    if (p === undefined || q === undefined) continue;
+    for (const r of obstacles) {
+      if (segmentHitsRect(p.x, p.y, q.x, q.y, r)) return true;
+    }
+  }
+  return false;
+}
+
+function connectorPathPoints(
+  a: EndpointPoint,
+  b: EndpointPoint,
+  variant: ConnectorVariant,
+  obstacles?: readonly Box[]
+): ConnectorPath {
   const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
   if (variant === "straight") {
     return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
@@ -336,19 +400,150 @@ function connectorPathPoints(a: EndpointPoint, b: EndpointPoint, variant: Connec
     if (dx === 0 && dy === 0) {
       return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
     }
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      const bendX = (a.x + b.x) / 2;
-      return {
-        d: `M ${a.x} ${a.y} L ${bendX} ${a.y} L ${bendX} ${b.y} L ${b.x} ${b.y}`,
-        end: { x: b.x, y: b.y },
-        mid: { x: bendX, y: (a.y + b.y) / 2 },
-      };
+    // The port's STUB: the anchored endpoint (the non-zero normal) leaves
+    // / is entered along its OUTWARD normal for the fixed offset — the
+    // approach stands outside the block (the side run is parallel to the
+    // edge at the 12-px offset and turns into the port at a right
+    // angle); the free point (the zero normal) stands no stub (the elbow
+    // reaches it directly).
+    const aAnchored = a.nx !== 0 || a.ny !== 0;
+    const bAnchored = b.nx !== 0 || b.ny !== 0;
+    const aOut = aAnchored ? { x: a.x + a.nx * ORTHO_STUB_PX, y: a.y + a.ny * ORTHO_STUB_PX } : a;
+    const bIn = bAnchored ? { x: b.x + b.nx * ORTHO_STUB_PX, y: b.y + b.ny * ORTHO_STUB_PX } : b;
+    // The bend-line candidates (the deterministic order — the default
+    // elbow stands first, so a clear scene stands byte-for-byte): the
+    // dominant axis' midpoint, the other axis' midpoint, the L-shapes
+    // (the bend on an endpoint's own line), and the outer detours (the
+    // span offset by the detour px, both sides).
+    const horizontal = Math.abs(dx) >= Math.abs(dy);
+    const structures: Array<(t: number) => RoutePoint[]> = [
+      horizontal
+        ? (t) => [
+            { x: t, y: aOut.y },
+            { x: t, y: bIn.y },
+          ]
+        : (t) => [
+            { x: aOut.x, y: t },
+            { x: bIn.x, y: t },
+          ],
+      horizontal
+        ? (t) => [
+            { x: aOut.x, y: t },
+            { x: bIn.x, y: t },
+          ]
+        : (t) => [
+            { x: t, y: aOut.y },
+            { x: t, y: bIn.y },
+          ],
+    ];
+    const avoid = obstacles !== undefined && obstacles.length > 0;
+    // The per-structure candidate order (the structure's OWN axis
+    // coords): the midpoint (the default elbow), the L-shapes (the bend
+    // on an endpoint's own line), the outer detours (the span offset,
+    // both sides), and the OBSTACLE detours (each obstacle's edge on the
+    // structure's axis offset by the margin — a box in the corridor
+    // stands the route around it).
+    const tsOf = (c1: number, c2: number, structureHorizontal: boolean): number[] => {
+      const ts_ = [(c1 + c2) / 2, c2, c1, Math.min(c1, c2) - ORTHO_DETOUR_PX, Math.max(c1, c2) + ORTHO_DETOUR_PX];
+      if (avoid) {
+        for (const r of obstacles ?? []) {
+          if (structureHorizontal) {
+            ts_.push(r.x - r.w / 2 - ORTHO_AVOID_MARGIN_PX, r.x + r.w / 2 + ORTHO_AVOID_MARGIN_PX);
+          } else {
+            ts_.push(r.y - r.h / 2 - ORTHO_AVOID_MARGIN_PX, r.y + r.h / 2 + ORTHO_AVOID_MARGIN_PX);
+          }
+        }
+      }
+      return ts_;
+    };
+    const tsList = [
+      horizontal ? tsOf(aOut.x, bIn.x, true) : tsOf(aOut.y, bIn.y, false),
+      horizontal ? tsOf(aOut.y, bIn.y, false) : tsOf(aOut.x, bIn.x, true),
+    ];
+    // The route = the stubs + the bend's two points (the stubs stand at
+    // the stub-less points when the endpoint stands no normal).
+    const routeOf = (bend: RoutePoint[]): RoutePoint[] => {
+      const points: RoutePoint[] = [a];
+      if (aAnchored) points.push(aOut);
+      points.push(...bend);
+      if (bAnchored) points.push(bIn);
+      points.push(b);
+      return points;
+    };
+    let points: RoutePoint[] | null = null;
+    for (let i = 0; i < structures.length && points === null; i++) {
+      const structure = structures[i];
+      const ts = tsList[i];
+      if (structure === undefined || ts === undefined) continue;
+      for (const t of ts) {
+        const candidate = routeOf(structure(t));
+        if (avoid && routeHitsObstacles(candidate, obstacles)) continue;
+        points = candidate;
+        break;
+      }
     }
-    const bendY = (a.y + b.y) / 2;
+    // The two-bend-line (U) candidates: the single-bend set stands no
+    // route when the endpoint boxes nearly touch (the corridor is sealed
+    // on both sides — no single bend line runs clear) — the U detour
+    // stands the route around the sealed side. Both orientations (the
+    // exit vertical / horizontal first), the corner's coords stand the
+    // span + the obstacle detours; the shortest CLEAR U stands (the
+    // length-ordered deterministic pick).
+    if (avoid && points === null) {
+      const xs = [Math.min(aOut.x, bIn.x) - ORTHO_DETOUR_PX, Math.max(aOut.x, bIn.x) + ORTHO_DETOUR_PX];
+      const ys = [Math.min(aOut.y, bIn.y) - ORTHO_DETOUR_PX, Math.max(aOut.y, bIn.y) + ORTHO_DETOUR_PX];
+      for (const r of obstacles ?? []) {
+        xs.push(r.x - r.w / 2 - ORTHO_AVOID_MARGIN_PX, r.x + r.w / 2 + ORTHO_AVOID_MARGIN_PX);
+        ys.push(r.y - r.h / 2 - ORTHO_AVOID_MARGIN_PX, r.y + r.h / 2 + ORTHO_AVOID_MARGIN_PX);
+      }
+      const lengthOf = (pts: RoutePoint[]): number => {
+        let length = 0;
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p = pts[i];
+          const q = pts[i + 1];
+          if (p === undefined || q === undefined) continue;
+          length += Math.abs(q.x - p.x) + Math.abs(q.y - p.y);
+        }
+        return length;
+      };
+      const clear: { points: RoutePoint[]; length: number }[] = [];
+      for (const y1 of ys) {
+        for (const x1 of xs) {
+          // F1: aOut -> (x1, aOut.y) -> (x1, y1) -> (bIn.x, y1) -> bIn
+          // (the exit horizontal first).
+          const f1 = routeOf([
+            { x: x1, y: aOut.y },
+            { x: x1, y: y1 },
+            { x: bIn.x, y: y1 },
+          ]);
+          if (!routeHitsObstacles(f1, obstacles)) clear.push({ points: f1, length: lengthOf(f1) });
+          // F2: aOut -> (aOut.x, y1) -> (x1, y1) -> (x1, bIn.y) -> bIn
+          // (the exit vertical first).
+          const f2 = routeOf([
+            { x: aOut.x, y: y1 },
+            { x: x1, y: y1 },
+            { x: x1, y: bIn.y },
+          ]);
+          if (!routeHitsObstacles(f2, obstacles)) clear.push({ points: f2, length: lengthOf(f2) });
+        }
+      }
+      if (clear.length > 0) {
+        clear.sort((u, v) => u.length - v.length);
+        points = clear[0]!.points;
+      }
+    }
+    // The fallback (no clear candidate): the default elbow stands on its
+    // OWN axis (the crossing stands when no route is clear).
+    const midCoord = horizontal ? (aOut.x + bIn.x) / 2 : (aOut.y + bIn.y) / 2;
+    const final = points ?? routeOf(structures[0]!(midCoord));
+    // The degenerate bends (the bend point at the stub's point) stand no
+    // redundant L (the duplicate points collapse).
+    const deduped = final.filter((p, i) => i === 0 || p.x !== final[i - 1]!.x || p.y !== final[i - 1]!.y);
+    const d = deduped.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
     return {
-      d: `M ${a.x} ${a.y} L ${a.x} ${bendY} L ${b.x} ${bendY} L ${b.x} ${b.y}`,
+      d,
       end: { x: b.x, y: b.y },
-      mid: { x: (a.x + b.x) / 2, y: bendY },
+      mid: { x: (aOut.x + bIn.x) / 2, y: (aOut.y + bIn.y) / 2 },
     };
   }
   const dist = Math.hypot(b.x - a.x, b.y - a.y);

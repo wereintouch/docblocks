@@ -160,7 +160,93 @@ describe("connectorPathPoints", () => {
     );
     expect(horizontal.d).toBe("M 0 -100 L 200 -100 L 200 100 L 400 100");
     const vertical = connectorPathPoints({ x: 0, y: -300, nx: 0, ny: 0 }, { x: 0, y: 300, nx: 0, ny: 0 }, "orthogonal");
-    expect(vertical.d).toBe("M 0 -300 L 0 0 L 0 0 L 0 300");
+    expect(vertical.d).toBe("M 0 -300 L 0 0 L 0 300");
+  });
+
+  it("orthogonal: the port endpoints stand the right-angle approach (the 12-px stub along the outward normal)", () => {
+    // The side approach: the line arrives at the NORTH port along the
+    // edge's line (the old shape ran along the edge and merged into it).
+    // The fix: it runs parallel to the edge at the 12-px offset OUTSIDE
+    // the block (y = 100 - 12 = 88, the port's outward side) and turns
+    // into the port at a right angle.
+    const side = connectorPathPoints({ x: 0, y: 100, nx: 0, ny: 0 }, { x: 200, y: 100, nx: 0, ny: -1 }, "orthogonal");
+    expect(side.d).toBe("M 0 100 L 100 100 L 100 88 L 200 88 L 200 100");
+    // Both anchored (the east / west ports): the stubs stand 12px OUTSIDE
+    // the edges (the approach leaves / enters along the normal).
+    const anchored = connectorPathPoints(
+      { x: -200, y: -100, nx: 1, ny: 0 },
+      { x: 200, y: 100, nx: -1, ny: 0 },
+      "orthogonal"
+    );
+    expect(anchored.d).toBe("M -200 -100 L -188 -100 L 0 -100 L 0 100 L 188 100 L 200 100");
+    expect(anchored.mid).toEqual({ x: 0, y: 0 });
+  });
+
+  it("orthogonal: the bend line runs around the obstacles (the first clear candidate; the fallback stands the default)", () => {
+    // The V-DOMINANT case (the vertical span wins): the bend line's
+    // candidates stand the Y coords — a box in the corridor stands the
+    // route around it (the L at the start's own line is the first clear
+    // candidate here).
+    const vDom = connectorPathPoints({ x: 0, y: -100, nx: 0, ny: 0 }, { x: 50, y: 100, nx: 0, ny: 0 }, "orthogonal", [
+      { x: 0, y: 0, w: 100, h: 100 },
+    ]);
+    expect(vDom.d).toBe("M 0 -100 L 50 -100 L 50 100");
+
+    // The default elbow's vertical bend at x = 200 crosses the box
+    // (200, 0, 100x100): the route reroutes over the box (the box's top
+    // edge offset by the 12-px margin: y = -50 - 12 = -62) — the line
+    // never crosses the figure when a clear route stands.
+    const blocked = connectorPathPoints({ x: 0, y: 0, nx: 0, ny: 0 }, { x: 400, y: 0, nx: 0, ny: 0 }, "orthogonal", [
+      { x: 200, y: 0, w: 100, h: 100 },
+    ]);
+    expect(blocked.d).toBe("M 0 0 L 0 -62 L 400 -62 L 400 0");
+
+    // The box between the endpoints' own lines (the L-shape's clear
+    // candidate stands first — the detour stands no longer):
+    // the default elbow (x = 200) crosses the box, the other axis'
+    // midpoint (y = 0) crosses it too, the L at b (x = 400) crosses the
+    // box's right side... the L at a (x = 0) is clear.
+    const sideBox = connectorPathPoints(
+      { x: 0, y: -100, nx: 0, ny: 0 },
+      { x: 400, y: 100, nx: 0, ny: 0 },
+      "orthogonal",
+      [{ x: 200, y: 0, w: 100, h: 100 }]
+    );
+    // H t = 400 (the L at b): the horizontal at y = -100 (clear of the
+    // box's y -50..50), the vertical at x = 400 (clear of the box's
+    // x 150..250), into b.
+    expect(sideBox.d).toBe("M 0 -100 L 400 -100 L 400 100");
+
+    // No clear candidate (the obstacles cover every route): the DEFAULT
+    // elbow stands (the best effort — the crossing stands).
+    const sealed = connectorPathPoints({ x: 0, y: 0, nx: 0, ny: 0 }, { x: 100, y: 100, nx: 0, ny: 0 }, "orthogonal", [
+      { x: 0, y: 0, w: 400, h: 400 },
+    ]);
+    expect(sealed.d).toBe("M 0 0 L 50 0 L 50 100 L 100 100");
+    // The V-dominant fallback stands its OWN axis' midpoint (the Y
+    // midpoint — the cross-axis X midpoint stood the old defect's
+    // far-off bend).
+    const sealedV = connectorPathPoints({ x: 0, y: 0, nx: 0, ny: 0 }, { x: 50, y: 100, nx: 0, ny: 0 }, "orthogonal", [
+      { x: 0, y: 0, w: 400, h: 400 },
+    ]);
+    expect(sealedV.d).toBe("M 0 0 L 0 50 L 50 50 L 50 100");
+
+    // The SEALED corridor (the endpoint boxes nearly touch — no single
+    // bend line runs clear): the U detour stands (the two-bend-line
+    // candidate — up over box A's top, around its left side, down, and
+    // into box B's west port at the 12-px parallel run).
+    const sealedCorridor = connectorPathPoints(
+      { x: -569.50390625, y: -157.51171875, nx: 1, ny: 0 },
+      { x: -666.703125, y: -59.33984375, nx: -1, ny: 0 },
+      "orthogonal",
+      [
+        { x: -669.50390625, y: -157.51171875, w: 200, h: 100 },
+        { x: -566.703125, y: -59.33984375, w: 200, h: 100 },
+      ]
+    );
+    expect(sealedCorridor.d).toBe(
+      "M -569.50390625 -157.51171875 L -557.50390625 -157.51171875 L -557.50390625 -219.51171875 L -781.50390625 -219.51171875 L -781.50390625 -59.33984375 L -678.703125 -59.33984375 L -666.703125 -59.33984375"
+    );
   });
 
   it("curved: the anchored normals bow out; the free point bows perpendicular to the segment", () => {
