@@ -4,7 +4,7 @@
 // non-shape blocks, and the active tool hide it) and the applies (a
 // palette swatch, the "none" entry, and the custom hex input — one
 // updateBlock per apply, one undo step; the invalid hex is ignored).
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
@@ -314,5 +314,75 @@ describe("the shape type picker", () => {
     fireEvent.pointerDown(screen.getByLabelText("Shape type"));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Rectangle" }));
     expect(doc.toJSON()).toEqual(before);
+  });
+});
+
+describe("the border's controls (the width selector + the style menu)", () => {
+  const selector = () => screen.queryByLabelText("Shape border width");
+
+  it("stands the selector on the current width's dot (the absent stand is the default 2 px = the second dot)", () => {
+    const { doc, shape } = seededDoc();
+    const { container } = renderCanvas(doc);
+    selectBlock(container, shape);
+    expect(selector()?.getAttribute("aria-valuenow")).toBe("1");
+
+    act(() => {
+      doc.updateBlock(shape, { strokeWidth: 4 });
+    });
+    expect(selector()?.getAttribute("aria-valuenow")).toBe("3");
+  });
+
+  it("applies the width's dots (one updateBlock per apply, one undo step)", () => {
+    const { doc, shape } = seededDoc();
+    const { container } = renderCanvas(doc);
+    selectBlock(container, shape);
+
+    const slider = selector();
+    if (slider === null) throw new Error("the selector is missing");
+    // The jsdom's zero-rect stand is the clamped index — the keyboard
+    // step is the deterministic move (the drag's snap is the e2e's
+    // real pointer).
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    let block = doc.getBlock(shape);
+    expect(block === null || block.type !== "shape" ? null : block.attrs?.["strokeWidth"]).toBe(3);
+
+    // One undo step: the width apply is a single transact (the stand
+    // back to the absent's default — the attr is not written on undo).
+    doc.undo();
+    block = doc.getBlock(shape);
+    expect(block === null || block.type !== "shape" ? null : block.attrs?.["strokeWidth"]).toBeUndefined();
+  });
+
+  it("the style menu applies the solid / the dashed / the no-border (one updateBlock each)", () => {
+    const { doc, shape } = seededDoc();
+    const { container } = renderCanvas(doc);
+    selectBlock(container, shape);
+
+    const styleOf = (id: string) => {
+      const block = doc.getBlock(id);
+      return block === null || block.type !== "shape" ? null : block.attrs?.["strokeStyle"];
+    };
+    const strokeOf = (id: string) => {
+      const block = doc.getBlock(id);
+      return block === null || block.type !== "shape" ? null : block.attrs?.["stroke"];
+    };
+
+    fireEvent.pointerDown(screen.getByLabelText("Shape border style"));
+    expect(screen.getByRole("menuitemcheckbox", { name: "Solid line" }).getAttribute("aria-checked")).toBe("true");
+
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Dashed" }));
+    expect(styleOf(shape)).toBe("dash");
+
+    // The no-border entry stands the stroke's "none" (the existing
+    // idiom; the width / the style attrs stand).
+    fireEvent.pointerDown(screen.getByLabelText("Shape border style"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "No border" }));
+    expect(strokeOf(shape)).toBe("none");
+
+    // One undo step per apply: the stands step back.
+    doc.undo();
+    expect(styleOf(shape)).toBe("dash");
+    doc.undo();
+    expect(styleOf(shape)).toBeUndefined();
   });
 });
