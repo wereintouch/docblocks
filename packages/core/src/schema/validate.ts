@@ -237,11 +237,13 @@ function validateGeometry(geometry: unknown, path: string, errors: ValidationErr
  * The canvas block-level invariants of `shape` / `connector` (strict),
  * over the block's plain JSON shape: the `points` attr is an array of
  * [x, y] pairs of finite numbers (a tuple shape the AttrSpec array kind
- * cannot express — the spec passes any array), and the connector's
- * start/end weak refs each carry at least one of docId / blockId (the
- * object spec cannot express "at least one of two"). The enums and the
- * numeric bounds are checked by the registry attrs spec. Runs from
- * validateDoc, and from the insertBlock / updateBlock command checks.
+ * cannot express — the spec passes any array), and each connector
+ * endpoint carries either a weak ref (at least one of docId / blockId,
+ * with an optional port) or a free point (both x and y, finite — the
+ * object spec cannot express the "a ref or a free point" rule; a port
+ * without a ref is meaningless). The enums and the numeric kinds are
+ * checked by the registry attrs spec. Runs from validateDoc, and from
+ * the insertBlock / updateBlock command checks.
  */
 function validateCanvasBlock(
   type: BlockType,
@@ -272,10 +274,25 @@ function validateCanvasBlock(
     for (const key of ["start", "end"] as const) {
       const ref = attrs[key];
       if (!isPlainObject(ref)) continue; // a malformed ref is reported by the object spec
-      if (!("docId" in ref) && !("blockId" in ref)) {
+      const isRef = "docId" in ref || "blockId" in ref;
+      const isFree = "x" in ref || "y" in ref;
+      if (!isRef && !isFree) {
         errors.push({
           path: `${path}.attrs.${key}`,
-          message: `Connector ref "${key}" must carry at least one of docId / blockId.`,
+          message: `Connector endpoint "${key}" must carry a block ref (docId / blockId) or a free point (x and y).`,
+        });
+        continue;
+      }
+      if (isFree && "x" in ref !== "y" in ref) {
+        errors.push({
+          path: `${path}.attrs.${key}`,
+          message: `Connector endpoint "${key}" free point: x and y must stand together.`,
+        });
+      }
+      if ("port" in ref && !isRef) {
+        errors.push({
+          path: `${path}.attrs.${key}`,
+          message: `Connector endpoint "${key}" port requires a block ref (docId / blockId).`,
         });
       }
     }

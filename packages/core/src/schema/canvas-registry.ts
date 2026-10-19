@@ -43,15 +43,20 @@ const CANVAS_BLOCK_SPECS: Pick<
     children: false,
     rows: false,
     attrs: {
-      // Weak refs { docId?, blockId? }: each field alone is optional (the
-      // object spec cannot express "at least one of two"), so the branch
-      // below requires at least one field per ref.
+      // Endpoint shapes (each of start / end): a weak block ref
+      // { docId?, blockId? } with an optional port (the block's edge
+      // midpoint), or a free point { x, y } in surface-local px (the
+      // surface's center origin). The object spec cannot express the
+      // "a ref or a free point" rule; the canvas validator branch does.
       start: {
         kind: "object",
         required: true,
         fields: {
           docId: { kind: "string", nonEmpty: true },
           blockId: { kind: "string", nonEmpty: true },
+          port: { kind: "enum", values: ["north", "east", "south", "west"] },
+          x: { kind: "number" },
+          y: { kind: "number" },
         },
       },
       end: {
@@ -60,6 +65,9 @@ const CANVAS_BLOCK_SPECS: Pick<
         fields: {
           docId: { kind: "string", nonEmpty: true },
           blockId: { kind: "string", nonEmpty: true },
+          port: { kind: "enum", values: ["north", "east", "south", "west"] },
+          x: { kind: "number" },
+          y: { kind: "number" },
         },
       },
       points: { kind: "array" },

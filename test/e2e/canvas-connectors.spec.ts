@@ -329,7 +329,312 @@ test.describe("the connector arrows", () => {
       await close();
     }
   });
+
+  test("the press-drag draw: the dashed preview follows the drag, the release over the second item connects", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "cvs-conn-drag");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const { left, right } = await seedShapes(a, "a");
+
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+      await dock.getByLabel("Connector").click();
+      const center = await canvasCenter(a, "a");
+      const from = { x: center.x - 300, y: center.y - 100 };
+      const to = { x: center.x + 300, y: center.y + 100 };
+
+      // The press-drag: the preview stands during the drag (the dashed
+      // line, the 1x1 svg), the release over the right shape connects.
+      await a.mouse.move(from.x, from.y);
+      await a.mouse.down();
+      await a.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 8 });
+      const preview = a.locator('[data-slot="docblocks/canvas-connector-preview"]');
+      await expect(preview).toBeVisible();
+      // The preview stands on a 1x1 svg (a 0x0 svg rasterizes no content
+      // in Chromium).
+      expect(await preview.getAttribute("width")).toBe("1");
+      await a.mouse.move(to.x, to.y, { steps: 8 });
+      await a.mouse.up();
+
+      const connector = await connectorOf(a, "a");
+      expect(connector).not.toBeNull();
+      const attrs = await connectorAttrs(a, "a", connector!);
+      expect(attrs?.start).toBe(left);
+      expect(attrs?.end).toBe(right);
+      await expect.poll(async () => a.locator('[data-slot="docblocks/canvas-connector-preview"]').count()).toBe(0);
+      // The line stands in both panes (the sticky re-anchor pin).
+      await expect.poll(async () => lineD(b, "b", connector!), SETTLE).not.toBeNull();
+    } finally {
+      await close();
+    }
+  });
+
+  test("the two-click pick: the hover preview follows the cursor before the second click", async ({ browser }) => {
+    const { a, b, close } = await twoPanes(browser, "cvs-conn-hover");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const { left, right } = await seedShapes(a, "a");
+
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+      await dock.getByLabel("Connector").click();
+      const center = await canvasCenter(a, "a");
+
+      // The first click stands the pending endpoint + the preview line.
+      // The picked shape stands clean: the pick's indicator is the dashed
+      // preview line only (no selection outline / tint on the shape itself).
+      await pageClick(a, center.x - 300, center.y - 100);
+      const pendingItem = a.locator(`[data-slot="docblocks/canvas-item"][data-connector-pending="true"]`);
+      await expect(pendingItem).toHaveCount(1);
+      expect(await pendingItem.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe("none");
+      expect(await pendingItem.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+
+      // The hover move re-feeds the far end (the 100% zoom, the zero pan:
+      // the canvas point is the client point offset from the view center).
+      // The target stands off the shape's axis — a zero-height box (the
+      // cursor on the axis) reads hidden to the visibility check.
+      const mid = { x: center.x - 100, y: center.y - 180 };
+      await a.mouse.move(mid.x, mid.y, { steps: 5 });
+      const previewLine = a.locator('[data-slot="docblocks/canvas-connector-preview"] line');
+      await expect(previewLine).toBeVisible();
+      const x2 = Number((await previewLine.getAttribute("x2"))!);
+      const y2 = Number((await previewLine.getAttribute("y2"))!);
+      expect(x2).toBeCloseTo(mid.x - center.x, 0);
+      expect(y2).toBeCloseTo(mid.y - center.y, 0);
+
+      // The second click completes: the connector lands, the preview
+      // drops (the center-click stands off the ports' snap radius — the
+      // plain block refs).
+      await pageClick(a, center.x + 300, center.y + 100);
+      const connector = await connectorOf(a, "a");
+      expect(connector).not.toBeNull();
+      const attrs = await connectorAttrs(a, "a", connector!);
+      expect(attrs?.start).toBe(left);
+      expect(attrs?.end).toBe(right);
+      await expect.poll(async () => a.locator('[data-slot="docblocks/canvas-connector-preview"]').count()).toBe(0);
+      await expect.poll(async () => lineD(b, "b", connector!), SETTLE).not.toBeNull();
+    } finally {
+      await close();
+    }
+  });
+
+  test("the press-drag draw: the port snaps at the press / release (the port refs)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-portsnap");
+    try {
+      await toCanvas(a, "a");
+      const { left, right } = await seedShapes(a, "a");
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+      await dock.getByLabel("Connector").click();
+      const center = await canvasCenter(a, "a");
+      // The left box's east port (the east edge's midpoint) and the right
+      // box's west port — the press / release stand exactly on them (the
+      // 100% zoom, the zero pan: the canvas point is the center offset by
+      // the geometry).
+      const eastPort = { x: center.x - 200, y: center.y - 100 };
+      const westPort = { x: center.x + 200, y: center.y + 100 };
+
+      await a.mouse.move(eastPort.x, eastPort.y);
+      await a.mouse.down();
+      await a.mouse.move((eastPort.x + westPort.x) / 2, (eastPort.y + westPort.y) / 2, { steps: 8 });
+      await a.mouse.move(westPort.x, westPort.y, { steps: 8 });
+      await a.mouse.up();
+
+      const connector = await connectorOf(a, "a");
+      expect(connector).not.toBeNull();
+      // The port refs (the snap committed the edge midpoints — the line
+      // stands port-to-port, not the diagonal's projected anchors).
+      const portAttrs = await fullEndpointAttrs(a, "a", connector!);
+      expect(portAttrs?.start).toEqual({ blockId: left, port: "east" });
+      expect(portAttrs?.end).toEqual({ blockId: right, port: "west" });
+      // The line's M point is the east port (the left box's east edge at
+      // the box's center y).
+      const d = (await lineD(a, "a", connector!))!;
+      const m = d.match(/^M (-?\d+(?:\.\d+)?) (-?\d+(?:\.\d+)?)/);
+      expect(m).not.toBeNull();
+      expect(Number(m![1])).toBeCloseTo(-200);
+      expect(Number(m![2])).toBeCloseTo(-100);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the press-drag draw: the release on the empty canvas commits the free end (the free point ref)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "cvs-conn-freedrag");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const { left } = await seedShapes(a, "a");
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+      await dock.getByLabel("Connector").click();
+      const center = await canvasCenter(a, "a");
+
+      // The press on the left shape, the drag far off it (well past the
+      // threshold), the release on the empty canvas (the page card's right
+      // band, the view's inside): the end commits as a free point at the
+      // release point (the world px — the 100% zoom / zero pan points
+      // stand as the center offsets).
+      const from = { x: center.x - 300, y: center.y - 100 };
+      const to = { x: center.x + 390, y: center.y };
+      await a.mouse.move(from.x, from.y);
+      await a.mouse.down();
+      await a.mouse.move((from.x + to.x) / 2, (from.y + to.y) / 2, { steps: 8 });
+      await a.mouse.move(to.x, to.y, { steps: 8 });
+      await a.mouse.up();
+
+      const connector = await connectorOf(a, "a");
+      expect(connector).not.toBeNull();
+      const freeAttrs = await fullEndpointAttrs(a, "a", connector!);
+      expect(freeAttrs?.start?.blockId).toBe(left);
+      // The release stands off any port (the 12px snap radius): the free
+      // point at the release point (world px).
+      expect(freeAttrs?.end).toEqual({ x: 390, y: 0 });
+      // The free end stands in the other pane (the sync pin).
+      await expect.poll(async () => fullEndpointAttrs(b, "b", connector!), SETTLE).toEqual(freeAttrs);
+      // The line stands (a line to a free point — not skipped).
+      await expect.poll(async () => lineD(b, "b", connector!), SETTLE).not.toBeNull();
+    } finally {
+      await close();
+    }
+  });
+
+  test("the endpoint handles: the selected line's endpoints drag to the port snap and the free point (one updateBlock each, the undo reverts)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "cvs-conn-endpoints");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const { right } = await seedShapes(a, "a");
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+      await dock.getByLabel("Connector").click();
+      const center = await canvasCenter(a, "a");
+      // The center-clicks stand off the ports' snap radius: the plain
+      // block refs (the legacy shape).
+      await pageClick(a, center.x - 300, center.y - 100);
+      await pageClick(a, center.x + 300, center.y + 100);
+      const connector = await connectorOf(a, "a");
+      expect(connector).not.toBeNull();
+      const connId = connector!;
+
+      // The line's click selects it: the two endpoint handles stand (the
+      // hit circle + the visible circle each).
+      const mid = await lineMid(a, "a", connId);
+      await a.mouse.click(mid.x, mid.y);
+      const startHandle = a.locator(
+        `[data-connector-endpoint="start"][data-connector-endpoint-id="${connId}"] circle:nth-child(2)`
+      );
+      const endHandle = a.locator(
+        `[data-connector-endpoint="end"][data-connector-endpoint-id="${connId}"] circle:nth-child(2)`
+      );
+      await expect(startHandle).toHaveCount(1);
+      await expect(endHandle).toHaveCount(1);
+
+      // Drag the START endpoint to the right box's south port (the snap
+      // radius stands at 12 canvas px — the release stands on it): the
+      // commit is the port ref, one wire update, the other pane's line
+      // re-draws from the port.
+      const handleBox = (await startHandle.boundingBox())!;
+      const southPort = { x: center.x + 300, y: center.y + 150 };
+      await a.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+      await a.mouse.down();
+      await a.mouse.move((handleBox.x + southPort.x) / 2, (handleBox.y + southPort.y) / 2, { steps: 8 });
+      await a.mouse.move(southPort.x, southPort.y, { steps: 8 });
+      await a.mouse.up();
+      await expect
+        .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
+        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south" } }));
+      const wireBefore = await outCount(a, "a");
+      await expect
+        .poll(async () => fullEndpointAttrs(b, "b", connId), SETTLE)
+        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south" } }));
+
+      // Drag the END endpoint to the empty canvas (no port in reach): the
+      // free point at the release (surface-local).
+      const endBox = (await endHandle.boundingBox())!;
+      const freeTo = { x: center.x - 50, y: center.y + 400 };
+      await a.mouse.move(endBox.x + endBox.width / 2, endBox.y + endBox.height / 2);
+      await a.mouse.down();
+      await a.mouse.move((endBox.x + freeTo.x) / 2, (endBox.y + freeTo.y) / 2, { steps: 8 });
+      await a.mouse.move(freeTo.x, freeTo.y, { steps: 8 });
+      await a.mouse.up();
+      await expect
+        .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
+        .toEqual(expect.objectContaining({ end: { x: -50, y: 400 } }));
+      const wireAfter = await outCount(a, "a");
+      expect(wireAfter).toBe(wireBefore + 1); // one update per endpoint commit
+
+      // The undo reverts the last endpoint commit (the free point drops,
+      // the end ref stands back to the right box — the end's original ref).
+      await a.keyboard.press("Control+z");
+      await expect
+        .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
+        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south" }, end: { blockId: right } }));
+    } finally {
+      await close();
+    }
+  });
+
+  test("the ports' visibility: the four edge dots stand while the connector tool is active (and only then)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-portdots");
+    try {
+      await toCanvas(a, "a");
+      const shapes = await seedShapes(a, "a");
+      void shapes;
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+
+      // The resting canvas: no port dots.
+      expect(await a.locator('[data-slot="docblocks/canvas-port-dots"]').count()).toBe(0);
+
+      // The connector tool active: the dots stand (four per shape).
+      await dock.getByLabel("Connector").click();
+      await expect(a.locator('[data-slot="docblocks/canvas-port-dots"] circle')).toHaveCount(8);
+
+      // The tool's reset drops the dots.
+      await dock.getByLabel("Connector").click();
+      await expect(a.locator('[data-slot="docblocks/canvas-port-dots"]')).toHaveCount(0);
+    } finally {
+      await close();
+    }
+  });
 });
+
+/** The connector's full endpoint refs (the blockId / the port / the free x-y). */
+async function fullEndpointAttrs(
+  page: Page,
+  client: "a" | "b",
+  id: string
+): Promise<{
+  start?: { blockId?: string; port?: string; x?: number; y?: number };
+  end?: { blockId?: string; port?: string; x?: number; y?: number };
+} | null> {
+  return page.evaluate(
+    ({ client, id }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      if (doc === null) return null;
+      const block = doc.getBlock(id);
+      if (block === null || block.type !== "connector") return null;
+      const start = (block.attrs?.start ?? undefined) as
+        { blockId?: string; port?: string; x?: number; y?: number } | undefined;
+      const end = (block.attrs?.end ?? undefined) as
+        { blockId?: string; port?: string; x?: number; y?: number } | undefined;
+      return { start, end };
+    },
+    { client, id }
+  );
+}
+
+/** The wire log's outbound doc-update count (awareness frames are not logged). */
+async function outCount(page: Page, client: "a" | "b"): Promise<number> {
+  const text = await page.getByTestId(`wire-${client}`).innerText();
+  return text.match(/\] out \d+B/g)?.length ?? 0;
+}
 
 /** The real pointer click at the given screen point (a page-level helper). */
 async function pageClick(page: Page, x: number, y: number): Promise<void> {

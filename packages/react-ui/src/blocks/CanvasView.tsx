@@ -5,6 +5,7 @@ import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
+  ReactNode,
   PointerEvent as ReactPointerEvent,
 } from "react";
 
@@ -36,8 +37,14 @@ import { CanvasItem } from "./CanvasItem";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { ShapeSvg } from "./ShapeSvg";
 import { BlockContext, useBlockContextValue } from "./block-context";
-import { connectorPath, endpointBoxOf } from "./canvas-geometry";
-import { effectiveGeometry, pageCardStyle } from "./canvas-geometry";
+import {
+  connectorPathPoints,
+  edgeAnchor,
+  effectiveGeometry,
+  endpointBoxOf,
+  pageCardStyle,
+  portsOf,
+} from "./canvas-geometry";
 
 /**
  * One surface's layer on the document canvas (the canvas view): its
@@ -47,6 +54,10 @@ import { effectiveGeometry, pageCardStyle } from "./canvas-geometry";
  * several surfaces merge onto the same canvas in root order (the later
  * surface paints on top: the DOM order is the z-order).
  */
+/** The connector's port-proximity pick radius (canvas px, the zoom-blind
+ * space — a press / release within it of a port stands the port's shape). */
+const PORT_PICK_RADIUS_PX = 14;
+
 function SurfaceLayer({
   id,
   children,
@@ -54,6 +65,10 @@ function SurfaceLayer({
   movePreview,
   resizePreview,
   rotatePreview,
+  endpointDrag,
+  endpointPreview,
+  onEndpointDrag,
+  showPorts,
 }: {
   id: BlockId;
   children: BlockId[];
@@ -61,6 +76,17 @@ function SurfaceLayer({
   movePreview: MovePreview | null;
   resizePreview: { id: string; box: Box } | null;
   rotatePreview: { id: string; rotation: number } | null;
+  endpointDrag: { connectorId: string; which: "start" | "end" } | null;
+  endpointPreview: { x: number; y: number } | null;
+  onEndpointDrag: (
+    connectorId: BlockId,
+    which: "start" | "end",
+    pointerId: number,
+    clientX: number,
+    clientY: number
+  ) => void;
+  /** The ports' visibility (the connector tool active or an endpoint drag in flight). */
+  showPorts: boolean;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
   return (
@@ -75,8 +101,69 @@ function SurfaceLayer({
           rotatePreview={rotatePreview !== null && rotatePreview.id === childId ? rotatePreview.rotation : null}
         />
       ))}
-      <ConnectorLayer id={id} />
+      <ConnectorLayer
+        id={id}
+        endpointDrag={endpointDrag}
+        endpointPreview={endpointPreview}
+        onEndpointDrag={onEndpointDrag}
+      />
+      {showPorts && <PortDots id={id} />}
     </BlockContext.Provider>
+  );
+}
+
+/**
+ * The four edge ports of every canvas item (the connector's snap
+ * targets): the small circles at the edge midpoints. They stand only
+ * while the connector tool is active or a connector's endpoint is being
+ * dragged (the ports are the tools'
+ * affordance, not the resting chrome). Pure view state: no data, no
+ * awareness. The dots stand in the surface's center-anchor space (the
+ * 1x1 overflow-visible svg, the ConnectorLayer's parity), pointer-events
+ * none — the press passes through to the canvas (the snap reads the
+ * port's coordinates, not a dot press).
+ */
+function PortDots({ id }: { id: BlockId }) {
+  const { store } = useEditorContext();
+  const blocks = useStore(store, (state) => state.blocks);
+  const surface = useBlock(id);
+  if (surface === undefined || surface.type !== "surface") return null;
+  const dots: ReactNode[] = [];
+  for (const childId of surface.children ?? []) {
+    const block = blocks[childId];
+    // The connector stands no ports of its own (its ends are the ports'
+    // users; a line's box would stand phantom squares over its spans).
+    if (block === undefined || block.type === "connector") continue;
+    const box = effectiveGeometry(block);
+    const ports = portsOf(box);
+    for (const port of ["north", "east", "south", "west"] as const) {
+      const p = ports[port];
+      dots.push(
+        <circle
+          key={`${childId}-${port}`}
+          data-canvas-port={port}
+          cx={p.x}
+          cy={p.y}
+          r={2.5}
+          fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+          strokeWidth={1}
+          style={{ stroke: "var(--docblocks-canvas-selection-border-color)" }}
+          pointerEvents="none"
+        />
+      );
+    }
+  }
+  if (dots.length === 0) return null;
+  return (
+    <svg
+      data-slot="docblocks/canvas-port-dots"
+      data-block-id={id}
+      className="pointer-events-none absolute top-1/2 left-1/2 overflow-visible"
+      width={1}
+      height={1}
+    >
+      {dots}
+    </svg>
   );
 }
 
@@ -237,6 +324,10 @@ function CanvasView() {
   // the page's content (the two-click contract) — the flag drops the
   // compatibility mousedown's default (the caret / the focus move).
   const cardPressRef = useRef(false);
+  // The connector's press point (screen px): the press-drag's release
+  // threshold (a sub-threshold press-release cancels the stand instead of
+  // committing the free end).
+  const connectorPressClientRef = useRef<{ x: number; y: number } | null>(null);
   // The wheel's delta accumulator (the zoom step crosses the threshold —
   // the remainder stands over to the next event, the trackpad's
   // momentum feel).
@@ -365,10 +456,29 @@ function CanvasView() {
     const surface = surfaces.find((entry) => entry.children.includes(id));
     if (surface === undefined) return null;
     const childIds = surface.children;
-    const start = endpointBoxOf(block.attrs.start, childIds, blocks);
-    const end = endpointBoxOf(block.attrs.end, childIds, blocks);
-    if (start === null || end === null) return null;
-    const mid = connectorPath(start, end, block.attrs.variant ?? "straight").mid;
+    // The endpoint stands (the 2026-10-15 shape): a ref resolves to its
+    // box, a free { x, y } point stands as-is; the toolbar seats at the
+    // line's midpoint between the two stands.
+    const startBox = endpointBoxOf(block.attrs.start, childIds, blocks);
+    const endBox = endpointBoxOf(block.attrs.end, childIds, blocks);
+    const startStand =
+      startBox !== null
+        ? { x: startBox.x, y: startBox.y }
+        : block.attrs.start.x !== undefined && block.attrs.start.y !== undefined
+          ? { x: block.attrs.start.x, y: block.attrs.start.y }
+          : null;
+    const endStand =
+      endBox !== null
+        ? { x: endBox.x, y: endBox.y }
+        : block.attrs.end.x !== undefined && block.attrs.end.y !== undefined
+          ? { x: block.attrs.end.x, y: block.attrs.end.y }
+          : null;
+    if (startStand === null || endStand === null) return null;
+    const mid = connectorPathPoints(
+      { ...startStand, nx: 0, ny: 0 },
+      { ...endStand, nx: 0, ny: 0 },
+      block.attrs.variant ?? "straight"
+    ).mid;
     return { id, variant: block.attrs.variant, mid };
   })();
 
@@ -400,6 +510,29 @@ function CanvasView() {
   // the page: the page blocks are not canvas items).
   const isPageCard = (target: EventTarget | null) =>
     target instanceof Element && target.closest('[data-slot="docblocks/page-card"]') !== null;
+
+  // The port-proximity pick (the connector's press / release): the canvas
+  // point stands within the pick radius of a canvas item's PORT (the
+  // edge strip falls to the page card / the background under the item —
+  // the exact-edge press misses the item's fill). The port's shape stands
+  // the block stand; the commit's snap stands the port itself.
+  const portBlockAt = (point: { x: number; y: number }): string | null => {
+    for (const { children } of surfaces) {
+      for (const childId of children) {
+        const block = blocks[childId];
+        if (block === undefined || block.type === "connector") continue;
+        const ports = portsOf(effectiveGeometry(block));
+        if (
+          (Object.keys(ports) as ("north" | "east" | "south" | "west")[]).some(
+            (port) => Math.hypot(ports[port].x - point.x, ports[port].y - point.y) <= PORT_PICK_RADIUS_PX
+          )
+        ) {
+          return childId;
+        }
+      }
+    }
+    return null;
+  };
 
   const onPointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -447,19 +580,54 @@ function CanvasView() {
     }
 
     if (viewport.activeTool === "connector") {
-      // The two-click endpoint picks: a click off the canvas items (the
-      // empty canvas, the page miniature) cancels the pick.
+      // The connector's endpoint stands: a press on an item stands the
+      // block stand (the two-click's first pick; the press-drag's press
+      // on a block), a press off the items stands the FREE stand (the
+      // empty-canvas press — the press point is the first endpoint, the
+      // release commits). A press with a stand already standing cancels
+      // (the second stand commits on the release / the second click).
       const item =
         event.target instanceof Element
           ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]')
           : null;
       const id = item?.getAttribute("data-block-id") ?? null;
-      if (id === null || id === viewport.pendingConnector) {
+      const hasStand = viewport.pendingConnector !== null || viewport.pendingFree !== null;
+      const canvasPoint = screenToCanvas(point, viewport.zoom, viewport.pan);
+      const standId = id ?? portBlockAt(canvasPoint);
+      connectorPressClientRef.current = { x: event.clientX, y: event.clientY };
+      if (standId !== null && standId !== viewport.pendingConnector) {
+        if (!hasStand) {
+          viewport.setPendingStand({ blockId: standId }, canvasPoint);
+        } else {
+          // The second click on a different item: the completion.
+          viewport.onConnectorCommit({ blockId: standId }, canvasPoint);
+        }
+      } else if (standId === null) {
+        if (!hasStand) {
+          viewport.setPendingStand({ free: canvasPoint }, canvasPoint);
+        } else {
+          // A plain click off the items cancels the stand (the
+          // press-drag's release commits the free end instead — the
+          // pointerup path keeps the stand open).
+          viewport.setPendingStand(null);
+          viewport.setActiveTool(null);
+          viewport.setConnectorPreview(null);
+          connectorPressClientRef.current = null;
+          return;
+        }
+      } else {
+        // The same block's second press: the cancel.
+        viewport.setPendingStand(null);
         viewport.setActiveTool(null);
-        viewport.setPendingConnector(null);
+        viewport.setConnectorPreview(null);
+        connectorPressClientRef.current = null;
         return;
       }
-      viewport.onConnectorPick(id);
+      viewport.setConnectorPreview(canvasPoint);
+      // No pointer capture: the two-click's second pick and the
+      // press-drag's release read the release TARGET (the item under the
+      // cursor) — a capture would retarget the pointerup to the container
+      // and the release would stand off the items.
       return;
     }
 
@@ -616,6 +784,13 @@ function CanvasView() {
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // The connector's pending preview: the dashed line follows the cursor
+    // (the hover of the two-click pick and the press-drag draw — the
+    // button-less hover update runs before the buttons guard below).
+    if (viewport.activeTool === "connector" && viewport.pendingConnector !== null) {
+      viewport.setConnectorPreview(screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan));
+    }
+
     // The release can be lost (the pointer leaves the window mid-drag
     // and the capture is dropped without a pointerup / pointercancel):
     // a button-less move then stands over a surviving session and the
@@ -629,10 +804,14 @@ function CanvasView() {
 
     // The move / resize / rotate sessions (item / page-card / handle
     // press) run without a container session; the feeders are no-ops
-    // while none is open.
+    // while none is open. The connector endpoint drag feeds the live
+    // re-draw (the preview point in the surface-local space).
     viewport.moveDrag(event.clientX, event.clientY);
     viewport.resizeDrag(event.clientX, event.clientY, event.shiftKey);
     viewport.rotateDrag(centerRelativePoint(event), event.clientX, event.clientY, event.shiftKey);
+    if (viewport.connectorEndpoint !== null) {
+      viewport.moveConnectorEndpoint(centerRelativePoint(event));
+    }
     const session = sessionRef.current;
     if (session === null) return;
     const point = centerRelativePoint(event);
@@ -664,6 +843,46 @@ function CanvasView() {
 
   const onPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
     cardPressRef.current = false;
+
+    // The connector endpoint's drag release: the commit (the port snap
+    // or the free point; one updateBlock) or the no-op (a press-release
+    // under the threshold).
+    if (viewport.connectorEndpoint !== null) {
+      viewport.endConnectorEndpoint(event.clientX, event.clientY);
+      return;
+    }
+
+    // The connector's press-drag release: a release over an item stands
+    // the second block stand (the port snap reads the release point), a
+    // release on the empty canvas commits the FREE second endpoint for a
+    // real drag (a sub-threshold press-release cancels the stand). The
+    // two-click's second pick stands on the pointerdown instead.
+    if (viewport.activeTool === "connector" && (viewport.pendingConnector !== null || viewport.pendingFree !== null)) {
+      const canvasPoint = screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan);
+      const item =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]')
+          : null;
+      const id = item?.getAttribute("data-block-id") ?? null;
+      const standId = id ?? portBlockAt(canvasPoint);
+      if (standId !== null && standId !== viewport.pendingConnector) {
+        viewport.onConnectorCommit({ blockId: standId }, canvasPoint);
+      } else if (standId === null) {
+        const press = connectorPressClientRef.current;
+        const dragged =
+          press !== null && Math.hypot(event.clientX - press.x, event.clientY - press.y) > MOVE_THRESHOLD_PX;
+        if (dragged) {
+          viewport.onConnectorCommit({ free: canvasPoint }, canvasPoint);
+        } else {
+          viewport.setPendingStand(null);
+          viewport.setActiveTool(null);
+          viewport.setConnectorPreview(null);
+        }
+      }
+      connectorPressClientRef.current = null;
+      return;
+    }
+
     viewport.endMove();
     viewport.endResize();
     viewport.endRotate();
@@ -791,7 +1010,8 @@ function CanvasView() {
       viewport.rotatePreview === null &&
       viewport.marquee === null &&
       viewport.penPoints.length === 0 &&
-      viewport.placePreview === null
+      viewport.placePreview === null &&
+      viewport.connectorEndpoint === null
     ) {
       return;
     }
@@ -800,6 +1020,7 @@ function CanvasView() {
     viewport.cancelMove();
     viewport.cancelResize();
     viewport.cancelRotate();
+    viewport.cancelConnectorEndpoint();
     viewport.setMarquee(null);
     viewport.setPenPoints([]);
   };
@@ -841,14 +1062,18 @@ function CanvasView() {
       event.stopPropagation();
       return;
     }
-    if (event.key === "Escape" && (viewport.activeTool !== null || viewport.pendingConnector !== null)) {
+    if (
+      event.key === "Escape" &&
+      (viewport.activeTool !== null || viewport.pendingConnector !== null || viewport.pendingFree !== null)
+    ) {
       // The canvas tools' cancel (the page's Escape clears the selection —
       // the tool cancels first, the selection stands).
       event.stopPropagation();
       viewport.setActiveTool(null);
-      viewport.setPendingConnector(null);
+      viewport.setPendingStand(null);
       viewport.setPenPoints([]);
       viewport.setPlacePreview(null);
+      viewport.setConnectorPreview(null);
       sessionRef.current = null;
       return;
     }
@@ -857,6 +1082,13 @@ function CanvasView() {
       // written, the selection stands.
       event.stopPropagation();
       viewport.cancelMove();
+      return;
+    }
+    if (event.key === "Escape" && viewport.connectorEndpoint !== null) {
+      // The in-flight endpoint drag's cancel (the same contract as the
+      // move's: the preview is dropped, nothing is written).
+      event.stopPropagation();
+      viewport.cancelConnectorEndpoint();
       return;
     }
     if (event.key === "Escape" && (viewport.resizePreview !== null || viewport.rotatePreview !== null)) {
@@ -1001,6 +1233,32 @@ function CanvasView() {
             movePreview={viewport.movePreview}
             resizePreview={viewport.resizePreview}
             rotatePreview={viewport.rotatePreview}
+            endpointDrag={viewport.connectorEndpoint}
+            endpointPreview={viewport.connectorEndpointPreview}
+            onEndpointDrag={(connectorId, which, pointerId, clientX, clientY) => {
+              const container = containerRef.current;
+              if (container === null) return;
+              // The container keeps the pointer (the release outside the
+              // window would otherwise stand the session open — the
+              // card-press capture's contract). The endpoint drag's
+              // release commit reads the session, not the release target
+              // (the capture retargets the pointerup to the container —
+              // unlike the connector pick's release, the drag's commit
+              // stands off the target).
+              container.setPointerCapture?.(pointerId);
+              const rect = container.getBoundingClientRect();
+              viewport.beginConnectorEndpoint(
+                connectorId,
+                which,
+                {
+                  x: clientX - rect.left - rect.width / 2,
+                  y: clientY - rect.top - rect.height / 2,
+                },
+                clientX,
+                clientY
+              );
+            }}
+            showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
           />
         ))}
         {viewport.placePreview !== null && (
@@ -1035,12 +1293,36 @@ function CanvasView() {
             />
           </div>
         )}
+        {(viewport.pendingConnector !== null || viewport.pendingFree !== null) &&
+          viewport.connectorPreview !== null &&
+          viewport.pendingConnector !== undefined && (
+            // The connector's pending preview line: the dashed segment
+            // from the pending stand (the block's edge anchor toward the
+            // cursor, or the free stand's own point) to the cursor (the
+            // world's space, so it scales with the zoom).
+            <ConnectorPreviewLine
+              id={viewport.pendingConnector ?? undefined}
+              from={
+                viewport.pendingFree !== null
+                  ? viewport.pendingFree
+                  : viewport.pendingConnector !== null
+                    ? (() => {
+                        const block = blocks[viewport.pendingConnector!];
+                        return block === undefined
+                          ? { x: 0, y: 0 }
+                          : edgeAnchor(effectiveGeometry(block), viewport.connectorPreview!);
+                      })()
+                    : { x: 0, y: 0 }
+              }
+              point={viewport.connectorPreview}
+            />
+          )}
         {viewport.penPoints.length > 1 && (
           <svg
             data-slot="docblocks/canvas-pen-preview"
             className="pointer-events-none absolute top-1/2 left-1/2 overflow-visible"
-            width={0}
-            height={0}
+            width={1}
+            height={1}
           >
             <path
               d={viewport.penPoints.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ")}
@@ -1166,6 +1448,41 @@ function CanvasView() {
       <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={() => viewport.setZoom(1)} />
       <CanvasDock viewport={viewport} />
     </div>
+  );
+}
+
+/**
+ * The connector's pending preview line: the dashed cyan segment from the
+ * pending block's edge anchor (the box's edge the cursor points at) to the
+ * cursor (the world's space, so it scales with the zoom).
+ */
+function ConnectorPreviewLine({
+  id,
+  from,
+  point,
+}: {
+  id?: string;
+  from: { x: number; y: number };
+  point: { x: number; y: number };
+}) {
+  return (
+    <svg
+      data-slot="docblocks/canvas-connector-preview"
+      data-connector-preview-id={id}
+      className="pointer-events-none absolute top-1/2 left-1/2 overflow-visible"
+      width={1}
+      height={1}
+    >
+      <line
+        x1={from.x}
+        y1={from.y}
+        x2={point.x}
+        y2={point.y}
+        stroke="var(--docblocks-canvas-selection-border-color)"
+        strokeWidth={1.5}
+        strokeDasharray="6 4"
+      />
+    </svg>
   );
 }
 

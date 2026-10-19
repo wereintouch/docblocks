@@ -291,8 +291,14 @@ describe("type shapes", () => {
     expectTypeOf<AttrsFor<"shape">>().toEqualTypeOf<ShapeAttrs | undefined>();
   });
 
-  it("connector attrs: the required weak refs (at least one field each), the optional label", () => {
-    expectTypeOf<CanvasRef>().toEqualTypeOf<{ docId?: string | undefined; blockId?: string | undefined }>();
+  it("connector attrs: the required endpoints (a block ref with an optional port, or a free x/y point)", () => {
+    expectTypeOf<CanvasRef>().toEqualTypeOf<{
+      docId?: string | undefined;
+      blockId?: string | undefined;
+      port?: "north" | "east" | "south" | "west" | undefined;
+      x?: number | undefined;
+      y?: number | undefined;
+    }>();
     expectTypeOf<ConnectorAttrs["start"]>().toEqualTypeOf<CanvasRef>();
     expectTypeOf<ConnectorAttrs["label"]>().toEqualTypeOf<string | undefined>();
     expectTypeOf<AttrsFor<"connector">>().toEqualTypeOf<ConnectorAttrs>();

@@ -15,7 +15,7 @@ type ShapeVariant = "rect" | "ellipse" | "diamond" | "line";
  */
 
 /** The first surface (root order); created in `doc.transact` when absent. */
-function firstSurface(doc: Doc): BlockId {
+export function firstSurface(doc: Doc): BlockId {
   for (const id of doc.getChildren(doc.meta.id)) {
     if (doc.getBlock(id)?.type === "surface") return id;
   }
@@ -106,7 +106,7 @@ export function placePenStroke(doc: Doc, stroke: PenStroke): BlockId {
 }
 
 /** The parent surface's id of a canvas item (null when not a surface child). */
-function findParentSurface(doc: Doc, id: BlockId): BlockId | null {
+export function findParentSurface(doc: Doc, id: BlockId): BlockId | null {
   for (const surfaceId of doc.getChildren(doc.meta.id)) {
     const surface = doc.getBlock(surfaceId);
     if (surface?.type !== "surface") continue;

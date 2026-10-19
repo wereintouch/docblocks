@@ -142,17 +142,21 @@ describe("the dock", () => {
   // fake viewport stands for the hook.
   function fakeViewport(overrides: Partial<CanvasViewportState> = {}): CanvasViewportState {
     const noop = vi.fn();
-    return {
+    const base: CanvasViewportState = {
       zoom: 1,
       pan: { x: 0, y: 0 },
       mode: "default",
       activeTool: null,
       pendingConnector: null,
+      pendingFree: null,
       zoomAt: noop,
       marquee: null,
       penPoints: [],
       movePreview: null,
       placePreview: null,
+      connectorPreview: null,
+      connectorEndpoint: null,
+      connectorEndpointPreview: null,
       resizePreview: null,
       rotatePreview: null,
       setZoom: noop,
@@ -161,14 +165,21 @@ describe("the dock", () => {
       setMode: noop,
       setActiveTool: noop,
       setPendingConnector: noop,
+      setPendingStand: noop,
       setMarquee: noop,
       setPenPoints: noop,
       marqueeRect: null,
       onPlace: noop,
       onPlaceSize: noop,
       setPlacePreview: noop,
+      setConnectorPreview: noop,
       onConnectorPick: noop,
+      onConnectorCommit: noop,
       onPen: noop,
+      beginConnectorEndpoint: noop,
+      moveConnectorEndpoint: noop,
+      endConnectorEndpoint: noop,
+      cancelConnectorEndpoint: noop,
       beginMove: noop,
       moveDrag: noop,
       endMove: noop,
@@ -181,8 +192,8 @@ describe("the dock", () => {
       rotateDrag: noop,
       endRotate: noop,
       cancelRotate: noop,
-      ...overrides,
     };
+    return { ...base, ...overrides } as CanvasViewportState;
   }
 
   it("lists the hand toggle, the shapes' single button, and the other tools", () => {
