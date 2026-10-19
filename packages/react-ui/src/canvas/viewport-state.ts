@@ -2,8 +2,8 @@ import { useCallback, useRef, useState } from "react";
 
 import type { Doc } from "docblocks-core";
 
-import { effectiveGeometry } from "../blocks/canvas-geometry";
-import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "./insert";
+import { effectiveGeometry, portsOf } from "../blocks/canvas-geometry";
+import { findParentSurface, firstSurface, placeCanvasText, placeFrame, placePenStroke, placeShape } from "./insert";
 import {
   TOOL_SIZES,
   marqueeRect,
@@ -90,6 +90,32 @@ interface RotateSession {
 }
 
 /**
+ * The in-flight connector endpoint drag (one connector, one endpoint).
+ * The preview point stands in the CANVAS (world) space — the space the
+ * canvas view's surface children stand in (the surface's geometry stands
+ * no shift: the children render at the world's origin parity); the
+ * session carries the point so the release commit reads the session, not
+ * the closure.
+ */
+interface EndpointSession {
+  connectorId: string;
+  surfaceId: string;
+  which: "start" | "end";
+  /** The press's client point (the release threshold anchor). */
+  startClientX: number;
+  startClientY: number;
+  dragging: boolean;
+  /** The last preview point (canvas px), fed by the move. */
+  point: CanvasPoint;
+}
+
+/** The rendered endpoint drag target (the handles' live preview). */
+interface EndpointDrag {
+  connectorId: string;
+  which: "start" | "end";
+}
+
+/**
  * The canvas viewport's view state (zoom / pan / the pointer mode / the
  * active placement tool / the pending connector endpoint / the in-flight
  * marquee and pen stroke) and the placement commands over the doc. Pure
@@ -102,8 +128,11 @@ interface CanvasViewportState {
   pan: ScreenPoint;
   mode: CanvasMode;
   activeTool: CanvasTool | null;
-  /** The connector's first endpoint (the block id), between the two clicks. */
+  /** The connector's first endpoint (the block id), between the two picks. */
   pendingConnector: string | null;
+  /** The connector's first endpoint as a FREE point (world canvas px, the
+   * empty-canvas press); null when the stand is a block or no pick stands. */
+  pendingFree: CanvasPoint | null;
   marquee: MarqueeState | null;
   /** The in-flight pen stroke (canvas space), between the pointer down/up. */
   penPoints: CanvasPoint[];
@@ -115,6 +144,12 @@ interface CanvasViewportState {
   rotatePreview: { id: string; rotation: number } | null;
   /** The in-flight shape placement's preview (canvas coords, the center anchor); null outside a drag. */
   placePreview: PlacePreview | null;
+  /** The connector's pending preview point (canvas coords, the cursor); null outside a pick. */
+  connectorPreview: CanvasPoint | null;
+  /** The in-flight connector endpoint drag (the handles' target); null outside a drag. */
+  connectorEndpoint: EndpointDrag | null;
+  /** The endpoint drag's preview point (canvas px); null outside a drag. */
+  connectorEndpointPreview: CanvasPoint | null;
   setZoom: (zoom: number) => void;
   stepZoom: (direction: 1 | -1) => void;
   /** The zoom step at the screen point (the wheel): the point under the
@@ -124,6 +159,8 @@ interface CanvasViewportState {
   setMode: (mode: CanvasMode) => void;
   setActiveTool: (tool: CanvasTool | null) => void;
   setPendingConnector: (id: string | null) => void;
+  /** Sets the pending stand (a block ref or a free point; null clears both). */
+  setPendingStand: (stand: { blockId?: string; free?: CanvasPoint } | null, pressPoint?: CanvasPoint | null) => void;
   setMarquee: (marquee: MarqueeState | null) => void;
   setPenPoints: (points: CanvasPoint[]) => void;
   /** The in-flight marquee's rectangle (screen space, normalized); null outside a drag. */
@@ -137,8 +174,39 @@ interface CanvasViewportState {
    */
   onPlaceSize: (tool: CanvasTool, point: CanvasPoint, size: { w: number; h: number }) => void;
   setPlacePreview: (preview: PlacePreview | null) => void;
+  setConnectorPreview: (preview: CanvasPoint | null) => void;
   /** The connector's endpoint pick (the second pick creates the connector). */
   onConnectorPick: (id: string) => void;
+  /**
+   * The connector's completion (the two-click's second pick or the
+   * press-drag's release): creates the connector between the pending
+   * stand and the second stand (a block ref, a port-snap when the pick
+   * point stands near the block's port, or a free point at the pick
+   * point). The free stands convert to the surface's local space at the
+   * commit; the surface is the second block's (the first block's when the
+   * second is free, the first surface when both stand free).
+   */
+  onConnectorCommit: (second: { blockId?: string; free?: CanvasPoint }, pickPoint: CanvasPoint) => void;
+  /**
+   * Opens the connector endpoint session (the selected line's handle
+   * press): the line re-draws live from the preview point, the release
+   * commits the endpoint (the port snap or the free point; the source
+   * block's own port detaches to the free point). `pointer` is the
+   * container-space, center-relative point (the screenToCanvas input).
+   */
+  beginConnectorEndpoint: (
+    connectorId: string,
+    which: "start" | "end",
+    pointer: ScreenPoint,
+    startClientX: number,
+    startClientY: number
+  ) => void;
+  /** Feeds the endpoint session with a pointer move (the live re-draw). */
+  moveConnectorEndpoint: (pointer: ScreenPoint) => void;
+  /** Closes the session: commits the endpoint (one updateBlock) or cancels. */
+  endConnectorEndpoint: (releaseClientX?: number, releaseClientY?: number) => void;
+  /** Cancels the in-flight endpoint session without a commit (the Escape / pointercancel path). */
+  cancelConnectorEndpoint: () => void;
   /** The pen stroke commit (the released drag). */
   onPen: (stroke: PenStroke) => void;
   /**
@@ -174,16 +242,30 @@ interface CanvasViewportState {
   cancelRotate: () => void;
 }
 
+/** The endpoint drag's port snap radius (canvas px, the zoom-blind space). */
+const ENDPOINT_SNAP_RADIUS = 12;
+/** The endpoint drag's release threshold (screen px — a sub-threshold
+ * press-release commits nothing, the move sessions' contract). */
+const ENDPOINT_RELEASE_THRESHOLD_PX = 3;
+
 function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [zoom, setZoomState] = useState(1);
   const [pan, setPan] = useState<ScreenPoint>({ x: 0, y: 0 });
   const [mode, setMode] = useState<CanvasMode>("default");
   const [activeTool, setActiveTool] = useState<CanvasTool | null>(null);
   const [pendingConnector, setPendingConnector] = useState<string | null>(null);
+  const [pendingFree, setPendingFree] = useState<CanvasPoint | null>(null);
+  // The pending stand's press point (world canvas px): the block stand's
+  // port snap reads it at the commit (the non-render gesture data).
+  const standPointRef = useRef<CanvasPoint | null>(null);
   const [marquee, setMarquee] = useState<MarqueeState | null>(null);
   const [penPoints, setPenPoints] = useState<CanvasPoint[]>([]);
   const [movePreview, setMovePreview] = useState<MovePreview | null>(null);
   const [placePreview, setPlacePreview] = useState<PlacePreview | null>(null);
+  const [connectorPreview, setConnectorPreview] = useState<CanvasPoint | null>(null);
+  const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
+  const [connectorEndpointPreview, setConnectorEndpointPreview] = useState<CanvasPoint | null>(null);
+  const endpointRef = useRef<EndpointSession | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
 
   const setZoom = useCallback((next: number) => setZoomState(next), []);
@@ -263,24 +345,87 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     [doc]
   );
 
+  const setPendingStand = useCallback(
+    (stand: { blockId?: string; free?: CanvasPoint } | null, pressPoint: CanvasPoint | null = null) => {
+      setPendingConnector(stand?.blockId ?? null);
+      setPendingFree(stand?.free ?? null);
+      standPointRef.current = stand === null ? null : pressPoint;
+    },
+    []
+  );
+
+  // The connector's completion (the two-click's second pick or the
+  // press-drag's release): the connector lands between the pending stand
+  // and the second stand. A block stand snaps to the block's port when
+  // its pick point stands within the snap radius (the canvas point
+  // against the ports — both in the world space); a free stand stands as
+  // the pick point (the canvas px as-is). The surface is the second
+  // block's (the first block's when the second is free, the first surface
+  // when both stand free).
+  const onConnectorCommit = useCallback(
+    (second: { blockId?: string; free?: CanvasPoint }, pickPoint: CanvasPoint) => {
+      const firstBlock = pendingConnector;
+      const firstFree = pendingFree;
+      const standPoint = standPointRef.current;
+      setPendingStand(null);
+      setActiveTool(null);
+      setConnectorPreview(null);
+      if (firstBlock === null && firstFree === null) return;
+      if (second.blockId !== undefined && second.blockId === firstBlock) return; // a self-pair
+
+      let surfaceId: string | null;
+      if (second.blockId !== undefined) {
+        surfaceId = findParentSurface(doc, second.blockId);
+      } else if (firstBlock !== null) {
+        surfaceId = findParentSurface(doc, firstBlock);
+      } else {
+        surfaceId = firstSurface(doc);
+      }
+      if (surfaceId === null) return;
+      // The port snap: the nearest edge midpoint of the block within the
+      // snap radius (the canvas px, the zoom-blind space).
+      const snap = (
+        blockId: string,
+        world: CanvasPoint
+      ): { blockId: string; port?: "north" | "east" | "south" | "west" } => {
+        const block = doc.getBlock(blockId);
+        if (block === null) return { blockId };
+        const ports = portsOf(effectiveGeometry(block));
+        let best: "north" | "east" | "south" | "west" | null = null;
+        let bestDist = ENDPOINT_SNAP_RADIUS;
+        for (const port of ["north", "east", "south", "west"] as const) {
+          const p = ports[port];
+          const dist = Math.hypot(p.x - world.x, p.y - world.y);
+          if (dist < bestDist) {
+            bestDist = dist;
+            best = port;
+          }
+        }
+        return best !== null ? { blockId, port: best } : { blockId };
+      };
+
+      const start = firstBlock !== null ? snap(firstBlock, standPoint ?? pickPoint) : { ...firstFree! };
+      const end = second.blockId !== undefined ? snap(second.blockId, pickPoint) : { ...second.free! };
+      try {
+        doc.transact(() => {
+          doc.insertBlock("connector", { start, end }, { parent: surfaceId });
+        });
+      } catch {
+        // A rejected placement: the stand drops, nothing is created.
+      }
+    },
+    [doc, pendingConnector, pendingFree, setPendingStand]
+  );
+
   const onConnectorPick = useCallback(
     (id: string) => {
-      // The first pick stands the pending endpoint; the second (a different
-      // item) creates the connector. A cross-surface pair (the merged
-      // canvas) is a no-op cancel.
-      if (pendingConnector === null) {
-        setPendingConnector(id);
-        return;
+      // The first pick stands the pending endpoint (the two-click's first
+      // click; the press-drag's press on an item).
+      if (pendingConnector === null && pendingFree === null) {
+        setPendingStand({ blockId: id });
       }
-      try {
-        placeConnector(doc, pendingConnector, id);
-      } catch {
-        // A cross-surface pair: the pick cancels.
-      }
-      setPendingConnector(null);
-      setActiveTool(null);
     },
-    [doc, pendingConnector]
+    [pendingConnector, pendingFree, setPendingStand]
   );
 
   const onPen = useCallback(
@@ -293,6 +438,109 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     },
     [doc]
   );
+
+  // The connector endpoint's drag session (the selected line's handles):
+  // the press opens the session (the line re-draws live from the
+  // preview point — pure render state, no doc write until the release),
+  // the release commits the endpoint in one updateBlock (the port snap
+  // when released near a port, else the free point; a release on the
+  // dragged endpoint's OWN block detaches to the free point. The
+  // preview / commit points stand in the
+  // SURFACE-LOCAL canvas space (the surface center's origin — the
+  // geometry's space); the session carries the surface's world offset.
+  const beginConnectorEndpoint = useCallback(
+    (connectorId: string, which: "start" | "end", pointer: ScreenPoint, startClientX: number, startClientY: number) => {
+      const block = doc.getBlock(connectorId);
+      if (block === null || block.type !== "connector") return;
+      const surfaceId = findParentSurface(doc, connectorId);
+      if (surfaceId === null) return;
+      const canvas = screenToCanvas(pointer, zoom, pan);
+      endpointRef.current = {
+        connectorId,
+        surfaceId,
+        which,
+        startClientX,
+        startClientY,
+        dragging: false,
+        point: canvas,
+      };
+      setConnectorEndpoint({ connectorId, which });
+      setConnectorEndpointPreview(null);
+    },
+    [doc, zoom, pan]
+  );
+
+  const moveConnectorEndpoint = useCallback(
+    (pointer: ScreenPoint) => {
+      const session = endpointRef.current;
+      if (session === null) return;
+      session.dragging = true;
+      session.point = screenToCanvas(pointer, zoom, pan);
+      setConnectorEndpointPreview(session.point);
+    },
+    [zoom, pan]
+  );
+
+  const endConnectorEndpoint = useCallback(
+    (releaseClientX?: number, releaseClientY?: number) => {
+      const session = endpointRef.current;
+      endpointRef.current = null;
+      setConnectorEndpoint(null);
+      setConnectorEndpointPreview(null);
+      if (session === null || !session.dragging) return;
+      // The release threshold (the move / resize sessions' contract): a
+      // sub-threshold press-release commits nothing (no wire traffic).
+      if (
+        releaseClientX !== undefined &&
+        releaseClientY !== undefined &&
+        Math.hypot(releaseClientX - session.startClientX, releaseClientY - session.startClientY) <
+          ENDPOINT_RELEASE_THRESHOLD_PX
+      ) {
+        return;
+      }
+      // The port snap: the nearest edge midpoint of a surface sibling
+      // within the snap radius (the canvas px, the zoom-blind space). The
+      // dragged endpoint's own block is excluded (the release on the source
+      // detaches to the free point — re-anchoring to the same block is a
+      // no-op the owner's detach rule covers).
+      const block = doc.getBlock(session.connectorId);
+      const ownBlock = block !== null && block.type === "connector" ? block.attrs?.[session.which]?.blockId : undefined;
+      let snap: { blockId: string; port: "north" | "east" | "south" | "west" } | null = null;
+      let best = ENDPOINT_SNAP_RADIUS;
+      for (const siblingId of doc.getChildren(session.surfaceId)) {
+        if (siblingId === session.connectorId || siblingId === ownBlock) continue;
+        const sibling = doc.getBlock(siblingId);
+        if (sibling === null) continue;
+        const ports = portsOf(effectiveGeometry(sibling));
+        for (const port of ["north", "east", "south", "west"] as const) {
+          const p = ports[port];
+          const dist = Math.hypot(p.x - session.point.x, p.y - session.point.y);
+          if (dist < best) {
+            best = dist;
+            snap = { blockId: siblingId, port };
+          }
+        }
+      }
+      const ref =
+        snap !== null
+          ? { blockId: snap.blockId, port: snap.port }
+          : { x: Number(session.point.x.toFixed(2)), y: Number(session.point.y.toFixed(2)) };
+      try {
+        doc.transact(() => {
+          doc.updateBlock(session.connectorId, session.which === "start" ? { start: ref } : { end: ref });
+        });
+      } catch {
+        // A concurrent removal of the connector: the commit drops.
+      }
+    },
+    [doc]
+  );
+
+  const cancelConnectorEndpoint = useCallback(() => {
+    endpointRef.current = null;
+    setConnectorEndpoint(null);
+    setConnectorEndpointPreview(null);
+  }, []);
 
   const beginMove = useCallback(
     (ids: string[], startClientX: number, startClientY: number) => {
@@ -477,12 +725,17 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     mode,
     activeTool,
     pendingConnector,
+    pendingFree,
     marquee,
     penPoints,
     movePreview,
     resizePreview,
     rotatePreview,
     placePreview,
+    connectorPreview,
+    connectorEndpoint,
+    connectorEndpointPreview,
+    setConnectorPreview,
     setZoom,
     stepZoom: step,
     zoomAt,
@@ -490,6 +743,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     setMode,
     setActiveTool,
     setPendingConnector,
+    setPendingStand,
     setMarquee,
     setPenPoints,
     marqueeRect: marquee === null ? null : marqueeRect(marquee.start, marquee.end),
@@ -497,7 +751,12 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     onPlaceSize,
     setPlacePreview,
     onConnectorPick,
+    onConnectorCommit,
     onPen,
+    beginConnectorEndpoint,
+    moveConnectorEndpoint,
+    endConnectorEndpoint,
+    cancelConnectorEndpoint,
     beginMove,
     moveDrag,
     endMove,

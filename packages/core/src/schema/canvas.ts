@@ -24,12 +24,29 @@ interface Geometry {
   rotation?: number;
 }
 
-/** A canvas weak ref: a block of the current document, or another document. */
+/**
+ * A canvas weak ref: a block of the current document, or another document.
+ * Also a connector endpoint shape: a port of the
+ * target block (the box's edge midpoint), or a free point (x / y in canvas
+ * px relative to the canvas origin — the world space the canvas view's
+ * surface children stand in) when the endpoint is
+ * not anchored to a block at all.
+ */
 interface CanvasRef {
   /** The target document id; absent — the current document. */
   docId?: string;
   /** The target block id; absent together with docId — the ref is empty. */
   blockId?: string;
+  /**
+   * The endpoint's port of the target block (the edge midpoint; requires
+   * docId / blockId). Absent — the endpoint stands at the block's edge
+   * anchor toward the line's other end (the sticky legacy anchor).
+   */
+  port?: "north" | "east" | "south" | "west";
+  /** The free endpoint's x (canvas px, the canvas origin — the world space). */
+  x?: number;
+  /** The free endpoint's y (canvas px, the canvas origin — the world space). */
+  y?: number;
 }
 
 interface ShapeAttrs {
@@ -49,9 +66,9 @@ interface ShapeAttrs {
 }
 
 interface ConnectorAttrs {
-  /** The start endpoint (a weak ref; at least one of docId/blockId). */
+  /** The start endpoint (a block ref with an optional port, or a free x/y point). */
   start: CanvasRef;
-  /** The end endpoint (a weak ref; at least one of docId/blockId). */
+  /** The end endpoint (a block ref with an optional port, or a free x/y point). */
   end: CanvasRef;
   /** Waypoints [x, y][] in surface-local px relative to the surface center. */
   points?: [number, number][];

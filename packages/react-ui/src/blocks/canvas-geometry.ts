@@ -56,6 +56,10 @@ function endpointOf(
   siblings: readonly BlockId[],
   blocks: Record<BlockId, Block>
 ): { x: number; y: number } | null {
+  // The free point stands as-is.
+  if (ref.docId === undefined && ref.blockId === undefined && ref.x !== undefined && ref.y !== undefined) {
+    return { x: ref.x, y: ref.y };
+  }
   if (ref.docId !== undefined || ref.blockId === undefined) return null;
   if (!siblings.includes(ref.blockId)) return null;
   const target = blocks[ref.blockId];
@@ -117,6 +121,75 @@ interface Box {
   y: number;
   w: number;
   h: number;
+}
+
+/** The four edge ports of a box (the edge midpoints, the center-anchor space). */
+type CanvasPort = "north" | "east" | "south" | "west";
+
+interface Ports {
+  north: { x: number; y: number };
+  east: { x: number; y: number };
+  south: { x: number; y: number };
+  west: { x: number; y: number };
+}
+
+/** The box's four edge-midpoint ports (the connector's snap targets). */
+function portsOf(box: Box): Ports {
+  return {
+    north: { x: box.x, y: box.y - box.h / 2 },
+    east: { x: box.x + box.w / 2, y: box.y },
+    south: { x: box.x, y: box.y + box.h / 2 },
+    west: { x: box.x - box.w / 2, y: box.y },
+  };
+}
+
+/** An endpoint resolved to a point + the outward normal the line leaves at. */
+interface EndpointPoint {
+  x: number;
+  y: number;
+  nx: number;
+  ny: number;
+}
+
+/** The port side's outward normal (the curved line bows out from it). */
+const PORT_NORMAL: Record<CanvasPort, { nx: number; ny: number }> = {
+  north: { nx: 0, ny: -1 },
+  east: { nx: 1, ny: 0 },
+  south: { nx: 0, ny: 1 },
+  west: { nx: -1, ny: 0 },
+};
+
+/**
+ * The connector endpoint resolved to a POINT in the surface coordinate
+ * space (the container center origin): a free { x, y } point stands as-is
+ * (the normal derives from the segment at render time); a block ref with
+ * a port stands at that edge midpoint; a block ref without a port stands
+ * at the block's edge anchor toward `toward` (the sticky legacy anchor —
+ * a moved block re-anchors the line). Resolved WITHIN the surface's
+ * children by blockId ONLY (the cross-doc resolution is the consumer's
+ * level): a docId ref, or a blockId that is not a direct surface child (or
+ * an absent block), resolves to nothing — the line is skipped (the
+ * lenient render posture).
+ */
+function endpointPointOf(
+  ref: CanvasRef,
+  siblings: readonly BlockId[],
+  blocks: Record<BlockId, Block>,
+  toward: { x: number; y: number }
+): EndpointPoint | null {
+  if (ref.x !== undefined && ref.y !== undefined) return { x: ref.x, y: ref.y, nx: 0, ny: 0 };
+  if (ref.docId !== undefined || ref.blockId === undefined) return null;
+  if (!siblings.includes(ref.blockId)) return null;
+  const target = blocks[ref.blockId];
+  if (target === undefined) return null;
+  const box = effectiveGeometry(target);
+  if (ref.port !== undefined) {
+    const port = portsOf(box)[ref.port];
+    const normal = PORT_NORMAL[ref.port];
+    return { x: port.x, y: port.y, nx: normal.nx, ny: normal.ny };
+  }
+  const anchor = edgeAnchor(box, toward);
+  return { x: anchor.x, y: anchor.y, nx: anchor.nx, ny: anchor.ny };
 }
 
 /** The connector's line shape (the absent variant renders straight). */
@@ -226,17 +299,67 @@ function connectorPath(start: Box, end: Box, variant: ConnectorVariant): Connect
   return { d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
 }
 
+/**
+ * The connector's path between the RESOLVED endpoint points (the variant's
+ * shape): the free-port generalization of connectorPath — straight is the
+ * segment, orthogonal the right-angled elbow through the dominant axis'
+ * midpoint, curved the cubic bow (a zero normal — the free point — bows
+ * out along the segment's own direction, so the line leaves the point the
+ * way it arrived).
+ */
+function connectorPathPoints(a: EndpointPoint, b: EndpointPoint, variant: ConnectorVariant): ConnectorPath {
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  if (variant === "straight") {
+    return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
+  }
+  if (variant === "orthogonal") {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    if (dx === 0 && dy === 0) {
+      return { d: `M ${a.x} ${a.y} L ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
+    }
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      const bendX = (a.x + b.x) / 2;
+      return {
+        d: `M ${a.x} ${a.y} L ${bendX} ${a.y} L ${bendX} ${b.y} L ${b.x} ${b.y}`,
+        end: { x: b.x, y: b.y },
+        mid: { x: bendX, y: (a.y + b.y) / 2 },
+      };
+    }
+    const bendY = (a.y + b.y) / 2;
+    return {
+      d: `M ${a.x} ${a.y} L ${a.x} ${bendY} L ${b.x} ${bendY} L ${b.x} ${b.y}`,
+      end: { x: b.x, y: b.y },
+      mid: { x: (a.x + b.x) / 2, y: bendY },
+    };
+  }
+  const dist = Math.hypot(b.x - a.x, b.y - a.y);
+  const reach = dist / 3;
+  // The free point's zero normal bows out perpendicular to the segment
+  // (both control points on the same side — the line bows to one side,
+  // the deterministic side: the segment direction rotated -90°).
+  const perp = dist === 0 ? { nx: 0, ny: 1 } : { nx: (b.y - a.y) / dist, ny: -(b.x - a.x) / dist };
+  const aNormal = a.nx === 0 && a.ny === 0 ? perp : { nx: a.nx, ny: a.ny };
+  const bNormal = b.nx === 0 && b.ny === 0 ? perp : { nx: b.nx, ny: b.ny };
+  const c1 = { x: a.x + aNormal.nx * reach, y: a.y + aNormal.ny * reach };
+  const c2 = { x: b.x + bNormal.nx * reach, y: b.y + bNormal.ny * reach };
+  return { d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
+}
+
 export {
   DEFAULT_CANVAS_ITEM_SIZE,
   DEFAULT_PAGE_SIZE,
   canvasItemStyle,
   connectorPath,
+  connectorPathPoints,
   edgeAnchor,
   effectiveGeometry,
   endpointBoxOf,
   endpointOf,
+  endpointPointOf,
   isCanvasSubType,
   pageCardStyle,
+  portsOf,
 };
 
-export type { ConnectorPath, ConnectorVariant };
+export type { CanvasPort, ConnectorPath, ConnectorVariant, EndpointPoint, Ports };

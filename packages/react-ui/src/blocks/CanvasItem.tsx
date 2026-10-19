@@ -25,7 +25,10 @@ import { canvasItemStyle, endpointOf, isCanvasSubType } from "./canvas-geometry"
  * marquee/click selection (the shared `blocks` selection) tints the item.
  * No gutter (the canvas rows have no reading order to drag). The
  * canvas-text's font attrs are data (not theme): inline styles on the
- * wrapper.
+ * wrapper. The connector's pending endpoint stands no tint of its own
+ * (the dashed preview line is the pick's indicator; the shape itself
+ * stands clean) — the wrapper only carries the data-connector-pending
+ * hook.
  */
 function CanvasItem({
   id,
@@ -125,7 +128,7 @@ function CanvasItem({
       // selected item's thin cyan outline (the shared selection token) stands
       // over the tint.
       className={
-        (selected || connectorPending) && block.type !== "connector"
+        selected && block.type !== "connector"
           ? `
             bg-(--docblocks-selected-background) outline-(length:--docblocks-canvas-selection-border-width)
             outline-offset-1 outline-(color:--docblocks-canvas-selection-border-color) outline-solid

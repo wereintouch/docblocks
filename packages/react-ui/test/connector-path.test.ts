@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
-// The connector's path math (the edge anchors, the three variant shapes,
-// the degenerate cases): the pure functions of canvas-geometry.
+// The connector's path math (the edge anchors, the four edge ports, the
+// endpoint resolution (port / legacy anchor / free point), the three
+// variant shapes, the degenerate cases): the pure functions of
+// canvas-geometry.
 import { describe, expect, it } from "vitest";
 
-import { connectorPath, edgeAnchor } from "../src/blocks/canvas-geometry";
+import {
+  connectorPath,
+  connectorPathPoints,
+  edgeAnchor,
+  endpointPointOf,
+  portsOf,
+} from "../src/blocks/canvas-geometry";
 
 /** The scene boxes (the center-anchor geometry shape). */
 const A = { x: -300, y: -100, w: 200, h: 100 };
@@ -51,6 +59,99 @@ describe("edgeAnchor", () => {
       const anchor = edgeAnchor(flat, toward);
       expect(Math.abs(anchor.y)).toBeCloseTo(0.5);
     }
+  });
+});
+
+describe("portsOf", () => {
+  it("the four edge midpoints (the center-anchor box)", () => {
+    const ports = portsOf(A); // A = { x: -300, y: -100, w: 200, h: 100 }
+    expect(ports.north).toEqual({ x: -300, y: -150 });
+    expect(ports.east).toEqual({ x: -200, y: -100 });
+    expect(ports.south).toEqual({ x: -300, y: -50 });
+    expect(ports.west).toEqual({ x: -400, y: -100 });
+  });
+});
+
+describe("endpointPointOf", () => {
+  const blocks = {
+    s1: { type: "shape", attrs: { variant: "rect" }, geometry: { x: -300, y: -100, w: 200, h: 100 } },
+  } as unknown as Parameters<typeof endpointPointOf>[2];
+  const siblings = ["s1"] as const;
+
+  it("a free point stands as-is (the zero normal)", () => {
+    expect(endpointPointOf({ x: 120, y: -40 }, siblings, blocks, { x: 0, y: 0 })).toEqual({
+      x: 120,
+      y: -40,
+      nx: 0,
+      ny: 0,
+    });
+  });
+
+  it("a ref + port stands at that edge midpoint (the port's outward normal)", () => {
+    expect(endpointPointOf({ blockId: "s1", port: "east" }, siblings, blocks, { x: 300, y: 100 })).toEqual({
+      x: -200,
+      y: -100,
+      nx: 1,
+      ny: 0,
+    });
+    expect(endpointPointOf({ blockId: "s1", port: "south" }, siblings, blocks, { x: 0, y: 200 })).toEqual({
+      x: -300,
+      y: -50,
+      nx: 0,
+      ny: 1,
+    });
+  });
+
+  it("a ref without a port keeps the sticky edge anchor (the legacy posture)", () => {
+    // The same math as edgeAnchor toward the other end (the direction
+    // (600, 200) exits A's east edge at y = -66.67).
+    const point = endpointPointOf({ blockId: "s1" }, siblings, blocks, { x: 300, y: 100 });
+    expect(point?.x).toBeCloseTo(-200);
+    expect(point?.y).toBeCloseTo(-100 + (100 / 600) * 200);
+    expect(point?.nx).toBe(1);
+  });
+
+  it("a docId ref or an absent block resolves to nothing (the lenient posture)", () => {
+    expect(endpointPointOf({ docId: "master-1" }, siblings, blocks, { x: 0, y: 0 })).toBeNull();
+    expect(endpointPointOf({ blockId: "nope" }, siblings, blocks, { x: 0, y: 0 })).toBeNull();
+  });
+});
+
+describe("connectorPathPoints", () => {
+  const A_POINT = { x: -200, y: -100, nx: 1, ny: 0 };
+  const B_POINT = { x: 200, y: 100, nx: -1, ny: 0 };
+
+  it("straight: the point-to-point segment", () => {
+    const path = connectorPathPoints(A_POINT, B_POINT, "straight");
+    expect(path.d).toBe("M -200 -100 L 200 100");
+    expect(path.end).toEqual({ x: 200, y: 100 });
+    expect(path.mid).toEqual({ x: 0, y: 0 });
+  });
+
+  it("orthogonal: the elbow through the dominant axis' midpoint (free points included)", () => {
+    const horizontal = connectorPathPoints(
+      { x: 0, y: -100, nx: 0, ny: 0 },
+      { x: 400, y: 100, nx: 0, ny: 0 },
+      "orthogonal"
+    );
+    expect(horizontal.d).toBe("M 0 -100 L 200 -100 L 200 100 L 400 100");
+    const vertical = connectorPathPoints({ x: 0, y: -300, nx: 0, ny: 0 }, { x: 0, y: 300, nx: 0, ny: 0 }, "orthogonal");
+    expect(vertical.d).toBe("M 0 -300 L 0 0 L 0 0 L 0 300");
+  });
+
+  it("curved: the anchored normals bow out; the free point bows perpendicular to the segment", () => {
+    // Both anchored (the east / west normals): the same bow as the box
+    // form's curved (the endpoints equal the edge anchors).
+    const anchored = connectorPathPoints(A_POINT, B_POINT, "curved");
+    const dist = Math.hypot(400, 200);
+    const reach = dist / 3;
+    expect(anchored.d).toBe(`M -200 -100 C ${-200 + reach} -100, ${200 - reach} 100, 200 100`);
+
+    // Both free (the zero normals): the perpendicular bow (the segment
+    // direction rotated -90°: (0, -1); both control points on the same
+    // side, offset from the endpoints by reach = dist / 3 = 100).
+    const free = connectorPathPoints({ x: 0, y: 0, nx: 0, ny: 0 }, { x: 300, y: 0, nx: 0, ny: 0 }, "curved");
+    expect(free.d).toBe("M 0 0 C 0 -100, 300 -100, 300 0");
   });
 });
 

@@ -130,7 +130,7 @@ describe("strict validation (validateDoc)", () => {
     expect(conn.some((e) => e.path === "blocks.c1.attrs.points[0]")).toBe(true);
   });
 
-  it("rejects the connector refs without at least one field (the canvas branch)", () => {
+  it("rejects the connector endpoints without a ref or a free point (the canvas branch)", () => {
     const emptyStart = validateDoc(
       withBlock("c1", { type: "connector", attrs: { start: {}, end: { blockId: "sh1" } } })
     );
@@ -146,6 +146,29 @@ describe("strict validation (validateDoc)", () => {
     const noRefs = validateDoc(withBlock("c1", { type: "connector" }));
     expect(noRefs.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
     expect(noRefs.some((e) => e.path === "blocks.c1.attrs.end")).toBe(true);
+  });
+
+  it("accepts the endpoint shapes (the port on a ref, the free point) and rejects their malformed forms", () => {
+    // A ref + port and a free point: both valid (2026-10-15 additive).
+    const ported = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1", port: "east" }, end: { x: 120, y: -40 } } })
+    );
+    expect(ported).toEqual([]);
+    // A port without a ref is meaningless.
+    const portAlone = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: { port: "north" }, end: { blockId: "sh1" } } })
+    );
+    expect(portAlone.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
+    // A free point without both coordinates is incomplete.
+    const halfPoint = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: { x: 10 }, end: { blockId: "sh1" } } })
+    );
+    expect(halfPoint.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
+    // The port enum is registry-driven.
+    const badPort = validateDoc(
+      withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1", port: "up" }, end: { blockId: "sh1" } } })
+    );
+    expect(badPort.some((e) => e.path === "blocks.c1.attrs.start.port")).toBe(true);
   });
 
   it("rejects the connector variant enum (registry-driven)", () => {

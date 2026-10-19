@@ -38,7 +38,15 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
           {children.map((childId) => (
             <CanvasItem key={childId} id={childId} />
           ))}
-          <ConnectorLayer id={id} interactive={false} />
+          <ConnectorLayer
+            id={id}
+            interactive={false}
+            endpointDrag={null}
+            endpointPreview={null}
+            onEndpointDrag={() => {
+              /* The page view's embedded surface stands the overlay inert. */
+            }}
+          />
         </BlockContext.Provider>
       </div>
     </div>

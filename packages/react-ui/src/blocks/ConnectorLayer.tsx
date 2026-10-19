@@ -6,7 +6,8 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
-import { connectorPath, endpointBoxOf } from "./canvas-geometry";
+import type { EndpointPoint } from "./canvas-geometry";
+import { connectorPath, connectorPathPoints, endpointBoxOf, endpointPointOf } from "./canvas-geometry";
 
 /** The v1 connector stroke (the shape token; the label uses the text color). */
 const STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
@@ -20,29 +21,69 @@ const HIT_STROKE_WIDTH = 12;
 /** The arrowhead's length (canvas px, the marker's coordinate space). */
 const ARROW_SIZE = 8;
 const LABEL_FONT_SIZE = 12;
+/** The endpoint handle's radius (canvas px, zoom-scaled). */
+const HANDLE_RADIUS = 4;
+/** The endpoint handle's hit area (the wider invisible circle). */
+const HANDLE_HIT_RADIUS = 8;
+
+/** The selected line's endpoint handle data (the draw point + the key). */
+interface EndpointHandle {
+  key: "start" | "end";
+  point: EndpointPoint;
+}
 
 /**
  * The surface's connector overlay: one SVG anchored at the surface CENTER
- * (a 0x0 svg with overflow visible at left/top 50% — the equivalent of a
- * full-surface overlay with a center origin) for ALL the direct connector
- * children. The SVG itself is pointer-events none; the per-connector hit
- * path (the wide transparent stroke) is pointer-events stroke — the line
- * is click-selectable, the empty canvas around it is not.
+ * (a 1x1 svg with overflow visible at left/top 50% — Chromium does not
+ * paint a zero-sized SVG) for ALL the direct connector children. The SVG
+ * itself is pointer-events none; the per-connector hit path (the wide
+ * transparent stroke) is pointer-events stroke — the line is
+ * click-selectable, the empty canvas around it is not.
  *
- * A connector renders a line between the START and the END block's EDGES
- * (the edge anchors: the center-to-center segment's exit from each box —
- * a moved block re-anchors the line automatically): the `variant`'s shape
- * (absent = straight; the stored `points` keep the polyline priority).
- * The arrowhead (the filled triangle marker) stands at the end point. A
- * ref that does not resolve within the surface's children (a docId ref,
- * an absent block) is SKIPPED (the lenient posture; the element's wrapper
- * carries data-missing). A label renders as an SVG text at the line's
- * midpoint. `interactive` (default true) toggles the hit path: the canvas
- * view is interactive (the line is click-selectable), the page view's
- * embedded surface stands the line inert (no selection handler there —
- * the wide band must not intercept the content's clicks).
+ * A connector renders a line between its two ENDPOINTS (the 2026-10-15
+ * endpoint shape): a block ref with a PORT stands at the block's edge
+ * midpoint, a block ref WITHOUT a port stands at the block's edge anchor
+ * toward the other endpoint (the sticky legacy anchor — a moved block
+ * re-anchors the line), and a FREE point (x / y in canvas px — the
+ * world space the canvas view's surface children stand in)
+ * stands as-is. The `variant`'s shape (absent = straight; the stored
+ * `points` keep the polyline priority) draws between the points. The
+ * arrowhead (the filled triangle marker) stands at the end point. An
+ * endpoint that does not resolve within the surface's children (a docId
+ * ref, an absent block) SKIPS the line (the lenient posture; the
+ * element's wrapper carries data-missing). A label renders as an SVG
+ * text at the line's midpoint.
+ *
+ * The handles: the TWO endpoint circles
+ * render for the SELECTED connector and are DRAGGABLE — the pointerdown
+ * starts the endpoint session (the viewport's `onConnectorEndpointDrag` —
+ * the line re-draws live from the preview point, the release commits the
+ * ref: a port-snap when released near a port, else the free point; a
+ * release on the own source block detaches to the free point). `interactive`
+ * (default true) toggles the hit path + handles: the canvas view is
+ * interactive (the line is selectable, the endpoints draggable), the
+ * page view's embedded surface stands the overlay inert (no selection /
+ * dragging there — the bands must not intercept the content's clicks).
  */
-function ConnectorLayer({ id, interactive = true }: { id: BlockId; interactive?: boolean }) {
+function ConnectorLayer({
+  id,
+  interactive = true,
+  endpointDrag,
+  endpointPreview,
+  onEndpointDrag,
+}: {
+  id: BlockId;
+  interactive?: boolean;
+  endpointDrag: { connectorId: BlockId; which: "start" | "end" } | null;
+  endpointPreview: { x: number; y: number } | null;
+  onEndpointDrag: (
+    connectorId: BlockId,
+    which: "start" | "end",
+    pointerId: number,
+    clientX: number,
+    clientY: number
+  ) => void;
+}) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
   const selection = useStore(store, (state) => state.selection);
@@ -60,11 +101,44 @@ function ConnectorLayer({ id, interactive = true }: { id: BlockId; interactive?:
     const attrs = block.attrs;
     if (attrs === undefined) continue; // lenient data without attrs: no line
 
-    const start = endpointBoxOf(attrs.start, childIds, blocks);
-    const end = endpointBoxOf(attrs.end, childIds, blocks);
-    if (start === null || end === null) continue; // skipped: the wrapper carries data-missing
+    // The two-pass resolution (the 2026-10-15 endpoint shape): a free
+    // { x, y } point stands as-is; a block ref with a PORT stands at the
+    // block's edge midpoint; a block ref WITHOUT a port stands at the
+    // block's edge anchor toward the OTHER endpoint's stand (the box's
+    // center — the legacy sticky anchor: a moved block re-anchors the
+    // line). The line draws when both endpoints stand (a docId ref or an
+    // absent block skips — the wrapper carries data-missing).
+    const startBox = endpointBoxOf(attrs.start, childIds, blocks);
+    const endBox = endpointBoxOf(attrs.end, childIds, blocks);
+    const startFree =
+      attrs.start.x !== undefined && attrs.start.y !== undefined ? { x: attrs.start.x, y: attrs.start.y } : null;
+    const endFree = attrs.end.x !== undefined && attrs.end.y !== undefined ? { x: attrs.end.x, y: attrs.end.y } : null;
+    const startToward = endBox !== null ? { x: endBox.x, y: endBox.y } : (endFree ?? { x: 0, y: 0 });
+    const endToward = startBox !== null ? { x: startBox.x, y: startBox.y } : (startFree ?? { x: 0, y: 0 });
+    const startPoint =
+      startFree !== null
+        ? { x: startFree.x, y: startFree.y, nx: 0, ny: 0 }
+        : endpointPointOf(attrs.start, childIds, blocks, startToward);
+    const endPoint =
+      endFree !== null
+        ? { x: endFree.x, y: endFree.y, nx: 0, ny: 0 }
+        : endpointPointOf(attrs.end, childIds, blocks, endToward);
+    if (startPoint === null || endPoint === null) continue; // skipped: the wrapper carries data-missing
 
     const selected = selectedIds.includes(childId);
+    const draggingThis = interactive && endpointDrag !== null && endpointDrag.connectorId === childId;
+    // The preview replaces the dragged endpoint's point (the other
+    // endpoint stands; the line's shape re-draws around it). The zero
+    // normal on the preview: the free point bows out at render time.
+    const startDraw: EndpointPoint =
+      draggingThis && endpointDrag !== null && endpointDrag.which === "start"
+        ? { x: endpointPreview?.x ?? startPoint.x, y: endpointPreview?.y ?? startPoint.y, nx: 0, ny: 0 }
+        : startPoint;
+    const endDraw: EndpointPoint =
+      draggingThis && endpointDrag !== null && endpointDrag.which === "end"
+        ? { x: endpointPreview?.x ?? endPoint.x, y: endpointPreview?.y ?? endPoint.y, nx: 0, ny: 0 }
+        : endPoint;
+
     const stroke = selected ? SELECTED_STROKE : STROKE;
     const strokeWidth = selected ? SELECTED_STROKE_WIDTH : CONNECTOR_STROKE_WIDTH;
     const dash = attrs.strokeStyle === "dash" ? "8 4" : attrs.strokeStyle === "dot" ? "1 4" : undefined;
@@ -73,15 +147,43 @@ function ConnectorLayer({ id, interactive = true }: { id: BlockId; interactive?:
     const markerId = `docblocks-conn-arrow-${id}${selected ? "-selected" : ""}`;
 
     // The stored points keep the polyline priority (the pre-variant
-    // behavior: the freehand waypoints through the centers).
+    // behavior: the freehand waypoints through the centers). The
+    // polyline's endpoints stand as the legacy centers for plain refs
+    // (the look preserved); a port / free endpoint stands at its own
+    // point.
+    // A legacy line (both endpoints plain refs — no port / free point)
+    // keeps the box-based path (the mid-edge elbow; the legacy look is
+    // preserved byte-for-byte); a line with a port or a free endpoint
+    // draws through the resolved points.
+    const legacy =
+      startBox !== null &&
+      endBox !== null &&
+      startFree === null &&
+      endFree === null &&
+      attrs.start.port === undefined &&
+      attrs.end.port === undefined;
+    const polyPoint = (
+      ref: { x?: number; y?: number; port?: string },
+      resolved: EndpointPoint,
+      box: { x: number; y: number } | null
+    ) =>
+      ref.x !== undefined && ref.y !== undefined
+        ? { x: ref.x, y: ref.y }
+        : ref.port !== undefined || box === null
+          ? { x: resolved.x, y: resolved.y }
+          : { x: box.x, y: box.y };
+    const startPoly = polyPoint(attrs.start, startDraw, startBox);
+    const endPoly = polyPoint(attrs.end, endDraw, endBox);
     const path =
       attrs.points !== undefined && attrs.points.length > 0
         ? {
-            d: `M ${start.x} ${start.y} L ${attrs.points.map(([x, y]) => `${x} ${y}`).join(" L ")} L ${end.x} ${end.y}`,
-            end: { x: end.x, y: end.y },
-            mid: { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 },
+            d: `M ${startPoly.x} ${startPoly.y} L ${attrs.points.map(([x, y]) => `${x} ${y}`).join(" L ")} L ${endPoly.x} ${endPoly.y}`,
+            end: { x: endPoly.x, y: endPoly.y },
+            mid: { x: (startPoly.x + endPoly.x) / 2, y: (startPoly.y + endPoly.y) / 2 },
           }
-        : connectorPath(start, end, attrs.variant ?? "straight");
+        : legacy
+          ? connectorPath(startBox, endBox, attrs.variant ?? "straight")
+          : connectorPathPoints(startDraw, endDraw, attrs.variant ?? "straight");
 
     const label =
       attrs.label !== undefined ? (
@@ -101,6 +203,38 @@ function ConnectorLayer({ id, interactive = true }: { id: BlockId; interactive?:
     // The stroke goes through the STYLE (the CSS variable: a presentation
     // attribute cannot carry var()).
     const pathStyle: CSSProperties = { stroke: stroke };
+
+    // The endpoint handles (the selected line only): the two drag circles
+    // at the resolved points (the preview point while dragging). The
+    // invisible wider hit circle stands the pointerdown (the visible
+    // circle is pointer-events none — the line's hit path stays the only
+    // line click target).
+    const handle = (key: "start" | "end", ep: EndpointHandle) =>
+      interactive && selected ? (
+        <g key={`${childId}-${key}`} data-connector-endpoint={key} data-connector-endpoint-id={childId}>
+          <circle
+            cx={ep.point.x}
+            cy={ep.point.y}
+            r={HANDLE_HIT_RADIUS}
+            fill="transparent"
+            pointerEvents="all"
+            style={{ cursor: "grab" }}
+            onPointerDown={(event) => {
+              event.stopPropagation();
+              onEndpointDrag(childId, key, event.pointerId, event.clientX, event.clientY);
+            }}
+          />
+          <circle
+            cx={ep.point.x}
+            cy={ep.point.y}
+            r={HANDLE_RADIUS}
+            fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+            strokeWidth={1.5}
+            pointerEvents="none"
+            style={{ stroke: stroke }}
+          />
+        </g>
+      ) : null;
 
     segments.push(
       <g key={childId}>
@@ -132,15 +266,15 @@ function ConnectorLayer({ id, interactive = true }: { id: BlockId; interactive?:
           />
         )}
         {label}
+        {handle("start", { key: "start", point: startDraw })}
+        {handle("end", { key: "end", point: endDraw })}
       </g>
     );
   }
 
   if (segments.length === 0) return null;
-  // The SVG viewport stands 1x1 px at the surface center: Chromium does
-  // not paint the contents of a zero-sized SVG (the overflow visible alone
-  // does not help), so the viewport keeps one px (the origin is the
-  // surface center — the canvasItemStyle parity, the connector math's
+  // The SVG viewport stands 1x1 px at the surface center (the origin is
+  // the surface center — the canvasItemStyle parity, the connector math's
   // center-anchor space) and the content stands in the overflow.
   return (
     <svg
