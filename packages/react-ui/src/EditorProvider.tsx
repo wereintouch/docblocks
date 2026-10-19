@@ -3,6 +3,8 @@ import { type ReactNode, createContext, useContext, useEffect, useMemo, useRef, 
 import { createSelection, presenceSelectionOf } from "docblocks-core";
 import type { BlockId, Doc, Selection, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
 
+import type { BlobStore } from "./blob-store";
+import { getDefaultBlobStore, legacyBlobStore } from "./blob-store";
 import type { BlockRendererMap } from "./blocks/renderers";
 import { COMMAND_PALETTE_PLACEHOLDER } from "./editing/slash";
 import { createEditorStore } from "./state/store";
@@ -26,8 +28,9 @@ interface EditorContextValue {
   selection: SelectionRef;
   /** Consumer renderers by block type; empty when none were supplied. */
   renderers: BlockRendererMap;
-  /** The image blob-key to src resolver; null when none was supplied. */
-  blobResolver: ((key: string) => string) | null;
+  /** The effective blob bridge (the consumer's store, the legacy resolver
+   *  wrapped, or the shared default in-memory store) — always present. */
+  blobStore: BlobStore;
   /** The sync-embed master-doc resolver; null when none was supplied. */
   syncEmbedResolver: SyncEmbedResolver | null;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -78,6 +81,20 @@ interface EditorProviderProps {
    */
   blobResolver?: (key: string) => string;
   /**
+   * Optional blob bridge: resolves a blob key to its displayable url and
+   * metadata, and uploads a file to a new key (the slash Image path and
+   * the future attachment blocks write the key only after the upload
+   * resolved). Without it — and without `blobResolver` — the editor uses
+   * the shared default in-memory store (uploads stand data urls for the
+   * JS session; a page reload clears them), so the upload path works
+   * out of the box.
+   *
+   * Like `blobResolver`, the value is read per render into the provider
+   * context: pass a stable reference. A nested provider that supplies
+   * none inherits the enclosing store.
+   */
+  blobStore?: BlobStore;
+  /**
    * Optional resolver of a sync-embed's ref to the master Doc (the consumer
    * holds the master in its own store); without it the built-in renderer
    * renders the broken state for every sync-embed.
@@ -122,6 +139,7 @@ function EditorProvider({
   provider,
   blockRenderers,
   blobResolver,
+  blobStore,
   syncEmbedResolver,
   rootBlockId,
   commandPalettePlaceholder,
@@ -239,6 +257,18 @@ function EditorProvider({
     };
   }, [provider, store]);
 
+  // The effective blob bridge: the explicit store wins; the legacy
+  // resolver wraps as a view-only store; neither falls back to the
+  // enclosing store, then the shared default in-memory store.
+  const effectiveBlobStore = useMemo<BlobStore>(
+    () =>
+      blobStore ??
+      (blobResolver !== undefined
+        ? legacyBlobStore(blobResolver)
+        : (parentContext?.blobStore ?? getDefaultBlobStore())),
+    [blobStore, blobResolver, parentContext]
+  );
+
   const value = useMemo(() => {
     const parent = parentContext;
     return {
@@ -246,7 +276,7 @@ function EditorProvider({
       doc,
       selection: selectionRef.current,
       renderers: blockRenderers ?? parent?.renderers ?? {},
-      blobResolver: blobResolver ?? parent?.blobResolver ?? null,
+      blobStore: effectiveBlobStore,
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
@@ -254,7 +284,16 @@ function EditorProvider({
       commandPalettePlaceholder:
         commandPalettePlaceholder ?? parent?.commandPalettePlaceholder ?? COMMAND_PALETTE_PLACEHOLDER,
     };
-  }, [store, doc, blockRenderers, blobResolver, syncEmbedResolver, rootId, parentContext, commandPalettePlaceholder]);
+  }, [
+    store,
+    doc,
+    blockRenderers,
+    effectiveBlobStore,
+    syncEmbedResolver,
+    rootId,
+    parentContext,
+    commandPalettePlaceholder,
+  ]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }

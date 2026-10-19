@@ -10,6 +10,8 @@ export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
 export { EditorProvider, useEditorContext } from "./EditorProvider";
 export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver } from "./EditorProvider";
+export { blobSubtypeOf, createMemoryBlobStore } from "./blob-store";
+export type { BlobMeta, BlobRef, BlobSubtype, BlobStore } from "./blob-store";
 export type { SyncEmbedRef } from "docblocks-core";
 export { useBlock, useDoc, useMeta, usePresence, useSelection, useSelectionView, useText } from "./hooks";
 export { FORMAT_PALETTE } from "./editing/format-toolbar";

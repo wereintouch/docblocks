@@ -11,7 +11,7 @@ import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach
 import { ChaosBar } from "./ChaosBar";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
-import { blobResolver, insertBlockOf } from "./insert-blocks";
+import { blobStore, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
@@ -361,7 +361,7 @@ function SyncPane({
             <EditorProvider
               doc={runtime.doc}
               provider={runtime.provider}
-              blobResolver={blobResolver}
+              blobStore={blobStore}
               blockRenderers={BLOCK_RENDERERS}
               syncEmbedResolver={syncEmbedResolver}
             >

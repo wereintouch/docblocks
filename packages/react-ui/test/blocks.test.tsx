@@ -9,21 +9,30 @@ import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/EditorProvider";
+import type { BlobStore } from "../src/blob-store";
 import { applyMdPaste } from "../src/editing/clipboard";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;
 
-/** Seed the doc (optionally with a blob resolver), then render provider + editor. */
-function renderDoc(prepare: (doc: TestDoc) => void, options?: { blobResolver?: (key: string) => string }) {
+/** Seed the doc (optionally with a blob resolver/store), then render provider + editor. */
+function renderDoc(
+  prepare: (doc: TestDoc) => void,
+  options?: { blobResolver?: (key: string) => string; blobStore?: BlobStore }
+) {
   const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
   prepare(doc);
   render(
-    <EditorProvider doc={doc} blobResolver={options?.blobResolver}>
+    <EditorProvider doc={doc} blobResolver={options?.blobResolver} blobStore={options?.blobStore}>
       <Editor />
     </EditorProvider>
   );
   return doc;
+}
+
+/** Flush the async blob resolve (the promise settles on a microtask). */
+async function flushResolve(): Promise<void> {
+  await act(async () => {});
 }
 
 /** Build a 2x2 table with a paragraph in every cell; returns the table id. */
@@ -89,18 +98,21 @@ describe("built-in renderers: table", () => {
 });
 
 describe("built-in renderers: image", () => {
-  it("resolves the src through the blob resolver", () => {
+  it("resolves the src through the blob resolver (the legacy prop)", async () => {
     renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), {
       blobResolver: (key) => `data:image/svg+xml;utf8,${key}`,
     });
+    await flushResolve();
 
     const img = document.querySelector<HTMLImageElement>("img[data-slot='docblocks/image']");
     expect(img).not.toBeNull();
     expect(img!.getAttribute("src")).toBe("data:image/svg+xml;utf8,key-1");
+    expect(img!.getAttribute("data-subtype")).toBe("image");
   });
 
-  it("renders the placeholder box without a resolver (no <img> at all)", () => {
+  it("renders the placeholder box without a resolver (no <img> at all)", async () => {
     renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }));
+    await flushResolve();
 
     expect(document.querySelector("img")).toBeNull();
     const placeholder = document.querySelector('[data-slot="docblocks/image-placeholder"]');
@@ -108,8 +120,66 @@ describe("built-in renderers: image", () => {
     expect(placeholder!.getAttribute("data-block-type")).toBe("image");
   });
 
-  it("renders the placeholder box when the resolver returns an empty src", () => {
+  it("renders the placeholder box when the resolver returns an empty src", async () => {
     renderDoc((doc) => doc.insertBlock("image", { src: "unknown-key" }), { blobResolver: () => "" });
+    await flushResolve();
+
+    expect(document.querySelector("img")).toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/image-placeholder"]')).not.toBeNull();
+  });
+
+  it("renders the <img> for the image subtype from the blob store", async () => {
+    const store: BlobStore = {
+      resolve: async () => ({ url: "https://cdn.test/pic.png", meta: { subtype: "image", name: "pic.png" } }),
+      upload: async () => "up-1",
+    };
+    renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), { blobStore: store });
+    await flushResolve();
+
+    const img = document.querySelector<HTMLImageElement>("img[data-slot='docblocks/image']");
+    expect(img).not.toBeNull();
+    expect(img!.getAttribute("src")).toBe("https://cdn.test/pic.png");
+  });
+
+  it("renders the pdf subtype as the iframe viewer", async () => {
+    const store: BlobStore = {
+      resolve: async () => ({ url: "https://cdn.test/doc.pdf", meta: { subtype: "pdf", name: "doc.pdf" } }),
+      upload: async () => "up-1",
+    };
+    renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), { blobStore: store });
+    await flushResolve();
+
+    const frame = document.querySelector<HTMLIFrameElement>("iframe[data-slot='docblocks/image-pdf']");
+    expect(frame).not.toBeNull();
+    expect(frame!.getAttribute("src")).toBe("https://cdn.test/doc.pdf");
+    expect(frame!.getAttribute("data-subtype")).toBe("pdf");
+  });
+
+  it("renders the file subtype as the download card", async () => {
+    const store: BlobStore = {
+      resolve: async () => ({ url: "https://cdn.test/a.xlsx", meta: { subtype: "file", name: "a.xlsx" } }),
+      upload: async () => "up-1",
+    };
+    renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), { blobStore: store });
+    await flushResolve();
+
+    const card = document.querySelector('[data-slot="docblocks/image-file"]');
+    expect(card).not.toBeNull();
+    const link = card!.querySelector("a");
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute("href")).toBe("https://cdn.test/a.xlsx");
+    expect(link!.textContent).toBe("a.xlsx");
+  });
+
+  it("renders the placeholder when the store rejects the key", async () => {
+    const store: BlobStore = {
+      resolve: async () => {
+        throw new Error("Blob not found: key-1");
+      },
+      upload: async () => "up-1",
+    };
+    renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), { blobStore: store });
+    await flushResolve();
 
     expect(document.querySelector("img")).toBeNull();
     expect(document.querySelector('[data-slot="docblocks/image-placeholder"]')).not.toBeNull();
