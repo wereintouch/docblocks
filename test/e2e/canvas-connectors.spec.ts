@@ -793,6 +793,86 @@ test.describe("the connector arrows", () => {
       await close();
     }
   });
+
+  test("the orthogonal variant approaches the port at a right angle (the 12-px parallel run, not along the edge)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-ortho");
+    try {
+      await toCanvas(a, "a");
+      const { left, right } = await seedShapes(a, "a");
+      // The end at the right box's NORTH port (300, 50): the line
+      // arrives along the edge's line (the side approach) — the old
+      // shape ran along the top edge and merged into the port.
+      const connId = await a.evaluate(
+        ({ left, right }) => {
+          const doc = window.__paneDocs?.a ?? null;
+          if (doc === null) throw new Error("the pane's doc is not mounted");
+          const json = doc.toJSON();
+          const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+          if (surfaceId === undefined) throw new Error("the surface is missing");
+          return doc.insertBlock(
+            "connector",
+            { start: { blockId: left, port: "east" }, end: { blockId: right, port: "north" }, variant: "orthogonal" },
+            { parent: surfaceId }
+          );
+        },
+        { left, right }
+      );
+      // The side approach: the line runs parallel to the top edge at the
+      // 12-px offset OUTSIDE the box (y = 50 - 12 = 38) and turns into
+      // the port at a right angle (the last segment (300, 38) ->
+      // (300, 50) is vertical). The start stands the east port's 12-px
+      // stub off the left box's edge (-200 + 12 = -188).
+      const d = (await lineD(a, "a", connId))!;
+      expect(d).toBe("M -200 -100 L -188 -100 L 56 -100 L 56 38 L 300 38 L 300 50");
+    } finally {
+      await close();
+    }
+  });
+
+  test("the orthogonal route runs around the obstacle in the corridor (the line never crosses a figure when a clear route stands)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-avoid");
+    try {
+      await toCanvas(a, "a");
+      const { left, right } = await seedShapes(a, "a");
+      // A blocker in the default elbow's corridor: the box (56, 0,
+      // 100x100) crosses the default route's vertical bend at x = 56.
+      await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        const json = doc.toJSON();
+        const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+        if (surfaceId === undefined) throw new Error("the surface is missing");
+        const blocker = doc.insertBlock("shape", { variant: "rect" }, { parent: surfaceId });
+        doc.setGeometry(blocker, { x: 56, y: 0, w: 100, h: 100 });
+      });
+      const connId = await a.evaluate(
+        ({ left, right }) => {
+          const doc = window.__paneDocs?.a ?? null;
+          if (doc === null) throw new Error("the pane's doc is not mounted");
+          const json = doc.toJSON();
+          const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+          if (surfaceId === undefined) throw new Error("the surface is missing");
+          return doc.insertBlock(
+            "connector",
+            { start: { blockId: left, port: "east" }, end: { blockId: right, port: "north" }, variant: "orthogonal" },
+            { parent: surfaceId }
+          );
+        },
+        { left, right }
+      );
+      // The default elbow (the vertical bend at x = 56) crosses the
+      // blocker; the first clear candidate stands (the L at the end's
+      // own line: x = 300) — the line never crosses the figure.
+      const d = (await lineD(a, "a", connId))!;
+      expect(d).toBe("M -200 -100 L -188 -100 L 300 -100 L 300 38 L 300 50");
+    } finally {
+      await close();
+    }
+  });
 });
 
 /** The connector's full endpoint refs (the blockId / the port / the free x-y). */

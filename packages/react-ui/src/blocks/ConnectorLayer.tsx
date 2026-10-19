@@ -146,6 +146,16 @@ function ConnectorLayer({
     }
     return next;
   })();
+  // The route's AVOIDANCE obstacles: the
+  // surface's non-connector siblings' boxes — the endpoint's own box
+  // stands too (a route over it is a crossing). The orthogonal's bend
+  // line runs the first clear candidate around them.
+  const obstacleBoxes: Box[] = [];
+  for (const childId of childIds) {
+    const block = previewBlocks[childId];
+    if (block === undefined || block.type === "connector") continue;
+    obstacleBoxes.push(effectiveGeometry(block));
+  }
   const segments: ReactNode[] = [];
 
   for (const childId of childIds) {
@@ -267,7 +277,7 @@ function ConnectorLayer({
           }
         : legacy
           ? connectorPath(startBox, endBox, attrs.variant ?? "straight")
-          : connectorPathPoints(startDraw, endDraw, attrs.variant ?? "straight");
+          : connectorPathPoints(startDraw, endDraw, attrs.variant ?? "straight", obstacleBoxes);
 
     const label =
       attrs.label !== undefined ? (
