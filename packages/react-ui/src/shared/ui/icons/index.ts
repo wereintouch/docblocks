@@ -27,6 +27,7 @@ export { Heading2 } from "./Heading2";
 export { Heading3 } from "./Heading3";
 export { Image } from "./Image";
 export { Italic } from "./Italic";
+export { Link } from "./Link";
 export { List } from "./List";
 export { ListOrdered } from "./ListOrdered";
 export { LoaderCircle } from "./LoaderCircle";

@@ -6,13 +6,25 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
-import type { EndpointPoint } from "./canvas-geometry";
-import { connectorPath, connectorPathPoints, endpointBoxOf, endpointPointOf } from "./canvas-geometry";
+import { Link } from "../shared/ui/icons";
+import type { CanvasPort, EndpointPoint } from "./canvas-geometry";
+import {
+  connectorPath,
+  connectorPathPoints,
+  effectiveGeometry,
+  endpointBoxOf,
+  endpointPointOf,
+  portsOf,
+} from "./canvas-geometry";
 
 /** The v1 connector stroke (the shape token; the label uses the text color). */
 const STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
-/** The selected connector's stroke (the canvas accent; the page token fallback). */
-const SELECTED_STROKE = "var(--docblocks-canvas-selected-stroke, var(--accent, #388bfd))";
+/** The selected connector's stroke (the canvas selection's cyan — the
+ *  token stands in both themes; the page `--accent` is a hover surface,
+ *  not a line color). */
+const SELECTED_STROKE = "var(--docblocks-canvas-selected-stroke)";
+/** The connect badge's green (the endpoint drag's port snap indicator). */
+const CONNECT_COLOR = "var(--docblocks-canvas-connect-color, #16a34a)";
 const CONNECTOR_STROKE_WIDTH = 1;
 /** The selected connector's stroke width (the emphasis over the default). */
 const SELECTED_STROKE_WIDTH = 2;
@@ -25,6 +37,10 @@ const LABEL_FONT_SIZE = 12;
 const HANDLE_RADIUS = 4;
 /** The endpoint handle's hit area (the wider invisible circle). */
 const HANDLE_HIT_RADIUS = 8;
+/** The connect badge's radius (canvas px, above the line's midpoint). */
+const SNAP_BADGE_RADIUS = 10;
+/** The connect badge's lift over the line's midpoint (canvas px). */
+const SNAP_BADGE_LIFT = 16;
 
 /** The selected line's endpoint handle data (the draw point + the key). */
 interface EndpointHandle {
@@ -75,7 +91,7 @@ function ConnectorLayer({
   id: BlockId;
   interactive?: boolean;
   endpointDrag: { connectorId: BlockId; which: "start" | "end" } | null;
-  endpointPreview: { x: number; y: number } | null;
+  endpointPreview: { point: { x: number; y: number }; snap: { blockId: string; port: CanvasPort } | null } | null;
   onEndpointDrag: (
     connectorId: BlockId,
     which: "start" | "end",
@@ -130,13 +146,37 @@ function ConnectorLayer({
     // The preview replaces the dragged endpoint's point (the other
     // endpoint stands; the line's shape re-draws around it). The zero
     // normal on the preview: the free point bows out at render time.
+    // The live snap (the drag's stick effect): within the snap radius the
+    // preview stands at the PORT (the line's end sticks to it) — not the
+    // raw cursor point.
+    const snapPoint = (which: "start" | "end"): { x: number; y: number } | null => {
+      if (!draggingThis || endpointDrag === null || endpointDrag.which !== which || endpointPreview === null) {
+        return null;
+      }
+      const snap = endpointPreview.snap;
+      if (snap === null) return endpointPreview.point;
+      const sibling = blocks[snap.blockId];
+      if (sibling === undefined) return endpointPreview.point;
+      const p = portsOf(effectiveGeometry(sibling))[snap.port];
+      return { x: p.x, y: p.y };
+    };
     const startDraw: EndpointPoint =
       draggingThis && endpointDrag !== null && endpointDrag.which === "start"
-        ? { x: endpointPreview?.x ?? startPoint.x, y: endpointPreview?.y ?? startPoint.y, nx: 0, ny: 0 }
+        ? {
+            x: snapPoint("start")?.x ?? startPoint.x,
+            y: snapPoint("start")?.y ?? startPoint.y,
+            nx: 0,
+            ny: 0,
+          }
         : startPoint;
     const endDraw: EndpointPoint =
       draggingThis && endpointDrag !== null && endpointDrag.which === "end"
-        ? { x: endpointPreview?.x ?? endPoint.x, y: endpointPreview?.y ?? endPoint.y, nx: 0, ny: 0 }
+        ? {
+            x: snapPoint("end")?.x ?? endPoint.x,
+            y: snapPoint("end")?.y ?? endPoint.y,
+            nx: 0,
+            ny: 0,
+          }
         : endPoint;
 
     const stroke = selected ? SELECTED_STROKE : STROKE;
@@ -154,26 +194,32 @@ function ConnectorLayer({
     // A legacy line (both endpoints plain refs — no port / free point)
     // keeps the box-based path (the mid-edge elbow; the legacy look is
     // preserved byte-for-byte); a line with a port or a free endpoint
-    // draws through the resolved points.
+    // draws through the resolved points. A line whose endpoint is in a
+    // drag draws through the points too (the live re-draw — the box path
+    // would stand the line off the preview point).
     const legacy =
       startBox !== null &&
       endBox !== null &&
       startFree === null &&
       endFree === null &&
       attrs.start.port === undefined &&
-      attrs.end.port === undefined;
+      attrs.end.port === undefined &&
+      !draggingThis;
     const polyPoint = (
       ref: { x?: number; y?: number; port?: string },
       resolved: EndpointPoint,
-      box: { x: number; y: number } | null
-    ) =>
-      ref.x !== undefined && ref.y !== undefined
+      box: { x: number; y: number } | null,
+      key: "start" | "end"
+    ) => {
+      const dragged = draggingThis && endpointDrag !== null && endpointDrag.which === key;
+      return ref.x !== undefined && ref.y !== undefined
         ? { x: ref.x, y: ref.y }
-        : ref.port !== undefined || box === null
+        : ref.port !== undefined || box === null || dragged
           ? { x: resolved.x, y: resolved.y }
           : { x: box.x, y: box.y };
-    const startPoly = polyPoint(attrs.start, startDraw, startBox);
-    const endPoly = polyPoint(attrs.end, endDraw, endBox);
+    };
+    const startPoly = polyPoint(attrs.start, startDraw, startBox, "start");
+    const endPoly = polyPoint(attrs.end, endDraw, endBox, "end");
     const path =
       attrs.points !== undefined && attrs.points.length > 0
         ? {
@@ -198,6 +244,38 @@ function ConnectorLayer({
         >
           {attrs.label}
         </text>
+      ) : null;
+
+    // The connect badge (the endpoint drag's port snap): the green Link
+    // over the line's midpoint (the lift keeps it off the stroke) — the
+    // "the point is connected" indicator.
+    // A nested svg stands the icon at the badge's center (the icon
+    // component's props spread onto its own svg element — the x / y stand
+    // the nested viewport).
+    const snapBadge =
+      draggingThis && endpointPreview !== null && endpointPreview.snap !== null ? (
+        <g data-connector-snap-badge={childId} pointerEvents="none">
+          <circle
+            cx={path.mid.x}
+            cy={path.mid.y - SNAP_BADGE_LIFT}
+            r={SNAP_BADGE_RADIUS}
+            fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+            stroke={CONNECT_COLOR}
+            strokeWidth={1.5}
+          />
+          <Link
+            x={path.mid.x - 7}
+            y={path.mid.y - SNAP_BADGE_LIFT - 7}
+            width={14}
+            height={14}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={CONNECT_COLOR}
+            strokeWidth={2}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
       ) : null;
 
     // The stroke goes through the STYLE (the CSS variable: a presentation
@@ -266,6 +344,7 @@ function ConnectorLayer({
           />
         )}
         {label}
+        {snapBadge}
         {handle("start", { key: "start", point: startDraw })}
         {handle("end", { key: "end", point: endDraw })}
       </g>

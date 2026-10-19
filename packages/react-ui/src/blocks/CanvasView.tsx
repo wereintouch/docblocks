@@ -69,6 +69,7 @@ function SurfaceLayer({
   endpointPreview,
   onEndpointDrag,
   showPorts,
+  endpointSnap,
 }: {
   id: BlockId;
   children: BlockId[];
@@ -77,7 +78,10 @@ function SurfaceLayer({
   resizePreview: { id: string; box: Box } | null;
   rotatePreview: { id: string; rotation: number } | null;
   endpointDrag: { connectorId: string; which: "start" | "end" } | null;
-  endpointPreview: { x: number; y: number } | null;
+  endpointPreview: {
+    point: { x: number; y: number };
+    snap: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
+  } | null;
   onEndpointDrag: (
     connectorId: BlockId,
     which: "start" | "end",
@@ -87,6 +91,8 @@ function SurfaceLayer({
   ) => void;
   /** The ports' visibility (the connector tool active or an endpoint drag in flight). */
   showPorts: boolean;
+  /** The endpoint drag's live port snap (the snapped dot stands the connect green). */
+  endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
   return (
@@ -107,7 +113,7 @@ function SurfaceLayer({
         endpointPreview={endpointPreview}
         onEndpointDrag={onEndpointDrag}
       />
-      {showPorts && <PortDots id={id} />}
+      {showPorts && <PortDots id={id} snapped={endpointSnap} />}
     </BlockContext.Provider>
   );
 }
@@ -121,9 +127,17 @@ function SurfaceLayer({
  * awareness. The dots stand in the surface's center-anchor space (the
  * 1x1 overflow-visible svg, the ConnectorLayer's parity), pointer-events
  * none — the press passes through to the canvas (the snap reads the
- * port's coordinates, not a dot press).
+ * port's coordinates, not a dot press). The SNAPPED dot (the endpoint
+ * drag's live port snap) stands the connect green (the "the point is
+ * connected" indicator, the badge's parity).
  */
-function PortDots({ id }: { id: BlockId }) {
+function PortDots({
+  id,
+  snapped,
+}: {
+  id: BlockId;
+  snapped: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
+}) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
   const surface = useBlock(id);
@@ -138,16 +152,26 @@ function PortDots({ id }: { id: BlockId }) {
     const ports = portsOf(box);
     for (const port of ["north", "east", "south", "west"] as const) {
       const p = ports[port];
+      const isSnapped = snapped !== null && snapped.blockId === childId && snapped.port === port;
       dots.push(
         <circle
           key={`${childId}-${port}`}
           data-canvas-port={port}
+          data-canvas-port-snapped={isSnapped || undefined}
           cx={p.x}
           cy={p.y}
-          r={2.5}
-          fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+          r={isSnapped ? 3.5 : 2.5}
+          fill={
+            isSnapped
+              ? "var(--docblocks-canvas-connect-color, #16a34a)"
+              : "var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+          }
           strokeWidth={1}
-          style={{ stroke: "var(--docblocks-canvas-selection-border-color)" }}
+          style={{
+            stroke: isSnapped
+              ? "var(--docblocks-canvas-connect-color, #16a34a)"
+              : "var(--docblocks-canvas-selection-border-color)",
+          }}
           pointerEvents="none"
         />
       );
@@ -1235,6 +1259,9 @@ function CanvasView() {
             rotatePreview={viewport.rotatePreview}
             endpointDrag={viewport.connectorEndpoint}
             endpointPreview={viewport.connectorEndpointPreview}
+            endpointSnap={
+              viewport.connectorEndpoint !== null ? (viewport.connectorEndpointPreview?.snap ?? null) : null
+            }
             onEndpointDrag={(connectorId, which, pointerId, clientX, clientY) => {
               const container = containerRef.current;
               if (container === null) return;
