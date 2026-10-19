@@ -249,6 +249,38 @@ describe("connectorPathPoints", () => {
     );
   });
 
+  it("orthogonal: the UNRELATED obstacle's far edge does not beat the near detour (the shortest clear stands)", () => {
+    // The owner's 2026-10-19 scene: the start's east port to the end's
+    // west port (the end's the start's upper-right, the corridor sealed
+    // by the endpoints' own boxes); a THIRD shape stands far to the side
+    // (overlapping nothing). The selection is the shortest clear route —
+    // the side shape's far edge (the list's early obstacle detour) must
+    // not pull the line across the canvas.
+    const start = { x: 402.13346354166663, y: -247.91731770833334, w: 247.54296875, h: 138.12109375 };
+    const end = { x: 357.486328125, y: -387.9981626272871, w: 174.67578125, h: 146.3557002545742 };
+    const side = { x: -372.63671875, y: -610.10546875, w: 200, h: 100 };
+    const a = { x: start.x + start.w / 2, y: start.y, nx: 1, ny: 0 };
+    const b = { x: end.x - end.w / 2, y: end.y, nx: -1, ny: 0 };
+    const withSide = connectorPathPoints(a, b, "orthogonal", [side, start, end]);
+    const withoutSide = connectorPathPoints(a, b, "orthogonal", [start, end]);
+    // The side shape stands no effect: the route stands byte-for-byte.
+    expect(withSide.d).toBe(withoutSide.d);
+    // The route detours the end's bottom (the start's bottom edge + the
+    // 12-px margin) — NOT over the side shape's top edge.
+    expect(withSide.d).toBe(
+      "M 525.9049479166666 -247.91731770833334 L 537.9049479166666 -247.91731770833334 L 537.9049479166666 -166.85677083333334 L 258.1484375 -166.85677083333334 L 258.1484375 -387.9981626272871 L 270.1484375 -387.9981626272871"
+    );
+    // The clear scene stands the default elbow byte-for-byte (the pool's
+    // first entry — the elbow is the shortest clear candidate).
+    const clearElbow = connectorPathPoints(
+      { x: 0, y: 0, nx: 0, ny: 0 },
+      { x: 100, y: 60, nx: 0, ny: 0 },
+      "orthogonal",
+      [{ x: 0, y: 0, w: 100, h: 100 }]
+    );
+    expect(clearElbow.d).toBe("M 0 0 L 50 0 L 50 60 L 100 60");
+  });
+
   it("curved: the anchored normals bow out; the free point bows perpendicular to the segment", () => {
     // Both anchored (the east / west normals): the same bow as the box
     // form's curved (the endpoints equal the edge anchors).
