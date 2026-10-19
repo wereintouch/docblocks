@@ -613,6 +613,57 @@ test.describe("the connector arrows", () => {
       await close();
     }
   });
+
+  test("the line follows the moved item mid-drag (the live geometry; the release commit stands the same line)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "cvs-conn-follow");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const { left, right } = await seedShapes(a, "a");
+      const connector = await a.evaluate(
+        ({ left, right }) => {
+          const doc = window.__paneDocs?.a ?? null;
+          if (doc === null) throw new Error("the pane's doc is not mounted");
+          const json = doc.toJSON();
+          const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+          if (surfaceId === undefined) throw new Error("the surface is missing");
+          return doc.insertBlock(
+            "connector",
+            { start: { blockId: left }, end: { blockId: right } },
+            { parent: surfaceId }
+          );
+        },
+        { left, right }
+      );
+      const center = await canvasCenter(a, "a");
+      const d0 = (await lineD(a, "a", connector))!;
+
+      // The move: the press on the left shape (the select + the move
+      // session), the drag 50px right — the line's start follows the item
+      // MID-DRAG (the live geometry stands the anchor, not the stored
+      // box).
+      await a.mouse.move(center.x - 300, center.y - 100);
+      await a.mouse.down();
+      await a.mouse.move(center.x - 250, center.y - 100, { steps: 6 });
+      const d1 = (await lineD(a, "a", connector))!;
+      expect(d1).not.toBe(d0);
+
+      // The release commits the geometry; the line stands the SAME (the
+      // doc and the preview stand from one number — no re-draw jump on
+      // the release).
+      await a.mouse.up();
+      const d2 = await lineD(a, "a", connector);
+      expect(d2).toBe(d1);
+      await expect.poll(async () => geometryOf(a, "a", left), SETTLE).toEqual({ x: -250, y: -100 });
+      // The follow stands in the other pane (the sync pin): the line
+      // re-anchors from the committed geometry.
+      await expect.poll(async () => lineD(b, "b", connector), SETTLE).toBe(d2);
+    } finally {
+      await close();
+    }
+  });
 });
 
 /** The connector's full endpoint refs (the blockId / the port / the free x-y). */

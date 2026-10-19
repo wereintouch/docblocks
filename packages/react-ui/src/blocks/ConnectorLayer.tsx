@@ -2,9 +2,11 @@ import { useStore } from "zustand";
 
 import type { CSSProperties, ReactNode } from "react";
 
-import type { BlockId } from "docblocks-core";
+import type { Block, BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
+import type { Box } from "../canvas/viewport";
+import type { MovePreview } from "../canvas/viewport-state";
 import { useBlock } from "../hooks";
 import { Link } from "../shared/ui/icons";
 import type { CanvasPort, EndpointPoint } from "./canvas-geometry";
@@ -87,6 +89,8 @@ function ConnectorLayer({
   endpointDrag,
   endpointPreview,
   onEndpointDrag,
+  movePreview,
+  resizePreview,
 }: {
   id: BlockId;
   interactive?: boolean;
@@ -99,6 +103,10 @@ function ConnectorLayer({
     clientX: number,
     clientY: number
   ) => void;
+  /** The in-flight move preview (the lines follow the items mid-drag). */
+  movePreview: MovePreview | null;
+  /** The in-flight resize preview (the lines follow the resized item). */
+  resizePreview: { id: BlockId; box: Box } | null;
 }) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
@@ -108,6 +116,35 @@ function ConnectorLayer({
 
   const childIds = surface.children ?? [];
   const selectedIds = selection.kind === "blocks" ? selection.ids : [];
+  // The live geometry: the in-flight move / resize previews stand the
+  // endpoint resolution (the lines follow the items mid-drag — the release
+  // commit stands the same geometry in the doc; the line and the item
+  // stand from one number). The rotation preview stands off (the anchor
+  // stands the unrotated box — the v1 limit).
+  const previewBlocks = (() => {
+    if (movePreview === null && resizePreview === null) return blocks;
+    const next: Record<string, Block> = { ...blocks };
+    for (const childId of childIds) {
+      const block = next[childId];
+      if (block === undefined || block.type === "connector") continue;
+      if (resizePreview !== null && resizePreview.id === childId) {
+        next[childId] = { ...block, geometry: { ...block.geometry, ...resizePreview.box } };
+      } else if (movePreview !== null && movePreview.ids.includes(childId)) {
+        const g = effectiveGeometry(block);
+        next[childId] = {
+          ...block,
+          geometry: {
+            x: g.x + movePreview.dx,
+            y: g.y + movePreview.dy,
+            w: g.w,
+            h: g.h,
+            ...(block.geometry?.rotation !== undefined ? { rotation: block.geometry.rotation } : {}),
+          },
+        };
+      }
+    }
+    return next;
+  })();
   const segments: ReactNode[] = [];
 
   for (const childId of childIds) {
@@ -124,8 +161,8 @@ function ConnectorLayer({
     // center — the legacy sticky anchor: a moved block re-anchors the
     // line). The line draws when both endpoints stand (a docId ref or an
     // absent block skips — the wrapper carries data-missing).
-    const startBox = endpointBoxOf(attrs.start, childIds, blocks);
-    const endBox = endpointBoxOf(attrs.end, childIds, blocks);
+    const startBox = endpointBoxOf(attrs.start, childIds, previewBlocks);
+    const endBox = endpointBoxOf(attrs.end, childIds, previewBlocks);
     const startFree =
       attrs.start.x !== undefined && attrs.start.y !== undefined ? { x: attrs.start.x, y: attrs.start.y } : null;
     const endFree = attrs.end.x !== undefined && attrs.end.y !== undefined ? { x: attrs.end.x, y: attrs.end.y } : null;
@@ -134,11 +171,11 @@ function ConnectorLayer({
     const startPoint =
       startFree !== null
         ? { x: startFree.x, y: startFree.y, nx: 0, ny: 0 }
-        : endpointPointOf(attrs.start, childIds, blocks, startToward);
+        : endpointPointOf(attrs.start, childIds, previewBlocks, startToward);
     const endPoint =
       endFree !== null
         ? { x: endFree.x, y: endFree.y, nx: 0, ny: 0 }
-        : endpointPointOf(attrs.end, childIds, blocks, endToward);
+        : endpointPointOf(attrs.end, childIds, previewBlocks, endToward);
     if (startPoint === null || endPoint === null) continue; // skipped: the wrapper carries data-missing
 
     const selected = selectedIds.includes(childId);
@@ -155,7 +192,7 @@ function ConnectorLayer({
       }
       const snap = endpointPreview.snap;
       if (snap === null) return endpointPreview.point;
-      const sibling = blocks[snap.blockId];
+      const sibling = previewBlocks[snap.blockId];
       if (sibling === undefined) return endpointPreview.point;
       const p = portsOf(effectiveGeometry(sibling))[snap.port];
       return { x: p.x, y: p.y };

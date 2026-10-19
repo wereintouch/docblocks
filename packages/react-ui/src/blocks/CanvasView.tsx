@@ -112,6 +112,8 @@ function SurfaceLayer({
         endpointDrag={endpointDrag}
         endpointPreview={endpointPreview}
         onEndpointDrag={onEndpointDrag}
+        movePreview={movePreview}
+        resizePreview={resizePreview}
       />
       {showPorts && <PortDots id={id} snapped={endpointSnap} />}
     </BlockContext.Provider>
