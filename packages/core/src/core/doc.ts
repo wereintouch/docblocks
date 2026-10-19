@@ -27,6 +27,7 @@ import {
   moveRow as moveRowCommand,
   removeRow as removeRowCommand,
   setCell as setCellCommand,
+  setDatabaseTable as setDatabaseTableCommand,
 } from "./commands/database";
 import { setGeometry as setGeometryCommand } from "./commands/geometry";
 import { setMark as setMarkCommand, unsetMark as unsetMarkCommand } from "./commands/marks";
@@ -235,6 +236,17 @@ class Doc {
   /** Moves a database row to `toIndex` (pre-move index semantics). */
   moveRow(databaseId: BlockId, rowId: string, toIndex: number): void {
     moveRowCommand(this.#ydoc, databaseId, rowId, toIndex);
+  }
+
+  /**
+   * Moves a database block to the external form: the inline rows and the
+   * schema leave the document (the consumer moves them into its relational
+   * table first), and the block keeps the `tableId` reference plus its other
+   * attrs. One transaction — one undo step, one wire update. Re-linking an
+   * already-external block to another table changes only the reference.
+   */
+  setDatabaseTable(databaseId: BlockId, tableId: string): void {
+    setDatabaseTableCommand(this.#ydoc, databaseId, tableId);
   }
 
   /**

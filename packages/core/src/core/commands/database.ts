@@ -10,6 +10,7 @@ import { checkDatabaseCellValue, validateDatabaseBlock } from "@docblocks-core/s
 import type { Block, DatabaseCellValue, ValidationError } from "@docblocks-core/schema";
 
 import {
+  ExternalDatabaseError,
   InvalidAttrsError,
   InvalidCellValueError,
   InvalidOperationError,
@@ -20,6 +21,7 @@ import {
   formatValidationErrors,
 } from "../errors";
 import { localTransact } from "../layout";
+import { readBlock } from "../read";
 import { blockTypeOf, getBlockMap } from "./structure";
 
 /**
@@ -107,6 +109,23 @@ function readRowOrder(block: Y.Map<unknown>): Y.Array<string> | null {
   return rowOrder instanceof Y.Array ? (rowOrder as Y.Array<string>) : null;
 }
 
+/**
+ * The external-form guard: a non-empty `attrs.tableId` means the rows and
+ * the schema live in the consumer's relational database — the row
+ * commands refuse with the typed ExternalDatabaseError.
+ */
+function assertInlineForm(block: Y.Map<unknown>, databaseId: string): void {
+  const attrs = block.get("attrs");
+  if (attrs instanceof Y.Map) {
+    const tableId = attrs.get("tableId");
+    if (typeof tableId === "string" && tableId.length > 0) {
+      throw new ExternalDatabaseError(
+        `Database "${databaseId}" references the external table "${tableId}": its rows and schema live in the consumer's database, not in the document.`
+      );
+    }
+  }
+}
+
 /** The block's rows map; null when the layout is corrupt (no map). */
 function readRows(block: Y.Map<unknown>): Y.Map<unknown> | null {
   const rows = block.get("rows");
@@ -137,6 +156,7 @@ function columnOf(block: Y.Map<unknown>, colId: string, databaseId: string): Dat
  */
 function insertRow(ydoc: Y.Doc, generateId: () => string, databaseId: string): string {
   const block = databaseOf(ydoc, databaseId);
+  assertInlineForm(block, databaseId);
   const id = generateId();
   localTransact(ydoc, () => {
     // A valid database always carries both fields (insertBlock creates
@@ -168,6 +188,7 @@ function setCell(
   value: DatabaseCellValue | undefined
 ): void {
   const block = databaseOf(ydoc, databaseId);
+  assertInlineForm(block, databaseId);
   const column = columnOf(block, colId, databaseId);
   const row = cellRow(block, rowId, databaseId);
   if (value === undefined) {
@@ -201,6 +222,7 @@ function setCell(
 /** Removes a row: its cells entry and its rowOrder entry. */
 function removeRow(ydoc: Y.Doc, databaseId: string, rowId: string): void {
   const block = databaseOf(ydoc, databaseId);
+  assertInlineForm(block, databaseId);
   cellRow(block, rowId, databaseId); // the typed error when the row is absent
   localTransact(ydoc, () => {
     const rows = readRows(block);
@@ -216,6 +238,7 @@ function removeRow(ydoc: Y.Doc, databaseId: string, rowId: string): void {
 /** Moves a row to `toIndex` (pre-move index semantics, like moveBlock). */
 function moveRow(ydoc: Y.Doc, databaseId: string, rowId: string, toIndex: number): void {
   const block = databaseOf(ydoc, databaseId);
+  assertInlineForm(block, databaseId);
   const rowOrder = readRowOrder(block);
   const ids = rowOrder !== null ? rowOrder.toArray() : [];
   const fromIndex = ids.indexOf(rowId);
@@ -233,4 +256,50 @@ function moveRow(ydoc: Y.Doc, databaseId: string, rowId: string, toIndex: number
   });
 }
 
-export { assertValidDatabaseInsert, assertValidDatabasePatch, insertRow, moveRow, removeRow, setCell };
+/**
+ * Moves the database block to the external form: the inline rows and the
+ * schema leave the document (the consumer moves them into its relational
+ * table first), and the block keeps the `tableId` reference plus its other
+ * attrs. One transaction — one undo step, one wire update. Re-linking an
+ * already-external block to another table changes only the reference.
+ */
+function setDatabaseTable(ydoc: Y.Doc, databaseId: string, tableId: string): void {
+  if (typeof tableId !== "string" || tableId.length === 0) {
+    throw new InvalidOperationError(`The external table reference must be a non-empty string.`);
+  }
+  const block = databaseOf(ydoc, databaseId);
+  localTransact(ydoc, () => {
+    const attrs = block.get("attrs");
+    if (attrs instanceof Y.Map) {
+      attrs.set("tableId", tableId);
+      if (attrs.has("columns")) attrs.delete("columns");
+    } else {
+      // The corrupt layout (no attrs map): create the minimal one.
+      block.set("attrs", new Y.Map([["tableId", tableId]]) as Y.Map<unknown>);
+    }
+    // The inline data leaves the document (the reader emits empty rows /
+    // rowOrder for the external form).
+    if (block.has("rows")) block.delete("rows");
+    if (block.has("rowOrder")) block.delete("rowOrder");
+  });
+  // The post-patch invariants (the external form: no columns, no rows).
+  const snapshot = readBlock(ydoc, databaseId);
+  const merged: Record<string, unknown> = {};
+  if (snapshot !== null && "attrs" in snapshot && snapshot.attrs !== undefined) {
+    for (const [key, value] of Object.entries(snapshot.attrs)) {
+      if (key !== "columns") merged[key] = value;
+    }
+  }
+  merged.tableId = tableId;
+  assertValidDatabasePatch(snapshot, merged, databaseId);
+}
+
+export {
+  assertValidDatabaseInsert,
+  assertValidDatabasePatch,
+  insertRow,
+  moveRow,
+  removeRow,
+  setCell,
+  setDatabaseTable,
+};

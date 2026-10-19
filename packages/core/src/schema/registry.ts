@@ -210,9 +210,12 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     children: false,
     rows: true,
     attrs: {
+      // The inline form's schema (the external form — the `tableId`
+      // reference — carries no columns; the cross-field mutual exclusion
+      // stands in the validator's database branch, like the type-dependent
+      // options presence).
       columns: {
         kind: "array",
-        required: true,
         items: {
           kind: "object",
           fields: {
@@ -226,6 +229,9 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
           },
         },
       },
+      // The external form's table reference (the consumer's relational
+      // table id; the rows and the schema live there).
+      tableId: { kind: "string", nonEmpty: true },
     },
   },
   // The canvas (v2, option A: canvas elements are blocks of the SAME

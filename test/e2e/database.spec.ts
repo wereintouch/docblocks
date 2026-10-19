@@ -216,3 +216,62 @@ test("setCell with an out-of-options select value throws InvalidCellValueError (
 
   await close();
 });
+
+test("the external form (the tableId reference) syncs over the wire", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "ext04-external");
+
+  const dbId = (await a.evaluate(() => window.__paneDocs!.a!.insertBlock("database", { tableId: "ext-1" })))!;
+
+  for (const [pane, client] of [
+    [a, "a"],
+    [b, "b"],
+  ] as const) {
+    const doc = pane.locator(`[data-testid="doc-${client}"]`);
+    const marker = doc.locator("[data-slot='docblocks/database-external'][data-table-id='ext-1']");
+    await expect(marker).toBeVisible(SETTLE);
+    // The zero-rows badge stands (the rows live in the consumer's table).
+    expect(doc.locator("[data-slot='docblocks/database-count']")).toHaveCount(1);
+
+    // The doc keeps the reference only: the inline schema is absent on both sides.
+    const json = await pane.evaluate(
+      ({ client, dbId }) => {
+        const d = client === "a" ? window.__paneDocs?.a : window.__paneDocs?.b;
+        const block = d?.toJSON().blocks[dbId] as { attrs?: Record<string, unknown> } | undefined;
+        return {
+          tableId: typeof block?.attrs?.tableId === "string" ? block.attrs.tableId : null,
+          columns: Array.isArray(block?.attrs?.columns) ? (block.attrs.columns as unknown[]).length : null,
+        };
+      },
+      { client, dbId }
+    );
+    expect(json.tableId).toBe("ext-1");
+    expect(json.columns).toBeNull();
+  }
+
+  await close();
+});
+
+test("the row commands refuse the external form over the wire (the typed error)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ext04-external-error");
+
+  const dbId = (await a.evaluate(() => window.__paneDocs!.a!.insertBlock("database", { tableId: "ext-1" })))!;
+  const snapshotOf = () => a.evaluate(() => JSON.stringify(window.__paneDocs?.a?.toJSON() ?? null));
+  const before = await snapshotOf();
+
+  const outcome = await a.evaluate((dbId) => {
+    const doc = window.__paneDocs!.a!;
+    try {
+      doc.insertRow(dbId);
+      return "no-throw";
+    } catch (error) {
+      return error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    }
+  }, dbId);
+  expect(outcome.startsWith("ExternalDatabaseError")).toBe(true);
+  expect(outcome).toContain("ext-1");
+
+  // The failed command left the doc untouched.
+  expect(await snapshotOf()).toBe(before);
+
+  await close();
+});

@@ -89,6 +89,28 @@ describe("built-in renderer: database (the placeholder card)", () => {
     expect(wrapper!.querySelector("[contenteditable]")).toBeNull();
     expect(wrapper!.querySelector('[data-slot="docblocks/gutter"]')).toBeNull();
   });
+
+  it("the external form (the tableId reference) stands the reference marker", () => {
+    renderDoc((doc) => doc.insertBlock("database", { tableId: "t1" }));
+    const wrapper = document.querySelector<HTMLElement>('[data-block-type="database"]');
+    expect(wrapper).not.toBeNull();
+    const marker = wrapper!.querySelector("[data-slot='docblocks/database-external']");
+    expect(marker).not.toBeNull();
+    expect(marker!.getAttribute("data-table-id")).toBe("t1");
+    // No inline column header on the external card.
+    expect(wrapper!.querySelector("[data-slot='docblocks/database-column']")).toBeNull();
+  });
+
+  it("the inline → external transition re-renders the card live", () => {
+    const { doc, db } = renderDoc((doc) => doc.insertBlock("database", { columns: COLUMNS }));
+
+    act(() => {
+      doc.setDatabaseTable(db, "t1");
+    });
+    const wrapper = document.querySelector<HTMLElement>('[data-block-type="database"]');
+    expect(wrapper!.querySelector("[data-slot='docblocks/database-external']")).not.toBeNull();
+    expect(wrapper!.querySelector("[data-slot='docblocks/database-column']")).toBeNull();
+  });
 });
 
 describe("renderer registry: database", () => {
