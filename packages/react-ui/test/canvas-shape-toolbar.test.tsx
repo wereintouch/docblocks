@@ -48,7 +48,7 @@ function renderCanvas(doc: TestDoc) {
   return { ...utils, view };
 }
 
-const toolbar = () => screen.queryByRole("toolbar", { name: "Shape colors" });
+const toolbar = () => screen.queryByRole("toolbar", { name: "Shape options" });
 
 /** Click-select the block (the pointerdown on its canvas-item wrapper). */
 function selectBlock(container: HTMLElement, id: string): void {
@@ -182,7 +182,7 @@ it("the sections are mutually exclusive (the other palette closes)", () => {
   // stroke trigger's open must close the fill (a per-section open state
   // would let both palettes stand at once).
   fireEvent.click(screen.getByLabelText("Shape fill color"));
-  expect(screen.queryByRole("toolbar", { name: "Shape colors" })).toBeTruthy();
+  expect(screen.queryByRole("toolbar", { name: "Shape options" })).toBeTruthy();
   const fillPalette = document.querySelector("[data-slot='docblocks/shape-fill-palette']");
   expect(fillPalette).not.toBeNull();
 
@@ -291,7 +291,7 @@ describe("the shape type picker", () => {
     fireEvent.pointerDown(screen.getByLabelText("Shape type"));
     const menu = screen.getByLabelText("Shape types");
     expect(menu).toBeTruthy();
-    for (const label of ["Rectangle", "Ellipse", "Diamond", "Line"]) {
+    for (const label of ["Rectangle", "Rounded Rectangle", "Ellipse", "Diamond"]) {
       expect(screen.getByRole("menuitemcheckbox", { name: label })).toBeTruthy();
     }
     // The current variant (rect) is the checked one.

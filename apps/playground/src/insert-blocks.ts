@@ -58,7 +58,7 @@ function seedDatabase(doc: Doc): BlockId {
   return id;
 }
 
-/** The canvas demo scene the harness inserts (harness convenience): the fixed geometries, one surface with a frame (seeded with a heading + a paragraph), four shapes, a canvas-text, and a connector between the frame and the rect. */
+/** The canvas demo scene the harness inserts (harness convenience): the fixed geometries, one surface with a frame (seeded with a heading + a paragraph), four shapes (the rounded one texted — the shape text's stand), a canvas-text, and a connector between the frame and the rect. */
 function seedCanvas(doc: Doc): BlockId {
   const surface = doc.insertBlock("surface");
   doc.setGeometry(surface, { x: 0, y: 0, w: 900, h: 500 });
@@ -74,8 +74,19 @@ function seedCanvas(doc: Doc): BlockId {
   doc.setGeometry(ellipse, { x: 40, y: 90, w: 100, h: 80 });
   const diamond = doc.insertBlock("shape", { variant: "diamond" }, { parent: surface });
   doc.setGeometry(diamond, { x: 160, y: 40, w: 90, h: 90 });
-  const line = doc.insertBlock("shape", { variant: "line" }, { parent: surface });
-  doc.setGeometry(line, { x: 60, y: -60, w: 140, h: 60 });
+  const rounded = doc.insertBlock(
+    "shape",
+    {
+      variant: "rounded",
+      text: "Shape text",
+      fontSize: 16,
+      fontFamily: "Inter",
+      textStyle: "semibold",
+      textAlign: "center",
+    },
+    { parent: surface }
+  );
+  doc.setGeometry(rounded, { x: 60, y: -60, w: 160, h: 60 });
   const note = doc.insertBlock("canvas-text", undefined, { parent: surface });
   doc.insertText(note, 0, "Canvas note");
   doc.setGeometry(note, { x: 140, y: -140, w: 200, h: 40 });

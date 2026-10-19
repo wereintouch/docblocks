@@ -6,11 +6,13 @@
 //      utilities, the enter/exit animation utilities)
 //   3. the standard token seed (theme.css: :root light + .dark)
 //   4. the --docblocks-* mapping + the structural rules (styles.css)
+//   5. the shape-text's self-hosted @font-face (fonts/shape-fonts.css,
+//      if present: the woff2 in fonts/ are copied to dist/fonts/)
 //
 // The package build runs the tailwindcss CLI first (to
 // dist/.tmp/ui-layer.css), then this script. The output is plain CSS
 // (no build-tool at-rules), so a consumer needs no Tailwind tooling.
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -51,6 +53,11 @@ const HEADER = `/*
  * selector matching the editor root. The pure token seed (without the
  * utility layer) ships separately as docblocks-react-ui/theme.css.
  *
+ * Section 5 (when the package ships the shape-text's fonts): the
+ * self-hosted @font-face of the shape text's font options (the woff2
+ * live in dist/fonts/ next to this file; a file is fetched only when a
+ * shape's text stands in that font and subset — the unicode-range).
+ *
  * Structural hooks (the DOM surface consumers can target): the
  * data-slot attributes plus data-block-type / data-list / data-depth /
  * data-state and the per-state attributes — the full list is in the
@@ -66,6 +73,22 @@ const HEADER = `/*
 // leak into the published dist.
 rmSync(`${root}/dist/ui.css`, { force: true });
 
+// The shape-text's fonts (the woff2; the shape-fonts.css is the build
+// input, not a dist artifact).
+const fontsDir = `${root}/fonts`;
+if (existsSync(fontsDir)) {
+  cpSync(fontsDir, `${root}/dist/fonts`, { recursive: true });
+  rmSync(`${root}/dist/fonts/shape-fonts.css`, { force: true });
+}
+
+const shapeFonts = existsSync(`${fontsDir}/shape-fonts.css`)
+  ? `\n/* 5. The shape-text's self-hosted fonts (the woff2 in dist/fonts/; the
+ * unicode-range keeps a file fetched only when the shape's text stands
+ * in that font / subset). */\n` +
+    read(`${fontsDir}/shape-fonts.css`) +
+    "\n"
+  : "";
+
 writeFileSync(
   `${root}/dist/styles.css`,
   HEADER +
@@ -74,5 +97,6 @@ writeFileSync(
     read(`${root}/theme.css`) +
     "\n" +
     read(`${root}/styles.css`) +
+    shapeFonts +
     "\n"
 );

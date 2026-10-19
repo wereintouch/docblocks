@@ -680,12 +680,17 @@
     "c0059": {
       "type": "shape",
       "attrs": {
-        "variant": "line"
+        "variant": "rounded",
+        "text": "Shape text",
+        "fontSize": 16,
+        "fontFamily": "Inter",
+        "textStyle": "semibold",
+        "textAlign": "center"
       },
       "geometry": {
         "x": 60,
         "y": -60,
-        "w": 140,
+        "w": 160,
         "h": 60
       }
     },

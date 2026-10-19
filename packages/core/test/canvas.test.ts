@@ -51,7 +51,7 @@ const canvasDoc = (): DocJSON => ({
       },
       geometry: { x: 60, y: 0, w: 80, h: 60 },
     },
-    sh2: { type: "shape", attrs: { variant: "line" } },
+    sh2: { type: "shape", attrs: { variant: "rounded" } },
     c1: {
       type: "connector",
       attrs: {
@@ -98,6 +98,49 @@ describe("strict validation (validateDoc)", () => {
     expect(strokeWidth.some((e) => e.path === "blocks.sh1.attrs.strokeWidth")).toBe(true);
     const fontSize = validateDoc(withBlock("t1", { type: "canvas-text", attrs: { fontSize: -1 } }));
     expect(fontSize.some((e) => e.path === "blocks.t1.attrs.fontSize")).toBe(true);
+  });
+
+  it("accepts the shape's text attrs and rejects their malformed forms (registry-driven)", () => {
+    const texted = validateDoc(
+      withBlock("sh1", {
+        type: "shape",
+        attrs: {
+          variant: "rounded",
+          text: "Привет",
+          fontSize: 24,
+          fontFamily: "Inter",
+          textColor: "#ff0000",
+          textStyle: "semibold-italic",
+          textAlign: "center",
+        },
+      })
+    );
+    expect(texted).toEqual([]);
+    const badStyle = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", textStyle: "bold" } }));
+    expect(badStyle.some((e) => e.path === "blocks.sh1.attrs.textStyle")).toBe(true);
+    const badAlign = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", textAlign: "justify" } }));
+    expect(badAlign.some((e) => e.path === "blocks.sh1.attrs.textAlign")).toBe(true);
+    const smallSize = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", fontSize: 3 } }));
+    expect(smallSize.some((e) => e.path === "blocks.sh1.attrs.fontSize")).toBe(true);
+    const notHex = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", textColor: "red" } }));
+    expect(notHex.some((e) => e.path === "blocks.sh1.attrs.textColor")).toBe(true);
+  });
+
+  it("rejects the legacy line variant (the strict reader: the lenient render keeps the figure)", () => {
+    const line = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "line" } }));
+    expect(line.some((e) => e.path === "blocks.sh1.attrs.variant")).toBe(true);
+    // The wire path (a peer on an older build) still delivers it: the read
+    // keeps the data, the validator flags it.
+    const source = newDoc();
+    const surface = source.insertBlock("surface");
+    const shape = source.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    source.raw.transact(() => {
+      const block = source.raw.getMap("blocks").get(shape) as Y.Map<unknown>;
+      (block.get("attrs") as Y.Map<unknown>).set("variant", "line");
+    });
+    const target = newDoc();
+    target.applyUpdate(source.encode());
+    expect(target.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "line" } });
   });
 
   it("rejects malformed points tuples (the canvas branch)", () => {
@@ -209,7 +252,7 @@ describe("strict validation (validateDoc)", () => {
     expect(notAnObject.some((e) => e.path === "blocks.p1.geometry")).toBe(true);
     // The geometry is allowed on any block type (including non-canvas ones).
     const onShape = validateDoc(
-      withBlock("sh2", { type: "shape", attrs: { variant: "line" }, geometry: { x: 1, y: 2, w: 5, h: 5 } })
+      withBlock("sh2", { type: "shape", attrs: { variant: "rounded" }, geometry: { x: 1, y: 2, w: 5, h: 5 } })
     );
     expect(onShape).toEqual([]);
   });

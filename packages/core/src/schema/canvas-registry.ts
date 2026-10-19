@@ -26,7 +26,7 @@ const CANVAS_BLOCK_SPECS: Pick<
     children: false,
     rows: false,
     attrs: {
-      variant: { kind: "enum", values: ["rect", "ellipse", "diamond", "line"], required: true },
+      variant: { kind: "enum", values: ["rect", "rounded", "ellipse", "diamond"], required: true },
       stroke: { kind: "string" },
       fill: { kind: "string" },
       strokeWidth: { kind: "number", positive: true },
@@ -36,6 +36,20 @@ const CANVAS_BLOCK_SPECS: Pick<
       // express: the spec passes any array, the validator's canvas branch
       // checks the tuple shape.
       points: { kind: "array" },
+      // The shape's TEXT (a plain string, soft breaks as \n — the shape
+      // is not a text block, so no runs / marks: the style is uniform per
+      // shape). Absent / empty — the shape stands textless.
+      text: { kind: "string" },
+      fontSize: { kind: "number", positive: true, min: 8, max: 512 },
+      fontFamily: { kind: "string", nonEmpty: true },
+      textColor: { kind: "string", hexColor: true },
+      // The text's style (the weight x the slant): light (300) /
+      // regular (400) / semibold (600), the upright / italic slant.
+      textStyle: {
+        kind: "enum",
+        values: ["regular", "semibold", "light", "light-italic", "italic", "semibold-italic"],
+      },
+      textAlign: { kind: "enum", values: ["left", "center", "right"] },
     },
   },
   connector: {

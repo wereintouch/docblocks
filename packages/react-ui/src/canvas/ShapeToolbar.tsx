@@ -4,18 +4,35 @@ import { useEffect, useState } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
+import { useCanvasTextEdit } from "../blocks/canvas-text-edit-context";
 import { useFormatPalette } from "../blocks/format-palette-context";
 import { Button, DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuTrigger } from "../shared/ui";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
+import { Separator } from "../shared/ui/Separator";
 import { cn } from "../shared/ui/cn";
-import { Circle, Diagonal, Diamond, Fill, Square, Stroke, X } from "../shared/ui/icons";
+import {
+  Circle,
+  Diamond,
+  Fill,
+  Italic,
+  Palette,
+  Square,
+  SquareRounded,
+  Stroke,
+  TextAlignCenter,
+  TextAlignEnd,
+  TextAlignStart,
+  Type,
+  X,
+} from "../shared/ui/icons";
+import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "./text-fonts";
 
 /** The shape types (the dock's shapes menu and the toolbar's type picker). */
 const SHAPE_VARIANTS = [
   { id: "rect", label: "Rectangle", icon: Square },
+  { id: "rounded", label: "Rounded Rectangle", icon: SquareRounded },
   { id: "ellipse", label: "Ellipse", icon: Circle },
   { id: "diamond", label: "Diamond", icon: Diamond },
-  { id: "line", label: "Line", icon: Diagonal },
 ] as const;
 
 type ShapeVariantId = (typeof SHAPE_VARIANTS)[number]["id"];
@@ -27,8 +44,8 @@ function variantIcon(variant: ShapeVariantId | undefined) {
       return Circle;
     case "diamond":
       return Diamond;
-    case "line":
-      return Diagonal;
+    case "rounded":
+      return SquareRounded;
     default:
       return Square;
   }
@@ -57,8 +74,9 @@ function ColorSection({
   open,
   onOpenChange,
   onApply,
+  allowNone = true,
 }: {
-  target: "fill" | "stroke";
+  target: "fill" | "stroke" | "text";
   label: string;
   current: string | undefined;
   /** The button's chip style (the current value's preview). */
@@ -67,10 +85,13 @@ function ColorSection({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onApply: (value: string) => void;
+  /** The "no color" entry (absent for the text color — the unset stand is
+   * the inheritance, and the hex spec rejects the "none" value). */
+  allowNone?: boolean;
 }) {
   const palette = useFormatPalette();
   const [draft, setDraft] = useState("");
-  const none = current === undefined || current === "none";
+  const none = allowNone && (current === undefined || current === "none");
 
   // The draft is the open popover's state — a closed section starts
   // fresh (a stale valid draft would re-apply on the next Enter). The
@@ -138,18 +159,20 @@ function ColorSection({
       >
         <div role="group" aria-label={`${label} colors`} className="grid grid-cols-3 gap-1">
           {paletteSwatches(target, current, palette, onApply)}
-          <Button
-            variant="outline"
-            size="icon"
-            data-slot={`docblocks/shape-${target}-none`}
-            title="No color"
-            aria-label="No color"
-            aria-pressed={none}
-            className={cn("size-6", none && "ring-2 ring-ring")}
-            onClick={() => apply("none")}
-          >
-            <X className="size-3.5" />
-          </Button>
+          {allowNone && (
+            <Button
+              variant="outline"
+              size="icon"
+              data-slot={`docblocks/shape-${target}-none`}
+              title="No color"
+              aria-label="No color"
+              aria-pressed={none}
+              className={cn("size-6", none && "ring-2 ring-ring")}
+              onClick={() => apply("none")}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
         </div>
         <input
           data-slot={`docblocks/shape-${target}-hex`}
@@ -177,7 +200,7 @@ function ColorSection({
 }
 
 function paletteSwatches(
-  target: "fill" | "stroke",
+  target: "fill" | "stroke" | "text",
   current: string | undefined,
   palette: readonly string[],
   onApply: (value: string) => void
@@ -201,36 +224,55 @@ function paletteSwatches(
 }
 
 /**
- * The shape's floating color toolbar (the single `shape` selection): the
- * fill and the stroke sections (the palette swatches, the "none" entry,
- * the custom hex). Each apply is one `updateBlock` in one transact (one
- * undo step, one wire update). The toolbar is canvas chrome (its own
- * pointers; a press on it starts no canvas session).
+ * The shape's floating toolbar (the single `shape` selection): the type
+ * picker (the figure), the text controls (the add-text button for the
+ * textless stand; the font / color / style / size / alignment for the
+ * texted stand), and the fill and the stroke sections (the palette
+ * swatches, the "none" entry, the custom hex). Each apply is one
+ * `updateBlock` in one transact (one undo step, one wire update). The
+ * toolbar is canvas chrome (its own pointers; a press on it starts no
+ * canvas session).
  */
 function ShapeToolbar({
   id,
   fill,
   stroke,
   variant,
+  text,
+  fontSize,
+  fontFamily,
+  textColor,
+  textStyle,
+  textAlign,
   style,
 }: {
   id: BlockId;
   fill: string | undefined;
   stroke: string | undefined;
   variant: ShapeVariantId | undefined;
+  text: string | undefined;
+  fontSize: number | undefined;
+  fontFamily: string | undefined;
+  textColor: string | undefined;
+  textStyle: string | undefined;
+  textAlign: string | undefined;
   style: CSSProperties;
 }) {
   const { doc } = useEditorContext();
+  const textEdit = useCanvasTextEdit();
   const VariantIcon = variantIcon(variant);
   // The open section (the sections are mutually exclusive — the
   // non-modal popover does not close on an outside click, so a
   // per-section state would let both palettes stand open at once).
-  const [openSection, setOpenSection] = useState<"fill" | "stroke" | null>(null);
+  const [openSection, setOpenSection] = useState<"fill" | "stroke" | "text" | null>(null);
+  // The size field's draft (the typed stand; the attr stands the commit).
+  const [sizeDraft, setSizeDraft] = useState("");
+  const hasText = (text ?? "").length > 0;
+  const sizeListId = `docblocks-shape-size-${id}`;
 
-  const apply = (target: "fill" | "stroke", value: string) => {
+  const applyAttr = (patch: Record<string, unknown>) => {
     doc.transact(() => {
-      if (target === "fill") doc.updateBlock(id, { fill: value });
-      else doc.updateBlock(id, { stroke: value });
+      doc.updateBlock(id, patch);
     });
   };
 
@@ -239,9 +281,16 @@ function ShapeToolbar({
   // its points (the stroke path wins over the variant — the v1 limit).
   const applyVariant = (next: ShapeVariantId) => {
     if (next === variant) return;
-    doc.transact(() => {
-      doc.updateBlock(id, { variant: next });
-    });
+    applyAttr({ variant: next });
+  };
+
+  const commitSize = () => {
+    const value = Number.parseInt(sizeDraft, 10);
+    setSizeDraft("");
+    if (Number.isNaN(value)) return; // the invalid draft is ignored (the input keeps its text)
+    const clamped = Math.min(512, Math.max(8, value));
+    if (clamped === fontSize) return;
+    applyAttr({ fontSize: clamped });
   };
 
   return (
@@ -263,7 +312,7 @@ function ShapeToolbar({
       <div
         data-slot="docblocks/shape-toolbar"
         role="toolbar"
-        aria-label="Shape colors"
+        aria-label="Shape options"
         className="
           flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
           bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
@@ -296,6 +345,147 @@ function ShapeToolbar({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <Separator orientation="vertical" className="h-5" />
+        {hasText ? (
+          <>
+            {/* The font family (the self-hosted set; an unrecognized name
+                stands the raw name — the consumer's own font by name). */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-slot="docblocks/shape-toolbar-font-family"
+                  aria-label="Text font family"
+                  title="Text font family"
+                >
+                  <Type className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={8} aria-label="Text font family">
+                {SHAPE_FONT_OPTIONS.map((option) => (
+                  <DropdownMenuCheckboxItem
+                    key={option.id}
+                    aria-label={option.label}
+                    data-font={option.id}
+                    checked={fontFamily === option.id}
+                    onSelect={() => applyAttr({ fontFamily: option.id })}
+                  >
+                    <span className="w-16 truncate text-xs" style={{ fontFamily: option.stack }}>
+                      {option.label}
+                    </span>
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <ColorSection
+              target="text"
+              label="Text color"
+              current={textColor}
+              chipStyle={{ background: textColor ?? "transparent" }}
+              icon={<Palette className="size-4" />}
+              open={openSection === "text"}
+              onOpenChange={(value) => setOpenSection(value ? "text" : null)}
+              onApply={(value) => applyAttr({ textColor: value })}
+              allowNone={false}
+            />
+            {/* The text style (the weight x the slant). */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  data-slot="docblocks/shape-toolbar-text-style"
+                  aria-label="Text style"
+                  title="Text style"
+                >
+                  <Italic className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" sideOffset={8} aria-label="Text style">
+                {SHAPE_TEXT_STYLE_OPTIONS.map((option) => (
+                  <DropdownMenuCheckboxItem
+                    key={option.id}
+                    aria-label={option.label}
+                    data-style={option.id}
+                    checked={textStyle === option.id}
+                    onSelect={() => applyAttr({ textStyle: option.id })}
+                  >
+                    {option.label}
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {/* The font size (the numeric field: any 8–512 stand, the
+                list the hints). */}
+            <div className="relative" data-slot="docblocks/shape-toolbar-font-size-wrap">
+              <datalist id={sizeListId}>
+                {SHAPE_FONT_SIZE_OPTIONS.map((size) => (
+                  <option key={size} value={size} />
+                ))}
+              </datalist>
+              <input
+                type="number"
+                min={8}
+                max={512}
+                step="1"
+                list={sizeListId}
+                data-slot="docblocks/shape-toolbar-font-size"
+                aria-label="Text font size"
+                title="Text font size"
+                placeholder={String(fontSize ?? 16)}
+                value={sizeDraft}
+                className="
+                  h-7 w-12 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
+                  bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color)
+                  focus:outline-none
+                "
+                onMouseDown={(event) => event.stopPropagation()}
+                onChange={(event) => setSizeDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    commitSize();
+                  }
+                }}
+                onBlur={commitSize}
+              />
+            </div>
+            {/* The text alignment. */}
+            {[
+              { value: "left", icon: TextAlignStart, label: "Align left" },
+              { value: "center", icon: TextAlignCenter, label: "Align center" },
+              { value: "right", icon: TextAlignEnd, label: "Align right" },
+            ].map(({ value, icon: AlignIcon, label }) => (
+              <Button
+                key={value}
+                variant="ghost"
+                size="icon"
+                data-slot={`docblocks/shape-toolbar-align-${value}`}
+                aria-label={label}
+                title={label}
+                aria-pressed={textAlign === value}
+                className={cn("size-7", textAlign === value && "bg-accent text-accent-foreground")}
+                onClick={() => applyAttr({ textAlign: value })}
+              >
+                <AlignIcon className="size-4" />
+              </Button>
+            ))}
+          </>
+        ) : (
+          <Button
+            variant="ghost"
+            size="icon"
+            data-slot="docblocks/shape-toolbar-add-text"
+            aria-label="Add text"
+            title="Add text (or double-click the shape)"
+            onClick={() => textEdit?.setEditingId(id)}
+          >
+            <Type className="size-4" />
+          </Button>
+        )}
+        <Separator orientation="vertical" className="h-5" />
         <ColorSection
           target="fill"
           label="Shape fill color"
@@ -304,7 +494,7 @@ function ShapeToolbar({
           icon={<Fill className="size-4" />}
           open={openSection === "fill"}
           onOpenChange={(value) => setOpenSection(value ? "fill" : null)}
-          onApply={(value) => apply("fill", value)}
+          onApply={(value) => applyAttr({ fill: value })}
         />
         <ColorSection
           target="stroke"
@@ -314,7 +504,7 @@ function ShapeToolbar({
           icon={<Stroke className="size-4" />}
           open={openSection === "stroke"}
           onOpenChange={(value) => setOpenSection(value ? "stroke" : null)}
-          onApply={(value) => apply("stroke", value)}
+          onApply={(value) => applyAttr({ stroke: value })}
         />
       </div>
     </div>

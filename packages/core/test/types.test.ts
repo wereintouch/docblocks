@@ -285,7 +285,7 @@ describe("type shapes", () => {
   });
 
   it("shape attrs: required variant enum, the optional paint attrs, the freehand points", () => {
-    expectTypeOf<ShapeAttrs["variant"]>().toEqualTypeOf<"rect" | "ellipse" | "diamond" | "line">();
+    expectTypeOf<ShapeAttrs["variant"]>().toEqualTypeOf<"rect" | "rounded" | "ellipse" | "diamond">();
     expectTypeOf<ShapeAttrs["opacity"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<ShapeAttrs["points"]>().toEqualTypeOf<[number, number][] | undefined>();
     expectTypeOf<AttrsFor<"shape">>().toEqualTypeOf<ShapeAttrs | undefined>();

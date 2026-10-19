@@ -101,7 +101,16 @@ type BlockAttrsPatch = Partial<
     Omit<ConnectorAttrs, "variant"> &
     CanvasTextAttrs & {
       variant?:
-        "info" | "warning" | "danger" | "rect" | "ellipse" | "diamond" | "line" | "straight" | "orthogonal" | "curved";
+        | "info"
+        | "warning"
+        | "danger"
+        | "rect"
+        | "rounded"
+        | "ellipse"
+        | "diamond"
+        | "straight"
+        | "orthogonal"
+        | "curved";
     }
 >;
 

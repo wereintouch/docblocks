@@ -11,6 +11,7 @@ import { useBlock } from "../hooks";
 import { BlockView } from "./BlockView";
 import { FrameBlock } from "./FrameBlock";
 import { ShapeSvg } from "./ShapeSvg";
+import { ShapeText } from "./ShapeText";
 import { TextBlock } from "./TextBlock";
 import { useBlockContext } from "./block-context";
 import { canvasItemStyle, endpointOf, isCanvasSubType } from "./canvas-geometry";
@@ -60,7 +61,10 @@ function CanvasItem({
       custom !== undefined ? (
         custom({ id, block })
       ) : block.type === "shape" ? (
-        <ShapeSvg id={id} block={block} />
+        <>
+          <ShapeSvg id={id} block={block} />
+          <ShapeText id={id} block={block} />
+        </>
       ) : block.type === "canvas-text" ? (
         <TextBlock id={id} block={block} tag="div" />
       ) : block.type === "frame" ? (

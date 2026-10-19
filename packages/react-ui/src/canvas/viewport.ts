@@ -48,7 +48,7 @@ function zoomStopIndex(zoom: number): number {
 const MOVE_THRESHOLD_PX = 3;
 
 /** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
-type CanvasTool = "rect" | "ellipse" | "diamond" | "line" | "text" | "frame" | "connector" | "pen";
+type CanvasTool = "rect" | "rounded" | "ellipse" | "diamond" | "text" | "frame" | "connector" | "pen";
 
 /** The pointer mode (the dock's hand toggle). */
 type CanvasMode = "default" | "pan";
@@ -76,9 +76,9 @@ interface ScreenRect {
 /** The default size of a placed tool block (the center anchor is the click point). */
 const TOOL_SIZES: Record<CanvasTool, { w: number; h: number }> = {
   rect: { w: 160, h: 80 },
+  rounded: { w: 160, h: 80 },
   ellipse: { w: 100, h: 80 },
   diamond: { w: 90, h: 90 },
-  line: { w: 140, h: 60 },
   text: { w: 200, h: 40 },
   frame: { w: 320, h: 240 },
   connector: { w: 0, h: 0 }, // the connector carries no own geometry

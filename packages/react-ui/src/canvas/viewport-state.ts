@@ -27,7 +27,7 @@ import type {
 
 /** The in-flight shape placement's preview (the center anchor, canvas coords). */
 interface PlacePreview {
-  variant: "rect" | "ellipse" | "diamond" | "line";
+  variant: "rect" | "rounded" | "ellipse" | "diamond";
   x: number;
   y: number;
   w: number;
@@ -220,6 +220,11 @@ interface CanvasViewportState {
   connectorEndpoint: EndpointDrag | null;
   /** The endpoint drag's live preview (the point + the port snap); null outside a drag. */
   connectorEndpointPreview: EndpointPreview | null;
+  /** The shape in the inline text edit (the double-click's target); null outside an edit. */
+  shapeTextEditing: string | null;
+  /** Opens / closes the shape's inline text edit (the double-click, the
+   * toolbar's add-text button, the edit's blur / Escape close). */
+  setShapeTextEditing: (id: string | null) => void;
   setZoom: (zoom: number) => void;
   stepZoom: (direction: 1 | -1) => void;
   /** The zoom step at the screen point (the wheel): the point under the
@@ -335,6 +340,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [connectorPreview, setConnectorPreview] = useState<CanvasPoint | null>(null);
   const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
   const [connectorEndpointPreview, setConnectorEndpointPreview] = useState<EndpointPreview | null>(null);
+  const [shapeTextEditing, setShapeTextEditing] = useState<string | null>(null);
   const endpointRef = useRef<EndpointSession | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
 
@@ -371,9 +377,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       try {
         switch (tool) {
           case "rect":
+          case "rounded":
           case "ellipse":
           case "diamond":
-          case "line":
             placeShape(doc, tool, point, size);
             break;
           case "text":
@@ -400,9 +406,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       try {
         switch (tool) {
           case "rect":
+          case "rounded":
           case "ellipse":
           case "diamond":
-          case "line":
             placeShape(doc, tool, point, size);
             break;
         }
@@ -811,6 +817,8 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     connectorPreview,
     connectorEndpoint,
     connectorEndpointPreview,
+    shapeTextEditing,
+    setShapeTextEditing,
     setConnectorPreview,
     setZoom,
     stepZoom: step,
