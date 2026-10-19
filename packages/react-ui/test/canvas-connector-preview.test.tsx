@@ -264,18 +264,31 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     // The drag: the press on the handle's hit circle, the move (the live
     // preview), the release on the empty canvas (no port in reach — the
     // jsdom points stand as-is against the surface at the origin: the
-    // release (400, 200) is far from any of a / b's ports).
+    // release (400, 200) is far from any of a / b's ports). The free
+    // point keeps the FROZEN direction (a's east anchor toward b — the
+    // line stands its direction while in the air).
     fireEvent.pointerDown(startHandle!, { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 400, clientY: 200, buttons: 1, pointerId: 1 });
     fireEvent.pointerUp(r.view, { clientX: 400, clientY: 200, pointerId: 1 });
     const connector = r.doc.getBlock(r.connectorId);
     if (connector === null || connector.type !== "connector") throw new Error("the connector vanished");
-    expect(connector.attrs.start).toEqual({ x: 400, y: 200 });
+    expect(connector.attrs.start).toEqual({ x: 400, y: 200, port: "east" });
     expect(connector.attrs.end).toEqual({ blockId: r.b });
     // The line re-draws from the free point (the start stands at the
     // release; the path's M point is the free point).
     const path = r.view.querySelector<SVGPathElement>(`[data-connector-id="${r.connectorId}"]`)!;
     expect(path.getAttribute("d")!.startsWith("M 400 200")).toBe(true);
+    // The FROZEN direction stands the line's shape : the curved variant bows out along the stored east
+    // normal (the c1 control point stands EAST of the start) — not along
+    // the segment's perpendicular (the directionless free point).
+    act(() => {
+      r.doc.transact(() => {
+        r.doc.updateBlock(r.connectorId, { variant: "curved" });
+      });
+    });
+    const d = path.getAttribute("d")!;
+    const controlX = Number(d.split("C ")[1]!.split(" ")[0]);
+    expect(controlX).toBeGreaterThan(400);
   });
 
   it("the drag commits the port snap (the release near the port) and the own block detaches to the free point", () => {

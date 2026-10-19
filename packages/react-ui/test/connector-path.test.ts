@@ -10,6 +10,7 @@ import {
   connectorPathPoints,
   edgeAnchor,
   endpointPointOf,
+  portOfNormal,
   portsOf,
 } from "../src/blocks/canvas-geometry";
 
@@ -85,6 +86,29 @@ describe("endpointPointOf", () => {
       nx: 0,
       ny: 0,
     });
+  });
+
+  it("a free point with a port stands the FROZEN direction (the last anchor's side)", () => {
+    expect(endpointPointOf({ x: 120, y: -40, port: "south" }, siblings, blocks, { x: 0, y: 0 })).toEqual({
+      x: 120,
+      y: -40,
+      nx: 0,
+      ny: 1,
+    });
+    expect(endpointPointOf({ x: 120, y: -40, port: "west" }, siblings, blocks, { x: 0, y: 0 })).toEqual({
+      x: 120,
+      y: -40,
+      nx: -1,
+      ny: 0,
+    });
+  });
+
+  it("the unit normal maps to its port (the direction's frozen form; the zero vector stands none)", () => {
+    expect(portOfNormal(1, 0)).toBe("east");
+    expect(portOfNormal(-1, 0)).toBe("west");
+    expect(portOfNormal(0, 1)).toBe("south");
+    expect(portOfNormal(0, -1)).toBe("north");
+    expect(portOfNormal(0, 0)).toBeNull();
   });
 
   it("a ref + port stands at that edge midpoint (the port's outward normal)", () => {

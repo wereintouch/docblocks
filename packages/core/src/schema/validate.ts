@@ -239,11 +239,12 @@ function validateGeometry(geometry: unknown, path: string, errors: ValidationErr
  * [x, y] pairs of finite numbers (a tuple shape the AttrSpec array kind
  * cannot express — the spec passes any array), and each connector
  * endpoint carries either a weak ref (at least one of docId / blockId,
- * with an optional port) or a free point (both x and y, finite — the
- * object spec cannot express the "a ref or a free point" rule; a port
- * without a ref is meaningless). The enums and the numeric kinds are
- * checked by the registry attrs spec. Runs from validateDoc, and from
- * the insertBlock / updateBlock command checks.
+ * with an optional port — the edge anchor) or a free point (both x and
+ * y, finite — with an optional port, the FROZEN direction the line
+ * leaves the point at — the last anchor's side, kept while the endpoint
+ * stands off the blocks). The enums and the numeric kinds are checked by
+ * the registry attrs spec. Runs from validateDoc, and from the
+ * insertBlock / updateBlock command checks.
  */
 function validateCanvasBlock(
   type: BlockType,
@@ -289,10 +290,10 @@ function validateCanvasBlock(
           message: `Connector endpoint "${key}" free point: x and y must stand together.`,
         });
       }
-      if ("port" in ref && !isRef) {
+      if ("port" in ref && !isRef && !("x" in ref && "y" in ref)) {
         errors.push({
           path: `${path}.attrs.${key}`,
-          message: `Connector endpoint "${key}" port requires a block ref (docId / blockId).`,
+          message: `Connector endpoint "${key}" port requires a block ref (docId / blockId) or a free point (x and y — the frozen direction).`,
         });
       }
     }

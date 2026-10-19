@@ -40,7 +40,11 @@ interface CanvasRef {
   /**
    * The endpoint's port of the target block (the edge midpoint; requires
    * docId / blockId). Absent — the endpoint stands at the block's edge
-   * anchor toward the line's other end (the sticky legacy anchor).
+   * anchor toward the line's other end (the sticky legacy anchor). On a
+   * FREE point (x / y, no ref) the port stands the FROZEN direction the
+   * line leaves the point at (the last anchor's side — kept while the
+   * endpoint stands off the blocks; the re-connection to an edge takes
+   * the edge's side over it).
    */
   port?: "north" | "east" | "south" | "west";
   /** The free endpoint's x (canvas px, the canvas origin — the world space). */
