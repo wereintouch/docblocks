@@ -40,18 +40,13 @@ function filterIsComplete(payload: DatabaseFilterPayload | null, columns: Bridge
   return true;
 }
 
-/** The control look (the shared input / select styling). */
-const CONTROL_CLASS = `
-  h-8 rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
-  bg-transparent px-2 text-(length:--docblocks-font-size) text-(--docblocks-text-color) outline-none
-`;
+/** The control look (the shared input / select styling). The standard
+ *  tokens stand — the builder renders inside the portaled popover
+ *  (the `--docblocks-*` editor-root tokens do not reach the body). */
+const CONTROL_CLASS = `h-8 rounded-md border border-border bg-transparent px-2 text-sm text-foreground outline-none`;
 
 /** The ghost button look (the add / the remove affordances). */
-const GHOST_BUTTON_CLASS = `
-  cursor-pointer rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-  border-(--docblocks-table-border-color) bg-transparent px-2 py-1 text-(length:--docblocks-font-size)
-  text-(--docblocks-text-color) outline-none hover:opacity-70
-`;
+const GHOST_BUTTON_CLASS = `cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground outline-none hover:opacity-70`;
 
 interface FilterBuilderProps {
   /** The payload being edited; null = the empty filter. */
@@ -66,15 +61,9 @@ interface FilterBuilderProps {
 function FilterBuilder({ value, columns, onChange }: FilterBuilderProps) {
   const payload = value ?? emptyFilter();
   return (
-    <div
-      data-slot="docblocks/filter-builder"
-      className="flex max-h-80 flex-col gap-(--docblocks-block-spacing) overflow-y-auto"
-    >
+    <div data-slot="docblocks/filter-builder" className="flex max-h-80 flex-col gap-2 overflow-y-auto">
       {columns.length === 0 ? (
-        <div
-          data-slot="docblocks/filter-empty"
-          className="text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color)"
-        >
+        <div data-slot="docblocks/filter-empty" className="text-sm text-muted-foreground">
           No columns to filter on.
         </div>
       ) : (
@@ -106,26 +95,15 @@ function FilterGroup({ payload, columns, depth, onChange }: FilterGroupProps) {
     <div
       data-slot="docblocks/filter-group"
       data-logic={payload.logic}
-      className="
-        flex flex-col gap-2 rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-        border-(--docblocks-table-border-color) p-2
-      "
+      className="flex flex-col gap-2 rounded-md border border-border p-2"
     >
       <div className="flex items-center gap-2">
-        <div
-          data-slot="docblocks/filter-logic"
-          className="
-            flex items-center rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-            border-(--docblocks-table-border-color)
-          "
-        >
+        <div data-slot="docblocks/filter-logic" className="flex items-center rounded-md border border-border">
           <button
             type="button"
             data-filter-logic="and"
             className={`cursor-pointer px-2 py-0.5 text-xs outline-none ${
-              payload.logic === "and"
-                ? "bg-(--docblocks-selected-background) text-(--docblocks-text-color)"
-                : "text-(--docblocks-placeholder-color)"
+              payload.logic === "and" ? "bg-accent text-foreground" : "text-muted-foreground"
             }`}
             onClick={() => setLogic("and")}
           >
@@ -135,16 +113,14 @@ function FilterGroup({ payload, columns, depth, onChange }: FilterGroupProps) {
             type="button"
             data-filter-logic="or"
             className={`cursor-pointer px-2 py-0.5 text-xs outline-none ${
-              payload.logic === "or"
-                ? "bg-(--docblocks-selected-background) text-(--docblocks-text-color)"
-                : "text-(--docblocks-placeholder-color)"
+              payload.logic === "or" ? "bg-accent text-foreground" : "text-muted-foreground"
             }`}
             onClick={() => setLogic("or")}
           >
             OR
           </button>
         </div>
-        <span className="text-xs text-(--docblocks-placeholder-color)">
+        <span className="text-xs text-muted-foreground">
           match {payload.logic === "and" ? "all" : "any"} of the conditions
         </span>
       </div>
@@ -161,7 +137,7 @@ function FilterGroup({ payload, columns, depth, onChange }: FilterGroupProps) {
 
       {(payload.groups ?? []).map((group, index) => (
         <div key={index} className="flex flex-col gap-1" data-slot="docblocks/filter-nested">
-          <div className="flex items-center gap-1 text-xs text-(--docblocks-placeholder-color)">
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span data-slot="docblocks/filter-connector">{payload.logic === "and" ? "AND" : "OR"} nested group</span>
             <button
               type="button"

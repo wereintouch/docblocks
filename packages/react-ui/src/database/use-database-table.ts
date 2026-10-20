@@ -30,10 +30,13 @@ type DatabaseTablePhase = "loading" | "ready" | "broken";
 /** The page size the provider loads (the `nextCursor` continuation). */
 const PAGE_SIZE = 200;
 
-/** The undo stack entry: the inverse bridge operation. */
+/** The undo stack entry: the operation's two directions — the forward
+ * re-applies the change (the redo), the inverse restores the
+ * pre-operation state (the undo). */
 interface InverseOp {
   label: string;
-  apply: () => Promise<void>;
+  forward: () => Promise<void>;
+  inverse: () => Promise<void>;
 }
 
 /** The public result of the hook (the grid renderer + the consumer UI read from it). */
@@ -49,6 +52,10 @@ interface UseDatabaseTable {
   error: string | null;
   insertRow(cells?: Record<string, unknown>): Promise<string>;
   updateRow(rowId: string, cells: Record<string, unknown>): Promise<void>;
+  /** The batch update: ONE commit (the one bridge call + the one undo
+   *  entry — the inverse restores every touched row over the one undo,
+   *  so the multi-row clear stands back over a single undo press). */
+  updateRows(updates: Array<{ rowId: string; cells: Record<string, unknown> }>): Promise<void>;
   removeRow(rowId: string): Promise<void>;
   moveRow(rowId: string, beforeRowId: string | null): Promise<void>;
   addColumn(column: BridgeColumn, afterColumnId?: string): Promise<void>;
@@ -151,7 +158,14 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       // The row id is bridge-assigned (the pk value), so the insert waits
       // for the response (no optimistic row id to reconcile).
       const rowId = await bridge.insertRow(tableId, cells);
-      pushUndo({ label: `insert row ${rowId}`, apply: async () => bridge.removeRow(tableId, rowId) });
+      pushUndo({
+        label: `insert row ${rowId}`,
+        // The redo re-inserts with a fresh id (the bridge assigns the pk).
+        forward: async () => {
+          await bridge.insertRow(tableId, cells);
+        },
+        inverse: async () => bridge.removeRow(tableId, rowId),
+      });
       refresh();
       return rowId;
     },
@@ -170,11 +184,70 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       try {
         await bridge.updateRow(tableId, rowId, cleaned);
         if (current !== undefined) {
+          const oldCells = { ...current.cells };
           pushUndo({
             label: `update row ${rowId}`,
-            apply: async () => bridge.updateRow(tableId, rowId, { ...current.cells }),
+            forward: async () => bridge.updateRow(tableId, rowId, cleaned),
+            inverse: async () => bridge.updateRow(tableId, rowId, oldCells),
           });
         }
+        refresh();
+      } catch (operationError) {
+        setRows(snapshot);
+        refresh();
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, pushUndo, refresh]
+  );
+
+  const updateRows = useCallback(
+    async (updates: Array<{ rowId: string; cells: Record<string, unknown> }>) => {
+      if (updates.length === 0) return;
+      const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      // The pre-operation cells of the touched rows (the inverse's
+      // restore).
+      const before = new Map(rowsRef.current.map((row) => [row.rowId, row.cells]));
+      const cleaned = updates.map(({ rowId, cells }) => {
+        const patch: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(cells)) if (value !== undefined) patch[key] = value;
+        return { rowId, cells: patch };
+      });
+      const byId = new Map(cleaned.map((entry) => [entry.rowId, entry.cells]));
+      setRows((rows) =>
+        rows.map((row) => {
+          const patch = byId.get(row.rowId);
+          return patch === undefined ? row : { ...row, cells: { ...row.cells, ...patch } };
+        })
+      );
+      try {
+        await bridge.updateRows(
+          tableId,
+          cleaned.map(({ rowId, cells }) => ({ rowId, ...cells }))
+        );
+        const restore = cleaned.flatMap(({ rowId, cells }) => {
+          const oldCells = before.get(rowId);
+          if (oldCells === undefined) return [];
+          const patch: Record<string, unknown> = {};
+          for (const key of Object.keys(cells)) patch[key] = oldCells[key];
+          if (Object.keys(patch).length === 0) return [];
+          return [{ rowId, ...patch }];
+        });
+        pushUndo({
+          label: `update rows ${updates.map((entry) => entry.rowId).join(", ")}`,
+          // The one entry for the whole batch: the inverse restores every
+          // touched row over the single undo, the forward stands the batch
+          // again over the single redo.
+          forward: async () =>
+            bridge.updateRows(
+              tableId,
+              cleaned.map(({ rowId, cells }) => ({ rowId, ...cells }))
+            ),
+          inverse: async () => {
+            if (restore.length === 0) return;
+            await bridge.updateRows(tableId, restore);
+          },
+        });
         refresh();
       } catch (operationError) {
         setRows(snapshot);
@@ -195,7 +268,11 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         // Without soft-delete (no undeleteRows) the removal is NOT
         // undoable: it never enters the stack.
         if (row !== undefined && bridge.undeleteRows !== undefined) {
-          pushUndo({ label: `remove row ${rowId}`, apply: async () => bridge.undeleteRows!(tableId, [rowId]) });
+          pushUndo({
+            label: `remove row ${rowId}`,
+            forward: async () => bridge.removeRow(tableId, rowId),
+            inverse: async () => bridge.undeleteRows!(tableId, [rowId]),
+          });
         }
         refresh();
       } catch (operationError) {
@@ -223,7 +300,11 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       setRows(ordered);
       try {
         await bridge.moveRow(tableId, rowId, beforeRowId);
-        pushUndo({ label: `move row ${rowId}`, apply: async () => bridge.moveRow(tableId, rowId, backBefore) });
+        pushUndo({
+          label: `move row ${rowId}`,
+          forward: async () => bridge.moveRow(tableId, rowId, beforeRowId),
+          inverse: async () => bridge.moveRow(tableId, rowId, backBefore),
+        });
         refresh();
       } catch (operationError) {
         setRows(snapshot);
@@ -240,7 +321,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         await bridge.createColumn(tableId, column, afterColumnId);
         pushUndo({
           label: `create column ${column.id}`,
-          apply: async () => bridge.deleteColumn(tableId, column.id),
+          forward: async () => bridge.createColumn(tableId, column, afterColumnId),
+          inverse: async () => bridge.deleteColumn(tableId, column.id),
         });
       } catch (operationError) {
         throw new Error(messageOf(operationError), { cause: operationError });
@@ -257,7 +339,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         await bridge.deleteColumn(tableId, columnId);
         pushUndo({
           label: `delete column ${columnId}`,
-          apply: async () => bridge.createColumn(tableId, column),
+          forward: async () => bridge.deleteColumn(tableId, columnId),
+          inverse: async () => bridge.createColumn(tableId, column),
         });
       } catch (operationError) {
         throw new Error(messageOf(operationError), { cause: operationError });
@@ -274,7 +357,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         await bridge.renameColumn(tableId, columnId, name);
         pushUndo({
           label: `rename column ${columnId}`,
-          apply: async () => bridge.renameColumn(tableId, columnId, column.name),
+          forward: async () => bridge.renameColumn(tableId, columnId, name),
+          inverse: async () => bridge.renameColumn(tableId, columnId, column.name),
         });
       } catch (operationError) {
         throw new Error(messageOf(operationError), { cause: operationError });
@@ -310,7 +394,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     const op = undoStackRef.current.pop();
     if (op === undefined) return;
     try {
-      await op.apply();
+      await op.inverse();
       redoStackRef.current.push(op);
     } catch (operationError) {
       setError(messageOf(operationError));
@@ -323,7 +407,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     const op = redoStackRef.current.pop();
     if (op === undefined) return;
     try {
-      await op.apply();
+      await op.forward();
       undoStackRef.current.push(op);
     } catch (operationError) {
       setError(messageOf(operationError));
@@ -340,6 +424,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     error,
     insertRow,
     updateRow,
+    updateRows,
     removeRow,
     moveRow,
     addColumn,

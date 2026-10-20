@@ -50,6 +50,7 @@
  * docblocks/presence-caret, docblocks/presence-range,
  * docblocks/quote-rule,
  * docblocks/slash-menu,
+ * docblocks/database-cell,
  * docblocks/row, docblocks/row-marker, docblocks/checkbox, docblocks/collapse,
  * docblocks/format-toolbar, docblocks/format-list-menu,
  * docblocks/format-palette),
@@ -364,6 +365,22 @@
 [data-slot="docblocks/block-content"]:empty::after,
 [data-slot="docblocks/cell-activation"]:empty::after {
   content: "\200b";
+}
+
+/* The database number cell suppresses the browser's spin buttons (the
+   stepper is not part of the cell's affordances): the webkit pseudo
+   elements are hidden and the moz appearance falls back to a plain
+   text field. The value still commits through the input's blur. The
+   `database-cell` slot stands on the cell wrapper (the interaction
+   unit), so the rule reaches the inner `type="number"` input. */
+[data-slot="docblocks/database-cell"][data-kind="number"] input[type="number"]::-webkit-inner-spin-button,
+[data-slot="docblocks/database-cell"][data-kind="number"] input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+[data-slot="docblocks/database-cell"][data-kind="number"] input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /*

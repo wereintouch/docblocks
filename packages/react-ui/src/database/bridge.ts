@@ -19,13 +19,26 @@ import type { DatabaseFilterPayload } from "docblocks-core";
  * `operators` is the consumer's operator catalog override; when absent,
  * the package's default catalog for the type stands (§ the filter
  * builders), and `queryRows` must apply exactly the declared operators.
- */
+ * The `decimals` / `thousands` / `prefix` / `suffix` / `allowNegative`
+ * fields are the number column's display attributes (the column's own
+ * data — the package's number formatter reads them; the consumer's
+ * backend maps the column to integer / decimal as it stands). */
 interface BridgeColumn {
   id: string;
   name: string;
   type: string;
   options?: string[];
   operators?: string[];
+  /** The number's digit count after the point (default 0 = integer). */
+  decimals?: number;
+  /** The thousands' separator (the space grouping: `1 000 000`). */
+  thousands?: boolean;
+  /** The display's prefix stand (e.g. the currency sign). */
+  prefix?: string;
+  /** The display's suffix stand. */
+  suffix?: string;
+  /** Whether negative values are allowed (the edit rejects them otherwise). */
+  allowNegative?: boolean;
 }
 
 /** A table entry of the consumer's database (the picker / the catalog). */
@@ -182,6 +195,7 @@ const TEXT_TYPES = new Set([
   "circle",
 ]);
 const NUMBER_TYPES = new Set([
+  "number",
   "smallint",
   "integer",
   "int",
