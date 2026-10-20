@@ -92,7 +92,8 @@ type TableEvent =
   | { type: "row.updated"; rowId: string; cells: Record<string, unknown>; before?: Record<string, unknown> }
   | { type: "row.removed"; rowId: string }
   | { type: "row.moved"; rowId: string; beforeRowId: string | null }
-  | { type: "schema.changed"; columns: BridgeColumn[] };
+  | { type: "schema.changed"; columns: BridgeColumn[] }
+  | { type: "table.renamed"; name: string };
 
 /**
  * The bridge contract (all methods async; errors reject — the package
@@ -105,6 +106,9 @@ interface DatabaseBridge {
   listTables(): Promise<TableRef[]>;
   /** Create a table by name → its id (created EMPTY — the schema is filled by the createColumn calls). */
   createTable(name: string): Promise<string>;
+  /** Rename the table (the name stands on the table, shared by every block
+   *  that references it). */
+  renameTable(tableId: string, name: string): Promise<void>;
   /** The table schema + the pk / order column metadata. */
   describeTable(tableId: string): Promise<BridgeTableDescription>;
   /** Add a column (after `afterColumnId`, or at the end). */

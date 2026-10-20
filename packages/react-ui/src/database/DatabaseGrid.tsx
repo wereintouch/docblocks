@@ -148,6 +148,8 @@ interface ColumnDragSession {
   ids: string[];
   /** The drag has crossed the threshold (a sub-threshold press is a click). */
   started: boolean;
+  /** The dragged column's width at the press (the parting preview's shift step). */
+  startWidth: number;
 }
 
 /** The drag's start threshold (px): below it the press is a menu click. */
@@ -189,7 +191,6 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
       blockId={id}
       bridge={databaseBridge}
       tableId={tableId}
-      name={block.attrs.name}
       filter={block.attrs.filter}
       columnOrder={block.attrs.columnOrder}
       hiddenColumns={block.attrs.hiddenColumns}
@@ -204,7 +205,6 @@ interface GridBodyProps {
   blockId: BlockId;
   bridge: import("./bridge").DatabaseBridge;
   tableId: string;
-  name?: string;
   filter?: DatabaseFilterPayload;
   columnOrder?: string[];
   hiddenColumns?: string[];
@@ -220,7 +220,6 @@ function GridBody({
   blockId,
   bridge,
   tableId,
-  name,
   filter,
   columnOrder,
   hiddenColumns,
@@ -235,8 +234,9 @@ function GridBody({
   const [numberFormOpen, setNumberFormOpen] = useState(false);
   const [numberForm, setNumberForm] = useState<NumberFormDraft>(EMPTY_NUMBER_FORM);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
-  /** The in-flight column drag (pure view state): the column id + the live dx. */
-  const [drag, setDrag] = useState<{ id: string; dx: number } | null>(null);
+  /** The in-flight column drag (pure view state): the column id, the live dx, the live drop index (the parting preview), the press-time width.
+   */
+  const [drag, setDrag] = useState<{ id: string; dx: number; toIndex: number | null; startWidth: number } | null>(null);
   const dragSession = useRef<ColumnDragSession | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
 
@@ -246,9 +246,20 @@ function GridBody({
     doc.updateBlock(blockId, patch);
   };
 
-  // --- The block's display name (the `name` attr; absent / empty = the
-  //     bridge's table name stands).
-  const displayName = (name ?? "") !== "" ? (name as string) : (data.table?.name ?? tableId);
+  // The parting preview: the stationary columns' shift (px) over the live
+  // drop index (the dragged column's own cells stand the pointer's dx).
+  const dragFrom = drag === null ? -1 : columns.findIndex((entry) => entry.id === drag.id);
+  const dragShiftOf = (index: number): number => {
+    if (drag === null || drag.toIndex === null || index === dragFrom) return 0;
+    const to = drag.toIndex;
+    const shift = index < dragFrom ? (index >= to ? 1 : 0) : index - 1 < to ? -1 : 0;
+    return shift * drag.startWidth;
+  };
+
+  // --- The display name: the bridge's table name (the name is the
+  //     table's attribute — every block over the tableId stands it live;
+  //     the block's legacy `name` attr is ignored over the display).
+  const displayName = data.table?.name ?? tableId;
 
   // --- The column drag session (the header cell's press).
   const onColumnPointerDown = (column: BridgeColumn, event: ReactPointerEvent<HTMLDivElement>) => {
@@ -263,6 +274,7 @@ function GridBody({
       startX: event.clientX,
       ids: columns.map((entry) => entry.id),
       started: false,
+      startWidth: event.currentTarget.getBoundingClientRect().width,
     };
     event.currentTarget.setPointerCapture?.(event.pointerId);
   };
@@ -273,7 +285,36 @@ function GridBody({
     const dx = event.clientX - session.startX;
     if (!session.started && Math.abs(dx) < DRAG_START_THRESHOLD_PX) return;
     session.started = true;
-    setDrag({ id: session.columnId, dx });
+    setDrag({
+      id: session.columnId,
+      dx,
+      toIndex: columnDropIndexAt(event.clientX, session.columnId),
+      startWidth: session.startWidth,
+    });
+  };
+
+  /** The drop index (the dragged column's final visible index) for a
+   *  pointer x: the stationary headers' midpoints (the dragged column's
+   *  live position is excluded) — the position among the stationary
+   *  columns IS the final visible index (the splice into the stationary
+   *  order). The release's commit and the parting preview share the
+   *  measurement. */
+  const columnDropIndexAt = (clientX: number, excludeId: string): number | null => {
+    const table = tableRef.current;
+    if (table === null) return null;
+    const midpoints: number[] = [];
+    table.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']").forEach((cell) => {
+      if (cell.dataset.columnId === excludeId) return;
+      const rect = cell.getBoundingClientRect();
+      midpoints.push(rect.left + rect.width / 2);
+    });
+    if (midpoints.length === 0) return null;
+    midpoints.sort((a, b) => a - b);
+    let position = 0;
+    for (const mid of midpoints) {
+      if (clientX > mid) position += 1;
+    }
+    return position;
   };
 
   const onColumnPointerUp = (column: BridgeColumn, event: ReactPointerEvent<HTMLDivElement>) => {
@@ -290,24 +331,10 @@ function GridBody({
     // the press (a peer added / removed / renamed-structurally a column
     // mid-drag invalidates the drop — no commit, the grid resyncs).
     if (!columns.map((entry) => entry.id).every((value, i) => session.ids[i] === value)) return;
-    // The drop position among the stationary columns: the count of their
-    // midpoints standing left of the pointer (the dragged column's live
-    // position is excluded).
-    const table = tableRef.current;
-    if (table === null) return;
-    const midpoints: number[] = [];
-    table.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']").forEach((cell) => {
-      if (cell.dataset.columnId === session.columnId) return;
-      const rect = cell.getBoundingClientRect();
-      midpoints.push(rect.left + rect.width / 2);
-    });
-    midpoints.sort((a, b) => a - b);
-    let position = 0;
-    for (const mid of midpoints) {
-      if (event.clientX > mid) position += 1;
-    }
-    const toIndex = position > session.index ? position - 1 : position;
-    if (toIndex === session.index) return;
+    // The drop position among the stationary columns (the live preview's
+    // measurement, re-read at the release).
+    const toIndex = columnDropIndexAt(event.clientX, session.columnId);
+    if (toIndex === null || toIndex === session.index) return;
     // The commit: the visible order with the dragged column at the drop
     // index (the hidden columns keep the schema tail — the attr lists the
     // visible order only).
@@ -503,6 +530,16 @@ function GridBody({
    *  focused input keeps its own character editing — no cell clear). One
    *  `updateRow` per row, the columns are the null cells. */
   const onTableKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    // The undo / redo hotkey over the table's focus: the grid's own stack
+    // (the bridge operations — the doc's undo does not cover them). The
+    // focused input keeps its own history (the browser's edit commands).
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "z") {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void (event.shiftKey ? data.redo() : data.undo());
+      return;
+    }
     if (event.key === "Escape") {
       if (selectionFrame === null && editingCell === null) return;
       // The grid owns the Escape (the cell selection / the edit session):
@@ -672,8 +709,11 @@ function GridBody({
   const commitName = (draft: string) => {
     setNameDraft(null);
     const trimmed = draft.trim();
-    if (trimmed === (name ?? "")) return;
-    updateView({ name: trimmed });
+    if (trimmed === "" || trimmed === data.table?.name) return;
+    // The rename is the bridge's (the table's attribute): every block over
+    // the tableId stands the new name over the table event — no doc write,
+    // the grid's undo stack covers it.
+    void data.renameTable(trimmed);
   };
 
   const lastRowId = rows.length > 0 ? rows[rows.length - 1]!.rowId : null;
@@ -845,7 +885,8 @@ function GridBody({
                 colIndex={index}
                 first={index === 0}
                 resizing={resizePreview !== null && resizePreview.col === index}
-                dragDx={drag !== null && drag.id === column.id ? drag.dx : 0}
+                dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
+                dragShifted={drag !== null && drag.id !== column.id}
                 menuOpen={columnMenu === column.id}
                 onMenuChange={(open) => setColumnMenu(open ? column.id : null)}
                 onRename={(renameName) => void data.renameColumn(column.id, renameName)}
@@ -1028,7 +1069,8 @@ function GridBody({
                       colIndex={index}
                       first={index === 0}
                       lastRow={row.rowId === lastRowId}
-                      dragDx={drag !== null && drag.id === column.id ? drag.dx : 0}
+                      dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
+                      dragShifted={drag !== null && drag.id !== column.id}
                       selected={selectedCells.has(key)}
                       singleSelected={selectedCells.has(key) && selectedCells.size === 1}
                       editing={editingCell === key}
@@ -1099,6 +1141,8 @@ interface HeaderCellProps {
   first: boolean;
   resizing: boolean;
   dragDx: number;
+  /** A stationary column of an in-flight drag (the parting shift's transition). */
+  dragShifted: boolean;
   menuOpen: boolean;
   onMenuChange: (open: boolean) => void;
   onRename: (name: string) => void;
@@ -1127,6 +1171,7 @@ function HeaderCell({
   first,
   resizing,
   dragDx,
+  dragShifted,
   menuOpen,
   onMenuChange,
   onRename,
@@ -1152,7 +1197,16 @@ function HeaderCell({
     <div
       data-slot="docblocks/database-header-cell"
       data-column-id={column.id}
-      style={dragDx !== 0 ? { transform: `translateX(${dragDx}px)`, position: "relative", zIndex: 10 } : undefined}
+      style={
+        dragDx !== 0
+          ? {
+              transform: `translateX(${dragDx}px)`,
+              position: "relative",
+              zIndex: dragShifted ? undefined : 10,
+              transition: dragShifted ? "transform 120ms ease-out" : undefined,
+            }
+          : undefined
+      }
       className={cn(
         `
           relative flex min-w-0 cursor-grab items-center gap-1 border-b-(length:--docblocks-table-border-width)
@@ -1479,6 +1533,8 @@ interface DatabaseCellProps {
   first: boolean;
   lastRow: boolean;
   dragDx: number;
+  /** A stationary column's cell of an in-flight drag (the parting shift's transition). */
+  dragShifted: boolean;
   selected: boolean;
   /** The cell stands the sole selection (the boolean's checkbox interactive stand). */
   singleSelected: boolean;
@@ -1509,6 +1565,7 @@ function DatabaseCell({
   first,
   lastRow,
   dragDx,
+  dragShifted,
   selected,
   singleSelected,
   editing,
@@ -1525,7 +1582,14 @@ function DatabaseCell({
   const dateValue = isDate || isDateTime ? parseCellDateTime(value) : null;
   const rawValue = value === undefined || value === null ? "" : String(value);
   const dragStyle =
-    dragDx !== 0 ? { transform: `translateX(${dragDx}px)`, position: "relative" as const, zIndex: 10 } : undefined;
+    dragDx !== 0
+      ? {
+          transform: `translateX(${dragDx}px)`,
+          position: "relative" as const,
+          zIndex: dragShifted ? undefined : 10,
+          transition: dragShifted ? "transform 120ms ease-out" : undefined,
+        }
+      : undefined;
   // The datetime's drafts stand from the value on the open (the close
   // commits; the in-flight draft never touches the consumer state).
   const [draftDate, setDraftDate] = useState<Date | null>(null);

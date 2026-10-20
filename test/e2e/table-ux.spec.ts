@@ -541,12 +541,15 @@ test("the column drag moves the column with its width and color (B); a no-op dra
     );
     await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
 
-    // Drag the column 0 handle over the last column (past its midpoint):
-    // the column lands last — its width (120) and its color travel with it;
-    // B's JSON stands the new order.
+    // Drag the column 0 handle over the last column's right half (past its
+    // midpoint — the midpoint is the landing boundary): the column lands
+    // last — its width (120) and its color travel with it; B's JSON stands
+    // the new order.
     await seedHover(a, 0, colChipSel(0));
     const handleBox = await colHandle(a, 0).boundingBox();
-    const target = await cellCenter(a, 0, 2, 3);
+    const lastCell = await a.locator("td").nth(2).boundingBox();
+    if (lastCell === null) throw new Error("the last cell has no box");
+    const target = { x: lastCell.x + lastCell.width * 0.75, y: lastCell.y + lastCell.height / 2 };
     if (handleBox === null) throw new Error("the column handle has no box");
     await dragTo(a, { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 }, target);
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.widths, SETTLE).toEqual([140, 90, 120]);
@@ -565,6 +568,71 @@ test("the column drag moves the column with its width and color (B); a no-op dra
     await a.waitForTimeout(300);
     expect(await outCount(a, "a")).toBe(outBefore);
     expect((await tableSnapshot(b, "b", tableId))?.widths).toEqual([140, 90, 120]);
+  } finally {
+    await close();
+  }
+});
+
+test("the row drag moves the row over the wire (B); the parting preview stands mid-drag with no doc write", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ux18-table-row-drag");
+  try {
+    const tableId = await seedTable(
+      a,
+      "a",
+      [
+        ["a1", "a2", "a3"],
+        ["b1", "b2", "b3"],
+        ["c1", "c2", "c3"],
+      ],
+      [120, 140, 90]
+    );
+    await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
+
+    // Drag the row 0 handle over row 1's lower half (past its midpoint —
+    // the midpoint is the landing boundary): the row lands at slot 1.
+    // Mid-drag: the dragged row follows the pointer, the stationary rows
+    // stand shifted by one row height, and the doc stands untouched
+    // (no command until the release).
+    await seedHover(a, 0, rowChipSel(0));
+    const handleBox = await rowHandle(a, 0).boundingBox();
+    const rowsBox = await a.evaluate(() => {
+      const table = document.querySelector<HTMLTableElement>('table[data-slot="docblocks/table"]');
+      if (table === null) return null;
+      const rect = table.getBoundingClientRect();
+      return Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody > tr")).map((tr) => ({
+        top: tr.offsetTop + rect.top,
+        h: tr.offsetHeight,
+      }));
+    });
+    if (handleBox === null || rowsBox === null) throw new Error("the row handle or rows have no box");
+    const targetY = rowsBox[1]!.top + rowsBox[1]!.h * 0.75;
+    const startY = handleBox.y + handleBox.height / 2;
+    const startX = handleBox.x + handleBox.width / 2;
+    const outBefore = await outCount(a, "a");
+    await a.mouse.move(startX, startY);
+    await a.mouse.down();
+    // Past row 1's midpoint (the landing boundary crossed): the dragged
+    // row follows the pointer, row 1 stands shifted up.
+    await a.mouse.move(startX, startY + (targetY - startY) * 0.95, { steps: 6 });
+    await a.waitForTimeout(300);
+    const midStands = await a.evaluate(() => {
+      const table = document.querySelector<HTMLTableElement>('table[data-slot="docblocks/table"]');
+      return Array.from(table!.querySelectorAll<HTMLElement>("tbody > tr")).map((tr) => tr.style.transform);
+    });
+    expect(midStands[0]).toMatch(/translateY\((\d+(\.\d+)?px)\)/);
+    expect(midStands[1]).toMatch(/translateY\(-\d+(\.\d+)?px\)/);
+    // No doc write mid-drag: the wire count stands.
+    expect(await outCount(a, "a")).toBe(outBefore);
+    await a.mouse.move(startX, targetY, { steps: 4 });
+    await a.mouse.up();
+    await expect
+      .poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.map((row) => row[0]?.text), SETTLE)
+      .toEqual(["b1", "a1", "c1"]);
+    const after = await tableSnapshot(b, "b", tableId);
+    expect(after?.rows[0]?.map((c) => c.text)).toEqual(["b1", "b2", "b3"]);
+    expect(after?.rows[1]?.map((c) => c.text)).toEqual(["a1", "a2", "a3"]);
   } finally {
     await close();
   }

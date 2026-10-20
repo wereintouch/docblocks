@@ -337,8 +337,11 @@ test("the row commands refuse the external form over the wire (the typed error)"
   const { a, close } = await twoPanes(browser, "ext04-external-error");
 
   const dbId = (await a.evaluate(() => window.__paneDocs!.a!.insertBlock("database", { tableId: "ext-1" })))!;
-  const snapshotOf = () => a.evaluate(() => JSON.stringify(window.__paneDocs?.a?.toJSON() ?? null));
-  const before = await snapshotOf();
+  // The block itself is the comparison unit: the room's tail guarantee may
+  // still be standing its paragraph over the wire, so the whole-doc
+  // snapshot is not a stable baseline here.
+  const blockOf = () => a.evaluate((id) => JSON.stringify(window.__paneDocs?.a?.getBlock(id) ?? null), dbId);
+  const before = await blockOf();
 
   const outcome = await a.evaluate((dbId) => {
     const doc = window.__paneDocs!.a!;
@@ -352,8 +355,8 @@ test("the row commands refuse the external form over the wire (the typed error)"
   expect(outcome.startsWith("ExternalDatabaseError")).toBe(true);
   expect(outcome).toContain("ext-1");
 
-  // The failed command left the doc untouched.
-  expect(await snapshotOf()).toBe(before);
+  // The failed command left the block untouched.
+  await expect.poll(async () => (await blockOf()) === before, SETTLE).toBe(true);
 
   await close();
 });
@@ -436,39 +439,51 @@ test("the bridge is live: a row mutation in pane B's bridge reaches pane A's gri
   await close();
 });
 
-test("the block's display name: the rename stands over the wire (the JSON carries the attr)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "ext04-name");
+test("the display name: the rename renames the table (the bridge's attribute) — every block over the tableId stands it", async ({
+  browser,
+}) => {
+  // The panes share one context (the same origin): the default bridges
+  // echo the table events over the BroadcastChannel, so the rename stands
+  // in both panes over the bridge (no doc update).
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-table-name");
 
   const demo = await bridgeDemoTable(a);
   const dbId = (await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id))!;
+  // The second block over the same table (pane B's doc, synced over): its
+  // name stand is the table's attribute too.
+  await b.evaluate((tableId) => window.__paneDocs!.b!.insertBlock("database", { tableId }), demo.id);
 
   const nameA = a.locator("[data-slot='docblocks/database-name']");
   const nameB = b.locator("[data-slot='docblocks/database-name']");
-  // The bridge's table name stands by default (the override is absent).
-  await expect(nameA).toHaveText("Demo", SETTLE);
-  await expect(nameB).toHaveText("Demo", SETTLE);
+  // The bridge's table name stands by default (both blocks, both panes).
+  await expect(nameA.first()).toHaveText("Demo", SETTLE);
+  await expect(nameB.first()).toHaveText("Demo", SETTLE);
 
-  // The rename (the toolbar line): the commit is the blur.
-  await nameA.click();
-  const input = a.locator("[data-slot='docblocks/database-name-input']");
+  // The rename (the header's line): the commit is the blur.
+  await nameA.first().click();
+  const input = a.locator("[data-slot='docblocks/database-name-input']").first();
   await expect(input).toBeVisible(SETTLE);
   await input.fill("My Board");
   await input.blur();
-  await expect(nameA).toHaveText("My Board", SETTLE);
-  await expect(nameB).toHaveText("My Board", SETTLE);
-  const json = await a.evaluate((id) => {
-    const block = window.__paneDocs!.a!.toJSON().blocks[id];
-    return block?.type === "database" ? ((block.attrs as Record<string, unknown>).name ?? null) : null;
-  }, dbId);
-  expect(json).toBe("My Board");
+  await expect(nameA.first()).toHaveText("My Board", SETTLE);
+  // The table's attribute stands in every block over the tableId — both
+  // panes' both blocks (the echo over the shared context).
+  await expect(nameA.nth(1)).toHaveText("My Board", SETTLE);
+  await expect(nameB.first()).toHaveText("My Board", SETTLE);
+  await expect(nameB.nth(1)).toHaveText("My Board", SETTLE);
+  // No doc write: the blocks' JSON stands untouched (no `name` attr).
+  const names = await a.evaluate(
+    (ids) => ids.map((id) => window.__paneDocs!.a!.getBlock(id)?.attrs?.name ?? null),
+    [dbId]
+  );
+  expect(names).toEqual([null]);
 
-  // The undo reverts the display (the bridge's table name stands again).
-  // The hotkey stands in the editor: the cell's press takes the table's
-  // focus (the keys reach the editor root).
+  // The grid's undo reverts the rename (the bridge's undo stack: the table
+  // name stands back over the echo, both panes).
   await a.locator("[data-slot='docblocks/database-cell'][data-column-id='title']").first().click();
   await a.keyboard.press("Control+z");
-  await expect(nameA).toHaveText("Demo", SETTLE);
-  await expect(nameB).toHaveText("Demo", SETTLE);
+  await expect(nameA.first()).toHaveText("Demo", SETTLE);
+  await expect(nameB.nth(1)).toHaveText("Demo", SETTLE);
 
   await close();
 });
@@ -528,11 +543,31 @@ test("the header: the type stands in the menu only, the widths align with the ro
 
   // The header's press-drag reorders the columns: the columnOrder attr
   // stands over the wire, both grids resync from it (the first column is
-  // no longer the title after the rightward drag).
+  // no longer the title after the rightward drag). The preview parts the
+  // stationary columns (the pure view state — no doc write until the
+  // release: the dragged header follows the pointer, the stationary
+  // columns stand shifted by one column width).
   const box = (await titleHeader.boundingBox())!;
   await a.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await a.mouse.down();
   await a.mouse.move(box.x + box.width / 2 + 400, box.y + box.height / 2, { steps: 8 });
+  await a.waitForTimeout(300);
+  const midStands = await a.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('[data-slot="docblocks/database-header-cell"]')).map((el) => ({
+      id: el.getAttribute("data-column-id"),
+      tf: el.style.transform,
+    }))
+  );
+  const draggedMid = midStands.find((entry) => entry.id === "title");
+  expect(draggedMid?.tf).toMatch(/translateX\((\d+(\.\d+)?px)\)/);
+  const stationaryShifted = midStands.filter((entry) => entry.id !== "title" && entry.tf !== "");
+  expect(stationaryShifted.length).toBeGreaterThan(0);
+  // No doc write mid-drag: the columnOrder attr stands absent.
+  const midJson = await a.evaluate((id) => {
+    const block = window.__paneDocs!.a!.toJSON().blocks[id];
+    return block?.type === "database" ? ((block.attrs as Record<string, unknown>).columnOrder ?? null) : null;
+  }, dbId);
+  expect(midJson).toBeNull();
   await a.mouse.up();
 
   const headerOrder = (pane: Page, client: "a" | "b") =>

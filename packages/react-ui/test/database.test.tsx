@@ -265,30 +265,30 @@ describe("built-in renderer: database (the placeholder card)", () => {
   });
 });
 
-describe("the grid's header (the block's name, the column menu, the column drag)", () => {
-  it("the block's display name: the override stands, the click opens the rename line, the commit writes the name attr", async () => {
-    const { doc, db } = await renderGrid({ name: "My Tasks" });
-    const dbAttrs = () => (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
-    const nameEl = document.querySelector<HTMLElement>("[data-slot='docblocks/database-name']");
-    expect(nameEl?.textContent).toBe("My Tasks");
+describe("the grid's header (the table's name, the column menu, the column drag)", () => {
+  it("the display name stands the table's name live; the rename commits to the bridge (no doc write)", async () => {
+    const { doc, db, bridge, tableId } = await renderGrid();
+    expect(document.querySelector("[data-slot='docblocks/database-name']")?.textContent).toBe("Demo");
 
     // The click opens the rename line (the commit is the blur / the Enter).
-    fireEvent.click(nameEl!);
+    fireEvent.click(document.querySelector("[data-slot='docblocks/database-name']")!);
     const input = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-name-input']");
     expect(input).not.toBeNull();
     fireEvent.change(input!, { target: { value: "Renamed Tasks" } });
     fireEvent.blur(input!);
-    await settleGrid();
-    expect(dbAttrs().name).toBe("Renamed Tasks");
-    expect(document.querySelector("[data-slot='docblocks/database-name']")?.textContent).toBe("Renamed Tasks");
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-name']")?.textContent === "Renamed Tasks",
+      "the renamed table's name stands over the table event"
+    );
+    // The name is the table's attribute: the bridge stands the new name.
+    expect((await bridge.describeTable(tableId)).name).toBe("Renamed Tasks");
+    // The rename is a bridge operation — the block's JSON stands untouched
+    // (no `name` attr write).
+    expect((doc.getBlock(db) as DatabaseBlock).attrs.name).toBeUndefined();
+  });
 
-    // The empty commit stands (the display falls back to the bridge's table name).
-    fireEvent.click(document.querySelector("[data-slot='docblocks/database-name']")!);
-    const input2 = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-name-input']");
-    fireEvent.change(input2!, { target: { value: "" } });
-    fireEvent.blur(input2!);
-    await settleGrid();
-    expect(dbAttrs().name).toBe("");
+  it("a legacy block `name` attr stands no display override (the table's name stands)", async () => {
+    await renderGrid({ name: "Override" });
     expect(document.querySelector("[data-slot='docblocks/database-name']")?.textContent).toBe("Demo");
   });
 
@@ -470,21 +470,22 @@ describe("the grid's header (the block's name, the column menu, the column drag)
     fireEvent.pointerUp(header()!, { clientX: 160, clientY: 5 });
     await settleGrid();
     // The jsdom rects stand zero: every stationary midpoint stands left of
-    // the pointer, so the drop position is the last of the three stationary
-    // columns' slots (title lands at the index 2).
-    expect(dbAttrs()?.columnOrder).toEqual(["n", "done", "title", "status"]);
+    // the pointer, so the drop position is past the last stationary column
+    // (title lands last — the visible order with the dragged column at the
+    // pointer's drop position).
+    expect(dbAttrs()?.columnOrder).toEqual(["n", "done", "status", "title"]);
 
     // The grid resyncs from the attr (the header order follows it).
     const order = [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']")].map(
       (cell) => cell.dataset.columnId
     );
-    expect(order).toEqual(["n", "done", "title", "status"]);
+    expect(order).toEqual(["n", "done", "status", "title"]);
 
     // A sub-threshold press stands the menu, not a reorder (the attr stands).
     fireEvent.pointerDown(header()!, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(header()!, { clientX: 10, clientY: 5 });
     await settleGrid();
-    expect(dbAttrs()?.columnOrder).toEqual(["n", "done", "title", "status"]);
+    expect(dbAttrs()?.columnOrder).toEqual(["n", "done", "status", "title"]);
   });
 });
 
@@ -1126,6 +1127,45 @@ describe("renderer registry: database", () => {
 
 describe("the data provider (the useDatabaseTable's batch commit)", () => {
   afterEach(() => cleanup());
+
+  it("the renameTable commits to the bridge's table (no doc write); the undo / redo walk the name back", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const tableId = await bridge.createTable("Batch");
+    const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
+    await until(() => result.current.phase === "ready", "the load");
+    await act(async () => {
+      await result.current.renameTable("Second Name");
+    });
+    expect((await bridge.describeTable(tableId)).name).toBe("Second Name");
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect((await bridge.describeTable(tableId)).name).toBe("Batch");
+    await act(async () => {
+      await result.current.redo();
+    });
+    expect((await bridge.describeTable(tableId)).name).toBe("Second Name");
+  });
+
+  it("the table.renamed event stands on the peer's bridge over the channel echo", async () => {
+    const sharedChannel = `rename-echo-${Math.random().toString(36).slice(2, 8)}`;
+    const a = createMemoryDatabaseBridge({ channelName: sharedChannel });
+    const b = createMemoryDatabaseBridge({ channelName: sharedChannel });
+    // Both bridges stand the same table (the two panes' seeded demo).
+    const tableIdA = await a.createTable("Demo");
+    const tableIdB = await b.createTable("Demo");
+    expect(tableIdA).toBe(tableIdB);
+    await a.renameTable(tableIdA, "Echo Name");
+    // The echo is the channel's message event: poll the peer's state
+    // (the sleep yields to the macrotask queue, where the message lands).
+    const deadline = Date.now() + 2000;
+    let name = (await b.describeTable(tableIdB)).name;
+    while (name !== "Echo Name") {
+      if (Date.now() > deadline) throw new Error(`the rename echo did not arrive (name: ${name})`);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      name = (await b.describeTable(tableIdB)).name;
+    }
+  });
 
   it("the updateRows stands ONE commit: the single undo restores every touched row (the redo stands the batch again)", async () => {
     const bridge = createMemoryDatabaseBridge();

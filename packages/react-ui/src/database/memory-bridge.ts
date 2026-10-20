@@ -133,6 +133,10 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
   function applyEvents(tableId: string, table: MemoryTable, events: TableEvent[]): void {
     for (const event of events) {
       switch (event.type) {
+        case "table.renamed": {
+          table.name = event.name;
+          break;
+        }
         case "row.created": {
           if (!table.rows.has(event.rowId)) {
             table.rows.set(event.rowId, clone(event.cells));
@@ -231,6 +235,13 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       const id = `table-${++tableCounter}`;
       tables.set(id, { name, columns: [], rows: new Map(), orderValues: new Map(), trash: new Map(), rowCounter: 0 });
       return id;
+    },
+
+    async renameTable(tableId: string, name: string): Promise<void> {
+      const table = tableOf(tableId);
+      if (table.name === name) return;
+      table.name = name;
+      emit(tableId, [{ type: "table.renamed", name }]);
     },
 
     async describeTable(tableId: string): Promise<BridgeTableDescription> {

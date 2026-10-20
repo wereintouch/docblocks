@@ -226,17 +226,24 @@ interface TableHandleSession {
   startX: number;
   startY: number;
   dragging: boolean;
+  /** The dragged row / column's width / height at the press (the parting preview's shift step). */
+  startSize: number;
 }
 
 /**
- * The live drag preview (the moved handle's translation) — view state:
- * the doc is untouched until the release commit.
+ * The live drag preview (the moved handle's translation + the parting
+ * shift of the stationary rows / columns) — view state: the doc is
+ * untouched until the release commit.
  */
 interface TableDragPreview {
   kind: HandleKind;
   index: number;
   dx: number;
   dy: number;
+  /** The live drop index (the dragged row / column's final index; null while unmeasurable). */
+  toIndex: number | null;
+  /** The dragged row / column's press-time width / height (the parting step). */
+  startSize: number;
 }
 
 /**
@@ -431,6 +438,11 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     if (event.button !== 0 || sessionRef.current !== null) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
+    const table = tableEl();
+    const startSize =
+      kind === "column"
+        ? (block.attrs.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH)
+        : (table?.querySelectorAll<HTMLTableRowElement>("tbody > tr")[index]?.offsetHeight ?? 0);
     sessionRef.current = {
       kind,
       index,
@@ -441,7 +453,46 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
       startX: event.clientX,
       startY: event.clientY,
       dragging: false,
+      startSize,
     };
+  };
+
+  /**
+   * The dragged column's drop index (the final visible index — the
+   * pre-move doc index of the landing slot) for a pointer x: the
+   * stationary columns' widths (the dragged column's own width is
+   * excluded) against the table's left edge — the release's commit and
+   * the live parting preview share the measurement.
+   */
+  const columnToIndexAt = (clientX: number, excludeIndex: number): number | null => {
+    const table = tableEl();
+    if (table === null) return null;
+    const live = doc.getBlock(id);
+    if (live === null || live.type !== "table") return null;
+    const rect = table.getBoundingClientRect();
+    const resolved =
+      live.attrs.columnWidths ?? Array.from({ length: live.attrs.cols }, () => DEFAULT_TABLE_COLUMN_WIDTH);
+    const stationary = resolved.filter((_, i) => i !== excludeIndex);
+    const position = columnDropPosition(stationary, clientX - rect.left);
+    return position;
+  };
+
+  /** The dragged row's drop index (the final visible index — the pre-move
+   *  doc index of the landing slot) for a pointer y: the stationary rows'
+   *  midpoints (the dragged row is excluded) against the table's top edge
+   *  — the release's commit and the live parting preview share the
+   *  measurement. */
+  const rowToIndexAt = (clientY: number, excludeIndex: number): number | null => {
+    const table = tableEl();
+    if (table === null) return null;
+    const rect = table.getBoundingClientRect();
+    const midpoints: number[] = [];
+    Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody > tr")).forEach((tr, i) => {
+      if (i === excludeIndex) return;
+      midpoints.push(tr.offsetTop + tr.offsetHeight / 2);
+    });
+    const position = rowDropPosition(midpoints, clientY - rect.top);
+    return position;
   };
 
   const onHandlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -453,7 +504,13 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
       session.dragging = true;
       setHover(null);
     }
-    if (session.dragging) setPreview({ kind: session.kind, index: session.index, dx, dy });
+    if (session.dragging) {
+      const toIndex =
+        session.kind === "column"
+          ? columnToIndexAt(event.clientX, session.index)
+          : rowToIndexAt(event.clientY, session.index);
+      setPreview({ kind: session.kind, index: session.index, dx, dy, toIndex, startSize: session.startSize });
+    }
   };
 
   /**
@@ -693,9 +750,6 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const commitHandleDrag = (session: TableHandleSession, clientX: number, clientY: number) => {
     const live = doc.getBlock(id);
     if (live === null || live.type !== "table") return;
-    const table = tableEl();
-    if (table === null) return;
-    const rect = table.getBoundingClientRect();
     try {
       if (session.kind === "column") {
         // A concurrent structural change (the cols count or the width
@@ -703,25 +757,22 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         // position + its width, and a peer restructure breaks both.
         const liveWidths = live.attrs.columnWidths ?? null;
         if (live.attrs.cols !== session.cols || !sameSequence(liveWidths ?? [], session.widths ?? [])) return;
-        const resolved =
-          live.attrs.columnWidths ?? Array.from({ length: live.attrs.cols }, () => DEFAULT_TABLE_COLUMN_WIDTH);
-        const stationary = resolved.filter((_, i) => i !== session.index);
-        const position = columnDropPosition(stationary, clientX - rect.left);
-        const toIndex = position > session.index ? position + 1 : position;
-        if (toIndex !== session.index) doc.moveTableColumn(id, session.index, toIndex);
+        const toIndex = columnToIndexAt(clientX, session.index);
+        if (toIndex !== null && toIndex !== session.index) {
+          // The visible landing slot S → the doc's pre-move target index
+          // (the core's move lands before the target on a rightward move):
+          // S right of the origin is one past the landing slot.
+          doc.moveTableColumn(id, session.index, toIndex > session.index ? toIndex + 1 : toIndex);
+        }
       } else {
         // The row identity is the id: a changed row sequence (a peer
         // insert/remove/move) invalidates the drop.
         const liveRows = doc.getChildren(id);
         if (!sameSequence(liveRows, session.rowIds)) return;
-        const midpoints: number[] = [];
-        Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody > tr")).forEach((tr, i) => {
-          if (i === session.index) return;
-          midpoints.push(tr.offsetTop + tr.offsetHeight / 2 - rect.top);
-        });
-        const position = rowDropPosition(midpoints, clientY - rect.top);
-        const toIndex = position > session.index ? position + 1 : position;
-        if (toIndex !== session.index) doc.moveTableRow(id, session.rowId, toIndex);
+        const toIndex = rowToIndexAt(clientY, session.index);
+        if (toIndex !== null && toIndex !== session.index) {
+          doc.moveTableRow(id, session.rowId, toIndex > session.index ? toIndex + 1 : toIndex);
+        }
       }
     } catch {
       // A rejected move (the concurrent change won the race between the
@@ -818,6 +869,28 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const isPreview = (kind: HandleKind, index: number): boolean =>
     preview !== null && preview.kind === kind && preview.index === index;
 
+  // The parting preview: the stationary rows / columns' shift (px) over
+  // the live drop index (the dragged row / column's own cells stand the
+  // pointer's dx / dy).
+  const previewShift = (index: number): number => {
+    if (preview === null || preview.toIndex === null || index === preview.index) return 0;
+    const to = preview.toIndex;
+    const shift = index < preview.index ? (index >= to ? 1 : 0) : index - 1 < to ? -1 : 0;
+    return shift * preview.startSize;
+  };
+  /** The per-column drag transform (the cells' dx): the dragged column's live dx, the stationary columns' parting shift. */
+  const columnDragTransformOf = (index: number): { dx: number; shifted: boolean } => {
+    if (preview === null || preview.kind !== "column") return { dx: 0, shifted: false };
+    if (index === preview.index) return { dx: preview.dx, shifted: false };
+    return { dx: previewShift(index), shifted: true };
+  };
+  /** The per-row drag transform (the rows' dy): the dragged row's live dy, the stationary rows' parting shift. */
+  const rowDragTransformOf = (index: number): { dy: number; shifted: boolean } => {
+    if (preview === null || preview.kind !== "row") return { dy: 0, shifted: false };
+    if (index === preview.index) return { dy: preview.dy, shifted: false };
+    return { dy: previewShift(index), shifted: true };
+  };
+
   // A structural change (a peer insert/remove/move) while a menu is open
   // invalidates its index-based anchor: the menu closes (the chip that stood
   // at the index re-anchored onto a different row/column would act on the
@@ -835,6 +908,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // handle band above the table would skew the content's center).
   const tableHeight =
     rowMetrics.length > 0 ? rowMetrics[rowMetrics.length - 1]!.top + rowMetrics[rowMetrics.length - 1]!.height : 0;
+  const columnTransforms = widths.map((_, index) => columnDragTransformOf(index));
 
   return (
     <div ref={frameRef} data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">
@@ -863,9 +937,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                   <TableRow
                     key={rowId}
                     id={rowId}
-                    dragOffsetY={isPreview("row", rowIndex) ? preview!.dy : 0}
-                    dragColumnIndex={preview !== null && preview.kind === "column" ? preview.index : -1}
-                    columnDragDx={preview !== null && preview.kind === "column" ? preview.dx : 0}
+                    rowTransform={rowDragTransformOf(rowIndex)}
+                    columnTransforms={columnTransforms}
                     dimmed={
                       addPreview !== null &&
                       addPreview.kind === "row" &&
@@ -908,7 +981,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 if (!open) setMenu(null);
               }}
               dragging={isPreview("column", index)}
-              dragDx={isPreview("column", index) ? preview!.dx : 0}
+              dragDx={columnDragTransformOf(index).dx}
+              dragTransition={columnDragTransformOf(index).shifted}
               dragDy={0}
               onPointerDown={onHandlePointerDown("column", index)}
               onPointerMove={onHandlePointerMove}
@@ -950,7 +1024,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               }}
               dragging={isPreview("row", rowIndex)}
               dragDx={0}
-              dragDy={isPreview("row", rowIndex) ? preview!.dy : 0}
+              dragDy={rowDragTransformOf(rowIndex).dy}
+              dragTransition={rowDragTransformOf(rowIndex).shifted}
               onPointerDown={onHandlePointerDown("row", rowIndex)}
               onPointerMove={onHandlePointerMove}
               onPointerUp={onHandlePointerUp}
@@ -1144,6 +1219,7 @@ function HandleMenu({
   dragging,
   dragDx,
   dragDy,
+  dragTransition,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -1160,6 +1236,8 @@ function HandleMenu({
   dragging: boolean;
   dragDx: number;
   dragDy: number;
+  /** A stationary chip of an in-flight drag (the parting shift's transition). */
+  dragTransition?: boolean;
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -1173,7 +1251,11 @@ function HandleMenu({
           data-slot={kind === "column" ? "docblocks/table-col-handle" : "docblocks/table-row-handle"}
           data-index={index}
           className={handleClasses(visible, dragging)}
-          style={{ left: left + dragDx, top: top + dragDy }}
+          style={{
+            left: left + dragDx,
+            top: top + dragDy,
+            ...(dragTransition !== undefined ? { transition: "left 120ms ease-out, top 120ms ease-out" } : {}),
+          }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
@@ -1308,22 +1390,20 @@ function HandleMenuItems({
 /** One row: the cell ids come from the row's own snapshot. */
 const TableRow = memo(function TableRow({
   id,
-  dragOffsetY,
-  dragColumnIndex,
-  columnDragDx,
+  rowTransform,
+  columnTransforms,
   dimmed,
 }: {
   id: BlockId;
-  dragOffsetY: number;
-  dragColumnIndex: number;
-  columnDragDx: number;
+  rowTransform: { dy: number; shifted: boolean };
+  columnTransforms: Array<{ dx: number; shifted: boolean }>;
   dimmed: boolean;
 }) {
   const row = useBlock(id);
   const cells = row !== undefined && row.type === "table-row" ? (row.children ?? EMPTY_IDS) : EMPTY_IDS;
   const contextValue = useBlockContextValue(id, cells, "table-row");
   if (row === undefined || row.type !== "table-row") return null;
-  const dragging = dragOffsetY !== 0;
+  const dragging = rowTransform.dy !== 0;
   return (
     <tr
       data-block-id={id}
@@ -1331,7 +1411,12 @@ const TableRow = memo(function TableRow({
         dragging || dimmed
           ? {
               ...(dragging
-                ? { transform: `translateY(${dragOffsetY}px)`, position: "relative" as const, zIndex: 10 }
+                ? {
+                    transform: `translateY(${rowTransform.dy}px)`,
+                    position: "relative" as const,
+                    zIndex: rowTransform.shifted ? undefined : 10,
+                    transition: rowTransform.shifted ? "transform 120ms ease-out" : undefined,
+                  }
                 : {}),
               ...(dimmed ? { opacity: 0.4 } : {}),
             }
@@ -1340,7 +1425,12 @@ const TableRow = memo(function TableRow({
     >
       <BlockContext.Provider value={contextValue}>
         {cells.map((cellId, cellIndex) => (
-          <TableCell key={cellId} id={cellId} dragX={dragColumnIndex === cellIndex ? columnDragDx : 0} />
+          <TableCell
+            key={cellId}
+            id={cellId}
+            dragX={columnTransforms[cellIndex]?.dx ?? 0}
+            dragShifted={columnTransforms[cellIndex]?.shifted ?? false}
+          />
         ))}
       </BlockContext.Provider>
     </tr>
@@ -1348,7 +1438,15 @@ const TableRow = memo(function TableRow({
 });
 
 /** One cell: its flat content sequence renders through the flat sequence renderer. */
-const TableCell = memo(function TableCell({ id, dragX }: { id: BlockId; dragX: number }) {
+const TableCell = memo(function TableCell({
+  id,
+  dragX,
+  dragShifted,
+}: {
+  id: BlockId;
+  dragX: number;
+  dragShifted: boolean;
+}) {
   const cell = useBlock(id);
   const children = cell !== undefined && cell.type === "table-cell" ? (cell.children ?? EMPTY_IDS) : EMPTY_IDS;
   const contextValue = useBlockContextValue(id, children, "table-cell");
@@ -1358,7 +1456,14 @@ const TableCell = memo(function TableCell({ id, dragX }: { id: BlockId; dragX: n
   const background = cell.attrs?.columnColor ?? cell.attrs?.rowColor;
   const style: CSSProperties = {
     ...(background !== undefined ? { background } : {}),
-    ...(dragX !== 0 ? { transform: `translateX(${dragX}px)`, position: "relative", zIndex: 10 } : {}),
+    ...(dragX !== 0
+      ? {
+          transform: `translateX(${dragX}px)`,
+          position: "relative" as const,
+          zIndex: dragShifted ? undefined : 10,
+          transition: dragShifted ? "transform 120ms ease-out" : undefined,
+        }
+      : {}),
   };
   // The cell's own content (the text-cell shape: the runs stand in
   // addition to the children blocks) renders as an editable layer above
