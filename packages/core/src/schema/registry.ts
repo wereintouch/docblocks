@@ -175,8 +175,18 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     rows: false,
     attrs: {
       src: { kind: "string", nonEmpty: true, required: true },
+      // The display width in px (the figure's aspect ratio stands — the
+      // height follows); absent or null = the editor's full width. The
+      // renderer never draws the figure wider than the editor (the
+      // max-width clamp), so the port drag's upper bound is the editor.
       width: { kind: "nullable-number", positive: true },
+      // The figure's horizontal placement at a reduced width (the editor's
+      // full width ignores it — there is nothing to place). "left" is the
+      // absent attr (updateBlock never removes, so "left" restores it).
       align: { kind: "enum", values: ["left", "center", "right"] },
+      // The caption line below the figure (the code block's caption idiom;
+      // the empty string is the removed state — the attrs are never removed).
+      caption: { kind: "string" },
     },
   },
   embed: {
@@ -232,6 +242,11 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       // The external form's table reference (the consumer's relational
       // table id; the rows and the schema live there).
       tableId: { kind: "string", nonEmpty: true },
+      // The block's display name (the external-form view state): the grid's
+      // title line; absent or empty = the bridge's table name stands
+      // (the empty string is the "remove the override" idiom — attrs are
+      // never removed through updateBlock).
+      name: { kind: "string" },
       // The external-form view state (CRDT data): the recursive and/or
       // row filter (the structure is checked by the validator's database
       // branch — the recursion is not expressible in the flat AttrSpec),
@@ -240,6 +255,9 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       filter: { kind: "object" },
       columnOrder: { kind: "array", items: { kind: "string", nonEmpty: true } },
       hiddenColumns: { kind: "array", items: { kind: "string", nonEmpty: true } },
+      // The per-visible-column widths (px; absent entry = the reader's
+      // default width), like the table's columnWidths.
+      columnWidths: { kind: "array", items: { kind: "number", min: 50 } },
       views: { kind: "array" },
       viewType: { kind: "enum", values: ["table", "kanban", "calendar"] },
     },

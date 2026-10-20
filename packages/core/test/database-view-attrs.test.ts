@@ -49,16 +49,32 @@ const external = (attrs: Record<string, unknown>): Record<string, unknown> => ({
 });
 
 describe("the view attrs (the external-form view state)", () => {
-  it("the registry declares the view attrs (filter / columnOrder / hiddenColumns / views / viewType)", () => {
+  it("the registry declares the view attrs (filter / columnOrder / hiddenColumns / columnWidths / views / viewType / name)", () => {
     const attrs = BLOCK_REGISTRY.database.attrs ?? {};
     expect(Object.keys(attrs).sort()).toEqual(
-      ["columnOrder", "columns", "filter", "hiddenColumns", "indent", "tableId", "views", "viewType"].sort()
+      [
+        "columnOrder",
+        "columnWidths",
+        "columns",
+        "filter",
+        "hiddenColumns",
+        "indent",
+        "name",
+        "tableId",
+        "views",
+        "viewType",
+      ].sort()
     );
     expect(attrs.filter).toEqual({ kind: "object" });
     expect(attrs.viewType).toEqual({ kind: "enum", values: ["table", "kanban", "calendar"] });
     expect(attrs.columnOrder).toEqual({ kind: "array", items: { kind: "string", nonEmpty: true } });
     expect(attrs.hiddenColumns).toEqual({ kind: "array", items: { kind: "string", nonEmpty: true } });
+    // The per-visible-column widths: px with the 50 floor (like the table's).
+    expect(attrs.columnWidths).toEqual({ kind: "array", items: { kind: "number", min: 50 } });
     expect(attrs.views).toEqual({ kind: "array" });
+    // The display name: the absent-or-empty string (the empty is the
+    // "remove the override" idiom), so no nonEmpty constraint.
+    expect(attrs.name).toEqual({ kind: "string" });
   });
 
   it("the view attrs round-trip (insertBlock + toJSON / fromJSON)", () => {
@@ -92,6 +108,24 @@ describe("the view attrs (the external-form view state)", () => {
     expect(restored.attrs.filter).toEqual(filter);
   });
 
+  it("the name attr round-trips (the override and the empty-string removal idiom)", () => {
+    const doc: Doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const db = doc.insertBlock("database", { tableId: "t1", name: "Tasks" });
+    expect((doc.getBlock(db)! as DatabaseBlock).attrs.name).toBe("Tasks");
+    // The empty string stands (it is the "remove the override" write;
+    // updateBlock never removes attrs).
+    doc.updateBlock(db, { name: "" });
+    expect((doc.getBlock(db)! as DatabaseBlock).attrs.name).toBe("");
+
+    const json = JSON.parse(JSON.stringify(doc.toJSON()));
+    const restored = (fromJSON(json).getBlock(db)! as DatabaseBlock).attrs;
+    expect(restored.name).toBe("");
+
+    // A non-string name is rejected by the validator.
+    const errors = validate(external({ name: 42 }));
+    expect(errors.some((error) => error.includes("name"))).toBe(true);
+  });
+
   it("an unknown viewType is rejected (the v1 enum)", () => {
     const errors = validate(external({ viewType: "gantt" }));
     expect(errors.some((error) => error.includes("viewType"))).toBe(true);
@@ -100,6 +134,28 @@ describe("the view attrs (the external-form view state)", () => {
   it("a non-array columnOrder / hiddenColumns is rejected", () => {
     expect(validate(external({ columnOrder: "a" }))).not.toEqual([]);
     expect(validate(external({ hiddenColumns: { a: 1 } }))).not.toEqual([]);
+  });
+
+  it("the columnWidths attr round-trips (the updateBlock patch; the 50 px floor stands)", () => {
+    const doc: Doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const db = doc.insertBlock("database", { tableId: "t1" });
+
+    doc.updateBlock(db, { columnWidths: [160, 90] });
+    expect((doc.getBlock(db)! as DatabaseBlock).attrs.columnWidths).toEqual([160, 90]);
+
+    // One undo step reverts the widths (the view state is the doc's data).
+    doc.undo();
+    expect((doc.getBlock(db)! as DatabaseBlock).attrs.columnWidths).toBeUndefined();
+
+    // The JSON round-trip keeps the widths.
+    doc.updateBlock(db, { columnWidths: [160, 90] });
+    const json = JSON.parse(JSON.stringify(doc.toJSON()));
+    const restored = (fromJSON(json).getBlock(db)! as DatabaseBlock).attrs;
+    expect(restored.columnWidths).toEqual([160, 90]);
+
+    // Below the 50 px floor (or a non-number) the validator rejects the patch.
+    expect(() => doc.updateBlock(db, { columnWidths: [40] })).toThrow();
+    expect(() => doc.updateBlock(db, { columnWidths: ["wide"] as unknown as number[] })).toThrow();
   });
 });
 

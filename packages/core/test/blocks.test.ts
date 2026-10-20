@@ -262,6 +262,19 @@ describe("updateBlock", () => {
     expect(doc.toJSON().blocks[co]).toEqual({ type: "code", attrs: { ...attrs, caption: "" } });
   });
 
+  it("sets the image view attrs (the caption idiom; the empty caption is the removed state)", () => {
+    const doc = newDoc();
+    const img = doc.insertBlock("image", { src: "a.png" });
+    doc.updateBlock(img, { width: 240, align: "center", caption: "fig 1" });
+    const attrs = { src: "a.png", width: 240, align: "center", caption: "fig 1" };
+    expect(doc.getBlock(img)).toEqual({ type: "image", attrs });
+    expect(doc.toJSON().blocks[img]).toEqual({ type: "image", attrs });
+    doc.updateBlock(img, { caption: "" });
+    expect(doc.toJSON().blocks[img]).toEqual({ type: "image", attrs: { ...attrs, caption: "" } });
+    doc.undo();
+    expect(doc.getBlock(img)).toEqual({ type: "image", attrs });
+  });
+
   it("sets the text align on the text block types (an attr-less paragraph gains an attrs object)", () => {
     const doc = newDoc();
     const p = doc.insertBlock("paragraph");
@@ -276,6 +289,15 @@ describe("updateBlock", () => {
 
     // A value outside the enum is rejected (and the block keeps its old attrs).
     expect(() => doc.updateBlock(p, { align: "justify" } as unknown as BlockAttrsPatch)).toThrow(InvalidAttrsError);
+
+    // The image view attrs' shapes (the width is positive, the align is the
+    // v1 set, the caption is a string).
+    const img = doc.insertBlock("image", { src: "a.png" });
+    expect(() => doc.updateBlock(img, { width: 0 } as unknown as BlockAttrsPatch)).toThrow(InvalidAttrsError);
+    expect(() => doc.updateBlock(img, { align: "up" } as unknown as BlockAttrsPatch)).toThrow(InvalidAttrsError);
+    expect(() => doc.updateBlock(img, { caption: 42 } as unknown as BlockAttrsPatch)).toThrow(InvalidAttrsError);
+    doc.updateBlock(img, { width: 320, align: "right", caption: "fig" });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
     expect(doc.getBlock(p)).toEqual({ type: "paragraph", attrs: { align: "center" } });
   });
 
