@@ -1156,8 +1156,8 @@ function HeaderCell({
       className={cn(
         `
           relative flex min-w-0 cursor-grab items-center gap-1 border-b-(length:--docblocks-table-border-width)
-          border-(--docblocks-table-border-color) bg-muted/40 px-(--docblocks-table-cell-padding) py-1
-          select-none active:cursor-grabbing
+          border-(--docblocks-table-border-color) bg-muted/40 px-(--docblocks-table-cell-padding) py-1 select-none
+          active:cursor-grabbing
         `,
         !first && "border-l-(length:--docblocks-table-border-width)"
       )}
