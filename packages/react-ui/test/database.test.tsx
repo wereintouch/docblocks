@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { act } from "react";
@@ -151,6 +151,56 @@ describe("built-in renderer: database (the placeholder card)", () => {
     // The inline column header is gone; the live grid card stands.
     expect(wrapper!.querySelector("[data-slot='docblocks/database-column']")).toBeNull();
     expect(wrapper!.querySelector("[data-slot='docblocks/database-name']")?.textContent).toBe("Migrated");
+  });
+
+  it("the timestamp column stands the datetime cell editor", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const tableId = await bridge.createTable("Times");
+    await bridge.createColumn(tableId, { id: "when", name: "When", type: "timestamptz" });
+    await bridge.insertRows(tableId, [{ when: "2024-05-17T10:30" }]);
+
+    renderDoc((doc) => doc.insertBlock("database", { tableId }), undefined, bridge);
+    await settleGrid();
+
+    const cell = document.querySelector<HTMLInputElement>(
+      "[data-slot='docblocks/database-cell'][data-column-id='when']"
+    );
+    expect(cell).not.toBeNull();
+    expect(cell!.getAttribute("data-kind")).toBe("datetime");
+    expect(cell!.getAttribute("type")).toBe("datetime-local");
+    expect(cell!.value).toBe("2024-05-17T10:30");
+  });
+
+  it("a valid number edit commits to the bridge and a cleared cell commits null", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const tableId = await bridge.createTable("Nums");
+    await bridge.createColumn(tableId, { id: "n", name: "N", type: "integer" });
+    const rowIds = await bridge.insertRows(tableId, [{ n: 1 }]);
+    const rowId = rowIds[0]!;
+
+    renderDoc((doc) => doc.insertBlock("database", { tableId }), undefined, bridge);
+    await settleGrid();
+
+    const cell = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell'][data-column-id='n']");
+    expect(cell!.value).toBe("1");
+    await act(async () => {
+      fireEvent.change(cell!, { target: { value: "7" } });
+    });
+    await act(async () => {
+      fireEvent.blur(cell!);
+    });
+    let page = await bridge.queryRows(tableId, {});
+    expect(page.rows[rowId]!.n).toBe(7);
+
+    // Clear the cell → the memory bridge models the NULL as an absent key.
+    await act(async () => {
+      fireEvent.change(cell!, { target: { value: "" } });
+    });
+    await act(async () => {
+      fireEvent.blur(cell!);
+    });
+    page = await bridge.queryRows(tableId, {});
+    expect("n" in page.rows[rowId]!).toBe(false);
   });
 });
 

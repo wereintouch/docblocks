@@ -124,7 +124,7 @@ interface DatabaseBridge {
 }
 
 /** The cell value input kind the annotation derives from the column type. */
-type BridgeValueInput = "text" | "number" | "boolean" | "date" | "select" | "none";
+type BridgeValueInput = "text" | "number" | "boolean" | "date" | "datetime" | "select" | "none";
 
 /** The column annotation the filter builder renders from. */
 interface BridgeColumnAnnotation {
@@ -139,39 +139,92 @@ interface BridgeColumnAnnotation {
 /** The operators that take no value (the emptiness checks). */
 const VALUELESS_OPERATORS = new Set(["empty", "not empty"]);
 
-/** The package's default operator catalogs per PostgreSQL type name. */
-const TYPE_OPERATORS: Record<string, string[]> = {
-  text: ["is", "is not", "contains", "not contains", "starts with", "ends with", "empty", "not empty"],
-  varchar: ["is", "is not", "contains", "not contains", "starts with", "ends with", "empty", "not empty"],
-  char: ["is", "is not", "contains", "not contains", "starts with", "ends with", "empty", "not empty"],
-  integer: ["is", "is not", "<", "<=", ">", ">=", "between"],
-  bigint: ["is", "is not", "<", "<=", ">", ">=", "between"],
-  smallint: ["is", "is not", "<", "<=", ">", ">=", "between"],
-  numeric: ["is", "is not", "<", "<=", ">", ">=", "between"],
-  real: ["is", "is not", "<", "<=", ">", ">=", "between"],
-  "double precision": ["is", "is not", "<", "<=", ">", ">=", "between"],
-  boolean: ["is", "is not"],
-  date: ["is", "before", "after", "between"],
-  timestamp: ["is", "before", "after", "between"],
-  timestamptz: ["is", "before", "after", "between"],
-};
+/** The string operators (the text-like columns). */
+const TEXT_OPERATORS = ["is", "is not", "contains", "not contains", "starts with", "ends with", "empty", "not empty"];
+/** The comparison operators (the numeric columns). */
+const NUMBER_OPERATORS = ["is", "is not", "<", "<=", ">", ">=", "between"];
+/** The date / datetime operators. */
+const DATE_OPERATORS = ["is", "before", "after", "between"];
+/** The time-of-day operators. */
+const TIME_OPERATORS = ["is", "is not", "before", "after", "between"];
+/** The equality-only operators (the boolean / interval / unknown). */
+const EQUALITY_OPERATORS = ["is", "is not"];
 
-/** The value input kind per PostgreSQL type name. */
-const TYPE_VALUE_INPUTS: Record<string, BridgeValueInput> = {
-  text: "text",
-  varchar: "text",
-  char: "text",
-  integer: "number",
-  bigint: "number",
-  smallint: "number",
-  numeric: "number",
-  real: "number",
-  "double precision": "number",
-  boolean: "boolean",
-  date: "date",
-  timestamp: "date",
-  timestamptz: "date",
-};
+/** The standard PostgreSQL type names per operator / input group. The contract
+ *  is type-agnostic — this is the package's DEFAULT catalog; a non-standard
+ *  type name falls back to the minimal `is` / `is not` + the text input, and
+ *  the consumer's `operators` override always wins. */
+const TEXT_TYPES = new Set([
+  "text",
+  "varchar",
+  "character varying",
+  "char",
+  "character",
+  "citext",
+  "name",
+  "xml",
+  "tsvector",
+  "tsquery",
+  "uuid",
+  "json",
+  "jsonb",
+  "bytea",
+  "inet",
+  "cidr",
+  "macaddr",
+  "macaddr8",
+  "point",
+  "line",
+  "lseg",
+  "box",
+  "path",
+  "polygon",
+  "circle",
+]);
+const NUMBER_TYPES = new Set([
+  "smallint",
+  "integer",
+  "int",
+  "bigint",
+  "real",
+  "double precision",
+  "numeric",
+  "decimal",
+  "money",
+]);
+const BOOLEAN_TYPES = new Set(["boolean", "bool"]);
+const DATE_TYPES = new Set(["date"]);
+const DATETIME_TYPES = new Set(["timestamp", "timestamptz", "timestamp with time zone", "timestamp without time zone"]);
+const TIME_TYPES = new Set(["time", "timetz", "time with time zone", "time without time zone"]);
+const INTERVAL_TYPES = new Set(["interval"]);
+
+/** The base type of a (possibly array) type name: `integer[]` → `integer`. */
+function baseType(type: string): string {
+  return type.replace(/\[\]$/, "").trim();
+}
+
+/** The package's default operator catalog for a type name (undefined = the minimal fallback). */
+function operatorCatalog(type: string): string[] | undefined {
+  const base = baseType(type);
+  if (TEXT_TYPES.has(base)) return TEXT_OPERATORS;
+  if (NUMBER_TYPES.has(base)) return NUMBER_OPERATORS;
+  if (BOOLEAN_TYPES.has(base) || INTERVAL_TYPES.has(base)) return EQUALITY_OPERATORS;
+  if (DATE_TYPES.has(base) || DATETIME_TYPES.has(base)) return DATE_OPERATORS;
+  if (TIME_TYPES.has(base)) return TIME_OPERATORS;
+  return undefined;
+}
+
+/** The package's default value input kind for a type name (undefined = the text fallback). */
+function valueInputFor(type: string): BridgeValueInput | undefined {
+  const base = baseType(type);
+  if (TEXT_TYPES.has(base)) return "text";
+  if (NUMBER_TYPES.has(base)) return "number";
+  if (BOOLEAN_TYPES.has(base)) return "boolean";
+  if (DATE_TYPES.has(base)) return "date";
+  if (DATETIME_TYPES.has(base)) return "datetime";
+  if (TIME_TYPES.has(base) || INTERVAL_TYPES.has(base)) return "text";
+  return undefined;
+}
 
 /**
  * Builds the column annotation from the `BridgeColumn`: the operator
@@ -188,13 +241,59 @@ function columnAnnotation(column: BridgeColumn): BridgeColumnAnnotation {
   } else if (column.options !== undefined) {
     operators = ["is", "is not", "in", "not in"];
   } else {
-    operators = TYPE_OPERATORS[column.type] ?? ["is", "is not"];
+    operators = operatorCatalog(column.type) ?? ["is", "is not"];
   }
   let valueInput: BridgeValueInput;
   if (column.options !== undefined) valueInput = "select";
-  else valueInput = TYPE_VALUE_INPUTS[column.type] ?? "text";
+  else valueInput = valueInputFor(column.type) ?? "text";
   const valueless = new Set(operators.filter((operator) => VALUELESS_OPERATORS.has(operator)));
   return { operators, valueInput, valueless };
+}
+
+/**
+ * The parse result of a typed cell / filter value: the committed value
+ * (`null` for the empty string) or the validation error (the input is not
+ * committed — the editor keeps / reverts to the last valid value).
+ */
+type CellValueParse = { ok: true; value: unknown } | { ok: false; error: string };
+
+/**
+ * Validates a raw (string) value against the value input kind before it is
+ * written to the row (the number must parse, the date / datetime must be a
+ * real date). The empty string is a valid "clear" (null). text / select /
+ * boolean pass through (the browser input already constrains them).
+ */
+function parseCellValue(kind: BridgeValueInput, raw: string): CellValueParse {
+  if (raw === "") return { ok: true, value: null };
+  switch (kind) {
+    case "number": {
+      const n = Number(raw);
+      return Number.isNaN(n) ? { ok: false, error: "The value is not a number" } : { ok: true, value: n };
+    }
+    case "date":
+      return isValidDate(raw) ? { ok: true, value: raw } : { ok: false, error: "The value is not a valid date" };
+    case "datetime":
+      return !Number.isNaN(Date.parse(raw))
+        ? { ok: true, value: raw }
+        : { ok: false, error: "The value is not a valid date and time" };
+    default:
+      return { ok: true, value: raw };
+  }
+}
+
+/** A valid ISO calendar date (`YYYY-MM-DD` that resolves to a real day). */
+function isValidDate(raw: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(raw) && !Number.isNaN(Date.parse(raw));
+}
+
+/** The timestamp of a date / datetime cell value (the `before` / `after`
+ *  comparison); null when it is not a parseable date. */
+function timestampOf(value: unknown): number | null {
+  if (value === undefined || value === null || value === "") return null;
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  const t = Date.parse(String(value));
+  return Number.isNaN(t) ? null : t;
 }
 
 /** Evaluates one filter condition against a cell value. */
@@ -229,10 +328,18 @@ function conditionMatches(op: string, value: unknown, expected: unknown): boolea
       return numberOr(value) >= numberOr(expected);
     case "between":
       return between(value, expected);
-    case "before":
+    case "before": {
+      const a = timestampOf(value);
+      const b = timestampOf(expected);
+      if (a !== null && b !== null) return a < b;
       return stringOf(value) < stringOf(expected);
-    case "after":
+    }
+    case "after": {
+      const a = timestampOf(value);
+      const b = timestampOf(expected);
+      if (a !== null && b !== null) return a > b;
       return stringOf(value) > stringOf(expected);
+    }
     case "in": {
       const list = Array.isArray(expected) ? expected.map(stringOf) : [stringOf(expected)];
       return list.includes(stringOf(value));
@@ -270,12 +377,13 @@ function between(value: unknown, expected: unknown): boolean {
   return num >= numberOr(pair[0]) && num <= numberOr(pair[1]);
 }
 
-export { VALUELESS_OPERATORS, columnAnnotation, conditionMatches };
+export { VALUELESS_OPERATORS, columnAnnotation, conditionMatches, parseCellValue };
 export type {
   BridgeColumn,
   BridgeColumnAnnotation,
   BridgeTableDescription,
   BridgeValueInput,
+  CellValueParse,
   DatabaseBridge,
   RowPage,
   RowQuery,

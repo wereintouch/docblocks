@@ -8,7 +8,7 @@
  * optimistic layer + the forward-only undo live in the
  * `useDatabaseTable` provider).
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { BlockId, DatabaseBlock as DatabaseBlockType, DatabaseFilterPayload } from "docblocks-core";
 
@@ -19,7 +19,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { Ellipsis, Plus } from "../shared/ui/icons";
 import type { BridgeColumn, BridgeColumnAnnotation } from "./bridge";
-import { columnAnnotation } from "./bridge";
+import { columnAnnotation, parseCellValue } from "./bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "./filter-builder";
 import { useDatabaseTable } from "./use-database-table";
 import type { DatabaseTableRow } from "./use-database-table";
@@ -56,6 +56,9 @@ const ADD_COLUMN_TYPES: Array<{ type: string; label: string }> = [
   { type: "integer", label: "Number" },
   { type: "boolean", label: "Checkbox" },
   { type: "date", label: "Date" },
+  { type: "timestamptz", label: "Date & time" },
+  { type: "uuid", label: "UUID" },
+  { type: "jsonb", label: "JSON" },
 ];
 
 function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) {
@@ -563,6 +566,67 @@ function DatabaseGridRow({
   );
 }
 
+/** The shared cell wrapper (the left border + the padding). */
+const CELL_WRAP =
+  "min-w-28 border-l-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) p-(--docblocks-table-cell-padding)";
+
+interface TypedCellInputProps {
+  rowId: string;
+  columnId: string;
+  value: unknown;
+  kind: "number" | "date" | "datetime";
+  onCommit: (value: unknown) => void;
+}
+
+/** The controlled, validated cell input for a typed value (number / date /
+ *  datetime): it commits the parsed value on blur, and an invalid value
+ *  reverts to the last valid one (no commit) + shows `data-invalid`. The
+ *  draft resyncs on external value changes (a remote edit / the undo). */
+function TypedCellInput({ rowId, columnId, value, kind, onCommit }: TypedCellInputProps) {
+  const text = value === undefined || value === null ? "" : String(value);
+  const [draft, setDraft] = useState(text);
+  const [invalid, setInvalid] = useState(false);
+  useEffect(() => {
+    setDraft(text);
+    setInvalid(false);
+  }, [text]);
+  const empty = value === undefined || value === null || value === "";
+  return (
+    <div className={CELL_WRAP} data-row-id={rowId}>
+      <input
+        type={kind === "number" ? "number" : kind === "date" ? "date" : "datetime-local"}
+        data-slot="docblocks/database-cell"
+        data-column-id={columnId}
+        data-kind={kind}
+        data-empty={empty ? "true" : undefined}
+        data-invalid={invalid ? "true" : undefined}
+        className="
+          w-full rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
+          border-(--docblocks-table-border-color) bg-transparent px-1 text-(length:--docblocks-font-size) outline-none
+        "
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setInvalid(false);
+        }}
+        onBlur={() => {
+          const result = parseCellValue(kind, draft);
+          if (result.ok) {
+            setInvalid(false);
+            onCommit(result.value);
+          } else {
+            setInvalid(true);
+            setDraft(text);
+          }
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+        }}
+      />
+    </div>
+  );
+}
+
 interface DatabaseCellProps {
   rowId: string;
   column: BridgeColumn;
@@ -593,32 +657,11 @@ function DatabaseCell({ rowId, column, value, onChange }: DatabaseCellProps) {
   }
   switch (annotation.valueInput) {
     case "number":
-      return (
-        <div
-          className="
-            min-w-28 border-l-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
-            p-(--docblocks-table-cell-padding)
-          "
-        >
-          <input
-            key={`${rowId}:${column.id}:${String(value ?? "")}`}
-            type="number"
-            data-slot="docblocks/database-cell"
-            data-column-id={column.id}
-            data-empty={empty ? "true" : undefined}
-            className="
-              w-full rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-              border-(--docblocks-table-border-color) bg-transparent px-1 text-(length:--docblocks-font-size)
-              outline-none
-            "
-            defaultValue={value === undefined || value === null ? "" : String(value)}
-            onBlur={(event) => onChange(event.target.value === "" ? null : Number(event.target.value))}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-            }}
-          />
-        </div>
-      );
+      return <TypedCellInput rowId={rowId} columnId={column.id} value={value} kind="number" onCommit={onChange} />;
+    case "date":
+      return <TypedCellInput rowId={rowId} columnId={column.id} value={value} kind="date" onCommit={onChange} />;
+    case "datetime":
+      return <TypedCellInput rowId={rowId} columnId={column.id} value={value} kind="datetime" onCommit={onChange} />;
     case "boolean":
       return (
         <div
@@ -634,32 +677,6 @@ function DatabaseCell({ rowId, column, value, onChange }: DatabaseCellProps) {
             defaultChecked={value === true}
             onChange={(event) => onChange(event.target.checked)}
             className="size-4 cursor-pointer accent-(--docblocks-link-color)"
-          />
-        </div>
-      );
-    case "date":
-      return (
-        <div
-          className="
-            min-w-28 border-l-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
-            p-(--docblocks-table-cell-padding)
-          "
-        >
-          <input
-            key={`${rowId}:${column.id}:${String(value ?? "")}`}
-            type="date"
-            data-slot="docblocks/database-cell"
-            data-column-id={column.id}
-            className="
-              w-full rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-              border-(--docblocks-table-border-color) bg-transparent px-1 text-(length:--docblocks-font-size)
-              outline-none
-            "
-            defaultValue={value === undefined || value === null ? "" : String(value)}
-            onBlur={(event) => onChange(event.target.value === "" ? null : event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-            }}
           />
         </div>
       );
