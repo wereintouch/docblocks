@@ -11,6 +11,7 @@ export { CircleCheck } from "./CircleCheck";
 export { CodeXml } from "./CodeXml";
 export { Copy } from "./Copy";
 export { Curve } from "./Curve";
+export { Database } from "./Database";
 export { Diagonal } from "./Diagonal";
 export { Diamond } from "./Diamond";
 export { Dot } from "./Dot";

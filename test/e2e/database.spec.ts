@@ -63,6 +63,29 @@ async function databaseInfo(page: Page): Promise<{ dbId: string; rowOrder: strin
   return info!;
 }
 
+/**
+ * The pane's default-bridge demo table (the playground seeds it per page at
+ * module load — `table-1`, name "Demo", 3 rows). Polls until the async
+ * seed settles and returns the first table's ref. Both panes (separate
+ * pages) seed the identical deterministic table, so the id matches across
+ * them and a `tableId` reference inserted in A resolves in B.
+ */
+async function bridgeDemoTable(page: Page): Promise<{ id: string; name: string }> {
+  let result: { id: string; name: string } | null = null;
+  await expect
+    .poll(async () => {
+      result = await page.evaluate(async () => {
+        if (window.__bridge === undefined) return null;
+        const tables = await window.__bridge.listTables();
+        const [first] = tables;
+        return first ?? null;
+      });
+      return result;
+    }, SETTLE)
+    .not.toBeNull();
+  return result!;
+}
+
 test("a database inserted in A renders in both panes and reaches the JSON", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ext04-card");
 
@@ -217,20 +240,32 @@ test("setCell with an out-of-options select value throws InvalidCellValueError (
   await close();
 });
 
-test("the external form (the tableId reference) syncs over the wire", async ({ browser }) => {
+test("the external form (the tableId reference) syncs over the wire and renders the live grid", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ext04-external");
 
-  const dbId = (await a.evaluate(() => window.__paneDocs!.a!.insertBlock("database", { tableId: "ext-1" })))!;
+  // Both panes' default bridges seed the identical demo table (per page);
+  // the reference only travels over the wire, the data is per-page.
+  const demoA = await bridgeDemoTable(a);
+  const demoB = await bridgeDemoTable(b);
+  expect(demoA.id).toBe(demoB.id);
+  expect(demoA.name).toBe("Demo");
+
+  const dbId = (await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demoA.id))!;
 
   for (const [pane, client] of [
     [a, "a"],
     [b, "b"],
   ] as const) {
     const doc = pane.locator(`[data-testid="doc-${client}"]`);
-    const marker = doc.locator("[data-slot='docblocks/database-external'][data-table-id='ext-1']");
-    await expect(marker).toBeVisible(SETTLE);
-    // The zero-rows badge stands (the rows live in the consumer's table).
-    expect(doc.locator("[data-slot='docblocks/database-count']")).toHaveCount(1);
+    const wrapper = doc.locator("[data-block-type='database']");
+    await expect(wrapper).toHaveCount(1, SETTLE);
+    // The ready grid stands (not the broken state): the table name from the
+    // pane's own bridge + the demo row count (3 rows).
+    const card = wrapper.locator("[data-slot='docblocks/database']");
+    await expect(card).toHaveCount(1, SETTLE);
+    await expect(card).not.toHaveAttribute("data-state", "broken", SETTLE);
+    await expect(wrapper.locator("[data-slot='docblocks/database-name']")).toHaveText("Demo", SETTLE);
+    await expect(wrapper.locator("[data-slot='docblocks/database-count']")).toHaveText("3 rows", SETTLE);
 
     // The doc keeps the reference only: the inline schema is absent on both sides.
     const json = await pane.evaluate(
@@ -244,9 +279,52 @@ test("the external form (the tableId reference) syncs over the wire", async ({ b
       },
       { client, dbId }
     );
-    expect(json.tableId).toBe("ext-1");
+    expect(json.tableId).toBe(demoA.id);
     expect(json.columns).toBeNull();
   }
+
+  await close();
+});
+
+test("the slash Database picker inserts a block referencing a table", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ext04-slash");
+
+  const demo = await bridgeDemoTable(a);
+
+  // Seed a paragraph with a caret, open the menu, filter to Database.
+  const inner = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
+  await inner.click();
+  await a.keyboard.type("/database");
+  const menuItem = a.locator('[data-slot="docblocks/slash-menu"] [role="menuitem"]');
+  await expect(menuItem, "the Database command filters to one entry").toHaveCount(1, SETTLE);
+  await expect(menuItem).toHaveText("Database");
+  await a.keyboard.press("Enter");
+
+  // The picker stands over the open menu (the phrase intact).
+  const picker = a.locator("[data-slot='docblocks/slash-database-picker']");
+  await expect(picker).toBeVisible(SETTLE);
+  await expect(picker.locator("[data-slot='docblocks/slash-database-table']")).toHaveCount(1, SETTLE);
+  await expect(picker.locator("[data-slot='docblocks/slash-database-table']")).toHaveText("Demo");
+
+  // Pick the demo table: the phrase strips and the database block lands
+  // (the `tableId` reference) — the ready grid renders from the bridge.
+  await picker.locator("[data-slot='docblocks/slash-database-table']").click();
+
+  const wrapper = a.locator("[data-block-type='database']");
+  await expect(wrapper).toHaveCount(1, SETTLE);
+  await expect(wrapper.locator("[data-slot='docblocks/database-name']")).toHaveText("Demo", SETTLE);
+  await expect(wrapper.locator("[data-slot='docblocks/database-count']")).toHaveText("3 rows", SETTLE);
+
+  // The doc holds the reference only (no inline schema).
+  const json = await a.evaluate(() => {
+    const doc = window.__paneDocs!.a!;
+    const json = doc.toJSON();
+    const dbId = Object.keys(json.blocks).find((id) => json.blocks[id]!.type === "database")!;
+    const block = json.blocks[dbId]!;
+    return { tableId: block.attrs?.tableId, columns: block.attrs?.columns };
+  });
+  expect(json.tableId).toBe(demo.id);
+  expect(json.columns).toBeUndefined();
 
   await close();
 });
@@ -272,6 +350,84 @@ test("the row commands refuse the external form over the wire (the typed error)"
 
   // The failed command left the doc untouched.
   expect(await snapshotOf()).toBe(before);
+
+  await close();
+});
+
+/**
+ * Two panes in ONE browser context (the same origin): the default in-memory
+ * bridges share the `BroadcastChannel` echo, so a row mutation driven on
+ * pane B's bridge is delivered to pane A's bridge (and the grid refetches)
+ * without any HTTP and without a doc update. The existing `twoPanes` helper
+ * uses separate contexts (isolated origins) — the bridge echo does not cross
+ * them, so this test needs the shared-context variant.
+ */
+async function twoPanesSharedContext(
+  browser: Browser,
+  room: string
+): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
+  const context = await browser.newContext();
+  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
+  const a = await context.newPage();
+  const b = await context.newPage();
+  await openPane(a, "a", uniqueRoom);
+  await openPane(b, "b", uniqueRoom);
+  return {
+    a,
+    b,
+    close: async () => {
+      await context.close();
+    },
+  };
+}
+
+test("the bridge is live: a row mutation in pane B's bridge reaches pane A's grid (no doc wire)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-bridge-live");
+
+  // Both panes' default bridges converge on the seeded demo table (the
+  // shared-channel echo); poll until each bridge reports it with rows.
+  const demoA = await bridgeDemoTable(a);
+  const demoB = await bridgeDemoTable(b);
+  expect(demoA.id).toBe(demoB.id);
+
+  await a.evaluate((tableId) => {
+    window.__paneDocs!.a!.insertBlock("database", { tableId });
+  }, demoA.id);
+  const gridA = a.locator("[data-block-type='database']");
+  await expect(gridA.locator("[data-slot='docblocks/database-count']")).toHaveText("3 rows", SETTLE);
+
+  // A row id from pane B's bridge + the doc-wire baseline on A (the row
+  // data is not in the doc, so the mutation must not move it).
+  const rowId = await b.evaluate(async (tableId) => {
+    const page = await window.__bridge!.queryRows(tableId, {});
+    const [first] = Object.keys(page.rows);
+    return first ?? null;
+  }, demoB.id);
+  expect(rowId).not.toBeNull();
+  const outBefore = await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count();
+
+  // Drive the mutation on pane B's bridge (the consumer's table write).
+  await b.evaluate(({ tableId, rowId }) => window.__bridge!.updateRow(tableId, rowId!, { title: "SYNCED" }), {
+    tableId: demoB.id,
+    rowId,
+  });
+
+  // Pane A's grid refetches from its bridge (the shared-echo event) and
+  // shows the updated title — no HTTP, no doc update. The text cell is an
+  // <input> (an uncontrolled defaultValue), so assert on the input value.
+  const titleInputs = gridA.locator("[data-slot='docblocks/database-cell'][data-column-id='title']");
+  await expect
+    .poll(async () => {
+      const count = await titleInputs.count();
+      for (let i = 0; i < count; i += 1) {
+        if ((await titleInputs.nth(i).inputValue()) === "SYNCED") return true;
+      }
+      return false;
+    }, SETTLE)
+    .toBe(true);
+  expect(await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count()).toBe(outBefore);
 
   await close();
 });

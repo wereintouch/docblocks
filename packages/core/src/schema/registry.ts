@@ -232,6 +232,16 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       // The external form's table reference (the consumer's relational
       // table id; the rows and the schema live there).
       tableId: { kind: "string", nonEmpty: true },
+      // The external-form view state (CRDT data): the recursive and/or
+      // row filter (the structure is checked by the validator's database
+      // branch — the recursion is not expressible in the flat AttrSpec),
+      // the column display order / the hidden columns, the saved views,
+      // and the current view type (the v1 set).
+      filter: { kind: "object" },
+      columnOrder: { kind: "array", items: { kind: "string", nonEmpty: true } },
+      hiddenColumns: { kind: "array", items: { kind: "string", nonEmpty: true } },
+      views: { kind: "array" },
+      viewType: { kind: "enum", values: ["table", "kanban", "calendar"] },
     },
   },
   // The canvas (v2, option A: canvas elements are blocks of the SAME

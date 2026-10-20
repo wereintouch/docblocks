@@ -19,6 +19,7 @@ const ICON_SET = [
   "CircleCheck",
   "CodeXml",
   "Copy",
+  "Database",
   "Dot",
   "EllipsisVertical",
   "Eye",

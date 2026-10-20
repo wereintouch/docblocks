@@ -6,6 +6,8 @@ import type { BlockId, Doc, Selection, SelectionView, SyncEmbedRef, SyncProvider
 import type { BlobStore } from "./blob-store";
 import { getDefaultBlobStore, legacyBlobStore } from "./blob-store";
 import type { BlockRendererMap } from "./blocks/renderers";
+import type { DatabaseBridge } from "./database/bridge";
+import { getDefaultDatabaseBridge } from "./database/memory-bridge";
 import { COMMAND_PALETTE_PLACEHOLDER } from "./editing/slash";
 import { createEditorStore } from "./state/store";
 import type { EditorStore } from "./state/store";
@@ -31,6 +33,9 @@ interface EditorContextValue {
   /** The effective blob bridge (the consumer's store, the legacy resolver
    *  wrapped, or the shared default in-memory store) — always present. */
   blobStore: BlobStore;
+  /** The effective database bridge (the consumer's implementation or the
+   *  shared default in-memory bridge) — always present. */
+  databaseBridge: DatabaseBridge;
   /** The sync-embed master-doc resolver; null when none was supplied. */
   syncEmbedResolver: SyncEmbedResolver | null;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -95,6 +100,19 @@ interface EditorProviderProps {
    */
   blobStore?: BlobStore;
   /**
+   * Optional database bridge: the consumer's implementation of the table
+   * operations behind the external-form database blocks (the document
+   * keeps only the `tableId` reference; the schema and the rows live in
+   * the consumer's database). Without it the editor uses the shared
+   * default in-memory bridge (the tables and the rows stand in the page's
+   * JS memory; a reload clears them) — the dev / demo mode.
+   *
+   * Like `blobStore`, the value is read per render into the provider
+   * context: pass a stable reference. A nested provider that supplies
+   * none inherits the enclosing bridge.
+   */
+  databaseBridge?: DatabaseBridge;
+  /**
    * Optional resolver of a sync-embed's ref to the master Doc (the consumer
    * holds the master in its own store); without it the built-in renderer
    * renders the broken state for every sync-embed.
@@ -140,6 +158,7 @@ function EditorProvider({
   blockRenderers,
   blobResolver,
   blobStore,
+  databaseBridge,
   syncEmbedResolver,
   rootBlockId,
   commandPalettePlaceholder,
@@ -269,6 +288,13 @@ function EditorProvider({
     [blobStore, blobResolver, parentContext]
   );
 
+  // The effective database bridge: the explicit bridge wins, else the
+  // enclosing one, then the shared default in-memory bridge.
+  const effectiveDatabaseBridge = useMemo<DatabaseBridge>(
+    () => databaseBridge ?? parentContext?.databaseBridge ?? getDefaultDatabaseBridge(),
+    [databaseBridge, parentContext]
+  );
+
   const value = useMemo(() => {
     const parent = parentContext;
     return {
@@ -277,6 +303,7 @@ function EditorProvider({
       selection: selectionRef.current,
       renderers: blockRenderers ?? parent?.renderers ?? {},
       blobStore: effectiveBlobStore,
+      databaseBridge: effectiveDatabaseBridge,
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
@@ -289,6 +316,7 @@ function EditorProvider({
     doc,
     blockRenderers,
     effectiveBlobStore,
+    effectiveDatabaseBridge,
     syncEmbedResolver,
     rootId,
     parentContext,

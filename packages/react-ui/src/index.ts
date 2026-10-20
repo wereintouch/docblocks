@@ -12,6 +12,22 @@ export { EditorProvider, useEditorContext } from "./EditorProvider";
 export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver } from "./EditorProvider";
 export { blobSubtypeOf, createMemoryBlobStore } from "./blob-store";
 export type { BlobMeta, BlobRef, BlobSubtype, BlobStore } from "./blob-store";
+export { columnAnnotation, conditionMatches } from "./database/bridge";
+export { createMemoryDatabaseBridge, getDefaultDatabaseBridge } from "./database/memory-bridge";
+export { emptyFilter, filterIsComplete, FilterBuilder } from "./database/filter-builder";
+export { useDatabaseTable } from "./database/use-database-table";
+export type { DatabaseTableRow, DatabaseTablePhase } from "./database/use-database-table";
+export type {
+  BridgeColumn,
+  BridgeColumnAnnotation,
+  BridgeTableDescription,
+  BridgeValueInput,
+  DatabaseBridge,
+  RowPage,
+  RowQuery,
+  TableEvent,
+  TableRef,
+} from "./database/bridge";
 export type { SyncEmbedRef } from "docblocks-core";
 export { useBlock, useDoc, useMeta, usePresence, useSelection, useSelectionView, useText } from "./hooks";
 export { FORMAT_PALETTE } from "./editing/format-toolbar";
