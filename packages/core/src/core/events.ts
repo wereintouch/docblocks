@@ -45,13 +45,14 @@ interface Observers {
   meta: DeepObserver;
   blocks: DeepObserver;
   rootOrder: () => void;
-  afterTransaction: () => void;
+  afterTransaction: (transaction: Y.Transaction) => void;
 }
 
 interface Hub {
   observers: Observers | null;
   pending: PendingChange | null;
   changeHandlers: Set<ChangeHandler>;
+  remoteChangeHandlers: Set<ChangeHandler>;
   blockHandlers: Map<BlockId, Set<BlockHandler>>;
   textHandlers: Map<BlockId, Set<TextHandler>>;
 }
@@ -65,6 +66,7 @@ function getHub(ydoc: Y.Doc): Hub {
       observers: null,
       pending: null,
       changeHandlers: new Set(),
+      remoteChangeHandlers: new Set(),
       blockHandlers: new Map(),
       textHandlers: new Map(),
     };
@@ -119,17 +121,20 @@ function observeRootOrder(ydoc: Y.Doc, hub: Hub): void {
 }
 
 /** Emit the in-flight transaction's merged change, if anything user-visible changed. */
-function emitPending(ydoc: Y.Doc, hub: Hub): void {
+function emitPending(ydoc: Y.Doc, hub: Hub, isRemote: boolean): void {
   const pending = hub.pending;
   hub.pending = null;
   if (pending === null || (pending.blockIds.size === 0 && !pending.metaChanged)) return;
-  emitChange(ydoc, { blockIds: [...pending.blockIds], metaChanged: pending.metaChanged });
+  emitChange(ydoc, { blockIds: [...pending.blockIds], metaChanged: pending.metaChanged }, isRemote);
 }
 
-function emitChange(ydoc: Y.Doc, change: Change): void {
+function emitChange(ydoc: Y.Doc, change: Change, isRemote: boolean): void {
   const hub = getHub(ydoc);
 
   for (const handler of [...hub.changeHandlers]) handler(change);
+  if (isRemote) {
+    for (const handler of [...hub.remoteChangeHandlers]) handler(change);
+  }
 
   for (const blockId of change.blockIds) {
     const blockHandlers = hub.blockHandlers.get(blockId);
@@ -155,7 +160,10 @@ function attach(ydoc: Y.Doc, hub: Hub): void {
     meta: (events) => observeMeta(hub, events),
     blocks: (events) => observeBlocks(ydoc, hub, events),
     rootOrder: () => observeRootOrder(ydoc, hub),
-    afterTransaction: () => emitPending(ydoc, hub),
+    // The transaction's origin stands the remote feed: the wire's apply
+    // (and the escaped `raw` commit) stand no origin, the local commands
+    // and the undo manager stand their own symbols.
+    afterTransaction: (transaction) => emitPending(ydoc, hub, transaction.origin == null),
   };
   ydoc.getMap("meta").observeDeep(hub.observers.meta);
   ydoc.getMap("blocks").observeDeep(hub.observers.blocks);
@@ -165,7 +173,11 @@ function attach(ydoc: Y.Doc, hub: Hub): void {
 
 /** Detach the observers when the last subscription is gone. */
 function release(ydoc: Y.Doc, hub: Hub): void {
-  const empty = hub.changeHandlers.size === 0 && hub.blockHandlers.size === 0 && hub.textHandlers.size === 0;
+  const empty =
+    hub.changeHandlers.size === 0 &&
+    hub.remoteChangeHandlers.size === 0 &&
+    hub.blockHandlers.size === 0 &&
+    hub.textHandlers.size === 0;
   const observers = hub.observers;
   if (empty && observers !== null) {
     ydoc.getMap("meta").unobserveDeep(observers.meta);
@@ -183,6 +195,22 @@ function onChange(ydoc: Y.Doc, handler: ChangeHandler): () => void {
   attach(ydoc, hub);
   return () => {
     hub.changeHandlers.delete(handler);
+    release(ydoc, hub);
+  };
+}
+
+/**
+ * Subscribe to the non-local-origin changes (the wire's applies and the
+ * escaped `raw` commits, one emission per transaction) — the feed a sync
+ * consumer's write-back guards hook into. Local transactions (the
+ * commands, the undo manager) never emit here. Returns unsubscribe.
+ */
+function onRemoteChange(ydoc: Y.Doc, handler: ChangeHandler): () => void {
+  const hub = getHub(ydoc);
+  hub.remoteChangeHandlers.add(handler);
+  attach(ydoc, hub);
+  return () => {
+    hub.remoteChangeHandlers.delete(handler);
     release(ydoc, hub);
   };
 }
@@ -221,5 +249,5 @@ function observeText(ydoc: Y.Doc, blockId: BlockId, handler: TextHandler): () =>
   };
 }
 
-export { onChange, onBlock, observeText };
+export { onChange, onRemoteChange, onBlock, observeText };
 export type { BlockHandler, Change, ChangeHandler, TextHandler };

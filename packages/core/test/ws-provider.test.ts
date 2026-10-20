@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createDoc } from "../src/core";
+import { createDoc, loadDoc } from "../src/core";
 import type { Doc } from "../src/core";
 import { attach } from "../src/sync";
 import { WsSyncProvider } from "../src/sync/ws-provider";
@@ -99,6 +99,33 @@ describe("join flow", () => {
     await relay.deliver();
     expect(a.doc.toJSON()).toEqual(b.doc.toJSON());
     expect(a.doc.getText(pb)).toBe("from-b");
+  });
+
+  it("an update sent during the CONNECTING window is buffered, not thrown", async () => {
+    const relay = new WsRelay();
+    const a = makeClient(relay);
+    await a.provider.connect();
+    await relay.deliver();
+    a.doc.insertText(a.doc.insertBlock("paragraph"), 0, "base");
+    await relay.deliver();
+
+    // b's connect() creates the socket; the open event is deferred to a
+    // microtask, so between connect() and the first await the socket stands
+    // CONNECTING. A local edit in that window routes through sendUpdate —
+    // the browser's WebSocket rejects a pre-open send (the provider must
+    // buffer it instead of throwing). B loads A's settled state (no
+    // concurrent init — the meta's title would race the bootstrap).
+    const docB = loadDoc(a.doc.encode());
+    const providerB = new WsSyncProvider(URL, { webSocketImpl: (u) => relay.connect(u) });
+    attach(docB, providerB);
+    const connectP = providerB.connect();
+    docB.setTitle("titled during connecting"); // must not throw
+    expect(a.doc.meta.title).not.toBe("titled during connecting"); // not delivered yet
+
+    await connectP;
+    await relay.deliver();
+    expect(a.doc.meta.title).toBe("titled during connecting");
+    expect(a.doc.toJSON()).toEqual(docB.toJSON());
   });
 });
 

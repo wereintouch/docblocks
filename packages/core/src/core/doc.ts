@@ -52,7 +52,12 @@ import { deleteTextRange as deleteTextRangeCommand, setMarkRange as setMarkRange
 import { changeBlockType as changeBlockTypeCommand } from "./commands/types";
 import type { ChangeBlockTypeArgs } from "./commands/types";
 import { InvalidSnapshotError, formatValidationErrors } from "./errors";
-import { observeText as observeDocText, onBlock as onDocBlock, onChange as onDocChange } from "./events";
+import {
+  observeText as observeDocText,
+  onBlock as onDocBlock,
+  onChange as onDocChange,
+  onRemoteChange as onDocRemoteChange,
+} from "./events";
 import type { Change } from "./events";
 import { undoManagerOf } from "./history";
 import { layoutDoc, loadOriginOf, localTransact, writeDocument } from "./layout";
@@ -452,6 +457,16 @@ class Doc {
    */
   onChange(handler: (change: Change) => void): () => void {
     return onDocChange(this.#ydoc, handler);
+  }
+
+  /**
+   * Subscribe to the non-local-origin changes (the wire's applies and the
+   * escaped `raw` commits, one emission per transaction). Local
+   * transactions — the commands, the undo manager — never emit here.
+   * Returns an unsubscribe function (safe to call twice).
+   */
+  onRemoteChange(handler: (change: Change) => void): () => void {
+    return onDocRemoteChange(this.#ydoc, handler);
   }
 
   /**
