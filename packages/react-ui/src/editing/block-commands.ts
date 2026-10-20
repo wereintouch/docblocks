@@ -90,6 +90,26 @@ function removeBlocksSelection(doc: Doc, parentId: BlockId, ids: BlockId[]): voi
   });
 }
 
+/**
+ * The page sequence's tail guarantee: a non-text last block (a database /
+ * image / table / divider — or the empty sequence) stands no caret home
+ * and no delete stand over the sequence's end, so an empty paragraph
+ * stands after it (the paste / slash's trailing-paragraph contract,
+ * generalized to every sequence-stand). The caller runs it inside its own
+ * transact when the stand must share the gesture's one undo step.
+ * Returns the stood paragraph's id (the caret's home), or null when the
+ * tail already stands a text block (no stand, the caller's focus stands).
+ */
+function ensureTrailingParagraph(doc: Doc, parentId: BlockId): BlockId | null {
+  const sequence = doc.getChildren(parentId);
+  const lastId = sequence[sequence.length - 1];
+  if (lastId === undefined) return doc.insertBlock("paragraph", undefined, { parent: parentId });
+  const last = doc.getBlock(lastId);
+  if (last === null) return null;
+  if (BLOCK_REGISTRY[last.type].content) return null;
+  return doc.insertBlock("paragraph", undefined, { parent: parentId, after: lastId });
+}
+
 /** Inserts a block of the same type and attrs as `block`, right after `after` under `parent` (the indent stands). */
 function insertSameTypeAfter(doc: Doc, block: Block, parent: BlockId, after: BlockId): BlockId {
   const indent = indentOf(doc, after);
@@ -633,6 +653,7 @@ function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: Bloc
 }
 
 export {
+  ensureTrailingParagraph,
   extendSelectionTo,
   findParentId,
   focusCaretIn,

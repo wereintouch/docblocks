@@ -38,10 +38,10 @@
  * segment's relative structure stands.
  */
 import type { BlockId, Doc } from "docblocks-core";
-import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
+import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { entrySequenceParent } from "../blocks/flat";
-import { moveSegmentInSequence, segmentRange } from "../editing/block-commands";
+import { ensureTrailingParagraph, moveSegmentInSequence, segmentRange } from "../editing/block-commands";
 
 /** Same ids in the same order (order matters). */
 function sameIds(a: readonly BlockId[], b: readonly BlockId[]): boolean {
@@ -250,7 +250,37 @@ function commitFlatDrag(
   // head precedes scope[target + length] (the segment's own trailing
   // edge), and the move to the scope's end maps onto the container's own
   // trailing edge (target + length there).
-  const t = target < start ? target : target + segmentLength;
+  let t = target < start ? target : target + segmentLength;
+  // The document root's tail seat (the full-doc tail contract): a down
+  // landing at the sequence's end stands a non-text last block when the
+  // segment's own last block is non-text (a text-terminated segment lands
+  // its text tail last — the invariant stands, the end landing is clean).
+  // In the non-text case the move's own tail guarantee would stand a NEW
+  // paragraph behind the segment and the existing trailing block would
+  // stand stranded above the drag (an extra row appears on release and
+  // the block stands above where it was released). The seat stands last:
+  // the segment lands just before the trailing top-level text block (the
+  // pre-move index of that block — the head precedes it); the trailing
+  // block stays last, so the guarantee is a no-op — no stand, no jump.
+  // A nested trailing block (indent > 0) stands no seat: landing before
+  // it would re-attach it to the childless non-text segment, so the end
+  // landing (with its own guaranteed paragraph) stands there.
+  if (target >= start && containerId === doc.meta.id && scopeOffset === 0 && t === sequence.length) {
+    const segmentLast = segmentRows[segmentRows.length - 1];
+    const segmentLastBlock = segmentLast === undefined ? null : doc.getBlock(segmentLast);
+    const trailingId = containerSequence[containerSequence.length - 1];
+    const trailingBlock = trailingId === undefined ? null : doc.getBlock(trailingId);
+    if (
+      segmentLastBlock !== null &&
+      trailingId !== undefined &&
+      trailingBlock !== null &&
+      trailingId !== segmentLast &&
+      !BLOCK_REGISTRY[segmentLastBlock.type].content &&
+      BLOCK_REGISTRY[trailingBlock.type].content &&
+      indentOf(doc, trailingId) === 0
+    )
+      t -= 1;
+  }
 
   // The seam's candidate (the module header): the head stands at the
   // seam's neighbor's indent — the block before the landed span (A) or
@@ -304,6 +334,11 @@ function commitFlatDrag(
         doc.moveBlock(blockIds[i]!, containerId, landing);
       }
       if (delta > 0) applyIndents();
+      // The document root's tail guarantee (the move's one transact stands
+      // the stand): the segment's move stands a non-text last block (the
+      // database / image dragged to the end) — the empty paragraph stands
+      // after it (the paste / slash's trailing contract).
+      if (containerId === doc.meta.id) ensureTrailingParagraph(doc, doc.meta.id);
     });
   } catch (error) {
     // The core's typed rejection (a corrupt or stale state the seam rule
@@ -315,4 +350,24 @@ function commitFlatDrag(
   return true;
 }
 
-export { commitFlatDrag, dropCandidateIndent, sameIds, type DropRow };
+/**
+ * The tail seat's clamp (the preview side of the commit's tail landing):
+ * framer's own reorder lets the dragged row cross the full-doc root's
+ * trailing text paragraph (the pointer beyond the last row stands it
+ * last). The commit stands the segment above the seat (the doc's tail
+ * contract), so the preview stands the crossing too — the dragged row
+ * clamps to the seat's slot, and the release settles at the preview's
+ * stand. The seat's own drag stands unclamped (it is a real block — the
+ * guarantee stands its own stand on release).
+ */
+function clampTailSeatCrossing(next: readonly BlockId[], draggedId: BlockId, seatId: BlockId | undefined): BlockId[] {
+  if (seatId === undefined || draggedId === seatId) return [...next];
+  const draggedAt = next.indexOf(draggedId);
+  const seatAt = next.indexOf(seatId);
+  if (draggedAt < 0 || seatAt < 0 || draggedAt <= seatAt) return [...next];
+  const rest = next.filter((id) => id !== draggedId);
+  const seatAfter = rest.indexOf(seatId);
+  return [...rest.slice(0, seatAfter), draggedId, ...rest.slice(seatAfter)];
+}
+
+export { commitFlatDrag, clampTailSeatCrossing, dropCandidateIndent, sameIds, type DropRow };

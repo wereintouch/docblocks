@@ -113,6 +113,35 @@ describe("commitFlatDrag", () => {
     expect(doc.getChildren(root)).toEqual([byName.a, byName.c, byName.c1, byName.d, byName.b, byName.b1]);
   });
 
+  it("a move that lands a non-text block at the sequence's end stands the trailing paragraph (one undo step)", () => {
+    const { doc, root, byName } = seededDoc();
+    // Stand a non-text block in the sequence: d (the last, a paragraph) is
+    // replaced by a divider after a (the type change would lose the
+    // content — the commands reject it; the removal + insertion stands it).
+    const dividerId = doc.insertBlock("divider", undefined, { parent: root, after: byName.a });
+    doc.removeBlock(byName.d);
+    // Drag the divider to the sequence's end: the move commits and the tail
+    // guarantee stands the empty editable paragraph (the non-text last
+    // block stands no caret home) in the same transact.
+    const ok = commitFlatDrag(
+      doc,
+      root,
+      dividerId,
+      [byName.a, byName.b, byName.b1, byName.c, byName.c1, dividerId],
+      [],
+      1
+    );
+    expect(ok).toBe(true);
+    const children = doc.getChildren(root);
+    const last = children[children.length - 1]!;
+    expect(doc.getBlock(last)?.type).toBe("paragraph");
+    expect(children).toEqual([byName.a, byName.b, byName.b1, byName.c, byName.c1, dividerId, last]);
+    // One undo step for the whole commit (the move + the guarantee's insert):
+    // the divider slides back and the inserted tail is gone in one step.
+    doc.undo();
+    expect(doc.getChildren(root)).toEqual([byName.a, dividerId, byName.b, byName.b1, byName.c, byName.c1]);
+  });
+
   it("stands a child segment head at the seam's level (its own indent is not a candidate)", () => {
     const { doc, root, byName } = seededDoc();
     // Drag b1 (a child of b, indent 1) up, before b itself: the seam's

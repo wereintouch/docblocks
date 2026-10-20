@@ -3,7 +3,7 @@ import type { ClipboardEvent, KeyboardEvent, PointerEvent, RefObject } from "rea
 
 import { useEditorContext } from "../EditorProvider";
 import { entrySequenceParent } from "../blocks/flat";
-import { focusCaretIn, removeBlocksSelection } from "./block-commands";
+import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection } from "./block-commands";
 import { crossRangeClipboardContent } from "./cross-copy";
 import { useCrossDrag } from "./cross-drag";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
@@ -108,6 +108,18 @@ function useEditing(): EditingHandle {
           }
           removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), selection.ids);
           view.set({ kind: "none" });
+          // The document root's tail guarantee (the gesture's one
+          // transact stands the stand): the removal stands a non-text last
+          // block (or the empty sequence) — the empty paragraph stands
+          // after it and the caret seats there (the typeable home; the
+          // undo hotkey still reaches the editor from the row's focus).
+          if (rootBlockId === doc.meta.id) {
+            const trailingId = ensureTrailingParagraph(doc, doc.meta.id);
+            if (trailingId !== null && root !== null) {
+              focusCaretIn(trailingId, 0, root);
+              return;
+            }
+          }
           // The deleted rows unmount and the browser would drop the focus to
           // the document: park it on the editor root (the undo hotkey reach).
           root?.focus();

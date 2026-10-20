@@ -753,7 +753,7 @@ describe("the blocks (gutter) selection removal", () => {
     const view = context!.selection.view;
     expect(view, "the selection view should stand").not.toBeNull();
     act(() => {
-      view!.set({ kind: "blocks", ids: [p1, p2], anchorId: p1 });
+      view!.set({ kind: "blocks", ids: [p1], anchorId: p1 });
     });
 
     const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${p1}"]`);
@@ -763,14 +763,57 @@ describe("the blocks (gutter) selection removal", () => {
       fireEvent.keyDown(wrapper!, { key: "Delete" });
     });
 
-    // Both rows are gone (the doc and the DOM).
+    // The selected row is gone (the doc and the DOM); the tail's text
+    // block stands (the stand's no stand), so the focus parks on the
+    // editor root (the undo hotkey reach).
     expect(doc.getBlock(p1)).toBeNull();
-    expect(doc.getBlock(p2)).toBeNull();
-    expect(document.querySelector(`[data-block-id="${p2}"]`)).toBeNull();
+    expect(doc.getBlock(p2)).not.toBeNull();
+    expect(document.querySelector(`[data-block-id="${p1}"]`)).toBeNull();
 
-    // The deleted rows unmounted with the focus: the editor root stands
+    // The deleted row unmounted with the focus: the editor root stands
     // focused so the undo hotkey reaches the doc.
     const root = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');
     expect(document.activeElement).toBe(root);
+  });
+
+  it("the delete key over the non-text tail stands the trailing empty paragraph (the caret's home)", () => {
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const p1 = doc.insertBlock("paragraph");
+    doc.insertText(p1, 0, "one");
+    const divider = doc.insertBlock("divider");
+
+    let context: EditorContextValue | undefined;
+    const Capture = () => {
+      context = useEditorContext();
+      return null;
+    };
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+        <Capture />
+      </EditorProvider>
+    );
+    const view = context!.selection.view;
+    act(() => {
+      view!.set({ kind: "blocks", ids: [divider], anchorId: divider });
+    });
+
+    const wrapper = document.querySelector<HTMLElement>(`[data-block-id="${divider}"]`);
+    expect(wrapper, "the selected row should render").not.toBeNull();
+    wrapper!.focus();
+    act(() => {
+      fireEvent.keyDown(wrapper!, { key: "Delete" });
+    });
+
+    // The divider is gone and the sequence stands an empty paragraph over
+    // its end (the tail's guarantee — the non-text last block stands no
+    // caret home and no delete stand). The removal and the stand share
+    // the gesture's one undo step.
+    expect(doc.getBlock(divider)).toBeNull();
+    const sequence = doc.getChildren(doc.meta.id);
+    expect(sequence).toHaveLength(2);
+    const tailId = sequence[sequence.length - 1]!;
+    expect(doc.getBlock(tailId)?.type).toBe("paragraph");
+    expect(doc.getText(tailId)).toBe("");
   });
 });

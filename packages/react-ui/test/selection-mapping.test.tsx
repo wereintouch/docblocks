@@ -167,24 +167,26 @@ describe("DOM selection mapping (cross-block ranges)", () => {
     expect(mapped).toEqual({ kind: "text", from: { blockId: p1, offset: 5 }, to: { blockId: p2, offset: 0 } });
   });
 
-  it("a non-text last endpoint with no following text takes the END of the nearest preceding block", () => {
+  it("a non-text last endpoint over the guaranteed tail takes the START of the trailing paragraph", () => {
     let p1: BlockId = "";
-    let p2: BlockId = "";
     let d2: BlockId = "";
     const doc = renderDoc((d) => {
       p1 = d.insertBlock("paragraph");
       d.insertText(p1, 0, "alpha");
-      p2 = d.insertBlock("paragraph");
-      d.insertText(p2, 0, "beta");
+      d.insertBlock("paragraph");
       d2 = d.insertBlock("divider");
     });
 
+    // The editor's tail guarantee stood the empty paragraph over the
+    // divider's end (the non-text last block stands no caret home) — the
+    // endpoint stands it (the following text's start).
+    const tailId = doc.getChildren(doc.meta.id)[doc.getChildren(doc.meta.id).length - 1]!;
     selectElements(textNodeOf(p1), wrapperOf(d2));
     const mapped = mapDomSelection(rootOf(), window.getSelection(), doc);
-    expect(mapped).toEqual({ kind: "text", from: { blockId: p1, offset: 0 }, to: { blockId: p2, offset: 4 } });
+    expect(mapped).toEqual({ kind: "text", from: { blockId: p1, offset: 0 }, to: { blockId: tailId, offset: 0 } });
   });
 
-  it("a degenerate resolution (both endpoints on one point) maps to a caret", () => {
+  it("the endpoint over the non-text tail resolves to the guaranteed trailing paragraph", () => {
     let p1: BlockId = "";
     let d1: BlockId = "";
     const doc = renderDoc((d) => {
@@ -193,8 +195,11 @@ describe("DOM selection mapping (cross-block ranges)", () => {
       d1 = d.insertBlock("divider");
     });
 
-    // From the end of p1's text into the trailing divider: the divider has
-    // no following text, so both endpoints land on p1's end.
+    // The tail guarantee stood the empty paragraph over the divider's end:
+    // the end endpoint lands on it (the cross-block range over the seam —
+    // the degenerate caret stands only over the no-following-text state,
+    // which the rendered editor's tail never reaches).
+    const tailId = doc.getChildren(doc.meta.id)[doc.getChildren(doc.meta.id).length - 1]!;
     const range = document.createRange();
     range.setStart(textNodeOf(p1), 5);
     range.setEnd(wrapperOf(d1), 0);
@@ -202,7 +207,7 @@ describe("DOM selection mapping (cross-block ranges)", () => {
     selection.removeAllRanges();
     selection.addRange(range);
     const mapped = mapDomSelection(rootOf(), window.getSelection(), doc);
-    expect(mapped).toEqual({ kind: "text", from: { blockId: p1, offset: 5 }, to: null });
+    expect(mapped).toEqual({ kind: "text", from: { blockId: p1, offset: 5 }, to: { blockId: tailId, offset: 0 } });
   });
 
   it("a selection touching no text block maps to the blocks kind", () => {
@@ -265,7 +270,9 @@ describe("DOM selection mapping (cross-block ranges)", () => {
     wrapperOf(divider).before(nested);
 
     // The range spans from the paragraph into the divider (a non-text
-    // endpoint) over the nested editor.
+    // endpoint) over the nested editor. The tail guarantee stood the
+    // trailing paragraph over the divider's end — the endpoint stands it.
+    const tailId = doc.getChildren(doc.meta.id)[doc.getChildren(doc.meta.id).length - 1]!;
     const range = document.createRange();
     range.setStart(textNodeOf(p1), 1);
     range.setEnd(wrapperOf(divider), 0);
@@ -277,7 +284,7 @@ describe("DOM selection mapping (cross-block ranges)", () => {
     expect(mapped).toEqual({
       kind: "text",
       from: { blockId: p1, offset: 1 },
-      to: { blockId: p1, offset: 5 },
+      to: { blockId: tailId, offset: 0 },
     });
     // The foreign block id must never reach the engine (its selection view
     // rejects the unknown id).

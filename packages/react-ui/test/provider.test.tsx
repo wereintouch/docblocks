@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { StrictMode, act, memo } from "react";
 
-import { DestroyedViewError, createDoc } from "docblocks-core";
+import { DestroyedViewError, createDoc, loadDoc } from "docblocks-core";
 import type { BlockId, PresenceState, SyncProvider } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
@@ -42,6 +42,38 @@ function useCapture() {
 describe("EditorProvider + Editor", () => {
   // No vitest globals in this package: register the RTL cleanup explicitly.
   afterEach(cleanup);
+
+  it("a peer write leaving the tail non-text stands the trailing paragraph (the remote feed's guard)", async () => {
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "text");
+
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+
+    // The peer's state: the doc's own snapshot forked, the database landed
+    // over the tail, the full state applied as a remote update (no local
+    // origin; a no-op over what the doc already stands).
+    const fork = loadDoc(doc.encode());
+    fork.insertBlock("database", { tableId: "ext-remote" });
+    doc.applyUpdate(fork.encodeUpdate());
+    expect(doc.getBlock(doc.getChildren(doc.meta.id)[doc.getChildren(doc.meta.id).length - 1]!)?.type).toBe("database");
+
+    // The guard runs once the in-flight transaction settles (a microtask):
+    // the editable trailing paragraph stands over the non-text tail, as
+    // its own local write.
+    await act(async () => {
+      await new Promise<void>((resolve) => void queueMicrotask(() => void queueMicrotask(resolve)));
+    });
+    const sequence = doc.getChildren(doc.meta.id);
+    const tailId = sequence[sequence.length - 1]!;
+    expect(doc.getBlock(tailId)?.type).toBe("paragraph");
+    expect(doc.getText(tailId)).toBe("");
+  });
+
   it("renders text blocks with their markup", () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     const p = doc.insertBlock("paragraph");
