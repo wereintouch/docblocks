@@ -149,9 +149,16 @@ interface TableAttrs {
 interface ImageAttrs {
   /** Opaque blob key (resolved by the consumer). */
   src: string;
-  /** Width in px; `null` = natural width. */
+  /** The display width in px (the aspect ratio stands — the height
+   *  follows); absent or `null` = the editor's full width. The renderer
+   *  never draws the figure wider than the editor. */
   width?: number | null;
+  /** The figure's horizontal placement at a reduced width ("left" is the
+   *  absent attr). */
   align?: TextAlign;
+  /** The caption line below the figure (the code block's caption idiom;
+   *  the empty string is the removed state). */
+  caption?: string;
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }

@@ -65,6 +65,9 @@ interface DatabaseAttrs {
    *  schema live in the consumer's relational database, and the block
    *  holds only this reference. Mutually exclusive with `columns`. */
   tableId?: string;
+  /** The block's display name (the external-form view state): the grid's
+   *  title line; absent or empty = the bridge's table name stands. */
+  name?: string;
   /** The row filter (the external-form view state): the recursive and/or
    *  payload; the structure is checked by the validator's database
    *  branch. */
@@ -74,6 +77,11 @@ interface DatabaseAttrs {
   columnOrder?: string[];
   /** The hidden column ids. */
   hiddenColumns?: string[];
+  /** The per-visible-column widths in px (the external-form view state):
+   *  entry i stands the i-th visible column; an absent entry takes the
+   *  reader's default width. The widths are positional over the visible
+   *  sequence (the column-order / hidden-column changes re-base them). */
+  columnWidths?: number[];
   /** The saved views (the per-block instance). */
   views?: DatabaseSavedView[];
   /** The current view type (the v1 set; an unknown value falls back to
