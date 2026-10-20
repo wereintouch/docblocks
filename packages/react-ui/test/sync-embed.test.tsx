@@ -135,7 +135,9 @@ describe("states", () => {
       (el) => !wrapper.contains(el)
     );
     expect(outerHeadings).toHaveLength(0);
-    expect(outerParagraphs.map((el) => el.textContent)).toEqual(["Outer paragraph"]);
+    // The outer doc ends with the sync-embed (a non-text last block) — the
+    // editor's tail guarantee stands the trailing empty paragraph over it.
+    expect(outerParagraphs.map((el) => el.textContent)).toEqual(["Outer paragraph", ""]);
   });
 
   it("a subtree ref resolves: only the subtree block renders in the region", () => {

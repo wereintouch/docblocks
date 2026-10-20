@@ -297,13 +297,18 @@ test("a divider inside the composed chain is skipped by the extension and remove
   await inners(a, "a").last().click();
   await a.keyboard.type("three four");
   const blocks = await blocksOf(a, "a");
-  expect(blocks).toHaveLength(4);
+  // The harness inserts land at the sequence's end: the non-text tail
+  // stands its guaranteed trailing paragraph (the remote peer's guard
+  // writes it over the wire), so the sequence is p1, p2, the divider,
+  // the tail paragraph, and p3.
+  expect(blocks).toHaveLength(5);
   const p1 = blocks[0]!;
-  const p3 = blocks[3]!;
+  const p3 = blocks[4]!;
 
-  // From p1's start to 3 chars into p3: the shift+down extensions cross the
-  // empty p2 and must skip the divider (findSiblingTextBlock) to land in p3.
-  await selectAcrossBlocks(a, "a", 3, 2, false);
+  // From p1's start to 3 chars into p3: the shift+down extensions cross
+  // the empty p2 and must skip the divider (findSiblingTextBlock) to land
+  // in p3 (over the tail paragraph in between).
+  await selectAcrossBlocks(a, "a", 3, 3, false);
   const sel = await domSelection(a);
   expect(sel!.startBlock).toBe(p1.id);
   expect(sel!.endBlock).toBe(p3.id);
@@ -311,8 +316,8 @@ test("a divider inside the composed chain is skipped by the extension and remove
 
   await a.keyboard.type("X");
 
-  // p1 is fully consumed, the covered middle (p2, the divider) is
-  // cascade-removed, and p3 keeps its tail.
+  // p1 is fully consumed, the covered middle (p2, the divider, the tail
+  // paragraph) is cascade-removed, and p3 keeps its tail.
   expect(await blockOf(a, "a", p1.id)).toBeNull();
   const remaining = await blocksOf(a, "a");
   expect(remaining).toHaveLength(1);

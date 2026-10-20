@@ -64,7 +64,7 @@ import { useStore } from "zustand";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
-import type { BlockId } from "docblocks-core";
+import { BLOCK_REGISTRY, type BlockId } from "docblocks-core";
 
 import type { EditorView } from "../Editor";
 import { useEditorContext } from "../EditorProvider";
@@ -84,7 +84,7 @@ import { Button } from "../shared/ui/Button";
 import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
 import { GripVertical } from "../shared/ui/icons";
-import { type DropRow, commitFlatDrag, dropCandidateIndent, sameIds } from "./reorder";
+import { type DropRow, clampTailSeatCrossing, commitFlatDrag, dropCandidateIndent, sameIds } from "./reorder";
 
 /**
  * The enter/exit geometry of a row. The spacing margin collapses on exit
@@ -119,6 +119,43 @@ function pointerYOf(event: PointerEvent | MouseEvent | TouchEvent): number | nul
 
 /** How long the layout slide stays armed after a structural render (the slide itself runs 0.18s). */
 const SLIDE_SETTLE_MS = 400;
+
+/**
+ * The tail seat's id for the drag's preview clamp (or undefined when the
+ * clamp does not stand): the seat is the full-doc root's trailing row
+ * (the guaranteed trailing text paragraph), and it stands for a dragged
+ * row whose derived segment is NON-TEXT-terminated (a text-terminated
+ * segment lands its text tail last — the doc's tail invariant stands and
+ * the crossing is clean — no clamp, the end landing is the preview's
+ * stand). The seat's own drag stands unclamped too (it is a real block).
+ */
+function tailSeatId(
+  doc: import("docblocks-core").Doc,
+  rootBlockId: string,
+  draggedId: string,
+  trailingRowId: string | undefined
+): string | undefined {
+  if (trailingRowId === undefined || draggedId === trailingRowId) return undefined;
+  const segment = segmentRange(doc, rootBlockId, draggedId);
+  if (segment === null) return undefined;
+  const lastId = doc.getChildren(rootBlockId)[segment.end - 1];
+  if (lastId === undefined) return undefined;
+  const lastBlock = doc.getBlock(lastId);
+  if (lastBlock === null) return undefined;
+  if (BLOCK_REGISTRY[lastBlock.type].content) return undefined;
+  // The seat is a TOP-LEVEL trailing block only: the commit's seat (the
+  // segment lands just before it) would re-attach a nested trailing block
+  // to the childless non-text segment, so the commit stands the end
+  // landing there — the preview stands it too (the clamp's stand must
+  // match the commit's).
+  const trailingBlock = doc.getBlock(trailingRowId);
+  if (trailingBlock === null || trailingRowId === lastId) return undefined;
+  if (!BLOCK_REGISTRY[trailingBlock.type].content) return undefined;
+  const trailingAttrs =
+    "attrs" in trailingBlock ? (trailingBlock.attrs as Record<string, unknown> | undefined) : undefined;
+  const trailingIndent = typeof trailingAttrs?.indent === "number" ? trailingAttrs.indent : 0;
+  return trailingIndent === 0 ? trailingRowId : undefined;
+}
 
 /**
  * The drag affordance: the handle shows the grab cursor in this view
@@ -616,6 +653,10 @@ function MotionEditor({
     (id: BlockId, event: PointerEvent | MouseEvent | TouchEvent) => {
       armSlide();
       setDraggingKey(null);
+      // Park the focus on the editor root (the gesture's contract — like
+      // the gutter's delete): the undo / redo hotkeys stay reachable after
+      // the release (the drag's pointer capture leaves the focus on body).
+      rootRef.current?.focus({ preventScroll: true });
       const pointerY = pointerYOf(event);
       setPreviewIndent(null);
       if (pointerY === null) return; // a stale release measurement — the resync stands
@@ -627,7 +668,7 @@ function MotionEditor({
       }
       commitFlatDrag(doc, rootBlockId, id, orderRef.current, store.getState().collapsedIds, candidate);
     },
-    [armSlide, doc, orderRef, rootBlockId, seamCandidateAt, store]
+    [armSlide, doc, orderRef, rootBlockId, rootRef, seamCandidateAt, store]
   );
 
   // The cross-drag selection session owns the root's pointerdown (the
@@ -670,7 +711,29 @@ function MotionEditor({
               {view === "canvas" ? (
                 <CanvasView />
               ) : (
-                <Reorder.Group as="div" axis="y" values={order} onReorder={(next) => setOrder(next as BlockId[])}>
+                <Reorder.Group
+                  as="div"
+                  axis="y"
+                  values={order}
+                  onReorder={(next) =>
+                    setOrder(
+                      // The tail seat's clamp (the preview side): the full-doc
+                      // root's trailing text paragraph stands last — a
+                      // non-text-terminated dragged row stands above it (the
+                      // release's commit stands the same landing, so the
+                      // preview and the drop agree; a text-terminated
+                      // segment lands its text tail last — the invariant
+                      // stands and the crossing is clean).
+                      clampTailSeatCrossing(
+                        next as BlockId[],
+                        draggingKey ?? "",
+                        rootBlockId === doc.meta.id && draggingKey !== null
+                          ? tailSeatId(doc, rootBlockId, draggingKey, rowKeys[rowKeys.length - 1])
+                          : undefined
+                      )
+                    )
+                  }
+                >
                   <AnimatePresence initial={false} mode="sync">
                     {order.map((id) => {
                       const node = nodesById.get(id);

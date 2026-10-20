@@ -13,7 +13,7 @@ import type { ComponentType, KeyboardEvent, RefObject, SVGProps } from "react";
 
 import type { Block, BlockId, Doc } from "docblocks-core";
 import type { InsertBlockPosition } from "docblocks-core";
-import { DEFAULT_TABLE_COLUMN_WIDTH, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
+import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { useBlock } from "../hooks";
@@ -377,12 +377,12 @@ function applySlashPlan(
           after === undefined ? undefined : { parent: parentId, after },
           indent
         );
-        // A non-text landing (a divider) is not editable: when it takes
-        // the sequence's end, an empty paragraph stands after it (the
+        // A non-text landing (a divider / a table) is not editable: when it
+        // takes the sequence's end, an empty paragraph stands after it (the
         // caret seats there — without the trailing block there is no way
-        // to keep typing, and no caret stands in the divider itself).
+        // to keep typing, and no caret stands in the non-text block).
         let caretId = newId;
-        if (command.type === "divider") {
+        if (!BLOCK_REGISTRY[command.type].content) {
           const sequence = doc.getChildren(parentId);
           if (sequence[sequence.length - 1] === newId) {
             caretId = doc.insertBlock("paragraph", undefined, { parent: parentId, after: newId });
