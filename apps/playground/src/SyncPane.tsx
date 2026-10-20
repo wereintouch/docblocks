@@ -13,6 +13,7 @@ import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
 import { blobStore, databaseBridge, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
+import { BridgeInspector } from "./inspect/BridgeInspector";
 import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
@@ -48,7 +49,7 @@ declare global {
 const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
 
 /** The inspector tabs in the pane's system panel. */
-const TABS = ["json", "wire", "presence"] as const;
+const TABS = ["json", "wire", "presence", "bridge"] as const;
 type InspectTab = (typeof TABS)[number];
 
 /** The pane's live doc + provider pair; null before the mount effect ran. */
@@ -446,6 +447,9 @@ function SyncPane({
               </div>
               <div style={{ display: tab === "presence" ? undefined : "none" }}>
                 <PresencePanel client={client} peerLabel={peerLetter} mountAt={runtime.mountedAt} peers={presence} />
+              </div>
+              <div style={{ display: tab === "bridge" ? undefined : "none" }}>
+                <BridgeInspector client={client} />
               </div>
             </div>
           </div>
