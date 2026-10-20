@@ -1,0 +1,114 @@
+"use client";
+
+import { format } from "date-fns";
+
+import * as React from "react";
+
+import { Button } from "./Button";
+import { Calendar } from "./Calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
+import { Separator } from "./Separator";
+import { TimeSegments } from "./TimeSegments";
+import { cn } from "./cn";
+import { Calendar as CalendarIcon } from "./icons";
+
+/** The trigger's label: the compact date, + the time when it is not the
+ *  midnight zero (the seconds stand only when they are not zero). */
+function labelOf(value: Date): string {
+  const base = format(value, "dd.MM.yyyy");
+  if (value.getHours() === 0 && value.getMinutes() === 0 && value.getSeconds() === 0) return base;
+  const label = format(value, "HH:mm");
+  return value.getSeconds() !== 0 ? `${base} ${label}:${format(value, "ss")}` : `${base} ${label}`;
+}
+
+function hasTime(value: Date | null): boolean {
+  return value !== null && (value.getHours() !== 0 || value.getMinutes() !== 0 || value.getSeconds() !== 0);
+}
+
+function datePart(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+/**
+ * The date-and-time picker: the `DatePicker`'s calendar + the `TimeSegments`
+ * box in one portaled popover.
+ *
+ * The component is controlled: the `value` is a local-calendar `Date`, and
+ * `onSelect` commits the picked date + the typed time (the commit stands on
+ * the popover close — the escape / the outside press / an explicit close —
+ * as one step; a no-op close stands no commit). The day pick edits the draft
+ * date (picking the selected day again clears it — the day-picker's
+ * toggle), the time box edits the draft time; the extra props stand on the
+ * trigger button (the `data-*` hooks included; the native `value` /
+ * `onSelect` button props are omitted — they stand the picker's contract).
+ */
+function DateTimePicker({
+  value,
+  onSelect,
+  className,
+  placeholder = "—",
+  ...triggerProps
+}: {
+  value: Date | null;
+  onSelect: (date: Date | null) => void;
+  className?: string;
+  placeholder?: string;
+} & Omit<React.ComponentPropsWithoutRef<"button">, "value" | "onSelect">) {
+  const [open, setOpen] = React.useState(false);
+  const [draftDate, setDraftDate] = React.useState<Date | null>(null);
+  const [draftTime, setDraftTime] = React.useState<string | null>(null);
+
+  // The drafts stand from the value on the open (the close commits, so the
+  // in-flight draft never touches the consumer state).
+  React.useEffect(() => {
+    if (!open) return;
+    setDraftDate(value !== null ? datePart(value) : null);
+    setDraftTime(value !== null && hasTime(value) ? format(value, "HH:mm:ss") : null);
+  }, [open, value]);
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (next) return;
+    const committed = draftDate === null ? null : datePart(draftDate);
+    if (draftTime !== null && committed !== null) {
+      const [hours, minutes, seconds] = draftTime.split(":");
+      committed.setHours(Number(hours), Number(minutes), Number(seconds));
+    }
+    // A no-op close (the draft stands the value) stands no commit.
+    const before = value?.getTime() ?? null;
+    const after = committed?.getTime() ?? null;
+    if (before === after) return;
+    onSelect(committed);
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          data-empty={value ? undefined : true}
+          className={cn("justify-start text-left font-normal data-[empty=true]:text-muted-foreground", className)}
+          {...triggerProps}
+        >
+          <CalendarIcon />
+          {value ? labelOf(value) : <span>{placeholder}</span>}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={value ?? undefined}
+          {...(value !== null ? { defaultMonth: value } : {})}
+          onSelect={(date) => setDraftDate(date === undefined || date === null ? null : datePart(date))}
+        />
+        <Separator />
+        <div className="p-2">
+          <TimeSegments id="date-time-picker-time" value={draftTime} onChange={setDraftTime} clearable />
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+export { DateTimePicker };

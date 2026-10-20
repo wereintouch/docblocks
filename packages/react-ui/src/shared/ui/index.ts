@@ -1,8 +1,11 @@
 export { Alert, AlertDescription, AlertTitle } from "./Alert";
 export { Badge, badgeVariants } from "./Badge";
 export { Button, buttonVariants } from "./Button";
+export { Calendar, CalendarDayButton } from "./Calendar";
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Card";
 export { Checkbox } from "./Checkbox";
+export { DatePicker } from "./DatePicker";
+export { DateTimePicker } from "./DateTimePicker";
 export { FigureBorderSelector } from "./FigureBorderSelector";
 export {
   DropdownMenu,
@@ -46,5 +49,7 @@ export {
 export { ScrollArea } from "./ScrollArea";
 export { Skeleton } from "./Skeleton";
 export { Tabs, TabsContent, TabsList, TabsTrigger, tabsListVariants } from "./Tabs";
+export { TimeSegment } from "./TimeSegment";
+export { TimeSegments } from "./TimeSegments";
 export { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./Tooltip";
 export { cn } from "./cn";
