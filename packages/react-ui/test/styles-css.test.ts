@@ -89,4 +89,17 @@ describe("dist/styles.css contract", () => {
     // — see the ui.entry.css header); the artifact must not bake in a z-index.
     expect(STYLES_CSS).not.toContain(".z-modal");
   });
+
+  it("ships the database number cell's spin-button suppression (structural)", () => {
+    // The webkit spin pseudo elements stand no utility hook — the
+    // suppression ships in the structural section, scoped to the number
+    // cell's data-slot (the moz appearance falls back to a plain field).
+    expect(STYLES_CSS).toContain(
+      '[data-slot="docblocks/database-cell"][data-kind="number"] input[type="number"]::-webkit-inner-spin-button'
+    );
+    expect(STYLES_CSS).toContain(
+      '[data-slot="docblocks/database-cell"][data-kind="number"] input[type="number"]::-webkit-outer-spin-button'
+    );
+    expect(STYLES_CSS).toContain("-moz-appearance: textfield");
+  });
 });

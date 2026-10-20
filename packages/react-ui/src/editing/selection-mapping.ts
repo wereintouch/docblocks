@@ -43,6 +43,11 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
   // would flag the table row as selected and hand it to the
   // Delete/Backspace gesture, so the layer's selection maps to `none`.
   if (inActivationLayer(anchorNode) || inActivationLayer(focusNode)) return { kind: "none" };
+  // The database grid is an interactive surface with its own cell
+  // selection and keys: a DOM caret inside the grid is not a doc
+  // position, and the `blocks` mapping would flag the block for the
+  // Delete/Backspace gesture (the cell clear is the grid's own key).
+  if (inDatabaseGrid(anchorNode) || inDatabaseGrid(focusNode)) return { kind: "none" };
 
   const range = domSelection.getRangeAt(0);
   const anchorBlock = textBlockOf(anchorNode, root);
@@ -95,6 +100,16 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
 function inActivationLayer(node: Node): boolean {
   const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
   return element?.closest('[data-slot="docblocks/cell-activation"]') !== null;
+}
+
+/**
+ * Whether the endpoint sits inside a database grid (the interactive
+ * surface with its own cell selection; a DOM caret there carries no doc
+ * selection — the grid's keys own the stand).
+ */
+function inDatabaseGrid(node: Node): boolean {
+  const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return element?.closest('[data-slot="docblocks/database-grid"]') !== null;
 }
 
 /** One DOM selection endpoint and its closest text-editable block. */
