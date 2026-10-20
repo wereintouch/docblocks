@@ -12,7 +12,7 @@ export { EditorProvider, useEditorContext } from "./EditorProvider";
 export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver } from "./EditorProvider";
 export { blobSubtypeOf, createMemoryBlobStore } from "./blob-store";
 export type { BlobMeta, BlobRef, BlobSubtype, BlobStore } from "./blob-store";
-export { columnAnnotation, conditionMatches } from "./database/bridge";
+export { columnAnnotation, conditionMatches, parseCellValue } from "./database/bridge";
 export { createMemoryDatabaseBridge, getDefaultDatabaseBridge } from "./database/memory-bridge";
 export { emptyFilter, filterIsComplete, FilterBuilder } from "./database/filter-builder";
 export { useDatabaseTable } from "./database/use-database-table";
@@ -22,6 +22,7 @@ export type {
   BridgeColumnAnnotation,
   BridgeTableDescription,
   BridgeValueInput,
+  CellValueParse,
   DatabaseBridge,
   RowPage,
   RowQuery,

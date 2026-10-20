@@ -343,6 +343,16 @@ function ValueInput({ column, operator, value, onChange }: ValueInputProps) {
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
         />
       );
+    case "datetime":
+      return (
+        <input
+          type="datetime-local"
+          data-slot="docblocks/filter-value"
+          className={CONTROL_CLASS}
+          value={value === undefined || value === null ? "" : String(value)}
+          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
+        />
+      );
     case "select":
       return (
         <select
