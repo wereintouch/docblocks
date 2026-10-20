@@ -303,12 +303,16 @@ test("the slash Database picker inserts a block referencing a table", async ({ b
   // The picker stands over the open menu (the phrase intact).
   const picker = a.locator("[data-slot='docblocks/slash-database-picker']");
   await expect(picker).toBeVisible(SETTLE);
-  await expect(picker.locator("[data-slot='docblocks/slash-database-table']")).toHaveCount(1, SETTLE);
-  await expect(picker.locator("[data-slot='docblocks/slash-database-table']")).toHaveText("Demo");
+  // The picker lists the bridge's tables (the seeded demo + the extra dev
+  // fixture); pick the demo table by its id so the assertion is seed-count
+  // agnostic.
+  const demoTable = picker.locator(`[data-slot='docblocks/slash-database-table'][data-table-id="${demo.id}"]`);
+  await expect(demoTable).toBeVisible(SETTLE);
+  await expect(demoTable).toHaveText("Demo");
 
   // Pick the demo table: the phrase strips and the database block lands
   // (the `tableId` reference) — the ready grid renders from the bridge.
-  await picker.locator("[data-slot='docblocks/slash-database-table']").click();
+  await demoTable.click();
 
   const wrapper = a.locator("[data-block-type='database']");
   await expect(wrapper).toHaveCount(1, SETTLE);
