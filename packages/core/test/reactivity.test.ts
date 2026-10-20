@@ -262,3 +262,53 @@ describe("unsubscribe", () => {
     off3();
   });
 });
+
+describe("onRemoteChange", () => {
+  it("fires for the wire's applies and not for local transactions", () => {
+    const base = withParagraph();
+    const state = base.encode();
+    const doc = loadDoc(state);
+    const peer = loadDoc(state);
+    const changes: Change[] = [];
+    const off = doc.onRemoteChange((change) => changes.push(change));
+
+    // The local half: commands and the undo manager never stand the
+    // remote origin.
+    doc.insertText("b0", 0, "local");
+    doc.undo();
+    expect(changes).toHaveLength(0);
+
+    // The peer's write applied over the wire (no local origin): one
+    // emission.
+    peer.insertText("b0", 0, "remote");
+    doc.applyUpdate(peer.encodeUpdate(Y.encodeStateVector(doc.raw)));
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toEqual({ blockIds: ["b0"], metaChanged: false });
+    off();
+  });
+
+  it("a remote apply inside a local transaction keeps the local origin (no emission)", () => {
+    const base = withParagraph();
+    const state = base.encode();
+    const doc = loadDoc(state);
+    const peer = loadDoc(state);
+    const remoteBlock = peer.insertBlock("paragraph");
+    const remote = peer.encodeUpdate(Y.encodeStateVector(doc.raw));
+    const changes: Change[] = [];
+    const off = doc.onRemoteChange((change) => changes.push(change));
+    let localBlock = "";
+
+    // One Yjs transaction carrying both halves: the local transact stands
+    // the local origin over the whole transaction, so the feed stays idle
+    // (the gesture's own stand covers the local half).
+    doc.transact(() => {
+      localBlock = doc.insertBlock("paragraph");
+      doc.applyUpdate(remote);
+    });
+
+    expect(changes).toHaveLength(0);
+    expect(doc.getBlock(localBlock)).not.toBeNull();
+    expect(doc.getBlock(remoteBlock)).not.toBeNull();
+    off();
+  });
+});

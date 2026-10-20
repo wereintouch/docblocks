@@ -30,6 +30,7 @@ import {
 interface FakeSocket {
   url: string;
   closed: boolean;
+  opened: boolean;
   send(data: Uint8Array): void;
   close(): void;
   onopen: ((ev: unknown) => void) | null;
@@ -145,11 +146,17 @@ class WsRelay {
     const socket: FakeSocket = {
       url,
       closed: false,
+      opened: false,
       onopen: null,
       onmessage: null,
       onclose: null,
       onerror: null,
       send: (data: Uint8Array) => {
+        // The browser's WebSocket rejects a pre-open send; the fake stands
+        // the same rejection (the provider must buffer until open).
+        if (!socket.opened) {
+          throw new Error("WebSocket is not open: ready state CONNECTING");
+        }
         if (!socket.closed) this.#handleMessage(room, socket, data);
       },
       close: () => {
@@ -164,7 +171,9 @@ class WsRelay {
     room.controlled.set(socket, []);
     // The open event is deferred so the provider installs its handlers first.
     queueMicrotask(() => {
-      if (!socket.closed) socket.onopen?.(undefined);
+      if (socket.closed) return;
+      socket.opened = true;
+      socket.onopen?.(undefined);
     });
     // Standard server: on join push our state vector and the current awareness states.
     this.#queue.push({ to: socket, frame: buildSyncStep1Frame(room.doc) });

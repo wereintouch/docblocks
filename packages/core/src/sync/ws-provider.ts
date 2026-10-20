@@ -46,7 +46,8 @@ interface WsSyncOptions {
  *
  * `connect()` resolves when the socket is open and the step1 handshake is
  * sent; the initial state (step2) arrives through `onUpdate`. Updates sent
- * while disconnected are buffered and flushed on the next open. There is no
+ * while the socket is not open (before `connect()`, or during the
+ * CONNECTING window) are buffered and flushed on the next open. There is no
  * auto-reconnect: after an unexpected close the application calls
  * `connect()` again and the step1/step2 exchange resyncs.
  *
@@ -60,6 +61,7 @@ class WsSyncProvider implements SyncProvider {
   #doc: Y.Doc;
   #awareness: Awareness;
   #socket: WsLike | null = null;
+  #open = false;
   #pending: Uint8Array[] = [];
   #updateListeners = new Set<(bytes: Uint8Array) => void>();
   #awarenessListeners = new Set<(peers: PresenceState[]) => void>();
@@ -83,6 +85,7 @@ class WsSyncProvider implements SyncProvider {
       socket.onopen = () => {
         if (this.#socket !== socket) return;
         opened = true;
+        this.#open = true;
         socket.send(buildSyncStep1Frame(this.#doc));
         if (this.#awareness.getLocalState() !== null) {
           socket.send(buildAwarenessFrame(this.#awareness, [this.#awareness.clientID]));
@@ -110,6 +113,7 @@ class WsSyncProvider implements SyncProvider {
     if (this.#socket === null) return;
     const socket = this.#socket;
     this.#socket = null;
+    this.#open = false;
     this.#teardown();
     socket.close();
   }
@@ -124,10 +128,13 @@ class WsSyncProvider implements SyncProvider {
     this.#awareness.destroy();
   }
 
-  /** Send a local document update to peers (buffered while disconnected). */
+  /** Send a local document update to peers (buffered while the socket is not open). */
   sendUpdate(bytes: Uint8Array): void {
     Y.applyUpdate(this.#doc, bytes);
-    if (this.#socket !== null) {
+    // The socket stands CONNECTING between connect() and the open: a raw
+    // send there throws (the browser's WebSocket rejects pre-open sends),
+    // so the open flag — not the socket's presence — stands the gate.
+    if (this.#open && this.#socket !== null) {
       this.#socket.send(buildSyncUpdateFrame(bytes));
     } else {
       this.#pending.push(bytes);
@@ -181,6 +188,7 @@ class WsSyncProvider implements SyncProvider {
   #onClose(): void {
     if (this.#socket === null) return; // already torn down by disconnect()
     this.#socket = null;
+    this.#open = false;
     this.#teardown();
   }
 
@@ -229,7 +237,9 @@ class WsSyncProvider implements SyncProvider {
     removed: number[];
   }): void => {
     const changed = [...added, ...updated, ...removed];
-    if (changed.length > 0 && this.#socket !== null) {
+    // The open flag's gate (as in sendUpdate): the pre-open awareness
+    // stands resent over the open handshake (the local state's frame).
+    if (changed.length > 0 && this.#open && this.#socket !== null) {
       this.#socket.send(buildAwarenessFrame(this.#awareness, changed));
     }
     this.#emitAwareness();
