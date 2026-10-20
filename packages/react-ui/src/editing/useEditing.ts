@@ -3,7 +3,7 @@ import type { ClipboardEvent, KeyboardEvent, PointerEvent, RefObject } from "rea
 
 import { useEditorContext } from "../EditorProvider";
 import { entrySequenceParent } from "../blocks/flat";
-import { removeBlocksSelection } from "./block-commands";
+import { focusCaretIn, removeBlocksSelection } from "./block-commands";
 import { crossRangeClipboardContent } from "./cross-copy";
 import { useCrossDrag } from "./cross-drag";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
@@ -91,6 +91,21 @@ function useEditing(): EditingHandle {
         // none, so there is no double fire.
         if (event.key === "Delete" || event.key === "Backspace") {
           event.preventDefault();
+          // The image's delete is a conversion to an empty plain paragraph
+          // in place (the image's attrs drop), and the caret seats there —
+          // the block is never removed (a single-image selection; a
+          // multi-selection deletes as usual).
+          const first = selection.ids[0];
+          if (selection.ids.length === 1 && first !== undefined && doc.getBlock(first)?.type === "image") {
+            doc.changeBlockType(first, "paragraph");
+            // The type change remounts the row (the image figure unmounts
+            // and the browser drops the focus to the document): park it on
+            // the editor root (the undo hotkey reach) and re-seat the
+            // caret in the survivor on the next frame.
+            root?.focus();
+            focusCaretIn(first, 0, root ?? document);
+            return;
+          }
           removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), selection.ids);
           view.set({ kind: "none" });
           // The deleted rows unmount and the browser would drop the focus to
