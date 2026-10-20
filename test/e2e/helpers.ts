@@ -10,6 +10,22 @@ declare global {
     __masterDocs?: { a: MasterDoc | null; b: MasterDoc | null };
     /** The catalog pane's live doc (catalog mode only; null outside it) — the harness global the visual spec reads for the byte-stable snapshot. */
     __catalogDoc?: PaneDoc | null;
+    /** The playground pane's default database bridge (harness global; the state is per page) — the e2e bridge suite reads/drives it. */
+    __bridge?: {
+      listTables(): Promise<{ id: string; name: string }[]>;
+      createTable(name: string): Promise<string>;
+      createColumn(
+        tableId: string,
+        column: { id: string; name: string; type: string; options?: string[] }
+      ): Promise<void>;
+      insertRows(tableId: string, rows: Record<string, unknown>[]): Promise<string[]>;
+      describeTable(tableId: string): Promise<{ name: string; columns: { id: string; name: string; type: string }[] }>;
+      queryRows(
+        tableId: string,
+        query?: { filter?: unknown; orderBy?: string[]; cursor?: string; limit?: number }
+      ): Promise<{ rows: Record<string, Record<string, unknown>>; nextCursor: string | null }>;
+      updateRow(tableId: string, rowId: string, cells: Record<string, unknown>): Promise<void>;
+    };
   }
 }
 

@@ -25,6 +25,37 @@ interface DatabaseColumn {
 /** A database cell value per the column type (rich-text cells are v2). */
 type DatabaseCellValue = string | number | boolean | string[];
 
+/** A single filter condition (the column id, the operator, the value). */
+interface DatabaseFilterCondition {
+  /** The column id the condition applies to. */
+  columnId: string;
+  /** The operator name (the consumer's catalog or the package default). */
+  op: string;
+  /** The JSON value; absent for the empty / not-empty operators. */
+  value?: unknown;
+}
+
+/** The recursive and/or filter payload (the `filter` attr and the
+ *  `queryRows` filter parameter; the recursion depth is bounded by the
+ *  UI). */
+interface DatabaseFilterPayload {
+  logic: "and" | "or";
+  conditions: DatabaseFilterCondition[];
+  /** The nested groups (the recursion); absent or null = none. */
+  groups?: DatabaseFilterPayload[] | null;
+}
+
+/** A saved view (a per-block snapshot of the filter + the column
+ *  display state). */
+interface DatabaseSavedView {
+  /** The view id (local to the block). */
+  id: string;
+  name: string;
+  filter?: DatabaseFilterPayload;
+  columnOrder?: string[];
+  hiddenColumns?: string[];
+}
+
 interface DatabaseAttrs {
   /** The columns; a cell key references a column id. The inline form
    *  only — the external form (the `tableId` reference) carries no
@@ -34,6 +65,20 @@ interface DatabaseAttrs {
    *  schema live in the consumer's relational database, and the block
    *  holds only this reference. Mutually exclusive with `columns`. */
   tableId?: string;
+  /** The row filter (the external-form view state): the recursive and/or
+   *  payload; the structure is checked by the validator's database
+   *  branch. */
+  filter?: DatabaseFilterPayload;
+  /** The column display order (the column ids; absent = the schema's
+   *  order). */
+  columnOrder?: string[];
+  /** The hidden column ids. */
+  hiddenColumns?: string[];
+  /** The saved views (the per-block instance). */
+  views?: DatabaseSavedView[];
+  /** The current view type (the v1 set; an unknown value falls back to
+   *  `table` at render time). */
+  viewType?: "table" | "kanban" | "calendar";
   /** Nesting depth in the page sequence (default 0). */
   indent?: number;
 }
@@ -47,4 +92,13 @@ interface DatabaseBlock {
   rowOrder: string[];
 }
 
-export type { DatabaseAttrs, DatabaseBlock, DatabaseCellType, DatabaseCellValue, DatabaseColumn };
+export type {
+  DatabaseAttrs,
+  DatabaseBlock,
+  DatabaseCellType,
+  DatabaseCellValue,
+  DatabaseColumn,
+  DatabaseFilterCondition,
+  DatabaseFilterPayload,
+  DatabaseSavedView,
+};

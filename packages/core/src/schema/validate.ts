@@ -139,7 +139,11 @@ function validateAttrValue(
 /**
  * The fields of an `object` attr: required fields present, no unknown
  * fields, each field value validated by its own spec (the standard
- * messages apply per field).
+ * messages apply per field). An `object` attr WITHOUT declared `fields`
+ * is a free-form object: the plain-object check already stands (in the
+ * `object` case), and the structure is the caller's concern (the database
+ * `filter` payload is checked by its recursive branch — the recursion is
+ * not expressible in the flat AttrSpec).
  */
 function validateObjectFields(
   name: string,
@@ -148,7 +152,8 @@ function validateObjectFields(
   path: string,
   errors: ValidationError[]
 ): void {
-  const fields = spec.fields ?? {};
+  const fields = spec.fields;
+  if (fields === undefined) return; // a free-form object (no declared fields)
   for (const [fieldName, fieldSpec] of Object.entries(fields)) {
     if (fieldSpec.required && !(fieldName in value)) {
       errors.push({
@@ -348,6 +353,77 @@ function checkDatabaseCellValue(
  * the registry attrs spec (the `array` kind with per-column `object`
  * items). Runs from validateDoc and from the updateBlock post-patch check.
  */
+/** The recursion depth cap for the filter payload (the package's UI
+ *  builds no deeper; a backend may allow more, it validates on its own). */
+const MAX_DATABASE_FILTER_DEPTH = 8;
+
+/**
+ * The recursive and/or filter payload (the `filter` attr): a plain object
+ * with the `logic` and/or + the `conditions` list (the column id, the
+ * operator) + the optional `groups` recursion. The recursion is not
+ * expressible in the flat AttrSpec, so the structure is checked here,
+ * like the type-dependent options presence.
+ */
+function checkDatabaseFilter(value: unknown, path: string, errors: ValidationError[], depth = 0): void {
+  if (!isPlainObject(value)) {
+    errors.push({ path, message: `The filter must be a plain object (got ${show(value)}).` });
+    return;
+  }
+  const logic = value.logic;
+  if (logic !== "and" && logic !== "or") {
+    errors.push({
+      path: `${path}.logic`,
+      message: `The filter logic must be "and" or "or" (got ${show(logic)}).`,
+    });
+  }
+  const conditions = value.conditions;
+  if (!Array.isArray(conditions)) {
+    errors.push({
+      path: `${path}.conditions`,
+      message: `The filter conditions must be an array (got ${show(conditions)}).`,
+    });
+  } else {
+    conditions.forEach((condition, index) => {
+      const condPath = `${path}.conditions[${index}]`;
+      if (!isPlainObject(condition)) {
+        errors.push({ path: condPath, message: `A filter condition must be a plain object (got ${show(condition)}).` });
+        return;
+      }
+      if (typeof condition.columnId !== "string" || condition.columnId.length === 0) {
+        errors.push({
+          path: `${condPath}.columnId`,
+          message: `A filter condition requires a non-empty columnId (got ${show(condition.columnId)}).`,
+        });
+      }
+      if (typeof condition.op !== "string" || condition.op.length === 0) {
+        errors.push({
+          path: `${condPath}.op`,
+          message: `A filter condition requires a non-empty op (got ${show(condition.op)}).`,
+        });
+      }
+    });
+  }
+  const groups = value.groups;
+  if (groups === undefined || groups === null) return;
+  if (!Array.isArray(groups)) {
+    errors.push({
+      path: `${path}.groups`,
+      message: `The filter groups must be an array or null (got ${show(groups)}).`,
+    });
+    return;
+  }
+  groups.forEach((group, index) => {
+    if (depth + 1 <= MAX_DATABASE_FILTER_DEPTH) {
+      checkDatabaseFilter(group, `${path}.groups[${index}]`, errors, depth + 1);
+    } else {
+      errors.push({
+        path: `${path}.groups[${index}]`,
+        message: `The filter exceeds the maximum recursion depth (${MAX_DATABASE_FILTER_DEPTH}).`,
+      });
+    }
+  });
+}
+
 function validateDatabaseBlock(block: Record<string, unknown>, path: string, errors: ValidationError[]): void {
   const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
   // The dual shape: the external form (a non-empty `tableId` reference)
@@ -357,6 +433,9 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
   // options presence.
   const tableId = attrs !== undefined ? attrs.tableId : undefined;
   const external = typeof tableId === "string" && tableId.length > 0;
+  if (attrs !== undefined && attrs.filter !== undefined) {
+    checkDatabaseFilter(attrs.filter, `${path}.attrs.filter`, errors);
+  }
   const columns: Array<{ id: string; type: string; options?: string[] }> = [];
   if (external && attrs !== undefined && attrs.columns !== undefined) {
     errors.push({

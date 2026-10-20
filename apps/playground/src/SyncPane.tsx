@@ -11,7 +11,7 @@ import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach
 import { ChaosBar } from "./ChaosBar";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
-import { blobStore, insertBlockOf } from "./insert-blocks";
+import { blobStore, databaseBridge, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
@@ -29,6 +29,8 @@ declare global {
   interface Window {
     /** Harness-only: the live docs of the mounted panes (per letter; null until the pane's effect ran); the e2e suite drives the command API through them. */
     __paneDocs?: { a: Doc | null; b: Doc | null };
+    /** Harness-only: the pane's default database bridge (the e2e bridge suite drives it; the state is per page). */
+    __bridge?: import("docblocks-react-ui").DatabaseBridge;
     /** Harness-only: the mounted panes' master docs (the sync-embed targets, per letter; null until the pane's effect ran); the e2e suite drives the master's command API through them. */
     __masterDocs?: { a: Doc | null; b: Doc | null };
     /** Harness-only: inserts a v1 block of `type` into the pane's doc with the harness attrs (see insert-blocks.ts) and returns its id (null if the pane is not mounted); the e2e suite's insert path in place of the removed insert controls. */
@@ -212,6 +214,10 @@ function SyncPane({
       a: client === "a" ? doc : (window.__paneDocs?.a ?? null),
       b: client === "b" ? doc : (window.__paneDocs?.b ?? null),
     };
+
+    // The pane's default database bridge for the e2e bridge suite (the
+    // bridge state is per page; the event echo converges the panes).
+    window.__bridge = databaseBridge;
 
     // The pane's master doc (per letter) for the e2e tests that drive the
     // sync-embed master's command API (the peer-side edits into the

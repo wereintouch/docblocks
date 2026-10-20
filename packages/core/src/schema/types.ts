@@ -350,4 +350,13 @@ export type {
   SurfaceBlock,
   WithGeometry,
 } from "./canvas";
-export type { DatabaseAttrs, DatabaseBlock, DatabaseCellType, DatabaseCellValue, DatabaseColumn } from "./database";
+export type {
+  DatabaseAttrs,
+  DatabaseBlock,
+  DatabaseCellType,
+  DatabaseCellValue,
+  DatabaseColumn,
+  DatabaseFilterCondition,
+  DatabaseFilterPayload,
+  DatabaseSavedView,
+} from "./database";

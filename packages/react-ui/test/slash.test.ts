@@ -73,7 +73,7 @@ describe("deriveSlash", () => {
 
 describe("filterCommands", () => {
   it("stands the full list on an empty query", () => {
-    expect(filterCommands("")).toHaveLength(15);
+    expect(filterCommands("")).toHaveLength(16);
   });
 
   it("filters by a case-insensitive substring of the label", () => {
@@ -82,6 +82,7 @@ describe("filterCommands", () => {
     expect(filterCommands("list").map((c) => c.label)).toEqual(["Bulleted list", "Numbered list", "Task list"]);
     expect(filterCommands("quote").map((c) => c.label)).toEqual(["Quote"]);
     expect(filterCommands("image").map((c) => c.label)).toEqual(["Image"]);
+    expect(filterCommands("database").map((c) => c.label)).toEqual(["Database"]);
     expect(filterCommands("table").map((c) => c.label)).toEqual(["Table"]);
   });
 

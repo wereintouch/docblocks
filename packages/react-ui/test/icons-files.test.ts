@@ -18,6 +18,7 @@ const ICON_SET = [
   "CodeXml",
   "Copy",
   "Curve",
+  "Database",
   "Diagonal",
   "Diamond",
   "Dot",

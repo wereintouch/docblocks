@@ -1,0 +1,358 @@
+/**
+ * The external-form database data provider: the `useDatabaseTable` hook.
+ * Loads the table schema (`describeTable`) and the row pages
+ * (`queryRows` with the block's `filter`), subscribes to the table's
+ * live events (the refetch on any event — the bridge is the source of
+ * truth), and exposes the row / column operations with the optimistic
+ * layer (the local apply before the bridge call, the rollback to the
+ * pre-operation snapshot + the refetch on a reject) and the
+ * FORWARD-ONLY per-block undo stack (the inverse operations: insert →
+ * remove, update → update with the old cells, remove → undelete (when
+ * the consumer has soft-delete — otherwise the removal is not undoable
+ * and never enters the stack), move → move back). The doc-undo does not
+ * cover the table rows (they are not in the doc); the hotkey wiring is
+ * the consumer UI (the `undo` / `redo` API).
+ */
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import type { DatabaseFilterPayload } from "docblocks-core";
+
+import type { BridgeColumn, BridgeTableDescription, DatabaseBridge } from "./bridge";
+
+/** One loaded row: the row id (the pk value) + the cells. */
+interface DatabaseTableRow {
+  rowId: string;
+  cells: Record<string, unknown>;
+}
+
+type DatabaseTablePhase = "loading" | "ready" | "broken";
+
+/** The page size the provider loads (the `nextCursor` continuation). */
+const PAGE_SIZE = 200;
+
+/** The undo stack entry: the inverse bridge operation. */
+interface InverseOp {
+  label: string;
+  apply: () => Promise<void>;
+}
+
+/** The public result of the hook (the grid renderer + the consumer UI read from it). */
+interface UseDatabaseTable {
+  phase: DatabaseTablePhase;
+  /** The table description (the schema); null while loading / broken. */
+  table: BridgeTableDescription | null;
+  /** The loaded rows in the row order. */
+  rows: DatabaseTableRow[];
+  /** The cursor of the next page; null = the last page is loaded. */
+  nextCursor: string | null;
+  /** The last operation error (the transient display); cleared on the next load. */
+  error: string | null;
+  insertRow(cells?: Record<string, unknown>): Promise<string>;
+  updateRow(rowId: string, cells: Record<string, unknown>): Promise<void>;
+  removeRow(rowId: string): Promise<void>;
+  moveRow(rowId: string, beforeRowId: string | null): Promise<void>;
+  addColumn(column: BridgeColumn, afterColumnId?: string): Promise<void>;
+  deleteColumn(columnId: string): Promise<void>;
+  renameColumn(columnId: string, name: string): Promise<void>;
+  /** Loads the next page (the `nextCursor` continuation). */
+  loadMore(): Promise<void>;
+  /** Reloads from the bridge (the broken-state retry). */
+  retry(): void;
+  /** The forward-only undo (the inverse operation via the bridge). */
+  undo(): Promise<void>;
+  /** The forward-only redo. */
+  redo(): Promise<void>;
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+/**
+ * The external-form data provider for one `tableId` (per block instance:
+ * each block has its own row store and its own undo stack, even when
+ * several blocks reference the same table).
+ */
+function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: DatabaseFilterPayload): UseDatabaseTable {
+  const [phase, setPhase] = useState<DatabaseTablePhase>("loading");
+  const [table, setTable] = useState<BridgeTableDescription | null>(null);
+  const [rows, setRows] = useState<DatabaseTableRow[]>([]);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loadVersion, setLoadVersion] = useState(0);
+  const [, setStackVersion] = useState(0); // a re-render trigger for canUndo / canRedo
+
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const undoStackRef = useRef<InverseOp[]>([]);
+  const redoStackRef = useRef<InverseOp[]>([]);
+  const filterKey = filter === undefined ? "" : JSON.stringify(filter);
+
+  /** Loads the description + the first page; `quiet` = no loading flicker (the refetch). */
+  const load = useCallback(
+    async (quiet: boolean) => {
+      if (!quiet) setPhase("loading");
+      try {
+        const description = await bridge.describeTable(tableId);
+        const page = await bridge.queryRows(tableId, {
+          filter: filter === undefined ? undefined : filter,
+          limit: PAGE_SIZE,
+        });
+        setTable(description);
+        setRows(Object.entries(page.rows).map(([rowId, cells]) => ({ rowId, cells })));
+        setNextCursor(page.nextCursor ?? null);
+        setError(null);
+        setPhase("ready");
+      } catch (loadError) {
+        if (quiet) return; // a refetch failure keeps the current state
+        setPhase("broken");
+        setError(loadError instanceof Error ? loadError.message : String(loadError));
+      }
+    },
+    // The filter by its serialized key (the store re-renders with a fresh
+    // object reference only when the block's JSON changed).
+    [bridge, tableId, filterKey, loadVersion]
+  );
+
+  // The initial load + the live subscription (the refetch on any event —
+  // the subscription delivers events for ALL rows regardless of the
+  // client's filter / page; the bridge is the source of truth).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      if (cancelled) return;
+      await load(false);
+    })();
+    const unsubscribe = bridge.subscribeTable(tableId, () => {
+      if (!cancelled) void load(true);
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [load, tableId, bridge]);
+
+  const bump = useCallback(() => setStackVersion((version) => version + 1), []);
+  const pushUndo = useCallback(
+    (op: InverseOp) => {
+      undoStackRef.current.push(op);
+      redoStackRef.current = []; // a new operation clears the redo side (forward-only)
+      bump();
+    },
+    [bump]
+  );
+
+  const refresh = useCallback(() => {
+    void load(true);
+  }, [load]);
+
+  const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
+  const insertRow = useCallback(
+    async (cells: Record<string, unknown> = {}) => {
+      // The row id is bridge-assigned (the pk value), so the insert waits
+      // for the response (no optimistic row id to reconcile).
+      const rowId = await bridge.insertRow(tableId, cells);
+      pushUndo({ label: `insert row ${rowId}`, apply: async () => bridge.removeRow(tableId, rowId) });
+      refresh();
+      return rowId;
+    },
+    [bridge, tableId, pushUndo, refresh]
+  );
+
+  const updateRow = useCallback(
+    async (rowId: string, cells: Record<string, unknown>) => {
+      const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      const current = rowsRef.current.find((row) => row.rowId === rowId);
+      const cleaned: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(cells)) if (value !== undefined) cleaned[key] = value;
+      setRows((rows) =>
+        rows.map((row) => (row.rowId === rowId ? { ...row, cells: { ...row.cells, ...cleaned } } : row))
+      );
+      try {
+        await bridge.updateRow(tableId, rowId, cleaned);
+        if (current !== undefined) {
+          pushUndo({
+            label: `update row ${rowId}`,
+            apply: async () => bridge.updateRow(tableId, rowId, { ...current.cells }),
+          });
+        }
+        refresh();
+      } catch (operationError) {
+        setRows(snapshot);
+        refresh();
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, pushUndo, refresh]
+  );
+
+  const removeRow = useCallback(
+    async (rowId: string) => {
+      const snapshot = rowsRef.current;
+      const row = snapshot.find((entry) => entry.rowId === rowId);
+      setRows((rows) => rows.filter((entry) => entry.rowId !== rowId));
+      try {
+        await bridge.removeRow(tableId, rowId);
+        // Without soft-delete (no undeleteRows) the removal is NOT
+        // undoable: it never enters the stack.
+        if (row !== undefined && bridge.undeleteRows !== undefined) {
+          pushUndo({ label: `remove row ${rowId}`, apply: async () => bridge.undeleteRows!(tableId, [rowId]) });
+        }
+        refresh();
+      } catch (operationError) {
+        setRows(snapshot);
+        refresh();
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, pushUndo, refresh]
+  );
+
+  const moveRow = useCallback(
+    async (rowId: string, beforeRowId: string | null) => {
+      const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      const original = rowsRef.current;
+      const from = original.findIndex((row) => row.rowId === rowId);
+      if (from === -1) return;
+      // The inverse (the forward-only undo): move back to the original
+      // seat — before the row that stood before it in the pre-move order.
+      const backBefore = from > 0 ? original[from - 1]!.rowId : null;
+      const ordered = [...original];
+      const moved = ordered.splice(from, 1)[0]!;
+      const at = beforeRowId === null ? -1 : ordered.findIndex((row) => row.rowId === beforeRowId);
+      ordered.splice(beforeRowId === null || at === -1 ? ordered.length : at, 0, moved);
+      setRows(ordered);
+      try {
+        await bridge.moveRow(tableId, rowId, beforeRowId);
+        pushUndo({ label: `move row ${rowId}`, apply: async () => bridge.moveRow(tableId, rowId, backBefore) });
+        refresh();
+      } catch (operationError) {
+        setRows(snapshot);
+        refresh();
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, pushUndo, refresh]
+  );
+
+  const addColumn = useCallback(
+    async (column: BridgeColumn, afterColumnId?: string) => {
+      try {
+        await bridge.createColumn(tableId, column, afterColumnId);
+        pushUndo({
+          label: `create column ${column.id}`,
+          apply: async () => bridge.deleteColumn(tableId, column.id),
+        });
+      } catch (operationError) {
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, pushUndo]
+  );
+
+  const deleteColumn = useCallback(
+    async (columnId: string) => {
+      const column = table?.columns.find((entry) => entry.id === columnId);
+      if (column === undefined) return;
+      try {
+        await bridge.deleteColumn(tableId, columnId);
+        pushUndo({
+          label: `delete column ${columnId}`,
+          apply: async () => bridge.createColumn(tableId, column),
+        });
+      } catch (operationError) {
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, table, pushUndo]
+  );
+
+  const renameColumn = useCallback(
+    async (columnId: string, name: string) => {
+      const column = table?.columns.find((entry) => entry.id === columnId);
+      if (column === undefined || column.name === name) return;
+      try {
+        await bridge.renameColumn(tableId, columnId, name);
+        pushUndo({
+          label: `rename column ${columnId}`,
+          apply: async () => bridge.renameColumn(tableId, columnId, column.name),
+        });
+      } catch (operationError) {
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, table, pushUndo]
+  );
+
+  const loadMore = useCallback(async () => {
+    if (nextCursor === null) return;
+    try {
+      const page = await bridge.queryRows(tableId, {
+        filter: filter === undefined ? undefined : filter,
+        cursor: nextCursor,
+        limit: PAGE_SIZE,
+      });
+      setRows((rows) => {
+        const known = new Set(rows.map((row) => row.rowId));
+        const appended = Object.entries(page.rows)
+          .filter(([rowId]) => !known.has(rowId))
+          .map(([rowId, cells]) => ({ rowId, cells }));
+        return [...rows, ...appended];
+      });
+      setNextCursor(page.nextCursor ?? null);
+    } catch (operationError) {
+      setError(messageOf(operationError));
+    }
+  }, [bridge, tableId, nextCursor, filterKey]);
+
+  const retry = useCallback(() => setLoadVersion((version) => version + 1), []);
+
+  const undo = useCallback(async () => {
+    const op = undoStackRef.current.pop();
+    if (op === undefined) return;
+    try {
+      await op.apply();
+      redoStackRef.current.push(op);
+    } catch (operationError) {
+      setError(messageOf(operationError));
+    }
+    bump();
+    refresh();
+  }, [bump, refresh]);
+
+  const redo = useCallback(async () => {
+    const op = redoStackRef.current.pop();
+    if (op === undefined) return;
+    try {
+      await op.apply();
+      undoStackRef.current.push(op);
+    } catch (operationError) {
+      setError(messageOf(operationError));
+    }
+    bump();
+    refresh();
+  }, [bump, refresh]);
+
+  return {
+    phase,
+    table,
+    rows,
+    nextCursor,
+    error,
+    insertRow,
+    updateRow,
+    removeRow,
+    moveRow,
+    addColumn,
+    deleteColumn,
+    renameColumn,
+    loadMore,
+    retry,
+    undo,
+    redo,
+    canUndo: undoStackRef.current.length > 0,
+    canRedo: redoStackRef.current.length > 0,
+  };
+}
+
+export { useDatabaseTable };
+export type { DatabaseTableRow, DatabaseTablePhase };

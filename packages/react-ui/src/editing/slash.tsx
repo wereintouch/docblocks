@@ -21,6 +21,7 @@ import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
 import {
   CodeXml,
+  Database,
   Heading1,
   Heading2,
   Heading3,
@@ -37,6 +38,7 @@ import {
 } from "../shared/ui/icons";
 import { focusCaretIn, focusCellActivation, segmentRange } from "./block-commands";
 import { caretOffsetIn, locatePosition, selectionInside } from "./dom-offset";
+import { DatabaseSlashPicker } from "./slash-database-picker";
 
 /**
  * The empty-block hint text: shown while the caret sits in a text block
@@ -102,9 +104,14 @@ const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
  * stripped), the file picker opens over the open menu, and the image
  * lands after the caret block in one transact once the upload resolved —
  * the doc holds only the committed key; a refused or cancelled pick
- * commits nothing. Externally referenced types (database, embed,
- * sync-embed, the canvas types) are not offered; they stay command-API
- * inserts.
+ * commits nothing. The database is a picker insert (the bridge, decision
+ * 2026-10-19): the caret block stands (the trigger phrase stripped), the
+ * table picker stands over the open menu (the existing tables + the
+ * create-new form), and the block lands after the caret block in one
+ * transact once a table is picked — the doc holds only the `tableId`
+ * reference; a cancelled pick commits nothing. Externally referenced types
+ * (embed, sync-embed, the canvas types) are not offered; they stay
+ * command-API inserts.
  */
 
 /** A 24px-stroke icon component (the package icon set). */
@@ -121,6 +128,7 @@ type SlashCommand =
   | { label: string; icon: SlashIcon; type: "latex"; attrs: { display: boolean } }
   | { label: string; icon: SlashIcon; type: "divider" }
   | { label: string; icon: SlashIcon; type: "image" }
+  | { label: string; icon: SlashIcon; type: "database" }
   | { label: string; icon: SlashIcon; type: "table" };
 
 /** The v1 command list (filterable by the typed query). */
@@ -139,6 +147,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Formula", icon: Sigma, type: "latex", attrs: { display: false } },
   { label: "Divider", icon: SquareSplitVertical, type: "divider" },
   { label: "Image", icon: ImageIcon, type: "image" },
+  { label: "Database", icon: Database, type: "database" },
   { label: "Table", icon: Table, type: "table" },
 ];
 
@@ -507,12 +516,25 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   // and the slash anchor), committed on the file pick.
   const imageClickRef = useRef<{ open: () => void } | null>(null);
   const pendingImageRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
+  // The slash Database picker: the open flag (the menu panel stands the
+  // picker over the phrase) + the pending pick context, committed on the
+  // table pick.
+  const [databasePick, setDatabasePick] = useState(false);
+  const databasePickRef = useRef(false);
+  databasePickRef.current = databasePick;
+  const pendingDatabaseRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
 
   const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
+    setDatabasePick(false);
+    pendingDatabaseRef.current = null;
     setState({ blockId, parentId, slashOffset, active: 0 });
   }, []);
 
-  const close = useCallback(() => setState(null), []);
+  const close = useCallback(() => {
+    setDatabasePick(false);
+    pendingDatabaseRef.current = null;
+    setState(null);
+  }, []);
 
   /** The open-menu derivation (the live doc text + the live caret). */
   const openDerivation = useCallback(
@@ -571,6 +593,14 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       if (command.type === "image") {
         pendingImageRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
         imageClickRef.current?.open();
+        return;
+      }
+      // The database is a picker insert: the menu stands open (the phrase
+      // stays intact, the derivation stays live) while the picker stands;
+      // the commit (phrase strip + the insert) lands on the table pick.
+      if (command.type === "database") {
+        pendingDatabaseRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
+        setDatabasePick(true);
         return;
       }
       setState(null);
@@ -643,6 +673,53 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     [blobStore, close, doc, rootRef]
   );
 
+  /**
+   * The table pick of the slash Database command: one transact — the
+   * trigger phrase strip (when it still stands at its anchor) + the
+   * database insert (the `tableId` reference) after the caret block, a
+   * trailing empty paragraph when the block takes the sequence's end (the
+   * caret seats there), and the caret re-seat. A cancelled pick commits
+   * nothing (the menu stands open on the phrase).
+   */
+  const commitDatabase = useCallback(
+    (tableId: string) => {
+      const pending = pendingDatabaseRef.current;
+      pendingDatabaseRef.current = null;
+      setDatabasePick(false);
+      if (pending === null) return;
+      const { blockId, parentId, slashOffset } = pending;
+      if (doc.getBlock(blockId) === null) return;
+      const scope = rootRef.current ?? document;
+      try {
+        doc.transact(() => {
+          const current = doc.getBlock(blockId);
+          if (current === null) return;
+          const indent = indentOf(current);
+          const ind = indent !== 0 ? { indent } : {};
+          const text = blockTextOf(current);
+          if (text.charAt(slashOffset) === "/") {
+            let queryEnd = slashOffset + 1;
+            while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
+            doc.deleteText(blockId, slashOffset, queryEnd);
+          }
+          const databaseId = doc.insertBlock("database", { tableId, ...ind }, { parent: parentId, after: blockId });
+          const sequence = doc.getChildren(parentId);
+          if (sequence[sequence.length - 1] === databaseId) {
+            const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: databaseId });
+            focusCaretIn(trailingId, 0, scope);
+          } else {
+            focusCaretIn(blockId, slashOffset, scope);
+          }
+        });
+      } catch (error) {
+        if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
+        throw error;
+      }
+      close();
+    },
+    [close, doc, rootRef]
+  );
+
   const handleOpenMenuKey = useCallback(
     (key: OpenMenuKey, blockId: BlockId): boolean => {
       const s = stateRef.current;
@@ -653,6 +730,16 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         return false;
       }
       const items = filterCommands(derivation.query);
+      // The picker state: the Escape cancels the picker (the menu stands
+      // open on the phrase); the picker's input stops its own keys' propagation.
+      if (databasePickRef.current) {
+        if (key.key === "Escape") {
+          setDatabasePick(false);
+          pendingDatabaseRef.current = null;
+          return true;
+        }
+        return false;
+      }
       switch (key.key) {
         case "Escape":
           close();
@@ -752,6 +839,12 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         onClose={close}
         onImageFile={handleImageFile}
         imageClickRef={imageClickRef}
+        databasePick={databasePick}
+        onDatabasePickCancel={() => {
+          setDatabasePick(false);
+          pendingDatabaseRef.current = null;
+        }}
+        onDatabaseCommit={commitDatabase}
       />
     ) : null;
 
@@ -766,6 +859,9 @@ interface SlashMenuProps {
   onClose: () => void;
   onImageFile: (file: File | null) => void;
   imageClickRef: RefObject<{ open: () => void } | null>;
+  databasePick: boolean;
+  onDatabasePickCancel: () => void;
+  onDatabaseCommit: (tableId: string) => void;
 }
 
 /**
@@ -775,7 +871,18 @@ interface SlashMenuProps {
  * query back to a match brings the list back). The mousedown suppression
  * keeps the block's selection (and focus) alive across an item click.
  */
-function SlashMenu({ rootRef, state, onHover, onPick, onClose, onImageFile, imageClickRef }: SlashMenuProps) {
+function SlashMenu({
+  rootRef,
+  state,
+  onHover,
+  onPick,
+  onClose,
+  onImageFile,
+  imageClickRef,
+  databasePick,
+  onDatabasePickCancel,
+  onDatabaseCommit,
+}: SlashMenuProps) {
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
 
@@ -805,7 +912,7 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose, onImageFile, imag
   }, [text, state, rootRef, onClose]);
 
   const items = derived === null ? [] : filterCommands(derived.query);
-  const visible = items.length > 0;
+  const visible = items.length > 0 || databasePick;
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 
   // Anchor at the "/" character: below the line, or above it when the
@@ -887,25 +994,31 @@ function SlashMenu({ rootRef, state, onHover, onPick, onClose, onImageFile, imag
           onImageFile(file);
         }}
       />
-      {items.map((command, index) => (
-        <div
-          key={command.label}
-          role="menuitem"
-          data-slot="docblocks/slash-item"
-          data-active={index === active || undefined}
-          className={cn(
-            "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none",
-            "[&_svg]:pointer-events-none [&_svg]:shrink-0",
-            index === active && "bg-accent text-accent-foreground"
-          )}
-          onMouseEnter={() => onHover(index)}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => onPick(index)}
-        >
-          <command.icon className="size-4" />
-          {command.label}
-        </div>
-      ))}
+      {databasePick ? (
+        <DatabaseSlashPicker onCommit={onDatabaseCommit} onCancel={onDatabasePickCancel} />
+      ) : (
+        <>
+          {items.map((command, index) => (
+            <div
+              key={command.label}
+              role="menuitem"
+              data-slot="docblocks/slash-item"
+              data-active={index === active || undefined}
+              className={cn(
+                "relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none",
+                "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+                index === active && "bg-accent text-accent-foreground"
+              )}
+              onMouseEnter={() => onHover(index)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onPick(index)}
+            >
+              <command.icon className="size-4" />
+              {command.label}
+            </div>
+          ))}
+        </>
+      )}
     </ScrollArea>
   );
 }

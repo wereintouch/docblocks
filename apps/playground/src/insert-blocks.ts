@@ -1,5 +1,5 @@
-import { createMemoryBlobStore } from "docblocks-react-ui";
-import type { BlobRef, BlobStore } from "docblocks-react-ui";
+import { createMemoryBlobStore, getDefaultDatabaseBridge } from "docblocks-react-ui";
+import type { BlobRef, BlobStore, DatabaseBridge } from "docblocks-react-ui";
 
 import type { BlockId, DatabaseAttrs, Doc } from "docblocks-core";
 
@@ -39,6 +39,37 @@ const MERMAID_SEED = "graph TD\n A --> B";
 
 /** The fixed unknown docId the broken sync-embed option references. */
 const MISSING_MASTER_ID = "missing-master";
+
+/** The default bridge's demo table (the deterministic per-page seed; the
+ *  event echo keeps the tabs in sync). */
+const BRIDGE_DEMO_TABLE_ID = "table-1";
+
+// The default bridge's demo table: seeded once per page (both panes seed
+// the same deterministic state; the bridge's event echo converges the
+// concurrent seeds idempotently). The e2e bridge suite and the slash
+// picker demo read from it.
+void (async () => {
+  const bridge = getDefaultDatabaseBridge();
+  if ((await bridge.listTables()).length > 0) return;
+  await bridge.createTable("Demo");
+  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, { id: "title", name: "Title", type: "text" });
+  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, { id: "count", name: "Count", type: "integer" });
+  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, { id: "done", name: "Done", type: "boolean" });
+  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, {
+    id: "status",
+    name: "Status",
+    type: "text",
+    options: ["todo", "doing", "done"],
+  });
+  await bridge.insertRows(BRIDGE_DEMO_TABLE_ID, [
+    { title: "First task", count: 1, done: false, status: "todo" },
+    { title: "Second task", count: 2, done: true, status: "done" },
+    { title: "Third task", count: 3, done: false, status: "doing" },
+  ]);
+})();
+
+/** The pane's default database bridge (the e2e + the dev tools drive it). */
+const databaseBridge: DatabaseBridge = getDefaultDatabaseBridge();
 
 /** The database seed the harness inserts (harness convenience; the user edits it in the block). */
 const DATABASE_COLUMNS: DatabaseAttrs["columns"] = [
@@ -199,5 +230,5 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
   return id;
 }
 
-export { blobStore, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedCanvas, seedDatabase };
+export { blobStore, databaseBridge, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedCanvas, seedDatabase };
 export type { InsertableType };
