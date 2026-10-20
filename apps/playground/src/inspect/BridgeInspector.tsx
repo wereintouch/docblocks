@@ -84,6 +84,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const [colType, setColType] = useState("text");
   const [colOptions, setColOptions] = useState("");
   const [renames, setRenames] = useState<Record<string, string>>({});
+  const [tableRenames, setTableRenames] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const mountedAt = useRef(Date.now());
   const eventSeq = useRef(0);
@@ -204,6 +205,22 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
         delete next[columnId];
         return next;
       });
+      await refreshTable(selected);
+    });
+  };
+
+  const renameTable = (): void => {
+    if (selected === null || desc === null) return;
+    const name = (tableRenames[selected] ?? "").trim();
+    if (name === "" || name === desc.name) return;
+    run("renameTable", async () => {
+      await bridge.renameTable(selected, name);
+      setTableRenames((prev) => {
+        const next = { ...prev };
+        delete next[selected];
+        return next;
+      });
+      await refreshTables();
       await refreshTable(selected);
     });
   };
@@ -352,6 +369,20 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
             + create
           </button>
         </div>
+        {selected !== null && (
+          <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
+            <input
+              style={{ ...input, flex: 1 }}
+              placeholder="rename selected table"
+              value={tableRenames[selected] ?? ""}
+              onChange={(event) => setTableRenames((prev) => ({ ...prev, [selected]: event.target.value }))}
+              onKeyDown={(event) => event.key === "Enter" && renameTable()}
+            />
+            <button type="button" style={btn} onClick={renameTable}>
+              rename table
+            </button>
+          </div>
+        )}
       </div>
 
       {selected !== null && desc !== null && (

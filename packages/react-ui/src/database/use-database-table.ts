@@ -61,6 +61,9 @@ interface UseDatabaseTable {
   addColumn(column: BridgeColumn, afterColumnId?: string): Promise<void>;
   deleteColumn(columnId: string): Promise<void>;
   renameColumn(columnId: string, name: string): Promise<void>;
+  /** Renames the table (the bridge's attribute — every block over the
+   *  tableId stands the new name over the table event). */
+  renameTable(name: string): Promise<void>;
   /** Loads the next page (the `nextCursor` continuation). */
   loadMore(): Promise<void>;
   /** Reloads from the bridge (the broken-state retry). */
@@ -367,6 +370,25 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     [bridge, tableId, table, pushUndo]
   );
 
+  const renameTable = useCallback(
+    async (name: string) => {
+      if (table?.name === name) return;
+      const previous = table?.name;
+      if (previous === undefined) return; // a broken table stands its own retry
+      try {
+        await bridge.renameTable(tableId, name);
+        pushUndo({
+          label: `rename table to ${name}`,
+          forward: async () => bridge.renameTable(tableId, name),
+          inverse: async () => bridge.renameTable(tableId, previous),
+        });
+      } catch (operationError) {
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, table, pushUndo]
+  );
+
   const loadMore = useCallback(async () => {
     if (nextCursor === null) return;
     try {
@@ -430,6 +452,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     addColumn,
     deleteColumn,
     renameColumn,
+    renameTable,
     loadMore,
     retry,
     undo,
