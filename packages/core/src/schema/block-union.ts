@@ -12,6 +12,8 @@ import type {
   ConnectorAttrs,
   ConnectorBlock,
   FrameBlock,
+  GroupAttrs,
+  GroupBlock,
   ShapeAttrs,
   ShapeBlock,
   SurfaceBlock,
@@ -68,7 +70,8 @@ type Block =
   | WithGeometry<ShapeBlock>
   | WithGeometry<ConnectorBlock>
   | WithGeometry<FrameBlock>
-  | WithGeometry<CanvasTextBlock>;
+  | WithGeometry<CanvasTextBlock>
+  | WithGeometry<GroupBlock>;
 
 /** Block type discriminator. */
 type BlockType = Block["type"];
@@ -99,7 +102,8 @@ type BlockAttrsPatch = Partial<
     DatabaseAttrs &
     Omit<ShapeAttrs, "variant"> &
     Omit<ConnectorAttrs, "variant"> &
-    CanvasTextAttrs & {
+    CanvasTextAttrs &
+    GroupAttrs & {
       variant?:
         | "info"
         | "warning"

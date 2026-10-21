@@ -235,6 +235,10 @@
   /* The connect indicator (the endpoint drag's port snap: the badge's
      green + the snapped port dot). */
   --docblocks-canvas-connect-color: #16a34a;
+  /* The canvas group's resting outline (the flat marker's dashed
+     border): the muted line. Declared once, theme-independent (the
+     color-mix follows the theme flip). */
+  --docblocks-canvas-group-border-color: color-mix(in srgb, var(--muted-foreground, #afb8c1) 55%, transparent);
 
   /* The floating format toolbar (the selection's formatting layer). */
   --docblocks-formatbar-background: var(--popover, #ffffff);

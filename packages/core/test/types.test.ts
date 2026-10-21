@@ -40,6 +40,7 @@ describe("block registry", () => {
       "divider",
       "embed",
       "frame",
+      "group",
       "heading",
       "image",
       "latex",
@@ -129,6 +130,7 @@ describe("block registry", () => {
       "divider",
       "embed",
       "frame",
+      "group",
       "heading",
       "image",
       "latex",
@@ -241,7 +243,7 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["math"]>().toEqualTypeOf<{ tex: string } | undefined>();
   });
 
-  it("exposes the 21-type block union", () => {
+  it("exposes the 22-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
@@ -264,6 +266,7 @@ describe("type shapes", () => {
       | "connector"
       | "frame"
       | "canvas-text"
+      | "group"
     >();
   });
 

@@ -17,6 +17,7 @@ import type { MovePreview } from "../../canvas/viewport-state";
 import { useBlock } from "../../hooks";
 import { CanvasItem } from "../CanvasItem";
 import { ConnectorLayer } from "../ConnectorLayer";
+import { GroupLayer } from "../GroupLayer";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import { effectiveGeometry, portsOf } from "../canvas-geometry";
 
@@ -56,19 +57,27 @@ function SurfaceLayer({
   /** The endpoint drag's live port snap (the snapped dot stands the connect green). */
   endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
 }) {
+  const { store } = useEditorContext();
   const contextValue = useBlockContextValue(id, children, "surface");
+  const blocks = useStore(store, (state) => state.blocks);
   return (
     <BlockContext.Provider value={contextValue}>
-      {children.map((childId) => (
-        <CanvasItem
-          key={childId}
-          id={childId}
-          pendingConnector={pendingConnector}
-          movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
-          resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
-          rotatePreview={rotatePreview !== null && rotatePreview.id === childId ? rotatePreview.rotation : null}
-        />
-      ))}
+      {children.map((childId) => {
+        // The group is a flat marker: it
+        // stands no positioned item of its own (the derived outline is the
+        // GroupLayer's) — the wrapper would synthesize a phantom box.
+        if (blocks[childId]?.type === "group") return null;
+        return (
+          <CanvasItem
+            key={childId}
+            id={childId}
+            pendingConnector={pendingConnector}
+            movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
+            resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
+            rotatePreview={rotatePreview !== null && rotatePreview.id === childId ? rotatePreview.rotation : null}
+          />
+        );
+      })}
       <ConnectorLayer
         id={id}
         endpointDrag={endpointDrag}
@@ -77,6 +86,7 @@ function SurfaceLayer({
         movePreview={movePreview}
         resizePreview={resizePreview}
       />
+      <GroupLayer id={id} movePreview={movePreview} />
       {showPorts && <PortDots id={id} snapped={endpointSnap} />}
     </BlockContext.Provider>
   );

@@ -127,6 +127,56 @@ function portsOf(box: Box): Ports {
   };
 }
 
+/**
+ * The group's EFFECTIVE members (the flat marker): the `members` weak refs resolved WITHIN the surface's
+ * children by blockId (the connector's endpoint posture — the dangling
+ * ref, or a ref that is not a direct sibling, is skipped, not rewritten).
+ * A connector and a group never stand the members (a connector carries
+ * no own box; a group never nests). The order follows the stored members.
+ */
+function groupMemberIds(
+  members: readonly BlockId[] | undefined,
+  siblings: readonly BlockId[],
+  blocks: Record<BlockId, Block>
+): BlockId[] {
+  if (members === undefined) return [];
+  const ids: BlockId[] = [];
+  for (const id of members) {
+    if (!siblings.includes(id)) continue;
+    const block = blocks[id];
+    if (block === undefined || block.type === "connector" || block.type === "group") continue;
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * The group's DERIVED box (the flat marker contract): the union of the
+ * effective members' effective boxes, in the center-anchor form (null
+ * when no member resolves — the outline stands nothing, the lenient
+ * read). The box is never stored: the members' move IS the group's move
+ * (the batch's one transact keeps the union in sync).
+ */
+function groupBoxOf(
+  members: readonly BlockId[] | undefined,
+  siblings: readonly BlockId[],
+  blocks: Record<BlockId, Block>
+): Box | null {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const id of groupMemberIds(members, siblings, blocks)) {
+    const box = effectiveGeometry(blocks[id]!);
+    minX = Math.min(minX, box.x - box.w / 2);
+    minY = Math.min(minY, box.y - box.h / 2);
+    maxX = Math.max(maxX, box.x + box.w / 2);
+    maxY = Math.max(maxY, box.y + box.h / 2);
+  }
+  if (!Number.isFinite(minX)) return null;
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2, w: maxX - minX, h: maxY - minY };
+}
+
 /** The port the unit normal stands (the direction's frozen form — the
  * detach keeps the last anchor's side); null on the zero vector (a
  * directionless endpoint stands no port). */
@@ -184,6 +234,8 @@ export {
   endpointBoxOf,
   endpointOf,
   endpointPointOf,
+  groupBoxOf,
+  groupMemberIds,
   isCanvasSubType,
   pageCardStyle,
   portOfNormal,

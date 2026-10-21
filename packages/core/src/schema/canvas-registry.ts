@@ -9,7 +9,7 @@ import type { BlockSpec } from "./registry";
 
 const CANVAS_BLOCK_SPECS: Pick<
   Record<BlockType, BlockSpec>,
-  "surface" | "shape" | "connector" | "frame" | "canvas-text"
+  "surface" | "shape" | "connector" | "frame" | "canvas-text" | "group"
 > = {
   surface: {
     content: false,
@@ -111,6 +111,19 @@ const CANVAS_BLOCK_SPECS: Pick<
       fontSize: { kind: "number", positive: true },
       fontFamily: { kind: "string" },
       textAlign: { kind: "string" },
+    },
+  },
+  // The flat group marker: the members are
+  // weak refs to the surface's sibling blocks (the registry's array +
+  // items checks the shape; the dangling member stands the lenient read).
+  // The group carries no geometry — its box is derived from the members'
+  // union, so the setGeometry command refuses it (the derived invariant).
+  group: {
+    content: false,
+    children: false,
+    rows: false,
+    attrs: {
+      members: { kind: "array", required: true, items: { kind: "string", nonEmpty: true } },
     },
   },
 };

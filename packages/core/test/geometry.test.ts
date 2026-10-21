@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
-import { InvalidGeometryError, UnknownBlockError, createDoc, fromJSON } from "../src/core";
+import { InvalidGeometryError, InvalidOperationError, UnknownBlockError, createDoc, fromJSON } from "../src/core";
 import type { Doc } from "../src/core";
 import type { Block, Geometry } from "../src/schema";
 import { validateDoc } from "../src/schema";
@@ -46,6 +46,22 @@ describe("setGeometry", () => {
       attrs: { cols: 2 },
       geometry: { x: 0, y: 0, w: 300, h: 200 },
     });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("refuses the group (the box is derived from the members' union — the flat marker contract)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const group = doc.insertBlock("group", { members: [a] }, { parent: surface });
+
+    const error = expectThrows(() => doc.setGeometry(group, { x: 5 }), InvalidOperationError);
+    expect(error.message).toContain("derived from the members");
+    // The removal path stands the same refusal (the group carries no
+    // geometry to remove).
+    expectThrows(() => doc.setGeometry(group, null), InvalidOperationError);
+    // The entry stands untouched.
+    expect(doc.getBlock(group)).toEqual({ type: "group", attrs: { members: [a] } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
