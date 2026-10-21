@@ -112,4 +112,20 @@ describe("conditionMatches — the date-aware before / after", () => {
     expect(conditionMatches("before", "a", "b")).toBe(true);
     expect(conditionMatches("after", "b", "a")).toBe(true);
   });
+
+  it("between is date-aware (the date / datetime bounds stand over the instants)", () => {
+    // The date strings (the single-expected form = the degenerate pair).
+    expect(conditionMatches("between", "2024-05-17", ["2024-05-01", "2024-05-31"])).toBe(true);
+    expect(conditionMatches("between", "2024-06-01", ["2024-05-01", "2024-05-31"])).toBe(false);
+    // The datetime pair (the time-of-day stands too).
+    expect(conditionMatches("between", "2024-05-17T10:00", ["2024-05-17T00:00", "2024-05-17T12:00"])).toBe(true);
+    expect(conditionMatches("between", "2024-05-17T13:00", ["2024-05-17T00:00", "2024-05-17T12:00"])).toBe(false);
+    // The bounds order is irrelevant (the range stands over min / max).
+    expect(conditionMatches("between", "2024-05-17", ["2024-05-31", "2024-05-01"])).toBe(true);
+    // The number path is unchanged (the numeric bounds stand over the numbers).
+    expect(conditionMatches("between", 15, [10, 20])).toBe(true);
+    expect(conditionMatches("between", 25, [10, 20])).toBe(false);
+    // A non-date value against non-date bounds stays the number fallback.
+    expect(conditionMatches("between", "abc", ["1", "2"])).toBe(false);
+  });
 });

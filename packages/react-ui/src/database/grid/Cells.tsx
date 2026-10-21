@@ -160,7 +160,14 @@ function CellEditInput({ value, kind, min, step, rejectNegative, onCommit, onEdi
           Number(result.value) < 0;
         if (result.ok && !rejected) {
           setInvalid(false);
-          onCommit(result.value);
+          // The unchanged value stands no commit (no bridge call, no
+          // refetch, no no-op undo entry) — the blur just closes the
+          // session.
+          const unchanged =
+            result.value === null
+              ? value === undefined || value === null
+              : value !== undefined && value !== null && value === result.value;
+          if (!unchanged) onCommit(result.value);
         } else {
           setInvalid(true);
           setDraft(text);

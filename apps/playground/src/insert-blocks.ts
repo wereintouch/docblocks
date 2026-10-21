@@ -40,35 +40,35 @@ const MERMAID_SEED = "graph TD\n A --> B";
 /** The fixed unknown docId the broken sync-embed option references. */
 const MISSING_MASTER_ID = "missing-master";
 
-/** The default bridge's demo table (the deterministic per-page seed; the
- *  event echo keeps the tabs in sync). */
-const BRIDGE_DEMO_TABLE_ID = "table-1";
+/** The default bridge's demo table (seeded once per page / per channel —
+ *  the seed skips when a "Demo" table stands: the other pane's or the
+ *  other tab's seed, synced by the bridge's event echo). */
 
-// The default bridge's demo table: seeded once per page (both panes seed
-// the same deterministic state; the bridge's event echo converges the
-// concurrent seeds idempotently). The e2e bridge suite and the slash
-// picker demo read from it.
+// The default bridge's demo table: seeded once per page / per channel
+// (the name-aware guard: the other pane's / tab's seed stands, the event
+// echo keeps the state shared). The e2e bridge suite and the slash picker
+// demo read from it.
 void (async () => {
   const bridge = getDefaultDatabaseBridge();
-  if ((await bridge.listTables()).length > 0) return;
-  await bridge.createTable("Demo");
-  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, { id: "title", name: "Title", type: "text" });
-  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, { id: "count", name: "Count", type: "integer" });
-  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, { id: "done", name: "Done", type: "boolean" });
-  await bridge.createColumn(BRIDGE_DEMO_TABLE_ID, {
+  if ((await bridge.listTables()).some((table) => table.name === "Demo")) return;
+  const demoId = await bridge.createTable("Demo");
+  await bridge.createColumn(demoId, { id: "title", name: "Title", type: "text" });
+  await bridge.createColumn(demoId, { id: "count", name: "Count", type: "integer" });
+  await bridge.createColumn(demoId, { id: "done", name: "Done", type: "boolean" });
+  await bridge.createColumn(demoId, {
     id: "status",
     name: "Status",
     type: "text",
     options: ["todo", "doing", "done"],
   });
-  await bridge.insertRows(BRIDGE_DEMO_TABLE_ID, [
+  await bridge.insertRows(demoId, [
     { title: "First task", count: 1, done: false, status: "todo" },
     { title: "Second task", count: 2, done: true, status: "done" },
     { title: "Third task", count: 3, done: false, status: "doing" },
   ]);
   // A second demo table with a spread of PostgreSQL types (the per-type
   // cell editors / filter inputs read from it; the e2e suite only reads
-  // table-1, so this stays purely a dev-harness fixture).
+  // the demo table, so this stays purely a dev-harness fixture).
   const projectsId = await bridge.createTable("Projects");
   await bridge.createColumn(projectsId, { id: "code", name: "Code", type: "text" });
   await bridge.createColumn(projectsId, { id: "uuid", name: "Uuid", type: "uuid" });

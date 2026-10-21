@@ -88,6 +88,7 @@ interface RowPage {
  * row store (the subscription knows no view state).
  */
 type TableEvent =
+  | { type: "table.created"; tableId: string; name: string; columns: BridgeColumn[] }
   | { type: "row.created"; rowId: string; cells: Record<string, unknown> }
   | { type: "row.updated"; rowId: string; cells: Record<string, unknown>; before?: Record<string, unknown> }
   | { type: "row.removed"; rowId: string }
@@ -388,9 +389,18 @@ function numberOr(value: unknown): number {
   return Number.isNaN(parsed) ? -Infinity : parsed;
 }
 
-/** `between`: the expected is a two-item [low, high] pair. */
+/** `between`: the expected is a two-item [low, high] pair. Date-aware: when
+ *  the value and both bounds parse as dates, the comparison stands over the
+ *  instants (the number path would stand NaN for a date string and never
+ *  match). */
 function between(value: unknown, expected: unknown): boolean {
   const pair = Array.isArray(expected) ? expected : [expected, expected];
+  const t = timestampOf(value);
+  const lo = timestampOf(pair[0]);
+  const hi = timestampOf(pair[1]);
+  if (t !== null && lo !== null && hi !== null) {
+    return t >= Math.min(lo, hi) && t <= Math.max(lo, hi);
+  }
   const num = numberOr(value);
   return num >= numberOr(pair[0]) && num <= numberOr(pair[1]);
 }

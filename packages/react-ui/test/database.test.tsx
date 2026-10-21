@@ -490,6 +490,33 @@ describe("the grid's header (the table's name, the column menu, the column drag)
 });
 
 describe("the grid's cells (the type editors)", () => {
+  it("the cell's blur with the unchanged value stands no commit (no bridge call, no undo entry)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    // The bridge call is the commit's wire: an unchanged blur must not
+    // reach it (no no-op refetch, no no-op undo entry).
+    const updateRowSpy = vi.spyOn(bridge, "updateRow");
+    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='title']")!;
+    // The double press stands the edit session; the blur reverts nothing
+    // and commits nothing (the draft stands the value).
+    fireEvent.doubleClick(cell);
+    await until(() => cell.querySelector("input") !== null, "the edit input");
+    fireEvent.blur(cell.querySelector("input")!);
+    await settleGrid();
+    expect(updateRowSpy).not.toHaveBeenCalled();
+    // The changed value commits (the guard is equality-only).
+    const input = () => cell.querySelector("input")!;
+    fireEvent.doubleClick(cell);
+    await until(() => input() !== null, "the edit input (the re-open)");
+    fireEvent.change(input(), { target: { value: "edited" } });
+    fireEvent.blur(input());
+    await settleGrid();
+    expect(updateRowSpy).toHaveBeenCalledTimes(1);
+    expect(updateRowSpy).toHaveBeenCalledWith(tableId, rowId, { title: "edited" });
+    const page = await bridge.queryRows(tableId, {});
+    expect(page.rows[rowId]!.title).toBe("edited");
+  });
+
   it("the cell wrapper owns the single border (the display / the input stand borderless)", async () => {
     await renderGrid();
     // The cell wrapper owns the single border (the interaction unit — the
@@ -1151,19 +1178,76 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
     const sharedChannel = `rename-echo-${Math.random().toString(36).slice(2, 8)}`;
     const a = createMemoryDatabaseBridge({ channelName: sharedChannel });
     const b = createMemoryDatabaseBridge({ channelName: sharedChannel });
-    // Both bridges stand the same table (the two panes' seeded demo).
-    const tableIdA = await a.createTable("Demo");
-    const tableIdB = await b.createTable("Demo");
-    expect(tableIdA).toBe(tableIdB);
-    await a.renameTable(tableIdA, "Echo Name");
+    // A's table stands on B's state over the created echo (the shared
+    // demo table of the two panes / tabs — the same id on both sides).
+    const tableId = await a.createTable("Demo");
+    const seenDeadline = Date.now() + 2000;
+    let seen = false;
+    while (!seen) {
+      if (Date.now() > seenDeadline) throw new Error("the table.created echo did not arrive");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      seen = (await b.listTables()).some((entry) => entry.id === tableId);
+    }
+    await a.renameTable(tableId, "Echo Name");
     // The echo is the channel's message event: poll the peer's state
     // (the sleep yields to the macrotask queue, where the message lands).
     const deadline = Date.now() + 2000;
-    let name = (await b.describeTable(tableIdB)).name;
+    let name = (await b.describeTable(tableId)).name;
     while (name !== "Echo Name") {
       if (Date.now() > deadline) throw new Error(`the rename echo did not arrive (name: ${name})`);
       await new Promise((resolve) => setTimeout(resolve, 5));
-      name = (await b.describeTable(tableIdB)).name;
+      name = (await b.describeTable(tableId)).name;
+    }
+  });
+
+  it("the table id stands derived from the name (deterministic over the channel's instances)", async () => {
+    const sharedChannel = `identity-${Math.random().toString(36).slice(2, 8)}`;
+    const a = createMemoryDatabaseBridge({ channelName: sharedChannel });
+    const b = createMemoryDatabaseBridge({ channelName: sharedChannel });
+    // The two instances' identically-named tables share one deterministic
+    // id (the two tabs' demo seed): a tableId reference created in A
+    // resolves in B (the per-page data model of the e2e panes).
+    const tableA = await a.createTable("Demo");
+    const tableB = await b.createTable("Demo");
+    expect(tableA).toBe(tableB);
+    // The different names stand separate tables (the old `table-1`
+    // collision of the two tabs' own tables is gone).
+    const projectsA = await a.createTable("Projects");
+    const projectsB = await b.createTable("Projects");
+    expect(projectsA).toBe(projectsB);
+    expect(projectsA).not.toBe(tableA);
+    // The created / schema echoes stand the table + the column on the
+    // peer's state (the adopted table stands under the same id).
+    await a.createColumn(tableA, { id: "t", name: "T", type: "text" });
+    const schemaDeadline = Date.now() + 2000;
+    for (;;) {
+      const description = await b.describeTable(tableB).catch(() => null);
+      if (description !== null && description.columns.some((column) => column.id === "t")) break;
+      if (Date.now() > schemaDeadline) throw new Error("the column echo did not settle on B");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    // The row ids stay deterministic and the counter syncs over the echo:
+    // A's insert stands on B, and B's next insert never reuses A's id.
+    const firstRow = await a.insertRow(tableA, { t: "from-a" });
+    const settleDeadline = Date.now() + 2000;
+    for (;;) {
+      const page = await b.queryRows(tableB, {});
+      if (page.rows[firstRow] !== undefined) break;
+      if (Date.now() > settleDeadline) throw new Error("the row echo did not settle on B");
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    const secondRow = await b.insertRow(tableB, { t: "from-b" });
+    expect(secondRow).not.toBe(firstRow);
+    // Both sides converge on both rows.
+    const convergeDeadline = Date.now() + 2000;
+    for (;;) {
+      const page = await a.queryRows(tableA, {});
+      if (page.rows[firstRow] !== undefined && page.rows[secondRow] !== undefined) {
+        expect(Object.keys(page.rows)).toHaveLength(2);
+        break;
+      }
+      if (Date.now() > convergeDeadline) throw new Error("the row echoes did not converge on A");
+      await new Promise((resolve) => setTimeout(resolve, 5));
     }
   });
 

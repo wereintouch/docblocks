@@ -99,14 +99,33 @@ function removeBlocksSelection(doc: Doc, parentId: BlockId, ids: BlockId[]): voi
  * Returns the stood paragraph's id (the caret's home), or null when the
  * tail already stands a text block (no stand, the caller's focus stands).
  */
+/** Stands the document's trailing paragraph (the tail contract) and returns
+ *  its id, or null when the tail already stands. The paragraph takes the
+ *  RESERVED id derived from the doc id, which makes the stand idempotent
+ *  across peers: two peers standing the same non-text tail insert the same
+ *  block id, and the idempotent insert converges to one block (per-peer
+ *  uuids would leave a duplicate paragraph in every peer). A reserved
+ *  paragraph that stands somewhere else in the doc (the user moved it)
+ *  wins: the stand writes nothing. */
 function ensureTrailingParagraph(doc: Doc, parentId: BlockId): BlockId | null {
-  const sequence = doc.getChildren(parentId);
-  const lastId = sequence[sequence.length - 1];
-  if (lastId === undefined) return doc.insertBlock("paragraph", undefined, { parent: parentId });
-  const last = doc.getBlock(lastId);
-  if (last === null) return null;
-  if (BLOCK_REGISTRY[last.type].content) return null;
-  return doc.insertBlock("paragraph", undefined, { parent: parentId, after: lastId });
+  const tailId = `${doc.meta.id}-tail`;
+  if (doc.getBlock(tailId) !== null) return null;
+  try {
+    const sequence = doc.getChildren(parentId);
+    const lastId = sequence[sequence.length - 1];
+    if (lastId === undefined) return doc.insertBlock("paragraph", undefined, { parent: parentId, id: tailId });
+    const last = doc.getBlock(lastId);
+    if (last === null) return null;
+    if (BLOCK_REGISTRY[last.type].content) return null;
+    return doc.insertBlock("paragraph", undefined, { parent: parentId, after: lastId, id: tailId });
+  } catch (error) {
+    // The deterministic id makes a concurrent peer stand (or a peer update
+    // applied between the check and the write) the only source of an id
+    // collision — the stand then stands nothing: the peer's paragraph is
+    // the tail.
+    if (doc.getBlock(tailId) !== null) return null;
+    throw error;
+  }
 }
 
 /** Inserts a block of the same type and attrs as `block`, right after `after` under `parent` (the indent stands). */

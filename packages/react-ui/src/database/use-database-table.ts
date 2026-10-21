@@ -76,6 +76,12 @@ interface UseDatabaseTable {
   canRedo: boolean;
 }
 
+/** The cell-value equality (null / undefined stand as the empty cell). */
+function cellValueEqual(current: unknown, next: unknown): boolean {
+  if (current === undefined || current === null) return next === undefined || next === null;
+  return current === next;
+}
+
 /**
  * The external-form data provider for one `tableId` (per block instance:
  * each block has its own row store and its own undo stack, even when
@@ -92,6 +98,10 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
 
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  // The load token: a refetch superseded by a newer one (two table events
+  // back to back) drops its stale result instead of standing it over the
+  // fresh state.
+  const loadTokenRef = useRef(0);
   const undoStackRef = useRef<InverseOp[]>([]);
   const redoStackRef = useRef<InverseOp[]>([]);
   const filterKey = filter === undefined ? "" : JSON.stringify(filter);
@@ -99,6 +109,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   /** Loads the description + the first page; `quiet` = no loading flicker (the refetch). */
   const load = useCallback(
     async (quiet: boolean) => {
+      const token = ++loadTokenRef.current;
       if (!quiet) setPhase("loading");
       try {
         const description = await bridge.describeTable(tableId);
@@ -106,6 +117,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
           filter: filter === undefined ? undefined : filter,
           limit: PAGE_SIZE,
         });
+        if (token !== loadTokenRef.current) return; // a newer load stands
         setTable(description);
         setRows(Object.entries(page.rows).map(([rowId, cells]) => ({ rowId, cells })));
         setNextCursor(page.nextCursor ?? null);
@@ -181,6 +193,15 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       const current = rowsRef.current.find((row) => row.rowId === rowId);
       const cleaned: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(cells)) if (value !== undefined) cleaned[key] = value;
+      // The unchanged patch stands no write (no bridge call, no refetch,
+      // no no-op undo entry): the guard stands before the optimistic apply
+      // (an unknown row — filtered out — commits as usual).
+      if (
+        current !== undefined &&
+        Object.entries(cleaned).every(([key, value]) => cellValueEqual(current.cells[key], value))
+      ) {
+        return;
+      }
       setRows((rows) =>
         rows.map((row) => (row.rowId === rowId ? { ...row, cells: { ...row.cells, ...cleaned } } : row))
       );
@@ -216,6 +237,19 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         for (const [key, value] of Object.entries(cells)) if (value !== undefined) patch[key] = value;
         return { rowId, cells: patch };
       });
+      // The all-unchanged batch stands no write (the clear over an
+      // already-empty region): the same equality guard as the single-row
+      // path, over every touched cell.
+      if (
+        cleaned.every(({ rowId, cells }) => {
+          const row = rowsRef.current.find((entry) => entry.rowId === rowId);
+          return (
+            row !== undefined && Object.entries(cells).every(([key, value]) => cellValueEqual(row.cells[key], value))
+          );
+        })
+      ) {
+        return;
+      }
       const byId = new Map(cleaned.map((entry) => [entry.rowId, entry.cells]));
       setRows((rows) =>
         rows.map((row) => {

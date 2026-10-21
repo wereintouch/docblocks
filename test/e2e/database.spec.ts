@@ -65,10 +65,11 @@ async function databaseInfo(page: Page): Promise<{ dbId: string; rowOrder: strin
 
 /**
  * The pane's default-bridge demo table (the playground seeds it per page at
- * module load — `table-1`, name "Demo", 3 rows). Polls until the async
- * seed settles and returns the first table's ref. Both panes (separate
- * pages) seed the identical deterministic table, so the id matches across
- * them and a `tableId` reference inserted in A resolves in B.
+ * module load — id `table-demo` (derived from the name), name "Demo",
+ * 3 rows). Polls until the async seed settles and returns the first
+ * table's ref. Both panes (separate pages) seed the identical
+ * deterministic table, so the id matches across them and a `tableId`
+ * reference inserted in A resolves in B.
  */
 async function bridgeDemoTable(page: Page): Promise<{ id: string; name: string }> {
   let result: { id: string; name: string } | null = null;
@@ -217,6 +218,26 @@ test("setCell with an out-of-options select value throws InvalidCellValueError (
   const rowId = seedOrder[0]!;
 
   const snapshotOf = () => a.evaluate(() => JSON.stringify(window.__paneDocs?.a?.toJSON() ?? null));
+  // The document's tail contract: the peer's remote feed stands the doc's
+  // trailing paragraph over the wire (the non-text tail stands no caret
+  // home). Settle it before the stability baseline, or the stand lands
+  // inside the comparison window and reads as a "changed" doc.
+  await expect
+    .poll(
+      () =>
+        a.evaluate(() => {
+          const doc = window.__paneDocs?.a;
+          if (doc === null || doc === undefined) return false;
+          const json = doc.toJSON();
+          const root = json.blocks[json.id]!;
+          const children = root.children;
+          if (children === undefined) return false;
+          const lastId = children[children.length - 1];
+          return lastId !== undefined && json.blocks[lastId]!.type === "paragraph";
+        }),
+      SETTLE
+    )
+    .toBe(true);
   const before = await snapshotOf();
 
   const outcome = await a.evaluate(
