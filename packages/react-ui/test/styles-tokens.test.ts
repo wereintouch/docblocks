@@ -109,7 +109,9 @@ describe("styles.css token contract", () => {
   it("stands the canvas group's resting outline (the muted line, declared once)", () => {
     // The flat marker's dashed border: the color-mix over the standard
     // token (theme-following — no dark override, like the width / the fill).
-    expect(STYLES).toContain("--docblocks-canvas-group-border-color: color-mix(in srgb, var(--muted-foreground, #afb8c1) 55%, transparent);");
+    expect(STYLES).toContain(
+      "--docblocks-canvas-group-border-color: color-mix(in srgb, var(--muted-foreground, #afb8c1) 55%, transparent);"
+    );
     const darkScope = STYLES.slice(STYLES.indexOf(':is(.dark [data-slot="docblocks/editor"]'));
     expect(darkScope).not.toContain("--docblocks-canvas-group-border-color");
   });

@@ -27,9 +27,13 @@ const STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
 const SELECTED_STROKE = "var(--docblocks-canvas-selected-stroke)";
 /** The connect badge's green (the endpoint drag's port snap indicator). */
 const CONNECT_COLOR = "var(--docblocks-canvas-connect-color, #16a34a)";
-const CONNECTOR_STROKE_WIDTH = 1;
-/** The selected connector's stroke width (the emphasis over the default). */
-const SELECTED_STROKE_WIDTH = 2;
+/** The line's stroke width bounds (canvas px; the data stand is 1–4,
+ * the absent stand is 1 — the registry spec's parity). */
+const MIN_STROKE_WIDTH = 1;
+const MAX_STROKE_WIDTH = 4;
+const DEFAULT_STROKE_WIDTH = 1;
+/** The selection's width emphasis over the line's own width. */
+const SELECTED_WIDTH_BUMP = 1;
 /** The invisible hit path's width (a wide enough stroke to click the line). */
 const HIT_STROKE_WIDTH = 12;
 /** The arrowhead's length (canvas px, the marker's coordinate space). */
@@ -49,6 +53,17 @@ const SNAP_BADGE_LIFT = 16;
 interface EndpointHandle {
   key: "start" | "end";
   point: EndpointPoint;
+}
+
+/**
+ * The arrowhead def's id over the surface's id and the fill value (the
+ * per-value def: the token / the selection's accent keep their legacy
+ * ids, the data color stands its own id — the non-id characters are
+ * dropped: a hex's "#" would break the url(#...) fragment).
+ */
+function arrowDefId(surfaceId: BlockId, fill: string): string {
+  const key = fill === STROKE ? "" : fill === SELECTED_STROKE ? "-selected" : `-c${fill.replace(/[^a-z0-9]/gi, "")}`;
+  return `docblocks-conn-arrow-${surfaceId}${key}`;
 }
 
 /**
@@ -157,6 +172,12 @@ function ConnectorLayer({
     obstacleBoxes.push(effectiveGeometry(block));
   }
   const segments: ReactNode[] = [];
+  // The arrowhead defs' fill set (collected in the loop; the def stands
+  // per effective stroke value — the data color follows the line's own
+  // stroke, the selected line's accent too).
+  const arrowFills = new Set<string>();
+  const arrowStartFills = new Set<string>();
+  const circleFills = new Set<string>();
 
   for (const childId of childIds) {
     const block = blocks[childId];
@@ -227,12 +248,38 @@ function ConnectorLayer({
     const endDraw: EndpointPoint =
       draggingThis && endpointDrag !== null && endpointDrag.which === "end" ? (snapPoint("end") ?? endPoint) : endPoint;
 
-    const stroke = selected ? SELECTED_STROKE : STROKE;
-    const strokeWidth = selected ? SELECTED_STROKE_WIDTH : CONNECTOR_STROKE_WIDTH;
+    const stroke = selected
+      ? SELECTED_STROKE
+      : attrs.strokeColor === undefined || attrs.strokeColor === "none"
+        ? STROKE
+        : attrs.strokeColor;
+    // The width stand (the 1–4 data attr; the lenient render clamps the
+    // raw write) + the selection's bump (the 1x default stands the
+    // former 1→2 emphasis).
+    const baseWidth = Math.min(
+      MAX_STROKE_WIDTH,
+      Math.max(MIN_STROKE_WIDTH, Math.round(attrs.strokeWidth ?? DEFAULT_STROKE_WIDTH))
+    );
+    const strokeWidth = selected ? baseWidth + SELECTED_WIDTH_BUMP : baseWidth;
     const dash = attrs.strokeStyle === "dash" ? "8 4" : attrs.strokeStyle === "dot" ? "1 4" : undefined;
-    // The marker follows the line's stroke (the selected line's accent
-    // arrowhead stands the emphasis too).
-    const markerId = `docblocks-conn-arrow-${id}${selected ? "-selected" : ""}`;
+    // The arrowheads: the figure (absent
+    // = "arrow") + the start side. The marker follows the line's stroke
+    // (the data color / the selected line's accent stand the arrowhead
+    // too — the def is per fill value, collected below).
+    const arrowHead = attrs.arrowHead ?? "arrow";
+    if (arrowHead !== "none") {
+      arrowFills.add(stroke);
+      if (attrs.arrowStart) arrowStartFills.add(stroke);
+      if (arrowHead === "circle") circleFills.add(stroke);
+    }
+    const endMarkerId =
+      arrowHead === "none" ? null : arrowHead === "circle" ? `${arrowDefId(id, stroke)}-ci` : arrowDefId(id, stroke);
+    const startMarkerId =
+      arrowHead !== "none" && attrs.arrowStart
+        ? arrowHead === "circle"
+          ? `${arrowDefId(id, stroke)}-ci`
+          : `${arrowDefId(id, stroke)}-s`
+        : null;
 
     // The stored points keep the polyline priority (the pre-variant
     // behavior: the freehand waypoints through the centers). The
@@ -370,7 +417,8 @@ function ConnectorLayer({
           data-connector-id={childId}
           data-selected={selected || undefined}
           d={path.d}
-          markerEnd={`url(#${markerId})`}
+          markerEnd={endMarkerId !== null ? `url(#${endMarkerId})` : undefined}
+          markerStart={startMarkerId !== null ? `url(#${startMarkerId})` : undefined}
           strokeWidth={strokeWidth}
           fill="none"
           strokeDasharray={dash}
@@ -419,36 +467,59 @@ function ConnectorLayer({
         pointerEvents: "none",
       }}
     >
+      {/* The arrowhead defs (the marker's coordinate space is the canvas
+          px; the fill follows the line's stroke — the per-value def: the
+          data color / the token / the selection's accent). The end arrow
+          stands its tip at the line's end (the refX at the tip), the
+          start arrow stands its tip at the start point (the reversed
+          geometry, the refX at the tip), the circle stands centered at
+          the point (symmetric — the def serves both sides). */}
       <defs>
-        {/* The arrowhead (the id is the surface's — one def per overlay;
-            the marker's coordinate space is the canvas px, refX at the
-            tip so the tip stands exactly at the line's end). */}
-        <marker
-          id={`docblocks-conn-arrow-${id}`}
-          viewBox="0 0 8 8"
-          refX={ARROW_SIZE}
-          refY={ARROW_SIZE / 2}
-          markerWidth={ARROW_SIZE}
-          markerHeight={ARROW_SIZE}
-          orient="auto"
-          markerUnits="userSpaceOnUse"
-        >
-          <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill: "var(--docblocks-canvas-shape-stroke, currentColor)" }} />
-        </marker>
-        {/* The selected line's arrowhead (the accent — the def stands
-            unconditionally: the marker id is picked per line). */}
-        <marker
-          id={`docblocks-conn-arrow-${id}-selected`}
-          viewBox="0 0 8 8"
-          refX={ARROW_SIZE}
-          refY={ARROW_SIZE / 2}
-          markerWidth={ARROW_SIZE}
-          markerHeight={ARROW_SIZE}
-          orient="auto"
-          markerUnits="userSpaceOnUse"
-        >
-          <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill: SELECTED_STROKE }} />
-        </marker>
+        {[...arrowFills].map((fill) => (
+          <marker
+            key={`end-${fill}`}
+            id={arrowDefId(id, fill)}
+            viewBox="0 0 8 8"
+            refX={ARROW_SIZE}
+            refY={ARROW_SIZE / 2}
+            markerWidth={ARROW_SIZE}
+            markerHeight={ARROW_SIZE}
+            orient="auto"
+            markerUnits="userSpaceOnUse"
+          >
+            <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill }} />
+          </marker>
+        ))}
+        {[...arrowStartFills].map((fill) => (
+          <marker
+            key={`start-${fill}`}
+            id={`${arrowDefId(id, fill)}-s`}
+            viewBox="0 0 8 8"
+            refX={0}
+            refY={ARROW_SIZE / 2}
+            markerWidth={ARROW_SIZE}
+            markerHeight={ARROW_SIZE}
+            orient="auto"
+            markerUnits="userSpaceOnUse"
+          >
+            <path d="M 8 0 L 0 4 L 8 8 Z" style={{ fill }} />
+          </marker>
+        ))}
+        {[...circleFills].map((fill) => (
+          <marker
+            key={`circle-${fill}`}
+            id={`${arrowDefId(id, fill)}-ci`}
+            viewBox="0 0 8 8"
+            refX={ARROW_SIZE / 2}
+            refY={ARROW_SIZE / 2}
+            markerWidth={ARROW_SIZE}
+            markerHeight={ARROW_SIZE}
+            orient="auto"
+            markerUnits="userSpaceOnUse"
+          >
+            <circle cx={ARROW_SIZE / 2} cy={ARROW_SIZE / 2} r={2.5} style={{ fill }} />
+          </marker>
+        ))}
       </defs>
       {segments}
     </svg>

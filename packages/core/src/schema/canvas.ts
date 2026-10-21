@@ -96,6 +96,15 @@ interface ConnectorAttrs {
    * endpoints stay the block refs (the line re-derives from the blocks' geometry). */
   variant?: "straight" | "orthogonal" | "curved";
   strokeStyle?: "solid" | "dash" | "dot";
+  /** The line's stroke color (a hex string — data, not theme; the line's
+   * arrowheads follow it; absent = the theme's stroke token). */
+  strokeColor?: string;
+  /** The line's stroke width in canvas px (1–4; absent = 1). */
+  strokeWidth?: number;
+  /** The arrowhead's figure (absent = "arrow"). */
+  arrowHead?: "none" | "arrow" | "circle";
+  /** Stand an arrowhead at the start endpoint too. */
+  arrowStart?: boolean;
 }
 
 interface CanvasTextAttrs {

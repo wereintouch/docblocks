@@ -235,6 +235,27 @@ describe("strict validation (validateDoc)", () => {
     expect(absent.some((e) => e.path === "blocks.c1.attrs.variant")).toBe(false);
   });
 
+  it("checks the connector style attrs (the strokeColor / strokeWidth / arrowHead / arrowStart, registry-driven)", () => {
+    const conn = (attrs: Record<string, unknown>) =>
+      withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1" }, end: { blockId: "sh1" }, ...attrs } });
+    // The width is the 1–4 integer stand.
+    const tooThin = validateDoc(conn({ strokeWidth: 0 }));
+    expect(tooThin.some((e) => e.path === "blocks.c1.attrs.strokeWidth")).toBe(true);
+    const tooThick = validateDoc(conn({ strokeWidth: 5 }));
+    expect(tooThick.some((e) => e.path === "blocks.c1.attrs.strokeWidth")).toBe(true);
+    const fractional = validateDoc(conn({ strokeWidth: 1.5 }));
+    expect(fractional.some((e) => e.path === "blocks.c1.attrs.strokeWidth")).toBe(true);
+    // The arrowhead's enum.
+    const badHead = validateDoc(conn({ arrowHead: "diamond" }));
+    expect(badHead.some((e) => e.path === "blocks.c1.attrs.arrowHead")).toBe(true);
+    // The start side is a boolean.
+    const badStart = validateDoc(conn({ arrowStart: "yes" }));
+    expect(badStart.some((e) => e.path === "blocks.c1.attrs.arrowStart")).toBe(true);
+    // The full set stands (the strict validator is clean).
+    const valid = validateDoc(conn({ strokeColor: "#ff0000", strokeWidth: 4, arrowHead: "circle", arrowStart: true }));
+    expect(valid.some((e) => e.path.startsWith("blocks.c1.attrs."))).toBe(false);
+  });
+
   it("rejects a malformed geometry of any block (the strict shape)", () => {
     const withGeometry = (geometry: unknown) =>
       withBlock("p1", { type: "paragraph", geometry, content: [{ text: "page", marks: {} }] });

@@ -57,7 +57,7 @@ function renderCanvas(doc: TestDoc) {
   return { ...utils, view };
 }
 
-const toolbar = () => screen.queryByRole("toolbar", { name: "Connector type" });
+const toolbar = () => screen.queryByRole("toolbar", { name: "Connector options" });
 
 /** Click-select the block (the pointerdown on its canvas-item / hit-path). */
 function selectBlock(container: HTMLElement, id: string, viaHitPath = false): void {
@@ -144,6 +144,111 @@ describe("the applies", () => {
     expect(curved?.getAttribute("aria-pressed")).toBe("true");
     const straight = document.querySelector('[data-slot="docblocks/connector-toolbar-straight"]');
     expect(straight?.getAttribute("aria-pressed")).toBe("false");
+  });
+});
+
+describe("the style applies", () => {
+  /** The connector's style attrs (the doc's own read). */
+  function styleOf(
+    doc: TestDoc,
+    id: BlockId
+  ): {
+    strokeWidth?: number;
+    strokeColor?: string;
+    arrowHead?: "none" | "arrow" | "circle";
+    arrowStart?: boolean;
+  } {
+    const block = doc.getBlock(id);
+    if (block === null || block.type !== "connector") return {};
+    return block.attrs;
+  }
+
+  it("the width's step applies the strokeWidth (one undo step; the no-op stand writes nothing)", () => {
+    const { doc, connector } = seededDoc();
+    const { view } = renderCanvas(doc);
+    selectBlock(view as HTMLElement, connector, true);
+    const slider = document.querySelector('[data-slot="docblocks/figure-border-selector"]');
+    if (slider === null) throw new Error("the width selector is missing");
+
+    // The absent stand is the 1 px default (index 0): the no-op step
+    // back writes nothing.
+    const before = JSON.stringify(doc.toJSON());
+    fireEvent.keyDown(slider, { key: "Home" });
+    expect(JSON.stringify(doc.toJSON())).toBe(before);
+
+    // The End stand: the 4 px width (one updateBlock, one undo step).
+    fireEvent.keyDown(slider, { key: "End" });
+    expect(styleOf(doc, connector).strokeWidth).toBe(4);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    doc.undo();
+    expect(styleOf(doc, connector).strokeWidth).toBeUndefined();
+  });
+
+  it("the arrowhead's pick applies the figure (the arrow's default pick is the no-op stand)", () => {
+    const { doc, connector } = seededDoc();
+    const { view } = renderCanvas(doc);
+    selectBlock(view as HTMLElement, connector, true);
+
+    // The default (absent) stands the arrow: the arrow pick writes
+    // nothing.
+    const before = JSON.stringify(doc.toJSON());
+    fireEvent.pointerDown(screen.getByLabelText("Arrowhead"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Arrow" }));
+    expect(JSON.stringify(doc.toJSON())).toBe(before);
+    expect(styleOf(doc, connector).arrowHead).toBeUndefined();
+
+    // The circle pick: one updateBlock (one undo step).
+    fireEvent.pointerDown(screen.getByLabelText("Arrowhead"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Circle" }));
+    expect(styleOf(doc, connector).arrowHead).toBe("circle");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    doc.undo();
+    expect(styleOf(doc, connector).arrowHead).toBeUndefined();
+
+    // The none pick.
+    fireEvent.pointerDown(screen.getByLabelText("Arrowhead"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "None" }));
+    expect(styleOf(doc, connector).arrowHead).toBe("none");
+  });
+
+  it("the arrow start toggle flips the stand (one updateBlock per flip, the pressed stand)", () => {
+    const { doc, connector } = seededDoc();
+    const { view } = renderCanvas(doc);
+    selectBlock(view as HTMLElement, connector, true);
+    const toggle = document.querySelector('[data-slot="docblocks/connector-toolbar-arrow-start"]');
+    if (toggle === null) throw new Error("the arrow-start toggle is missing");
+
+    fireEvent.click(toggle);
+    expect(styleOf(doc, connector).arrowStart).toBe(true);
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    doc.undo();
+    expect(styleOf(doc, connector).arrowStart).toBeUndefined();
+
+    fireEvent.click(toggle);
+    fireEvent.click(toggle);
+    expect(styleOf(doc, connector).arrowStart).toBe(true);
+  });
+
+  it("the palette's pick applies the strokeColor (the data color; the none stand is the theme token)", () => {
+    const { doc, connector } = seededDoc();
+    const { view } = renderCanvas(doc);
+    selectBlock(view as HTMLElement, connector, true);
+
+    // The hex commit: one updateBlock in one transact.
+    fireEvent.click(screen.getByLabelText("Line color"));
+    const input = screen.getByLabelText("Line color hex value");
+    fireEvent.change(input, { target: { value: "#ff0000" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(styleOf(doc, connector).strokeColor).toBe("#ff0000");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    doc.undo();
+    expect(styleOf(doc, connector).strokeColor).toBeUndefined();
+
+    // The no-color entry: the explicit default stand (the theme token
+    // renders — the absent / "none" values are the same stand).
+    fireEvent.click(screen.getByLabelText("Line color"));
+    fireEvent.click(screen.getByLabelText("No color"));
+    expect(styleOf(doc, connector).strokeColor).toBe("none");
   });
 });
 
