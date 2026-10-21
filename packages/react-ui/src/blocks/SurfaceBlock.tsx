@@ -43,9 +43,6 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
             interactive={false}
             endpointDrag={null}
             endpointPreview={null}
-            onEndpointDrag={() => {
-              /* The page view's embedded surface stands the overlay inert. */
-            }}
             movePreview={null}
             resizePreview={null}
           />

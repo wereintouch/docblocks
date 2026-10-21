@@ -30,7 +30,6 @@ function SurfaceLayer({
   rotatePreview,
   endpointDrag,
   endpointPreview,
-  onEndpointDrag,
   showPorts,
   endpointSnap,
 }: {
@@ -45,13 +44,6 @@ function SurfaceLayer({
     point: { x: number; y: number };
     snap: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
   } | null;
-  onEndpointDrag: (
-    connectorId: BlockId,
-    which: "start" | "end",
-    pointerId: number,
-    clientX: number,
-    clientY: number
-  ) => void;
   /** The ports' visibility (the connector tool active or an endpoint drag in flight). */
   showPorts: boolean;
   /** The endpoint drag's live port snap (the snapped dot stands the connect green). */
@@ -82,7 +74,6 @@ function SurfaceLayer({
         id={id}
         endpointDrag={endpointDrag}
         endpointPreview={endpointPreview}
-        onEndpointDrag={onEndpointDrag}
         movePreview={movePreview}
         resizePreview={resizePreview}
       />

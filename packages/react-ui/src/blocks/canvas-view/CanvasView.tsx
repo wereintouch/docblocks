@@ -54,6 +54,7 @@ import { BlockGroups } from "../BlockView";
 import { ShapeSvg } from "../ShapeSvg";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import {
+  connectorHandlePoints,
   connectorPathPoints,
   edgeAnchor,
   effectiveGeometry,
@@ -68,6 +69,8 @@ import { ConnectorPreviewLine } from "./ConnectorPreviewLine";
 import { SurfaceLayer } from "./SurfaceLayer";
 import { ZoomControls } from "./ZoomControls";
 import {
+  CONNECTOR_HANDLE_HIT_RADIUS_PX,
+  CONNECTOR_HANDLE_RADIUS_PX,
   HANDLE_ROTATE_OFFSET_PX,
   PORT_PICK_RADIUS_PX,
   RESIZE_HANDLE_POSITIONS,
@@ -268,13 +271,28 @@ function CanvasView() {
     return {
       id,
       variant: block.attrs.variant,
+      label: block.attrs.label,
       strokeColor: block.attrs.strokeColor,
       strokeWidth: block.attrs.strokeWidth,
       arrowHead: block.attrs.arrowHead,
       arrowStart: block.attrs.arrowStart,
       mid,
+      childIds,
     };
   })();
+
+  // The selected line's endpoint handles' points (the screen-space
+  // overlay's data — the same resolution as the line's render, the live
+  // preview / the snap's stand while the endpoint drag is in flight).
+  const selectedConnectorHandles =
+    connectorToolbarTarget !== null
+      ? connectorHandlePoints(connectorToolbarTarget.childIds, blocks, connectorToolbarTarget.id, {
+          movePreview: viewport.movePreview,
+          resizePreview: viewport.resizePreview,
+          endpointDrag: viewport.connectorEndpoint,
+          endpointPreview: viewport.connectorEndpointPreview,
+        })
+      : null;
 
   if (root === undefined) return null;
 
@@ -288,6 +306,35 @@ function CanvasView() {
       x: event.clientX - rect.left - rect.width / 2,
       y: event.clientY - rect.top - rect.height / 2,
     };
+  };
+
+  // The endpoint handle's press: the container keeps the pointer (the
+  // release outside the window would otherwise stand the session open —
+  // the card-press capture's contract). The endpoint drag's release
+  // commit reads the session, not the release target (the capture
+  // retargets the pointerup to the container — unlike the connector
+  // pick's release, the drag's commit stands off the target).
+  const beginEndpointDrag = (
+    connectorId: string,
+    which: "start" | "end",
+    pointerId: number,
+    clientX: number,
+    clientY: number
+  ) => {
+    const container = containerRef.current;
+    if (container === null) return;
+    container.setPointerCapture?.(pointerId);
+    const rect = container.getBoundingClientRect();
+    viewport.beginConnectorEndpoint(
+      connectorId,
+      which,
+      {
+        x: clientX - rect.left - rect.width / 2,
+        y: clientY - rect.top - rect.height / 2,
+      },
+      clientX,
+      clientY
+    );
   };
 
   // The editing surfaces keep the pointer: the canvas-text inners and the
@@ -1114,29 +1161,6 @@ function CanvasView() {
               endpointSnap={
                 viewport.connectorEndpoint !== null ? (viewport.connectorEndpointPreview?.snap ?? null) : null
               }
-              onEndpointDrag={(connectorId, which, pointerId, clientX, clientY) => {
-                const container = containerRef.current;
-                if (container === null) return;
-                // The container keeps the pointer (the release outside the
-                // window would otherwise stand the session open — the
-                // card-press capture's contract). The endpoint drag's
-                // release commit reads the session, not the release target
-                // (the capture retargets the pointerup to the container —
-                // unlike the connector pick's release, the drag's commit
-                // stands off the target).
-                container.setPointerCapture?.(pointerId);
-                const rect = container.getBoundingClientRect();
-                viewport.beginConnectorEndpoint(
-                  connectorId,
-                  which,
-                  {
-                    x: clientX - rect.left - rect.width / 2,
-                    y: clientY - rect.top - rect.height / 2,
-                  },
-                  clientX,
-                  clientY
-                );
-              }}
               showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
             />
           ))}
@@ -1304,6 +1328,7 @@ function CanvasView() {
           <ConnectorToolbar
             id={connectorToolbarTarget.id}
             variant={connectorToolbarTarget.variant}
+            label={connectorToolbarTarget.label}
             strokeColor={connectorToolbarTarget.strokeColor}
             strokeWidth={connectorToolbarTarget.strokeWidth}
             arrowHead={connectorToolbarTarget.arrowHead}
@@ -1313,6 +1338,61 @@ function CanvasView() {
               top: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).y - TOOLBAR_OFFSET_PX}px)`,
             }}
           />
+        )}
+        {selectedConnectorHandles !== null && connectorToolbarTarget !== null && (
+          // The selected line's endpoint handles (the screen-space overlay
+          // over the chrome, above the floating toolbars — a wide toolbar
+          // stands no press on the line's endpoints). The invisible wider
+          // hit circle stands the pointerdown; the visible circle stands
+          // the selection's cyan (the handles stand only over the
+          // selected line).
+          <div data-slot="docblocks/connector-handles" className="pointer-events-none absolute inset-0 z-50">
+            {(["start", "end"] as const).map((which) => {
+              const point = canvasToScreen(selectedConnectorHandles[which], viewport.zoom, viewport.pan);
+              return (
+                <svg
+                  key={which}
+                  data-connector-endpoint={which}
+                  data-connector-endpoint-id={connectorToolbarTarget.id}
+                  width={CONNECTOR_HANDLE_HIT_RADIUS_PX * 2}
+                  height={CONNECTOR_HANDLE_HIT_RADIUS_PX * 2}
+                  style={{
+                    position: "absolute",
+                    left: `calc(50% + ${point.x}px - ${CONNECTOR_HANDLE_HIT_RADIUS_PX}px)`,
+                    top: `calc(50% + ${point.y}px - ${CONNECTOR_HANDLE_HIT_RADIUS_PX}px)`,
+                  }}
+                >
+                  <circle
+                    cx={CONNECTOR_HANDLE_HIT_RADIUS_PX}
+                    cy={CONNECTOR_HANDLE_HIT_RADIUS_PX}
+                    r={CONNECTOR_HANDLE_HIT_RADIUS_PX}
+                    fill="transparent"
+                    pointerEvents="all"
+                    style={{ cursor: "grab" }}
+                    onPointerDown={(event) => {
+                      event.stopPropagation();
+                      beginEndpointDrag(
+                        connectorToolbarTarget.id,
+                        which,
+                        event.pointerId,
+                        event.clientX,
+                        event.clientY
+                      );
+                    }}
+                  />
+                  <circle
+                    cx={CONNECTOR_HANDLE_HIT_RADIUS_PX}
+                    cy={CONNECTOR_HANDLE_HIT_RADIUS_PX}
+                    r={CONNECTOR_HANDLE_RADIUS_PX}
+                    fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+                    strokeWidth={1.5}
+                    pointerEvents="none"
+                    style={{ stroke: "var(--docblocks-canvas-selected-stroke)" }}
+                  />
+                </svg>
+              );
+            })}
+          </div>
         )}
         {shapeToolbarTarget !== null && displayBox !== null && (
           // The shape's color toolbar (the single `shape` selection): the

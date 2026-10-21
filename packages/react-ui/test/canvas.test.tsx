@@ -443,6 +443,24 @@ describe("canvas: the connector's style attrs", () => {
     // The line stands (the stroke is the token's).
     expect(line.style.stroke).toBe("var(--docblocks-canvas-shape-stroke, currentColor)");
   });
+
+  it("the label's empty string is the removed stand (no text at the midpoint)", () => {
+    renderScene({
+      view: "canvas",
+      seed: (d) => {
+        const surface = d.insertBlock("surface");
+        const a = d.insertBlock("shape", { variant: "rect" }, { parent: surface });
+        d.setGeometry(a, { x: -100, y: 0, w: 100, h: 60 });
+        const b = d.insertBlock("shape", { variant: "rect" }, { parent: surface });
+        d.setGeometry(b, { x: 100, y: 0, w: 100, h: 60 });
+        d.insertBlock("connector", { start: { blockId: a }, end: { blockId: b }, label: "" }, { parent: surface });
+      },
+    });
+    // The line stands, the label's text stands nothing (the empty
+    // commit's removed state).
+    expect(document.querySelector("[data-connector-id]")).not.toBeNull();
+    expect(document.querySelector("[data-connector-label]")).toBeNull();
+  });
 });
 
 describe("canvas: frame", () => {

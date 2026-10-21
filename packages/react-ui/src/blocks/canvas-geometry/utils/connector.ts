@@ -5,8 +5,19 @@
  * and the obstacle AVOIDANCE (the shortest clear route over the
  * single-bend candidates + the two-bend-line U's).
  */
+import type { Block } from "docblocks-core";
+
 import { ORTHO_AVOID_MARGIN_PX, ORTHO_DETOUR_PX, ORTHO_STUB_PX, ROUTE_EPS } from "../models";
-import type { Box, ConnectorPath, ConnectorVariant, EdgeAnchor, EndpointPoint, RoutePoint } from "../models";
+import type {
+  Box,
+  CanvasPort,
+  ConnectorPath,
+  ConnectorVariant,
+  EdgeAnchor,
+  EndpointPoint,
+  RoutePoint,
+} from "../models";
+import { effectiveGeometry, endpointBoxOf, endpointPointOf, portsOf } from "./geometry";
 
 /**
  * The edge anchor (the center-to-toward segment's exit from the box's
@@ -333,4 +344,92 @@ function connectorPathPoints(
   return { d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
 }
 
-export { connectorPath, connectorPathPoints, edgeAnchor };
+export { connectorHandlePoints, connectorPath, connectorPathPoints, edgeAnchor };
+
+/**
+ * The endpoint handles' stand for a single selected connector (the chrome
+ * overlay's data — the handles stand in the screen space, over the
+ * floating toolbars). The resolution stands the same two-pass logic as the
+ * connector's render (the previewed blocks + the endpoint drag's live point
+ * / the snap's stick), so the overlay and the line stand from one number.
+ */
+function connectorHandlePoints(
+  childIds: readonly string[],
+  blocks: Record<string, Block>,
+  connectorId: string,
+  previews: {
+    movePreview: { ids: readonly string[]; dx: number; dy: number } | null;
+    resizePreview: { id: string; box: Box } | null;
+    endpointDrag: { connectorId: string; which: "start" | "end" } | null;
+    endpointPreview: {
+      point: { x: number; y: number };
+      snap: { blockId: string; port: CanvasPort } | null;
+    } | null;
+  }
+): { start: { x: number; y: number }; end: { x: number; y: number } } | null {
+  const block = blocks[connectorId];
+  if (block === undefined || block.type !== "connector") return null;
+  const attrs = block.attrs;
+  if (attrs === undefined) return null;
+
+  // The live geometry: the in-flight move / resize previews stand the
+  // endpoint resolution (like the connector's render).
+  const previewBlocks: Record<string, Block> = { ...blocks };
+  if (previews.movePreview !== null || previews.resizePreview !== null) {
+    for (const childId of childIds) {
+      const child = previewBlocks[childId];
+      if (child === undefined || child.type === "connector") continue;
+      if (previews.resizePreview !== null && previews.resizePreview.id === childId) {
+        previewBlocks[childId] = { ...child, geometry: { ...child.geometry, ...previews.resizePreview.box } };
+      } else if (previews.movePreview !== null && previews.movePreview.ids.includes(childId)) {
+        const g = effectiveGeometry(child);
+        previewBlocks[childId] = {
+          ...child,
+          geometry: {
+            x: g.x + previews.movePreview.dx,
+            y: g.y + previews.movePreview.dy,
+            w: g.w,
+            h: g.h,
+            ...(child.geometry?.rotation !== undefined ? { rotation: child.geometry.rotation } : {}),
+          },
+        };
+      }
+    }
+  }
+
+  // The two-pass resolution (the connector's render's logic): a free
+  // { x, y } point stands as-is; a block ref with a PORT stands at the
+  // block's edge midpoint; a block ref WITHOUT a port stands at the
+  // block's edge anchor toward the OTHER endpoint's stand.
+  const startBox = endpointBoxOf(attrs.start, childIds, previewBlocks);
+  const endBox = endpointBoxOf(attrs.end, childIds, previewBlocks);
+  const startFree =
+    attrs.start.x !== undefined && attrs.start.y !== undefined ? { x: attrs.start.x, y: attrs.start.y } : null;
+  const endFree = attrs.end.x !== undefined && attrs.end.y !== undefined ? { x: attrs.end.x, y: attrs.end.y } : null;
+  const startToward = endBox !== null ? { x: endBox.x, y: endBox.y } : (endFree ?? { x: 0, y: 0 });
+  const endToward = startBox !== null ? { x: startBox.x, y: startBox.y } : (startFree ?? { x: 0, y: 0 });
+  const startPoint = endpointPointOf(attrs.start, childIds, previewBlocks, startToward);
+  const endPoint = endpointPointOf(attrs.end, childIds, previewBlocks, endToward);
+  if (startPoint === null || endPoint === null) return null;
+
+  // The endpoint drag's live stand: the preview replaces the dragged
+  // endpoint's point; the live snap stands the PORT (the stick effect).
+  const dragging = previews.endpointDrag !== null && previews.endpointDrag.connectorId === connectorId;
+  const livePoint = (which: "start" | "end", resolved: { x: number; y: number }): { x: number; y: number } => {
+    if (!dragging || previews.endpointDrag === null || previews.endpointDrag.which !== which) {
+      return resolved;
+    }
+    const preview = previews.endpointPreview;
+    if (preview === null) return resolved;
+    const snap = preview.snap;
+    if (snap === null) return { x: preview.point.x, y: preview.point.y };
+    const sibling = previewBlocks[snap.blockId];
+    if (sibling === undefined) return { x: preview.point.x, y: preview.point.y };
+    const p = portsOf(effectiveGeometry(sibling))[snap.port];
+    return { x: p.x, y: p.y };
+  };
+  return {
+    start: livePoint("start", { x: startPoint.x, y: startPoint.y }),
+    end: livePoint("end", { x: endPoint.x, y: endPoint.y }),
+  };
+}
