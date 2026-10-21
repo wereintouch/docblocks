@@ -156,4 +156,45 @@ test.describe("the connector's style attrs", () => {
       await close();
     }
   });
+
+  test("the label's commit over the wire (the midpoint's text stands in both panes, the undo reverts)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "canvas-conn-label");
+    try {
+      await a.getByTestId("view-a-canvas").click();
+      await b.getByTestId("view-b-canvas").click();
+      await seedLine(a, "a");
+      await expect
+        .poll(
+          async () => (await b.locator('[data-testid="doc-b"] [data-slot="docblocks/canvas-item"]').count()) >= 3,
+          SETTLE
+        )
+        .toBe(true);
+
+      // The line's press + the label's commit (the Enter).
+      const box = (await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').boundingBox())!;
+      await a.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(a.getByRole("toolbar", { name: "Connector options" })).toBeVisible();
+      const input = a.getByLabel("Line label");
+      await input.fill("link");
+      await input.press("Enter");
+
+      // The attr stands in A and reaches B over the wire; the midpoint's
+      // text stands in both panes.
+      await expect.poll(async () => (await connectorAttrs(a, "a"))?.label, SETTLE).toBe("link");
+      await expect.poll(async () => (await connectorAttrs(b, "b"))?.label, SETTLE).toBe("link");
+      await expect(a.locator("[data-connector-label]")).toHaveText("link");
+      await expect(b.locator("[data-connector-label]")).toHaveText("link");
+
+      // The one-step undo (the focus re-seated on the canvas view — the
+      // input's commit dropped the focus off the editor).
+      await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').focus();
+      await a.keyboard.press("Control+z");
+      await expect.poll(async () => (await connectorAttrs(a, "a"))?.label, SETTLE).toBeUndefined();
+      await expect(a.locator("[data-connector-label]")).toHaveCount(0);
+    } finally {
+      await close();
+    }
+  });
 });

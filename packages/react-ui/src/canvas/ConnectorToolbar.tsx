@@ -41,6 +41,7 @@ const ARROW_HEADS: readonly { value: "none" | "arrow" | "circle"; label: string;
 function ConnectorToolbar({
   id,
   variant,
+  label,
   strokeColor,
   strokeWidth,
   arrowHead,
@@ -49,6 +50,9 @@ function ConnectorToolbar({
 }: {
   id: BlockId;
   variant: "straight" | "orthogonal" | "curved" | undefined;
+  /** The line's label (the midpoint's text; the empty string is the
+   * removed state). */
+  label: string | undefined;
   strokeColor: string | undefined;
   strokeWidth: number | undefined;
   arrowHead: "none" | "arrow" | "circle" | undefined;
@@ -59,6 +63,18 @@ function ConnectorToolbar({
   const { doc } = useEditorContext();
   // The palette section's open state (the toolbar's single section).
   const [openSection, setOpenSection] = useState<"stroke" | null>(null);
+  // The label's draft (the typed stand; null = not editing — the input
+  // shows the committed label, the focus stands the draft). The empty
+  // commit is the removed state (the attr stands the empty string).
+  const [labelDraft, setLabelDraft] = useState<string | null>(null);
+
+  const commitLabel = () => {
+    if (labelDraft === null) return;
+    setLabelDraft(null);
+    const value = labelDraft.trim();
+    if (value === (label ?? "")) return; // the no-op stand writes nothing
+    apply({ label: value });
+  };
 
   const apply = (patch: Record<string, unknown>) => {
     doc.transact(() => {
@@ -121,6 +137,32 @@ function ConnectorToolbar({
         {option("straight", "Straight line", <Diagonal className="size-4" />)}
         {option("orthogonal", "Orthogonal line", <Elbow className="size-4" />)}
         {option("curved", "Curved line", <Curve className="size-4" />)}
+        {/* The label (the midpoint's text; the empty commit is the
+            removed state). */}
+        <input
+          type="text"
+          data-slot="docblocks/connector-toolbar-label"
+          aria-label="Line label"
+          title="Line label"
+          placeholder="Label"
+          value={labelDraft ?? label ?? ""}
+          className="
+            h-7 w-24 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
+            bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color)
+            placeholder:text-(--docblocks-muted-foreground)
+            focus:outline-none
+          "
+          onMouseDown={(event) => event.stopPropagation()}
+          onFocus={() => setLabelDraft(label ?? "")}
+          onChange={(event) => setLabelDraft(event.target.value)}
+          onBlur={commitLabel}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              commitLabel();
+            }
+          }}
+        />
         <Separator orientation="vertical" className="h-5" />
         {/* The stroke color (the palette + the custom hex + the none
             entry — the absent stand is the theme's token). */}

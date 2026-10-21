@@ -44,6 +44,15 @@ const RESIZE_HANDLE_POSITIONS: { handle: ResizeHandle; className: string; style:
 /** The rotate handle's offset above the box top edge (screen px). */
 const HANDLE_ROTATE_OFFSET_PX = 24;
 
+/** The connector endpoint handle's visible radius (screen px — the
+ * screen-space handle keeps its on-screen size at any zoom, like the
+ * resize handles). */
+const CONNECTOR_HANDLE_RADIUS_PX = 4;
+
+/** The connector endpoint handle's hit radius (the wider invisible area,
+ * screen px). */
+const CONNECTOR_HANDLE_HIT_RADIUS_PX = 8;
+
 /** The shape toolbar's offset above the box top edge (screen px): it
  * stands over the rotate handle (24px), so it clears the handle zone. */
 const TOOLBAR_OFFSET_PX = 48;
@@ -66,6 +75,8 @@ type CanvasSession =
 const SCROLLBAR_GUARD_PX = 12;
 
 export {
+  CONNECTOR_HANDLE_HIT_RADIUS_PX,
+  CONNECTOR_HANDLE_RADIUS_PX,
   HANDLE_ROTATE_OFFSET_PX,
   PORT_PICK_RADIUS_PX,
   RESIZE_HANDLE_POSITIONS,

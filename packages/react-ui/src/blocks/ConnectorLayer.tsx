@@ -39,21 +39,11 @@ const HIT_STROKE_WIDTH = 12;
 /** The arrowhead's length (canvas px, the marker's coordinate space). */
 const ARROW_SIZE = 8;
 const LABEL_FONT_SIZE = 12;
-/** The endpoint handle's radius (canvas px, zoom-scaled). */
-const HANDLE_RADIUS = 4;
-/** The endpoint handle's hit area (the wider invisible circle). */
-const HANDLE_HIT_RADIUS = 8;
 /** The connect badge's radius (canvas px, beside the snapped port). */
 const SNAP_BADGE_RADIUS = 10;
 /** The connect badge's offset from the snapped port along its outward
  * normal (canvas px — the badge stands outside the box, beside the port). */
 const SNAP_BADGE_LIFT = 16;
-
-/** The selected line's endpoint handle data (the draw point + the key). */
-interface EndpointHandle {
-  key: "start" | "end";
-  point: EndpointPoint;
-}
 
 /**
  * The arrowhead def's id over the surface's id and the fill value (the
@@ -104,7 +94,6 @@ function ConnectorLayer({
   interactive = true,
   endpointDrag,
   endpointPreview,
-  onEndpointDrag,
   movePreview,
   resizePreview,
 }: {
@@ -112,13 +101,6 @@ function ConnectorLayer({
   interactive?: boolean;
   endpointDrag: { connectorId: BlockId; which: "start" | "end" } | null;
   endpointPreview: { point: { x: number; y: number }; snap: { blockId: string; port: CanvasPort } | null } | null;
-  onEndpointDrag: (
-    connectorId: BlockId,
-    which: "start" | "end",
-    pointerId: number,
-    clientX: number,
-    clientY: number
-  ) => void;
   /** The in-flight move preview (the lines follow the items mid-drag). */
   movePreview: MovePreview | null;
   /** The in-flight resize preview (the lines follow the resized item). */
@@ -326,8 +308,10 @@ function ConnectorLayer({
           ? connectorPath(startBox, endBox, attrs.variant ?? "straight")
           : connectorPathPoints(startDraw, endDraw, attrs.variant ?? "straight", obstacleBoxes);
 
+    // The label (the midpoint's text; the empty string is the removed
+    // state — the attr stands, the text stands nothing).
     const label =
-      attrs.label !== undefined ? (
+      attrs.label !== undefined && attrs.label !== "" ? (
         <text
           data-connector-label={childId}
           x={path.mid.x}
@@ -379,38 +363,6 @@ function ConnectorLayer({
     // attribute cannot carry var()).
     const pathStyle: CSSProperties = { stroke: stroke };
 
-    // The endpoint handles (the selected line only): the two drag circles
-    // at the resolved points (the preview point while dragging). The
-    // invisible wider hit circle stands the pointerdown (the visible
-    // circle is pointer-events none — the line's hit path stays the only
-    // line click target).
-    const handle = (key: "start" | "end", ep: EndpointHandle) =>
-      interactive && selected ? (
-        <g key={`${childId}-${key}`} data-connector-endpoint={key} data-connector-endpoint-id={childId}>
-          <circle
-            cx={ep.point.x}
-            cy={ep.point.y}
-            r={HANDLE_HIT_RADIUS}
-            fill="transparent"
-            pointerEvents="all"
-            style={{ cursor: "grab" }}
-            onPointerDown={(event) => {
-              event.stopPropagation();
-              onEndpointDrag(childId, key, event.pointerId, event.clientX, event.clientY);
-            }}
-          />
-          <circle
-            cx={ep.point.x}
-            cy={ep.point.y}
-            r={HANDLE_RADIUS}
-            fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
-            strokeWidth={1.5}
-            pointerEvents="none"
-            style={{ stroke: stroke }}
-          />
-        </g>
-      ) : null;
-
     segments.push(
       <g key={childId}>
         <path
@@ -443,8 +395,6 @@ function ConnectorLayer({
         )}
         {label}
         {snapBadge}
-        {handle("start", { key: "start", point: startDraw })}
-        {handle("end", { key: "end", point: endDraw })}
       </g>
     );
   }
