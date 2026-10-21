@@ -296,11 +296,12 @@ describe("type shapes", () => {
     expectTypeOf<AttrsFor<"shape">>().toEqualTypeOf<ShapeAttrs | undefined>();
   });
 
-  it("connector attrs: the required endpoints (a block ref with an optional port, or a free x/y point)", () => {
+  it("connector attrs: the required endpoints (a block ref with an optional port / portT, or a free x/y point)", () => {
     expectTypeOf<CanvasRef>().toEqualTypeOf<{
       docId?: string | undefined;
       blockId?: string | undefined;
       port?: "north" | "east" | "south" | "west" | undefined;
+      portT?: number | undefined;
       x?: number | undefined;
       y?: number | undefined;
     }>();

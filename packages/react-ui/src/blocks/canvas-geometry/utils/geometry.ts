@@ -128,6 +128,27 @@ function portsOf(box: Box): Ports {
 }
 
 /**
+ * The edge anchor's point at the fractional position along the side
+ *: t = 0 stands at the side's start
+ * corner, t = 1 at its end (north / south: left to right; east / west:
+ * top to bottom), so t = 0.5 stands the edge midpoint (the port's legacy
+ * stand). A non-finite t stands the midpoint (the lenient read posture).
+ */
+function edgePointOf(box: Box, port: CanvasPort, t: number | undefined): { x: number; y: number } {
+  const clamped = t === undefined || !Number.isFinite(t) ? 0.5 : Math.min(1, Math.max(0, t));
+  switch (port) {
+    case "north":
+      return { x: box.x - box.w / 2 + clamped * box.w, y: box.y - box.h / 2 };
+    case "south":
+      return { x: box.x - box.w / 2 + clamped * box.w, y: box.y + box.h / 2 };
+    case "east":
+      return { x: box.x + box.w / 2, y: box.y - box.h / 2 + clamped * box.h };
+    case "west":
+      return { x: box.x - box.w / 2, y: box.y - box.h / 2 + clamped * box.h };
+  }
+}
+
+/**
  * The group's EFFECTIVE members (the flat marker): the `members` weak refs resolved WITHIN the surface's
  * children by blockId (the connector's endpoint posture — the dangling
  * ref, or a ref that is not a direct sibling, is skipped, not rewritten).
@@ -220,9 +241,11 @@ function endpointPointOf(
   if (target === undefined) return null;
   const box = effectiveGeometry(target);
   if (ref.port !== undefined) {
-    const port = portsOf(box)[ref.port];
+    // The edge anchor: the side's point at the fractional position
+    // (the absent portT stands the midpoint — the port's legacy stand).
+    const point = edgePointOf(box, ref.port, ref.portT);
     const normal = PORT_NORMAL[ref.port];
-    return { x: port.x, y: port.y, nx: normal.nx, ny: normal.ny };
+    return { x: point.x, y: point.y, nx: normal.nx, ny: normal.ny };
   }
   const anchor = edgeAnchor(box, toward);
   return { x: anchor.x, y: anchor.y, nx: anchor.nx, ny: anchor.ny };
@@ -230,6 +253,7 @@ function endpointPointOf(
 
 export {
   canvasItemStyle,
+  edgePointOf,
   effectiveGeometry,
   endpointBoxOf,
   endpointOf,

@@ -128,6 +128,22 @@ function validateCanvasBlock(
           message: `Connector endpoint "${key}" port requires a block ref (docId / blockId) or a free point (x and y — the frozen direction).`,
         });
       }
+      if ("portT" in ref) {
+        // The edge anchor's fractional position : it stands on a BLOCK REF's port only (a free
+        // point's port is the frozen direction — t stands no anchor
+        // position there) and within the side's [0, 1].
+        if (!isRef || !("port" in ref)) {
+          errors.push({
+            path: `${path}.attrs.${key}`,
+            message: `Connector endpoint "${key}" portT requires the port on a block ref (the edge anchor's position along the side).`,
+          });
+        } else if (typeof ref.portT !== "number" || !Number.isFinite(ref.portT) || ref.portT < 0 || ref.portT > 1) {
+          errors.push({
+            path: `${path}.attrs.${key}.portT`,
+            message: `The connector endpoint's portT must stand within the side's 0–1 (got ${show(ref.portT)}).`,
+          });
+        }
+      }
     }
   }
 }

@@ -47,6 +47,15 @@ interface CanvasRef {
    * the edge's side over it).
    */
   port?: "north" | "east" | "south" | "west";
+  /**
+   * The endpoint's fractional position along the port's side (0–1; the
+   * absent stand is 0.5 — the edge midpoint, the port's legacy stand).
+   * t = 0 stands at the side's start corner, t = 1 at its end (north /
+   * south: left to right; east / west: top to bottom). Requires the port
+   * and a block ref; on a free point (x / y) it stands no anchor
+   * position (the strict validator rejects it).
+   */
+  portT?: number;
   /** The free endpoint's x (canvas px, the canvas origin — the world space). */
   x?: number;
   /** The free endpoint's y (canvas px, the canvas origin — the world space). */

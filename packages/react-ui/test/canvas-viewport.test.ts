@@ -1,7 +1,10 @@
 // The canvas viewport's pure geometry: the screen ↔ canvas mapping under
 // the zoom/pan transform, the marquee rectangle, and the pen stroke's
-// bounding box.
+// bounding box. + the connector endpoints' CONTINUOUS edge snap (the
+// side + the fractional position along it).
 import { describe, expect, it } from "vitest";
+
+import { createDoc } from "docblocks-core";
 
 import {
   MAX_ZOOM,
@@ -19,6 +22,7 @@ import {
   screenToCanvas,
   stepZoom,
 } from "../src/canvas/viewport";
+import { snapEdgePoint, snapEndpointEdge } from "../src/canvas/viewport/utils";
 
 describe("resizeBox", () => {
   const box = { x: 100, y: 100, w: 200, h: 100 };
@@ -208,5 +212,59 @@ describe("TOOL_SIZES", () => {
         expect(size.h, tool).toBeGreaterThan(0);
       }
     }
+  });
+});
+
+describe("the continuous edge snap", () => {
+  const CREATED_AT = "2026-10-10T00:00:00.000Z";
+
+  function scene() {
+    const doc = createDoc({ id: "snap-doc", createdAt: CREATED_AT });
+    const surface = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    doc.setGeometry(a, { x: -100, y: 0, w: 100, h: 60 });
+    const b = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    doc.setGeometry(b, { x: 100, y: 0, w: 100, h: 60 });
+    return { doc, surface, a, b };
+  }
+
+  it("stands the side + the fractional position at the point's projection (clamped to the side)", () => {
+    const { doc, a } = scene();
+    // A = (-100, 0, 100x60): the north edge at y = -30, x in [-150, -50].
+    // The point 5px above the north edge at x = -125 → t = 0.25.
+    expect(snapEdgePoint(doc, a, { x: -125, y: -35 })).toEqual({ blockId: a, port: "north", t: 0.25 });
+    // Off the side's segment (past the west corner): the t clamps to 0
+    // and the distance is to the corner's point.
+    expect(snapEdgePoint(doc, a, { x: -160, y: -30 })).toEqual({ blockId: a, port: "north", t: 0 });
+    // The nearest side wins (the point right of the east edge at the
+    // south quarter: the east side stands 0px, the south's 22px does not).
+    expect(snapEdgePoint(doc, a, { x: -45, y: 15 })).toEqual({ blockId: a, port: "east", t: 0.75 });
+  });
+
+  it("stands null outside the snap radius (the release in the air)", () => {
+    const { doc, a } = scene();
+    expect(snapEdgePoint(doc, a, { x: -100, y: 0 })).toBeNull(); // the box's center
+    expect(snapEdgePoint(doc, a, { x: 400, y: 200 })).toBeNull();
+  });
+
+  it("the sibling search skips the connector and the group (the box-less / the derived-box stands)", () => {
+    const { doc, surface, a } = scene();
+    const connector = doc.insertBlock(
+      "connector",
+      { start: { blockId: a }, end: { x: 300, y: 200 } },
+      { parent: surface }
+    );
+    const group = doc.insertBlock("group", { members: [a] }, { parent: surface });
+    // A point 5px above a's north edge: the group's default 60x60 box at
+    // the surface's center would stand a phantom edge at y = -30 over
+    // x in [-30, 30] — the skip keeps the snap on a (not the group's box
+    // at t = (0 - (-30)) / 60 = 0.5 over the same y).
+    expect(snapEndpointEdge(doc, surface, { x: -100, y: -35 })).toEqual({ blockId: a, port: "north", t: 0.5 });
+    // The connector's phantom box (the default size) never stands an edge:
+    // a point over the connector's default box's edge stands the block a
+    // if it stands nearest, or nothing when far from a / the group's box.
+    expect(snapEndpointEdge(doc, surface, { x: 30, y: -35 })).toBeNull();
+    expect(connector).toBeTruthy();
+    expect(group).toBeTruthy();
   });
 });

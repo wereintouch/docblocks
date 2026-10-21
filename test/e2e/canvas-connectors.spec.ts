@@ -420,7 +420,9 @@ test.describe("the connector arrows", () => {
     }
   });
 
-  test("the press-drag draw: the port snaps at the press / release (the port refs)", async ({ browser }) => {
+  test("the press-drag draw: the edge snaps at the press / release (the edge refs with the position along them)", async ({
+    browser,
+  }) => {
     const { a, close } = await twoPanes(browser, "cvs-conn-portsnap");
     try {
       await toCanvas(a, "a");
@@ -443,11 +445,12 @@ test.describe("the connector arrows", () => {
 
       const connector = await connectorOf(a, "a");
       expect(connector).not.toBeNull();
-      // The port refs (the snap committed the edge midpoints — the line
-      // stands port-to-port, not the diagonal's projected anchors).
+      // The edge refs (the snap committed the sides at the press / release
+      // projections — the t = 0.5 midpoint stand; the line stands
+      // edge-to-edge, not the diagonal's projected anchors).
       const portAttrs = await fullEndpointAttrs(a, "a", connector!);
-      expect(portAttrs?.start).toEqual({ blockId: left, port: "east" });
-      expect(portAttrs?.end).toEqual({ blockId: right, port: "west" });
+      expect(portAttrs?.start).toEqual({ blockId: left, port: "east", portT: 0.5 });
+      expect(portAttrs?.end).toEqual({ blockId: right, port: "west", portT: 0.5 });
       // The line's M point is the east port (the left box's east edge at
       // the box's center y).
       const d = (await lineD(a, "a", connector!))!;
@@ -533,12 +536,14 @@ test.describe("the connector arrows", () => {
       await expect(startHandle).toHaveCount(1);
       await expect(endHandle).toHaveCount(1);
 
-      // Drag the START endpoint to the right box's south port (the snap
+      // Drag the START endpoint to the right box's south edge (the snap
       // radius stands at 12 canvas px — the release stands on it): the
-      // commit is the port ref, one wire update, the other pane's line
-      // re-draws from the port. The drag stands 6px SHORT of the port
-      // (the stick): the line's end jumps to the port while the cursor
-      // stands off it — the snap's live effect.
+      // commit is the edge ref (the side + the fractional position along
+      // it — the continuous anchor), one
+      // wire update, the other pane's line re-draws from the edge's
+      // point. The drag stands 6px SHORT of the edge (the stick): the
+      // line's end jumps to the edge while the cursor stands off it —
+      // the snap's live effect.
       const handleBox = (await startHandle.boundingBox())!;
       const southPort = { x: center.x + 300, y: center.y + 150 };
       await a.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
@@ -547,7 +552,8 @@ test.describe("the connector arrows", () => {
       await a.mouse.move(southPort.x, southPort.y - 6, { steps: 8 });
       // The live snap stands while the drag is in flight: the green
       // connect badge over the line, the snapped port dot in the connect
-      // green, and the line's end stuck at the port (not the cursor).
+      // green, and the line's end stuck at the edge's point (not the
+      // cursor).
       await expect(a.locator(`[data-connector-snap-badge="${connId}"]`)).toHaveCount(1);
       const snappedDot = a.locator("[data-canvas-port-snapped]");
       await expect(snappedDot).toHaveCount(1);
@@ -557,11 +563,11 @@ test.describe("the connector arrows", () => {
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
-        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south" } }));
+        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south", portT: 0.5 } }));
       const wireBefore = await outCount(a, "a");
       await expect
         .poll(async () => fullEndpointAttrs(b, "b", connId), SETTLE)
-        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south" } }));
+        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south", portT: 0.5 } }));
 
       // Drag the END endpoint to the empty canvas (no port in reach): the
       // free point at the release (surface-local) WITH the FROZEN direction
@@ -585,7 +591,9 @@ test.describe("the connector arrows", () => {
       await a.keyboard.press("Control+z");
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
-        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south" }, end: { blockId: right } }));
+        .toEqual(
+          expect.objectContaining({ start: { blockId: right, port: "south", portT: 0.5 }, end: { blockId: right } })
+        );
     } finally {
       await close();
     }
@@ -727,7 +735,7 @@ test.describe("the connector arrows", () => {
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
-        .toEqual(expect.objectContaining({ end: { blockId: right, port: "east" } }));
+        .toEqual(expect.objectContaining({ end: { blockId: right, port: "east", portT: 0.5 } }));
       const dPort = (await lineD(a, "a", connId))!;
       const c2xPort = Number(dPort.split("C ")[1]!.split(",")[1]!.trim().split(" ")[0]);
       expect(c2xPort).toBeGreaterThan(400);
@@ -736,7 +744,7 @@ test.describe("the connector arrows", () => {
     }
   });
 
-  test("the single drag re-anchors the endpoint to the same block's other port (the own port only stands the detach)", async ({
+  test("the single drag re-anchors the endpoint to the same block's other side (the continuous contract)", async ({
     browser,
   }) => {
     const { a, close } = await twoPanes(browser, "cvs-conn-reanchor");
@@ -766,12 +774,13 @@ test.describe("the connector arrows", () => {
         `[data-connector-endpoint="end"][data-connector-endpoint-id="${connId}"] circle:nth-child(2)`
       );
 
-      // The SINGLE continuous drag: the end at the right box's WEST port,
-      // into the air, then to the right box's EAST port — the re-anchor
-      // stands in one drag (the old detach rule excluded the whole own
-      // block and the snap never stood). The connect badge stands BESIDE
-      // the port (not the line's
-      // midpoint) while over it.
+      // The SINGLE continuous drag: the end at the right box's WEST edge,
+      // into the air, then to the right box's EAST edge — the re-anchor
+      // stands in one drag (the continuous contract — the own block's
+      // edge re-anchors the endpoint, the legacy detach rule stands no
+      // longer). The connect badge stands
+      // BESIDE the edge's point (not the
+      // line's midpoint) while over it.
       const endBox = (await endHandle.boundingBox())!;
       const rightEast = { x: center.x + 400, y: center.y + 100 };
       await a.mouse.move(endBox.x + endBox.width / 2, endBox.y + endBox.height / 2);
@@ -788,7 +797,7 @@ test.describe("the connector arrows", () => {
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
-        .toEqual(expect.objectContaining({ end: { blockId: right, port: "east" } }));
+        .toEqual(expect.objectContaining({ end: { blockId: right, port: "east", portT: 0.5 } }));
     } finally {
       await close();
     }
@@ -881,8 +890,8 @@ async function fullEndpointAttrs(
   client: "a" | "b",
   id: string
 ): Promise<{
-  start?: { blockId?: string; port?: string; x?: number; y?: number };
-  end?: { blockId?: string; port?: string; x?: number; y?: number };
+  start?: { blockId?: string; port?: string; portT?: number; x?: number; y?: number };
+  end?: { blockId?: string; port?: string; portT?: number; x?: number; y?: number };
 } | null> {
   return page.evaluate(
     ({ client, id }) => {
@@ -892,9 +901,9 @@ async function fullEndpointAttrs(
       const block = doc.getBlock(id);
       if (block === null || block.type !== "connector") return null;
       const start = (block.attrs?.start ?? undefined) as
-        { blockId?: string; port?: string; x?: number; y?: number } | undefined;
+        { blockId?: string; port?: string; portT?: number; x?: number; y?: number } | undefined;
       const end = (block.attrs?.end ?? undefined) as
-        { blockId?: string; port?: string; x?: number; y?: number } | undefined;
+        { blockId?: string; port?: string; portT?: number; x?: number; y?: number } | undefined;
       return { start, end };
     },
     { client, id }

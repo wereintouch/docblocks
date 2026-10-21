@@ -106,13 +106,15 @@ describe("the connector's pending preview", () => {
     expect(r.previewLine()).toBeNull();
   });
 
-  it("the press-drag draw: the release over the second item stands the pick (the port snaps at the press / release points)", () => {
+  it("the press-drag draw: the release over the second item stands the pick (the edge snaps at the press / release points)", () => {
     const r = renderCanvas();
     fireEvent.click(r.view.querySelector<HTMLElement>('[data-tool="connector"]')!);
 
-    // The press stands on a's east port (the jsdom bbox is 0 — the canvas
+    // The press stands on a's east edge (the jsdom bbox is 0 — the canvas
     // point is the client point as-is; the surface stands at the origin),
-    // the release on b's west port: both snap (the port refs).
+    // the release on b's west edge: both snap to the edge's point at the
+    // cursor's projection (the t = 0.5 midpoint stand — the continuous
+    // anchor).
     fireEvent.pointerDown(r.item(r.a), { clientX: -50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 0, clientY: -40, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 50, clientY: 0, buttons: 1, pointerId: 1 });
@@ -122,8 +124,8 @@ describe("the connector's pending preview", () => {
     const connectors = connectorsOf(r.doc);
     expect(connectors).toHaveLength(1);
     expect(connectors[0]?.attrs).toEqual({
-      start: { blockId: r.a, port: "east" },
-      end: { blockId: r.b, port: "west" },
+      start: { blockId: r.a, port: "east", portT: 0.5 },
+      end: { blockId: r.b, port: "west", portT: 0.5 },
     });
     expect(r.previewLine()).toBeNull();
   });
@@ -141,7 +143,7 @@ describe("the connector's pending preview", () => {
     const connectors = connectorsOf(r.doc);
     expect(connectors).toHaveLength(1);
     expect(connectors[0]?.attrs).toEqual({
-      start: { blockId: r.a, port: "east" },
+      start: { blockId: r.a, port: "east", portT: 0.5 },
       end: { x: 300, y: 80 },
     });
   });
@@ -159,14 +161,14 @@ describe("the connector's pending preview", () => {
     expect(line!.getAttribute("y1")).toBe("100");
 
     // The release over b commits: the free start + the block end (the
-    // release point (50, 0) snaps b's west port).
+    // release point (50, 0) snaps b's west edge at the midpoint's t).
     fireEvent.pointerMove(r.view, { clientX: 0, clientY: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerUp(r.item(r.b), { clientX: 50, clientY: 0, pointerId: 1 });
     const connectors = connectorsOf(r.doc);
     expect(connectors).toHaveLength(1);
     expect(connectors[0]?.attrs).toEqual({
       start: { x: -200, y: 100 },
-      end: { blockId: r.b, port: "west" },
+      end: { blockId: r.b, port: "west", portT: 0.5 },
     });
   });
 
@@ -291,15 +293,15 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     expect(controlX).toBeGreaterThan(400);
   });
 
-  it("the drag commits the port snap (the release near the port) and the own block detaches to the free point", () => {
+  it("the drag commits the edge snap (the release on the edge stands the side + the position along it)", () => {
     const r = renderWithConnector();
     act(() => {
       r.setSelection("blocks", [r.connectorId]);
     });
     // The end handle stands at b's west-ish edge (the sticky anchor
     // toward a — b (100, 0, 100x60): the direction (-200, 0) exits the
-    // west edge at (50, 0)). The drag to a's south port (a (-100, 0,
-    // 100x60): the south port at (-100, 30)) — within the snap radius.
+    // west edge at (50, 0)). The drag to a's south edge (-100, 30 — the
+    // edge's midpoint, t = 0.5) — within the snap radius.
     const endHandle = r.handle("end");
     expect(endHandle).not.toBeNull();
     fireEvent.pointerDown(endHandle!, { clientX: 50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
@@ -307,7 +309,7 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     fireEvent.pointerUp(r.view, { clientX: -100, clientY: 30, pointerId: 1 });
     const connector = r.doc.getBlock(r.connectorId);
     if (connector === null || connector.type !== "connector") throw new Error("the connector vanished");
-    expect(connector.attrs.end).toEqual({ blockId: r.a, port: "south" });
+    expect(connector.attrs.end).toEqual({ blockId: r.a, port: "south", portT: 0.5 });
   });
 
   it("the drag's live snap: the line sticks to the port, the green badge and the snapped dot stand (the release commits the snap)", () => {
@@ -338,43 +340,47 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     const snappedDot = r.view.querySelector("[data-canvas-port-snapped]");
     expect(snappedDot).not.toBeNull();
     expect(snappedDot!.getAttribute("data-canvas-port")).toBe("south");
-    // The release commits the same snap (the preview stood the truth).
+    // The release commits the same snap (the preview stood the truth):
+    // the side + the fractional position along it (the t = 0.5
+    // projection of the release point on a's south edge).
     fireEvent.pointerUp(r.view, { clientX: -100, clientY: 24, pointerId: 1 });
     const connector = r.doc.getBlock(r.connectorId);
     if (connector === null || connector.type !== "connector") throw new Error("the connector vanished");
-    expect(connector.attrs.end).toEqual({ blockId: r.a, port: "south" });
+    expect(connector.attrs.end).toEqual({ blockId: r.a, port: "south", portT: 0.5 });
     // The badge drops with the drag.
     expect(r.view.querySelector(`[data-connector-snap-badge="${r.connectorId}"]`)).toBeNull();
   });
 
-  it("the drag re-anchors the endpoint to the SAME block's other port (the own port only stands the detach)", () => {
+  it("the drag re-anchors the endpoint to the SAME block's other side (the continuous contract — the release's projection stands the anchor)", () => {
     const r = renderWithConnector();
     act(() => {
       r.setSelection("blocks", [r.connectorId]);
     });
-    // The end's anchor stands b's WEST edge (the sticky anchor toward a —
-    // the excluded pair is { b, west }). The drag to b's EAST port (b
-    // (100, 0, 100x60): the east port at (150, 0)) re-anchors to the
-    // other port in one continuous drag (the owner's detach-then-restick
-    // workaround stands no longer needed — the edge's side takes the
-    // frozen direction over).
+    // The end's anchor stands b's WEST edge (the sticky anchor toward a).
+    // The drag to b's EAST edge (b (100, 0, 100x60): the east edge's
+    // midpoint at (150, 0)) re-anchors to the other side in one
+    // continuous drag (the edge's side takes the frozen direction over).
     const endHandle = r.handle("end");
     expect(endHandle).not.toBeNull();
     fireEvent.pointerDown(endHandle!, { clientX: 50, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 100, clientY: 60, buttons: 1, pointerId: 1 });
     fireEvent.pointerMove(r.view, { clientX: 150, clientY: 0, buttons: 1, pointerId: 1 });
-    // The live snap stands while over the other port (the badge + the
-    // stuck line's end at the port).
+    // The live snap stands while over the other side (the badge + the
+    // stuck line's end at the edge's point).
     const path = r.view.querySelector<SVGPathElement>(`[data-connector-id="${r.connectorId}"]`)!;
     expect(r.view.querySelector(`[data-connector-snap-badge="${r.connectorId}"]`)).not.toBeNull();
     expect(path.getAttribute("d")!.endsWith("150 0")).toBe(true);
     fireEvent.pointerUp(r.view, { clientX: 150, clientY: 0, pointerId: 1 });
     const connector = r.doc.getBlock(r.connectorId);
     if (connector === null || connector.type !== "connector") throw new Error("the connector vanished");
-    expect(connector.attrs.end).toEqual({ blockId: r.b, port: "east" });
-    // The release on the endpoint's OWN anchor port still detaches (the
-    // no-op re-anchor): the end back to b's west side stands the free
-    // point (no snap — the pair is excluded).
+    expect(connector.attrs.end).toEqual({ blockId: r.b, port: "east", portT: 0.5 });
+    // The continuous contract: the
+    // release over the endpoint's OWN block re-anchors it at the
+    // release's projection — the legacy "the own port stands the
+    // detach" rule stands no longer. The release at (60, 20) stands 10
+    // px from b's south edge (the t = 0.1 projection) — the re-anchor
+    // over the free point (the south edge stands before the equidistant
+    // west one — the side order breaks the tie).
     const endHandle2 = r.handle("end");
     expect(endHandle2).not.toBeNull();
     fireEvent.pointerDown(endHandle2!, { clientX: 150, clientY: 0, button: 0, buttons: 1, pointerId: 1 });
@@ -383,7 +389,7 @@ describe("the endpoint handles' drag (the selected line's endpoints)", () => {
     fireEvent.pointerUp(r.view, { clientX: 60, clientY: 20, pointerId: 1 });
     const connector2 = r.doc.getBlock(r.connectorId);
     if (connector2 === null || connector2.type !== "connector") throw new Error("the connector vanished");
-    expect(connector2.attrs.end).toEqual(expect.objectContaining({ x: 60, y: 20, port: "east" }));
+    expect(connector2.attrs.end).toEqual({ blockId: r.b, port: "south", portT: 0.1 });
   });
 });
 
