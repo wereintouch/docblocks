@@ -88,6 +88,11 @@ describe("strict validation (validateDoc)", () => {
   it("rejects the shape variant enum and the paint bounds (registry-driven)", () => {
     const variant = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "hexagon" } }));
     expect(variant.some((e) => e.path === "blocks.sh1.attrs.variant")).toBe(true);
+    // The new figure variants stand:
+    // the validator's registry carries them, the reader stays lenient
+    // over the unknowns (the legacy `line`'s stand).
+    expect(validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "cylinder" } }))).toEqual([]);
+    expect(validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "cloud" } }))).toEqual([]);
     const noVariant = validateDoc(withBlock("sh1", { type: "shape", attrs: {} }));
     expect(noVariant.some((e) => e.path === "blocks.sh1.attrs.variant")).toBe(true);
     const opacity = validateDoc(withBlock("sh1", { type: "shape", attrs: { variant: "rect", opacity: 1.5 } }));

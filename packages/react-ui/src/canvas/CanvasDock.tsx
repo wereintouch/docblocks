@@ -12,6 +12,8 @@ import { cn } from "../shared/ui/cn";
 import {
   ArrowRight,
   Circle,
+  Cloud,
+  Cylinder,
   Diamond,
   Hand,
   MousePointer2,
@@ -40,6 +42,8 @@ const SHAPE_TOOLS: DockTool[] = [
   { id: "rounded", label: "Rounded Rectangle", icon: SquareRounded },
   { id: "ellipse", label: "Ellipse", icon: Circle },
   { id: "diamond", label: "Diamond", icon: Diamond },
+  { id: "cylinder", label: "Cylinder", icon: Cylinder },
+  { id: "cloud", label: "Cloud", icon: Cloud },
 ];
 
 const SHAPE_IDS: CanvasTool[] = SHAPE_TOOLS.map((tool) => tool.id);

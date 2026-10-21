@@ -15,7 +15,7 @@ import type {
 
 /** The in-flight shape placement's preview (the center anchor, canvas coords). */
 interface PlacePreview {
-  variant: "rect" | "rounded" | "ellipse" | "diamond";
+  variant: "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud";
   x: number;
   y: number;
   w: number;

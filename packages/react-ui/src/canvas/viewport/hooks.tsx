@@ -91,6 +91,8 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
           case "rounded":
           case "ellipse":
           case "diamond":
+          case "cylinder":
+          case "cloud":
             placeShape(doc, tool, point, size);
             break;
           case "text":
@@ -120,6 +122,8 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
           case "rounded":
           case "ellipse":
           case "diamond":
+          case "cylinder":
+          case "cloud":
             placeShape(doc, tool, point, size);
             break;
         }
