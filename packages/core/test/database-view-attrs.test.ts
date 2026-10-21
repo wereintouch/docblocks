@@ -228,4 +228,21 @@ describe("the filter payload (the recursive and/or)", () => {
       InvalidAttrsError
     );
   });
+
+  it("the invalid filter is rejected on updateBlock (the command-level attrs guard)", () => {
+    const doc: Doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const id = doc.insertBlock("database", { tableId: "t1" });
+    // The filter-only patch stands the recursive check too (the columns /
+    // tableId patch guard alone would let it through).
+    const err = expectThrows(
+      () => doc.updateBlock(id, { filter: { logic: "xor", conditions: [] } } as unknown as DatabaseAttrs),
+      InvalidAttrsError
+    );
+    expect(err.message).toContain('must be "and" or "or"');
+    // The doc stands (the pre-patch attrs are untouched).
+    expect((doc.getBlock(id) as DatabaseBlock).attrs?.filter).toBeUndefined();
+    // A valid filter patch stands (the guard is not over-strict).
+    doc.updateBlock(id, { filter: { logic: "and", conditions: [{ columnId: "a", op: "eq", value: 1 }] } });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
 });
