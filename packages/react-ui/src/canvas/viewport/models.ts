@@ -108,10 +108,13 @@ interface EndpointDrag {
   which: "start" | "end";
 }
 
-/** The endpoint drag's port snap (the sibling block + the port). */
+/** The endpoint drag's edge snap (the sibling block, the side, and the
+ * fractional position along it — the continuous anchor). */
+
 interface EndpointSnap {
   blockId: string;
   port: CanvasPort;
+  t: number;
 }
 
 /** The endpoint drag's live preview (the raw point + the port snap, if any). */

@@ -7,7 +7,8 @@ import { useCallback, useRef, useState } from "react";
 
 import type { Block, Doc } from "docblocks-core";
 
-import { effectiveGeometry, endpointPointOf, portOfNormal, portsOf } from "../../blocks/canvas-geometry";
+import { effectiveGeometry, endpointPointOf, portOfNormal } from "../../blocks/canvas-geometry";
+import type { CanvasPort } from "../../blocks/canvas-geometry";
 import { findParentSurface, firstSurface, placeCanvasText, placeFrame, placePenStroke, placeShape } from "../insert";
 import {
   TOOL_SIZES,
@@ -19,7 +20,7 @@ import {
   stepZoom,
 } from "../viewport";
 import type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle, ScreenPoint } from "../viewport";
-import { ENDPOINT_RELEASE_THRESHOLD_PX, ENDPOINT_SNAP_RADIUS } from "./models";
+import { ENDPOINT_RELEASE_THRESHOLD_PX } from "./models";
 import type {
   CanvasViewportState,
   EndpointDrag,
@@ -32,7 +33,13 @@ import type {
   ResizeSession,
   RotateSession,
 } from "./models";
-import { snapEndpointPort } from "./utils";
+import { snapEdgePoint, snapEndpointEdge } from "./utils";
+
+// The portT's commit rounding: the edge's fractional position stands at
+// the 4-digit stand (0.0001 — sub-pixel on any sane edge at any zoom).
+function roundPortT(t: number): number {
+  return Number(t.toFixed(4));
+}
 
 function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [zoom, setZoomState] = useState(1);
@@ -173,26 +180,14 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
         surfaceId = firstSurface(doc);
       }
       if (surfaceId === null) return;
-      // The port snap: the nearest edge midpoint of the block within the
-      // snap radius (the canvas px, the zoom-blind space).
-      const snap = (
-        blockId: string,
-        world: CanvasPoint
-      ): { blockId: string; port?: "north" | "east" | "south" | "west" } => {
-        const block = doc.getBlock(blockId);
-        if (block === null) return { blockId };
-        const ports = portsOf(effectiveGeometry(block));
-        let best: "north" | "east" | "south" | "west" | null = null;
-        let bestDist = ENDPOINT_SNAP_RADIUS;
-        for (const port of ["north", "east", "south", "west"] as const) {
-          const p = ports[port];
-          const dist = Math.hypot(p.x - world.x, p.y - world.y);
-          if (dist < bestDist) {
-            bestDist = dist;
-            best = port;
-          }
-        }
-        return best !== null ? { blockId, port: best } : { blockId };
+      // The edge snap: the block's side + the fractional position whose
+      // edge point stands nearest to the pick point within the snap
+      // radius (the canvas px, the zoom-blind space) — the continuous
+      // anchor; far from the edge the
+      // ref stands the port-less block ref (the sticky anchor).
+      const snap = (blockId: string, world: CanvasPoint): { blockId: string; port?: CanvasPort; portT?: number } => {
+        const s = snapEdgePoint(doc, blockId, world);
+        return s !== null ? { blockId, port: s.port, portT: roundPortT(s.t) } : { blockId };
       };
 
       const start = firstBlock !== null ? snap(firstBlock, standPoint ?? pickPoint) : { ...firstFree! };
@@ -233,10 +228,12 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   // The connector endpoint's drag session (the selected line's handles):
   // the press opens the session (the line re-draws live from the
   // preview point — pure render state, no doc write until the release),
-  // the release commits the endpoint in one updateBlock (the port snap
-  // when released near a port, else the free point; a release on the
-  // dragged endpoint's OWN block detaches to the free point. The
-  // preview / commit points stand in the
+  // the release commits the endpoint in one updateBlock (the edge snap —
+  // the side + the fractional position along it — when released within
+  // the snap radius of a sibling's edge, else the free point; a release
+  // over the dragged endpoint's OWN block re-anchors it at the release's
+  // projection — the continuous contract).
+  // The preview / commit points stand in the
   // SURFACE-LOCAL canvas space (the surface center's origin — the
   // geometry's space); the session carries the surface's world offset.
   const beginConnectorEndpoint = useCallback(
@@ -285,10 +282,11 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       session.dragging = true;
       const point = screenToCanvas(pointer, zoom, pan);
       session.point = point;
-      // The live snap: within the radius the preview stands at the PORT
-      // (the line's end sticks to it — the release commits the same snap
-      // against the same point).
-      const snap = snapEndpointPort(doc, session.surfaceId, session.connectorId, session.which, point);
+      // The live edge snap: within the radius the preview stands at the
+      // edge anchor (the side's point at the fractional position — the
+      // stick effect); the release commits the same snap against the
+      // same point.
+      const snap = snapEndpointEdge(doc, session.surfaceId, point);
       setConnectorEndpointPreview({ point, snap });
     },
     [doc, zoom, pan]
@@ -311,12 +309,14 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       ) {
         return;
       }
-      // The port snap (the same search as the live preview — the release
-      // commits what the preview stood).
-      const snap = snapEndpointPort(doc, session.surfaceId, session.connectorId, session.which, session.point);
+      // The edge snap (the same search as the live preview — the release
+      // commits what the preview stood): the side + the fractional
+      // position (the continuous anchor; the own block's edge re-anchors
+      // the endpoint instead of detaching it ).
+      const snap = snapEndpointEdge(doc, session.surfaceId, session.point);
       const ref =
         snap !== null
-          ? { blockId: snap.blockId, port: snap.port }
+          ? { blockId: snap.blockId, port: snap.port, portT: roundPortT(snap.t) }
           : {
               x: Number(session.point.x.toFixed(2)),
               y: Number(session.point.y.toFixed(2)),

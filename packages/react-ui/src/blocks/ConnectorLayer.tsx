@@ -11,12 +11,13 @@ import { useBlock } from "../hooks";
 import { Link } from "../shared/ui/icons";
 import type { CanvasPort, EndpointPoint } from "./canvas-geometry";
 import {
+  PORT_NORMAL,
   connectorPath,
   connectorPathPoints,
+  edgePointOf,
   effectiveGeometry,
   endpointBoxOf,
   endpointPointOf,
-  portsOf,
 } from "./canvas-geometry";
 
 /** The v1 connector stroke (the shape token; the label uses the text color). */
@@ -100,7 +101,10 @@ function ConnectorLayer({
   id: BlockId;
   interactive?: boolean;
   endpointDrag: { connectorId: BlockId; which: "start" | "end" } | null;
-  endpointPreview: { point: { x: number; y: number }; snap: { blockId: string; port: CanvasPort } | null } | null;
+  endpointPreview: {
+    point: { x: number; y: number };
+    snap: { blockId: string; port: CanvasPort; t: number } | null;
+  } | null;
   /** The in-flight move preview (the lines follow the items mid-drag). */
   movePreview: MovePreview | null;
   /** The in-flight resize preview (the lines follow the resized item). */
@@ -195,11 +199,11 @@ function ConnectorLayer({
     // endpoint stands; the line's shape re-draws around it). The zero
     // normal on the preview: the free point bows out at render time.
     // The live snap (the drag's stick effect): within the snap radius the
-    // preview stands at the PORT (the line's end sticks to it) — not the
-    // raw cursor point. The snap stands the PORT's normal (the curve bows
-    // out from it); the in-air preview stands the STOREd endpoint's
-    // direction (the frozen normal — the line stands its direction while
-    // the endpoint is in the air).
+    // preview stands at the EDGE ANCHOR (the side's point at the
+    // fractional position — the continuous anchor of) — not the raw cursor point. The snap stands the PORT's
+    // normal (the curve bows out from it); the in-air preview stands the
+    // STOREd endpoint's direction (the frozen normal — the line stands
+    // its direction while the endpoint is in the air).
     const snapPoint = (which: "start" | "end"): EndpointPoint | null => {
       if (!draggingThis || endpointDrag === null || endpointDrag.which !== which || endpointPreview === null) {
         return null;
@@ -215,13 +219,9 @@ function ConnectorLayer({
       }
       const sibling = previewBlocks[snap.blockId];
       if (sibling === undefined) return { ...point, nx: 0, ny: 0 };
-      const p = portsOf(effectiveGeometry(sibling))[snap.port];
-      return {
-        x: p.x,
-        y: p.y,
-        nx: snap.port === "east" ? 1 : snap.port === "west" ? -1 : 0,
-        ny: snap.port === "south" ? 1 : snap.port === "north" ? -1 : 0,
-      };
+      const p = edgePointOf(effectiveGeometry(sibling), snap.port, snap.t);
+      const normal = PORT_NORMAL[snap.port];
+      return { x: p.x, y: p.y, nx: normal.nx, ny: normal.ny };
     };
     const startDraw: EndpointPoint =
       draggingThis && endpointDrag !== null && endpointDrag.which === "start"

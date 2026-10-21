@@ -42,12 +42,14 @@ function SurfaceLayer({
   endpointDrag: { connectorId: string; which: "start" | "end" } | null;
   endpointPreview: {
     point: { x: number; y: number };
-    snap: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
+    snap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
   } | null;
   /** The ports' visibility (the connector tool active or an endpoint drag in flight). */
   showPorts: boolean;
-  /** The endpoint drag's live port snap (the snapped dot stands the connect green). */
-  endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
+  /** The endpoint drag's live edge snap (the side + the fractional
+   *  position — the continuous anchor,; the
+   *  snapped dot stands the connect green at the anchor's point). */
+  endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
 }) {
   const { store } = useEditorContext();
   const contextValue = useBlockContextValue(id, children, "surface");
@@ -101,7 +103,7 @@ function PortDots({
   snapped,
 }: {
   id: BlockId;
-  snapped: { blockId: string; port: "north" | "east" | "south" | "west" } | null;
+  snapped: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
 }) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
@@ -111,8 +113,10 @@ function PortDots({
   for (const childId of surface.children ?? []) {
     const block = blocks[childId];
     // The connector stands no ports of its own (its ends are the ports'
-    // users; a line's box would stand phantom squares over its spans).
-    if (block === undefined || block.type === "connector") continue;
+    // users; a line's box would stand phantom squares over its spans);
+    // the group's box is DERIVED (the flat marker) — its default-size box
+    // would stand phantom dots at the surface's center.
+    if (block === undefined || block.type === "connector" || block.type === "group") continue;
     const box = effectiveGeometry(block);
     const ports = portsOf(box);
     for (const port of ["north", "east", "south", "west"] as const) {

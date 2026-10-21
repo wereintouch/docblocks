@@ -261,6 +261,29 @@ describe("strict validation (validateDoc)", () => {
     expect(valid.some((e) => e.path.startsWith("blocks.c1.attrs."))).toBe(false);
   });
 
+  it("checks the edge anchor's portT (the position along the side)", () => {
+    const conn = (attrs: Record<string, unknown>) =>
+      withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1" }, end: { blockId: "sh1" }, ...attrs } });
+    // The edge anchor with the fractional stand (0, 0.25, and 1 are the
+    // valid corners of the range).
+    for (const t of [0, 0.25, 1]) {
+      const valid = validateDoc(conn({ start: { blockId: "f1", port: "north", portT: t } }));
+      expect(valid.some((e) => e.path.startsWith("blocks.c1.attrs.start"))).toBe(false);
+    }
+    // Out of the side's range.
+    const tooHigh = validateDoc(conn({ start: { blockId: "f1", port: "north", portT: 1.5 } }));
+    expect(tooHigh.some((e) => e.path === "blocks.c1.attrs.start.portT")).toBe(true);
+    const tooLow = validateDoc(conn({ start: { blockId: "f1", port: "north", portT: -0.1 } }));
+    expect(tooLow.some((e) => e.path === "blocks.c1.attrs.start.portT")).toBe(true);
+    // portT without the port stands no anchor position.
+    const noPort = validateDoc(conn({ start: { blockId: "f1", portT: 0.5 } }));
+    expect(noPort.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
+    // On a FREE point the port stands the frozen direction — portT is
+    // meaningless there (it stands no anchor position).
+    const free = validateDoc(conn({ start: { x: 10, y: 20, port: "east", portT: 0.5 }, end: { blockId: "sh1" } }));
+    expect(free.some((e) => e.path === "blocks.c1.attrs.start")).toBe(true);
+  });
+
   it("rejects a malformed geometry of any block (the strict shape)", () => {
     const withGeometry = (geometry: unknown) =>
       withBlock("p1", { type: "paragraph", geometry, content: [{ text: "page", marks: {} }] });

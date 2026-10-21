@@ -17,7 +17,7 @@ import type {
   EndpointPoint,
   RoutePoint,
 } from "../models";
-import { effectiveGeometry, endpointBoxOf, endpointPointOf, portsOf } from "./geometry";
+import { edgePointOf, effectiveGeometry, endpointBoxOf, endpointPointOf } from "./geometry";
 
 /**
  * The edge anchor (the center-to-toward segment's exit from the box's
@@ -363,7 +363,7 @@ function connectorHandlePoints(
     endpointDrag: { connectorId: string; which: "start" | "end" } | null;
     endpointPreview: {
       point: { x: number; y: number };
-      snap: { blockId: string; port: CanvasPort } | null;
+      snap: { blockId: string; port: CanvasPort; t: number } | null;
     } | null;
   }
 ): { start: { x: number; y: number }; end: { x: number; y: number } } | null {
@@ -413,7 +413,9 @@ function connectorHandlePoints(
   if (startPoint === null || endPoint === null) return null;
 
   // The endpoint drag's live stand: the preview replaces the dragged
-  // endpoint's point; the live snap stands the PORT (the stick effect).
+  // endpoint's point; the live snap stands the EDGE ANCHOR (the side's
+  // point at the fractional position — the stick effect, the continuous
+  // anchor of).
   const dragging = previews.endpointDrag !== null && previews.endpointDrag.connectorId === connectorId;
   const livePoint = (which: "start" | "end", resolved: { x: number; y: number }): { x: number; y: number } => {
     if (!dragging || previews.endpointDrag === null || previews.endpointDrag.which !== which) {
@@ -425,7 +427,7 @@ function connectorHandlePoints(
     if (snap === null) return { x: preview.point.x, y: preview.point.y };
     const sibling = previewBlocks[snap.blockId];
     if (sibling === undefined) return { x: preview.point.x, y: preview.point.y };
-    const p = portsOf(effectiveGeometry(sibling))[snap.port];
+    const p = edgePointOf(effectiveGeometry(sibling), snap.port, snap.t);
     return { x: p.x, y: p.y };
   };
   return {

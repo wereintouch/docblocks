@@ -9,6 +9,7 @@ import {
   connectorPath,
   connectorPathPoints,
   edgeAnchor,
+  edgePointOf,
   endpointPointOf,
   portOfNormal,
   portsOf,
@@ -73,6 +74,31 @@ describe("portsOf", () => {
   });
 });
 
+describe("edgePointOf", () => {
+  // A = { x: -300, y: -100, w: 200, h: 100 }: the north / south edges
+  // run left to right, the east / west edges top to bottom.
+  it("the side's point at the fractional position (the portT's contract)", () => {
+    // North (t = 0 left corner, 0.5 midpoint, 1 right corner).
+    expect(edgePointOf(A, "north", 0)).toEqual({ x: -400, y: -150 });
+    expect(edgePointOf(A, "north", 0.5)).toEqual({ x: -300, y: -150 });
+    expect(edgePointOf(A, "north", 1)).toEqual({ x: -200, y: -150 });
+    // East (top to bottom).
+    expect(edgePointOf(A, "east", 0)).toEqual({ x: -200, y: -150 });
+    expect(edgePointOf(A, "east", 0.25)).toEqual({ x: -200, y: -125 });
+    expect(edgePointOf(A, "east", 1)).toEqual({ x: -200, y: -50 });
+    // South / west.
+    expect(edgePointOf(A, "south", 0.5)).toEqual({ x: -300, y: -50 });
+    expect(edgePointOf(A, "west", 0.75)).toEqual({ x: -400, y: -75 });
+  });
+
+  it("clamps out-of-range t and stands the midpoint for the absent / non-finite t (the lenient read)", () => {
+    expect(edgePointOf(A, "north", 2)).toEqual({ x: -200, y: -150 });
+    expect(edgePointOf(A, "north", -1)).toEqual({ x: -400, y: -150 });
+    expect(edgePointOf(A, "east", undefined)).toEqual({ x: -200, y: -100 });
+    expect(edgePointOf(A, "south", NaN)).toEqual({ x: -300, y: -50 });
+  });
+});
+
 describe("endpointPointOf", () => {
   const blocks = {
     s1: { type: "shape", attrs: { variant: "rect" }, geometry: { x: -300, y: -100, w: 200, h: 100 } },
@@ -123,6 +149,29 @@ describe("endpointPointOf", () => {
       y: -50,
       nx: 0,
       ny: 1,
+    });
+  });
+
+  it("a ref + port + portT stands at the side's point at the fractional position (the continuous anchor)", () => {
+    // The east edge (top to bottom): t = 0.25 stands 25% down from the
+    // top corner (A = { x: -300, y: -100, w: 200, h: 100 } → (−200, −125));
+    // the normal stays the port's (the position moves along the side,
+    // not the direction).
+    expect(endpointPointOf({ blockId: "s1", port: "east", portT: 0.25 }, siblings, blocks, { x: 300, y: 100 })).toEqual(
+      {
+        x: -200,
+        y: -125,
+        nx: 1,
+        ny: 0,
+      }
+    );
+    // The north edge at the corner (t = 1 — the corners stand).
+
+    expect(endpointPointOf({ blockId: "s1", port: "north", portT: 1 }, siblings, blocks, { x: 0, y: 0 })).toEqual({
+      x: -200,
+      y: -150,
+      nx: 0,
+      ny: -1,
     });
   });
 
