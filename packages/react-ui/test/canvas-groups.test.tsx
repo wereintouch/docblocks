@@ -237,9 +237,9 @@ describe("the hotkeys", () => {
 
     fireEvent.keyDown(r.view, { key: "g", metaKey: true });
     const json = r.json();
-    const groupEntry = Object.values(json.blocks).find(
-      (block) => (block as Block).type === "group"
-    ) as { attrs: { members: string[] } };
+    const groupEntry = Object.values(json.blocks).find((block) => (block as Block).type === "group") as {
+      attrs: { members: string[] };
+    };
     expect(groupEntry).toBeDefined();
     expect(groupEntry.attrs).toMatchObject({ members: [r.a, r.b] });
     // The group stands selected (the outline's emphasis).

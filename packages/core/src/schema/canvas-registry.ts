@@ -92,6 +92,15 @@ const CANVAS_BLOCK_SPECS: Pick<
       // refs (the line re-derives from the blocks' geometry).
       variant: { kind: "enum", values: ["straight", "orthogonal", "curved"] },
       strokeStyle: { kind: "enum", values: ["solid", "dash", "dot"] },
+      // The line's style attrs: the color
+      // is data (a hex string — like the shape's fill / stroke, the free
+      // string kind: the consumer's data is not rewritten), the width is
+      // the 1–4 px stand (the shape's border selector's parity), the
+      // arrowhead's figure + the start-side stand.
+      strokeColor: { kind: "string" },
+      strokeWidth: { kind: "number", integer: true, min: 1, max: 4 },
+      arrowHead: { kind: "enum", values: ["none", "arrow", "circle"] },
+      arrowStart: { kind: "boolean" },
     },
   },
   frame: {

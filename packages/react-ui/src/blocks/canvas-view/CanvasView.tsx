@@ -265,7 +265,15 @@ function CanvasView() {
       { ...endStand, nx: 0, ny: 0 },
       block.attrs.variant ?? "straight"
     ).mid;
-    return { id, variant: block.attrs.variant, mid };
+    return {
+      id,
+      variant: block.attrs.variant,
+      strokeColor: block.attrs.strokeColor,
+      strokeWidth: block.attrs.strokeWidth,
+      arrowHead: block.attrs.arrowHead,
+      arrowStart: block.attrs.arrowStart,
+      mid,
+    };
   })();
 
   if (root === undefined) return null;
@@ -1296,6 +1304,10 @@ function CanvasView() {
           <ConnectorToolbar
             id={connectorToolbarTarget.id}
             variant={connectorToolbarTarget.variant}
+            strokeColor={connectorToolbarTarget.strokeColor}
+            strokeWidth={connectorToolbarTarget.strokeWidth}
+            arrowHead={connectorToolbarTarget.arrowHead}
+            arrowStart={connectorToolbarTarget.arrowStart}
             style={{
               left: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).x}px)`,
               top: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).y - TOOLBAR_OFFSET_PX}px)`,
