@@ -6,8 +6,10 @@
  * own copy of the state and applies the remote events idempotently); a
  * production consumer replaces the whole bridge with its backend
  * implementation. The bridge speaks the standard fractional row order
- * (the `rowOrder` column value) and the auto-incrementing row ids (the
- * `id` pk column value).
+ * (the `rowOrder` column value) and the table-derived row ids (the
+ * `r-{tableId}-{n}` `id` pk value); the table id stands derived from the
+ * table name, so the channel's instances converge on the same tables
+ * (the two tabs' identically-named demo tables share one table).
  */
 import type { DatabaseFilterPayload } from "docblocks-core";
 
@@ -41,7 +43,7 @@ interface MemoryTable {
   orderValues: Map<string, number>;
   /** The removed rows (the soft-delete trash): row id → the saved state. */
   trash: Map<string, { cells: Record<string, unknown>; orderValue: number }>;
-  /** The row-id counter (the pk values are `r1`, `r2`, ...). */
+  /** The row-id counter (the pk values are `r-{tableId}-1`, `r-{tableId}-2`, ...). */
   rowCounter: number;
 }
 
@@ -59,7 +61,6 @@ interface MemoryBridgeOptions {
 function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): DatabaseBridge {
   const tables = new Map<string, MemoryTable>();
   const listeners = new Map<string, Set<(events: TableEvent[]) => void>>();
-  let tableCounter = 0;
   const origin = Math.random().toString(36).slice(2);
 
   const channel: BroadcastChannel | null =
@@ -82,6 +83,22 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
 
   /** The remote echo: apply to the local state idempotently, notify the local listeners, no re-broadcast. */
   function applyRemote(tableId: string, events: TableEvent[]): void {
+    // A created table stands the local state first (the echo carries the
+    // origin's table id, so the local copy stands under the SAME key the
+    // origin's row / schema events address); an already-seeded local table
+    // is left untouched (the concurrent seed stands its own state).
+    for (const event of events) {
+      if (event.type === "table.created" && !tables.has(tableId)) {
+        tables.set(tableId, {
+          name: event.name,
+          columns: clone(event.columns),
+          rows: new Map(),
+          orderValues: new Map(),
+          trash: new Map(),
+          rowCounter: 0,
+        });
+      }
+    }
     const table = tables.get(tableId);
     if (table !== undefined) applyEvents(tableId, table, events);
     notifyLocal(tableId, events);
@@ -142,6 +159,9 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
             table.rows.set(event.rowId, clone(event.cells));
             if (!table.orderValues.has(event.rowId)) table.orderValues.set(event.rowId, nextOrder(table));
           }
+          // The peer's row id stands the shared per-table counter: advance
+          // the local one so the next local insert never reuses a taken id.
+          table.rowCounter = Math.max(table.rowCounter, rowCounterOf(tableId, event.rowId));
           break;
         }
         case "row.updated": {
@@ -232,8 +252,14 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
     },
 
     async createTable(name: string): Promise<string> {
-      const id = `table-${++tableCounter}`;
+      // The id stands derived from the name (deterministic across the
+      // channel's instances: the two tabs' identically-named tables share
+      // one table — the demo-seed contract); an existing table of the name
+      // (the local seed or the peer's created echo) is adopted as-is.
+      const id = tableIdFor(name);
+      if (tables.has(id)) return id;
       tables.set(id, { name, columns: [], rows: new Map(), orderValues: new Map(), trash: new Map(), rowCounter: 0 });
+      emit(id, [{ type: "table.created", tableId: id, name, columns: [] }]);
       return id;
     },
 
@@ -303,7 +329,10 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
 
     async insertRow(tableId: string, row: Record<string, unknown>): Promise<string> {
       const table = tableOf(tableId);
-      const rowId = `r${++table.rowCounter}`;
+      // The row id stands derived from the table + the per-table counter
+      // (deterministic over the channel's instances: the seeded demo rows
+      // stand the same ids on both sides; the counter syncs over the echoes).
+      const rowId = `r-${tableId}-${++table.rowCounter}`;
       table.rows.set(rowId, clone(stripManaged(row)));
       table.orderValues.set(rowId, nextOrder(table));
       emit(tableId, [{ type: "row.created", rowId, cells: clone(table.rows.get(rowId) ?? {}) }]);
@@ -344,7 +373,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       const created: TableEvent[] = [];
       const ids: string[] = [];
       for (const row of rows) {
-        const rowId = `r${++table.rowCounter}`;
+        const rowId = `r-${tableId}-${++table.rowCounter}`;
         table.rows.set(rowId, clone(stripManaged(row)));
         table.orderValues.set(rowId, nextOrder(table));
         created.push({ type: "row.created", rowId, cells: clone(table.rows.get(rowId) ?? {}) });
@@ -441,6 +470,23 @@ function stripManaged(row: Record<string, unknown>): Record<string, unknown> {
     cells[key] = value;
   }
   return cells;
+}
+
+/** The table id derived from the name (deterministic across the channel's instances). */
+function tableIdFor(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `table-${slug || Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** The counter carried by the row id (`r-{tableId}-{n}`). */
+function rowCounterOf(tableId: string, rowId: string): number {
+  const prefix = `r-${tableId}-`;
+  if (!rowId.startsWith(prefix)) return 0;
+  const n = Number(rowId.slice(prefix.length));
+  return Number.isInteger(n) && n > 0 ? n : 0;
 }
 
 function encodeCursor(index: number): string {
