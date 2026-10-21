@@ -146,6 +146,48 @@ describe("the flat page model (commands)", () => {
     expect((doc.getBlock(b) as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
   });
 
+  it("updateBlock rejects an outdent that would dangle the next block (the TO side)", () => {
+    const doc = newDoc();
+    doc.insertBlock("paragraph");
+    const b = doc.insertBlock("paragraph");
+    doc.updateBlock(b, { indent: 1 });
+    const c = doc.insertBlock("paragraph");
+    doc.updateBlock(c, { indent: 2 });
+    // [a(0), b(1), c(2)]: b outdenting to 0 would dangle c (2 > 0 + 1) —
+    // the stranded pair breaks, rejected.
+    const err = expectThrows(() => doc.updateBlock(b, { indent: 0 }), InvalidOperationError);
+    expect(err.message).toContain("stranded");
+    // The doc stands (no partial mutation).
+    expect((doc.getBlock(b) as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+
+    // An outdent with no deeper follower is accepted: [a(0), b(1)] —
+    // b to 0, nothing to dangle.
+    const shallow = newDoc();
+    shallow.insertBlock("paragraph");
+    const bS = shallow.insertBlock("paragraph");
+    shallow.updateBlock(bS, { indent: 1 });
+    expect(() => shallow.updateBlock(bS, { indent: 0 })).not.toThrow();
+    expect(validateDoc(shallow.toJSON())).toEqual([]);
+    expect((shallow.getBlock(bS) as { attrs?: { indent?: number } }).attrs?.indent).toBe(0);
+
+    // The UI's segment outdent: the whole stretch composes in one transact
+    // (the mid-transact dangle is a transient the composition resolves).
+    const d = newDoc();
+    d.insertBlock("paragraph");
+    const b2 = d.insertBlock("paragraph");
+    d.updateBlock(b2, { indent: 1 });
+    const c2 = d.insertBlock("paragraph");
+    d.updateBlock(c2, { indent: 2 });
+    d.transact(() => {
+      d.updateBlock(b2, { indent: 0 });
+      d.updateBlock(c2, { indent: 1 });
+    });
+    expect(validateDoc(d.toJSON())).toEqual([]);
+    expect((d.getBlock(b2) as { attrs?: { indent?: number } }).attrs?.indent).toBe(0);
+    expect((d.getBlock(c2) as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+  });
+
   it("insertBlock keeps the indent-jump rule at the landing position", () => {
     const doc = newDoc();
     const a = doc.insertBlock("paragraph");

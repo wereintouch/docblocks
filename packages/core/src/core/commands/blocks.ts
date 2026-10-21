@@ -40,6 +40,12 @@ interface InsertBlockPosition {
   parent?: BlockId;
   /** Existing child of `parent`; the new block lands right after it. */
   after?: BlockId;
+  /** Explicit block id (additive). The id stands in the blocks map and
+   *  the parent's order; a collision with an existing block is rejected.
+   *  The write is idempotent: a concurrent peer insert of the same id
+   *  (the deterministic tail paragraph) converges to one block and one
+   *  order slot. */
+  id?: BlockId;
 }
 
 /**
@@ -88,6 +94,17 @@ function insertBlock(
 ): BlockId {
   if (!(type in BLOCK_REGISTRY)) throw new UnknownBlockTypeError(`Unknown block type "${String(type)}".`);
   if (type === "root") throw new InvalidOperationError("The root block already exists and cannot be inserted.");
+
+  // An explicit id must be fresh (a deterministic concurrent insert — the
+  // tail paragraph — is idempotent at the write, not a re-insert).
+  const explicitId = at?.id;
+  if (explicitId !== undefined) {
+    if (explicitId === "") throw new InvalidOperationError("An explicit block id must be a non-empty string.");
+    if (getBlocks(ydoc).has(explicitId)) {
+      throw new InvalidOperationError(`A block with id "${explicitId}" already exists.`);
+    }
+  }
+
   const attrErrors = validateBlockAttrs(type, attrs);
   if (attrErrors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${formatValidationErrors(attrErrors)}`);
@@ -179,10 +196,15 @@ function insertBlock(
     assertValidDatabaseInsert(attrs);
   }
 
-  const id = generateId();
+  const id = explicitId ?? generateId();
   localTransact(ydoc, () => {
-    writeNewBlock(getBlocks(ydoc), id, type, attrs);
-    children.insert(index, [id]);
+    // The explicit id is idempotent: a peer's concurrent insert of the
+    // same id (the deterministic tail paragraph) wins — the entry and the
+    // order slot are written only when absent, so the race converges to
+    // one block and one slot.
+    const blocks = getBlocks(ydoc);
+    if (!(blocks.get(id) instanceof Y.Map)) writeNewBlock(blocks, id, type, attrs);
+    if (!children.toArray().includes(id)) children.insert(index, [id]);
   });
   return id;
 }

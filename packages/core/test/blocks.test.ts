@@ -10,6 +10,7 @@ import {
   UnknownBlockError,
   UnknownBlockTypeError,
   createDoc,
+  fromJSON,
 } from "../src/core";
 import type { Doc } from "../src/core";
 import type { BlockAttrsPatch, BlockType, CanvasRef, HeadingAttrs, ShapeAttrs } from "../src/schema";
@@ -135,6 +136,53 @@ describe("insertBlock", () => {
     const doc = createDoc({ id: "d", createdAt: CREATED_AT, generateId: () => `b${n++}` });
     expect(doc.insertBlock("paragraph")).toBe("b0");
     expect(doc.insertBlock("divider")).toBe("b1");
+  });
+
+  it("accepts an explicit block id and rejects a colliding / empty one", () => {
+    const doc = newDoc();
+    const id = doc.insertBlock("paragraph", undefined, { id: "my-tail" });
+    expect(id).toBe("my-tail");
+    expect(doc.getChildren("r")).toEqual(["my-tail"]);
+    expect(doc.getBlock("my-tail")).toEqual({ type: "paragraph" });
+    expectThrows(() => doc.insertBlock("paragraph", undefined, { id: "my-tail" }), InvalidOperationError);
+    expectThrows(() => doc.insertBlock("paragraph", undefined, { id: "" }), InvalidOperationError);
+    // The generated ids are unaffected (the explicit path is additive).
+    expect(doc.insertBlock("paragraph")).not.toBe("my-tail");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("converges a concurrent explicit-id insert to one block and one order slot", () => {
+    // The deterministic tail paragraph: two peers standing the same
+    // non-text tail insert the same id — the idempotent write keeps one
+    // block and one order slot on both sides.
+    const maker = newDoc();
+    const p = maker.insertBlock("paragraph");
+    maker.insertBlock("database", { tableId: "t1" }, { after: p });
+    const start = maker.toJSON();
+    const A = fromJSON(JSON.parse(JSON.stringify(start)));
+    const B = fromJSON(JSON.parse(JSON.stringify(start)));
+    const root = "r";
+    const last = A.getChildren(root).slice(-1)[0]!;
+    A.insertBlock("paragraph", undefined, { parent: root, after: last, id: "r-tail" });
+    B.insertBlock("paragraph", undefined, { parent: root, after: last, id: "r-tail" });
+    A.applyUpdate(B.encodeUpdate());
+    B.applyUpdate(A.encodeUpdate());
+    for (const [name, doc] of [
+      ["A", A],
+      ["B", B],
+    ] as const) {
+      const children = doc.getChildren(root);
+      expect(
+        children.filter((id) => id === "r-tail"),
+        `${name}: one order slot`
+      ).toEqual(["r-tail"]);
+      expect(doc.getBlock("r-tail")).toEqual({ type: "paragraph" });
+      expect(validateDoc(doc.toJSON()), `${name}: valid`).toEqual([]);
+    }
+    // The settled state re-loads (the read path stands on the converged
+    // order).
+    const reloaded = fromJSON(JSON.parse(JSON.stringify(A.toJSON())));
+    expect(reloaded.getChildren(root)).toEqual(A.getChildren(root));
   });
 
   it("unknown type -> UnknownBlockTypeError", () => {

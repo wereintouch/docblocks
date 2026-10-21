@@ -8,7 +8,7 @@ import type { BlockType } from "../../block-union";
 import { BLOCK_REGISTRY } from "../../registry";
 import { DOC_FIELDS } from "../models";
 import type { ValidationError } from "../models";
-import { validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
+import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
 import { isIso8601, isPlainObject, show } from "./common";
 import { validateAttrs, validateContent, validateMarks } from "./content";
 
@@ -288,6 +288,13 @@ function validateDoc(json: unknown): ValidationError[] {
 function validateBlockAttrs(type: BlockType, attrs: unknown): ValidationError[] {
   const errors: ValidationError[] = [];
   validateAttrs(type, BLOCK_REGISTRY[type], attrs, "attrs", errors);
+  // The database's recursive filter payload is not expressible in the flat
+  // AttrSpec (the registry keeps `filter` a plain `object`): the command
+  // paths (insertBlock / updateBlock) reject an invalid payload here, like
+  // the doc-level validator does.
+  if (type === "database" && isPlainObject(attrs) && attrs.filter !== undefined) {
+    checkDatabaseFilter(attrs.filter, "attrs.filter", errors);
+  }
   return errors;
 }
 

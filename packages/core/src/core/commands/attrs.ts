@@ -12,7 +12,15 @@ import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatVali
 import { localTransact, writeAttrValue } from "../layout";
 import { readBlock } from "../read";
 import { assertValidDatabasePatch } from "./database";
-import { blockTypeOf, childrenOf, findParent, getBlockMap, indentJumpViolation, isPageSequence } from "./structure";
+import {
+  blockTypeOf,
+  childrenOf,
+  findParent,
+  getBlockMap,
+  indentJumpViolation,
+  indentOfBlock,
+  isPageSequence,
+} from "./structure";
 
 /** Sets or overwrites the given attrs; other attrs stay, attrs are never removed. */
 function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
@@ -77,9 +85,32 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
     if (parent !== null && isPageSequence(ydoc, parent)) {
       const seq = childrenOf(ydoc, parent);
       const childIds = seq !== null ? seq.toArray() : [];
-      const violation = indentJumpViolation(ydoc, childIds, childIds.indexOf(id), merged.indent as number);
+      const index = childIds.indexOf(id);
+      const newIndent = merged.indent as number;
+      const violation = indentJumpViolation(ydoc, childIds, index, newIndent);
       if (violation !== null) {
         throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${violation}.`);
+      }
+      // The TO side: a lowered indent can dangle the next block (its
+      // predecessor just got shallower). Rejected like the moveBlock /
+      // insertBlock TO-side strandings — and like them the check stands
+      // only for a command that commits its own transaction: the UI's
+      // segment outdent composes the whole stretch in one transact, so a
+      // mid-transact dangle is a transient the composition resolves (the
+      // Yjs transaction's atomicity keeps it off the wire and off every
+      // listener). The next block's pair is checked against the NEW
+      // indent — the patch is not applied yet, so the doc still stands
+      // the old one.
+      const next = childIds[index + 1];
+      const oldIndent = indentOfBlock(ydoc, id);
+      if (next !== undefined && newIndent < oldIndent) {
+        const nextIndent = indentOfBlock(ydoc, next);
+        const inBatch = (ydoc as unknown as { _transaction?: unknown })._transaction !== null;
+        if (!inBatch && nextIndent > newIndent + 1) {
+          throw new InvalidOperationError(
+            `Block "${id}" cannot be outdented to indent ${newIndent}: block "${next}" (indent ${nextIndent}) would be stranded. Outdent the whole derived segment in one transact.`
+          );
+        }
       }
     }
   }
