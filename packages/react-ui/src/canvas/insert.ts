@@ -114,3 +114,42 @@ export function findParentSurface(doc: Doc, id: BlockId): BlockId | null {
   }
   return null;
 }
+
+/**
+ * The group creation: the selected canvas
+ * items stand the new group's members in ONE transact (one undo step, one
+ * wire update). Returns the new group id, or null for the ineligible
+ * selection (one member, a connector / a group in the set, a page block,
+ * or the members across surfaces — the group is a flat marker over its
+ * siblings, never a container). No throw: the hotkey's no-op posture.
+ */
+export function makeGroup(doc: Doc, ids: readonly BlockId[]): BlockId | null {
+  if (ids.length < 2) return null;
+  let surface: BlockId | null = null;
+  for (const id of ids) {
+    const block = doc.getBlock(id);
+    if (block === null || block.type === "connector" || block.type === "group") return null;
+    const owner = findParentSurface(doc, id);
+    if (owner === null) return null; // a page block (no surface)
+    if (surface === null) surface = owner;
+    else if (owner !== surface) return null;
+  }
+  let created: BlockId | null = null;
+  doc.transact(() => {
+    created = doc.insertBlock("group", { members: [...ids] }, { parent: surface! });
+  });
+  return created;
+}
+
+/**
+ * The group's dissolve (the Delete / the ungroup hotkey's path): the
+ * group entry goes, the members stand where they are (the marker is not
+ * a container — no cascade). Returns false for the non-group id (the
+ * caller's delete path owns it).
+ */
+export function dissolveGroup(doc: Doc, id: BlockId): boolean {
+  const block = doc.getBlock(id);
+  if (block === null || block.type !== "group") return false;
+  doc.removeBlock(id);
+  return true;
+}

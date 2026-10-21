@@ -104,6 +104,20 @@ interface CanvasTextAttrs {
   textAlign?: string;
 }
 
+/**
+ * The canvas GROUP (a flat marker, not a container ): the members are the surface's SIBLING blocks (weak refs,
+ * like the connector endpoints — a dangling member stands the lenient
+ * read: skipped, not rewritten). The group carries NO geometry of its
+ * own: its box is DERIVED as the union of the members' effective boxes
+ * (like the flat runs / numbering), so the group-move batch is a
+ * setGeometry on every member in one transact (one undo step, one wire
+ * update) and the outline never goes stale.
+ */
+interface GroupAttrs {
+  /** The member block ids (weak refs to the group's surface siblings). */
+  members: BlockId[];
+}
+
 interface SurfaceAttrs {
   /** Nesting depth in the page sequence (default 0); ignored in the canvas z-order. */
   indent?: number;
@@ -139,6 +153,11 @@ interface CanvasTextBlock {
   content?: BlockContent;
 }
 
+interface GroupBlock {
+  type: "group";
+  attrs: GroupAttrs;
+}
+
 /** The optional canvas geometry carried by every block member. */
 type WithGeometry<T> = T & { geometry?: Geometry };
 
@@ -150,6 +169,8 @@ export type {
   ConnectorBlock,
   FrameBlock,
   Geometry,
+  GroupAttrs,
+  GroupBlock,
   ShapeAttrs,
   ShapeBlock,
   SurfaceAttrs,

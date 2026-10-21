@@ -36,6 +36,7 @@ import { useEditorContext } from "../../EditorProvider";
 import { CanvasDock } from "../../canvas/CanvasDock";
 import { ConnectorToolbar } from "../../canvas/ConnectorToolbar";
 import { ShapeToolbar } from "../../canvas/ShapeToolbar";
+import { dissolveGroup, makeGroup } from "../../canvas/insert";
 import {
   MOVE_THRESHOLD_PX,
   canvasToScreen,
@@ -57,6 +58,8 @@ import {
   edgeAnchor,
   effectiveGeometry,
   endpointBoxOf,
+  groupBoxOf,
+  groupMemberIds,
   pageCardStyle,
   portsOf,
 } from "../canvas-geometry";
@@ -147,13 +150,14 @@ function CanvasView() {
 
   // The handles' target: a single block selection with an effective box
   // (the stored geometry or the synthesized default; the connector is
-  // excluded — it carries no own geometry). The rotation preview / the
-  // resize preview stand over the stored values while in flight.
+  // excluded — it carries no own geometry; the group is excluded too —
+  // its box is DERIVED from the members, so the box's resize / rotate
+  // handles would edit a value that is never stored).
   const handleTarget = useMemo(() => {
     if (storeSelection?.kind !== "blocks" || storeSelection.ids.length !== 1) return null;
     const id = storeSelection.ids[0]!;
     const block = blocks[id];
-    if (block === undefined || block.type === "connector") return null;
+    if (block === undefined || block.type === "connector" || block.type === "group") return null;
     return { id, box: effectiveGeometry(block), rotation: block.geometry?.rotation ?? 0 };
   }, [storeSelection, blocks]);
   const displayBox =
@@ -175,7 +179,15 @@ function CanvasView() {
     for (const id of storeSelection.ids) {
       const block = blocks[id];
       if (block === undefined || block.type === "connector") continue;
-      const box = effectiveGeometry(block);
+      // The group stands the DERIVED union of its members (the marker
+      // carries no geometry — the union is the box, never stale).
+      let box = effectiveGeometry(block);
+      if (block.type === "group") {
+        const owner = surfaces.find((entry) => entry.children.includes(id));
+        const union = owner !== undefined ? groupBoxOf(block.attrs?.members, owner.children, blocks) : null;
+        if (union === null) continue;
+        box = union;
+      }
       minX = Math.min(minX, box.x - box.w / 2);
       minY = Math.min(minY, box.y - box.h / 2);
       maxX = Math.max(maxX, box.x + box.w / 2);
@@ -521,6 +533,36 @@ function CanvasView() {
       return;
     }
 
+    // The group's hit band (the wide transparent stroke of the GroupLayer's
+    // outline): the press selects the group and starts the MEMBERS' move
+    // session (the group itself carries no geometry — it is never a move
+    // target; the batch's one transact moves every member). The shift
+    // press stands the additive toggle (no session, like the items').
+    const groupHit = event.target instanceof Element ? event.target.closest<SVGElement>("[data-group-hit]") : null;
+    if (groupHit !== null) {
+      const id = groupHit.getAttribute("data-group-hit");
+      if (id !== null) {
+        if (event.shiftKey) {
+          containerRef.current?.focus();
+          if (selection.view !== null) toggleCanvasSelection(selection.view, id);
+          return;
+        }
+        const sel = selection.view?.get();
+        const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
+        selection.view?.set({ kind: "blocks", ids, anchorId: id });
+        containerRef.current?.focus();
+        const group = blocks[id];
+        const owner = surfaces.find((entry) => entry.children.includes(id));
+        const members =
+          group !== undefined && group.type === "group" && owner !== undefined
+            ? groupMemberIds(group.attrs?.members, owner.children, blocks)
+            : [];
+        viewport.beginMove(members, event.clientX, event.clientY);
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+      }
+      return;
+    }
+
     if (isPageCard(event.target)) {
       if (event.shiftKey) {
         // The shift press stands the selection (the additive contract —
@@ -851,6 +893,33 @@ function CanvasView() {
       return;
     }
     if (isEditingSurface(event.target)) return;
+    // The group's hotkeys: Ctrl/Cmd+G
+    // groups the multi selection (one transact — the makeGroup's null is
+    // the no-op: the ineligible selection stands nothing),
+    // Ctrl/Cmd+Shift+G dissolves the selected group (the members stand
+    // where they are). The app-level hotkeys win over the editing surfaces
+    // (the isEditingSurface guard above keeps the text's own shortcuts).
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "g") {
+      const sel = selection.view?.get();
+      if (sel?.kind !== "blocks") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.shiftKey) {
+        if (sel.ids.length !== 1) return;
+        const id = sel.ids[0]!;
+        if (dissolveGroup(doc, id)) selection.view?.set({ kind: "none" });
+        return;
+      }
+      if (sel.ids.length < 2) return;
+      const created = makeGroup(doc, sel.ids);
+      if (created !== null) {
+        // The group stands alone selected (its outline takes over the
+        // selection's affordance; the members' selection stands no
+        // summary box over the outline).
+        selection.view?.set({ kind: "blocks", ids: [created], anchorId: created });
+      }
+      return;
+    }
     // The canvas items' delete (the page's removeBlocksSelection path
     // stands the root's page sequence — the canvas items are not in it).
     // A mixed selection bubbles to the editor root's handler.

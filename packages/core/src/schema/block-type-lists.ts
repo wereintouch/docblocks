@@ -52,6 +52,7 @@ const SURFACE_ELEMENT_TYPES: readonly BlockType[] = [
   "connector",
   "frame",
   "canvas-text",
+  "group",
 ];
 
 /**

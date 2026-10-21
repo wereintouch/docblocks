@@ -209,7 +209,7 @@ function validateDoc(json: unknown): ValidationError[] {
     if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors);
 
     if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors);
-    if (blockType === "shape" || blockType === "connector") {
+    if (blockType === "shape" || blockType === "connector" || blockType === "group") {
       validateCanvasBlock(blockType, block, `blocks.${id}`, errors);
     }
 

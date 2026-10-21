@@ -341,8 +341,12 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       for (const id of ids) {
         const block = doc.getBlock(id);
         // The connector carries no geometry of its own (its endpoints
-        // follow the blocks): it is never a move target.
-        if (block === null || block.type === "connector") continue;
+        // follow the blocks): it is never a move target. The group is the
+        // same (its box is DERIVED from the members — the session over a
+        // group selection feeds the MEMBERS' ids, the group itself is
+        // never a target; a skipped id stands no snapshot, and the
+        // release commit skips the snapshot-less ids).
+        if (block === null || block.type === "connector" || block.type === "group") continue;
         // The effective box the element stands at (the stored geometry or
         // the synthesized default) — the release commit writes a complete
         // x/y/w/h patch from it.
@@ -376,11 +380,15 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     setMovePreview(null);
     if (session === null || !session.dragging) return;
     // One transact for the whole (group) move: one undo step, one wire
-    // update. A vanished block (a concurrent removal) is skipped.
+    // update. A vanished block (a concurrent removal) is skipped; a
+    // vanished-everything session stands no transact at all (an empty
+    // transact stamps the meta and emits an update for nothing).
+    const targets = session.ids.filter((id) => session.snapshot[id] !== undefined && doc.getBlock(id) !== null);
+    if (targets.length === 0) return;
     doc.transact(() => {
-      for (const id of session.ids) {
+      for (const id of targets) {
         const snap = session.snapshot[id];
-        if (snap === undefined || doc.getBlock(id) === null) continue;
+        if (snap === undefined) continue;
         doc.setGeometry(id, {
           x: snap.x + session.dx,
           y: snap.y + session.dy,
