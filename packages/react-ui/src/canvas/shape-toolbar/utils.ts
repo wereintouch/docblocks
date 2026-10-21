@@ -1,6 +1,6 @@
 /** The shape toolbar's pure helpers (the border width's dot index, the
  *  variant's icon, the hex input's normalization). */
-import { Circle, Diamond, Square, SquareRounded } from "../../shared/ui/icons";
+import { Circle, Cloud, Cylinder, Diamond, Square, SquareRounded } from "../../shared/ui/icons";
 import { BORDER_WIDTH_POINTS, HEX_RE } from "./models";
 import type { ShapeVariantId } from "./models";
 
@@ -18,6 +18,10 @@ function variantIcon(variant: ShapeVariantId | undefined) {
       return Circle;
     case "diamond":
       return Diamond;
+    case "cylinder":
+      return Cylinder;
+    case "cloud":
+      return Cloud;
     case "rounded":
       return SquareRounded;
     default:

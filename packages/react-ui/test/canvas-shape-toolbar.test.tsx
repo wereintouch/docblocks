@@ -281,7 +281,7 @@ describe("the shape type picker", () => {
     return block.attrs?.variant;
   }
 
-  it("stands the four variants (the current one checked) and switches the type", () => {
+  it("stands the six variants (the current one checked) and switches the type", () => {
     const { doc, shape } = seededDoc();
     const { container } = renderCanvas(doc);
     selectBlock(container, shape);
@@ -291,13 +291,27 @@ describe("the shape type picker", () => {
     fireEvent.pointerDown(screen.getByLabelText("Shape type"));
     const menu = screen.getByLabelText("Shape types");
     expect(menu).toBeTruthy();
-    for (const label of ["Rectangle", "Rounded Rectangle", "Ellipse", "Diamond"]) {
+    for (const label of ["Rectangle", "Rounded Rectangle", "Ellipse", "Diamond", "Cylinder", "Cloud"]) {
       expect(screen.getByRole("menuitemcheckbox", { name: label })).toBeTruthy();
     }
     // The current variant (rect) is the checked one.
     expect(screen.getByRole("menuitemcheckbox", { name: "Rectangle" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("menuitemcheckbox", { name: "Diamond" }).getAttribute("aria-checked")).toBe("false");
 
+    // The new figure variants' switch:
+    // one updateBlock each, one undo step.
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Cylinder" }));
+    expect(shapeVariant(doc, shape)).toBe("cylinder");
+    doc.undo();
+    expect(shapeVariant(doc, shape)).toBe("rect");
+
+    fireEvent.pointerDown(screen.getByLabelText("Shape type"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Cloud" }));
+    expect(shapeVariant(doc, shape)).toBe("cloud");
+    doc.undo();
+    expect(shapeVariant(doc, shape)).toBe("rect");
+
+    fireEvent.pointerDown(screen.getByLabelText("Shape type"));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Diamond" }));
     expect(shapeVariant(doc, shape)).toBe("diamond");
     // One undo step: the type switch is a single transact.

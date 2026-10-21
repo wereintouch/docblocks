@@ -1,4 +1,4 @@
-import { Circle, Diamond, Square, SquareRounded } from "../../shared/ui/icons";
+import { Circle, Cloud, Cylinder, Diamond, Square, SquareRounded } from "../../shared/ui/icons";
 
 /** The shape toolbar's constants (the border width dots, the shape variant
  *  picker list, the hex input's form). */
@@ -12,6 +12,8 @@ const SHAPE_VARIANTS = [
   { id: "rounded", label: "Rounded Rectangle", icon: SquareRounded },
   { id: "ellipse", label: "Ellipse", icon: Circle },
   { id: "diamond", label: "Diamond", icon: Diamond },
+  { id: "cylinder", label: "Cylinder", icon: Cylinder },
+  { id: "cloud", label: "Cloud", icon: Cloud },
 ] as const;
 
 type ShapeVariantId = (typeof SHAPE_VARIANTS)[number]["id"];

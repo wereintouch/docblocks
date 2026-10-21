@@ -567,6 +567,42 @@ describe("canvas: shape variants", () => {
     expect(freehand.querySelector("path")!.getAttribute("d")).toBe("M 0 0 L 10 5 L 20 0");
     expect(freehand.querySelector("rect")).toBeNull();
   });
+
+  it("renders the cylinder and the cloud (the new figure variants)", () => {
+    const doc = createDoc({ id: "outer", createdAt: CREATED_AT });
+    doc.transact(() => {
+      const surface = doc.insertBlock("surface");
+      const cylinder = doc.insertBlock("shape", { variant: "cylinder" }, { parent: surface });
+      doc.setGeometry(cylinder, { x: 0, y: 0, w: 100, h: 120 });
+      const cloud = doc.insertBlock("shape", { variant: "cloud" }, { parent: surface });
+      doc.setGeometry(cloud, { x: 150, y: 0, w: 130, h: 95 });
+    });
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+
+    // The cylinder (the 100x120 box, the stroke inset 1): the body path
+    // with the elliptical end caps (the cap's half-height 15 — the
+    // box-proportional stand) + the top cap's seam arc (the front half,
+    // the figure's tell; the stroke only).
+    const cylinder = document.querySelector<SVGElement>('[data-slot="docblocks/shape"][data-variant="cylinder"]')!;
+    const paths = cylinder.querySelectorAll("path");
+    expect(paths.length).toBe(2);
+    expect(paths[0]!.getAttribute("d")).toBe("M 1 16 A 49 15 0 0 1 99 16 L 99 104 A 49 15 0 0 1 1 104 Z");
+    expect(paths[1]!.getAttribute("d")).toBe("M 1 16 A 49 15 0 0 0 99 16");
+    expect(paths[1]!.getAttribute("fill")).toBe("none");
+
+    // The cloud (the 130x95 box): the scaled outline (the box-proportional
+    // stand — the arc radii scale anisotropically, the stroke width
+    // stands).
+    const cloud = document.querySelector<SVGElement>('[data-slot="docblocks/shape"][data-variant="cloud"]')!;
+    const cloudPath = cloud.querySelector("path")!;
+    expect(cloudPath.getAttribute("d")).toBe(
+      "M 102.74358974358974 94 H 46.94871794871795 A 45.94871794871795 40.6875 0 1 1 90.99384615384615 41.6875 H 102.74358974358974 A 29.538461538461537 26.15625 0 1 1 102.74358974358974 94 Z"
+    );
+  });
 });
 
 describe("canvas: consumer renderer", () => {

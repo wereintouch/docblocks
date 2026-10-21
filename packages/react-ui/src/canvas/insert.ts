@@ -4,7 +4,7 @@ import { InvalidOperationError } from "docblocks-core";
 import type { CanvasPoint, PenStroke } from "./viewport";
 
 /** The shape's variant (the dock's shape tools; the pen reuses the rect variant — its points win in the render). */
-type ShapeVariant = "rect" | "rounded" | "ellipse" | "diamond";
+type ShapeVariant = "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud";
 
 /**
  * The placement commands (the dock's tools): one `doc.transact` per placed
@@ -27,8 +27,8 @@ export function firstSurface(doc: Doc): BlockId {
 }
 
 /**
- * A placed shape (rect / rounded / ellipse / diamond) at the point. Returns
- * the new block id.
+ * A placed shape (rect / rounded / ellipse / diamond / cylinder / cloud)
+ * at the point. Returns the new block id.
  */
 export function placeShape(
   doc: Doc,

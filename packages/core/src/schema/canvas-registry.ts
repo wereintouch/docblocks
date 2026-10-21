@@ -26,7 +26,11 @@ const CANVAS_BLOCK_SPECS: Pick<
     children: false,
     rows: false,
     attrs: {
-      variant: { kind: "enum", values: ["rect", "rounded", "ellipse", "diamond"], required: true },
+      variant: {
+        kind: "enum",
+        values: ["rect", "rounded", "ellipse", "diamond", "cylinder", "cloud"],
+        required: true,
+      },
       stroke: { kind: "string" },
       fill: { kind: "string" },
       strokeWidth: { kind: "number", positive: true },

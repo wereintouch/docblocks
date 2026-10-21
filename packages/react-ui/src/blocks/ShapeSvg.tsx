@@ -20,7 +20,9 @@ const DASH_PATTERN: Record<"dash" | "dot", string> = {
 /**
  * A canvas shape: one SVG (viewBox 0 0 w h, filling the positioned
  * wrapper). v1 render decisions: `rounded` is the rect with the corner
- * radius (a fixed fraction of the smaller box side); `points`
+ * radius (a fixed fraction of the smaller box side); `cylinder` is the
+ * body with the elliptical end caps (the DB figure, the box-proportional
+ * cap); `cloud` is the scaled outline (the box-proportional stand); `points`
  * (freehand) are block-local px within the w/h box and win over the
  * variant figure when present (a stroke path, no fill); the stroke is
  * inset by strokeWidth/2 so it stays inside the box. An unknown variant
@@ -52,6 +54,38 @@ function ShapeSvg({ id, block }: { id: BlockId; block: ShapeBlockView }) {
     figure = <ellipse cx={w / 2} cy={h / 2} rx={halfW} ry={halfH} />;
   } else if (attrs?.variant === "diamond") {
     figure = <polygon points={`${w / 2},${inset} ${w - inset},${h / 2} ${w / 2},${h - inset} ${inset},${h / 2}`} />;
+  } else if (attrs?.variant === "cylinder") {
+    // The DB figure: the body with the elliptical end caps (the cap's
+    // half-height is the box-proportional stand — no own attr, the v1
+    // limit). The top cap's front arc stands the seam (the figure's
+    // tell; the stroke only — the fill stands the body path).
+    const capH = Math.min(w * 0.15, (h - strokeWidth) * 0.3);
+    const topY = inset + capH;
+    const botY = h - inset - capH;
+    const body = `M ${inset} ${topY} A ${halfW} ${capH} 0 0 1 ${w - inset} ${topY} L ${w - inset} ${botY} A ${halfW} ${capH} 0 0 1 ${inset} ${botY} Z`;
+    const seam = `M ${inset} ${topY} A ${halfW} ${capH} 0 0 0 ${w - inset} ${topY}`;
+    figure = (
+      <>
+        <path d={body} />
+        <path d={seam} fill="none" />
+      </>
+    );
+  } else if (attrs?.variant === "cloud") {
+    // The cloud's outline (the lucide silhouette scaled to the box — the
+    // arc radii scale anisotropically, the stroke width stands).
+    const boxW = Math.max(w - strokeWidth, 0);
+    const boxH = Math.max(h - strokeWidth, 0);
+    const px = (x: number) => inset + (x - 2) * (boxW / 19.5);
+    const py = (y: number) => inset + (y - 3) * (boxH / 16);
+    const rx7 = 7 * (boxW / 19.5);
+    const ry7 = 7 * (boxH / 16);
+    const rx45 = 4.5 * (boxW / 19.5);
+    const ry45 = 4.5 * (boxH / 16);
+    figure = (
+      <path
+        d={`M ${px(17.5)} ${py(19)} H ${px(9)} A ${rx7} ${ry7} 0 1 1 ${px(15.71)} ${py(10)} H ${px(17.5)} A ${rx45} ${ry45} 0 1 1 ${px(17.5)} ${py(19)} Z`}
+      />
+    );
   } else if (attrs?.variant === "line") {
     figure = <line x1={0} y1={0} x2={w} y2={h} />;
   }

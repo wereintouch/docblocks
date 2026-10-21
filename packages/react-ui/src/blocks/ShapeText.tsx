@@ -15,12 +15,14 @@ type ShapeBlockView = Extract<Block, { type: "shape" }>;
 /** The shape's text padding (the figure's edge inset): the text wraps at
  * the figure's edges, so the box stands clear of them — the larger inset
  * for the non-rect figures (the text must stay inside the ellipse / the
- * diamond's inscribed box). */
+ * diamond's inscribed box / the cylinder's caps / the cloud's bumps). */
 const SHAPE_TEXT_PADDING: Record<string, { x: number; y: number }> = {
   rect: { x: 8, y: 8 },
   rounded: { x: 12, y: 8 },
   ellipse: { x: 0.2, y: 0.2 },
   diamond: { x: 0.25, y: 0.25 },
+  cylinder: { x: 0.1, y: 0.18 },
+  cloud: { x: 0.12, y: 0.15 },
 };
 
 /** The style attrs' inline mapping (the data, not theme — like the

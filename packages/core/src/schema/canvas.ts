@@ -55,7 +55,7 @@ interface CanvasRef {
 
 interface ShapeAttrs {
   /** The shape kind. */
-  variant: "rect" | "rounded" | "ellipse" | "diamond";
+  variant: "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud";
   /** Stroke color (CSS color). */
   stroke?: string;
   /** Fill color (CSS color). */
