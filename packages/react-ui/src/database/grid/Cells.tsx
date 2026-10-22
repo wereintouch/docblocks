@@ -266,15 +266,12 @@ function DatabaseCell({
           transition: dragShifted ? "transform 120ms ease-out" : undefined,
         }
       : undefined;
-  // The datetime's drafts stand from the value on the open (the close
-  // commits; the in-flight draft never touches the consumer state).
+  // The datetime's drafts stand from the value at the session's open (the
+  // close commits; the in-flight draft never touches the consumer state and
+  // stands the mid-session value changes — the picker session's own data
+  // until the release).
   const [draftDate, setDraftDate] = useState<Date | null>(null);
   const [draftTime, setDraftTime] = useState<string | null>(null);
-  useEffect(() => {
-    if (!editing || !isDateTime) return;
-    setDraftDate(dateValue !== null ? dateOnly(dateValue) : null);
-    setDraftTime(dateValue !== null && hasTime(dateValue) ? format(dateValue, "HH:mm:ss") : null);
-  }, [editing, isDateTime, rawValue]);
 
   const commitDateTime = () => {
     const committed = draftDate === null ? null : dateOnly(draftDate);
@@ -284,18 +281,50 @@ function DatabaseCell({
     }
     // A no-op close (the draft stands the value) stands no commit.
     if ((committed?.getTime() ?? null) === (dateValue?.getTime() ?? null)) return;
+    let iso: string | null;
     if (committed === null) {
-      onChange(null);
-      return;
+      iso = null;
+    } else {
+      const base = format(committed, "yyyy-MM-dd");
+      if (!hasTime(committed)) {
+        iso = base;
+      } else {
+        const time = format(committed, "HH:mm");
+        iso = committed.getSeconds() !== 0 ? `${base}T${time}:${format(committed, "ss")}` : `${base}T${time}`;
+      }
     }
-    const base = format(committed, "yyyy-MM-dd");
-    if (!hasTime(committed)) {
-      onChange(base);
-      return;
-    }
-    const time = format(committed, "HH:mm");
-    onChange(committed.getSeconds() !== 0 ? `${base}T${time}:${format(committed, "ss")}` : `${base}T${time}`);
+    // A repeat close (the popover's own dispatch after the teardown stand)
+    // re-emits the same ISO — the guard (per session: the open resets it)
+    // keeps it a no-write.
+    if (iso === committedIsoRef.current) return;
+    committedIsoRef.current = iso;
+    onChange(iso);
   };
+
+  // The external teardown's commit stand: the grid's session clear (the
+  // outside press, the other cell's press) drops the popover's `open` prop
+  // without the radix's close callback (the popover unmounts before its
+  // deferred dispatch), so the deferred close commit never stands — the
+  // cell commits the draft on the teardown itself (the no-op + repeat
+  // guards above keep the double stand a no-write).
+  const sessionStoodOpenRef = useRef(false);
+  const closeCommittedRef = useRef(false);
+  const committedIsoRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (!isDateTime) return;
+    if (editing) {
+      sessionStoodOpenRef.current = true;
+      closeCommittedRef.current = false;
+      // The repeat-commit guard stands per session: a later session may
+      // legitimately re-commit an earlier ISO (the value moved away and
+      // back), so the open resets it.
+      committedIsoRef.current = undefined;
+      return;
+    }
+    if (!sessionStoodOpenRef.current || closeCommittedRef.current) return;
+    sessionStoodOpenRef.current = false;
+    commitDateTime();
+  }, [editing]);
 
   let content: ReactNode;
   if (Array.isArray(value)) {
@@ -361,6 +390,7 @@ function DatabaseCell({
             open={editing}
             onOpenChange={(open) => {
               if (!open) {
+                closeCommittedRef.current = true;
                 commitDateTime();
                 onEditEnd();
               }
@@ -374,7 +404,15 @@ function DatabaseCell({
                 mode="single"
                 selected={draftDate ?? undefined}
                 defaultMonth={dateValue ?? undefined}
-                onSelect={(day) => setDraftDate(day === undefined || day === null ? null : dateOnly(day))}
+                onSelect={(day) => {
+                  // The day-picker's same-day toggle (the undefined stand)
+                  // resets no draft date: the datetime's commit is deferred
+                  // to the close, so the toggle would clear the draft date
+                  // and lose the typed time (the clear stand is the date
+                  // cell's immediate-commit contract only).
+                  if (day === undefined || day === null) return;
+                  setDraftDate(dateOnly(day));
+                }}
               />
               <Separator />
               <div className="p-2">
@@ -492,6 +530,13 @@ function DatabaseCell({
           if (Date.now() - booleanPress.current.toggledTs < CHECKBOX_TOGGLE_GUARD_MS) return;
           onChange(value === true ? false : true);
           return;
+        }
+        // The datetime's drafts stand from the value at the open (the double
+        // press is the session's single entry; the mid-session value
+        // changes stand the draft untouched until the close commits).
+        if (isDateTime) {
+          setDraftDate(dateValue !== null ? dateOnly(dateValue) : null);
+          setDraftTime(dateValue !== null && hasTime(dateValue) ? format(dateValue, "HH:mm:ss") : null);
         }
         onEditStart();
       }}

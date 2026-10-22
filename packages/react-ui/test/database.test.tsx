@@ -683,6 +683,203 @@ describe("the grid's cells (the type editors)", () => {
   });
 });
 
+describe("the datetime cell's draft contract (the time/date order, the same-day toggle, the mid-session value)", () => {
+  // The timestamptz column + the seed value (the draft stands from it at
+  // the double-press's open).
+  async function renderDateTime() {
+    const { bridge, tableId } = await renderGrid();
+    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    await bridge.createColumn(tableId, { id: "at", name: "At", type: "timestamptz" });
+    await bridge.updateRow(tableId, rowId, { at: "2026-10-01T18:00" });
+    await settleGrid();
+    const cell = () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='at']")!;
+    const value = async () => (await bridge.queryRows(tableId, {})).rows[rowId]!.at ?? null;
+    const segments = () => [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
+    const openPicker = async () => {
+      // The real gesture's stand: the press (the grid's session + the
+      // selection stand — the document's outside-press handler stands over
+      // the selection) + the double press (the picker's open).
+      fireEvent.pointerDown(cell(), { button: 0 });
+      fireEvent.doubleClick(cell());
+      await until(() => document.querySelector("[data-slot='calendar']") !== null, "the calendar");
+    };
+    const closeByEscape = async () => {
+      fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+      await settleGrid();
+    };
+    const closeByTriggerPress = async () => {
+      // The trigger's press stands the popover's own close (the radix's
+      // onOpenChange commit path).
+      fireEvent.click(cell().querySelector("[data-slot='popover-trigger']")!);
+      await settleGrid();
+    };
+    const closeByOutsidePress = async () => {
+      // The real outside press's stand: the grid's document-capture press
+      // handler clears the session (the popover's `open` stands the grid's
+      // state) without the radix's close callback — the cell's teardown
+      // stand commits the draft.
+      fireEvent.pointerDown(document.body, { button: 0 });
+      await settleGrid();
+    };
+    return {
+      bridge,
+      tableId,
+      rowId,
+      cell,
+      value,
+      segments,
+      openPicker,
+      closeByEscape,
+      closeByTriggerPress,
+      closeByOutsidePress,
+    };
+  }
+
+  it("the time first + the date after commit both (the reverse order; the Escape close)", async () => {
+    const { value, segments, openPicker, closeByEscape, cell } = await renderDateTime();
+    await openPicker();
+    // The time stands first (the hours + the minutes), the day's pick after:
+    // the in-flight draft's time stands the day's click (no reset).
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
+    await closeByEscape();
+    expect(await value()).toBe("2026-10-05T09:30");
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
+    expect(cell().textContent).toContain("05.10.2026 09:30");
+  });
+
+  it("the time first + the date after commit both (the trigger-press close)", async () => {
+    const { value, segments, openPicker, closeByTriggerPress } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "11" } });
+    fireEvent.change(minutes!, { target: { value: "15" } });
+    fireEvent.click(document.querySelector("button[data-day='10/7/2026']")!);
+    await closeByTriggerPress();
+    expect(await value()).toBe("2026-10-07T11:15");
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
+  });
+
+  it("the time → the date → the time: the last stand commits", async () => {
+    const { value, segments, openPicker, closeByEscape } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
+    // The time's re-edit over the day's pick stands (the draft's time is not
+    // re-read from the value on the day's click).
+    fireEvent.change(hours!, { target: { value: "14" } });
+    await closeByEscape();
+    expect(await value()).toBe("2026-10-05T14:30");
+  });
+
+  it("the same-day re-pick resets no draft date (the typed time commits over the date)", async () => {
+    const { value, segments, openPicker, closeByEscape } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "07" } });
+    fireEvent.change(minutes!, { target: { value: "45" } });
+    // The value's date stands selected (the draft's day): the re-pick is the
+    // day-picker's toggle (the undefined stand) — the draft date stands.
+    fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
+    await closeByEscape();
+    expect(await value()).toBe("2026-10-01T07:45");
+  });
+
+  it("the same-day re-pick over the untouched draft stands no commit", async () => {
+    const { value, openPicker, closeByEscape } = await renderDateTime();
+    await openPicker();
+    fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
+    await closeByEscape();
+    expect(await value()).toBe("2026-10-01T18:00");
+  });
+
+  it("the outside press commits the in-flight draft (the teardown stand; the reverse order)", async () => {
+    const { value, segments, openPicker, closeByOutsidePress, cell } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "07" } });
+    fireEvent.change(minutes!, { target: { value: "45" } });
+    fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
+    // The press outside the grid (the grid's session clear stands no radix
+    // close callback — the popover unmounts before its deferred dispatch):
+    // the cell's teardown stand commits the draft.
+    await closeByOutsidePress();
+    expect(await value()).toBe("2026-10-05T07:45");
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
+    expect(cell().textContent).toContain("05.10.2026 07:45");
+  });
+
+  it("the other cell's press commits the in-flight draft (the teardown stand)", async () => {
+    const { value, segments, openPicker, cell } = await renderDateTime();
+    await openPicker();
+    const [hours] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.click(document.querySelector("button[data-day='10/6/2026']")!);
+    // The press over the second row's cell (the grid's session clear stands
+    // no radix close): the teardown stand commits the draft + the press
+    // selects the other cell.
+    const otherCell = document.querySelector<HTMLElement>(
+      "[data-slot='docblocks/database-cell'][data-column-id='at'][data-row='1']"
+    )!;
+    fireEvent.pointerDown(otherCell, { button: 0 });
+    await settleGrid();
+    expect(await value()).toBe("2026-10-06T09:00");
+    expect(otherCell.getAttribute("data-selected")).toBe("true");
+    expect(cell().getAttribute("data-editing")).toBeNull();
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
+  });
+
+  it("the outside press over the untouched draft stands no commit (the no-op stand)", async () => {
+    const { value, openPicker, closeByOutsidePress } = await renderDateTime();
+    await openPicker();
+    await closeByOutsidePress();
+    expect(await value()).toBe("2026-10-01T18:00");
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
+  });
+
+  it("the repeat-commit guard stands per session (a later session re-commits the earlier ISO)", async () => {
+    const { bridge, tableId, rowId, value, segments, openPicker, closeByEscape } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    await closeByEscape();
+    expect(await value()).toBe("2026-10-01T09:30");
+    // The peer's write moves the value away; the later session explicitly
+    // restores the earlier ISO (the day's pick + the time) — the guard's
+    // per-session stand (the open resets it) commits the restore.
+    await bridge.updateRow(tableId, rowId, { at: "2026-10-02T00:00" });
+    await until(async () => (await value()) === "2026-10-02T00:00", "the peer's value");
+    await openPicker();
+    const [hours2, minutes2] = segments();
+    fireEvent.change(hours2!, { target: { value: "09" } });
+    fireEvent.change(minutes2!, { target: { value: "30" } });
+    fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
+    await closeByEscape();
+    expect(await value()).toBe("2026-10-01T09:30");
+  });
+
+  it("the mid-session value change stands the draft (the in-flight edit wins the commit)", async () => {
+    const { bridge, tableId, rowId, cell, value, segments, openPicker, closeByEscape } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    // The peer's write over the same cell (the bridge event's refetch)
+    // re-renders the value — the in-flight draft stands (no reset).
+    await bridge.updateRow(tableId, rowId, { at: "2026-11-11T08:00" });
+    await until(() => cell().textContent === "11.11.2026 08:00", "the peer's value stand");
+    // The draft's date stand: the day's pick over the still-open calendar.
+    fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
+    await closeByEscape();
+    expect(await value()).toBe("2026-10-05T09:30");
+  });
+});
+
 describe("the cell interaction (the selection, the edit, the multi-select clear)", () => {
   const cellOf = (row: number, col: number) =>
     document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-row='${row}'][data-col='${col}']`);

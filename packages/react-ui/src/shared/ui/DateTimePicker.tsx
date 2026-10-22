@@ -36,9 +36,11 @@ function datePart(value: Date): Date {
  * The component is controlled: the `value` is a local-calendar `Date`, and
  * `onSelect` commits the picked date + the typed time (the commit stands on
  * the popover close — the escape / the outside press / an explicit close —
- * as one step; a no-op close stands no commit). The day pick edits the draft
- * date (picking the selected day again clears it — the day-picker's
- * toggle), the time box edits the draft time; the extra props stand on the
+ * as one step; a no-op close stands no commit). The drafts stand from the
+ * value at the open (the in-flight draft stands the mid-session value
+ * changes), the day pick edits the draft date (the same-day toggle stands no
+ * reset — the deferred commit's contract), the time box edits the draft
+ * time; the extra props stand on the
  * trigger button (the `data-*` hooks included; the native `value` /
  * `onSelect` button props are omitted — they stand the picker's contract).
  */
@@ -58,17 +60,16 @@ function DateTimePicker({
   const [draftDate, setDraftDate] = React.useState<Date | null>(null);
   const [draftTime, setDraftTime] = React.useState<string | null>(null);
 
-  // The drafts stand from the value on the open (the close commits, so the
-  // in-flight draft never touches the consumer state).
-  React.useEffect(() => {
-    if (!open) return;
-    setDraftDate(value !== null ? datePart(value) : null);
-    setDraftTime(value !== null && hasTime(value) ? format(value, "HH:mm:ss") : null);
-  }, [open, value]);
-
   const handleOpenChange = (next: boolean) => {
-    setOpen(next);
-    if (next) return;
+    if (next) {
+      // The drafts stand from the value at the open (the close commits, so
+      // the in-flight draft stands the mid-session value changes).
+      setDraftDate(value !== null ? datePart(value) : null);
+      setDraftTime(value !== null && hasTime(value) ? format(value, "HH:mm:ss") : null);
+      setOpen(true);
+      return;
+    }
+    setOpen(false);
     const committed = draftDate === null ? null : datePart(draftDate);
     if (draftTime !== null && committed !== null) {
       const [hours, minutes, seconds] = draftTime.split(":");
@@ -98,9 +99,17 @@ function DateTimePicker({
       <PopoverContent className="w-auto p-0">
         <Calendar
           mode="single"
-          selected={value ?? undefined}
+          selected={draftDate ?? undefined}
           {...(value !== null ? { defaultMonth: value } : {})}
-          onSelect={(date) => setDraftDate(date === undefined || date === null ? null : datePart(date))}
+          onSelect={(date) => {
+            // The day-picker's same-day toggle (the undefined stand) resets
+            // no draft date: the commit is deferred to the close, so the
+            // toggle would clear the draft date and lose the typed time
+            // (the clear stand is the date picker's immediate-commit
+            // contract only).
+            if (date === undefined || date === null) return;
+            setDraftDate(datePart(date));
+          }}
         />
         <Separator />
         <div className="p-2">

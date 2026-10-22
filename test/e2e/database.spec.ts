@@ -917,7 +917,7 @@ test("the header's right-edge seam resizes the column (the columnWidths attr ove
   await close();
 });
 
-test("the datetime cell stands the DateTimePicker (the calendar + the time box; the commit over the wire)", async ({
+test("the datetime cell stands the calendar + the time box (the time/date order, the same-day toggle; the commit over the wire)", async ({
   browser,
 }) => {
   // The shared-context panes (the same origin): the bridge echo carries the
@@ -977,6 +977,51 @@ test("the datetime cell stands the DateTimePicker (the calendar + the time box; 
     label,
     SETTLE
   );
+
+  // The reverse order (the flow): the time stands first, the day's
+  // pick after, the real outside press closes — the deferred commit stands
+  // the date + the time (the draft's time survives the day's click).
+  await cellA.dblclick();
+  await expect(picker).toBeVisible(SETTLE);
+  const hours = picker.locator("[data-slot='time-segments'] [data-segment='h']");
+  await hours.fill("07");
+  await picker.locator("[data-slot='time-segments'] [data-segment='m']").fill("45");
+  await picker.getByRole("button", { name: new RegExp(`${monthName} 20`) }).click();
+  // The outside press (the real mouse over the editor's left padding —
+  // outside the portaled popover and the grid's own toolbar): the close
+  // commits the draft (the grid's session clear stands no radix close —
+  // the cell's teardown stand commits the in-flight draft).
+  const gridBox = await a.locator("[data-slot='docblocks/database-grid']").first().boundingBox();
+  await a.mouse.click(10, gridBox!.y + 40);
+  await expect(picker).toBeHidden(SETTLE);
+  const rowAfterReverse = await a.evaluate(async () => {
+    const [table] = await window.__bridge!.listTables();
+    const page = await window.__bridge!.queryRows(table!.id, {});
+    const [first] = Object.values(page.rows);
+    return first;
+  });
+  expect(rowAfterReverse?.at).toBe(`2026-${isoMonth}-20T07:45`);
+  const reverseLabel = new RegExp(`20\\.${isoMonth}\\.2026 07:45`);
+  await expect(cellA).toHaveText(reverseLabel, SETTLE);
+  await expect(b.locator("[data-slot='docblocks/database-cell'][data-column-id='at']").first()).toHaveText(
+    reverseLabel,
+    SETTLE
+  );
+
+  // The same-day re-pick (the day-picker's toggle) stands no reset: the
+  // Escape close commits nothing (the value stands, no wire write).
+  await cellA.dblclick();
+  await expect(picker).toBeVisible(SETTLE);
+  await picker.getByRole("button", { name: new RegExp(`${monthName} 20`) }).click();
+  await a.keyboard.press("Escape");
+  await expect(picker).toBeHidden(SETTLE);
+  const rowAfterToggle = await a.evaluate(async () => {
+    const [table] = await window.__bridge!.listTables();
+    const page = await window.__bridge!.queryRows(table!.id, {});
+    const [first] = Object.values(page.rows);
+    return first;
+  });
+  expect(rowAfterToggle?.at).toBe(`2026-${isoMonth}-20T07:45`);
 
   await close();
 });
