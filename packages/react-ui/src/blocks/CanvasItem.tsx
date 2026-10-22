@@ -54,6 +54,10 @@ function CanvasItem({
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const connectorPending = pendingConnector === id;
   if (block === undefined) return null;
+  // The shape's effective box (the resize preview's live box; the committed
+  // geometry otherwise): the figure + the text overlay redraw
+  // box-proportional in real time (the preview stands the commit's numbers).
+  const shapeBox = resizeBox !== null ? { w: resizeBox.w, h: resizeBox.h } : undefined;
   let content: ReactNode;
   if (isCanvasSubType(block.type)) {
     const custom = renderers[block.type];
@@ -62,8 +66,8 @@ function CanvasItem({
         custom({ id, block })
       ) : block.type === "shape" ? (
         <>
-          <ShapeSvg id={id} block={block} />
-          <ShapeText id={id} block={block} />
+          <ShapeSvg id={id} block={block} box={shapeBox} />
+          <ShapeText id={id} block={block} box={shapeBox} />
         </>
       ) : block.type === "canvas-text" ? (
         <TextBlock id={id} block={block} tag="div" />

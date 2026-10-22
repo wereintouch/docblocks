@@ -69,15 +69,18 @@ function shapeTextStyle(block: ShapeBlockView, w: number, h: number): CSSPropert
  * transact — one undo step, one wire update); the empty commit clears
  * the text to the empty string (the textless stand).
  */
-function ShapeText({ id, block }: { id: BlockId; block: ShapeBlockView }) {
+function ShapeText({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?: { w: number; h: number } }) {
   const { doc } = useEditorContext();
   const textEdit = useCanvasTextEdit();
   const editing = textEdit !== null && textEdit.editingId === id;
   const innerRef = useRef<HTMLDivElement | null>(null);
   const committedRef = useRef(false);
   const text = block.attrs?.text ?? "";
-  const w = block.geometry?.w ?? DEFAULT_CANVAS_ITEM_SIZE;
-  const h = block.geometry?.h ?? DEFAULT_CANVAS_ITEM_SIZE;
+  // The effective box (the resize preview's live box when in flight; the
+  // committed geometry otherwise): the padding recomputes from it, so the
+  // text overlay stands the figure's live edges (the preview's parity).
+  const w = box?.w ?? block.geometry?.w ?? DEFAULT_CANVAS_ITEM_SIZE;
+  const h = box?.h ?? block.geometry?.h ?? DEFAULT_CANVAS_ITEM_SIZE;
 
   // The edit's seed (the text stands the attr, not the DOM): the inner
   // stands the attr's text on entry (the browser's edit is the draft).

@@ -29,10 +29,15 @@ const DASH_PATTERN: Record<"dash" | "dot", string> = {
  * (the lenient reader — the legacy `line`) renders its kept figure, the
  * element stays.
  */
-function ShapeSvg({ id, block }: { id: BlockId; block: ShapeBlockView }) {
+function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?: { w: number; h: number } }) {
   const attrs = block.attrs;
-  const w = block.geometry?.w ?? DEFAULT_CANVAS_ITEM_SIZE;
-  const h = block.geometry?.h ?? DEFAULT_CANVAS_ITEM_SIZE;
+  // The effective box (the resize preview's live box when in flight; the
+  // committed geometry otherwise): the viewBox and the figure stand from it,
+  // so the shape redraws box-proportional in real time — no letterbox
+  // freeze on the enlarge, and the preview stands the commit's numbers
+  // (one number, no jump on the release).
+  const w = box?.w ?? block.geometry?.w ?? DEFAULT_CANVAS_ITEM_SIZE;
+  const h = box?.h ?? block.geometry?.h ?? DEFAULT_CANVAS_ITEM_SIZE;
   const strokeWidth = attrs?.strokeWidth ?? DEFAULT_STROKE_WIDTH;
   const strokeStyle = attrs?.strokeStyle;
   const dash = strokeStyle === "dash" || strokeStyle === "dot" ? DASH_PATTERN[strokeStyle] : undefined;

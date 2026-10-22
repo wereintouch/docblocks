@@ -379,4 +379,44 @@ test.describe("the canvas resize / rotate handles", () => {
       await close();
     }
   });
+
+  test("the resize preview redraws the figure box-proportional in real time (the viewBox follows the live box)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "canvas-resize-liveredraw");
+    try {
+      await toCanvas(a, "a");
+      await zoomTo50(a, "a");
+      const shape = await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        const json = doc.toJSON();
+        const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+        const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
+        const id = doc.insertBlock("shape", { variant: "rect", text: "resize me" }, { parent: surface });
+        doc.setGeometry(id, { x: 0, y: 0, w: 200, h: 100 });
+        return id;
+      });
+
+      const center = await canvasCenter(a, "a");
+      await selectShape(a, "a", center);
+      const shapeSvg = a.locator(`[data-slot="docblocks/shape"][data-block-id="${shape}"]`);
+
+      // The e handle dragged OUTWARD (enlarge): mid-drag the figure's
+      // viewBox stands the LIVE box (not the committed one) — the figure
+      // redraws box-proportional (no letterbox freeze on the enlarge).
+      const start = await handleCenter(a, "a", "e");
+      await a.mouse.move(start.x, start.y);
+      await a.mouse.down();
+      await a.mouse.move(start.x + 40, start.y, { steps: 6 });
+      await expect.poll(async () => await shapeSvg.getAttribute("viewBox")).toBe("0 0 280 100");
+      await a.mouse.up();
+
+      // The commit stands the same numbers (no jump on the release — the
+      // preview and the commit stand from one number).
+      expect((await blockShapes(a, "a"))[shape]?.geometry).toEqual({ x: 40, y: 0, w: 280, h: 100 });
+    } finally {
+      await close();
+    }
+  });
 });
