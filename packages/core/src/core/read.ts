@@ -182,6 +182,21 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
     }
   }
 
+  // The connector's legacy boolean arrowStart (pre-release migration: the
+  // attr was a boolean that copied the end arrowhead's figure; it is now
+  // an independent figure enum). The lenient read maps the legacy value so
+  // no reader sees the boolean: true -> "arrow", false/absent -> absent
+  // (the key is dropped). The strict validator rejects the boolean; the
+  // writer never emits it, and the raw Yjs layer keeps it (doc.raw is the
+  // escape hatch).
+  if (blockType === "connector" && block.attrs !== undefined) {
+    const record = block.attrs as Record<string, unknown>;
+    if (typeof record.arrowStart === "boolean") {
+      if (record.arrowStart) record.arrowStart = "arrow";
+      else delete record.arrowStart;
+    }
+  }
+
   // The canvas geometry of any block: a plain copy of the nested Y.Map
   // (the plainness contract extends to it — reads never leak Yjs types).
   const geometry = yblock.get("geometry");

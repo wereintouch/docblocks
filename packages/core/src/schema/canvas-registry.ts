@@ -102,11 +102,12 @@ const CANVAS_BLOCK_SPECS: Pick<
       // is data (a hex string — like the shape's fill / stroke, the free
       // string kind: the consumer's data is not rewritten), the width is
       // the 1–4 px stand (the shape's border selector's parity), the
-      // arrowhead's figure + the start-side stand.
+      // arrowhead's figure at each end (absent = no marker; the end
+      // defaults to "arrow" at render, the start has no default).
       strokeColor: { kind: "string" },
       strokeWidth: { kind: "number", integer: true, min: 1, max: 4 },
       arrowHead: { kind: "enum", values: ["none", "arrow", "circle"] },
-      arrowStart: { kind: "boolean" },
+      arrowStart: { kind: "enum", values: ["none", "arrow", "circle"] },
     },
   },
   frame: {

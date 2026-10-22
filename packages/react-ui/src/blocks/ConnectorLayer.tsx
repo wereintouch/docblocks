@@ -254,23 +254,27 @@ function ConnectorLayer({
     );
     const strokeWidth = selected ? baseWidth + SELECTED_WIDTH_BUMP : baseWidth;
     const dash = attrs.strokeStyle === "dash" ? "8 4" : attrs.strokeStyle === "dot" ? "1 4" : undefined;
-    // The arrowheads: the figure (absent
-    // = "arrow") + the start side. The marker follows the line's stroke
-    // (the data color / the selected line's accent stand the arrowhead
-    // too — the def is per fill value, collected below).
+    // The arrowheads (the independent
+    // start figure 2026-10-22): each end stands its own figure — the end
+    // defaults to "arrow" (absent), the start stands no marker when
+    // absent. The marker follows the line's stroke (the data color / the
+    // selected line's accent stand the arrowhead too — the def is per
+    // fill value, collected below). The circle def is symmetric (it serves
+    // both sides); the arrow defs are oriented (the end's non-inverted,
+    // the start's inverted).
     const arrowHead = attrs.arrowHead ?? "arrow";
-    if (arrowHead !== "none") {
-      arrowFills.add(stroke);
-      if (attrs.arrowStart) arrowStartFills.add(stroke);
-      if (arrowHead === "circle") circleFills.add(stroke);
-    }
-    const endMarkerId =
-      arrowHead === "none" ? null : arrowHead === "circle" ? `${arrowDefId(id, stroke)}-ci` : arrowDefId(id, stroke);
-    const startMarkerId =
-      arrowHead !== "none" && attrs.arrowStart
-        ? arrowHead === "circle"
-          ? `${arrowDefId(id, stroke)}-ci`
-          : `${arrowDefId(id, stroke)}-s`
+    const endArrow = arrowHead === "arrow";
+    const endCircle = arrowHead === "circle";
+    const startArrow = attrs.arrowStart === "arrow";
+    const startCircle = attrs.arrowStart === "circle";
+    if (endArrow) arrowFills.add(stroke);
+    if (startArrow) arrowStartFills.add(stroke);
+    if (endCircle || startCircle) circleFills.add(stroke);
+    const endMarkerId = endCircle ? `${arrowDefId(id, stroke)}-ci` : endArrow ? arrowDefId(id, stroke) : null;
+    const startMarkerId = startCircle
+      ? `${arrowDefId(id, stroke)}-ci`
+      : startArrow
+        ? `${arrowDefId(id, stroke)}-s`
         : null;
 
     // The stored points keep the polyline priority (the pre-variant

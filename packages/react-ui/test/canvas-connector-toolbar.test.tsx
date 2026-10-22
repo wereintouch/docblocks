@@ -156,7 +156,7 @@ describe("the style applies", () => {
     strokeWidth?: number;
     strokeColor?: string;
     arrowHead?: "none" | "arrow" | "circle";
-    arrowStart?: boolean;
+    arrowStart?: "none" | "arrow" | "circle";
   } {
     const block = doc.getBlock(id);
     if (block === null || block.type !== "connector") return {};
@@ -184,7 +184,7 @@ describe("the style applies", () => {
     expect(styleOf(doc, connector).strokeWidth).toBeUndefined();
   });
 
-  it("the arrowhead's pick applies the figure (the arrow's default pick is the no-op stand)", () => {
+  it("the end arrowhead's pick applies the figure (the arrow's default pick is the no-op stand)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
     selectBlock(view as HTMLElement, connector, true);
@@ -192,13 +192,13 @@ describe("the style applies", () => {
     // The default (absent) stands the arrow: the arrow pick writes
     // nothing.
     const before = JSON.stringify(doc.toJSON());
-    fireEvent.pointerDown(screen.getByLabelText("Arrowhead"));
+    fireEvent.pointerDown(screen.getByLabelText("End arrowhead"));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Arrow" }));
     expect(JSON.stringify(doc.toJSON())).toBe(before);
     expect(styleOf(doc, connector).arrowHead).toBeUndefined();
 
     // The circle pick: one updateBlock (one undo step).
-    fireEvent.pointerDown(screen.getByLabelText("Arrowhead"));
+    fireEvent.pointerDown(screen.getByLabelText("End arrowhead"));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Circle" }));
     expect(styleOf(doc, connector).arrowHead).toBe("circle");
     expect(validateDoc(doc.toJSON())).toEqual([]);
@@ -206,27 +206,48 @@ describe("the style applies", () => {
     expect(styleOf(doc, connector).arrowHead).toBeUndefined();
 
     // The none pick.
-    fireEvent.pointerDown(screen.getByLabelText("Arrowhead"));
+    fireEvent.pointerDown(screen.getByLabelText("End arrowhead"));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "None" }));
     expect(styleOf(doc, connector).arrowHead).toBe("none");
   });
 
-  it("the arrow start toggle flips the stand (one updateBlock per flip, the pressed stand)", () => {
+  it("the start arrowhead's pick applies its own figure (the none default is the no-op stand)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
     selectBlock(view as HTMLElement, connector, true);
-    const toggle = document.querySelector('[data-slot="docblocks/connector-toolbar-arrow-start"]');
-    if (toggle === null) throw new Error("the arrow-start toggle is missing");
 
-    fireEvent.click(toggle);
-    expect(styleOf(doc, connector).arrowStart).toBe(true);
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    // The absent stand (no start marker) stands the none: the none pick
+    // writes nothing (independent of the end's figure).
+    const before = JSON.stringify(doc.toJSON());
+    fireEvent.pointerDown(screen.getByLabelText("Start arrowhead"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "None" }));
+    expect(JSON.stringify(doc.toJSON())).toBe(before);
+    expect(styleOf(doc, connector).arrowStart).toBeUndefined();
+
+    // The arrow pick: one updateBlock (one undo step). The start stands
+    // its own figure — the end's arrow default does not leak over.
+    fireEvent.pointerDown(screen.getByLabelText("Start arrowhead"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Arrow" }));
+    expect(styleOf(doc, connector).arrowStart).toBe("arrow");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
     doc.undo();
     expect(styleOf(doc, connector).arrowStart).toBeUndefined();
 
-    fireEvent.click(toggle);
-    fireEvent.click(toggle);
-    expect(styleOf(doc, connector).arrowStart).toBe(true);
+    // The circle pick.
+    fireEvent.pointerDown(screen.getByLabelText("Start arrowhead"));
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Circle" }));
+    expect(styleOf(doc, connector).arrowStart).toBe("circle");
+  });
+
+  it("the two arrowhead menus stand the start before the end", () => {
+    const { doc, connector } = seededDoc();
+    const { view } = renderCanvas(doc);
+    selectBlock(view as HTMLElement, connector, true);
+    const start = document.querySelector('[data-slot="docblocks/connector-toolbar-arrow-start"]');
+    const end = document.querySelector('[data-slot="docblocks/connector-toolbar-arrow-end"]');
+    if (start === null || end === null) throw new Error("the arrowhead menus are missing");
+    // The start menu precedes the end menu in the toolbar's DOM order.
+    expect(start.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("the palette's pick applies the strokeColor (the data color; the none stand is the theme token)", () => {
