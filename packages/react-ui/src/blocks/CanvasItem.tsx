@@ -142,7 +142,7 @@ function CanvasItem({
         selected && block.type !== "connector" && block.type !== "group"
           ? `
             bg-(--docblocks-selected-background) outline-(length:--docblocks-canvas-selection-border-width)
-            outline-offset-1 outline-(color:--docblocks-canvas-selection-border-color) outline-solid
+            outline-offset-1 outline-(--docblocks-canvas-selection-border-color) outline-solid
           `
           : undefined
       }

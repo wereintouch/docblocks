@@ -188,7 +188,7 @@ describe("the visual contract", () => {
     click(r.view, r.a);
     const wrapper = r.wrapperOf(r.a);
     expect(wrapper.className).toContain("bg-(--docblocks-selected-background)");
-    expect(wrapper.className).toContain("outline-(color:--docblocks-canvas-selection-border-color)");
+    expect(wrapper.className).toContain("outline-(--docblocks-canvas-selection-border-color)");
     expect(wrapper.className).toContain("outline-(length:--docblocks-canvas-selection-border-width)");
     expect(wrapper.className).toContain("outline-offset-1");
     // The unselected item stands neither.

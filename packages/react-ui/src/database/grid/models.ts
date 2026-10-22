@@ -81,7 +81,7 @@ const CELL_WRAP =
  *  container's content edge stands clipped (the table's w-full grid
  *  stands no padding over the scroller). */
 const CELL_SELECTED =
-  "bg-(--docblocks-selected-background) outline-(length:--docblocks-canvas-selection-border-width) outline-offset-[-1px] outline-(color:--docblocks-canvas-selection-border-color) outline-solid";
+  "bg-(--docblocks-selected-background) outline-(length:--docblocks-canvas-selection-border-width) outline-offset-[-1px] outline-(--docblocks-canvas-selection-border-color) outline-solid";
 /** The multi-selection's cell stand: the fill only (the outline stands
  *  the sole selection — a multi-region stands the frame on no cell). The
  *  canvas selection's fill (the border token at 50% — the figure
