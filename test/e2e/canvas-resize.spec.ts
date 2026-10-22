@@ -340,4 +340,43 @@ test.describe("the canvas resize / rotate handles", () => {
       await close();
     }
   });
+
+  test("the resize drag stands no native text selection (the shape's text overlay)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-resize-noselection");
+    try {
+      await toCanvas(a, "a");
+      await zoomTo50(a, "a");
+      // The seeded shape carries text (the HTML overlay stands the
+      // selectable text the drag would otherwise sweep).
+      const shape = await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        const json = doc.toJSON();
+        const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+        const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
+        const id = doc.insertBlock("shape", { variant: "rect", text: "resize me" }, { parent: surface });
+        doc.setGeometry(id, { x: 0, y: 0, w: 200, h: 100 });
+        return id;
+      });
+
+      const center = await canvasCenter(a, "a");
+      await selectShape(a, "a", center);
+      const selText = () => a.evaluate(() => window.getSelection()?.toString() ?? "");
+
+      // The e handle dragged INWARD (left): the pointer runs over the
+      // shape's text overlay. The native text selection must stand none
+      // (the press is prevented — no caret / selection on the overlay).
+      const start = await handleCenter(a, "a", "e");
+      await a.mouse.move(start.x, start.y);
+      await a.mouse.down();
+      await a.mouse.move(start.x - 40, start.y, { steps: 6 });
+      expect(await selText()).toBe("");
+      await a.mouse.up();
+      expect(await selText()).toBe("");
+      // The resize still commits (the width shrank, the center re-derived).
+      expect((await blockShapes(a, "a"))[shape]?.geometry).toEqual({ x: -40, y: 0, w: 120, h: 100 });
+    } finally {
+      await close();
+    }
+  });
 });

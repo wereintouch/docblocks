@@ -407,6 +407,62 @@ test.describe("the canvas move session", () => {
     }
   });
 
+  test("the move drag over the page card stands no native text selection", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-move-noselection");
+    try {
+      await toCanvas(a, "a");
+      await zoomTo25(a, "a");
+
+      // The page carries text (the page card's editable content under the
+      // pointer) and a texted shape stands over the page card (the canvas
+      // center = the card's center — the surface paints after the card, so
+      // the shape stands over it).
+      await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        doc.transact(() => {
+          const p = doc.insertBlock("paragraph");
+          doc.insertText(p, 0, "page text under the shape");
+        });
+      });
+      const shape = await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        const json = doc.toJSON();
+        const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
+        const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
+        const id = doc.insertBlock("shape", { variant: "rect", text: "draggable" }, { parent: surface });
+        doc.setGeometry(id, { x: 0, y: 0, w: 120, h: 80 });
+        return id;
+      });
+
+      const center = await canvasCenter(a, "a");
+      // The press on the shape (it stands over the page card): the shape
+      // selects, not the card.
+      await a.mouse.click(center.x, center.y);
+      expect(await selectedIds(a, "a")).toEqual([shape]);
+
+      const selText = () => a.evaluate(() => window.getSelection()?.toString() ?? "");
+
+      // The sideways move drag: the pointer runs over the page card's
+      // editable content (and the shape's own text). The native text
+      // selection must stand none (the press is prevented — no caret /
+      // selection on the content under the pointer).
+      await a.mouse.move(center.x, center.y);
+      await a.mouse.down();
+      await a.mouse.move(center.x + 60, center.y, { steps: 6 });
+      expect(await selText()).toBe("");
+      await a.mouse.up();
+      expect(await selText()).toBe("");
+
+      // The move still commits (the screen delta 60 is the canvas delta
+      // 240 at 25%).
+      expect((await blockShapes(a, "a"))[shape]?.geometry?.x).toBe(240);
+    } finally {
+      await close();
+    }
+  });
+
   test("a marquee group moves by one delta (every item in the group)", async ({ browser }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-move-group");
     try {
