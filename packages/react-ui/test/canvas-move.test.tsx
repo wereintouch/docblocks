@@ -19,6 +19,11 @@ const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
 type TestDoc = ReturnType<typeof createDoc>;
 
+/** The nested geometry Y.Map's write shape (the raw legacy seed below). */
+interface RawGeometryMap {
+  set(key: string, value: unknown): void;
+}
+
 function newDoc(): TestDoc {
   return createDoc({ id: "move-doc", createdAt: CREATED_AT });
 }
@@ -276,94 +281,19 @@ describe("the resize session", () => {
   });
 });
 
-describe("the rotate session", () => {
-  it("rotates one item in one transact (one undo step)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-    const before = doc.toJSON();
-
-    // The box center is the rotation's anchor (canvas space): a drag to
-    // the box's right reads 90 degrees (clockwise from up).
-    act(() => {
-      result.current.beginRotate(a, { x: 10, y: 20 }, 0, 0);
-      result.current.rotateDrag({ x: 110, y: 20 }, 110, 20, false);
-      result.current.endRotate();
-    });
-
-    expect(doc.getBlock(a)?.geometry?.rotation).toBe(90);
-    doc.undo();
-    expect(doc.toJSON()).toEqual(before);
-  });
-
-  it("merges the rotation with the CURRENT geometry (a concurrent move survives)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-
-    act(() => {
-      result.current.beginRotate(a, { x: 10, y: 20 }, 0, 0);
-    });
-    // A peer-style move lands between the snapshot and the commit: the
-    // commit must keep the new position and add the rotation.
-    doc.setGeometry(a, { x: 60, y: 20, w: 100, h: 50 });
-    act(() => {
-      result.current.rotateDrag({ x: 110, y: 20 }, 110, 20, false);
-      result.current.endRotate();
-    });
-
-    expect(doc.getBlock(a)?.geometry).toEqual({ x: 60, y: 20, w: 100, h: 50, rotation: 90 });
-  });
-
-  it("writes nothing on a sub-threshold press-release (the 3px screen jitter guard)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-    const before = doc.toJSON();
-
-    act(() => {
-      result.current.beginRotate(a, { x: 10, y: 20 }, 100, 100);
-      result.current.rotateDrag({ x: 20, y: -90 }, 102, 101, false); // 2px screen — below the threshold
-      result.current.endRotate();
-    });
-
-    expect(doc.toJSON()).toEqual(before);
-    expect(result.current.rotatePreview).toBeNull();
-  });
-
-  it("snaps to the 15 degree grid on shift", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-
-    act(() => {
-      result.current.beginRotate(a, { x: 10, y: 20 }, 0, 0);
-      // ~20 degrees over the 15 grid: (sin20, -cos20) * 100.
-      result.current.rotateDrag({ x: 10 + 34.2, y: 20 - 93.97 }, 34.2, -93.97, true);
-      result.current.endRotate();
-    });
-
-    expect(doc.getBlock(a)?.geometry?.rotation).toBe(15);
-  });
-
-  it("writes nothing on the cancel (the preview is dropped)", () => {
-    const { doc, a } = seededDoc();
-    const { result } = renderHook(() => useCanvasViewport(doc));
-    const before = doc.toJSON();
-
-    act(() => {
-      result.current.beginRotate(a, { x: 10, y: 20 }, 0, 0);
-      result.current.rotateDrag({ x: 60, y: -80 }, 60, -80, false);
-      result.current.cancelRotate();
-    });
-
-    expect(doc.toJSON()).toEqual(before);
-    expect(result.current.rotatePreview).toBeNull();
-  });
-});
-
-describe("the move preview on a rotated item", () => {
-  it("applies the offset in the canvas axes (before the rotation in the transform)", () => {
+describe("the move preview on a legacy-rotated item", () => {
+  it("stands the offset in the canvas axes (the stored rotation stands off the render)", () => {
     const doc = newDoc();
     const surface = doc.insertBlock("surface");
     const id = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-    doc.setGeometry(id, { x: 0, y: 0, w: 100, h: 50, rotation: 90 });
+    doc.setGeometry(id, { x: 0, y: 0, w: 100, h: 50 });
+    // The legacy stored rotation (the strict schema no longer writes the
+    // field): the raw CRDT write stands the data the lenient read keeps
+    // and the render ignores.
+    doc.raw.transact(() => {
+      const entry = doc.raw.getMap("blocks").get(id) as { get(key: string): unknown };
+      (entry.get("geometry") as RawGeometryMap).set("rotation", 90);
+    });
 
     const { container } = render(
       <EditorProvider doc={doc}>
@@ -374,15 +304,19 @@ describe("the move preview on a rotated item", () => {
     const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
     if (view === null || wrapper === null) throw new Error("the canvas view / the item is missing");
 
+    // The stored rotation stands no transform term (the render ignores
+    // it): the resting transform is the centering translate only.
+    expect(wrapper.style.transform).toBe("translate(-50%, -50%)");
+
     // The in-flight drag (the press on the item wrapper, the moves on
     // the view — the pointer is captured on the view): the preview
-    // transform stands translate(Δ) BEFORE rotate(θ) (a trailing
-    // translate would land in the rotated frame).
+    // stands the canvas-axis offset.
     fireEvent.pointerDown(wrapper, { clientX: 100, clientY: 100 });
     fireEvent.pointerMove(view, { clientX: 140, clientY: 120, buttons: 1 });
-    expect(wrapper.style.transform).toBe("translate(-50%, -50%) translate(40px, 20px) rotate(90deg)");
+    expect(wrapper.style.transform).toBe("translate(-50%, -50%) translate(40px, 20px)");
 
-    // The release commits the canvas-axis delta (the rotation stands).
+    // The release commits the canvas-axis delta (the commit writes
+    // x/y/w/h only; the stored rotation survives the core's merge).
     fireEvent.pointerUp(view);
     expect(doc.getBlock(id)?.geometry).toEqual({ x: 40, y: 20, w: 100, h: 50, rotation: 90 });
   });

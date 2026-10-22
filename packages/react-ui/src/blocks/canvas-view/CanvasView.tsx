@@ -71,7 +71,6 @@ import { ZoomControls } from "./ZoomControls";
 import {
   CONNECTOR_HANDLE_HIT_RADIUS_PX,
   CONNECTOR_HANDLE_RADIUS_PX,
-  HANDLE_ROTATE_OFFSET_PX,
   PORT_PICK_RADIUS_PX,
   RESIZE_HANDLE_POSITIONS,
   SCROLLBAR_GUARD_PX,
@@ -184,14 +183,13 @@ function CanvasView() {
   // The handles' target: a single block selection with an effective box
   // (the stored geometry or the synthesized default; the connector is
   // excluded — it carries no own geometry). The container (the reworked
-  // group) carries its own box: the eight resize handles stand it (the
-  // rotate handle stands off — the container carries no rotation).
+  // group) carries its own box: the eight resize handles stand it.
   const handleTarget = useMemo(() => {
     if (storeSelection?.kind !== "blocks" || storeSelection.ids.length !== 1) return null;
     const id = storeSelection.ids[0]!;
     const block = blocks[id];
     if (block === undefined || block.type === "connector") return null;
-    return { id, box: effectiveGeometry(block), rotation: block.geometry?.rotation ?? 0 };
+    return { id, box: effectiveGeometry(block) };
   }, [storeSelection, blocks]);
   const displayBox =
     handleTarget !== null && viewport.resizePreview !== null && viewport.resizePreview.id === handleTarget.id
@@ -224,18 +222,13 @@ function CanvasView() {
     if (count < 2 || !Number.isFinite(minX)) return null;
     return { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
   }, [storeSelection, blocks]);
-  const displayRotation =
-    handleTarget !== null && viewport.rotatePreview !== null && viewport.rotatePreview.id === handleTarget.id
-      ? viewport.rotatePreview.rotation
-      : (handleTarget?.rotation ?? null);
 
   // The color toolbar's target: a single `shape` selection (the fill /
   // stroke attrs); absent for the other canvas types, the multi
   // selection, an active tool, or an in-flight session.
   const shapeToolbarTarget = (() => {
     if (handleTarget === null || viewport.activeTool !== null) return null;
-    if (viewport.movePreview !== null || viewport.resizePreview !== null || viewport.rotatePreview !== null)
-      return null;
+    if (viewport.movePreview !== null || viewport.resizePreview !== null) return null;
     const block = blocks[handleTarget.id];
     if (block === undefined || block.type !== "shape") return null;
     return {
@@ -260,8 +253,7 @@ function CanvasView() {
   // an in-flight session).
   const connectorToolbarTarget = (() => {
     if (viewport.activeTool !== null) return null;
-    if (viewport.movePreview !== null || viewport.resizePreview !== null || viewport.rotatePreview !== null)
-      return null;
+    if (viewport.movePreview !== null || viewport.resizePreview !== null) return null;
     if (storeSelection?.kind !== "blocks" || storeSelection.ids.length !== 1) return null;
     const id = storeSelection.ids[0]!;
     const block = blocks[id];
@@ -535,7 +527,7 @@ function CanvasView() {
       return;
     }
 
-    // The resize / rotate handles (the single-selection overlay): the
+    // The resize handles (the single-selection overlay): the
     // press starts the session (the pan mode / the held space stand
     // before this — space+drag over a handle pans).
     const handle =
@@ -545,25 +537,15 @@ function CanvasView() {
     if (handle !== null && handleTarget !== null) {
       // The press is prevented (the same contract as the pan / page-card
       // branches): the compatibility mousedown's default stands no caret /
-      // native text selection — the resize / rotate drag over the shape's
+      // native text selection — the resize drag over the shape's
       // text overlay (or the page card's editable content under the item)
       // stands no selection. The focus parks on the container (the
       // preventDefault drops the default focus change — the keydown reach
       // stands).
       event.preventDefault();
       containerRef.current?.focus();
-      if (handle.dataset.handle === "rotate") {
-        viewport.beginRotate(
-          handleTarget.id,
-          { x: handleTarget.box.x, y: handleTarget.box.y },
-          event.clientX,
-          event.clientY
-        );
-      } else {
-        const resizeHandle = handle.dataset.handle as ResizeHandle | undefined;
-        if (resizeHandle !== undefined)
-          viewport.beginResize(handleTarget.id, resizeHandle, event.clientX, event.clientY);
-      }
+      const resizeHandle = handle.dataset.handle as ResizeHandle | undefined;
+      if (resizeHandle !== undefined) viewport.beginResize(handleTarget.id, resizeHandle, event.clientX, event.clientY);
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
@@ -723,13 +705,12 @@ function CanvasView() {
       return;
     }
 
-    // The move / resize / rotate sessions (item / page-card / handle
+    // The move / resize sessions (item / page-card / handle
     // press) run without a container session; the feeders are no-ops
     // while none is open. The connector endpoint drag feeds the live
     // re-draw (the preview point in the surface-local space).
     viewport.moveDrag(event.clientX, event.clientY);
     viewport.resizeDrag(event.clientX, event.clientY, event.shiftKey);
-    viewport.rotateDrag(centerRelativePoint(event), event.clientX, event.clientY, event.shiftKey);
     if (viewport.connectorEndpoint !== null) {
       viewport.moveConnectorEndpoint(centerRelativePoint(event));
     }
@@ -808,7 +789,6 @@ function CanvasView() {
 
     viewport.endMove();
     viewport.endResize();
-    viewport.endRotate();
     const session = sessionRef.current;
     if (session === null) return;
     sessionRef.current = null;
@@ -983,7 +963,6 @@ function CanvasView() {
       sessionRef.current === null &&
       viewport.movePreview === null &&
       viewport.resizePreview === null &&
-      viewport.rotatePreview === null &&
       viewport.marquee === null &&
       viewport.penPoints.length === 0 &&
       viewport.placePreview === null &&
@@ -995,7 +974,6 @@ function CanvasView() {
     viewport.setPlacePreview(null);
     viewport.cancelMove();
     viewport.cancelResize();
-    viewport.cancelRotate();
     viewport.cancelConnectorEndpoint();
     viewport.setMarquee(null);
     viewport.setPenPoints([]);
@@ -1094,12 +1072,11 @@ function CanvasView() {
       viewport.cancelConnectorEndpoint();
       return;
     }
-    if (event.key === "Escape" && (viewport.resizePreview !== null || viewport.rotatePreview !== null)) {
-      // The in-flight resize / rotate's cancel (the same contract as the
+    if (event.key === "Escape" && viewport.resizePreview !== null) {
+      // The in-flight resize's cancel (the same contract as the
       // move's: the preview is dropped, nothing is written).
       event.stopPropagation();
       viewport.cancelResize();
-      viewport.cancelRotate();
       return;
     }
     if (event.key === " " && !event.repeat) {
@@ -1149,16 +1126,15 @@ function CanvasView() {
   const pageCardSelected = storeSelection?.kind === "blocks" && storeSelection.ids.includes(rootBlockId);
 
   // The page miniature's display style (the committed style + the session
-  // previews: the move offset, the resize box, the rotation — the same
-  // composition as the CanvasItem's).
+  // previews: the move offset, the resize box — the same composition as
+  // the CanvasItem's).
   const pageCardDisplayStyle = (() => {
     const style = pageCardStyle(root);
     if (handleTarget === null || handleTarget.id !== rootBlockId) return style;
     const isMoving = viewport.movePreview !== null && viewport.movePreview.ids.includes(rootBlockId);
     const previewBox =
       viewport.resizePreview !== null && viewport.resizePreview.id === rootBlockId ? viewport.resizePreview.box : null;
-    const rotation = displayRotation ?? 0;
-    if (isMoving === false && previewBox === null && rotation === (root.geometry?.rotation ?? 0)) return style;
+    if (isMoving === false && previewBox === null) return style;
     if (previewBox !== null) {
       style.left = `calc(50% + ${previewBox.x}px)`;
       style.top = `calc(50% + ${previewBox.y}px)`;
@@ -1166,10 +1142,7 @@ function CanvasView() {
       style.height = `${previewBox.h}px`;
     }
     const parts = ["translate(-50%, -50%)"];
-    // The move offset stands BEFORE the rotation (the Δ is in the canvas
-    // axes; a trailing translate would land in the rotated frame).
     if (isMoving) parts.push(`translate(${viewport.movePreview!.dx}px, ${viewport.movePreview!.dy}px)`);
-    if (rotation !== 0) parts.push(`rotate(${rotation}deg)`);
     style.transform = parts.join(" ");
     return style;
   })();
@@ -1237,7 +1210,6 @@ function CanvasView() {
               pendingConnector={viewport.pendingConnector}
               movePreview={viewport.movePreview}
               resizePreview={viewport.resizePreview}
-              rotatePreview={viewport.rotatePreview}
               endpointDrag={viewport.connectorEndpoint}
               endpointPreview={viewport.connectorEndpointPreview}
               endpointSnap={
@@ -1418,10 +1390,10 @@ function CanvasView() {
           viewport.activeTool === null &&
           viewport.movePreview === null &&
           displayBox !== null && (
-            // The selection's handles (the eight box handles + the rotate
-            // handle above the top edge): screen-space, over the world
-            // (they keep their on-screen size at any zoom). Hidden while a
-            // move preview is in flight (the box is stale then).
+            // The selection's handles (the eight box handles):
+            // screen-space, over the world (they keep their on-screen size
+            // at any zoom). Hidden while a move preview is in flight (the
+            // box is stale then).
             <div
               data-slot="docblocks/canvas-handles"
               className="pointer-events-none absolute z-40"
@@ -1430,7 +1402,7 @@ function CanvasView() {
                 top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y}px)`,
                 width: displayBox.w * viewport.zoom,
                 height: displayBox.h * viewport.zoom,
-                transform: `translate(-50%, -50%) rotate(${displayRotation ?? 0}deg)`,
+                transform: "translate(-50%, -50%)",
               }}
             >
               {RESIZE_HANDLE_POSITIONS.map(({ handle: handleId, className, style }) => (
@@ -1446,19 +1418,6 @@ function CanvasView() {
                   style={style}
                 />
               ))}
-              {handleTarget.id !== rootBlockId && blocks[handleTarget.id]?.type !== "group" && (
-                // The page miniature stands no rotate handle (the rotation
-                // affordance is off for the editor; the shapes keep it).
-                <div
-                  data-slot="docblocks/canvas-handle"
-                  data-handle="rotate"
-                  className={cn(
-                    "pointer-events-auto absolute size-3 cursor-grab rounded-full",
-                    "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)"
-                  )}
-                  style={{ left: "50%", top: -HANDLE_ROTATE_OFFSET_PX, transform: "translate(-50%, -50%)" }}
-                />
-              )}
             </div>
           )}
         {connectorToolbarTarget !== null && (

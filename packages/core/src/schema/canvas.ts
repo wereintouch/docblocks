@@ -3,10 +3,9 @@
  *
  * `geometry` is an optional field of ANY block (a schema-level field, not
  * attrs): its position and size inside a surface. `x`/`y` are CENTER
- * coordinates — the anchor of the w/h box is its center, the rotation
- * turns around that center. Ignored in the page view (the block flows);
- * in the canvas view — the position. A block without a geometry has no
- * canvas placement.
+ * coordinates — the anchor of the w/h box is its center. Ignored in the
+ * page view (the block flows); in the canvas view — the position. A block
+ * without a geometry has no canvas placement.
  */
 import type { BlockContent, BlockId } from "./types";
 
@@ -20,8 +19,6 @@ interface Geometry {
   w: number;
   /** Height, in px; must be > 0. */
   h: number;
-  /** Rotation in degrees around the center; absent = 0. */
-  rotation?: number;
 }
 
 /**

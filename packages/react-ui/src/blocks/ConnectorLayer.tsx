@@ -131,8 +131,7 @@ function ConnectorLayer({
   // The live geometry: the in-flight move / resize previews stand the
   // endpoint resolution (the lines follow the items mid-drag — the release
   // commit stands the same geometry in the doc; the line and the item
-  // stand from one number). The rotation preview stands off (the anchor
-  // stands the unrotated box — the v1 limit).
+  // stand from one number).
   const previewBlocks = (() => {
     if (movePreview === null && resizePreview === null) return blocks;
     const next: Record<string, Block> = { ...blocks };
@@ -150,7 +149,6 @@ function ConnectorLayer({
             y: g.y + movePreview.dy,
             w: g.w,
             h: g.h,
-            ...(block.geometry?.rotation !== undefined ? { rotation: block.geometry.rotation } : {}),
           },
         };
       }

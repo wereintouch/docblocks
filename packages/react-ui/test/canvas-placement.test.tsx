@@ -165,7 +165,6 @@ describe("the dock", () => {
       connectorLabelEditing: null,
       setConnectorLabelEditing: noop,
       resizePreview: null,
-      rotatePreview: null,
       setZoom: noop,
       stepZoom: noop,
       setPan: noop,
@@ -195,10 +194,6 @@ describe("the dock", () => {
       resizeDrag: noop,
       endResize: noop,
       cancelResize: noop,
-      beginRotate: noop,
-      rotateDrag: noop,
-      endRotate: noop,
-      cancelRotate: noop,
     };
     return { ...base, ...overrides } as CanvasViewportState;
   }

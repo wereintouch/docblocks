@@ -1,6 +1,6 @@
 /** The canvas viewport's owner hook: the zoom / pan / mode / tool state,
  *  the pending connector stand, and the placement / move / resize /
- *  rotate / endpoint-drag sessions over the doc. Pure view state per
+ *  endpoint-drag sessions over the doc. Pure view state per
  *  editor instance — it stands outside the doc and the awareness and
  *  resets on the canvas view's unmount. */
 import { useCallback, useRef, useState } from "react";
@@ -23,7 +23,6 @@ import {
   marqueeRect,
   pinchZoom,
   resizeBox,
-  rotateAngle,
   screenDeltaToCanvas,
   screenToCanvas,
   stepZoom,
@@ -41,7 +40,6 @@ import type {
   MoveSession,
   PlacePreview,
   ResizeSession,
-  RotateSession,
 } from "./models";
 import { snapEdgePoint, snapEndpointEdge } from "./utils";
 
@@ -595,8 +593,6 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
 
   const resizeRef = useRef<ResizeSession | null>(null);
   const [resizePreview, setResizePreview] = useState<{ id: string; box: Box } | null>(null);
-  const rotateRef = useRef<RotateSession | null>(null);
-  const [rotatePreview, setRotatePreview] = useState<{ id: string; rotation: number } | null>(null);
 
   const beginResize = useCallback(
     (id: string, handle: ResizeHandle, startClientX: number, startClientY: number) => {
@@ -642,71 +638,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     });
   }, [doc]);
 
-  const beginRotate = useCallback(
-    (id: string, center: CanvasPoint, startClientX: number, startClientY: number) => {
-      const block = doc.getBlock(id);
-      if (block === null || block.type === "connector") return;
-      rotateRef.current = {
-        id,
-        center,
-        snapshot: effectiveGeometry(block),
-        startClientX,
-        startClientY,
-        dragging: false,
-        rotation: null,
-      };
-      setRotatePreview(null);
-    },
-    [doc]
-  );
-
-  const rotateDrag = useCallback(
-    (pointer: ScreenPoint, clientX: number, clientY: number, shift: boolean) => {
-      const session = rotateRef.current;
-      if (session === null) return;
-      const delta = screenDeltaToCanvas(clientX - session.startClientX, clientY - session.startClientY, 1);
-      if (delta === null) return;
-      session.dragging = true;
-      // The pointer in the canvas space, against the box center (canvas
-      // anchor) — the zoom/pan cancel in the angle math.
-      const canvasPointer = screenToCanvas(pointer, zoom, pan);
-      session.rotation = rotateAngle(session.center, canvasPointer, shift);
-      setRotatePreview({ id: session.id, rotation: session.rotation });
-    },
-    [zoom, pan]
-  );
-
-  const endRotate = useCallback(() => {
-    const session = rotateRef.current;
-    rotateRef.current = null;
-    setRotatePreview(null);
-    if (session === null || !session.dragging || session.rotation === null) return;
-    const rotation = session.rotation;
-    const snapshot = session.snapshot;
-    // The rotation merges with the CURRENT geometry (a concurrent move / resize keeps
-    // standing); a geometry-less block (the page miniature) gets the
-    // session's snapshot box (a rotation-only patch is rejected by the
-    // command — the merge needs a complete box).
-    doc.transact(() => {
-      const current = doc.getBlock(session.id);
-      if (current === null) return;
-      const geometry = current.geometry;
-      if (geometry !== undefined) {
-        doc.setGeometry(session.id, { x: geometry.x, y: geometry.y, w: geometry.w, h: geometry.h, rotation });
-      } else {
-        doc.setGeometry(session.id, { x: snapshot.x, y: snapshot.y, w: snapshot.w, h: snapshot.h, rotation });
-      }
-    });
-  }, [doc]);
-
   const cancelResize = useCallback(() => {
     resizeRef.current = null;
     setResizePreview(null);
-  }, []);
-
-  const cancelRotate = useCallback(() => {
-    rotateRef.current = null;
-    setRotatePreview(null);
   }, []);
 
   return {
@@ -721,7 +655,6 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     movePreview,
     dropIndicators,
     resizePreview,
-    rotatePreview,
     placePreview,
     connectorPreview,
     connectorEndpoint,
@@ -761,10 +694,6 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     resizeDrag,
     endResize,
     cancelResize,
-    beginRotate,
-    rotateDrag,
-    endRotate,
-    cancelRotate,
   };
 }
 

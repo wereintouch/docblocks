@@ -390,7 +390,6 @@ function connectorHandlePoints(
             y: g.y + previews.movePreview.dy,
             w: g.w,
             h: g.h,
-            ...(child.geometry?.rotation !== undefined ? { rotation: child.geometry.rotation } : {}),
           },
         };
       }

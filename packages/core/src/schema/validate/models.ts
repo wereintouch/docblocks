@@ -17,7 +17,7 @@ const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:/i;
 const DOC_FIELDS = ["v", "id", "title", "createdAt", "blocks"] as const;
 
 /** The known geometry fields (the strict shape rejects the rest). */
-const GEOMETRY_FIELDS = ["x", "y", "w", "h", "rotation"] as const;
+const GEOMETRY_FIELDS = ["x", "y", "w", "h"] as const;
 
 /** The recursion depth cap for the filter payload (the package's UI
  *  builds no deeper; a backend may allow more, it validates on its own). */

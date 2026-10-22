@@ -41,9 +41,6 @@ const RESIZE_HANDLE_POSITIONS: { handle: ResizeHandle; className: string; style:
   { handle: "w", className: "cursor-ew-resize", style: { left: 0, top: "50%", transform: "translate(-50%, -50%)" } },
 ];
 
-/** The rotate handle's offset above the box top edge (screen px). */
-const HANDLE_ROTATE_OFFSET_PX = 24;
-
 /** The connector endpoint handle's visible radius (screen px — the
  * screen-space handle keeps its on-screen size at any zoom, like the
  * resize handles). */
@@ -53,8 +50,8 @@ const CONNECTOR_HANDLE_RADIUS_PX = 4;
  * screen px). */
 const CONNECTOR_HANDLE_HIT_RADIUS_PX = 8;
 
-/** The shape toolbar's offset above the box top edge (screen px): it
- * stands over the rotate handle (24px), so it clears the handle zone. */
+/** The shape toolbar's offset above the box top edge (screen px — the
+ * clearance over the box edge and the resize handles' zone). */
 const TOOLBAR_OFFSET_PX = 48;
 
 /** The wheel's zoom step's delta threshold (a mouse notch's ~100 px; the
@@ -127,7 +124,6 @@ const SCROLLBAR_GUARD_PX = 12;
 export {
   CONNECTOR_HANDLE_HIT_RADIUS_PX,
   CONNECTOR_HANDLE_RADIUS_PX,
-  HANDLE_ROTATE_OFFSET_PX,
   PORT_PICK_RADIUS_PX,
   RESIZE_HANDLE_POSITIONS,
   SCROLLBAR_GUARD_PX,

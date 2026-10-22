@@ -18,7 +18,6 @@ import {
   penStroke,
   rectsIntersect,
   resizeBox,
-  rotateAngle,
   screenToCanvas,
   stepZoom,
 } from "../src/canvas/viewport";
@@ -56,23 +55,6 @@ describe("resizeBox", () => {
 
   it("floors the shift corner at the anchor (no flip-past)", () => {
     expect(resizeBox(box, "se", -198, -98, true)).toEqual({ x: 10, y: 60, w: RESIZE_FLOOR_PX, h: RESIZE_FLOOR_PX });
-  });
-});
-
-describe("rotateAngle", () => {
-  const center = { x: 0, y: 0 };
-
-  it("reads the pointer angle clockwise from up (0..359)", () => {
-    expect(rotateAngle(center, { x: 0, y: -100 }, false)).toBe(0);
-    expect(rotateAngle(center, { x: 100, y: 0 }, false)).toBe(90);
-    expect(rotateAngle(center, { x: 0, y: 100 }, false)).toBe(180);
-    expect(rotateAngle(center, { x: -100, y: 0 }, false)).toBe(270);
-  });
-
-  it("snaps to the 15 degree grid on shift", () => {
-    expect(rotateAngle(center, { x: 34.2, y: -93.97 }, true)).toBe(15);
-    expect(rotateAngle(center, { x: 17.1, y: -98.48 }, true)).toBe(15);
-    expect(rotateAngle(center, { x: 50, y: -86.6 }, true)).toBe(30);
   });
 });
 

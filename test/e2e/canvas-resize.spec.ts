@@ -1,11 +1,10 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-// The canvas resize / rotate sessions (the selection's handles): the e/w/n/s
-// and corner handles resize the box (one setGeometry per release, one undo
-// step), the shift corner keeps the aspect, the rotate handle writes the
-// geometry's rotation, and a sub-threshold handle drag writes nothing. The
-// tests zoom to 50% (two steps down) so the seeded boxes stand at half
-// their canvas size on screen.
+// The canvas resize sessions (the selection's handles): the e/w/n/s and
+// corner handles resize the box (one setGeometry per release, one undo
+// step), the shift corner keeps the aspect, and a sub-threshold handle
+// drag writes nothing. The tests zoom to 50% (two steps down) so the
+// seeded boxes stand at half their canvas size on screen.
 const RELAY = "ws://localhost:5199";
 const SETTLE = { timeout: 15_000 };
 
@@ -50,12 +49,7 @@ async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number;
 async function blockShapes(
   page: Page,
   client: "a" | "b"
-): Promise<
-  Record<
-    string,
-    { type: string; geometry: { x: number; y: number; w: number; h: number; rotation?: number } | undefined }
-  >
-> {
+): Promise<Record<string, { type: string; geometry: { x: number; y: number; w: number; h: number } | undefined }>> {
   return page.evaluate(
     ({ client }) => {
       const docs = window.__paneDocs;
@@ -64,12 +58,12 @@ async function blockShapes(
       const json = doc.toJSON();
       const out: Record<
         string,
-        { type: string; geometry: { x: number; y: number; w: number; h: number; rotation?: number } | undefined }
+        { type: string; geometry: { x: number; y: number; w: number; h: number } | undefined }
       > = {};
       for (const [id, block] of Object.entries(json.blocks)) {
         const entry = block as {
           type: string;
-          geometry?: { x: number; y: number; w: number; h: number; rotation?: number };
+          geometry?: { x: number; y: number; w: number; h: number };
         };
         out[id] = { type: entry.type, geometry: entry.geometry };
       }
@@ -123,7 +117,7 @@ async function handleCenter(page: Page, client: "a" | "b", id: string): Promise<
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-test.describe("the canvas resize / rotate handles", () => {
+test.describe("the canvas resize handles", () => {
   test("the e handle grows the width (the center re-derives); the other pane syncs", async ({ browser }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-resize-e");
     try {
@@ -227,57 +221,6 @@ test.describe("the canvas resize / rotate handles", () => {
     }
   });
 
-  test("the rotate handle writes the geometry's rotation (the other pane syncs)", async ({ browser }) => {
-    const { a, b, close } = await twoPanes(browser, "canvas-rotate");
-    try {
-      await toCanvas(a, "a");
-      await toCanvas(b, "b");
-      await zoomTo50(a, "a");
-      const shape = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 200, h: 100 });
-      await zoomTo50(b, "b");
-      const center = await canvasCenter(a, "a");
-      await selectShape(a, "a", center);
-
-      // The rotate handle stands above the top edge; the drag to a point
-      // right of the box center reads 90 degrees (clockwise from up).
-      const start = await handleCenter(a, "a", "rotate");
-      await a.mouse.move(start.x, start.y);
-      await a.mouse.down();
-      await a.mouse.move(center.x + 120, center.y, { steps: 8 });
-      await a.mouse.up();
-
-      expect((await blockShapes(a, "a"))[shape]?.geometry?.rotation).toBe(90);
-      await expect.poll(async () => (await blockShapes(b, "b"))[shape]?.geometry?.rotation, SETTLE).toBe(90);
-    } finally {
-      await close();
-    }
-  });
-
-  test("the rotate handle snaps to the 15 degree grid on shift", async ({ browser }) => {
-    const { a, close } = await twoPanes(browser, "canvas-rotate-snap");
-    try {
-      await toCanvas(a, "a");
-      await zoomTo50(a, "a");
-      const shape = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 200, h: 100 });
-      const center = await canvasCenter(a, "a");
-      await selectShape(a, "a", center);
-
-      // ~35 degrees over the grid (the pointer at 35° from up: the
-      // (sin35, -cos35) direction) snaps to 30.
-      const start = await handleCenter(a, "a", "rotate");
-      await a.keyboard.down("Shift");
-      await a.mouse.move(start.x, start.y);
-      await a.mouse.down();
-      await a.mouse.move(center.x + 60 * Math.sin(0.61), center.y - 60 * Math.cos(0.61), { steps: 8 });
-      await a.mouse.up();
-      await a.keyboard.up("Shift");
-
-      expect((await blockShapes(a, "a"))[shape]?.geometry?.rotation).toBe(30);
-    } finally {
-      await close();
-    }
-  });
-
   test("the handles stand only for a single selection (a marquee group hides them)", async ({ browser }) => {
     const { a, close } = await twoPanes(browser, "canvas-resize-handles");
     try {
@@ -294,15 +237,15 @@ test.describe("the canvas resize / rotate handles", () => {
       await a.mouse.up();
       expect(await handles(a, "a").count()).toBe(0);
 
-      // A single click selection stands the nine handles (eight box +
-      // rotate). The empty-canvas click first: a group-member click keeps
-      // the group (the group-aware selection), so the selection must be
-      // cleared before the single pick.
+      // A single click selection stands the eight box handles. The
+      // empty-canvas click first: a group-member click keeps the group
+      // (the group-aware selection), so the selection must be cleared
+      // before the single pick.
       await a.mouse.click(center.x + 300, center.y);
       await a.mouse.click(center.x - 200, center.y);
       expect(await handles(a, "a").count()).toBe(1);
+      expect(await handles(a, "a").locator('[data-slot="docblocks/canvas-handle"]').count()).toBe(8);
       expect(await handle(a, "a", "nw").count()).toBe(1);
-      expect(await handle(a, "a", "rotate").count()).toBe(1);
       expect(s1).toBeTruthy();
       expect(s2).toBeTruthy();
     } finally {
@@ -310,10 +253,8 @@ test.describe("the canvas resize / rotate handles", () => {
     }
   });
 
-  test("the page miniature stands the box handles, no rotate (the rotation affordance is off for the editor)", async ({
-    browser,
-  }) => {
-    const { a, close } = await twoPanes(browser, "canvas-rotate-page-off");
+  test("the page miniature stands the box handles", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-page-handles");
     try {
       await toCanvas(a, "a");
       // The page card is large: zoom to 25% so its box handles stand on
@@ -330,11 +271,11 @@ test.describe("the canvas resize / rotate handles", () => {
 
       // The card's bottom padding (non-contenteditable) click selects the
       // page (the no-op press writes nothing) and stands the eight box
-      // handles — the rotate handle stands no more for the editor.
+      // handles.
       const center = await canvasCenter(a, "a");
       await a.mouse.click(center.x, center.y + 100);
       expect(await handles(a, "a").count()).toBe(1);
-      expect(await handle(a, "a", "rotate").count()).toBe(0);
+      expect(await handles(a, "a").locator('[data-slot="docblocks/canvas-handle"]').count()).toBe(8);
       expect(await handle(a, "a", "nw").count()).toBe(1);
     } finally {
       await close();

@@ -195,7 +195,7 @@ describe("canvas scene", () => {
   });
 
   it("positions the elements by geometry (the center-anchor coordinate model)", () => {
-    const doc = renderScene();
+    renderScene();
     const rect = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.rect}"]`
     )!;
@@ -206,16 +206,7 @@ describe("canvas scene", () => {
     expect(rect.style.top).toBe("calc(50% - 40px)");
     expect(rect.style.width).toBe("120px");
     expect(rect.style.height).toBe("80px");
-    expect(rect.style.transform).toBe("translate(-50%, -50%) rotate(0deg)");
-
-    // A rotation update re-renders the transform.
-    act(() => {
-      doc.setGeometry(IDS.rect, { rotation: 45 });
-    });
-    expect(
-      document.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${IDS.rect}"]`)!.style
-        .transform
-    ).toBe("translate(-50%, -50%) rotate(45deg)");
+    expect(rect.style.transform).toBe("translate(-50%, -50%)");
   });
 
   it("renders the shapes as SVGs (the variant figures, the dash style, the fill attr)", () => {

@@ -26,7 +26,6 @@ function SurfaceLayer({
   pendingConnector,
   movePreview,
   resizePreview,
-  rotatePreview,
   endpointDrag,
   endpointPreview,
   showPorts,
@@ -38,7 +37,6 @@ function SurfaceLayer({
   pendingConnector: string | null;
   movePreview: MovePreview | null;
   resizePreview: { id: string; box: Box } | null;
-  rotatePreview: { id: string; rotation: number } | null;
   endpointDrag: { connectorId: string; which: "start" | "end" } | null;
   endpointPreview: {
     point: { x: number; y: number };
@@ -64,7 +62,6 @@ function SurfaceLayer({
           pendingConnector={pendingConnector}
           movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
           resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
-          rotatePreview={rotatePreview !== null && rotatePreview.id === childId ? rotatePreview.rotation : null}
         />
       ))}
       <ConnectorLayer

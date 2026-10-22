@@ -72,7 +72,7 @@ async function zoomOut(page: Page, client: "a" | "b", targetPercent: number): Pr
 
 interface CanvasBlock {
   type: string;
-  geometry?: { x: number; y: number; w: number; h: number; rotation?: number };
+  geometry?: { x: number; y: number; w: number; h: number };
   attrs?: Record<string, unknown>;
 }
 
