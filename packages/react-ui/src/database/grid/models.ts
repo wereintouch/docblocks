@@ -3,32 +3,34 @@
  * shared cell class sets) and the session types. */
 
 /** The add-column type catalog (the `select` columns are the
- *  consumer-level — they need the options set). The `form` entry stands
- *  the attribute form (the number's display attributes) over the
- *  immediate create. */
-const ADD_COLUMN_TYPES: Array<{ type: string; label: string; form?: boolean }> = [
+ *  consumer-level — they need the options set). Every entry stands the
+ *  create form (the name input + the type-specific attributes — the
+ *  number's display attributes over the name; the other types stand
+ *  the name only). */
+const ADD_COLUMN_TYPES: Array<{ type: string; label: string; attrs?: boolean }> = [
   { type: "text", label: "Text" },
-  { type: "number", label: "Number", form: true },
+  { type: "number", label: "Number", attrs: true },
   { type: "boolean", label: "Checkbox" },
   { type: "date", label: "Date" },
   { type: "timestamptz", label: "Date & time" },
 ];
-/** The number column's create form draft (the column's display
- *  attributes — the column's own data, not the block's view attr). */
-interface NumberFormDraft {
+/** The add-column form draft (the field name + the type-specific
+ *  attributes — the number's display attributes stand the bridge's
+ *  column data; the other types stand the name only). */
+interface AddColumnFormDraft {
+  type: string;
+  name: string;
   decimals: number;
   thousands: boolean;
   prefix: string;
   suffix: string;
   allowNegative: boolean;
 }
-const EMPTY_NUMBER_FORM: NumberFormDraft = {
-  decimals: 0,
-  thousands: false,
-  prefix: "",
-  suffix: "",
-  allowNegative: true,
-};
+/** The form draft over a catalog entry (the name prefills the type's
+ *  label — the create's commit takes the input's name). */
+function emptyColumnForm(type: string, label: string): AddColumnFormDraft {
+  return { type, name: label, decimals: 0, thousands: false, prefix: "", suffix: "", allowNegative: true };
+}
 /** The header cell's column-drag session (the press stands the snapshot;
  *  the release stands the commit). */
 interface ColumnDragSession {
@@ -102,7 +104,7 @@ export {
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
   DRAG_START_THRESHOLD_PX,
   EMPTY_CELL_OPTION,
-  EMPTY_NUMBER_FORM,
   MIN_DATABASE_COLUMN_WIDTH_PX,
+  emptyColumnForm,
 };
-export type { ColumnDragSession, ColumnResizeSession, NumberFormDraft };
+export type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession };

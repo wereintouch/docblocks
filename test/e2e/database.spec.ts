@@ -1319,6 +1319,59 @@ test("the number column: the create form's attributes stand the cell's display (
   await close();
 });
 
+test("the add-column form stands for every type (the name over the create; the Escape closes without the create)", async ({
+  browser,
+}) => {
+  // The shared-context panes (the same origin): the bridge echo carries the
+  // column's create to pane B's grid.
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-addcolumnform");
+
+  const demo = await bridgeDemoTable(a);
+  await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+  const gridA = a.locator("[data-slot='docblocks/database-grid']");
+  await expect(gridA.first()).toBeVisible(SETTLE);
+  await b.locator("[data-slot='docblocks/database-grid']").first().waitFor({ timeout: 15000 });
+
+  // The Date & time entry stands the create form (the name input; the
+  // number's attribute fields stand none — the type-specific block stands
+  // for the number only): the name from the input + the create button
+  // commit the column over the bridge echo (both panes stand it).
+  const trigger = a.locator("[data-slot='docblocks/database-add-column-trigger']");
+  await trigger.click();
+  const menu = a.locator("[data-slot='dropdown-menu-content']");
+  await expect(menu).toBeVisible(SETTLE);
+  await menu.locator("[data-column-type='timestamptz']").click();
+  // The menu's exit stand the close (the exiting popper's wrapper is
+  // transparent to pointers only after the unmount — the press over the
+  // chip stands no swallow on the second open).
+  await expect(menu).toBeHidden(SETTLE);
+  const form = a.locator("[data-slot='docblocks/database-add-column-form']");
+  await expect(form).toBeVisible(SETTLE);
+  const nameInput = form.locator("[data-slot='docblocks/database-add-column-name']");
+  expect(await nameInput.inputValue()).toBe("Date & time");
+  expect(await form.locator("[data-slot='docblocks/database-add-column-decimals']").count()).toBe(0);
+  await nameInput.fill("Launch");
+  await form.locator("[data-slot='docblocks/database-add-column-create']").click();
+  await expect(form).toBeHidden(SETTLE);
+  // The demo table stands 4 columns → the created one is the col5.
+  const header = (pane: typeof a) =>
+    pane.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col5']").first();
+  await expect(header(a)).toHaveText("Launch", SETTLE);
+  await expect(header(b)).toHaveText("Launch", SETTLE);
+
+  // The Escape over the form closes without the create (the column count
+  // stands — the commit stands the form's button only).
+  await trigger.click();
+  await menu.locator("[data-column-type='text']").click();
+  await expect(menu).toBeHidden(SETTLE);
+  await expect(form).toBeVisible(SETTLE);
+  await a.keyboard.press("Escape");
+  await expect(form).toBeHidden(SETTLE);
+  expect(await a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col6']").count()).toBe(0);
+
+  await close();
+});
+
 /** The month name's 0-based index (the caption's month → the ISO part). */
 function monthsIndexOf(name: string): number {
   return [
