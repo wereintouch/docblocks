@@ -12,8 +12,6 @@ const ADD_COLUMN_TYPES: Array<{ type: string; label: string; form?: boolean }> =
   { type: "boolean", label: "Checkbox" },
   { type: "date", label: "Date" },
   { type: "timestamptz", label: "Date & time" },
-  { type: "uuid", label: "UUID" },
-  { type: "jsonb", label: "JSON" },
 ];
 /** The number column's create form draft (the column's display
  *  attributes — the column's own data, not the block's view attr). */

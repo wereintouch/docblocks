@@ -21,8 +21,6 @@ const COLUMN_TYPES = [
   "date",
   "timestamptz",
   "time",
-  "uuid",
-  "jsonb",
   "interval",
 ];
 

@@ -4,7 +4,7 @@ import { columnAnnotation, conditionMatches, parseCellValue } from "../src/datab
 
 describe("columnAnnotation — the Postgres type catalog", () => {
   it("maps the text-like types to the text input + the string operators", () => {
-    for (const type of ["text", "varchar", "citext", "uuid", "jsonb", "json", "inet", "bytea", "xml"]) {
+    for (const type of ["text", "varchar", "citext", "inet", "bytea", "xml"]) {
       const a = columnAnnotation({ id: "c", name: "c", type });
       expect(a.valueInput).toBe("text");
       expect(a.operators).toContain("contains");
@@ -62,6 +62,17 @@ describe("columnAnnotation — the Postgres type catalog", () => {
     const a = columnAnnotation({ id: "c", name: "c", type: "some_custom_type" });
     expect(a.valueInput).toBe("text");
     expect(a.operators).toEqual(["is", "is not"]);
+  });
+
+  it("stands the former uuid / json types as unknown (the minimal fallback)", () => {
+    // The types left the package's catalog (the consumer's bridge may still
+    // define them): they stand the unknown-type fallback (the minimal
+    // `is` / `is not` + the text input — no dedicated editor).
+    for (const type of ["uuid", "json", "jsonb"]) {
+      const a = columnAnnotation({ id: "c", name: "c", type });
+      expect(a.valueInput).toBe("text");
+      expect(a.operators).toEqual(["is", "is not"]);
+    }
   });
 
   it("lets the consumer operators override win and the options column take the select input", () => {
