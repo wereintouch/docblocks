@@ -700,10 +700,10 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     // cyan outline over the selection tint), the inset offset (the
     // negative — the four sides stand over the edge cells, the outset
     // frame would stand clipped by the scroller).
-    expect(titleCell!.className).toContain("outline-(color:--docblocks-canvas-selection-border-color)");
+    expect(titleCell!.className).toContain("outline-(--docblocks-canvas-selection-border-color)");
     expect(titleCell!.className).toContain("outline-(length:--docblocks-canvas-selection-border-width)");
     expect(titleCell!.className).toContain("outline-offset-[-1px]");
-    expect(cellOf(0, 1)!.className).not.toContain("outline-(color:--docblocks-canvas-selection-border-color)");
+    expect(cellOf(0, 1)!.className).not.toContain("outline-(--docblocks-canvas-selection-border-color)");
     // The edit stands on the double press (the input's mount), not the
     // single one.
     expect(titleCell!.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
@@ -759,7 +759,7 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     // the border token at 50%), no outline (the outline stands the sole
     // selection — the region stands no frame on any cell).
     expect(cellOf(0, 0)!.className).toContain("bg-(--docblocks-canvas-selection-fill)");
-    expect(cellOf(0, 0)!.className).not.toContain("outline-(color:--docblocks-canvas-selection-border-color)");
+    expect(cellOf(0, 0)!.className).not.toContain("outline-(--docblocks-canvas-selection-border-color)");
     expect(cellOf(1, 1)!.className).toContain("bg-(--docblocks-canvas-selection-fill)");
     expect(cellOf(1, 1)!.className).not.toContain("outline-offset-1");
     document.elementFromPoint = original;
