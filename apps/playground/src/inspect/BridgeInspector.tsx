@@ -80,7 +80,9 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const [newTable, setNewTable] = useState("");
   const [colName, setColName] = useState("");
   const [colType, setColType] = useState("text");
-  const [colOptions, setColOptions] = useState("");
+  const [colRefKind, setColRefKind] = useState("");
+  const [colRefMany, setColRefMany] = useState(false);
+  const [colRefTable, setColRefTable] = useState("");
   const [renames, setRenames] = useState<Record<string, string>>({});
   const [tableRenames, setTableRenames] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState<Set<string>>(new Set());
@@ -179,15 +181,17 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
     if (name === "") return;
     run("createColumn", async () => {
       const existing = new Set((desc?.columns ?? []).map((column) => column.id));
-      const options = colOptions
-        .split(",")
-        .map((part) => part.trim())
-        .filter((part) => part.length > 0);
       const column: BridgeColumn = { id: slugify(name, existing), name, type: colType };
-      if (options.length > 0) column.options = options;
+      if (colRefKind !== "" && colRefTable !== "") {
+        column.refKind = colRefKind as "enum" | "row";
+        column.refTableId = colRefTable;
+        if (colRefMany) column.refMany = true;
+      }
       await bridge.createColumn(selected, column);
       setColName("");
-      setColOptions("");
+      setColRefKind("");
+      setColRefMany(false);
+      setColRefTable("");
       await refreshTable(selected);
     });
   };
@@ -395,7 +399,9 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                 <div key={column.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "1px 0" }}>
                   <span style={{ flex: 1 }}>
                     {column.id}: {column.type}
-                    {column.options !== undefined ? ` [${column.options.join(", ")}]` : ""}
+                    {column.refKind !== undefined
+                      ? ` [${column.refKind}${column.refMany ? ":many" : ""} → ${column.refTableId ?? "?"}]`
+                      : ""}
                   </span>
                   <input
                     style={{ ...input, width: 90 }}
@@ -427,12 +433,30 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                   </option>
                 ))}
               </select>
-              <input
-                style={{ ...input, width: 110 }}
-                placeholder="options a,b (opt)"
-                value={colOptions}
-                onChange={(event) => setColOptions(event.target.value)}
-              />
+              <select
+                style={input}
+                value={colRefKind}
+                onChange={(event) => {
+                  setColRefKind(event.target.value);
+                  setColRefTable("");
+                }}
+              >
+                <option value="">ref: none</option>
+                <option value="enum">ref: enum</option>
+                <option value="row">ref: row</option>
+              </select>
+              <select style={input} value={colRefTable} onChange={(event) => setColRefTable(event.target.value)}>
+                <option value="">ref table</option>
+                {tables.map((table) => (
+                  <option key={table.id} value={table.id}>
+                    {table.name}
+                  </option>
+                ))}
+              </select>
+              <label style={{ ...label, display: "flex", gap: 4, alignItems: "center" }}>
+                <input type="checkbox" checked={colRefMany} onChange={(event) => setColRefMany(event.target.checked)} />
+                many
+              </label>
               <button type="button" style={btn} onClick={addColumn}>
                 + column
               </button>

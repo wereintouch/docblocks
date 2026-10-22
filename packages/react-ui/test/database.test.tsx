@@ -2,15 +2,18 @@
 import { cleanup, fireEvent, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { act } from "react";
+import { act, useState } from "react";
 
 import { createDoc } from "docblocks-core";
-import type { DatabaseBlock, DatabaseColumn } from "docblocks-core";
+import type { DatabaseBlock, DatabaseColumn, DatabaseFilterPayload } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/EditorProvider";
 import type { BlockRendererMap } from "../src/blocks/renderers";
-import type { DatabaseBridge } from "../src/database/bridge";
+import type { BridgeColumn, DatabaseBridge } from "../src/database/bridge";
+import { FilterBuilder } from "../src/database/filter-builder";
+import { refEntryKey } from "../src/database/grid/use-ref-tables";
+import type { RefTableDataMap } from "../src/database/grid/use-ref-tables";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
 import { DatabaseSlashPicker } from "../src/editing/slash-database-picker";
@@ -83,6 +86,9 @@ async function until(condition: () => unknown, label: string): Promise<void> {
 async function renderGrid(attrs: Record<string, unknown> = {}) {
   const bridge = createMemoryDatabaseBridge();
   const tableId = await bridge.createTable("Demo");
+  // The dict table (the enum options — the PK IS the option label).
+  await bridge.createTable("Statuses");
+  await bridge.insertRows("table-statuses", [{ id: "todo" }, { id: "active" }, { id: "done" }]);
   await bridge.createColumn(tableId, { id: "title", name: "Title", type: "text" });
   await bridge.createColumn(tableId, { id: "n", name: "N", type: "integer" });
   await bridge.createColumn(tableId, { id: "done", name: "Done", type: "boolean" });
@@ -90,7 +96,8 @@ async function renderGrid(attrs: Record<string, unknown> = {}) {
     id: "status",
     name: "Status",
     type: "text",
-    options: ["todo", "active", "done"],
+    refKind: "enum",
+    refTableId: "table-statuses",
   });
   await bridge.insertRows(tableId, [
     { title: "a", n: 1, done: false, status: "todo" },
@@ -403,7 +410,7 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     expect(wrap()!.className).toContain("pointer-events-none");
   });
 
-  it("the select cell stands the package's Select (the double press opens; the pick commits; the empty pick clears)", async () => {
+  it("the enum cell stands the package's Select (the double press opens; the pick commits; the empty pick clears)", async () => {
     const { bridge, tableId } = await renderGrid();
     const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
     const cell = () =>
@@ -456,6 +463,159 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     const page2 = await bridge.queryRows(tableId, {});
     // The bridge drops the cleared cell (the absent value stands the null).
     expect(page2.rows[rowId]!.status ?? null).toBeNull();
+  });
+
+  it("the enum's dict extension stands in the cell's editor live (the ref table's event)", async () => {
+    const { bridge } = await renderGrid();
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='status']");
+    // The dict's option extension (the `insertRow` over the dict table — the
+    // PK IS the option label): the cell's editor list refreshes over the
+    // ref table's live event.
+    await bridge.insertRow("table-statuses", { id: "review" });
+    await until(() => cell() !== null, "the cell");
+    fireEvent.doubleClick(cell()!);
+    await until(() => document.querySelector("[role='listbox']") !== null, "the select's list");
+    await until(
+      () =>
+        [...document.querySelectorAll<HTMLElement>("[role='option']")].some((entry) => entry.textContent === "review"),
+      "the live option"
+    );
+  });
+
+  it("the row-link cell stands the resolved display (the join over the bridge; the dead row id keeps the raw stand)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    // The linked table + the row-link column (the display over the first
+    // text column — the default stand). The linked table's columns: the
+    // `code` (the non-display stand) + the `name` (the declared display
+    // column — the `refDisplayColumn`'s stand over the first-text
+    // default).
+    await bridge.createTable("People");
+    await bridge.createColumn("table-people", { id: "code", name: "Code", type: "text" });
+    await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
+    await bridge.insertRows("table-people", [
+      { code: "P-1", name: "Ann" },
+      { code: "P-2", name: "Bob" },
+    ]);
+    await bridge.createColumn(tableId, {
+      id: "owner",
+      name: "Owner",
+      type: "text",
+      refKind: "row",
+      refTableId: "table-people",
+      refDisplayColumn: "name",
+    });
+    const page = await bridge.queryRows(tableId, {});
+    const rowId = Object.keys(page.rows)[0]!;
+    await bridge.updateRow(tableId, rowId, { owner: "r-table-people-1" });
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owner']");
+    await until(() => cell() !== null, "the cell");
+    await until(() => (cell()!.textContent ?? "").includes("Ann"), "the display");
+    expect(cell()!.textContent).toContain("Ann");
+
+    // The dead row id stands the raw stand (the lenient read — the display
+    // resolution stands none over the unknown row).
+    await bridge.updateRow(tableId, rowId, { owner: "r-table-people-99" });
+    await until(() => (cell()!.textContent ?? "").includes("r-table-people-99"), "the raw stand");
+  });
+
+  it("the row-link's picker: the search filters the rows; the pick commits the row id; the clear entry clears", async () => {
+    const { bridge, tableId } = await renderGrid();
+    await bridge.createTable("People");
+    await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
+    await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
+    await bridge.createColumn(tableId, {
+      id: "owner",
+      name: "Owner",
+      type: "text",
+      refKind: "row",
+      refTableId: "table-people",
+    });
+    const page = await bridge.queryRows(tableId, {});
+    const rowId = Object.keys(page.rows)[0]!;
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owner']");
+    await until(() => cell() !== null, "the cell");
+
+    // The double press opens the picker (the search + the rows over the
+    // resolved displays).
+    fireEvent.doubleClick(cell()!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-row-picker']") !== null, "the picker");
+    expect(
+      document.querySelector<HTMLElement>(
+        "[data-slot='docblocks/database-row-picker-row'][data-row-id='r-table-people-1']"
+      )?.textContent
+    ).toBe("Ann");
+    // The search filters the list (the client-side stand over the loaded
+    // page).
+    fireEvent.change(document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-row-picker-search']")!, {
+      target: { value: "bo" },
+    });
+    await settleGrid();
+    expect(
+      document.querySelector("[data-slot='docblocks/database-row-picker-row'][data-row-id='r-table-people-1']")
+    ).toBeNull();
+    const bobRow = document.querySelector<HTMLElement>(
+      "[data-slot='docblocks/database-row-picker-row'][data-row-id='r-table-people-2']"
+    )!;
+    expect(bobRow.textContent).toBe("Bob");
+    fireEvent.click(bobRow);
+    await settleGrid();
+    const after = await bridge.queryRows(tableId, {});
+    expect(after.rows[rowId]!.owner).toBe("r-table-people-2");
+    await until(() => (cell()!.textContent ?? "").includes("Bob"), "the new display");
+
+    // The clear entry stands the null.
+    fireEvent.doubleClick(cell()!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-row-picker']") !== null, "the picker");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-row-picker-clear']")!);
+    await settleGrid();
+    const cleared = await bridge.queryRows(tableId, {});
+    expect(cleared.rows[rowId]!.owner ?? null).toBeNull();
+  });
+
+  it("the multi-enum cell: the display joins the labels; the editor's toggle commits the array", async () => {
+    const { bridge, tableId } = await renderGrid();
+    await bridge.createColumn(tableId, {
+      id: "tags",
+      name: "Tags",
+      type: "text",
+      refKind: "enum",
+      refTableId: "table-statuses",
+      refMany: true,
+    });
+    const page = await bridge.queryRows(tableId, {});
+    const rowId = Object.keys(page.rows)[0]!;
+    await bridge.updateRow(tableId, rowId, { tags: ["todo", "done"] });
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='tags']");
+    await until(() => cell() !== null, "the cell");
+    await until(() => (cell()!.textContent ?? "") === "todo, done", "the joined display");
+
+    // The double press opens the checkbox list (the toggle commits the
+    // array immediately — one `updateRow` per option).
+    fireEvent.doubleClick(cell()!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-ref-multi-option']") !== null,
+      "the multi editor"
+    );
+    const option = (value: string) =>
+      document.querySelector<HTMLElement>(
+        `[data-slot='docblocks/database-ref-multi-option'][data-option-value='${value}']`
+      );
+    // The checkboxes stand the committed values.
+    expect(option("todo")!.getAttribute("data-state")).toBe("checked");
+    expect(option("active")!.getAttribute("data-state")).not.toBe("checked");
+    fireEvent.click(option("active")!);
+    await settleGrid();
+    const after = await bridge.queryRows(tableId, {});
+    expect(after.rows[rowId]!.tags).toEqual(["todo", "done", "active"]);
+    // The uncheck drops the option (the array's stand).
+    fireEvent.click(option("todo")!);
+    await settleGrid();
+    const after2 = await bridge.queryRows(tableId, {});
+    expect(after2.rows[rowId]!.tags).toEqual(["done", "active"]);
   });
 
   it("the header's press-drag reorders the columns (the columnOrder attr; the live preview stands no write)", async () => {
@@ -1256,16 +1416,114 @@ describe("the number column (the display format + the create form)", () => {
     expect(units!.textContent).toBe("1000");
   });
 
-  it("the column's create: the menu's Number entry stands the attribute form; the Add commits the column's data", async () => {
-    const { bridge, tableId } = await renderGrid();
-    // The plus's menu (the pointer press opens the Radix menu in jsdom):
-    // the Number entry stands the form (the name input + the attributes).
+  it("stands the 10-type catalog (the plain types + the relation declarations)", async () => {
+    await renderGrid();
     const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
     fireEvent.click(trigger);
-    await until(() => document.querySelector("[data-column-type='number']") !== null, "the add-column menu");
-    fireEvent.click(document.querySelector<HTMLElement>("[data-column-type='number']")!);
+    await until(() => document.querySelector("[data-column-entry='text']") !== null, "the add-column menu");
+    const entries = [
+      "text",
+      "integer",
+      "decimal",
+      "checkbox",
+      "date",
+      "datetime",
+      "enum",
+      "multi-enum",
+      "row-link",
+      "row-links",
+    ];
+    for (const entry of entries) {
+      expect(document.querySelector(`[data-column-entry='${entry}']`)).not.toBeNull();
+    }
+    expect(document.querySelectorAll("[data-column-entry]").length).toBe(entries.length);
+  });
+
+  it("the ref entry stands the ref form (the table's pick; the unpicked ref disables the create)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.click(trigger);
+    await until(() => document.querySelector("[data-column-entry='row-link']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='row-link']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
+    // The ref form's stands: the name input + the ref table's pick (the
+    // catalog's tables — the Demo + the Statuses dict table).
+    const refSelect = document.querySelector<HTMLSelectElement>("[data-slot='docblocks/database-add-column-ref']")!;
+    expect(refSelect.value).toBe("");
+    const create = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/database-add-column-create']")!;
+    expect(create.disabled).toBe(true);
+    // The pick of the existing table stands the enabled create.
+    fireEvent.change(refSelect, { target: { value: "table-statuses" } });
+    expect(create.disabled).toBe(false);
+    fireEvent.click(create);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
+      "the column's create"
+    );
+
+    const schema = await bridge.describeTable(tableId);
+    const created = schema.columns.find((column) => column.id === "col5");
+    expect(created).toEqual({
+      id: "col5",
+      name: "Row link",
+      type: "text",
+      refKind: "row",
+      refTableId: "table-statuses",
+    });
+    expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
+  });
+
+  it("the ref form's new-table creation commits the table + the column over the create", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.click(trigger);
+    await until(() => document.querySelector("[data-column-entry='enum']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='enum']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
+    // The "new table" entry stands the name's input (the createTable's
+    // commit over the form's button).
+    const refSelect = document.querySelector<HTMLSelectElement>("[data-slot='docblocks/database-add-column-ref']")!;
+    fireEvent.change(refSelect, { target: { value: "__new__" } });
+    const newTableInput = document.querySelector<HTMLInputElement>(
+      "[data-slot='docblocks/database-add-column-ref-new']"
+    )!;
+    fireEvent.change(newTableInput, { target: { value: "Tags" } });
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
+      "the column's create"
+    );
+
+    const tables = await bridge.listTables();
+    expect(tables.map((table) => table.name)).toContain("Tags");
+    const schema = await bridge.describeTable(tableId);
+    const created = schema.columns.find((column) => column.id === "col5");
+    expect(created).toEqual({
+      id: "col5",
+      name: "Enum",
+      type: "text",
+      refKind: "enum",
+      refTableId: "table-tags",
+    });
+  });
+
+  it("the column's create: the menu's Decimal entry stands the attribute form; the Add commits the column's data", async () => {
+    const { bridge, tableId } = await renderGrid();
+    // The plus's menu (the pointer press opens the Radix menu in jsdom):
+    // the Decimal entry stands the form (the name input + the attributes
+    // — the decimals field stands for the decimal, not the integer).
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.click(trigger);
+    await until(() => document.querySelector("[data-column-entry='decimal']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='decimal']")!);
     await until(
       () => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null,
       "the number's form"
@@ -1275,11 +1533,14 @@ describe("the number column (the display format + the create form)", () => {
     // decimals, the thousands' separator, the prefix / the suffix, the
     // negative's reject.
     expect(document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")?.value).toBe(
-      "Number"
+      "Decimal"
     );
+    expect(
+      document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-decimals']")?.value
+    ).toBe("2");
     fireEvent.change(
       document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-decimals']")!,
-      { target: { value: "2" } }
+      { target: { value: "1" } }
     );
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-thousands']")!);
     fireEvent.change(document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-prefix']")!, {
@@ -1301,9 +1562,9 @@ describe("the number column (the display format + the create form)", () => {
     const created = schema.columns.find((column) => column.id === "col5");
     expect(created).toEqual({
       id: "col5",
-      name: "Number",
-      type: "number",
-      decimals: 2,
+      name: "Decimal",
+      type: "numeric",
+      decimals: 1,
       thousands: true,
       prefix: "AAA",
       suffix: "BBB",
@@ -1312,9 +1573,39 @@ describe("the number column (the display format + the create form)", () => {
     // The header stands the created column (the live schema over the bridge).
     expect(
       document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")?.textContent
-    ).toBe("Number");
+    ).toBe("Decimal");
     // The form closes on the create.
     expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
+  });
+
+  it("the Integer entry stands the form without the decimals field (the integer's stand)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.click(trigger);
+    await until(() => document.querySelector("[data-column-entry='integer']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='integer']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
+    // The decimals field stands none (the integer's stand), the other
+    // number's attributes keep.
+    expect(document.querySelector("[data-slot='docblocks/database-add-column-decimals']")).toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-add-column-thousands']")).not.toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
+      "the column's create"
+    );
+
+    const schema = await bridge.describeTable(tableId);
+    const created = schema.columns.find((column) => column.id === "col5");
+    expect(created).toEqual({
+      id: "col5",
+      name: "Integer",
+      type: "integer",
+      thousands: false,
+      allowNegative: true,
+    });
   });
 
   it("the menu's entry stands the create form (the name over the create; the type's attributes stand none)", async () => {
@@ -1323,15 +1614,16 @@ describe("the number column (the display format + the create form)", () => {
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
     fireEvent.click(trigger);
-    await until(() => document.querySelector("[data-column-type='text']") !== null, "the add-column menu");
+    await until(() => document.querySelector("[data-column-entry='text']") !== null, "the add-column menu");
     // The Text entry stands the form (not the immediate create): the name
     // input prefills the type's label, the number's attribute fields stand
-    // none (the type-specific block stands for the number only).
-    fireEvent.click(document.querySelector<HTMLElement>("[data-column-type='text']")!);
+    // none (the type-specific block stands for the number / the ref).
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='text']")!);
     await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
     const name = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")!;
     expect(name.value).toBe("Text");
     expect(document.querySelector("[data-slot='docblocks/database-add-column-decimals']")).toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-add-column-ref']")).toBeNull();
     // The name from the input stands the column's name over the create.
     fireEvent.change(name, { target: { value: "Notes" } });
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
@@ -1352,8 +1644,8 @@ describe("the number column (the display format + the create form)", () => {
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
     fireEvent.click(trigger);
-    await until(() => document.querySelector("[data-column-type='text']") !== null, "the add-column menu");
-    fireEvent.click(document.querySelector<HTMLElement>("[data-column-type='text']")!);
+    await until(() => document.querySelector("[data-column-entry='text']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='text']")!);
     await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
     const name = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")!;
     fireEvent.change(name, { target: { value: "" } });
@@ -1372,8 +1664,8 @@ describe("the number column (the display format + the create form)", () => {
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
     fireEvent.click(trigger);
-    await until(() => document.querySelector("[data-column-type='date']") !== null, "the add-column menu");
-    fireEvent.click(document.querySelector<HTMLElement>("[data-column-type='date']")!);
+    await until(() => document.querySelector("[data-column-entry='date']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='date']")!);
     const form = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-form']");
     await until(() => form !== null, "the form");
     // The Escape stands the close (the outside press stands it too) — no
@@ -1650,5 +1942,76 @@ describe("the slash Database picker (the rework: the create form + the search)",
     fireEvent.change(search, { target: { value: "no-such-table" } });
     expect(slot("slash-database-table", "t-zebra")).toBeNull();
     expect(slot("slash-database-empty")).not.toBeNull();
+  });
+});
+
+describe("the filter builder — the ref value inputs (the enum's dict options / the row-link's displays)", () => {
+  const statusCol: BridgeColumn = {
+    id: "status",
+    name: "Status",
+    type: "text",
+    refKind: "enum",
+    refTableId: "table-statuses",
+  };
+  const ownerCol: BridgeColumn = {
+    id: "owner",
+    name: "Owner",
+    type: "text",
+    refKind: "row",
+    refTableId: "table-people",
+  };
+  const refTableData: RefTableDataMap = {
+    [refEntryKey({ tableId: "table-statuses" })]: {
+      rowIds: ["todo", "done"],
+      displays: { todo: "todo", done: "done" },
+    },
+    [refEntryKey({ tableId: "table-people" })]: {
+      rowIds: ["r-people-1"],
+      displays: { "r-people-1": "Ann" },
+    },
+  };
+
+  it("stands the ref table's displays over the enum and the row-link conditions (the pick commits the value)", () => {
+    // The controlled stand: the payload lives in the test component's
+    // state (the builder's `value` prop re-renders over the draft
+    // changes).
+    function Harness({ onPayload }: { onPayload: (next: DatabaseFilterPayload | null) => void }) {
+      const [payload, setPayload] = useState<DatabaseFilterPayload | null>(null);
+      return (
+        <FilterBuilder
+          value={payload}
+          columns={[statusCol, ownerCol]}
+          onChange={(next) => {
+            setPayload(next);
+            onPayload(next);
+          }}
+          refTableData={refTableData}
+        />
+      );
+    }
+    const payloads: (DatabaseFilterPayload | null)[] = [];
+    render(<Harness onPayload={(next) => payloads.push(next)} />);
+    // The empty filter stands no condition yet — the add-condition press
+    // stands the first row (over the first column — the enum):
+    // the value select stands the dict's options.
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/filter-add-condition']")!);
+    const condition = () => document.querySelector<HTMLElement>("[data-slot='docblocks/filter-condition']")!;
+    expect(condition().getAttribute("data-column-id")).toBe("status");
+    const valueSelect = () => condition().querySelector<HTMLSelectElement>("[data-slot='docblocks/filter-value']")!;
+    expect([...valueSelect().options].map((entry) => entry.value)).toEqual(["", "todo", "done"]);
+
+    // The row-link's condition stands the linked table's rows over the
+    // displays (the join over the bridge), the pick commits the row id.
+    fireEvent.change(condition().querySelector<HTMLSelectElement>("[data-slot='docblocks/filter-column']")!, {
+      target: { value: "owner" },
+    });
+    expect(condition().getAttribute("data-column-id")).toBe("owner");
+    const ownerSelect = condition().querySelector<HTMLSelectElement>("[data-slot='docblocks/filter-value']")!;
+    expect([...ownerSelect.options].map((entry) => `${entry.value}|${entry.textContent}`)).toEqual([
+      "|—",
+      "r-people-1|Ann",
+    ]);
+    fireEvent.change(ownerSelect, { target: { value: "r-people-1" } });
+    expect(payloads.at(-1)?.conditions[0]?.value).toBe("r-people-1");
   });
 });

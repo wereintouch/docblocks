@@ -12,6 +12,8 @@ import type { DatabaseFilterPayload } from "docblocks-core";
 
 import { columnAnnotation } from "./bridge";
 import type { BridgeColumn } from "./bridge";
+import { refEntryKey } from "./grid/use-ref-tables";
+import type { RefTableDataMap } from "./grid/use-ref-tables";
 
 /** The filter recursion depth cap (the package's UI constant; a backend
  *  validates the depth on its own). */
@@ -55,10 +57,13 @@ interface FilterBuilderProps {
   columns: BridgeColumn[];
   /** The draft change (the parent keeps the draft until Apply). */
   onChange: (payload: DatabaseFilterPayload) => void;
+  /** The ref tables' data (the enum's dict options + the row-link's row
+   *  displays — the ref value inputs render from it). */
+  refTableData?: RefTableDataMap;
 }
 
 /** The recursive and/or filter editor (the group card). */
-function FilterBuilder({ value, columns, onChange }: FilterBuilderProps) {
+function FilterBuilder({ value, columns, onChange, refTableData }: FilterBuilderProps) {
   const payload = value ?? emptyFilter();
   return (
     <div data-slot="docblocks/filter-builder" className="flex max-h-80 flex-col gap-2 overflow-y-auto">
@@ -67,7 +72,7 @@ function FilterBuilder({ value, columns, onChange }: FilterBuilderProps) {
           No columns to filter on.
         </div>
       ) : (
-        <FilterGroup payload={payload} columns={columns} depth={0} onChange={onChange} />
+        <FilterGroup payload={payload} columns={columns} depth={0} onChange={onChange} refTableData={refTableData} />
       )}
     </div>
   );
@@ -78,9 +83,10 @@ interface FilterGroupProps {
   columns: BridgeColumn[];
   depth: number;
   onChange: (payload: DatabaseFilterPayload) => void;
+  refTableData?: RefTableDataMap;
 }
 
-function FilterGroup({ payload, columns, depth, onChange }: FilterGroupProps) {
+function FilterGroup({ payload, columns, depth, onChange, refTableData }: FilterGroupProps) {
   const setLogic = (logic: "and" | "or") => onChange({ ...payload, logic });
   const setCondition = (index: number, condition: DatabaseFilterPayload["conditions"][number]) =>
     onChange({ ...payload, conditions: payload.conditions.map((entry, at) => (at === index ? condition : entry)) });
@@ -132,6 +138,7 @@ function FilterGroup({ payload, columns, depth, onChange }: FilterGroupProps) {
           columns={columns}
           onChange={(next) => setCondition(index, next)}
           onRemove={() => removeCondition(index)}
+          refTableData={refTableData}
         />
       ))}
 
@@ -148,7 +155,13 @@ function FilterGroup({ payload, columns, depth, onChange }: FilterGroupProps) {
               Remove group
             </button>
           </div>
-          <FilterGroup payload={group} columns={columns} depth={depth + 1} onChange={(next) => setGroup(index, next)} />
+          <FilterGroup
+            payload={group}
+            columns={columns}
+            depth={depth + 1}
+            onChange={(next) => setGroup(index, next)}
+            refTableData={refTableData}
+          />
         </div>
       ))}
 
@@ -186,9 +199,10 @@ interface FilterConditionRowProps {
   columns: BridgeColumn[];
   onChange: (condition: DatabaseFilterPayload["conditions"][number]) => void;
   onRemove: () => void;
+  refTableData?: RefTableDataMap;
 }
 
-function FilterConditionRow({ condition, columns, onChange, onRemove }: FilterConditionRowProps) {
+function FilterConditionRow({ condition, columns, onChange, onRemove, refTableData }: FilterConditionRowProps) {
   const column = columns.find((entry) => entry.id === condition.columnId) ?? columns[0];
   if (column === undefined) return null;
   const annotation = columnAnnotation(column);
@@ -241,6 +255,7 @@ function FilterConditionRow({ condition, columns, onChange, onRemove }: FilterCo
           operator={operator}
           value={condition.value}
           onChange={(value) => onChange({ ...condition, op: operator, value })}
+          refTableData={refTableData}
         />
       )}
       <button
@@ -260,10 +275,11 @@ interface ValueInputProps {
   operator: string;
   value: unknown;
   onChange: (value: unknown) => void;
+  refTableData?: RefTableDataMap;
 }
 
 /** The value input per the annotation (the `in` / `not in` multi-value is a comma list). */
-function ValueInput({ column, operator, value, onChange }: ValueInputProps) {
+function ValueInput({ column, operator, value, onChange, refTableData }: ValueInputProps) {
   const multiValue = operator === "in" || operator === "not in";
   const annotation = columnAnnotation(column);
   if (multiValue) {
@@ -329,7 +345,16 @@ function ValueInput({ column, operator, value, onChange }: ValueInputProps) {
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
         />
       );
-    case "select":
+    case "enum":
+    case "row-link": {
+      // The ref value stand (the select over the ref table's options /
+      // rows — the many cardinality's `is` / `is not` take the SINGLE
+      // value: the match stands over the containment in the cell's array).
+      const refTable =
+        column.refTableId !== undefined
+          ? refTableData?.[refEntryKey({ tableId: column.refTableId, displayColumn: column.refDisplayColumn })]
+          : undefined;
+      const entries = refTable?.rowIds ?? [];
       return (
         <select
           data-slot="docblocks/filter-value"
@@ -338,13 +363,16 @@ function ValueInput({ column, operator, value, onChange }: ValueInputProps) {
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
         >
           <option value="">—</option>
-          {(column.options ?? []).map((option) => (
-            <option key={option} value={option}>
-              {option}
+          {entries.map((entry) => (
+            <option key={entry} value={entry}>
+              {refTable !== undefined && refTable.displays[entry] !== undefined && refTable.displays[entry] !== ""
+                ? refTable.displays[entry]
+                : entry}
             </option>
           ))}
         </select>
       );
+    }
     default:
       return (
         <input
