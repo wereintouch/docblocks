@@ -692,7 +692,8 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     await bridge.createColumn(tableId, { id: "at", name: "At", type: "timestamptz" });
     await bridge.updateRow(tableId, rowId, { at: "2026-10-01T18:00" });
     await settleGrid();
-    const cell = () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='at']")!;
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='at']")!;
     const value = async () => (await bridge.queryRows(tableId, {})).rows[rowId]!.at ?? null;
     const segments = () => [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
     const openPicker = async () => {
