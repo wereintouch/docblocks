@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
-// The wheel's zoom at the cursor (the native non-passive listener over
-// the canvas container: the delta accumulates to the 100 px step
-// threshold, the point under the pointer stands fixed) and the M key's
-// mode switch (the select mode; the dock's button icon stands the
-// current mode).
+// The wheel's gesture over the canvas container (the native non-passive
+// listener): the pointer mode pans (the 1:1 screen px, the shift's
+// horizontal axis — pinned in `canvas-wheel.test.tsx`), the hand mode and
+// the active tools zoom at the cursor (the delta accumulates to the 100 px
+// step threshold, the point under the pointer stands fixed), and the
+// pinch (ctrl/cmd) zooms in the pointer mode. Plus the M key's mode
+// switch (the select mode; the dock's button icon stands the current
+// mode).
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -58,48 +61,53 @@ function renderCanvas(): Rendered {
 afterEach(cleanup);
 
 describe("the wheel's zoom at the cursor", () => {
-  it("a notch zooms in at the pointer (the point under the cursor stands fixed)", () => {
+  it("the pinch (ctrl+wheel) zooms in at the pointer in the select mode (the point under the cursor stands fixed)", () => {
     const r = renderCanvas();
     expect(r.transform()).toBe("translate(0px, 0px) scale(1)");
 
-    // The mouse's notch (120 px) over the (100, 50) screen point (the
+    // The pinch's notch (120 px) over the (100, 50) screen point (the
     // jsdom rect stands zero — the point is the client coords): the zoom
-    // steps 1 → 1.1 and the pan compensates so the canvas point (100, 50)
-    // stays under the cursor.
-    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: -120 });
-    expect(r.transform()).toBe("translate(-10px, -5px) scale(1.1)");
-    // The invariant: (100 - (-10)) / 1.1 = 100 (the pre-zoom canvas x).
+    // stands the continuous scale 1 → exp(0.005 * 120) = 1.8221 and the
+    // pan compensates so the canvas point (100, 50) stays under the
+    // cursor (the fixed-point invariant — the smooth stand, no step).
+    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: -120, ctrlKey: true });
+    expect(r.transform()).toBe("translate(-82.21px, -41.11px) scale(1.8221)");
+    // The invariant: (100 - (-82.21)) / 1.8221 ≈ 100 (the pre-zoom canvas x).
   });
 
-  it("the delta accumulates to the step threshold (the small trackpad events)", () => {
+  it("the pinch's delta stands the proportional scale (no step threshold)", () => {
     const r = renderCanvas();
 
-    // 60 px stands no step (below the 100 px threshold).
-    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 60 });
-    expect(r.transform()).toBe("translate(0px, 0px) scale(1)");
-
-    // The second 60 px crosses the threshold (120 px accumulated): one
-    // step out (the zoom 1 → 0.9, the pan compensates).
-    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 60 });
-    expect(r.transform()).toBe("translate(10px, 5px) scale(0.9)");
-
-    // The accumulator resets after the step: a third 60 px stands no step.
-    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 60 });
-    expect(r.transform()).toBe("translate(10px, 5px) scale(0.9)");
+    // The small pinch event: the zoom reacts immediately (the 60 px delta
+    // under the 100 px step threshold stands the scale, not the no-op).
+    fireEvent.wheel(r.view, { clientX: 0, clientY: 0, deltaY: -60, ctrlKey: true });
+    expect(r.transform()).toBe(`translate(0px, 0px) scale(${(Math.exp(0.3) * 1).toFixed(4)})`);
   });
 
-  it("stands no-op at the zoom bounds (the zoom and the pan keep)", () => {
+  it("the pinch reacts on every event (the deltas compose proportionally, no threshold)", () => {
     const r = renderCanvas();
 
-    // Eight notches out stand the 25% floor (1 → 0.9 → … → 0.3 → 0.25).
+    // Two small pinch events (zoom out, 60 px each): the continuous
+    // scale composes (1 → exp(-0.3) → 0.5488) — no threshold, no step
+    // reset.
+    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 60, ctrlKey: true });
+    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 60, ctrlKey: true });
+    expect(r.transform()).toBe("translate(45.12px, 22.56px) scale(0.5488)");
+    // The fixed-point invariant: (100 - 45.12) / 0.5488 ≈ 100.
+  });
+
+  it("the pinch stands no-op at the zoom bounds (the zoom and the pan keep)", () => {
+    const r = renderCanvas();
+
+    // Eight pinch notches out stand the 25% floor (1 → 0.9 → … → 0.3 → 0.25).
     for (let i = 0; i < 8; i += 1) {
-      fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 120 });
+      fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 120, ctrlKey: true });
     }
     const atBound = r.transform();
     expect(atBound).toContain("scale(0.25)");
 
-    // The fourth notch stands no step (the bound) — the transform keeps.
-    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 120 });
+    // The ninth notch stands no step (the bound) — the transform keeps.
+    fireEvent.wheel(r.view, { clientX: 100, clientY: 50, deltaY: 120, ctrlKey: true });
     expect(r.transform()).toBe(atBound);
   });
 

@@ -13,6 +13,7 @@ import { findParentSurface, firstSurface, placeCanvasText, placeFrame, placePenS
 import {
   TOOL_SIZES,
   marqueeRect,
+  pinchZoom,
   resizeBox,
   rotateAngle,
   screenDeltaToCanvas,
@@ -77,6 +78,25 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       setZoomState(next);
       // The two-decimal round: the float drift of the ratio (the stop
       // grid's decimals stand the exact value) stands no phantom px.
+      setPan({
+        x: Number((point.x - (point.x - pan.x) * (next / zoom)).toFixed(2)),
+        y: Number((point.y - (point.y - pan.y) * (next / zoom)).toFixed(2)),
+      });
+    },
+    [zoom, pan]
+  );
+
+  // The pinch's continuous zoom at the cursor (the trackpad's smooth
+  // stand): the zoom scales by the
+  // wheel's delta (no step threshold — the pinch reacts on every event)
+  // and the point under the cursor stands fixed (the pan compensates,
+  // the same math as the step's zoomAt). The bound stands the no-op
+  // (the zoom and the pan keep).
+  const pinchAt = useCallback(
+    (point: ScreenPoint, deltaY: number) => {
+      const next = pinchZoom(zoom, deltaY);
+      if (next === zoom) return;
+      setZoomState(next);
       setPan({
         x: Number((point.x - (point.x - pan.x) * (next / zoom)).toFixed(2)),
         y: Number((point.y - (point.y - pan.y) * (next / zoom)).toFixed(2)),
@@ -549,6 +569,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     setZoom,
     stepZoom: step,
     zoomAt,
+    pinchAt,
     setPan,
     setMode,
     setActiveTool,

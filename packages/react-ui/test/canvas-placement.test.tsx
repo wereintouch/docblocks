@@ -151,6 +151,7 @@ describe("the dock", () => {
       pendingConnector: null,
       pendingFree: null,
       zoomAt: noop,
+      pinchAt: noop,
       marquee: null,
       penPoints: [],
       movePreview: null,

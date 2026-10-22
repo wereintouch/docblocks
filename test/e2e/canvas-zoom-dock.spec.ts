@@ -55,6 +55,11 @@ async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number;
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/** The box's center (the screen-px geometry). */
+function centerOf(box: { x: number; y: number; width: number; height: number }): { x: number; y: number } {
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
 /** The world wrapper's transform (the scale + the pan in px, from the computed matrix). */
 async function worldTransform(page: Page, client: "a" | "b"): Promise<{ scale: number; tx: number; ty: number }> {
   const transform = await world(page, client).evaluate((el) => getComputedStyle(el).transform);
@@ -156,51 +161,165 @@ test.describe("the canvas zoom controls", () => {
   });
 });
 
-test.describe("the wheel's zoom at the cursor", () => {
-  test("a wheel notch zooms at the pointer (the point under the cursor stands fixed, both modes)", async ({
+test.describe("the wheel's gesture", () => {
+  test("the select mode: the wheel pans the canvas (the 1:1 screen px, the doc stands)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-wheel-pan");
+    try {
+      await toCanvas(a, "a");
+      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      expect(id).toBeTruthy();
+
+      const cursor = await canvasCenter(a, "a");
+      await a.mouse.move(cursor.x, cursor.y);
+      const before = await worldTransform(a, "a");
+      expect(before.scale).toBe(1);
+
+      // The vertical notch: the content stands 1:1 against the delta's
+      // direction (the inversion — the wheel down stands the
+      // canvas up), no zoom (the pan moves).
+      await a.mouse.wheel(0, 120);
+      let after = await worldTransform(a, "a");
+      expect(after.scale).toBe(1);
+      expect(before.ty - after.ty).toBeCloseTo(120, 1);
+      expect(Math.abs(after.tx - before.tx)).toBeLessThan(1);
+
+      // The two-axis swipe: both axes (inverted).
+      await a.mouse.wheel(80, 40);
+      after = await worldTransform(a, "a");
+      expect(before.ty - after.ty).toBeCloseTo(160, 1);
+      expect(before.tx - after.tx).toBeCloseTo(80, 1);
+
+      // The doc stands (the pan is the view state).
+      const shapes = await blockShapes(a, "a");
+      expect(shapes[id]?.geometry).toEqual({ x: 0, y: 0, w: 120, h: 80 });
+    } finally {
+      await close();
+    }
+  });
+
+  test("the select mode: the shift's wheel pans horizontal only", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-wheel-shift-pan");
+    try {
+      await toCanvas(a, "a");
+      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      expect(id).toBeTruthy();
+
+      const cursor = await canvasCenter(a, "a");
+      await a.mouse.move(cursor.x, cursor.y);
+      const before = await worldTransform(a, "a");
+
+      await a.keyboard.down("Shift");
+      await a.mouse.wheel(0, 120);
+      await a.keyboard.up("Shift");
+      const after = await worldTransform(a, "a");
+      expect(after.scale).toBe(1);
+      // The horizontal axis stands the delta (the browser's mapped wheel
+      // or the unconverted notch's fallback — the same 120 px, inverted).
+      expect(before.tx - after.tx).toBeCloseTo(120, 1);
+      expect(Math.abs(after.ty - before.ty)).toBeLessThan(1);
+
+      const shapes = await blockShapes(a, "a");
+      expect(shapes[id]?.geometry).toEqual({ x: 0, y: 0, w: 120, h: 80 });
+    } finally {
+      await close();
+    }
+  });
+
+  test("the pinch (ctrl+wheel) zooms at the cursor in the select mode (the point stands fixed)", async ({
     browser,
   }) => {
+    const { a, close } = await twoPanes(browser, "canvas-wheel-pinch");
+    try {
+      await toCanvas(a, "a");
+      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      expect(id).toBeTruthy();
+
+      // The shape's on-screen center at the 100% zoom.
+      const wrapper = a.locator(`[data-testid="doc-a"] [data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
+      const before = (await wrapper.boundingBox())!;
+      const center = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+      await a.mouse.move(center.x, center.y);
+
+      // The pinch's notch: the zoom stands the CONTINUOUS scale (1 →
+      // exp(0.005 * 120) ≈ 1.8221 — the smooth stand, no step) and the
+      // shape's screen center stands fixed (the pan compensates the zoom).
+      await a.keyboard.down("Control");
+      await a.mouse.wheel(0, -120);
+      await a.keyboard.up("Control");
+      const after = (await wrapper.boundingBox())!;
+      const zoom = await worldTransform(a, "a");
+      expect(zoom.scale).toBeCloseTo(1.8221, 3);
+      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("182%");
+      expect(Math.abs(after.x + after.width / 2 - center.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(after.y + after.height / 2 - center.y)).toBeLessThanOrEqual(2);
+
+      // The doc stands (the zoom is the view state).
+      const shapes = await blockShapes(a, "a");
+      expect(shapes[id]?.geometry).toEqual({ x: 0, y: 0, w: 120, h: 80 });
+    } finally {
+      await close();
+    }
+  });
+
+  test("the pan mode: the wheel stands the zoom at the cursor (the old stand)", async ({ browser }) => {
     const { a, close } = await twoPanes(browser, "canvas-wheel-zoom");
     try {
       await toCanvas(a, "a");
       const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
       expect(id).toBeTruthy();
 
-      // The shape's on-screen center at the 100% zoom (the canvas point
-      // (0, 0) at the screen center — the world transform 1/0/0).
+      // The hand's toggle: the pan mode.
+      await dock(a, "a").getByLabel("Switch to the pan mode").click();
+
+      // The shape's on-screen center at the 100% zoom.
       const wrapper = a.locator(`[data-testid="doc-a"] [data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
       const before = (await wrapper.boundingBox())!;
-      const centerOf = (box: { x: number; y: number; width: number; height: number }) => ({
-        x: box.x + box.width / 2,
-        y: box.y + box.height / 2,
-      });
-      const cursor = centerOf(before);
+      const center = { x: before.x + before.width / 2, y: before.y + before.height / 2 };
+      await a.mouse.move(center.x, center.y);
 
-      // The wheel's notch in (negative deltaY): the zoom steps 1 → 1.25
-      // and the shape's screen CENTER stands fixed (the pan compensates
-      // the zoom — the cursor's canvas point keeps; the box grows with
-      // the zoom around the center anchor).
-      await a.mouse.move(cursor.x, cursor.y);
+      // The wheel's notch (negative deltaY): the zoom steps and the
+      // shape's screen center stands fixed (the pan compensates the
+      // zoom — the cursor's canvas point keeps; the box grows with the
+      // zoom around the center anchor).
       await a.mouse.wheel(0, -120);
       expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("110%");
       const after = centerOf((await wrapper.boundingBox())!);
-      expect(Math.abs(after.x - cursor.x)).toBeLessThanOrEqual(2);
-      expect(Math.abs(after.y - cursor.y)).toBeLessThanOrEqual(2);
+      expect(Math.abs(after.x - center.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(after.y - center.y)).toBeLessThanOrEqual(2);
 
       // The doc stands (the zoom is the view state).
       const shapes = await blockShapes(a, "a");
       expect(shapes[id]?.geometry).toEqual({ x: 0, y: 0, w: 120, h: 80 });
+    } finally {
+      await close();
+    }
+  });
 
-      // The pan mode: the wheel stands the zoom too (not a grab drag).
-      await dock(a, "a").getByLabel("Switch to the pan mode").click();
-      const before2 = (await wrapper.boundingBox())!;
-      const cursor2 = centerOf(before2);
-      await a.mouse.move(cursor2.x, cursor2.y);
-      await a.mouse.wheel(0, 120);
-      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("100%");
-      const after2 = centerOf((await wrapper.boundingBox())!);
-      expect(Math.abs(after2.x - cursor2.x)).toBeLessThanOrEqual(2);
-      expect(Math.abs(after2.y - cursor2.y)).toBeLessThanOrEqual(2);
+  test("the active tool: the wheel stands the zoom (the tool's stand over the pan)", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "canvas-wheel-tool-zoom");
+    try {
+      await toCanvas(a, "a");
+      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      expect(id).toBeTruthy();
+
+      // The dock's shapes' menu: the rect's pick stands the active tool.
+      await dock(a, "a").getByLabel("Shapes").click();
+      await a.getByLabel("Rectangle", { exact: true }).click();
+
+      // The wheel over the canvas: the zoom stands (the tool's old
+      // behavior), not the pointer mode's pan.
+      const cursor = await canvasCenter(a, "a");
+      const shapeCountBefore = Object.keys(await blockShapes(a, "a")).length;
+      await a.mouse.move(cursor.x, cursor.y);
+      await a.mouse.wheel(0, -120);
+      const after = await worldTransform(a, "a");
+      expect(after.scale).toBeCloseTo(1.1, 5);
+      expect(await zoomToolbar(a, "a").getByLabel("Reset zoom").textContent()).toBe("110%");
+
+      // The doc stands (no shape placed: the wheel is not a click).
+      const shapes = await blockShapes(a, "a");
+      expect(shapes[id]?.geometry).toEqual({ x: 0, y: 0, w: 120, h: 80 });
+      expect(Object.keys(shapes).length).toBe(shapeCountBefore);
     } finally {
       await close();
     }

@@ -3,7 +3,7 @@
  *  scrollbar guard) and the session types. */
 import type { CSSProperties } from "react";
 
-import type { CanvasPoint, CanvasTool, ResizeHandle } from "../../canvas/viewport";
+import type { CanvasMode, CanvasPoint, CanvasTool, ResizeHandle } from "../../canvas/viewport";
 
 /** The connector's port-proximity pick radius (canvas px, the zoom-blind
  * space — a press / release within it of a port stands the port's shape). */
@@ -61,6 +61,31 @@ const TOOLBAR_OFFSET_PX = 48;
  * trackpad's small deltas accumulate to the same step). */
 const WHEEL_ZOOM_DELTA = 100;
 
+/** The wheel's gesture: the zoom stands
+ * under the active tool, the pinch (ctrl/cmd), and the hand mode without
+ * the shift; the pointer mode pans (the 1:1 screen-px stand, the shift's
+ * horizontal axis). */
+function wheelGesture(
+  mode: CanvasMode,
+  tool: CanvasTool | null,
+  flags: { ctrlKey: boolean; metaKey: boolean; shiftKey: boolean }
+): "pan" | "zoom" {
+  if (tool !== null || flags.ctrlKey || flags.metaKey) return "zoom";
+  if (mode === "pan" && !flags.shiftKey) return "zoom";
+  return "pan";
+}
+
+/** The wheel-pan's axis deltas (screen px, the 1:1 stand): the content
+
+ * — the wheel down stands the canvas up). The shift stands the horizontal
+ * axis only (the browser maps the shifted vertical wheel onto deltaX;
+ * the unconverted notch takes the deltaY fallback). */
+function wheelPanDeltas(deltaX: number, deltaY: number, shiftKey: boolean): { dx: number; dy: number } {
+  if (!shiftKey) return { dx: -deltaX || 0, dy: -deltaY || 0 };
+  const x = deltaX !== 0 ? deltaX : deltaY;
+  return { dx: -x || 0, dy: 0 };
+}
+
 /** The shape placement tools (the drag-to-size gesture's tools — every
  * shape variant). */
 type ShapeTool = Extract<CanvasTool, "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud">;
@@ -96,5 +121,7 @@ export {
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
   isShapeTool,
+  wheelGesture,
+  wheelPanDeltas,
 };
 export type { CanvasSession, ShapeTool };

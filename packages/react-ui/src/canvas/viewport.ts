@@ -18,6 +18,10 @@ const MAX_ZOOM = 4;
 /** The zoom step (10%). */
 const ZOOM_STEP = 0.1;
 
+/** The pinch (the ctrl/cmd wheel) zoom's coefficient : the wheel's delta stands the exponential factor — the
+ * continuous zoom (the trackpad's smooth stand), no step threshold. */
+const PINCH_ZOOM_COEFF = 0.005;
+
 /**
  * The zoom stops: the 10% grid (0.3, 0.4, …, 4.0) + the 25% floor. The
  * step moves one stop at a time (the grid stands path-independent — the
@@ -99,6 +103,18 @@ function stepZoom(zoom: number, direction: 1 | -1): number {
   const next = index + direction;
   if (next < 0 || next >= ZOOM_STOPS.length) return ZOOM_STOPS[index]!;
   return ZOOM_STOPS[next]!;
+}
+
+/**
+
+
+ * delta (the small delta stands the proportional step — the pinch reacts
+ * without the threshold's lag) and clamps at the 25%–400% bounds (a
+ * delta past the bound stands the no-op, like the step's bound).
+ */
+function pinchZoom(zoom: number, deltaY: number): number {
+  const next = zoom * Math.exp(-deltaY * PINCH_ZOOM_COEFF);
+  return Number(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)).toFixed(4));
 }
 
 /** The screen point (center-relative) → the canvas point. */
@@ -260,6 +276,7 @@ export {
   clampZoom,
   marqueeRect,
   penStroke,
+  pinchZoom,
   rectsIntersect,
   resizeBox,
   rotateAngle,
