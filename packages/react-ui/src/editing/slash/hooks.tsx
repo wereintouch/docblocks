@@ -342,6 +342,9 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     const onSelectionChange = () => {
       const s = stateRef.current;
       if (s === null) return;
+      // The picker is standing (the input's focus is expected — the menu
+      // stays open over the phrase until the pick commits or cancels).
+      if (databasePickRef.current) return;
       const el = slashInnerOf(rootRef, s.blockId);
       if (el === null) {
         setState(null);

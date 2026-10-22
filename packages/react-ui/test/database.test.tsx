@@ -13,6 +13,7 @@ import type { BlockRendererMap } from "../src/blocks/renderers";
 import type { DatabaseBridge } from "../src/database/bridge";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
+import { DatabaseSlashPicker } from "../src/editing/slash-database-picker";
 
 // The radix Select drives the cell's pick through the pointer-capture API
 // (setPointerCapture / hasPointerCapture), which jsdom does not implement.
@@ -1291,5 +1292,113 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
     page = await bridge.queryRows(tableId, {});
     expect(page.rows[r1]!.t ?? null).toBeNull();
     expect(page.rows[r2]!.t ?? null).toBeNull();
+  });
+});
+
+describe("the slash Database picker (the rework: the create form + the search)", () => {
+  /** A bridge with two seeded tables + a spied `createTable`. */
+  function mockBridge() {
+    const tables = [
+      { id: "t-demo", name: "Demo" },
+      { id: "t-zebra", name: "Zebra Board" },
+    ];
+    const base = createMemoryDatabaseBridge();
+    const createTable = vi.fn(async (name: string) => `t-${name.toLowerCase().replace(/\s+/g, "-")}`);
+    const bridge: DatabaseBridge = { ...base, listTables: async () => tables, createTable };
+    return { bridge, createTable };
+  }
+
+  function renderPicker(bridge: DatabaseBridge, onCommit = vi.fn(), onCancel = vi.fn()) {
+    const doc = createDoc({ id: "doc-pick", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc} databaseBridge={bridge}>
+        <DatabaseSlashPicker onCommit={onCommit} onCancel={onCancel} />
+      </EditorProvider>
+    );
+    return { onCommit, onCancel };
+  }
+
+  /** The picker's slot (an optional `data-table-id` filter). */
+  const slot = (name: string, tableId?: string) =>
+    document.querySelector(
+      tableId === undefined
+        ? `[data-slot='docblocks/${name}']`
+        : `[data-slot='docblocks/${name}'][data-table-id="${tableId}"]`
+    );
+
+  it("the create button stands the auto-focused form (the name input + the check)", async () => {
+    const { bridge } = mockBridge();
+    renderPicker(bridge);
+    await settleGrid();
+    // The create-new button stands at rest; the form is hidden.
+    expect(slot("slash-database-create-new")).not.toBeNull();
+    expect(slot("slash-database-name")).toBeNull();
+    // The click stands the form: the name input (focused) + the check.
+    fireEvent.click(slot("slash-database-create-new")!);
+    await settleGrid();
+    const nameInput = slot("slash-database-name")!;
+    expect(nameInput).not.toBeNull();
+    expect(document.activeElement).toBe(nameInput);
+    expect(slot("slash-database-create")).not.toBeNull();
+  });
+
+  it("the empty name is a no-op (the check is disabled, the Enter commits nothing)", async () => {
+    const { bridge, createTable } = mockBridge();
+    const { onCommit } = renderPicker(bridge);
+    await settleGrid();
+    fireEvent.click(slot("slash-database-create-new")!);
+    await settleGrid();
+    expect((slot("slash-database-create") as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.keyDown(slot("slash-database-name")!, { key: "Enter" });
+    await settleGrid();
+    expect(createTable).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("the Enter on the name commits (the createTable + the onCommit)", async () => {
+    const { bridge, createTable } = mockBridge();
+    const { onCommit } = renderPicker(bridge);
+    await settleGrid();
+    fireEvent.click(slot("slash-database-create-new")!);
+    await settleGrid();
+    const nameInput = slot("slash-database-name")!;
+    fireEvent.change(nameInput, { target: { value: "My Board" } });
+    expect((slot("slash-database-create") as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.keyDown(nameInput, { key: "Enter" });
+    await settleGrid();
+    expect(createTable).toHaveBeenCalledWith("My Board");
+    expect(onCommit).toHaveBeenCalledWith("t-my-board");
+  });
+
+  it("the check button commits (the same as the Enter)", async () => {
+    const { bridge, createTable } = mockBridge();
+    const { onCommit } = renderPicker(bridge);
+    await settleGrid();
+    fireEvent.click(slot("slash-database-create-new")!);
+    await settleGrid();
+    const nameInput = slot("slash-database-name")!;
+    fireEvent.change(nameInput, { target: { value: "My Board" } });
+    fireEvent.click(slot("slash-database-create")!);
+    await settleGrid();
+    expect(createTable).toHaveBeenCalledWith("My Board");
+    expect(onCommit).toHaveBeenCalledWith("t-my-board");
+  });
+
+  it("the search filters the existing tables by name (case-insensitive)", async () => {
+    const { bridge } = mockBridge();
+    renderPicker(bridge);
+    await settleGrid();
+    // Both tables stand at rest.
+    expect(slot("slash-database-table", "t-demo")).not.toBeNull();
+    expect(slot("slash-database-table", "t-zebra")).not.toBeNull();
+    // The query filters (case-insensitive).
+    const search = slot("slash-database-search")!;
+    fireEvent.change(search, { target: { value: "zebra" } });
+    expect(slot("slash-database-table", "t-zebra")).not.toBeNull();
+    expect(slot("slash-database-table", "t-demo")).toBeNull();
+    // The non-matching query stands the empty stand.
+    fireEvent.change(search, { target: { value: "no-such-table" } });
+    expect(slot("slash-database-table", "t-zebra")).toBeNull();
+    expect(slot("slash-database-empty")).not.toBeNull();
   });
 });
