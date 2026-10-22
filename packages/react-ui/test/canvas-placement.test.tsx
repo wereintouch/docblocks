@@ -12,6 +12,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 import { CanvasDock } from "../src/canvas/CanvasDock";
 import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport-state";
+import { SHAPE_TOOLS, isShapeTool } from "../src/blocks/canvas-view/models";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -292,5 +293,19 @@ describe("the dock", () => {
     fireEvent.click(screen.getByLabelText("Text"));
     expect(setPendingConnector).toHaveBeenLastCalledWith(null);
     expect(setActiveTool).toHaveBeenLastCalledWith("text");
+  });
+});
+
+describe("the shape tools' gate (the place session's stand)", () => {
+  it("every shape variant stands the drag-to-size session (cylinder / cloud included)", () => {
+    expect(SHAPE_TOOLS).toEqual(["rect", "rounded", "ellipse", "diamond", "cylinder", "cloud"]);
+    for (const tool of SHAPE_TOOLS) expect(isShapeTool(tool), tool).toBe(true);
+  });
+
+  it("the click-place and the non-shape tools stand their own stands", () => {
+    expect(isShapeTool("text")).toBe(false);
+    expect(isShapeTool("frame")).toBe(false);
+    expect(isShapeTool("connector")).toBe(false);
+    expect(isShapeTool("pen")).toBe(false);
   });
 });

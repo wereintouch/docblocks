@@ -64,6 +64,26 @@ async function shapesOf(page: Page, client: "a" | "b"): Promise<Record<string, {
   );
 }
 
+/** The doc's first shape of the variant's geometry (the center anchor, the canvas px). */
+async function shapeGeometry(page: Page, client: "a" | "b", variant: string) {
+  return page.evaluate(
+    ({ client, variant }) => {
+      const doc = window.__paneDocs?.[client];
+      if (doc === null || doc === undefined) return null;
+      for (const block of Object.values(doc.toJSON().blocks)) {
+        const entry = block as {
+          type: string;
+          attrs?: { variant?: unknown };
+          geometry?: { x: number; y: number; w: number; h: number };
+        };
+        if (entry.type === "shape" && entry.attrs?.variant === variant) return entry.geometry ?? null;
+      }
+      return null;
+    },
+    { client, variant }
+  );
+}
+
 test.describe("the new figure variants", () => {
   test("the cylinder and the cloud: the dock's placement over the wire, the toolbar's switch, the undo", async ({
     browser,
@@ -123,6 +143,79 @@ test.describe("the new figure variants", () => {
         .toBe(1);
       await a.keyboard.press("Control+z");
       await expect.poll(async () => Object.values(await shapesOf(a, "a")).length, SETTLE).toBe(0);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the cylinder and the cloud: the drag-to-size session (the preview's stand, the dragged box's commit)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "cvs-shape-drag-size");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const center = await canvasCenter(a, "a");
+      const preview = canvasView(a, "a").locator('[data-slot="docblocks/canvas-place-preview"]');
+      const shapes = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" }).getByLabel("Shapes");
+
+      // The cylinder's press-drag: the
+      // place session stands the dashed preview at the drag's box
+      // mid-drag, the release commits the dragged box (the center anchor
+      // at the drag's midpoint; one transact — the geometry over the
+      // wire to the other pane).
+      await shapes.click();
+      await a.locator('[data-slot="docblocks/canvas-shapes-menu"]').getByLabel("Cylinder").click();
+      await a.mouse.move(center.x - 150, center.y - 75);
+      await a.mouse.down();
+      await a.mouse.move(center.x + 50, center.y + 25, { steps: 5 });
+      await expect(preview).toBeVisible();
+      await expect(preview.locator('[data-slot="docblocks/shape"][data-variant="cylinder"]')).toHaveCount(1);
+      await a.mouse.up();
+      await expect
+        .poll(async () => {
+          const geo = await shapeGeometry(a, "a", "cylinder");
+          return geo !== null && geo.w === 200 && geo.h === 100 && geo.x === -50 && geo.y === -25;
+        }, SETTLE)
+        .toBe(true);
+      await expect
+        .poll(async () => {
+          const geo = await shapeGeometry(b, "b", "cylinder");
+          return geo !== null && geo.w === 200 && geo.h === 100 && geo.x === -50 && geo.y === -25;
+        }, SETTLE)
+        .toBe(true);
+      // The preview drops and the tool resets (the click-place's stand).
+      await expect(preview).toHaveCount(0);
+
+      // The cloud's press-drag (the second variant's stand — the same
+      // session over the new tool pick).
+      await shapes.click();
+      await a.locator('[data-slot="docblocks/canvas-shapes-menu"]').getByLabel("Cloud").click();
+      await a.mouse.move(center.x + 100, center.y - 160);
+      await a.mouse.down();
+      await a.mouse.move(center.x + 250, center.y - 80, { steps: 5 });
+      await expect(preview.locator('[data-slot="docblocks/shape"][data-variant="cloud"]')).toHaveCount(1);
+      await a.mouse.up();
+      await expect
+        .poll(async () => {
+          const geo = await shapeGeometry(a, "a", "cloud");
+          return geo !== null && geo.w === 150 && geo.h === 80 && geo.x === 175 && geo.y === -120;
+        }, SETTLE)
+        .toBe(true);
+      await expect
+        .poll(async () => {
+          const geo = await shapeGeometry(b, "b", "cloud");
+          return geo !== null && geo.w === 150 && geo.h === 80 && geo.x === 175 && geo.y === -120;
+        }, SETTLE)
+        .toBe(true);
+
+      // The one-step undo (the cloud's transact) stands the cloud gone
+      // over the wire (the cylinder stands).
+      await a.keyboard.press("Escape");
+      await canvasView(a, "a").focus();
+      await a.keyboard.press("Control+z");
+      await expect.poll(async () => await shapeGeometry(a, "a", "cloud"), SETTLE).toBeNull();
+      expect(await shapeGeometry(a, "a", "cylinder")).not.toBeNull();
     } finally {
       await close();
     }

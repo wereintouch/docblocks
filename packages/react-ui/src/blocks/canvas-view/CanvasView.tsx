@@ -78,8 +78,9 @@ import {
   SCROLLBAR_GUARD_PX,
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
+  isShapeTool,
 } from "./models";
-import type { CanvasSession, ShapeTool } from "./models";
+import type { CanvasSession } from "./models";
 import { toggleCanvasSelection } from "./utils";
 
 function CanvasView() {
@@ -398,7 +399,7 @@ function CanvasView() {
 
     if (viewport.activeTool !== null && viewport.activeTool !== "connector") {
       const tool = viewport.activeTool;
-      if (tool === "rect" || tool === "rounded" || tool === "ellipse" || tool === "diamond") {
+      if (isShapeTool(tool)) {
         // The shape's drag-to-size: the press starts the session (no
         // commit yet), the drag stands the preview (the marquee's
         // gesture), the release commits the dragged size (a click stands
@@ -406,7 +407,7 @@ function CanvasView() {
         const start = screenToCanvas(point, viewport.zoom, viewport.pan);
         sessionRef.current = {
           kind: "place",
-          tool: tool as ShapeTool,
+          tool,
           start,
           startClientX: event.clientX,
           startClientY: event.clientY,

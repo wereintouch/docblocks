@@ -61,8 +61,19 @@ const TOOLBAR_OFFSET_PX = 48;
  * trackpad's small deltas accumulate to the same step). */
 const WHEEL_ZOOM_DELTA = 100;
 
-/** The shape placement tools (the drag-to-size gesture's tools). */
-type ShapeTool = Extract<CanvasTool, "rect" | "rounded" | "ellipse" | "diamond">;
+/** The shape placement tools (the drag-to-size gesture's tools — every
+ * shape variant). */
+type ShapeTool = Extract<CanvasTool, "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud">;
+
+/** The shape tools' id list (the place session's gate — the dock's shape
+ * ids, the non-click stands). */
+const SHAPE_TOOLS: readonly ShapeTool[] = ["rect", "rounded", "ellipse", "diamond", "cylinder", "cloud"];
+
+/** The shape tool's stand (the drag-to-size session's gate, against the
+ * click-to-place tools). */
+function isShapeTool(tool: CanvasTool): tool is ShapeTool {
+  return (SHAPE_TOOLS as readonly CanvasTool[]).includes(tool);
+}
 
 /** The in-flight canvas pointer session (the primary button only). */
 type CanvasSession =
@@ -81,7 +92,9 @@ export {
   PORT_PICK_RADIUS_PX,
   RESIZE_HANDLE_POSITIONS,
   SCROLLBAR_GUARD_PX,
+  SHAPE_TOOLS,
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
+  isShapeTool,
 };
 export type { CanvasSession, ShapeTool };
