@@ -1259,7 +1259,7 @@ describe("the number column (the display format + the create form)", () => {
   it("the column's create: the menu's Number entry stands the attribute form; the Add commits the column's data", async () => {
     const { bridge, tableId } = await renderGrid();
     // The plus's menu (the pointer press opens the Radix menu in jsdom):
-    // the Number entry stands the form (not the immediate create).
+    // the Number entry stands the form (the name input + the attributes).
     const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
@@ -1271,8 +1271,12 @@ describe("the number column (the display format + the create form)", () => {
       "the number's form"
     );
 
-    // The form's stands: the decimals, the thousands' separator, the prefix /
-    // the suffix, the negative's reject.
+    // The form's stands: the name input (the type's label prefill) + the
+    // decimals, the thousands' separator, the prefix / the suffix, the
+    // negative's reject.
+    expect(document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")?.value).toBe(
+      "Number"
+    );
     fireEvent.change(
       document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-decimals']")!,
       { target: { value: "2" } }
@@ -1313,14 +1317,24 @@ describe("the number column (the display format + the create form)", () => {
     expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
   });
 
-  it("the menu's Text entry creates the plain text column immediately (the form stands none)", async () => {
+  it("the menu's entry stands the create form (the name over the create; the type's attributes stand none)", async () => {
     const { bridge, tableId } = await renderGrid();
     const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
     fireEvent.click(trigger);
     await until(() => document.querySelector("[data-column-type='text']") !== null, "the add-column menu");
+    // The Text entry stands the form (not the immediate create): the name
+    // input prefills the type's label, the number's attribute fields stand
+    // none (the type-specific block stands for the number only).
     fireEvent.click(document.querySelector<HTMLElement>("[data-column-type='text']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
+    const name = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")!;
+    expect(name.value).toBe("Text");
+    expect(document.querySelector("[data-slot='docblocks/database-add-column-decimals']")).toBeNull();
+    // The name from the input stands the column's name over the create.
+    fireEvent.change(name, { target: { value: "Notes" } });
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
     await until(
       () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
       "the column's create"
@@ -1328,8 +1342,46 @@ describe("the number column (the display format + the create form)", () => {
 
     const schema = await bridge.describeTable(tableId);
     const created = schema.columns.find((column) => column.id === "col5");
-    expect(created).toEqual({ id: "col5", name: "Text", type: "text" });
+    expect(created).toEqual({ id: "col5", name: "Notes", type: "text" });
     expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
+  });
+
+  it("the empty name stands the disabled create (the commit is impossible over it)", async () => {
+    await renderGrid();
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.click(trigger);
+    await until(() => document.querySelector("[data-column-type='text']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-type='text']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
+    const name = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")!;
+    fireEvent.change(name, { target: { value: "" } });
+    const create = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/database-add-column-create']")!;
+    expect(create.disabled).toBe(true);
+    // The press over the disabled button stands no create (the form stands).
+    fireEvent.click(create);
+    await settleGrid();
+    expect(document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).not.toBeNull();
+  });
+
+  it("the Escape over the form closes without the create", async () => {
+    await renderGrid();
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.click(trigger);
+    await until(() => document.querySelector("[data-column-type='date']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-type='date']")!);
+    const form = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-form']");
+    await until(() => form !== null, "the form");
+    // The Escape stands the close (the outside press stands it too) — no
+    // create on either (the commit stands the form's button only).
+    fireEvent.keyDown(form!, { key: "Escape", bubbles: true });
+    await settleGrid();
+    expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeNull();
   });
 });
 

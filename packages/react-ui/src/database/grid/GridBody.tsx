@@ -1,7 +1,8 @@
 /** The grid's body: the toolbar (the display name, the count, the
  * undo/redo, the filter popover), the column tracks (the header cells,
- * the add-column chip + the number's attribute form), the data rows and
- * the cell selection / the column drag / the column resize sessions. */
+ * the add-column chip + the create form (the name input + the
+ * type-specific attributes)), the data rows and the cell selection / the
+ * column drag / the column resize sessions. */
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent } from "react";
 
@@ -23,10 +24,10 @@ import {
   ADD_COLUMN_TYPES,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
   DRAG_START_THRESHOLD_PX,
-  EMPTY_NUMBER_FORM,
   MIN_DATABASE_COLUMN_WIDTH_PX,
+  emptyColumnForm,
 } from "./models";
-import type { ColumnDragSession, ColumnResizeSession, NumberFormDraft } from "./models";
+import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession } from "./models";
 import { cellKeyOf, visibleColumns } from "./utils";
 
 interface GridBodyProps {
@@ -57,8 +58,11 @@ function GridBody({
   const [columnMenu, setColumnMenu] = useState<string | null>(null);
   const [rowMenu, setRowMenu] = useState<string | null>(null);
   const [addingColumn, setAddingColumn] = useState(false);
-  const [numberFormOpen, setNumberFormOpen] = useState(false);
-  const [numberForm, setNumberForm] = useState<NumberFormDraft>(EMPTY_NUMBER_FORM);
+  const [columnFormOpen, setColumnFormOpen] = useState(false);
+  const [columnForm, setColumnForm] = useState<AddColumnFormDraft | null>(null);
+  // The form's type-specific block stand (the catalog's flag — the number's
+  // display attributes over the name; the other types stand the name only).
+  const columnFormAttrs = ADD_COLUMN_TYPES.find((entry) => entry.type === columnForm?.type)?.attrs === true;
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   /** The in-flight column drag (pure view state): the column id, the live dx, the live drop index (the parting preview), the press-time width.
    */
@@ -757,14 +761,12 @@ function GridBody({
                       key={entry.type}
                       data-column-type={entry.type}
                       onClick={() => {
-                        if (entry.form) {
-                          setNumberForm(EMPTY_NUMBER_FORM);
-                          setAddingColumn(false);
-                          setNumberFormOpen(true);
-                          return;
-                        }
-                        const columnSuffix = String((data.table?.columns.length ?? 0) + 1);
-                        void data.addColumn({ id: `col${columnSuffix}`, name: entry.label, type: entry.type });
+                        // Every entry stands the create form (the name
+                        // input + the type-specific attributes over it):
+                        // the create commits on the form's button only.
+                        setColumnForm(emptyColumnForm(entry.type, entry.label));
+                        setAddingColumn(false);
+                        setColumnFormOpen(true);
                       }}
                     >
                       {entry.label}
@@ -772,106 +774,167 @@ function GridBody({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-              {/* The number's attribute form (the menu's Number entry opens it): the
-                  column's display attributes stand the bridge's column data. */}
-              <Popover open={numberFormOpen} onOpenChange={setNumberFormOpen}>
+              {/* The create form (every menu entry opens it: the name
+                  input + the type-specific attributes — the number's
+                  display attributes stand the bridge's column data). */}
+              <Popover
+                open={columnFormOpen && columnForm !== null}
+                onOpenChange={(open) => {
+                  setColumnFormOpen(open);
+                  // The close (the outside press / the Escape) drops the
+                  // draft — the next open stands a fresh one.
+                  if (!open) setColumnForm(null);
+                }}
+              >
                 <PopoverTrigger asChild>
                   <span data-slot="docblocks/database-add-column-form-anchor" className="absolute size-0" />
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
                   className="w-60 p-3"
-                  // The menu's Number entry stands the form: the menu's
-                  // close restores the focus to the plus trigger (outside
-                  // the popover content) — the focus-outside would close
-                  // the form the very tick it opens. The outside press
-                  // (the interact-outside) and the Escape keep the close.
+                  // The menu's entry stands the form: the menu's close
+                  // restores the focus to the plus trigger (outside the
+                  // popover content) — the focus-outside would close the
+                  // form the very tick it opens. The outside press (the
+                  // interact-outside) and the Escape keep the close (no
+                  // create — the commit stands the form's button only).
                   onFocusOutside={(event) => event.preventDefault()}
                 >
                   <div data-slot="docblocks/database-add-column-form" className="flex flex-col gap-2">
                     <label className="flex items-center gap-2 text-xs text-foreground">
-                      Decimals
+                      Name
                       <input
-                        type="number"
-                        min={0}
-                        max={10}
-                        data-slot="docblocks/database-add-column-decimals"
+                        type="text"
+                        data-slot="docblocks/database-add-column-name"
                         className="
-                          w-16 cursor-text rounded-md border border-border bg-transparent px-1 py-0.5 text-xs
+                          w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
                           outline-none
                           focus:bg-muted/60
                         "
-                        value={numberForm.decimals}
+                        value={columnForm?.name ?? ""}
                         onChange={(event) =>
-                          setNumberForm({ ...numberForm, decimals: Number(event.target.value) || 0 })
+                          setColumnForm((draft) => (draft === null ? draft : { ...draft, name: event.target.value }))
                         }
                       />
                     </label>
-                    <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
-                      <Checkbox
-                        data-slot="docblocks/database-add-column-thousands"
-                        checked={numberForm.thousands}
-                        onCheckedChange={(checked) => setNumberForm({ ...numberForm, thousands: checked === true })}
-                      />
-                      Thousands' separator
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-foreground">
-                      Prefix
-                      <input
-                        type="text"
-                        data-slot="docblocks/database-add-column-prefix"
-                        className="
-                          w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
-                          outline-none
-                          focus:bg-muted/60
-                        "
-                        value={numberForm.prefix}
-                        onChange={(event) => setNumberForm({ ...numberForm, prefix: event.target.value })}
-                      />
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-foreground">
-                      Suffix
-                      <input
-                        type="text"
-                        data-slot="docblocks/database-add-column-suffix"
-                        className="
-                          w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
-                          outline-none
-                          focus:bg-muted/60
-                        "
-                        value={numberForm.suffix}
-                        onChange={(event) => setNumberForm({ ...numberForm, suffix: event.target.value })}
-                      />
-                    </label>
-                    <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
-                      <Checkbox
-                        data-slot="docblocks/database-add-column-negative"
-                        checked={numberForm.allowNegative}
-                        onCheckedChange={(checked) => setNumberForm({ ...numberForm, allowNegative: checked === true })}
-                      />
-                      Allow negative
-                    </label>
+                    {columnFormAttrs && (
+                      <>
+                        <label className="flex items-center gap-2 text-xs text-foreground">
+                          Decimals
+                          <input
+                            type="number"
+                            min={0}
+                            max={10}
+                            data-slot="docblocks/database-add-column-decimals"
+                            className="
+                              w-16 cursor-text rounded-md border border-border bg-transparent px-1 py-0.5 text-xs
+                              outline-none
+                              focus:bg-muted/60
+                            "
+                            value={columnForm?.decimals ?? 0}
+                            onChange={(event) =>
+                              setColumnForm((draft) =>
+                                draft === null ? draft : { ...draft, decimals: Number(event.target.value) || 0 }
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                          <Checkbox
+                            data-slot="docblocks/database-add-column-thousands"
+                            checked={columnForm?.thousands ?? false}
+                            onCheckedChange={(checked) =>
+                              setColumnForm((draft) =>
+                                draft === null ? draft : { ...draft, thousands: checked === true }
+                              )
+                            }
+                          />
+                          Thousands' separator
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-foreground">
+                          Prefix
+                          <input
+                            type="text"
+                            data-slot="docblocks/database-add-column-prefix"
+                            className="
+                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                              outline-none
+                              focus:bg-muted/60
+                            "
+                            value={columnForm?.prefix ?? ""}
+                            onChange={(event) =>
+                              setColumnForm((draft) =>
+                                draft === null ? draft : { ...draft, prefix: event.target.value }
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-foreground">
+                          Suffix
+                          <input
+                            type="text"
+                            data-slot="docblocks/database-add-column-suffix"
+                            className="
+                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                              outline-none
+                              focus:bg-muted/60
+                            "
+                            value={columnForm?.suffix ?? ""}
+                            onChange={(event) =>
+                              setColumnForm((draft) =>
+                                draft === null ? draft : { ...draft, suffix: event.target.value }
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                          <Checkbox
+                            data-slot="docblocks/database-add-column-negative"
+                            checked={columnForm?.allowNegative ?? true}
+                            onCheckedChange={(checked) =>
+                              setColumnForm((draft) =>
+                                draft === null ? draft : { ...draft, allowNegative: checked === true }
+                              )
+                            }
+                          />
+                          Allow negative
+                        </label>
+                      </>
+                    )}
                     <button
                       type="button"
                       data-slot="docblocks/database-add-column-create"
+                      // The create commits on the press only (the outside
+                      // press / the Escape close without the create); the
+                      // empty name stands the disabled stand (the commit is
+                      // impossible over it).
+                      disabled={columnForm === null || columnForm.name.trim() === ""}
                       className="
                         cursor-pointer rounded-md border border-border bg-accent px-2 py-1 text-xs text-foreground
                         outline-none
                         hover:opacity-70
+                        disabled:cursor-not-allowed disabled:opacity-50
                       "
                       onClick={() => {
+                        const draft = columnForm;
+                        if (draft === null || draft.name.trim() === "") return;
                         const columnSuffix = String((data.table?.columns.length ?? 0) + 1);
                         void data.addColumn({
                           id: `col${columnSuffix}`,
-                          name: "Number",
-                          type: "number",
-                          decimals: numberForm.decimals,
-                          thousands: numberForm.thousands,
-                          prefix: numberForm.prefix === "" ? undefined : numberForm.prefix,
-                          suffix: numberForm.suffix === "" ? undefined : numberForm.suffix,
-                          allowNegative: numberForm.allowNegative,
+                          name: draft.name.trim(),
+                          type: draft.type,
+                          ...(draft.type === "number"
+                            ? {
+                                decimals: draft.decimals,
+                                thousands: draft.thousands,
+                                prefix: draft.prefix === "" ? undefined : draft.prefix,
+                                suffix: draft.suffix === "" ? undefined : draft.suffix,
+                                allowNegative: draft.allowNegative,
+                              }
+                            : {}),
                         });
-                        setNumberFormOpen(false);
+                        setColumnFormOpen(false);
+                        setColumnForm(null);
                       }}
                     >
                       Add column
