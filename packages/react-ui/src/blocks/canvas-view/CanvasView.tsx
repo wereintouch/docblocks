@@ -550,6 +550,14 @@ function CanvasView() {
         ? (event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-handle"]') ?? null)
         : null;
     if (handle !== null && handleTarget !== null) {
+      // The press is prevented (the same contract as the pan / page-card
+      // branches): the compatibility mousedown's default stands no caret /
+      // native text selection — the resize / rotate drag over the shape's
+      // text overlay (or the page card's editable content under the item)
+      // stands no selection. The focus parks on the container (the
+      // preventDefault drops the default focus change — the keydown reach
+      // stands).
+      event.preventDefault();
       containerRef.current?.focus();
       if (handle.dataset.handle === "rotate") {
         viewport.beginRotate(
@@ -587,6 +595,11 @@ function CanvasView() {
         const sel = selection.view?.get();
         const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
         selection.view?.set({ kind: "blocks", ids, anchorId: id });
+        // The press is prevented (the same contract as the pan / page-card /
+        // handle branches): the move drag over the page card's editable
+        // content under the pointer stands no native text selection; the
+        // focus parks on the container.
+        event.preventDefault();
         containerRef.current?.focus();
         viewport.beginMove(ids, event.clientX, event.clientY);
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -635,6 +648,10 @@ function CanvasView() {
         const sel = selection.view?.get();
         const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
         selection.view?.set({ kind: "blocks", ids, anchorId: id });
+        // The press is prevented (the group's members' move drag over the
+        // page card's editable content stands no native text selection);
+        // the focus parks on the container.
+        event.preventDefault();
         containerRef.current?.focus();
         const group = blocks[id];
         const owner = surfaces.find((entry) => entry.children.includes(id));
