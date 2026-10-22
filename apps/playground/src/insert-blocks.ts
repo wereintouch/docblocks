@@ -71,7 +71,6 @@ void (async () => {
   // the demo table, so this stays purely a dev-harness fixture).
   const projectsId = await bridge.createTable("Projects");
   await bridge.createColumn(projectsId, { id: "code", name: "Code", type: "text" });
-  await bridge.createColumn(projectsId, { id: "uuid", name: "Uuid", type: "uuid" });
   await bridge.createColumn(projectsId, { id: "budget", name: "Budget", type: "double precision" });
   await bridge.createColumn(projectsId, { id: "progress", name: "Progress", type: "numeric" });
   await bridge.createColumn(projectsId, { id: "started", name: "Started", type: "date" });
@@ -80,7 +79,6 @@ void (async () => {
   await bridge.insertRows(projectsId, [
     {
       code: "PRJ-1",
-      uuid: "3f2b8c1e-9a4d-4c6e-8f0a-1b2c3d4e5f60",
       budget: 12000,
       progress: 0.75,
       started: "2026-09-01",
@@ -89,7 +87,6 @@ void (async () => {
     },
     {
       code: "PRJ-2",
-      uuid: "7c9d2e4f-1b3a-4f5e-9a0b-2c3d4e5f6a71",
       budget: 8500,
       progress: 0.2,
       started: "2026-10-01",
@@ -98,7 +95,6 @@ void (async () => {
     },
     {
       code: "PRJ-3",
-      uuid: "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
       budget: 4300,
       progress: 1,
       started: "2026-08-12",
