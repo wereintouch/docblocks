@@ -170,15 +170,28 @@ describe("DateTimePicker (the calendar + the time box)", () => {
     expect(picks).toEqual([]);
   });
 
-  it("the same-day pick clears the date (the close commits the null)", async () => {
+  it("the same-day pick stands no reset (the draft date stands; the no-op close stands none)", async () => {
     const picks: (Date | null)[] = [];
-    render(<DateTimePicker value={new Date(2026, 9, 1)} onSelect={(date) => picks.push(date)} />);
-    fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026/ }));
+    render(<DateTimePicker value={new Date(2026, 9, 1, 18, 0)} onSelect={(date) => picks.push(date)} />);
+    fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }));
     const calendar = await poll(() => document.querySelector("[data-slot='calendar']"));
     expect(calendar).not.toBeNull();
-    // The day buttons' data-day is the un-padded en-US locale date.
+    // The value's day stands selected (the draft's day): the re-pick is the
+    // day-picker's toggle (the undefined stand) — the draft date stands,
+    // the Escape close commits nothing (the draft stands the value). The
+    // day buttons' data-day is the un-padded en-US locale date.
     fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
     fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
-    expect(picks).toEqual([null]);
+    expect(picks).toEqual([]);
+
+    // The re-open: the same-day re-pick lost nothing — the typed minutes
+    // commit over the draft's date (the deferred commit's contract).
+    fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }));
+    await poll(() => document.querySelector("[data-slot='calendar']"));
+    fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
+    const [, minutes] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    expect(picks).toEqual([new Date(2026, 9, 1, 18, 30)]);
   });
 });
