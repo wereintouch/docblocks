@@ -69,36 +69,61 @@ function containersOf(doc: Doc): { id: string; box: Box; members: string[] }[] {
 }
 
 /**
+ * The container's unit members — all the transitive members (a nested
+ * container's members ride with the outer box, one delta). The connector
+ * carries no box (never a member) and is skipped.
+ */
+function unitMembers(doc: Doc, groupId: string): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  const visit = (id: string) => {
+    if (seen.has(id)) return;
+    seen.add(id);
+    const block = doc.getBlock(id);
+    if (block === null || block.type !== "group") return;
+    for (const memberId of block.attrs.members) {
+      const member = doc.getBlock(memberId);
+      if (member === null || member.type === "connector") continue;
+      result.push(memberId);
+      if (member.type === "group") visit(memberId);
+    }
+  };
+  visit(groupId);
+  return result;
+}
+
+/**
  * The move's drop indicator: for each
- * dragged shape, the container it joins (kind "in" — the green icon, the
- * fully-containing box it is not yet a member of) or the container it
- * leaves (kind "out" — the red icon, the member no longer inside its own
- * box). A member dragged into another container stands the green stand of
- * the new home (the release's commit moves it between the two). The
- * container's own move (the box and the members stand the one delta)
- * stands no indicator — the members stay inside the moving box.
+ * dragged shape OR container, the container it joins (kind "in" — the
+ * green icon, the fully-containing box it is not yet a member of) or the
+ * container it leaves (kind "out" — the red icon, the member no longer
+ * inside its own box). A member dragged into another container stands the
+ * green stand of the new home (the release's commit moves it between the
+ * two). A dragged container's unit members ride the box (no individual
+ * indicator — the relative position is invariant).
  */
 function computeDropIndicators(doc: Doc, ids: string[], dx: number, dy: number): DropIndicator[] {
-  // The container's own move stands no indicator (the members stand the
-  // box's delta — the relative position is invariant).
-  const movedGroup = ids.some((id) => {
-    const b = doc.getBlock(id);
-    return b !== null && b.type === "group";
-  });
-  if (movedGroup) return [];
   const containers = containersOf(doc);
   if (containers.length === 0) return [];
+  // The dragged containers stand their own membership indicator (the box's
+  // delta); their unit's members ride the box (no individual indicator).
+  const draggedGroups = ids.filter((id) => doc.getBlock(id)?.type === "group");
+  const riders = new Set<string>();
+  for (const gid of draggedGroups) for (const mid of unitMembers(doc, gid)) riders.add(mid);
   const indicators: DropIndicator[] = [];
   for (const id of ids) {
     const block = doc.getBlock(id);
-    // The scope: the membership's drag-in /
-    // drag-out stands the shapes only (the connector has no box, the group
-    // never nests, the canvas-text / frame stand no membership in v1).
-    if (block === null || block.type !== "shape") continue;
+    if (block === null || block.type === "connector") continue;
+    if (riders.has(id)) continue; // the unit's member stands the box's delta
+    // The membership's scope: the shapes and the containers (the
+    // canvas-text / frame stand no membership).
+    if (block.type !== "shape" && block.type !== "group") continue;
     const base = effectiveGeometry(block);
     const figure = { x: base.x + dx, y: base.y + dy, w: base.w, h: base.h };
     const owner = containers.find((c) => c.members.includes(id));
-    const target = containers.find((c) => boxContains(figure, c.box));
+    // The target excludes the item's own box (a container's box stands
+    // inside itself — the self-join is a no-op, never the home).
+    const target = containers.find((c) => c.id !== id && boxContains(figure, c.box));
     if (target !== undefined && target.id !== owner?.id) {
       indicators.push({ id, containerId: target.id, kind: "in" });
     } else if (owner !== undefined && !boxContains(figure, owner.box)) {
@@ -446,15 +471,15 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
         if (block.type === "group") {
           // The container moves as a unit:
           // the box and the members stand the one delta (the members keep
-          // their absolute coordinates — the union is not re-derived). The
-          // dangling member (a concurrent removal) is skipped, not
-          // rewritten.
+          // their absolute coordinates — the union is not re-derived). A
+          // nested container's members ride with the outer box (the
+          // recursive unit). The dangling member (a concurrent removal) is
+          // skipped, not rewritten.
           allIds.push(id);
           snapshot[id] = effectiveGeometry(block);
-          for (const memberId of block.attrs.members) {
+          for (const memberId of unitMembers(doc, id)) {
             const member = doc.getBlock(memberId);
-            if (member === null || member.type === "connector" || member.type === "group") continue;
-            if (allIds.includes(memberId)) continue;
+            if (member === null || allIds.includes(memberId)) continue;
             allIds.push(memberId);
             snapshot[memberId] = effectiveGeometry(member);
           }
@@ -519,36 +544,42 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
           h: snap.h,
         });
       }
-      // The drop's membership: each dragged
-      // shape's membership stands its RELEASE position (the recompute, not
-      // the indicator — the release's truth is the final box). The
-      // fully-containing container is the home (the shape joins it, leaving
-      // any previous owner); no fully-containing container stands the
-      // removal from the owner (the drag-out). The container's own move
-      // (a group in the session) stands no membership change — the members'
-      // relative position is invariant. The members' reads are FRESH (the
-      // doc's own state) so several shapes joining one container compose.
-      if (!targets.some((id) => doc.getBlock(id)?.type === "group")) {
-        const containers = containersOf(doc);
-        for (const id of targets) {
-          if (doc.getBlock(id)?.type !== "shape") continue;
-          const snap = session.snapshot[id];
-          if (snap === undefined) continue;
-          const finalBox = { x: snap.x + session.dx, y: snap.y + session.dy, w: snap.w, h: snap.h };
-          const target = containers.find((c) => boxContains(finalBox, c.box));
-          // Leave the owner(s) it no longer stands in (the home excepted).
-          for (const container of containers) {
-            const fresh = doc.getBlock(container.id);
-            if (fresh === null || fresh.type !== "group" || !fresh.attrs.members.includes(id)) continue;
-            if (target !== undefined && container.id === target.id) continue;
-            doc.updateBlock(container.id, { members: fresh.attrs.members.filter((m) => m !== id) });
-          }
-          // Join the home (the fresh read — the members list is the doc's own).
-          if (target !== undefined) {
-            const home = doc.getBlock(target.id);
-            if (home !== null && home.type === "group" && !home.attrs.members.includes(id)) {
-              doc.updateBlock(target.id, { members: [...home.attrs.members, id] });
-            }
+      // The drop's membership (the shapes AND the containers — the owner
+      // decision 2026-10-22): each dragged shape / container's membership
+      // stands its RELEASE position (the recompute, not the indicator — the
+      // release's truth is the final box). The fully-containing container
+      // is the home (the item joins it, leaving any previous owner); no
+      // fully-containing container stands the removal from the owner (the
+      // drag-out). A dragged container's unit members ride the box (the
+      // relative position is invariant — no individual membership change).
+      // The members' reads are FRESH (the doc's own state) so several items
+      // joining one container compose.
+      const containers = containersOf(doc);
+      const draggedGroups = targets.filter((id) => doc.getBlock(id)?.type === "group");
+      const riders = new Set<string>();
+      for (const gid of draggedGroups) for (const mid of unitMembers(doc, gid)) riders.add(mid);
+      for (const id of targets) {
+        const block = doc.getBlock(id);
+        if (block === null || block.type === "connector") continue;
+        if (riders.has(id)) continue;
+        if (block.type !== "shape" && block.type !== "group") continue;
+        const snap = session.snapshot[id];
+        if (snap === undefined) continue;
+        const finalBox = { x: snap.x + session.dx, y: snap.y + session.dy, w: snap.w, h: snap.h };
+        // The home excludes the item's own box (the self-join is a no-op).
+        const target = containers.find((c) => c.id !== id && boxContains(finalBox, c.box));
+        // Leave the owner(s) it no longer stands in (the home excepted).
+        for (const container of containers) {
+          const fresh = doc.getBlock(container.id);
+          if (fresh === null || fresh.type !== "group" || !fresh.attrs.members.includes(id)) continue;
+          if (target !== undefined && container.id === target.id) continue;
+          doc.updateBlock(container.id, { members: fresh.attrs.members.filter((m) => m !== id) });
+        }
+        // Join the home (the fresh read — the members list is the doc's own).
+        if (target !== undefined) {
+          const home = doc.getBlock(target.id);
+          if (home !== null && home.type === "group" && !home.attrs.members.includes(id)) {
+            doc.updateBlock(target.id, { members: [...home.attrs.members, id] });
           }
         }
       }

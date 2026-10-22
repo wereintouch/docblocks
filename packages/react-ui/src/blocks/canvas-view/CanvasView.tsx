@@ -655,23 +655,21 @@ function CanvasView() {
       return;
     }
 
-    // The container's EMPTY-interior press: a
-    // press that lands on no figure / handle / connector (the branches above
-    // caught those) but INSIDE a container's box stands the container (the
-    // topmost in z — the reverse surface order) + the move session (the drag
-    // moves the container, the border's contract). A press ON a figure still
-    // stands the figure (the item's branch) — the interior is
-    // pointer-transparent. The marquee stands only off the containers.
+    // The container's EMPTY-interior press:
+    // a press that lands on no figure / handle / connector (the branches
+    // above caught those) but INSIDE a container's box stands the container
+    // (the INNERMOST — the smallest box standing the point, the nesting's
+    // deepest) + the move session (the drag moves the container, the
+    // border's contract). A press ON a figure still stands the figure (the
+    // item's branch) — the interior is pointer-transparent. The marquee
+    // stands only off the containers.
     const canvasPoint = screenToCanvas(point, viewport.zoom, viewport.pan);
     const surfaceOrder = doc.getChildren(doc.meta.id);
-    let containerId: string | null = null;
-    for (let i = surfaceOrder.length - 1; containerId === null && i >= 0; i -= 1) {
-      const surfaceId = surfaceOrder[i]!;
+    let innermost: { id: string; area: number } | null = null;
+    for (const surfaceId of surfaceOrder) {
       const surface = doc.getBlock(surfaceId);
       if (surface === null || surface.type !== "surface") continue;
-      const children = doc.getChildren(surfaceId);
-      for (let j = children.length - 1; j >= 0; j -= 1) {
-        const childId = children[j]!;
+      for (const childId of doc.getChildren(surfaceId)) {
         const block = doc.getBlock(childId);
         if (block === null || block.type !== "group") continue;
         const box = effectiveGeometry(block);
@@ -681,11 +679,12 @@ function CanvasView() {
           canvasPoint.y >= box.y - box.h / 2 &&
           canvasPoint.y <= box.y + box.h / 2
         ) {
-          containerId = childId;
-          break;
+          const area = box.w * box.h;
+          if (innermost === null || area < innermost.area) innermost = { id: childId, area };
         }
       }
     }
+    const containerId = innermost?.id ?? null;
     if (containerId !== null) {
       if (event.shiftKey) {
         containerRef.current?.focus();
