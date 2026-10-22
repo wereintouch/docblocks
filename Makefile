@@ -7,7 +7,7 @@ CORE := -w packages/core
 UI := -w packages/react-ui
 PG := -w apps/playground
 
-.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground build build-core test test-core test-ui e2e check full dev clean
+.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground build build-core test test-core test-ui unit unit-f e2e e2e-file dev-gate check full dev clean
 
 help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -55,8 +55,26 @@ test-core: ## Unit tests: docblocks-core
 test-ui: ## Unit tests: docblocks-react-ui
 	npm test $(UI)
 
+unit: ## All unit tests (vitest, ~10s wall) — the e2e stands separate (make e2e / e2e-file)
+	npm test
+
 e2e: ## Playwright E2E (playground consumes react-ui from dist — make build first)
 	npm run test:e2e
+
+e2e-file: ## E2E a single spec (make e2e-file F=test/e2e/canvas-connectors.spec.ts)
+	@test -n "$(F)" || { echo "usage: make e2e-file F=<spec path>"; exit 1; }
+	npm run test:e2e -- $(F)
+
+unit-f: ## Unit tests: a single file (make unit-f F=packages/react-ui/test/canvas.test.tsx)
+	@test -n "$(F)" || { echo "usage: make unit-f F=<test file>"; exit 1; }
+	case "$(F)" in \
+		packages/core/*) REL=${F#packages/core/}; npm test -w packages/core -- "$(REL)";; \
+		packages/react-ui/*) REL=${F#packages/react-ui/}; npm test -w packages/react-ui -- "$(REL)";; \
+		*) echo "F must be under packages/core or packages/react-ui"; exit 1;; \
+	esac
+
+dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
+	npm run lint && npm run typecheck && npm test
 
 ## Gates
 
