@@ -26,6 +26,7 @@ import {
   CHECKBOX_TOGGLE_GUARD_MS,
   EMPTY_CELL_OPTION,
 } from "./models";
+import type { RefTableData } from "./use-ref-tables";
 import {
   cellKeyOf,
   dateOnly,
@@ -201,6 +202,197 @@ function CellDisplay({
     </span>
   );
 }
+/** One option of the ref multi editor (the option's value + its display
+ *  label — the enum's option label, the row-link's resolved display). */
+interface RefOption {
+  value: string;
+  label: string;
+}
+interface RefMultiEditorProps {
+  /** The current values (the committed array, string stand). */
+  values: string[];
+  options: RefOption[];
+  /** The committed value stand (one `updateRow` per toggle — the draft
+   *  stands none, so the external teardown loses nothing). */
+  onCommit: (next: string[]) => void;
+  onEditEnd: () => void;
+}
+/**
+ * The ref column's many-cardinality editor (the multi-enum / the row
+ * links): the popover's checkbox list over the options; the press over
+ * the option stands the immediate toggle (one `updateRow` per option —
+ * the draft stands none, so the external teardown loses nothing).
+ */
+function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditorProps) {
+  const toggle = (option: RefOption, include: boolean) => {
+    const next = new Set(values);
+    if (include) next.add(option.value);
+    else next.delete(option.value);
+    onCommit([...next]);
+  };
+  return (
+    <Popover
+      open
+      onOpenChange={(open) => {
+        if (!open) onEditEnd();
+      }}
+    >
+      <PopoverTrigger asChild>
+        <span
+          data-slot="docblocks/database-ref-multi-trigger"
+          className="block w-full cursor-default px-1 text-(length:--docblocks-font-size)"
+        >
+          {values.length === 0 ? null : (
+            <span className="line-clamp-1">
+              {values.map((value) => options.find((entry) => entry.value === value)?.label ?? value).join(", ")}
+            </span>
+          )}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={4} className="flex w-52 flex-col gap-1 p-2">
+        {options.length === 0 ? (
+          <div data-slot="docblocks/database-ref-multi-empty" className="text-xs text-muted-foreground">
+            No options.
+          </div>
+        ) : (
+          options.map((option) => (
+            <label
+              key={option.value}
+              className="
+                flex cursor-pointer items-center gap-2 rounded-sm px-1 text-sm text-foreground outline-none
+                hover:bg-accent
+              "
+            >
+              <Checkbox
+                data-slot="docblocks/database-ref-multi-option"
+                data-option-value={option.value}
+                checked={values.includes(option.value)}
+                onCheckedChange={(checked) => toggle(option, checked === true)}
+              />
+              <span className="line-clamp-1">{option.label}</span>
+            </label>
+          ))
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+interface RowLinkPickerProps {
+  /** The ref table's row ids (the picker's list). */
+  rowIds: string[];
+  /** The row displays (rowId → the display text; the join stands in the
+   *  consumer backend). */
+  displays: Record<string, string>;
+  /** The current value (the row id or the empty stand). */
+  current: string;
+  /** The session stand (the grid's edit session). */
+  open: boolean;
+  onPick: (rowId: string) => void;
+  onClear: () => void;
+  onEditEnd: () => void;
+}
+/** The picker's list (the search + the rows): the component stands
+ *  inside the popover content, so the search draft resets on the close
+ *  (the content unmounts). */
+function RowLinkPickerList({
+  rowIds,
+  displays,
+  onPick,
+  onClear,
+  onEditEnd,
+}: Omit<RowLinkPickerProps, "current" | "open">) {
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const filtered =
+    needle === ""
+      ? rowIds
+      : rowIds.filter(
+          (rowId) => (displays[rowId] ?? rowId).toLowerCase().includes(needle) || rowId.toLowerCase().includes(needle)
+        );
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        type="search"
+        data-slot="docblocks/database-row-picker-search"
+        autoFocus
+        placeholder="Search rows"
+        className="
+          h-7 cursor-text rounded-md border border-border bg-transparent px-2 text-xs text-foreground outline-none
+          focus:bg-muted/40
+        "
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      <div className="max-h-48 overflow-y-auto">
+        <button
+          type="button"
+          data-slot="docblocks/database-row-picker-clear"
+          className="
+            block w-full cursor-pointer rounded-sm px-1 py-0.5 text-left text-xs text-muted-foreground outline-none
+            hover:bg-accent
+          "
+          onClick={() => {
+            onClear();
+            onEditEnd();
+          }}
+        >
+          —
+        </button>
+        {filtered.map((rowId) => (
+          <button
+            key={rowId}
+            type="button"
+            data-slot="docblocks/database-row-picker-row"
+            data-row-id={rowId}
+            className="
+              block w-full cursor-pointer truncate rounded-sm px-1 py-0.5 text-left text-xs text-foreground outline-none
+              hover:bg-accent
+            "
+            onClick={() => {
+              onPick(rowId);
+              onEditEnd();
+            }}
+          >
+            {displays[rowId] ?? rowId}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+/**
+ * The row-link cell's picker: the ref table's rows over the search (the
+ * client-side filter over the loaded page). The pick commits the row id
+ * (one `updateRow`); the `—` entry clears the link.
+ */
+function RowLinkPicker({ rowIds, displays, current, open, onPick, onClear, onEditEnd }: RowLinkPickerProps) {
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onEditEnd();
+      }}
+    >
+      <PopoverTrigger asChild>
+        <span
+          data-slot="docblocks/database-row-picker-trigger"
+          className="block w-full cursor-default px-1 text-(length:--docblocks-font-size)"
+        >
+          {current === "" ? null : <span className="line-clamp-1">{displays[current] ?? current}</span>}
+        </span>
+      </PopoverTrigger>
+      <PopoverContent align="start" sideOffset={4} data-slot="docblocks/database-row-picker" className="w-60 p-2">
+        <RowLinkPickerList
+          rowIds={rowIds}
+          displays={displays}
+          onPick={onPick}
+          onClear={onClear}
+          onEditEnd={onEditEnd}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
 interface DatabaseCellProps {
   rowId: string;
   column: BridgeColumn;
@@ -222,13 +414,17 @@ interface DatabaseCellProps {
   onEditEnd: () => void;
   /** The boolean's press stand (the grid's ref: the toggle's guards). */
   booleanPress: { current: { armed: boolean; toggledTs: number } };
+  /** The ref table's data (the enum's dict options + the row-link's
+   *  displays — the grid loads it per the column's `refTableId`). */
+  refTableData?: RefTableData;
 }
 /**
  * The cell (the column annotation's editor). The interaction stand
  * (the single press is the selection — the grid extends it to the
  * rectangle; the double press is the edit — the input's focus for the
  * text / number, the toggle for the boolean, the picker's open for the
- * date / datetime / select). The content-less cell stands empty (no
+ * date / datetime / enum / row-link, the checkbox list for the ref's
+ * many cardinality). The content-less cell stands empty (no
  * placeholder, no trigger chrome): the pickers open on the double press
  * over the cell itself.
  */
@@ -250,6 +446,7 @@ function DatabaseCell({
   onEditStart,
   onEditEnd,
   booleanPress,
+  refTableData,
 }: DatabaseCellProps) {
   const annotation: BridgeColumnAnnotation = columnAnnotation(column);
   const empty = value === undefined || value === null || value === "";
@@ -326,9 +523,30 @@ function DatabaseCell({
     commitDateTime();
   }, [editing]);
 
+  // The ref table's stand (the enum's dict options — the dict table's PK
+  // IS the option label, so the row ids stand the options; the row-link's
+  // displays — the dead row id keeps the raw stand, the lenient read).
+  const refRowIds = refTableData?.rowIds ?? [];
+  const refDisplays = refTableData?.displays ?? {};
+  const refOptions: RefOption[] =
+    column.refKind === "enum"
+      ? refRowIds.map((rowId) => ({ value: rowId, label: rowId }))
+      : refRowIds.map((rowId) => ({ value: rowId, label: refDisplays[rowId] ?? rowId }));
+
   let content: ReactNode;
   if (Array.isArray(value)) {
-    content = <CellDisplay text={value.join(", ")} />;
+    // The many cardinality (the multi-enum / the row-links): the edit is
+    // the popover's checkbox list (the toggle commits immediately — no
+    // draft), the display stands the joined labels / displays (the
+    // non-ref array keeps the raw join — the lenient stand).
+    const refValues = value.map((item) => String(item));
+    if (editing && column.refKind !== undefined) {
+      content = <RefMultiEditor values={refValues} options={refOptions} onCommit={onChange} onEditEnd={onEditEnd} />;
+    } else {
+      const text =
+        column.refKind === "row" ? refValues.map((item) => refDisplays[item] ?? item).join(", ") : refValues.join(", ");
+      content = <CellDisplay text={text} />;
+    }
   } else {
     switch (annotation.valueInput) {
       case "number": {
@@ -463,7 +681,7 @@ function DatabaseCell({
         );
         break;
       }
-      case "select":
+      case "enum":
         content = (
           <Select
             value={value === undefined || value === null ? EMPTY_CELL_OPTION : String(value)}
@@ -485,13 +703,26 @@ function DatabaseCell({
             </SelectTrigger>
             <SelectContent align="start" sideOffset={4}>
               <SelectItem value={EMPTY_CELL_OPTION}>—</SelectItem>
-              {(column.options ?? []).map((option) => (
+              {refRowIds.map((option) => (
                 <SelectItem key={option} value={option}>
                   {option}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
+        );
+        break;
+      case "row-link":
+        content = (
+          <RowLinkPicker
+            rowIds={refRowIds}
+            displays={refDisplays}
+            current={empty ? "" : rawValue}
+            open={editing}
+            onPick={onChange}
+            onClear={() => onChange(null)}
+            onEditEnd={onEditEnd}
+          />
         );
         break;
       default:

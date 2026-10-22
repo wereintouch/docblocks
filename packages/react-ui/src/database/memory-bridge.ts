@@ -7,13 +7,14 @@
  * production consumer replaces the whole bridge with its backend
  * implementation. The bridge speaks the standard fractional row order
  * (the `rowOrder` column value) and the table-derived row ids (the
- * `r-{tableId}-{n}` `id` pk value); the table id stands derived from the
+ * `r-{tableId}-{n}` `id` pk value — the dict-table rows stand the pk
+ * value itself (the option label as the row id)); the table id stands derived from the
  * table name, so the channel's instances converge on the same tables
  * (the two tabs' identically-named demo tables share one table).
  */
 import type { DatabaseFilterPayload } from "docblocks-core";
 
-import { conditionMatches } from "./bridge";
+import { TEXT_TYPES, conditionMatches } from "./bridge";
 import type {
   BridgeColumn,
   BridgeTableDescription,
@@ -308,6 +309,58 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
     },
 
+    async updateColumn(
+      tableId: string,
+      columnId: string,
+      patch: Partial<Omit<BridgeColumn, "id" | "name">>
+    ): Promise<void> {
+      const table = tableOf(tableId);
+      const column = table.columns.find((existing) => existing.id === columnId);
+      if (column === undefined) throw new Error(`Unknown column "${columnId}" in table "${tableId}".`);
+      // The patch never removes an attribute: the undefined entries stand
+      // skipped, the existing attributes keep.
+      let changed = false;
+      for (const [key, value] of Object.entries(patch)) {
+        if (key === "id" || key === "name" || value === undefined) continue;
+        (column as unknown as Record<string, unknown>)[key] = clone(value);
+        changed = true;
+      }
+      if (!changed) return; // the zero-change no-op
+      emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
+    },
+
+    async resolveRowDisplay(
+      tableId: string,
+      rowIds: string[],
+      displayColumn?: string
+    ): Promise<Record<string, string>> {
+      const table = tableOf(tableId);
+      // The display column: the declared one (when it stands a column of
+      // the table), else the first text column, else the first column /
+      // the pk fallback.
+      let column =
+        displayColumn !== undefined ? table.columns.find((existing) => existing.id === displayColumn) : undefined;
+      if (column === undefined) {
+        column = table.columns.find((existing) => TEXT_TYPES.has(existing.type)) ??
+          table.columns[0] ?? {
+            id: PK_COLUMN,
+            name: PK_COLUMN,
+            type: "text",
+          };
+      }
+      const displays: Record<string, string> = {};
+      for (const rowId of rowIds) {
+        const row = table.rows.get(rowId);
+        if (row === undefined) {
+          displays[rowId] = "";
+          continue;
+        }
+        const value = row[column.id];
+        displays[rowId] = value === undefined || value === null || value === "" ? rowId : String(value);
+      }
+      return displays;
+    },
+
     async queryRows(tableId: string, query: RowQuery): Promise<RowPage> {
       const table = tableOf(tableId);
       let ids = orderedRowIds(table);
@@ -331,8 +384,13 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       const table = tableOf(tableId);
       // The row id stands derived from the table + the per-table counter
       // (deterministic over the channel's instances: the seeded demo rows
-      // stand the same ids on both sides; the counter syncs over the echoes).
-      const rowId = `r-${tableId}-${++table.rowCounter}`;
+      // stand the same ids on both sides; the counter syncs over the
+      // echoes). A pk value IN the row stands the dict-table stand (the
+      // pk IS the value — the option label): the row id = the pk value
+      // (the deterministic stand across the channel's instances).
+      const pkValue = row[PK_COLUMN];
+      const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : `r-${tableId}-${++table.rowCounter}`;
+      if (table.rows.has(rowId)) return rowId; // the idempotent re-seed
       table.rows.set(rowId, clone(stripManaged(row)));
       table.orderValues.set(rowId, nextOrder(table));
       emit(tableId, [{ type: "row.created", rowId, cells: clone(table.rows.get(rowId) ?? {}) }]);
@@ -373,7 +431,14 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       const created: TableEvent[] = [];
       const ids: string[] = [];
       for (const row of rows) {
-        const rowId = `r-${tableId}-${++table.rowCounter}`;
+        // The pk-value row stand (the dict table's label rows) — the same
+        // stand as the single insertRow.
+        const pkValue = row[PK_COLUMN];
+        const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : `r-${tableId}-${++table.rowCounter}`;
+        if (table.rows.has(rowId)) {
+          ids.push(rowId);
+          continue;
+        }
         table.rows.set(rowId, clone(stripManaged(row)));
         table.orderValues.set(rowId, nextOrder(table));
         created.push({ type: "row.created", rowId, cells: clone(table.rows.get(rowId) ?? {}) });

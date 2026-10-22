@@ -25,9 +25,12 @@ import {
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
   DRAG_START_THRESHOLD_PX,
   MIN_DATABASE_COLUMN_WIDTH_PX,
+  NEW_TABLE_PICK,
   emptyColumnForm,
 } from "./models";
 import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession } from "./models";
+import { refEntryKey, useBridgeTables, useRefTables } from "./use-ref-tables";
+import type { RefTableEntry } from "./use-ref-tables";
 import { cellKeyOf, visibleColumns } from "./utils";
 
 interface GridBodyProps {
@@ -61,8 +64,80 @@ function GridBody({
   const [columnFormOpen, setColumnFormOpen] = useState(false);
   const [columnForm, setColumnForm] = useState<AddColumnFormDraft | null>(null);
   // The form's type-specific block stand (the catalog's flag — the number's
-  // display attributes over the name; the other types stand the name only).
-  const columnFormAttrs = ADD_COLUMN_TYPES.find((entry) => entry.type === columnForm?.type)?.attrs === true;
+  // display attributes / the ref table's pick over the name).
+  const columnFormNumber = columnForm?.numberKind !== undefined;
+  const columnFormRef = columnForm?.refKind !== undefined;
+  // The ref tables' data (the enum's dict options / the row-link's
+  // displays — the live stand over the ref tables' own events; the
+  // entry's key stands the table + the column's declared display column
+  // (the row-link's `refDisplayColumn`)).
+  const refTableEntries = useMemo(() => {
+    const map = new Map<string, RefTableEntry>();
+    for (const column of data.table?.columns ?? []) {
+      if (column.refTableId === undefined) continue;
+      const entry: RefTableEntry = {
+        tableId: column.refTableId,
+        displayColumn: column.refDisplayColumn,
+      };
+      map.set(refEntryKey(entry), entry);
+    }
+    return [...map.values()];
+  }, [data.table?.columns]);
+  const refTableData = useRefTables(bridge, refTableEntries);
+  // The table catalog (the ref form's pick list; the new-table creation
+  // stands the fresh catalog over the refresh bump).
+  const [catalogRefresh, setCatalogRefresh] = useState(0);
+  const bridgeTables = useBridgeTables(bridge, catalogRefresh);
+
+  /** The form's create commit (the button's press only): the name over the
+   *  input, the type-specific block over the draft; the ref's new-table
+   *  creation stands before the column's (the `createTable` → the
+   *  `refTableId` data). */
+  const commitColumnForm = () => {
+    const draft = columnForm;
+    if (draft === null || draft.name.trim() === "") return;
+    const name = draft.name.trim();
+    const commit = (refTableId: string | undefined) => {
+      const columnSuffix = String((data.table?.columns.length ?? 0) + 1);
+      const column: BridgeColumn = { id: `col${columnSuffix}`, name, type: draft.type };
+      if (draft.numberKind !== undefined) {
+        column.thousands = draft.thousands;
+        if (draft.prefix !== "") column.prefix = draft.prefix;
+        if (draft.suffix !== "") column.suffix = draft.suffix;
+        column.allowNegative = draft.allowNegative;
+        if (draft.numberKind === "decimal") column.decimals = draft.decimals;
+      }
+      if (draft.refKind !== undefined) {
+        column.refKind = draft.refKind;
+        if (draft.refMany) column.refMany = true;
+        column.refTableId = refTableId;
+      }
+      void data.addColumn(column);
+      setColumnFormOpen(false);
+      setColumnForm(null);
+    };
+    if (draft.refKind === undefined) {
+      commit(undefined);
+      return;
+    }
+    if (draft.refPick === NEW_TABLE_PICK) {
+      const tableName = draft.newTableName.trim();
+      if (tableName === "") return;
+      void bridge
+        .createTable(tableName)
+        .then((tableId) => {
+          setCatalogRefresh((key) => key + 1);
+          commit(tableId);
+        })
+        .catch(() => {
+          // The table's create failure: the form stands open (the commit
+          // stands none — the retry is the form's own create press).
+        });
+      return;
+    }
+    if (draft.refPick === "") return; // the ref stand is required
+    commit(draft.refPick);
+  };
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   /** The in-flight column drag (pure view state): the column id, the live dx, the live drop index (the parting preview), the press-time width.
    */
@@ -653,7 +728,12 @@ function GridBody({
               </PopoverTrigger>
               <PopoverContent align="end" className="w-96">
                 <div className="flex flex-col gap-(--docblocks-block-spacing)">
-                  <FilterBuilder value={filterDraft} columns={data.table.columns} onChange={setFilterDraft} />
+                  <FilterBuilder
+                    value={filterDraft}
+                    columns={data.table.columns}
+                    onChange={setFilterDraft}
+                    refTableData={refTableData}
+                  />
                   <div className="flex items-center justify-between gap-2">
                     <button
                       type="button"
@@ -758,13 +838,13 @@ function GridBody({
                 <DropdownMenuContent align="end" className="min-w-32">
                   {ADD_COLUMN_TYPES.map((entry) => (
                     <DropdownMenuItem
-                      key={entry.type}
-                      data-column-type={entry.type}
+                      key={entry.key}
+                      data-column-entry={entry.key}
                       onClick={() => {
                         // Every entry stands the create form (the name
-                        // input + the type-specific attributes over it):
-                        // the create commits on the form's button only.
-                        setColumnForm(emptyColumnForm(entry.type, entry.label));
+                        // input + the type-specific block over it): the
+                        // create commits on the form's button only.
+                        setColumnForm(emptyColumnForm(entry));
                         setAddingColumn(false);
                         setColumnFormOpen(true);
                       }}
@@ -817,28 +897,30 @@ function GridBody({
                         }
                       />
                     </label>
-                    {columnFormAttrs && (
+                    {columnFormNumber && (
                       <>
-                        <label className="flex items-center gap-2 text-xs text-foreground">
-                          Decimals
-                          <input
-                            type="number"
-                            min={0}
-                            max={10}
-                            data-slot="docblocks/database-add-column-decimals"
-                            className="
-                              w-16 cursor-text rounded-md border border-border bg-transparent px-1 py-0.5 text-xs
-                              outline-none
-                              focus:bg-muted/60
-                            "
-                            value={columnForm?.decimals ?? 0}
-                            onChange={(event) =>
-                              setColumnForm((draft) =>
-                                draft === null ? draft : { ...draft, decimals: Number(event.target.value) || 0 }
-                              )
-                            }
-                          />
-                        </label>
+                        {columnForm?.numberKind === "decimal" && (
+                          <label className="flex items-center gap-2 text-xs text-foreground">
+                            Decimals
+                            <input
+                              type="number"
+                              min={0}
+                              max={10}
+                              data-slot="docblocks/database-add-column-decimals"
+                              className="
+                                w-16 cursor-text rounded-md border border-border bg-transparent px-1 py-0.5 text-xs
+                                outline-none
+                                focus:bg-muted/60
+                              "
+                              value={columnForm?.decimals ?? 0}
+                              onChange={(event) =>
+                                setColumnForm((draft) =>
+                                  draft === null ? draft : { ...draft, decimals: Number(event.target.value) || 0 }
+                                )
+                              }
+                            />
+                          </label>
+                        )}
                         <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
                           <Checkbox
                             data-slot="docblocks/database-add-column-thousands"
@@ -901,14 +983,73 @@ function GridBody({
                         </label>
                       </>
                     )}
+                    {columnFormRef && (
+                      <>
+                        {/* The ref table's pick (the enum's dict table / the
+                            row-link's linked table): the existing tables +
+                            the new-table creation. */}
+                        <label className="flex items-center gap-2 text-xs text-foreground">
+                          Table
+                          <select
+                            data-slot="docblocks/database-add-column-ref"
+                            className="
+                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                              text-foreground outline-none
+                              focus:bg-muted/60
+                            "
+                            value={columnForm?.refPick ?? ""}
+                            onChange={(event) =>
+                              setColumnForm((draft) =>
+                                draft === null ? draft : { ...draft, refPick: event.target.value, newTableName: "" }
+                              )
+                            }
+                          >
+                            <option value="">— Select a table —</option>
+                            {bridgeTables.map((table) => (
+                              <option key={table.id} value={table.id}>
+                                {table.name}
+                              </option>
+                            ))}
+                            <option value={NEW_TABLE_PICK}>New table…</option>
+                          </select>
+                        </label>
+                        {(columnForm?.refPick ?? "") === NEW_TABLE_PICK && (
+                          <label className="flex items-center gap-2 text-xs text-foreground">
+                            Name
+                            <input
+                              type="text"
+                              data-slot="docblocks/database-add-column-ref-new"
+                              placeholder="New table name"
+                              className="
+                                w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                                text-foreground outline-none
+                                focus:bg-muted/60
+                              "
+                              value={columnForm?.newTableName ?? ""}
+                              onChange={(event) =>
+                                setColumnForm((draft) =>
+                                  draft === null ? draft : { ...draft, newTableName: event.target.value }
+                                )
+                              }
+                            />
+                          </label>
+                        )}
+                      </>
+                    )}
                     <button
                       type="button"
                       data-slot="docblocks/database-add-column-create"
                       // The create commits on the press only (the outside
                       // press / the Escape close without the create); the
-                      // empty name stands the disabled stand (the commit is
-                      // impossible over it).
-                      disabled={columnForm === null || columnForm.name.trim() === ""}
+                      // empty name / the unpicked ref stand the disabled
+                      // stand (the commit is impossible over it).
+                      disabled={
+                        columnForm === null ||
+                        columnForm.name.trim() === "" ||
+                        (columnFormRef &&
+                          (columnForm.refPick === "" ||
+                            (columnForm.refPick === NEW_TABLE_PICK && columnForm.newTableName.trim() === "")))
+                      }
                       className="
                         cursor-pointer rounded-md border border-border bg-accent px-2 py-1 text-xs text-foreground
                         outline-none
@@ -916,25 +1057,7 @@ function GridBody({
                         disabled:cursor-not-allowed disabled:opacity-50
                       "
                       onClick={() => {
-                        const draft = columnForm;
-                        if (draft === null || draft.name.trim() === "") return;
-                        const columnSuffix = String((data.table?.columns.length ?? 0) + 1);
-                        void data.addColumn({
-                          id: `col${columnSuffix}`,
-                          name: draft.name.trim(),
-                          type: draft.type,
-                          ...(draft.type === "number"
-                            ? {
-                                decimals: draft.decimals,
-                                thousands: draft.thousands,
-                                prefix: draft.prefix === "" ? undefined : draft.prefix,
-                                suffix: draft.suffix === "" ? undefined : draft.suffix,
-                                allowNegative: draft.allowNegative,
-                              }
-                            : {}),
-                        });
-                        setColumnFormOpen(false);
-                        setColumnForm(null);
+                        commitColumnForm();
                       }}
                     >
                       Add column
@@ -966,6 +1089,13 @@ function GridBody({
                       onChange={(value) => void data.updateRow(row.rowId, { [column.id]: value })}
                       onPointerDown={onCellPointerDown(row.rowId, column.id, rowIndex, index)}
                       onEditStart={() => setEditingCell(key)}
+                      refTableData={
+                        column.refTableId !== undefined
+                          ? refTableData[
+                              refEntryKey({ tableId: column.refTableId, displayColumn: column.refDisplayColumn })
+                            ]
+                          : undefined
+                      }
                       onEditEnd={() => setEditingCell(null)}
                       booleanPress={booleanPressRef}
                     />

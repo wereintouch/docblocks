@@ -15,20 +15,39 @@ import type { DatabaseFilterPayload } from "docblocks-core";
  * A bridge column. The `type` is a standard PostgreSQL type name (or the
  * consumer's own name): the contract is type-agnostic — the package does
  * not validate the set; the consumer maps type → DDL and type → cell
- * editor. `options` is the option value set (the enum-like columns).
- * `operators` is the consumer's operator catalog override; when absent,
+ * editor. `operators` is the consumer's operator catalog override; when absent,
  * the package's default catalog for the type stands (§ the filter
  * builders), and `queryRows` must apply exactly the declared operators.
  * The `decimals` / `thousands` / `prefix` / `suffix` / `allowNegative`
  * fields are the number column's display attributes (the column's own
  * data — the package's number formatter reads them; the consumer's
- * backend maps the column to integer / decimal as it stands). */
+ * backend maps the column to integer / decimal as it stands).
+ * The reference fields declare a RELATION over the plain column:
+ * `refKind "enum"` — the cell value is an option of the dict table
+ * (`refTableId`); the dict table's PK IS the option label (the option
+ * rename stands the consumer backend's PK update); `refKind "row"` — the
+ * cell value is the linked table's row id (`refDisplayColumn` declares
+ * which column of the linked table stands the display; the default is
+ * the first text column / the pk). `refMany` is the many cardinality
+ * (the cell value is an ARRAY of the option labels / the row ids; the
+ * consumer maps the array to a junction table behind the `updateRow`).
+ */
 interface BridgeColumn {
   id: string;
   name: string;
   type: string;
-  options?: string[];
   operators?: string[];
+  /** The reference table (the dict table for the enum options / the
+   *  linked table for the row links). */
+  refTableId?: string;
+  /** The reference kind: "enum" (the dict table's rows are the options)
+   *  or "row" (the cell holds the linked row's row id). */
+  refKind?: "enum" | "row";
+  /** The many cardinality (the cell value is an array). */
+  refMany?: boolean;
+  /** The display column of the linked table (the row-link display; the
+   *  default is the first text column / the pk). */
+  refDisplayColumn?: string;
   /** The number's digit count after the point (default 0 = integer). */
   decimals?: number;
   /** The thousands' separator (the space grouping: `1 000 000`). */
@@ -114,6 +133,14 @@ interface DatabaseBridge {
   describeTable(tableId: string): Promise<BridgeTableDescription>;
   /** Add a column (after `afterColumnId`, or at the end). */
   createColumn(tableId: string, column: BridgeColumn, afterColumnId?: string): Promise<void>;
+  /** Update the column's attributes (the patch over the existing column —
+   *  the name stands the `renameColumn`'s domain; the patch never
+   *  removes an attribute, the undefined entries stand skipped). */
+  updateColumn(tableId: string, columnId: string, patch: Partial<Omit<BridgeColumn, "id" | "name">>): Promise<void>;
+  /** Resolve the row displays for the row-link cells (the join stands in
+   *  the consumer backend; `displayColumn` = the column's declared
+   *  display column, else the first text column / the pk). */
+  resolveRowDisplay(tableId: string, rowIds: string[], displayColumn?: string): Promise<Record<string, string>>;
   /** Remove a column (the consumer destroys its data). */
   deleteColumn(tableId: string, columnId: string): Promise<void>;
   /** Rename a column. */
@@ -142,7 +169,7 @@ interface DatabaseBridge {
 }
 
 /** The cell value input kind the annotation derives from the column type. */
-type BridgeValueInput = "text" | "number" | "boolean" | "date" | "datetime" | "select" | "none";
+type BridgeValueInput = "text" | "number" | "boolean" | "date" | "datetime" | "enum" | "row-link" | "none";
 
 /** The column annotation the filter builder renders from. */
 interface BridgeColumnAnnotation {
@@ -254,13 +281,14 @@ function columnAnnotation(column: BridgeColumn): BridgeColumnAnnotation {
   let operators: string[];
   if (column.operators !== undefined) {
     operators = [...column.operators];
-  } else if (column.options !== undefined) {
-    operators = ["is", "is not", "in", "not in"];
+  } else if (column.refKind === "enum" || column.refKind === "row") {
+    operators = column.refMany ? ["is", "is not", "empty", "not empty"] : ["is", "is not"];
   } else {
     operators = operatorCatalog(column.type) ?? ["is", "is not"];
   }
   let valueInput: BridgeValueInput;
-  if (column.options !== undefined) valueInput = "select";
+  if (column.refKind === "enum") valueInput = "enum";
+  else if (column.refKind === "row") valueInput = "row-link";
   else valueInput = valueInputFor(column.type) ?? "text";
   const valueless = new Set(operators.filter((operator) => VALUELESS_OPERATORS.has(operator)));
   return { operators, valueInput, valueless };
@@ -276,8 +304,9 @@ type CellValueParse = { ok: true; value: unknown } | { ok: false; error: string 
 /**
  * Validates a raw (string) value against the value input kind before it is
  * written to the row (the number must parse, the date / datetime must be a
- * real date). The empty string is a valid "clear" (null). text / select /
- * boolean pass through (the browser input already constrains them).
+ * real date). The empty string is a valid "clear" (null). text / enum /
+ * row-link / boolean pass through (the browser input / the picker
+ * already constrains them).
  */
 function parseCellValue(kind: BridgeValueInput, raw: string): CellValueParse {
   if (raw === "") return { ok: true, value: null };
@@ -314,13 +343,20 @@ function timestampOf(value: unknown): number | null {
 
 /** Evaluates one filter condition against a cell value. */
 function conditionMatches(op: string, value: unknown, expected: unknown): boolean {
-  const hasValue = value !== undefined && value !== null && value !== "";
+  // The empty array stands the empty stand (the many cardinality's clear
+  // = the empty list, like the null cell).
+  const hasValue =
+    value !== undefined && value !== null && value !== "" && !(Array.isArray(value) && value.length === 0);
   switch (op) {
     case "is":
       if (expected === undefined || expected === null || expected === "") return !hasValue;
+      // The many cardinality: the cell holds the array — the match stands
+      // over the containment (the row is linked to the option / the row).
+      if (Array.isArray(value)) return value.some((item) => equalsLoose(item, expected));
       return equalsLoose(value, expected);
     case "is not":
       if (expected === undefined || expected === null || expected === "") return hasValue;
+      if (Array.isArray(value)) return !value.some((item) => equalsLoose(item, expected));
       return !equalsLoose(value, expected);
     case "contains":
       return stringOf(value).includes(stringOf(expected));
@@ -402,7 +438,7 @@ function between(value: unknown, expected: unknown): boolean {
   return num >= numberOr(pair[0]) && num <= numberOr(pair[1]);
 }
 
-export { VALUELESS_OPERATORS, columnAnnotation, conditionMatches, parseCellValue };
+export { TEXT_TYPES, VALUELESS_OPERATORS, columnAnnotation, conditionMatches, parseCellValue };
 export type {
   BridgeColumn,
   BridgeColumnAnnotation,

@@ -51,6 +51,10 @@ const MISSING_MASTER_ID = "missing-master";
 void (async () => {
   const bridge = getDefaultDatabaseBridge();
   if ((await bridge.listTables()).some((table) => table.name === "Demo")) return;
+  // The dict table (the Demo table's status enum options — the PK IS the
+  // option label).
+  await bridge.createTable("Statuses");
+  await bridge.insertRows("table-statuses", [{ id: "todo" }, { id: "doing" }, { id: "done" }]);
   const demoId = await bridge.createTable("Demo");
   await bridge.createColumn(demoId, { id: "title", name: "Title", type: "text" });
   await bridge.createColumn(demoId, { id: "count", name: "Count", type: "integer" });
@@ -59,7 +63,8 @@ void (async () => {
     id: "status",
     name: "Status",
     type: "text",
-    options: ["todo", "doing", "done"],
+    refKind: "enum",
+    refTableId: "table-statuses",
   });
   await bridge.insertRows(demoId, [
     { title: "First task", count: 1, done: false, status: "todo" },

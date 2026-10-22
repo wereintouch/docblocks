@@ -59,6 +59,7 @@ interface UseDatabaseTable {
   removeRow(rowId: string): Promise<void>;
   moveRow(rowId: string, beforeRowId: string | null): Promise<void>;
   addColumn(column: BridgeColumn, afterColumnId?: string): Promise<void>;
+  updateColumn(columnId: string, patch: Partial<Omit<BridgeColumn, "id" | "name">>): Promise<void>;
   deleteColumn(columnId: string): Promise<void>;
   renameColumn(columnId: string, name: string): Promise<void>;
   /** Renames the table (the bridge's attribute — every block over the
@@ -368,6 +369,31 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     [bridge, tableId, pushUndo]
   );
 
+  const updateColumn = useCallback(
+    async (columnId: string, patch: Partial<Omit<BridgeColumn, "id" | "name">>) => {
+      const column = table?.columns.find((entry) => entry.id === columnId);
+      if (column === undefined) return;
+      // The pre-patch attributes (the inverse's restore — the patch's
+      // keys only).
+      const previous = { ...column };
+      try {
+        await bridge.updateColumn(tableId, columnId, patch);
+        pushUndo({
+          label: `update column ${columnId}`,
+          forward: async () => bridge.updateColumn(tableId, columnId, patch),
+          inverse: async () => {
+            const restore: Record<string, unknown> = {};
+            for (const key of Object.keys(patch)) restore[key] = (previous as Record<string, unknown>)[key];
+            await bridge.updateColumn(tableId, columnId, restore);
+          },
+        });
+      } catch (operationError) {
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, table, pushUndo]
+  );
+
   const deleteColumn = useCallback(
     async (columnId: string) => {
       const column = table?.columns.find((entry) => entry.id === columnId);
@@ -484,6 +510,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     removeRow,
     moveRow,
     addColumn,
+    updateColumn,
     deleteColumn,
     renameColumn,
     renameTable,

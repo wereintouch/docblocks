@@ -1,6 +1,80 @@
 import { describe, expect, it } from "vitest";
 
 import { columnAnnotation, conditionMatches, parseCellValue } from "../src/database/bridge";
+import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
+
+describe("the default bridge — the ref contract (the dict tables / the updateColumn / the row displays)", () => {
+  it("stands the pk-value rows over the dict tables (the row id = the pk value)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const id = await bridge.createTable("Statuses");
+    await bridge.insertRows(id, [{ id: "todo" }, { id: "doing" }]);
+    const page = await bridge.queryRows(id, {});
+    // The row ids stand the pk values (the option labels), not the
+    // derived counters.
+    expect(Object.keys(page.rows).sort()).toEqual(["doing", "todo"]);
+    // The pk value is not a cell (the bridge-managed stand).
+    expect(page.rows["todo"] ?? {}).toEqual({});
+    // The idempotent re-seed (the channel's instances converge): the
+    // repeat insert stands the same row.
+    const rowId = await bridge.insertRow(id, { id: "todo" });
+    expect(rowId).toBe("todo");
+    const after = await bridge.queryRows(id, {});
+    expect(Object.keys(after.rows).sort()).toEqual(["doing", "todo"]);
+  });
+
+  it("the updateColumn's patch stands the attributes (the name keeps; the zero patch is a no-op)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const id = await bridge.createTable("T");
+    await bridge.createColumn(id, { id: "n", name: "N", type: "integer" });
+    await bridge.updateColumn(id, "n", { decimals: 2, prefix: "₽" });
+    let schema = await bridge.describeTable(id);
+    expect(schema.columns[0]).toEqual({ id: "n", name: "N", type: "integer", decimals: 2, prefix: "₽" });
+    // The name stands the renameColumn's domain (the patch's name entry
+    // stands skipped — the typed patch does not carry it).
+    await bridge.renameColumn(id, "n", "Budget");
+    schema = await bridge.describeTable(id);
+    expect(schema.columns[0]!.name).toBe("Budget");
+    // The unknown column rejects.
+    await expect(bridge.updateColumn(id, "missing", { decimals: 1 })).rejects.toThrow("Unknown column");
+  });
+
+  it("the resolveRowDisplay stands the display column (the declared / the first text / the pk)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const id = await bridge.createTable("People");
+    await bridge.createColumn(id, { id: "code", name: "Code", type: "text" });
+    await bridge.createColumn(id, { id: "full", name: "Full name", type: "text" });
+    const [a, b] = (await bridge.insertRows(id, [
+      { code: "P-1", full: "Ann P." },
+      { code: "P-2", full: "Bob P." },
+    ])) as [string, string];
+    // The declared display column.
+    const declared = await bridge.resolveRowDisplay(id, [a, b], "code");
+    expect(declared).toEqual({ [a]: "P-1", [b]: "P-2" });
+    // The default (the first text column).
+    const firstText = await bridge.resolveRowDisplay(id, [a]);
+    expect(firstText).toEqual({ [a]: "P-1" });
+    // The dead row stands the empty display.
+    const dead = await bridge.resolveRowDisplay(id, ["r-x-99"]);
+    expect(dead).toEqual({ "r-x-99": "" });
+    await bridge.removeRow(id, a);
+    // The removed row stands the empty stand (the trash keeps the cells, the
+    // display resolution reads the live rows).
+    expect(await bridge.resolveRowDisplay(id, [a])).toEqual({ [a]: "" });
+  });
+
+  it("the array cell values stand the junction emulation (the updateRow's array stand)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const id = await bridge.createTable("T");
+    const rowId = await bridge.insertRow(id, {});
+    await bridge.updateRow(id, rowId, { tags: ["a", "b"] });
+    const page = await bridge.queryRows(id, {});
+    expect(page.rows[rowId]!.tags).toEqual(["a", "b"]);
+    // The array's update stand (the before snapshot keeps the old array).
+    await bridge.updateRow(id, rowId, { tags: ["b"] });
+    const after = await bridge.queryRows(id, {});
+    expect(after.rows[rowId]!.tags).toEqual(["b"]);
+  });
+});
 
 describe("columnAnnotation — the Postgres type catalog", () => {
   it("maps the text-like types to the text input + the string operators", () => {
@@ -75,14 +149,46 @@ describe("columnAnnotation — the Postgres type catalog", () => {
     }
   });
 
-  it("lets the consumer operators override win and the options column take the select input", () => {
+  it("lets the consumer operators override win over the ref columns", () => {
     expect(columnAnnotation({ id: "c", name: "c", type: "integer", operators: ["is", "gt"] }).operators).toEqual([
       "is",
       "gt",
     ]);
-    const a = columnAnnotation({ id: "c", name: "c", type: "text", options: ["a", "b"] });
-    expect(a.valueInput).toBe("select");
-    expect(a.operators).toContain("in");
+    // The consumer's override stands the ref's catalog (the type-agnostic
+    // contract: the consumer declares its own operator set).
+    expect(
+      columnAnnotation({ id: "c", name: "c", type: "text", refKind: "enum", refTableId: "t", operators: ["in"] })
+        .operators
+    ).toEqual(["in"]);
+  });
+
+  it("maps the ref columns to the ref value inputs (the enum / the row-link)", () => {
+    const enumColumn = columnAnnotation({ id: "c", name: "c", type: "text", refKind: "enum", refTableId: "t" });
+    expect(enumColumn.valueInput).toBe("enum");
+    expect(enumColumn.operators).toEqual(["is", "is not"]);
+    const multiEnum = columnAnnotation({
+      id: "c",
+      name: "c",
+      type: "text",
+      refKind: "enum",
+      refTableId: "t",
+      refMany: true,
+    });
+    expect(multiEnum.valueInput).toBe("enum");
+    expect(multiEnum.operators).toEqual(["is", "is not", "empty", "not empty"]);
+    const rowLink = columnAnnotation({ id: "c", name: "c", type: "text", refKind: "row", refTableId: "t" });
+    expect(rowLink.valueInput).toBe("row-link");
+    expect(rowLink.operators).toEqual(["is", "is not"]);
+    const rowLinks = columnAnnotation({
+      id: "c",
+      name: "c",
+      type: "text",
+      refKind: "row",
+      refTableId: "t",
+      refMany: true,
+    });
+    expect(rowLinks.valueInput).toBe("row-link");
+    expect(rowLinks.operators).toEqual(["is", "is not", "empty", "not empty"]);
   });
 });
 
@@ -94,7 +200,7 @@ describe("parseCellValue — the input validation", () => {
   });
 
   it("treats the empty string as a clear (null) for every kind", () => {
-    for (const kind of ["number", "date", "datetime", "text", "boolean", "select"] as const) {
+    for (const kind of ["number", "date", "datetime", "text", "boolean", "enum", "row-link"] as const) {
       expect(parseCellValue(kind, "")).toEqual({ ok: true, value: null });
     }
   });
@@ -106,9 +212,31 @@ describe("parseCellValue — the input validation", () => {
     expect(parseCellValue("datetime", "garbage").ok).toBe(false);
   });
 
-  it("passes the text / boolean / select kinds through", () => {
+  it("passes the text / boolean / ref kinds through", () => {
     expect(parseCellValue("text", "hello")).toEqual({ ok: true, value: "hello" });
     expect(parseCellValue("boolean", "true")).toEqual({ ok: true, value: "true" });
+    expect(parseCellValue("enum", "option")).toEqual({ ok: true, value: "option" });
+    expect(parseCellValue("row-link", "r-t-1")).toEqual({ ok: true, value: "r-t-1" });
+  });
+});
+
+describe("conditionMatches — the array values (the many cardinality)", () => {
+  it("stands the is / is not over the containment for the array cell values", () => {
+    expect(conditionMatches("is", ["a", "b"], "a")).toBe(true);
+    expect(conditionMatches("is", ["a", "b"], "z")).toBe(false);
+    expect(conditionMatches("is not", ["a", "b"], "z")).toBe(true);
+    expect(conditionMatches("is not", ["a", "b"], "a")).toBe(false);
+    // The single value keeps the exact stand (the containment stands the
+    // array cell only).
+    expect(conditionMatches("is", "a", "a")).toBe(true);
+    expect(conditionMatches("is", "a", "a,b")).toBe(false);
+  });
+
+  it("stands the empty array over the empty operators", () => {
+    expect(conditionMatches("empty", [], undefined)).toBe(true);
+    expect(conditionMatches("not empty", [], undefined)).toBe(false);
+    expect(conditionMatches("empty", ["a"], undefined)).toBe(false);
+    expect(conditionMatches("not empty", ["a"], undefined)).toBe(true);
   });
 });
 

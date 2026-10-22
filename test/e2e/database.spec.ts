@@ -78,8 +78,9 @@ async function bridgeDemoTable(page: Page): Promise<{ id: string; name: string }
       result = await page.evaluate(async () => {
         if (window.__bridge === undefined) return null;
         const tables = await window.__bridge.listTables();
-        const [first] = tables;
-        return first ?? null;
+        // The seed creates the dict table (Statuses) before the Demo table,
+        // so the demo is found by name, not by position.
+        return tables.find((table) => table.name === "Demo") ?? null;
       });
       return result;
     }, SETTLE)
@@ -759,7 +760,7 @@ test("the select cell stands the package's Select (the pick stands over the wire
   const selectCellB = b.locator("[data-slot='docblocks/database-cell'][data-column-id='status']").first();
   await expect(selectCellB).toHaveText("doing", SETTLE);
   const rowB = await b.evaluate(async () => {
-    const [table] = await window.__bridge!.listTables();
+    const table = (await window.__bridge!.listTables()).find((item) => item.name === "Demo")!;
     const page = await window.__bridge!.queryRows(table!.id, {});
     const [first] = Object.values(page.rows);
     return first;
@@ -962,7 +963,7 @@ test("the datetime cell stands the calendar + the time box (the time/date order,
   // The commit stands the ISO string in the bridge (the doc stands — the
   // row is the consumer's data), pane B's grid resyncs from its bridge.
   const row = await a.evaluate(async () => {
-    const [table] = await window.__bridge!.listTables();
+    const table = (await window.__bridge!.listTables()).find((item) => item.name === "Demo")!;
     const page = await window.__bridge!.queryRows(table!.id, {});
     const [first] = Object.values(page.rows);
     return first;
@@ -995,7 +996,7 @@ test("the datetime cell stands the calendar + the time box (the time/date order,
   await a.mouse.click(10, gridBox!.y + 40);
   await expect(picker).toBeHidden(SETTLE);
   const rowAfterReverse = await a.evaluate(async () => {
-    const [table] = await window.__bridge!.listTables();
+    const table = (await window.__bridge!.listTables()).find((item) => item.name === "Demo")!;
     const page = await window.__bridge!.queryRows(table!.id, {});
     const [first] = Object.values(page.rows);
     return first;
@@ -1016,7 +1017,7 @@ test("the datetime cell stands the calendar + the time box (the time/date order,
   await a.keyboard.press("Escape");
   await expect(picker).toBeHidden(SETTLE);
   const rowAfterToggle = await a.evaluate(async () => {
-    const [table] = await window.__bridge!.listTables();
+    const table = (await window.__bridge!.listTables()).find((item) => item.name === "Demo")!;
     const page = await window.__bridge!.queryRows(table!.id, {});
     const [first] = Object.values(page.rows);
     return first;
@@ -1275,13 +1276,15 @@ test("the number column: the create form's attributes stand the cell's display (
   const demo = await bridgeDemoTable(a);
   await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
 
-  // The create over the grid's form: the plus's menu → the Number entry →
+  // The create over the grid's form: the plus's menu → the Integer entry →
   // the attribute form (the thousands' separator + the prefix / the
-  // suffix) → the Add commits the column's data to the bridge.
+  // suffix) → the Add commits the column's data to the bridge. The integer
+  // stands the `decimals: 0` stand (the display keeps the raw integer), so
+  // the value's frame (the prefix / the thousands / the suffix) stands as-is.
   await a.locator("[data-slot='docblocks/database-add-column-trigger']").click();
   const menu = a.locator("[data-slot='dropdown-menu-content']");
   await expect(menu).toBeVisible(SETTLE);
-  await menu.locator("[data-column-type='number']").click();
+  await menu.locator("[data-column-entry='integer']").click();
   const form = a.locator("[data-slot='docblocks/database-add-column-form']");
   await expect(form).toBeVisible(SETTLE);
   await form.locator("[data-slot='docblocks/database-add-column-thousands']").click();
@@ -1340,7 +1343,7 @@ test("the add-column form stands for every type (the name over the create; the E
   await trigger.click();
   const menu = a.locator("[data-slot='dropdown-menu-content']");
   await expect(menu).toBeVisible(SETTLE);
-  await menu.locator("[data-column-type='timestamptz']").click();
+  await menu.locator("[data-column-entry='datetime']").click();
   // The menu's exit stand the close (the exiting popper's wrapper is
   // transparent to pointers only after the unmount — the press over the
   // chip stands no swallow on the second open).
@@ -1362,7 +1365,7 @@ test("the add-column form stands for every type (the name over the create; the E
   // The Escape over the form closes without the create (the column count
   // stands — the commit stands the form's button only).
   await trigger.click();
-  await menu.locator("[data-column-type='text']").click();
+  await menu.locator("[data-column-entry='text']").click();
   await expect(menu).toBeHidden(SETTLE);
   await expect(form).toBeVisible(SETTLE);
   await a.keyboard.press("Escape");

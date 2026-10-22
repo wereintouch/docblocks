@@ -2,35 +2,81 @@
  * form draft, the drag/resize thresholds and the column-width bounds, the
  * shared cell class sets) and the session types. */
 
-/** The add-column type catalog (the `select` columns are the
- *  consumer-level — they need the options set). Every entry stands the
- *  create form (the name input + the type-specific attributes — the
- *  number's display attributes over the name; the other types stand
- *  the name only). */
-const ADD_COLUMN_TYPES: Array<{ type: string; label: string; attrs?: boolean }> = [
-  { type: "text", label: "Text" },
-  { type: "number", label: "Number", attrs: true },
-  { type: "boolean", label: "Checkbox" },
-  { type: "date", label: "Date" },
-  { type: "timestamptz", label: "Date & time" },
+/** The add-column type catalog (the 10 types — the plain PostgreSQL
+ *  columns + the relation declarations). Every entry stands the create
+ *  form (the name input + the type-specific block over it — the
+ *  number's display attributes for the integer / the decimal, the ref
+ *  table's pick for the enum / the row-link). */
+interface AddColumnTypeEntry {
+  /** The stable entry key (the `data-column-entry` attribute). */
+  key: string;
+  type: string;
+  label: string;
+  /** The number's display-attributes block (the integer / the decimal).
+   *  The integer stands the `decimals: 0` stand (the field stands none),
+   *  the decimal stands the decimals field. */
+  numberKind?: "integer" | "decimal";
+  /** The relation declaration (the enum's dict table / the row's linked
+   *  table — the column's `refKind` / `refTableId` data). */
+  refKind?: "enum" | "row";
+  refMany?: boolean;
+}
+const ADD_COLUMN_TYPES: AddColumnTypeEntry[] = [
+  { key: "text", type: "text", label: "Text" },
+  { key: "integer", type: "integer", label: "Integer", numberKind: "integer" },
+  { key: "decimal", type: "numeric", label: "Decimal", numberKind: "decimal" },
+  { key: "checkbox", type: "boolean", label: "Checkbox" },
+  { key: "date", type: "date", label: "Date" },
+  { key: "datetime", type: "timestamptz", label: "Date & time" },
+  { key: "enum", type: "text", label: "Enum", refKind: "enum" },
+  { key: "multi-enum", type: "text", label: "Multi-enum", refKind: "enum", refMany: true },
+  { key: "row-link", type: "text", label: "Row link", refKind: "row" },
+  { key: "row-links", type: "text", label: "Row links", refKind: "row", refMany: true },
 ];
-/** The add-column form draft (the field name + the type-specific
- *  attributes — the number's display attributes stand the bridge's
- *  column data; the other types stand the name only). */
+/** The add-column form draft (the field name + the type-specific block
+ *  — the number's display attributes stand the bridge's column data;
+ *  the ref table's pick / the new-table creation stand the relation's
+ *  data). */
 interface AddColumnFormDraft {
+  key: string;
   type: string;
   name: string;
+  numberKind?: "integer" | "decimal";
   decimals: number;
   thousands: boolean;
   prefix: string;
   suffix: string;
   allowNegative: boolean;
+  refKind?: "enum" | "row";
+  refMany?: boolean;
+  /** The ref pick ("" = none, the `NEW_TABLE_PICK` stand, or a table id). */
+  refPick: string;
+  /** The new ref table's name (the "new table" entry's creation stand). */
+  newTableName: string;
 }
 /** The form draft over a catalog entry (the name prefills the type's
  *  label — the create's commit takes the input's name). */
-function emptyColumnForm(type: string, label: string): AddColumnFormDraft {
-  return { type, name: label, decimals: 0, thousands: false, prefix: "", suffix: "", allowNegative: true };
+function emptyColumnForm(entry: AddColumnTypeEntry): AddColumnFormDraft {
+  return {
+    key: entry.key,
+    type: entry.type,
+    name: entry.label,
+    numberKind: entry.numberKind,
+    decimals: entry.numberKind === "decimal" ? 2 : 0,
+    thousands: false,
+    prefix: "",
+    suffix: "",
+    allowNegative: true,
+    refKind: entry.refKind,
+    refMany: entry.refMany,
+    refPick: "",
+    newTableName: "",
+  };
 }
+
+/** The "new table" entry of the ref form's pick (the table id stand the
+ *  created id, the `createTable` commit over the form's button). */
+const NEW_TABLE_PICK = "__new__";
 /** The header cell's column-drag session (the press stands the snapshot;
  *  the release stands the commit). */
 interface ColumnDragSession {
@@ -105,6 +151,7 @@ export {
   DRAG_START_THRESHOLD_PX,
   EMPTY_CELL_OPTION,
   MIN_DATABASE_COLUMN_WIDTH_PX,
+  NEW_TABLE_PICK,
   emptyColumnForm,
 };
-export type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession };
+export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, ColumnResizeSession };
