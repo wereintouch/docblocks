@@ -53,11 +53,14 @@ function SlashMenu({
   // of the query window).
   const [derived, setDerived] = useState<SlashDerivation | null>(null);
   useLayoutEffect(() => {
+    // The picker is standing (the input's focus is expected — the menu stays
+    // open over the phrase; the derivation is irrelevant while it stands).
+    if (databasePick) return;
     const caret = liveCaretOf(rootRef, state.blockId, state.slashOffset + 1);
     const derivation = deriveSlash(text, state.slashOffset, caret);
     setDerived(derivation);
     if (derivation.closed) onClose();
-  }, [text, state, rootRef, onClose]);
+  }, [text, state, rootRef, onClose, databasePick]);
 
   const items = derived === null ? [] : filterCommands(derived.query);
   const visible = items.length > 0 || databasePick;

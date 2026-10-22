@@ -354,6 +354,100 @@ test("the slash Database picker inserts a block referencing a table", async ({ b
   await close();
 });
 
+test("the slash Database picker's create-new: the auto-focused form, the Enter commit over the wire", async ({
+  browser,
+}) => {
+  // The shared context (the same origin): the default bridges share the
+  // `BroadcastChannel` echo, so the created table stands in both panes.
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-slash-create");
+  try {
+    // Wait for the pane's bridge (the seeded demo stands — the picker's
+    // listTables resolves against the same bridge).
+    await bridgeDemoTable(a);
+    // Seed a paragraph with a caret, open the menu, filter to Database.
+    const inner = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
+    await inner.click();
+    await a.keyboard.type("/database");
+    const menuItem = a.locator('[data-slot="docblocks/slash-menu"] [role="menuitem"]');
+    await expect(menuItem).toHaveCount(1, SETTLE);
+    await a.keyboard.press("Enter");
+    const picker = a.locator("[data-slot='docblocks/slash-database-picker']");
+    await expect(picker).toBeVisible(SETTLE);
+    // The `New table` button stands; the click stands the form (the name
+    // input, auto-focused + the check commit).
+    const createNew = picker.locator("[data-slot='docblocks/slash-database-create-new']");
+    await expect(createNew).toBeVisible(SETTLE);
+    await createNew.click();
+    const nameInput = picker.locator("[data-slot='docblocks/slash-database-name']");
+    await expect(nameInput).toBeVisible(SETTLE);
+    await expect(nameInput).toBeFocused(SETTLE);
+    const check = picker.locator("[data-slot='docblocks/slash-database-create']");
+    await expect(check).toBeVisible(SETTLE);
+    // The empty name: the check stands disabled (the commit is a no-op).
+    await expect(check).toBeDisabled();
+    // The name types (the input is focused), the check stands enabled, and
+    // the Enter commits (over the wire to pane B).
+    await a.keyboard.type("My Board");
+    await expect(check).toBeEnabled();
+    await a.keyboard.press("Enter");
+    // The block with the tableId reference lands (the phrase strips), and
+    // the new table resolves in both panes (the shared default bridge).
+    const wrapperA = a.locator("[data-block-type='database']");
+    await expect(wrapperA).toHaveCount(1, SETTLE);
+    await expect(wrapperA.locator("[data-slot='docblocks/database-name']")).toHaveText("My Board", SETTLE);
+    const wrapperB = b.locator("[data-block-type='database']");
+    await expect(wrapperB).toHaveCount(1, SETTLE);
+    await expect(wrapperB.locator("[data-slot='docblocks/database-name']")).toHaveText("My Board", SETTLE);
+    // The doc holds the reference only (no inline schema).
+    const json = await a.evaluate(() => {
+      const doc = window.__paneDocs!.a!;
+      const json = doc.toJSON();
+      const dbId = Object.keys(json.blocks).find((id) => json.blocks[id]!.type === "database")!;
+      const block = json.blocks[dbId]!;
+      return { tableId: block.attrs?.tableId, columns: block.attrs?.columns };
+    });
+    expect(typeof json.tableId).toBe("string");
+    expect(json.columns).toBeUndefined();
+  } finally {
+    await close();
+  }
+});
+
+test("the slash Database picker's search filters the existing tables by name", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ext04-slash-search");
+  try {
+    const demo = await bridgeDemoTable(a);
+    // Seed a second table with a distinct name (the bridge, per page).
+    const other = await a.evaluate(() => window.__bridge!.createTable("Zebra Board"));
+    // Open the picker over the phrase.
+    const inner = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
+    await inner.click();
+    await a.keyboard.type("/database");
+    const menuItem = a.locator('[data-slot="docblocks/slash-menu"] [role="menuitem"]');
+    await expect(menuItem).toHaveCount(1, SETTLE);
+    await a.keyboard.press("Enter");
+    const picker = a.locator("[data-slot='docblocks/slash-database-picker']");
+    await expect(picker).toBeVisible(SETTLE);
+    const demoItem = picker.locator(`[data-slot='docblocks/slash-database-table'][data-table-id="${demo.id}"]`);
+    const otherItem = picker.locator(`[data-slot='docblocks/slash-database-table'][data-table-id="${other}"]`);
+    // Both tables stand at rest.
+    await expect(demoItem).toBeVisible(SETTLE);
+    await expect(otherItem).toBeVisible(SETTLE);
+    // The search's query filters the list (by name, case-insensitive).
+    const search = picker.locator("[data-slot='docblocks/slash-database-search']");
+    await search.fill("zebra");
+    await expect(otherItem).toBeVisible();
+    await expect(demoItem).toBeHidden();
+    // A non-matching query stands the empty stand.
+    await search.fill("no-such-table");
+    await expect(demoItem).toBeHidden();
+    await expect(otherItem).toBeHidden();
+    await expect(picker.locator("[data-slot='docblocks/slash-database-empty']")).toBeVisible();
+  } finally {
+    await close();
+  }
+});
+
 test("the row commands refuse the external form over the wire (the typed error)", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "ext04-external-error");
 
