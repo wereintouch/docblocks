@@ -50,6 +50,7 @@ import { useCanvasViewport } from "../../canvas/viewport-state";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
+import { Container } from "../../shared/ui/icons";
 import { BlockGroups } from "../BlockView";
 import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../ConnectorLayer";
 import { ShapeSvg } from "../ShapeSvg";
@@ -59,8 +60,6 @@ import {
   connectorMidpoint,
   edgeAnchor,
   effectiveGeometry,
-  groupBoxOf,
-  groupMemberIds,
   pageCardStyle,
   portsOf,
 } from "../canvas-geometry";
@@ -78,7 +77,7 @@ import {
   SCROLLBAR_GUARD_PX,
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
-  isShapeTool,
+  isPlaceTool,
   wheelGesture,
   wheelPanDeltas,
 } from "./models";
@@ -184,14 +183,14 @@ function CanvasView() {
 
   // The handles' target: a single block selection with an effective box
   // (the stored geometry or the synthesized default; the connector is
-  // excluded — it carries no own geometry; the group is excluded too —
-  // its box is DERIVED from the members, so the box's resize / rotate
-  // handles would edit a value that is never stored).
+  // excluded — it carries no own geometry). The container (the reworked
+  // group) carries its own box: the eight resize handles stand it (the
+  // rotate handle stands off — the container carries no rotation).
   const handleTarget = useMemo(() => {
     if (storeSelection?.kind !== "blocks" || storeSelection.ids.length !== 1) return null;
     const id = storeSelection.ids[0]!;
     const block = blocks[id];
-    if (block === undefined || block.type === "connector" || block.type === "group") return null;
+    if (block === undefined || block.type === "connector") return null;
     return { id, box: effectiveGeometry(block), rotation: block.geometry?.rotation ?? 0 };
   }, [storeSelection, blocks]);
   const displayBox =
@@ -213,15 +212,9 @@ function CanvasView() {
     for (const id of storeSelection.ids) {
       const block = blocks[id];
       if (block === undefined || block.type === "connector") continue;
-      // The group stands the DERIVED union of its members (the marker
-      // carries no geometry — the union is the box, never stale).
-      let box = effectiveGeometry(block);
-      if (block.type === "group") {
-        const owner = surfaces.find((entry) => entry.children.includes(id));
-        const union = owner !== undefined ? groupBoxOf(block.attrs?.members, owner.children, blocks) : null;
-        if (union === null) continue;
-        box = union;
-      }
+      // The container (the reworked group) stands its OWN geometry (the
+      // free box) — the derived union stands off.
+      const box = effectiveGeometry(block);
       minX = Math.min(minX, box.x - box.w / 2);
       minY = Math.min(minY, box.y - box.h / 2);
       maxX = Math.max(maxX, box.x + box.w / 2);
@@ -428,7 +421,7 @@ function CanvasView() {
 
     if (viewport.activeTool !== null && viewport.activeTool !== "connector") {
       const tool = viewport.activeTool;
-      if (isShapeTool(tool)) {
+      if (isPlaceTool(tool)) {
         // The shape's drag-to-size: the press starts the session (no
         // commit yet), the drag stands the preview (the marquee's
         // gesture), the release commits the dragged size (a click stands
@@ -631,40 +624,6 @@ function CanvasView() {
       return;
     }
 
-    // The group's hit band (the wide transparent stroke of the GroupLayer's
-    // outline): the press selects the group and starts the MEMBERS' move
-    // session (the group itself carries no geometry — it is never a move
-    // target; the batch's one transact moves every member). The shift
-    // press stands the additive toggle (no session, like the items').
-    const groupHit = event.target instanceof Element ? event.target.closest<SVGElement>("[data-group-hit]") : null;
-    if (groupHit !== null) {
-      const id = groupHit.getAttribute("data-group-hit");
-      if (id !== null) {
-        if (event.shiftKey) {
-          containerRef.current?.focus();
-          if (selection.view !== null) toggleCanvasSelection(selection.view, id);
-          return;
-        }
-        const sel = selection.view?.get();
-        const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
-        selection.view?.set({ kind: "blocks", ids, anchorId: id });
-        // The press is prevented (the group's members' move drag over the
-        // page card's editable content stands no native text selection);
-        // the focus parks on the container.
-        event.preventDefault();
-        containerRef.current?.focus();
-        const group = blocks[id];
-        const owner = surfaces.find((entry) => entry.children.includes(id));
-        const members =
-          group !== undefined && group.type === "group" && owner !== undefined
-            ? groupMemberIds(group.attrs?.members, owner.children, blocks)
-            : [];
-        viewport.beginMove(members, event.clientX, event.clientY);
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-      }
-      return;
-    }
-
     if (isPageCard(event.target)) {
       if (event.shiftKey) {
         // The shift press stands the selection (the additive contract —
@@ -692,6 +651,51 @@ function CanvasView() {
       selection.view?.set({ kind: "blocks", ids: [rootBlockId], anchorId: rootBlockId });
       viewport.beginMove([rootBlockId], event.clientX, event.clientY);
       cardPressRef.current = true;
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
+    // The container's EMPTY-interior press: a
+    // press that lands on no figure / handle / connector (the branches above
+    // caught those) but INSIDE a container's box stands the container (the
+    // topmost in z — the reverse surface order) + the move session (the drag
+    // moves the container, the border's contract). A press ON a figure still
+    // stands the figure (the item's branch) — the interior is
+    // pointer-transparent. The marquee stands only off the containers.
+    const canvasPoint = screenToCanvas(point, viewport.zoom, viewport.pan);
+    const surfaceOrder = doc.getChildren(doc.meta.id);
+    let containerId: string | null = null;
+    for (let i = surfaceOrder.length - 1; containerId === null && i >= 0; i -= 1) {
+      const surfaceId = surfaceOrder[i]!;
+      const surface = doc.getBlock(surfaceId);
+      if (surface === null || surface.type !== "surface") continue;
+      const children = doc.getChildren(surfaceId);
+      for (let j = children.length - 1; j >= 0; j -= 1) {
+        const childId = children[j]!;
+        const block = doc.getBlock(childId);
+        if (block === null || block.type !== "group") continue;
+        const box = effectiveGeometry(block);
+        if (
+          canvasPoint.x >= box.x - box.w / 2 &&
+          canvasPoint.x <= box.x + box.w / 2 &&
+          canvasPoint.y >= box.y - box.h / 2 &&
+          canvasPoint.y <= box.y + box.h / 2
+        ) {
+          containerId = childId;
+          break;
+        }
+      }
+    }
+    if (containerId !== null) {
+      if (event.shiftKey) {
+        containerRef.current?.focus();
+        if (selection.view !== null) toggleCanvasSelection(selection.view, containerId);
+        return;
+      }
+      event.preventDefault();
+      containerRef.current?.focus();
+      selection.view?.set({ kind: "blocks", ids: [containerId], anchorId: containerId });
+      viewport.beginMove([containerId], event.clientX, event.clientY);
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
@@ -746,8 +750,10 @@ function CanvasView() {
       // The drag-to-size preview: the box is the drag's extent (the
       // marquee's math), the center anchor is the drag's midpoint.
       const current = screenToCanvas(point, viewport.zoom, viewport.pan);
+      const isContainer = session.tool === "container";
       viewport.setPlacePreview({
-        variant: session.tool,
+        kind: isContainer ? "container" : "shape",
+        variant: session.tool === "container" ? "rect" : session.tool,
         x: (session.start.x + current.x) / 2,
         y: (session.start.y + current.y) / 2,
         w: Math.max(Math.abs(current.x - session.start.x), 1),
@@ -929,6 +935,24 @@ function CanvasView() {
     if (fromHit !== null) {
       const id = fromHit.getAttribute("data-connector-hit");
       if (id !== null) viewport.setConnectorLabelEditing(id);
+      return;
+    }
+    // The container's TITLE inline edit (the chip's double-click): the same
+    // capture-retargeting stand as the shape's text — the press's pointer
+    // capture retargets the dblclick to THIS container, so the chip is found
+    // through the point's element (the group's id stands the inline-edit id).
+    const groupTitleFromTarget =
+      event.target instanceof Element ? event.target.closest<HTMLElement>("[data-slot='docblocks/group-title']") : null;
+    let groupTitle = groupTitleFromTarget;
+    if (groupTitle === null && typeof document.elementFromPoint === "function") {
+      const element = document.elementFromPoint(event.clientX, event.clientY);
+      groupTitle =
+        element instanceof Element ? element.closest<HTMLElement>("[data-slot='docblocks/group-title']") : null;
+    }
+    if (groupTitle !== null) {
+      const groupId =
+        groupTitle.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ?? null;
+      if (groupId !== null) viewport.setShapeTextEditing(groupId);
       return;
     }
     // A retargeted event stands the target's closest first (the bubbling
@@ -1255,19 +1279,26 @@ function CanvasView() {
                 opacity: 0.6,
               }}
             >
-              <ShapeSvg
-                id="docblocks-place-preview"
-                block={{
-                  type: "shape",
-                  attrs: { variant: viewport.placePreview.variant, stroke: "currentColor", strokeStyle: "dash" },
-                  geometry: {
-                    x: 0,
-                    y: 0,
-                    w: viewport.placePreview.w,
-                    h: viewport.placePreview.h,
-                  },
-                }}
-              />
+              {viewport.placePreview.kind === "container" ? (
+                <div
+                  className="h-full w-full rounded-(--docblocks-radius) border-2 border-dashed"
+                  style={{ borderColor: "currentColor" }}
+                />
+              ) : (
+                <ShapeSvg
+                  id="docblocks-place-preview"
+                  block={{
+                    type: "shape",
+                    attrs: { variant: viewport.placePreview.variant, stroke: "currentColor", strokeStyle: "dash" },
+                    geometry: {
+                      x: 0,
+                      y: 0,
+                      w: viewport.placePreview.w,
+                      h: viewport.placePreview.h,
+                    },
+                  }}
+                />
+              )}
             </div>
           )}
           {(viewport.pendingConnector !== null || viewport.pendingFree !== null) &&
@@ -1349,6 +1380,41 @@ function CanvasView() {
             }}
           />
         )}
+        {viewport.dropIndicators !== null &&
+          viewport.dropIndicators.map((indicator) => {
+            const figure = blocks[indicator.id];
+            if (figure === undefined) return null;
+            const base = effectiveGeometry(figure);
+            const mv = viewport.movePreview;
+            // The icon stands above the figure's live top edge (the move
+            // preview's delta, the screen space — the on-screen size stands
+            // at any zoom).
+            const screen = canvasToScreen(
+              { x: base.x + (mv?.dx ?? 0), y: base.y + (mv?.dy ?? 0) - base.h / 2 - 14 },
+              viewport.zoom,
+              viewport.pan
+            );
+            const isOut = indicator.kind === "out";
+            return (
+              <div
+                key={`${indicator.id}-${indicator.containerId}`}
+                data-slot="docblocks/canvas-drop-indicator"
+                data-drop={indicator.kind}
+                className="
+                  pointer-events-none absolute z-40 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center
+                  justify-center rounded-full
+                "
+                style={{
+                  left: `calc(50% + ${screen.x}px)`,
+                  top: `calc(50% + ${screen.y}px)`,
+                  background: isOut ? "var(--destructive, #ef4444)" : "var(--docblocks-canvas-connect-color, #16a34a)",
+                  color: "var(--docblocks-page-card-background, #ffffff)",
+                }}
+              >
+                <Container className="size-4" />
+              </div>
+            );
+          })}
         {handleTarget !== null &&
           viewport.activeTool === null &&
           viewport.movePreview === null &&
@@ -1381,7 +1447,7 @@ function CanvasView() {
                   style={style}
                 />
               ))}
-              {handleTarget.id !== rootBlockId && (
+              {handleTarget.id !== rootBlockId && blocks[handleTarget.id]?.type !== "group" && (
                 // The page miniature stands no rotate handle (the rotation
                 // affordance is off for the editor; the shapes keep it).
                 <div

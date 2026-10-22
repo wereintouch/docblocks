@@ -125,17 +125,21 @@ interface CanvasTextAttrs {
 }
 
 /**
- * The canvas GROUP (a flat marker, not a container ): the members are the surface's SIBLING blocks (weak refs,
- * like the connector endpoints — a dangling member stands the lenient
- * read: skipped, not rewritten). The group carries NO geometry of its
- * own: its box is DERIVED as the union of the members' effective boxes
- * (like the flat runs / numbering), so the group-move batch is a
- * setGeometry on every member in one transact (one undo step, one wire
- * update) and the outline never goes stale.
+ * The canvas GROUP (the container, — the
+ * flat marker reworked): the members are the surface's SIBLING blocks
+ * (weak refs, like the connector endpoints — a dangling member stands the
+ * lenient read: skipped, not rewritten). The group carries its OWN
+ * geometry (a free box, independent of the members — the members' absolute
+ * coordinates stand; moving the group moves the box and the members by
+ * one delta in one transact). The optional `title` stands the container's
+ * label (the empty-string convention: absent or the empty string is no
+ * title — the chip stands off).
  */
 interface GroupAttrs {
   /** The member block ids (weak refs to the group's surface siblings). */
   members: BlockId[];
+  /** The container's label (absent or the empty string = no title). */
+  title?: string;
 }
 
 interface SurfaceAttrs {

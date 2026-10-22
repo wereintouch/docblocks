@@ -7,9 +7,17 @@ import { useCallback, useRef, useState } from "react";
 
 import type { Block, Doc } from "docblocks-core";
 
-import { effectiveGeometry, endpointPointOf, portOfNormal } from "../../blocks/canvas-geometry";
+import { boxContains, effectiveGeometry, endpointPointOf, portOfNormal } from "../../blocks/canvas-geometry";
 import type { CanvasPort } from "../../blocks/canvas-geometry";
-import { findParentSurface, firstSurface, placeCanvasText, placeFrame, placePenStroke, placeShape } from "../insert";
+import {
+  findParentSurface,
+  firstSurface,
+  placeCanvasText,
+  placeContainer,
+  placeFrame,
+  placePenStroke,
+  placeShape,
+} from "../insert";
 import {
   TOOL_SIZES,
   marqueeRect,
@@ -24,6 +32,7 @@ import type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle,
 import { ENDPOINT_RELEASE_THRESHOLD_PX } from "./models";
 import type {
   CanvasViewportState,
+  DropIndicator,
   EndpointDrag,
   EndpointPreview,
   EndpointSession,
@@ -42,6 +51,63 @@ function roundPortT(t: number): number {
   return Number(t.toFixed(4));
 }
 
+/** The containers (the groups) of every surface, with their live box and
+ * the stored members (the shared canvas space) — the drop's stand and the
+ * release's membership commit share the one read. */
+function containersOf(doc: Doc): { id: string; box: Box; members: string[] }[] {
+  const containers: { id: string; box: Box; members: string[] }[] = [];
+  for (const surfaceId of doc.getChildren(doc.meta.id)) {
+    const surface = doc.getBlock(surfaceId);
+    if (surface === null || surface.type !== "surface") continue;
+    for (const childId of doc.getChildren(surfaceId)) {
+      const child = doc.getBlock(childId);
+      if (child === null || child.type !== "group") continue;
+      containers.push({ id: childId, box: effectiveGeometry(child), members: child.attrs.members });
+    }
+  }
+  return containers;
+}
+
+/**
+ * The move's drop indicator: for each
+ * dragged shape, the container it joins (kind "in" — the green icon, the
+ * fully-containing box it is not yet a member of) or the container it
+ * leaves (kind "out" — the red icon, the member no longer inside its own
+ * box). A member dragged into another container stands the green stand of
+ * the new home (the release's commit moves it between the two). The
+ * container's own move (the box and the members stand the one delta)
+ * stands no indicator — the members stay inside the moving box.
+ */
+function computeDropIndicators(doc: Doc, ids: string[], dx: number, dy: number): DropIndicator[] {
+  // The container's own move stands no indicator (the members stand the
+  // box's delta — the relative position is invariant).
+  const movedGroup = ids.some((id) => {
+    const b = doc.getBlock(id);
+    return b !== null && b.type === "group";
+  });
+  if (movedGroup) return [];
+  const containers = containersOf(doc);
+  if (containers.length === 0) return [];
+  const indicators: DropIndicator[] = [];
+  for (const id of ids) {
+    const block = doc.getBlock(id);
+    // The scope: the membership's drag-in /
+    // drag-out stands the shapes only (the connector has no box, the group
+    // never nests, the canvas-text / frame stand no membership in v1).
+    if (block === null || block.type !== "shape") continue;
+    const base = effectiveGeometry(block);
+    const figure = { x: base.x + dx, y: base.y + dy, w: base.w, h: base.h };
+    const owner = containers.find((c) => c.members.includes(id));
+    const target = containers.find((c) => boxContains(figure, c.box));
+    if (target !== undefined && target.id !== owner?.id) {
+      indicators.push({ id, containerId: target.id, kind: "in" });
+    } else if (owner !== undefined && !boxContains(figure, owner.box)) {
+      indicators.push({ id, containerId: owner.id, kind: "out" });
+    }
+  }
+  return indicators;
+}
+
 function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [zoom, setZoomState] = useState(1);
   const [pan, setPan] = useState<ScreenPoint>({ x: 0, y: 0 });
@@ -55,6 +121,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [marquee, setMarquee] = useState<MarqueeState | null>(null);
   const [penPoints, setPenPoints] = useState<CanvasPoint[]>([]);
   const [movePreview, setMovePreview] = useState<MovePreview | null>(null);
+  const [dropIndicators, setDropIndicators] = useState<DropIndicator[] | null>(null);
   const [placePreview, setPlacePreview] = useState<PlacePreview | null>(null);
   const [connectorPreview, setConnectorPreview] = useState<CanvasPoint | null>(null);
   const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
@@ -63,6 +130,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [connectorLabelEditing, setConnectorLabelEditing] = useState<string | null>(null);
   const endpointRef = useRef<EndpointSession | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
+  const dropRef = useRef<DropIndicator[] | null>(null);
 
   const setZoom = useCallback((next: number) => setZoomState(next), []);
   const step = useCallback((direction: 1 | -1) => setZoomState((current) => stepZoom(current, direction)), []);
@@ -123,6 +191,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
           case "cloud":
             placeShape(doc, tool, point, size);
             break;
+          case "container":
+            placeContainer(doc, point, size);
+            break;
           case "text":
             placeCanvasText(doc, point, size);
             break;
@@ -153,6 +224,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
           case "cylinder":
           case "cloud":
             placeShape(doc, tool, point, size);
+            break;
+          case "container":
+            placeContainer(doc, point, size);
             break;
         }
       } catch {
@@ -363,21 +437,37 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const beginMove = useCallback(
     (ids: string[], startClientX: number, startClientY: number) => {
       const snapshot: MoveSession["snapshot"] = {};
+      const allIds: string[] = [];
       for (const id of ids) {
         const block = doc.getBlock(id);
         // The connector carries no geometry of its own (its endpoints
-        // follow the blocks): it is never a move target. The group is the
-        // same (its box is DERIVED from the members — the session over a
-        // group selection feeds the MEMBERS' ids, the group itself is
-        // never a target; a skipped id stands no snapshot, and the
-        // release commit skips the snapshot-less ids).
-        if (block === null || block.type === "connector" || block.type === "group") continue;
+        // follow the blocks): it is never a move target.
+        if (block === null || block.type === "connector") continue;
+        if (block.type === "group") {
+          // The container moves as a unit:
+          // the box and the members stand the one delta (the members keep
+          // their absolute coordinates — the union is not re-derived). The
+          // dangling member (a concurrent removal) is skipped, not
+          // rewritten.
+          allIds.push(id);
+          snapshot[id] = effectiveGeometry(block);
+          for (const memberId of block.attrs.members) {
+            const member = doc.getBlock(memberId);
+            if (member === null || member.type === "connector" || member.type === "group") continue;
+            if (allIds.includes(memberId)) continue;
+            allIds.push(memberId);
+            snapshot[memberId] = effectiveGeometry(member);
+          }
+          continue;
+        }
+        if (allIds.includes(id)) continue;
+        allIds.push(id);
         // The effective box the element stands at (the stored geometry or
         // the synthesized default) — the release commit writes a complete
         // x/y/w/h patch from it.
         snapshot[id] = effectiveGeometry(block);
       }
-      moveRef.current = { ids, startClientX, startClientY, snapshot, dragging: false, dx: 0, dy: 0 };
+      moveRef.current = { ids: allIds, startClientX, startClientY, snapshot, dragging: false, dx: 0, dy: 0 };
       setMovePreview(null);
     },
     [doc]
@@ -395,21 +485,29 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       session.dx = delta.x;
       session.dy = delta.y;
       setMovePreview({ ids: session.ids, dx: delta.x, dy: delta.y });
+      // The drop indicator (the green / red stand): the release commit reads the session's last stand.
+      const indicators = computeDropIndicators(doc, session.ids, delta.x, delta.y);
+      dropRef.current = indicators;
+      setDropIndicators(indicators.length > 0 ? indicators : null);
     },
-    [zoom]
+    [doc, zoom]
   );
 
   const endMove = useCallback(() => {
     const session = moveRef.current;
     moveRef.current = null;
+    const drops = dropRef.current;
+    dropRef.current = null;
     setMovePreview(null);
+    setDropIndicators(null);
     if (session === null || !session.dragging) return;
-    // One transact for the whole (group) move: one undo step, one wire
-    // update. A vanished block (a concurrent removal) is skipped; a
-    // vanished-everything session stands no transact at all (an empty
-    // transact stamps the meta and emits an update for nothing).
+    // One transact for the whole (group) move + the drop's membership:
+    // one undo step, one wire update. A vanished block (a concurrent
+    // removal) is skipped; a vanished-everything session with no drop
+    // stands no transact at all (an empty transact stamps the meta and
+    // emits an update for nothing).
     const targets = session.ids.filter((id) => session.snapshot[id] !== undefined && doc.getBlock(id) !== null);
-    if (targets.length === 0) return;
+    if (targets.length === 0 && (drops === null || drops.length === 0)) return;
     doc.transact(() => {
       for (const id of targets) {
         const snap = session.snapshot[id];
@@ -421,12 +519,47 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
           h: snap.h,
         });
       }
+      // The drop's membership: each dragged
+      // shape's membership stands its RELEASE position (the recompute, not
+      // the indicator — the release's truth is the final box). The
+      // fully-containing container is the home (the shape joins it, leaving
+      // any previous owner); no fully-containing container stands the
+      // removal from the owner (the drag-out). The container's own move
+      // (a group in the session) stands no membership change — the members'
+      // relative position is invariant. The members' reads are FRESH (the
+      // doc's own state) so several shapes joining one container compose.
+      if (!targets.some((id) => doc.getBlock(id)?.type === "group")) {
+        const containers = containersOf(doc);
+        for (const id of targets) {
+          if (doc.getBlock(id)?.type !== "shape") continue;
+          const snap = session.snapshot[id];
+          if (snap === undefined) continue;
+          const finalBox = { x: snap.x + session.dx, y: snap.y + session.dy, w: snap.w, h: snap.h };
+          const target = containers.find((c) => boxContains(finalBox, c.box));
+          // Leave the owner(s) it no longer stands in (the home excepted).
+          for (const container of containers) {
+            const fresh = doc.getBlock(container.id);
+            if (fresh === null || fresh.type !== "group" || !fresh.attrs.members.includes(id)) continue;
+            if (target !== undefined && container.id === target.id) continue;
+            doc.updateBlock(container.id, { members: fresh.attrs.members.filter((m) => m !== id) });
+          }
+          // Join the home (the fresh read — the members list is the doc's own).
+          if (target !== undefined) {
+            const home = doc.getBlock(target.id);
+            if (home !== null && home.type === "group" && !home.attrs.members.includes(id)) {
+              doc.updateBlock(target.id, { members: [...home.attrs.members, id] });
+            }
+          }
+        }
+      }
     });
   }, [doc]);
 
   const cancelMove = useCallback(() => {
     moveRef.current = null;
+    dropRef.current = null;
     setMovePreview(null);
+    setDropIndicators(null);
   }, []);
 
   const resizeRef = useRef<ResizeSession | null>(null);
@@ -555,6 +688,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     marquee,
     penPoints,
     movePreview,
+    dropIndicators,
     resizePreview,
     rotatePreview,
     placePreview,

@@ -13,6 +13,7 @@ import {
   ArrowRight,
   Circle,
   Cloud,
+  Container,
   Cylinder,
   Diamond,
   Hand,
@@ -52,6 +53,7 @@ const SHAPE_IDS: CanvasTool[] = SHAPE_TOOLS.map((tool) => tool.id);
 const TOOL_GROUPS: DockTool[][] = [
   [{ id: "text", label: "Text", icon: Type }],
   [{ id: "frame", label: "Frame", icon: SquareSplitVertical }],
+  [{ id: "container", label: "Container", icon: Container }],
   [{ id: "connector", label: "Connector", icon: ArrowRight }],
   [{ id: "pen", label: "Pen", icon: Pen }],
 ];

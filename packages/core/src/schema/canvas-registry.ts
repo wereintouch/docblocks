@@ -129,17 +129,19 @@ const CANVAS_BLOCK_SPECS: Pick<
       textAlign: { kind: "string" },
     },
   },
-  // The flat group marker: the members are
-  // weak refs to the surface's sibling blocks (the registry's array +
-  // items checks the shape; the dangling member stands the lenient read).
-  // The group carries no geometry — its box is derived from the members'
-  // union, so the setGeometry command refuses it (the derived invariant).
+  // The canvas group (the container): the
+  // members are weak refs to the surface's sibling blocks (the registry's
+  // array + items checks the shape; the dangling member stands the lenient
+  // read). The group carries its own geometry (a free box) + the optional
+  // title (the empty-string convention) — the setGeometry command stands
+  // the box.
   group: {
     content: false,
     children: false,
     rows: false,
     attrs: {
       members: { kind: "array", required: true, items: { kind: "string", nonEmpty: true } },
+      title: { kind: "string" },
     },
   },
 };

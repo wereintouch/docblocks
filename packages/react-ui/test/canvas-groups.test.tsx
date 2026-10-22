@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
-// The canvas groups (the flat marker): the
-// derived union box's pure math, the outline's render (the lenient read
-// over the dangling / the member-less group), the group's press (the band
-// hit's selection + the members' move session), and the hotkeys
-// (Ctrl/Cmd+G's group, the Shift's dissolve) over the doc.
+// The canvas container (the reworked group):
+// the group's own free geometry + the title attr, the positioned render
+// (the border + the title chip), the border's press selection, the
+// container move (the box + the members, one transact), the makeGroup /
+// dissolveGroup commands, and the Ctrl/Cmd+G hotkeys over the doc.
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
-import type { Block, BlockId } from "docblocks-core";
+import type { Block } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/EditorProvider";
-import { groupBoxOf, groupMemberIds } from "../src/blocks/canvas-geometry";
+import { boxContains } from "../src/blocks/canvas-geometry";
 import { dissolveGroup, makeGroup } from "../src/canvas/insert";
 
 const CREATED_AT = "2026-10-21T00:00:00.000Z";
@@ -38,7 +38,13 @@ function seededDoc(withGroup: boolean): { doc: TestDoc; a: string; b: string; c:
   doc.setGeometry(b, { x: 100, y: 50, w: 80, h: 60 });
   const c = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
   doc.setGeometry(c, { x: 0, y: 200, w: 60, h: 40 });
-  const group = withGroup ? doc.insertBlock("group", { members: [a, b] }, { parent: surface }) : null;
+  let group: string | null = null;
+  if (withGroup) {
+    group = doc.insertBlock("group", { members: [a, b] }, { parent: surface });
+    // The container's own free box: it
+    // stands its own geometry, independent of the members' union.
+    doc.setGeometry(group, { x: 0, y: 0, w: 400, h: 240 });
+  }
   return { doc, a, b, c, group: group ?? "" };
 }
 
@@ -54,57 +60,31 @@ function renderCanvas(withGroup: boolean): Rendered {
   return { doc, a, b, c, group: group ?? "", view, json: () => doc.toJSON() };
 }
 
-/** The blocks map of the doc (the pure helpers' input). */
-function blocksOf(doc: TestDoc): Record<BlockId, Block> {
-  const json = doc.toJSON();
-  return json.blocks as Record<BlockId, Block>;
-}
-
 afterEach(() => {
   cleanup();
 });
 
-describe("the derived box's pure math", () => {
-  it("stands the union of the members' effective boxes (the center-anchor form)", () => {
-    const { doc, a, b, c } = seededDoc(false);
-    const blocks = blocksOf(doc);
-    // a: center (-100, -50) 100x60 → [-150..-50, -80..-20]
-    // b: center (100, 50) 80x60 → [60..140, 20..80]
-    const box = groupBoxOf([a, b], [a, b, c], blocks);
-    expect(box).toEqual({ x: (-150 + 140) / 2, y: (-80 + 80) / 2, w: 290, h: 160 });
-    // The member-less / the undefined members stand nothing.
-    expect(groupBoxOf([], [a, b, c], blocks)).toBeNull();
-    expect(groupBoxOf(undefined, [a, b, c], blocks)).toBeNull();
+describe("the drop's containment math (the fully-inside test)", () => {
+  it("stands true when the figure's box is fully inside the container's (the edge touch stands contained)", () => {
+    const container = { x: 0, y: 0, w: 200, h: 100 }; // [-100..100, -50..50]
+    // Fully inside (with margin).
+    expect(boxContains({ x: 0, y: 0, w: 100, h: 40 }, container)).toBe(true);
+    // The edge touch stands contained (the figure's box equals the
+    // container's box).
+    expect(boxContains({ x: 0, y: 0, w: 200, h: 100 }, container)).toBe(true);
+    // The touch of the figure's corner to the container's edge (the figure
+    // is exactly half inside).
+    expect(boxContains({ x: 50, y: 0, w: 100, h: 40 }, container)).toBe(true);
   });
 
-  it("skips the dangling ref, the non-sibling ref, the connector, and the group (the weak ref posture)", () => {
-    const doc = createDoc({ id: "g2", createdAt: CREATED_AT });
-    const surface = doc.insertBlock("surface");
-    const s1 = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-    doc.setGeometry(s1, { x: 0, y: 0, w: 40, h: 40 });
-    const other = doc.insertBlock("surface");
-    const foreign = doc.insertBlock("shape", { variant: "rect" }, { parent: other });
-    doc.setGeometry(foreign, { x: 0, y: 0, w: 40, h: 40 });
-    const connector = doc.insertBlock(
-      "connector",
-      { start: { blockId: s1 }, end: { blockId: s1 } },
-      { parent: surface }
-    );
-    const group1 = doc.insertBlock("group", { members: [s1] }, { parent: surface });
-    const blocks = blocksOf(doc);
-    // The group's surface siblings (the foreign surface's child is NOT a
-    // sibling — it is skipped by the ref resolution).
-    const siblings = [s1, connector, group1];
-    const effective = groupMemberIds([s1, "ghost", foreign, connector, group1], siblings, blocks);
-    expect(effective).toEqual([s1]);
-    expect(groupBoxOf([s1, "ghost", foreign, connector, group1], siblings, blocks)).toEqual({
-      x: 0,
-      y: 0,
-      w: 40,
-      h: 40,
-    });
-    // A foreign surface's member is not a sibling: skipped.
-    expect(groupMemberIds([foreign], siblings, blocks)).toEqual([]);
+  it("stands false when the figure's box overruns the container's edge", () => {
+    const container = { x: 0, y: 0, w: 200, h: 100 };
+    // The right edge overruns.
+    expect(boxContains({ x: 80, y: 0, w: 100, h: 40 }, container)).toBe(false);
+    // The bottom edge overruns.
+    expect(boxContains({ x: 0, y: 40, w: 100, h: 40 }, container)).toBe(false);
+    // The figure is outside.
+    expect(boxContains({ x: -200, y: 0, w: 100, h: 40 }, container)).toBe(false);
   });
 });
 
@@ -115,7 +95,8 @@ describe("the makeGroup / dissolveGroup commands", () => {
     expect(created).not.toBeNull();
     const group = doc.getBlock(created!);
     expect(group).toMatchObject({ type: "group", attrs: { members: [a, b] } });
-    // The members stand where they are (the marker is not a container).
+    // The members stand where they are (the container is not a structural
+    // parent — the membership is the weak ref list).
     expect(doc.getBlock(a)).not.toBeNull();
     expect(doc.getBlock(b)).not.toBeNull();
     // One undo step: the group goes, the members' geometry stands.
@@ -138,7 +119,9 @@ describe("the makeGroup / dissolveGroup commands", () => {
     const sameConnector = doc.insertBlock(
       "connector",
       { start: { blockId: a }, end: { blockId: b } },
-      { parent: surface }
+      {
+        parent: surface,
+      }
     );
     expect(makeGroup(doc, [a, sameConnector])).toBeNull();
     // The doc stands unchanged (no group written).
@@ -160,69 +143,103 @@ describe("the makeGroup / dissolveGroup commands", () => {
   });
 });
 
-describe("the outline's render", () => {
-  it("stands the dashed outline over the members' union (no phantom item wrapper)", () => {
+describe("the container's render (the reworked group)", () => {
+  it("stands the positioned item with its own box (the border + the interior pointer pass-through)", () => {
     const r = renderCanvas(true);
-    const outline = r.view.querySelector<SVGRectElement>(
-      `[data-slot="docblocks/canvas-group"][data-block-id="${r.group}"] [data-slot="docblocks/canvas-group-outline"]`
+    // The group stands a positioned canvas item : the wrapper at its own free box, the border inside.
+    const wrapper = r.view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
     );
-    expect(outline).not.toBeNull();
-    // The union of a (-100,-50,100x60) and b (100,50,80x60) + the 4px
-    // breath: left = -150-4, top = -80-4, width = 290+8, height = 160+8.
-    expect(Number(outline!.getAttribute("x"))).toBe(-154);
-    expect(Number(outline!.getAttribute("y"))).toBe(-84);
-    expect(Number(outline!.getAttribute("width"))).toBe(298);
-    expect(Number(outline!.getAttribute("height"))).toBe(168);
-    // The group stands no positioned item (the marker carries no box).
-    expect(r.view.querySelector(`[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`)).toBeNull();
-    // The hit band stands (the wide transparent stroke).
-    expect(r.view.querySelector(`[data-group-hit="${r.group}"]`)).not.toBeNull();
+    expect(wrapper).not.toBeNull();
+    const border = r.view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/group-border"][data-block-id="${r.group}"], [data-slot="docblocks/group-border"]`
+    );
+    expect(border).not.toBeNull();
+    // The member-less title stands off (no title attr — the chip is absent).
+    expect(r.view.querySelector("[data-slot='docblocks/group-title']")).toBeNull();
   });
 
-  it("the lenient read: the dangling member stands the reduced union; the member-less group stands nothing", () => {
+  it("stands the title chip when the title is set (the empty string stands off)", () => {
     const r = renderCanvas(true);
-    // Remove a member (the race's / the dissolve's shape): the union
-    // stands over the survivor only (the act wraps the store-driven
-    // re-render — the raw doc op stands no act of its own).
     act(() => {
-      r.doc.removeBlock(r.b);
+      r.doc.updateBlock(r.group, { title: "my container" });
     });
-    const outline = r.view.querySelector<SVGRectElement>("[data-slot='docblocks/canvas-group-outline']");
-    expect(outline).not.toBeNull();
-    // a alone: [-150..-50, -80..-20] + the breath.
-    expect(Number(outline!.getAttribute("x"))).toBe(-154);
-    expect(Number(outline!.getAttribute("width"))).toBe(108);
-
-    const doc = createDoc({ id: "g-empty", createdAt: CREATED_AT });
-    const surface = doc.insertBlock("surface");
-    const s1 = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-    doc.setGeometry(s1, { x: 0, y: 0, w: 40, h: 40 });
-    doc.insertBlock("group", { members: ["ghost"] }, { parent: surface });
-    const { container } = render(
-      <EditorProvider doc={doc}>
-        <Editor view="canvas" />
-      </EditorProvider>
-    );
-    expect(container.querySelector("[data-slot='docblocks/canvas-group-outline']")).toBeNull();
-  });
-
-  it("the selected group stands the selection's emphasis (the band's press)", () => {
-    const r = renderCanvas(true);
-    const outline = r.view.querySelector<SVGRectElement>("[data-slot='docblocks/canvas-group-outline']");
-    expect(outline?.hasAttribute("data-selected")).toBe(false);
-    const hit = r.view.querySelector<SVGElement>(`[data-group-hit="${r.group}"]`);
-    expect(hit).not.toBeNull();
-    // The band's press: the group stands selected (the members' move
-    // session opens — the no-op release commits nothing).
-    fireEvent.pointerDown(hit!, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
-    expect(outline!.hasAttribute("data-selected")).toBe(true);
-    fireEvent.pointerUp(hit!, { pointerId: 1 });
-    // The no-op press (no drag): the doc stands unchanged.
-    expect(r.json().blocks[r.group]).toMatchObject({ type: "group" });
+    const chip = r.view.querySelector<HTMLElement>("[data-slot='docblocks/group-title']");
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toBe("my container");
+    // The empty string is the removed state: the chip stands off.
+    act(() => {
+      r.doc.updateBlock(r.group, { title: "" });
+    });
+    expect(r.view.querySelector("[data-slot='docblocks/group-title']")).toBeNull();
   });
 });
 
-describe("the hotkeys", () => {
+describe("the container's selection + move", () => {
+  it("the border's press selects the container (the no-op release commits nothing)", () => {
+    const r = renderCanvas(true);
+    const wrapper = r.view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
+    );
+    const border = wrapper!.querySelector<HTMLElement>("[data-slot='docblocks/group-border']");
+    expect(wrapper?.hasAttribute("data-selected")).toBe(false);
+    expect(border).not.toBeNull();
+    // The border's press: the group stands selected (the move session
+    // opens — the no-op release commits nothing).
+    fireEvent.pointerDown(border!, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
+    expect(wrapper!.hasAttribute("data-selected")).toBe(true);
+    fireEvent.pointerUp(border!, { pointerId: 1 });
+    // The no-op press (no drag): the doc stands unchanged.
+    expect(r.json().blocks[r.group]).toMatchObject({ type: "group" });
+  });
+
+  it("the container's drag moves the box and the members (one transact, one undo)", () => {
+    const r = renderCanvas(true);
+    const wrapper = r.view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
+    );
+    const border = wrapper!.querySelector<HTMLElement>("[data-slot='docblocks/group-border']")!;
+    const aBefore = r.json().blocks[r.a]!;
+    const bBefore = r.json().blocks[r.b]!;
+    const groupBefore = r.json().blocks[r.group]!;
+    const cBefore = r.json().blocks[r.c];
+    fireEvent.pointerDown(border, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
+    // The real drag: the 3px threshold crossed, the zoom's 1x scale.
+    fireEvent.pointerMove(r.view, { clientX: 80, clientY: 60, buttons: 1, pointerId: 1 });
+    fireEvent.pointerUp(r.view, { pointerId: 1 });
+    // The container's box + the members stand the +30/+10 delta; c
+    // (outside the group) stands.
+    const aAfter = r.json().blocks[r.a]!;
+    const bAfter = r.json().blocks[r.b]!;
+    const groupAfter = r.json().blocks[r.group]!;
+    expect(groupAfter.geometry).toEqual({
+      x: (groupBefore.geometry?.x ?? 0) + 30,
+      y: (groupBefore.geometry?.y ?? 0) + 10,
+      w: 400,
+      h: 240,
+    });
+    expect(aAfter.geometry).toEqual({
+      x: (aBefore.geometry?.x ?? 0) + 30,
+      y: (aBefore.geometry?.y ?? 0) + 10,
+      w: 100,
+      h: 60,
+    });
+    expect(bAfter.geometry).toEqual({
+      x: (bBefore.geometry?.x ?? 0) + 30,
+      y: (bBefore.geometry?.y ?? 0) + 10,
+      w: 80,
+      h: 60,
+    });
+    expect(r.json().blocks[r.c]).toEqual(cBefore);
+    // One undo step reverts the whole container move (the box + the members).
+    r.doc.undo();
+    expect(r.json().blocks[r.a]).toEqual(aBefore);
+    expect(r.json().blocks[r.b]).toEqual(bBefore);
+    expect(r.json().blocks[r.group]).toEqual(groupBefore);
+  });
+});
+
+describe("the hotkeys (Ctrl/Cmd+G)", () => {
   it("Ctrl/Cmd+G groups the multi selection (one transact, the group stands selected)", () => {
     const r = renderCanvas(false);
     const before = JSON.stringify(r.json());
@@ -242,9 +259,11 @@ describe("the hotkeys", () => {
     };
     expect(groupEntry).toBeDefined();
     expect(groupEntry.attrs).toMatchObject({ members: [r.a, r.b] });
-    // The group stands selected (the outline's emphasis).
-    const anyOutline = r.view.querySelector<SVGRectElement>("[data-slot='docblocks/canvas-group-outline']");
-    expect(anyOutline?.hasAttribute("data-selected")).toBe(true);
+    // The group stands selected (the positioned item's data-selected).
+    const groupId = (groupEntry as { id?: string }).id;
+    void groupId;
+    const selectedWrapper = r.view.querySelector<HTMLElement>("[data-slot='docblocks/canvas-item'][data-selected]");
+    expect(selectedWrapper).not.toBeNull();
     // One undo step dissolves the group (the members' geometry stands).
     const aBefore = r.json().blocks[r.a]!;
     r.doc.undo();
@@ -255,48 +274,16 @@ describe("the hotkeys", () => {
 
   it("Ctrl/Cmd+Shift+G dissolves the selected group (the members stand)", () => {
     const r = renderCanvas(true);
-    // Select the group over its band.
-    const hit = r.view.querySelector<SVGElement>(`[data-group-hit="${r.group}"]`)!;
-    fireEvent.pointerDown(hit, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(hit, { pointerId: 1 });
+    // Select the group over its border.
+    const wrapper = r.view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${r.group}"]`
+    )!;
+    const border = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/group-border']")!;
+    fireEvent.pointerDown(border, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
+    fireEvent.pointerUp(border, { pointerId: 1 });
     fireEvent.keyDown(r.view, { key: "g", metaKey: true, shiftKey: true });
     expect(r.json().blocks[r.group]).toBeUndefined();
     expect(r.json().blocks[r.a]).toBeDefined();
     expect(r.json().blocks[r.b]).toBeDefined();
-  });
-
-  it("the band's drag moves the members (one transact, the group stands untouched)", () => {
-    const r = renderCanvas(true);
-    const hit = r.view.querySelector<SVGElement>(`[data-group-hit="${r.group}"]`)!;
-    const aBefore = r.json().blocks[r.a]!;
-    const bBefore = r.json().blocks[r.b]!;
-    const cBefore = r.json().blocks[r.c];
-    fireEvent.pointerDown(hit, { clientX: 50, clientY: 50, buttons: 1, pointerId: 1 });
-    // The real drag: the 3px threshold crossed, the zoom's 1x scale.
-    fireEvent.pointerMove(r.view, { clientX: 80, clientY: 60, buttons: 1, pointerId: 1 });
-    fireEvent.pointerUp(r.view, { pointerId: 1 });
-    // a and b stand the +30/+10 delta; c (outside the group) stands.
-    const aAfter = r.json().blocks[r.a]!;
-    const bAfter = r.json().blocks[r.b]!;
-    expect(aAfter.geometry).toEqual({
-      x: (aBefore.geometry?.x ?? 0) + 30,
-      y: (aBefore.geometry?.y ?? 0) + 10,
-      w: 100,
-      h: 60,
-    });
-    expect(bAfter.geometry).toEqual({
-      x: (bBefore.geometry?.x ?? 0) + 30,
-      y: (bBefore.geometry?.y ?? 0) + 10,
-      w: 80,
-      h: 60,
-    });
-    expect(r.json().blocks[r.c]).toEqual(cBefore);
-    // The group stands untouched (no geometry of its own).
-    expect(r.json().blocks[r.group]).toMatchObject({ type: "group" });
-    expect(r.json().blocks[r.group]).not.toHaveProperty("geometry");
-    // One undo step reverts the whole group move.
-    r.doc.undo();
-    expect(r.json().blocks[r.a]).toEqual(aBefore);
-    expect(r.json().blocks[r.b]).toEqual(bBefore);
   });
 });

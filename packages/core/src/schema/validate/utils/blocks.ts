@@ -75,16 +75,6 @@ function validateCanvasBlock(
 ): void {
   const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
 
-  // The group's box is DERIVED from the members' union (the flat marker
-  // contract): a stored geometry would
-  // contradict the derived render, so the strict reader rejects it.
-  if (type === "group" && block.geometry !== undefined) {
-    errors.push({
-      path: `${path}.geometry`,
-      message: `A group must not carry a geometry (the box is derived from the members' union).`,
-    });
-  }
-
   if (attrs === undefined) return;
 
   const points = attrs.points;

@@ -13,8 +13,11 @@ import type {
   ScreenRect,
 } from "../viewport";
 
-/** The in-flight shape placement's preview (the center anchor, canvas coords). */
+/** The in-flight placement's preview (the center anchor, canvas coords).
+ * `kind` stands the preview's figure: a shape (the variant's silhouette)
+ * or the container (the plain rectangle border). */
 interface PlacePreview {
+  kind: "shape" | "container";
   variant: "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud";
   x: number;
   y: number;
@@ -51,6 +54,22 @@ interface MovePreview {
   ids: string[];
   dx: number;
   dy: number;
+}
+
+/**
+ * The in-flight move's drop indicator: the
+ * dragged figure lands in a container it is not yet a member of (kind "in"
+ * — the green icon), or a member is dragged out of its own container (kind
+ * "out" — the red icon). Pure view state: the doc writes on the release
+ * only (the membership commit stands in the move's one transact).
+ */
+interface DropIndicator {
+  /** The dragged figure's block id (the icon stands over it). */
+  id: string;
+  /** The container's group id (the drop target). */
+  containerId: string;
+  /** "in" (the drop-in — green) or "out" (the member leaving — red). */
+  kind: "in" | "out";
 }
 
 /** The in-flight resize session (one item, one handle). */
@@ -146,6 +165,9 @@ interface CanvasViewportState {
   penPoints: CanvasPoint[];
   /** The rendered move preview (null outside an in-flight drag). */
   movePreview: MovePreview | null;
+  /** The in-flight move's drop indicators (the green / red stand, the owner
+   * decision 2026-10-22); null outside a drag or when no drop stands. */
+  dropIndicators: DropIndicator[] | null;
   /** The rendered resize preview (null outside an in-flight drag). */
   resizePreview: { id: string; box: Box } | null;
   /** The rendered rotate preview (null outside an in-flight drag). */
@@ -277,6 +299,7 @@ export type {
   EndpointPreview,
   EndpointSession,
   EndpointSnap,
+  DropIndicator,
   MarqueeState,
   MovePreview,
   MoveSession,

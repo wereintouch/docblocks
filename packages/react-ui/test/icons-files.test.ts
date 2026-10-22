@@ -19,6 +19,7 @@ const ICON_SET = [
   "Circle",
   "CircleCheck",
   "Cloud",
+  "Container",
   "CodeXml",
   "Copy",
   "Curve",

@@ -155,6 +155,7 @@ describe("the dock", () => {
       marquee: null,
       penPoints: [],
       movePreview: null,
+      dropIndicators: null,
       placePreview: null,
       connectorPreview: null,
       connectorEndpoint: null,

@@ -8,7 +8,7 @@ import * as Y from "yjs";
 
 import type { Geometry } from "@docblocks-core/schema";
 
-import { InvalidGeometryError, InvalidOperationError, UnknownBlockError } from "../errors";
+import { InvalidGeometryError, UnknownBlockError } from "../errors";
 import { localTransact } from "../layout";
 import { blockTypeOf, getBlockMap } from "./structure";
 
@@ -36,14 +36,10 @@ function readGeometry(block: Y.Map<unknown>): Geometry | null {
 function setGeometry(ydoc: Y.Doc, blockId: string, geometry: Partial<Geometry> | null): void {
   const type = blockTypeOf(ydoc, blockId);
   if (type === null) throw new UnknownBlockError(`Unknown block "${blockId}".`);
-  // The group's box is DERIVED from the members' union (the flat marker
-  // contract): it carries no geometry of its own, and the group-move
-  // batch is a setGeometry on every MEMBER instead (one transact).
-  if (type === "group") {
-    throw new InvalidOperationError(
-      `Block "${blockId}" is a group: its box is derived from the members' union (move the members instead).`
-    );
-  }
+  // The group carries its OWN geometry (the container's free box, the owner
+  // decision 2026-10-22): the container stands its own box — the members'
+  // absolute coordinates stand (the group-move batch moves the box and the
+  // members by one delta).
   const block = getBlockMap(ydoc, blockId);
   if (block === null) throw new UnknownBlockError(`Unknown block "${blockId}".`);
 
