@@ -173,6 +173,10 @@ interface CanvasViewportState {
   /** The zoom step at the screen point (the wheel): the point under the
    * cursor stays fixed (the pan compensates the zoom change). */
   zoomAt: (point: ScreenPoint, direction: 1 | -1) => void;
+  /** The pinch's continuous zoom at the screen point (the wheel's
+   * ctrl/cmd): the zoom scales by the delta (the smooth stand, no step
+   * threshold), the point under the cursor stays fixed. */
+  pinchAt: (point: ScreenPoint, deltaY: number) => void;
   setPan: (pan: ScreenPoint) => void;
   setMode: (mode: CanvasMode) => void;
   setActiveTool: (tool: CanvasTool | null) => void;
