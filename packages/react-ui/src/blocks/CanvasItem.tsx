@@ -10,6 +10,7 @@ import type { MovePreview } from "../canvas/viewport-state";
 import { useBlock } from "../hooks";
 import { BlockView } from "./BlockView";
 import { FrameBlock } from "./FrameBlock";
+import { GroupBlock } from "./GroupBlock";
 import { ShapeSvg } from "./ShapeSvg";
 import { ShapeText } from "./ShapeText";
 import { TextBlock } from "./TextBlock";
@@ -73,6 +74,8 @@ function CanvasItem({
         <TextBlock id={id} block={block} tag="div" />
       ) : block.type === "frame" ? (
         <FrameBlock id={id} />
+      ) : block.type === "group" ? (
+        <GroupBlock id={id} block={block} selected={selected} />
       ) : null; // connector: the line lives in the overlay layer
   } else {
     content = <BlockView id={id} />;
@@ -83,7 +86,7 @@ function CanvasItem({
   // none): the wrapper is an empty box standing at the origin — it must
   // not catch pointers (the press falls through to the item below / the
   // empty canvas) and carries no geometry to move.
-  if (block.type === "connector") style.pointerEvents = "none";
+  if (block.type === "connector" || block.type === "group") style.pointerEvents = "none";
   // The move preview stands the wrapper offset from its committed
   // position (the release commit writes the geometry; the preview is
   // pure view state); the resize box / the rotate preview stand the same
@@ -136,7 +139,7 @@ function CanvasItem({
       // selected item's thin cyan outline (the shared selection token) stands
       // over the tint.
       className={
-        selected && block.type !== "connector"
+        selected && block.type !== "connector" && block.type !== "group"
           ? `
             bg-(--docblocks-selected-background) outline-(length:--docblocks-canvas-selection-border-width)
             outline-offset-1 outline-(color:--docblocks-canvas-selection-border-color) outline-solid

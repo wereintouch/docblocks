@@ -463,7 +463,7 @@ describe("group (the flat marker)", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("the strict validator: the members shape and the no-geometry invariant", () => {
+  it("the strict validator: the members shape and the title attr (the container)", () => {
     // A malformed members (raw write — the wire's newer-minor / corrupt data):
     const source = newDoc();
     const surface = source.insertBlock("surface");
@@ -476,22 +476,21 @@ describe("group (the flat marker)", () => {
     const badShape = validateDoc(source.toJSON());
     expect(badShape.some((entry) => entry.path === `blocks.${group}.attrs.members`)).toBe(true);
 
-    // The no-geometry invariant: a stored geometry contradicts the derived box.
+    // The title attr (a string; the empty-string convention) + the group's
+    // own geometry stand clean.
     const source2 = newDoc();
     const surface2 = source2.insertBlock("surface");
     const a2 = source2.insertBlock("shape", { variant: "rect" }, { parent: surface2 });
-    const group2 = source2.insertBlock("group", { members: [a2] }, { parent: surface2 });
+    const group2 = source2.insertBlock("group", { members: [a2], title: "container" }, { parent: surface2 });
+    source2.setGeometry(group2, { x: 0, y: 0, w: 100, h: 50 });
+    expect(validateDoc(source2.toJSON())).toEqual([]);
+    // A non-string title is rejected.
     source2.raw.transact(() => {
       const block = source2.raw.getMap("blocks").get(group2) as Y.Map<unknown>;
-      const geometry = new Y.Map<unknown>();
-      geometry.set("x", 1);
-      geometry.set("y", 2);
-      geometry.set("w", 3);
-      geometry.set("h", 4);
-      block.set("geometry", geometry);
+      (block.get("attrs") as Y.Map<unknown>).set("title", 42); // not a string
     });
-    const withGeometry = validateDoc(source2.toJSON());
-    expect(withGeometry.some((entry) => entry.message.includes("derived from the members"))).toBe(true);
+    const badTitle = validateDoc(source2.toJSON());
+    expect(badTitle.some((entry) => entry.path === `blocks.${group2}.attrs.title`)).toBe(true);
   });
 
   it("the group is canvas-only: not a page child, not a cell child", () => {

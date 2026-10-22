@@ -5,7 +5,7 @@ import type { BlockType } from "docblocks-core";
  *  normals, the orthogonal's stub / detour / tolerance). */
 
 /** The canvas-only element types (they render ONLY inside a surface). */
-const CANVAS_SUB_TYPES: readonly BlockType[] = ["shape", "connector", "canvas-text", "frame"];
+const CANVAS_SUB_TYPES: readonly BlockType[] = ["shape", "connector", "canvas-text", "frame", "group"];
 
 /** The default size (px) of a canvas element without a geometry. */
 const DEFAULT_CANVAS_ITEM_SIZE = 100;

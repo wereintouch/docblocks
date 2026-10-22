@@ -53,7 +53,17 @@ const MOVE_THRESHOLD_PX = 3;
 
 /** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
 type CanvasTool =
-  "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud" | "text" | "frame" | "connector" | "pen";
+  | "rect"
+  | "rounded"
+  | "ellipse"
+  | "diamond"
+  | "cylinder"
+  | "cloud"
+  | "container"
+  | "text"
+  | "frame"
+  | "connector"
+  | "pen";
 
 /** The pointer mode (the dock's hand toggle). */
 type CanvasMode = "default" | "pan";
@@ -86,6 +96,7 @@ const TOOL_SIZES: Record<CanvasTool, { w: number; h: number }> = {
   diamond: { w: 90, h: 90 },
   cylinder: { w: 100, h: 120 },
   cloud: { w: 130, h: 95 },
+  container: { w: 240, h: 160 },
   text: { w: 200, h: 40 },
   frame: { w: 320, h: 240 },
   connector: { w: 0, h: 0 }, // the connector carries no own geometry

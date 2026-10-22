@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
-import { InvalidGeometryError, InvalidOperationError, UnknownBlockError, createDoc, fromJSON } from "../src/core";
+import { InvalidGeometryError, UnknownBlockError, createDoc, fromJSON } from "../src/core";
 import type { Doc } from "../src/core";
 import type { Block, Geometry } from "../src/schema";
 import { validateDoc } from "../src/schema";
@@ -49,18 +49,30 @@ describe("setGeometry", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("refuses the group (the box is derived from the members' union — the flat marker contract)", () => {
+  it("stands the group's own box (the container's free geometry)", () => {
     const doc = newDoc();
     const surface = doc.insertBlock("surface");
     const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
     const group = doc.insertBlock("group", { members: [a] }, { parent: surface });
 
-    const error = expectThrows(() => doc.setGeometry(group, { x: 5 }), InvalidOperationError);
-    expect(error.message).toContain("derived from the members");
-    // The removal path stands the same refusal (the group carries no
-    // geometry to remove).
-    expectThrows(() => doc.setGeometry(group, null), InvalidOperationError);
-    // The entry stands untouched.
+    // A partial patch on a group without a geometry is an error (incomplete).
+    expectThrows(() => doc.setGeometry(group, { x: 5 }), InvalidGeometryError);
+    // A complete patch stands the box (the group's own free geometry).
+    doc.setGeometry(group, { x: 0, y: 0, w: 200, h: 100 });
+    expect(doc.getBlock(group)).toEqual({
+      type: "group",
+      attrs: { members: [a] },
+      geometry: { x: 0, y: 0, w: 200, h: 100 },
+    });
+    // The partial patch merges.
+    doc.setGeometry(group, { w: 300 });
+    expect(doc.getBlock(group)).toEqual({
+      type: "group",
+      attrs: { members: [a] },
+      geometry: { x: 0, y: 0, w: 300, h: 100 },
+    });
+    // The removal path drops the geometry.
+    doc.setGeometry(group, null);
     expect(doc.getBlock(group)).toEqual({ type: "group", attrs: { members: [a] } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });

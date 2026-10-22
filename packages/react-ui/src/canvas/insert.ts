@@ -74,6 +74,21 @@ export function placeFrame(doc: Doc, point: CanvasPoint, size: { w: number; h: n
 }
 
 /**
+ * A placed container (the reworked group):
+ * an empty group (no members yet — the figures are dragged into it) with
+ * its own free box. Returns the new group id.
+ */
+export function placeContainer(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
+  const surface = firstSurface(doc);
+  let id: BlockId | null = null;
+  doc.transact(() => {
+    id = doc.insertBlock("group", { members: [] }, { parent: surface });
+    doc.setGeometry(id, { x: point.x, y: point.y, w: size.w, h: size.h });
+  });
+  return id!;
+}
+
+/**
  * A placed connector between two canvas items of the same surface (the
  * endpoint refs; no own geometry — the overlay resolves the edge anchors).
  * Returns the new block id. Throws (and the transaction rolls back) when

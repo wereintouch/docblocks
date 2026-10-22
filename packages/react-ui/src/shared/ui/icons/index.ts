@@ -12,6 +12,7 @@ export { ChevronsUpDown } from "./ChevronsUpDown";
 export { Circle } from "./Circle";
 export { CircleCheck } from "./CircleCheck";
 export { Cloud } from "./Cloud";
+export { Container } from "./Container";
 export { CodeXml } from "./CodeXml";
 export { Copy } from "./Copy";
 export { Curve } from "./Curve";

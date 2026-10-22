@@ -94,10 +94,24 @@ type ShapeTool = Extract<CanvasTool, "rect" | "rounded" | "ellipse" | "diamond" 
  * ids, the non-click stands). */
 const SHAPE_TOOLS: readonly ShapeTool[] = ["rect", "rounded", "ellipse", "diamond", "cylinder", "cloud"];
 
+/** The placement tools with the drag-to-size gesture (the shape variants
+ * + the container —; the container's box is
+ * its own free geometry, like the shapes). */
+type PlaceTool = ShapeTool | "container";
+
+/** The place tools' id list (the drag-to-size session's gate). */
+const PLACE_TOOLS: readonly PlaceTool[] = [...SHAPE_TOOLS, "container"];
+
 /** The shape tool's stand (the drag-to-size session's gate, against the
  * click-to-place tools). */
 function isShapeTool(tool: CanvasTool): tool is ShapeTool {
   return (SHAPE_TOOLS as readonly CanvasTool[]).includes(tool);
+}
+
+/** The place tool's stand (the drag-to-size session's gate, against the
+ * click-to-place tools — the shapes + the container). */
+function isPlaceTool(tool: CanvasTool): tool is PlaceTool {
+  return (PLACE_TOOLS as readonly CanvasTool[]).includes(tool);
 }
 
 /** The in-flight canvas pointer session (the primary button only). */
@@ -105,7 +119,7 @@ type CanvasSession =
   | { kind: "pan"; startClientX: number; startClientY: number; startPanX: number; startPanY: number }
   | { kind: "marquee"; additive: boolean }
   | { kind: "pen"; points: { x: number; y: number }[] }
-  | { kind: "place"; tool: ShapeTool; start: CanvasPoint; startClientX: number; startClientY: number };
+  | { kind: "place"; tool: PlaceTool; start: CanvasPoint; startClientX: number; startClientY: number };
 
 /** The page-card scrollbar-strip guard width (the native thin bar's reach). */
 const SCROLLBAR_GUARD_PX = 12;
@@ -121,7 +135,8 @@ export {
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
   isShapeTool,
+  isPlaceTool,
   wheelGesture,
   wheelPanDeltas,
 };
-export type { CanvasSession, ShapeTool };
+export type { CanvasSession, PlaceTool, ShapeTool };
