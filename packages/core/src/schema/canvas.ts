@@ -110,10 +110,12 @@ interface ConnectorAttrs {
   strokeColor?: string;
   /** The line's stroke width in canvas px (1–4; absent = 1). */
   strokeWidth?: number;
-  /** The arrowhead's figure (absent = "arrow"). */
+  /** The arrowhead's figure at the end endpoint (absent = "arrow"). */
   arrowHead?: "none" | "arrow" | "circle";
-  /** Stand an arrowhead at the start endpoint too. */
-  arrowStart?: boolean;
+  /** The arrowhead's figure at the START endpoint (absent = no start
+   * marker). Independent of the end's figure: the start marker stands
+   * its own figure, not a copy of the end. */
+  arrowStart?: "none" | "arrow" | "circle";
 }
 
 interface CanvasTextAttrs {

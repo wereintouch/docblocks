@@ -250,14 +250,20 @@ describe("strict validation (validateDoc)", () => {
     expect(tooThick.some((e) => e.path === "blocks.c1.attrs.strokeWidth")).toBe(true);
     const fractional = validateDoc(conn({ strokeWidth: 1.5 }));
     expect(fractional.some((e) => e.path === "blocks.c1.attrs.strokeWidth")).toBe(true);
-    // The arrowhead's enum.
+    // The arrowhead's enum (both ends are figure enums; the start side
+    // stands its own figure, the end defaults to "arrow" at render).
     const badHead = validateDoc(conn({ arrowHead: "diamond" }));
     expect(badHead.some((e) => e.path === "blocks.c1.attrs.arrowHead")).toBe(true);
-    // The start side is a boolean.
     const badStart = validateDoc(conn({ arrowStart: "yes" }));
     expect(badStart.some((e) => e.path === "blocks.c1.attrs.arrowStart")).toBe(true);
+    // The legacy boolean form is rejected by the strict validator (the
+    // lenient read maps it — the read's pin below).
+    const legacyBoolean = validateDoc(conn({ arrowStart: true }));
+    expect(legacyBoolean.some((e) => e.path === "blocks.c1.attrs.arrowStart")).toBe(true);
     // The full set stands (the strict validator is clean).
-    const valid = validateDoc(conn({ strokeColor: "#ff0000", strokeWidth: 4, arrowHead: "circle", arrowStart: true }));
+    const valid = validateDoc(
+      conn({ strokeColor: "#ff0000", strokeWidth: 4, arrowHead: "circle", arrowStart: "circle" })
+    );
     expect(valid.some((e) => e.path.startsWith("blocks.c1.attrs."))).toBe(false);
   });
 
@@ -543,6 +549,34 @@ describe("round-trip", () => {
     expect(doc.getBlock(id)).toMatchObject({ attrs: { variant: "straight", label: "link" } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
+
+  it("the start side's figure (the arrowStart enum) stands the picks, the round-trip, and the undo", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const b = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const id = doc.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
+
+    // The start side's figure: one updateBlock per pick (one undo step),
+    // independent of the end's figure.
+    doc.updateBlock(id, { arrowHead: "circle", arrowStart: "arrow" });
+    expect(doc.getBlock(id)).toMatchObject({ attrs: { arrowHead: "circle", arrowStart: "arrow" } });
+    // The round-trip: the enum form stands through toJSON -> fromJSON.
+    const restored = fromJSON(doc.toJSON());
+    expect(restored.getBlock(id)).toMatchObject({ attrs: { arrowHead: "circle", arrowStart: "arrow" } });
+    expect(JSON.stringify(restored.getBlock(id))).toBe(JSON.stringify(doc.getBlock(id)));
+
+    // The undo reverts the pick to the pre-write absent (one transact per
+    // updateBlock — the two undos stand the arrowHead and the arrowStart
+    // reverts).
+    doc.undo();
+    const reverted = doc.getBlock(id);
+    expect(reverted).not.toBeNull();
+    if (reverted === null || reverted.type !== "connector") throw new Error("the connector must stand");
+    expect(reverted.attrs).not.toHaveProperty("arrowHead");
+    expect(reverted.attrs).not.toHaveProperty("arrowStart");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
 });
 
 describe("lenient reader (newer-minor data)", () => {
@@ -609,5 +643,39 @@ describe("lenient reader (newer-minor data)", () => {
     expect(target.getBlock(p)).toEqual({ type: "paragraph", geometry: { x: 1, y: 2, w: 3, h: 4, z: 7 } });
     const error = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${p}.geometry.z`);
     expect(error?.message).toContain("z");
+  });
+
+  it('maps the legacy boolean arrowStart at read (true -> "arrow", false/absent -> absent)', () => {
+    const source = newDoc();
+    const surface = source.insertBlock("surface");
+    const a = source.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const b = source.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const on = source.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
+    const off = source.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
+    // The legacy boolean form, written at the CRDT level: the way legacy
+    // playground data arrives (over the wire, not via the commands).
+    source.raw.transact(() => {
+      const onBlock = source.raw.getMap("blocks").get(on) as Y.Map<unknown>;
+      (onBlock.get("attrs") as Y.Map<unknown>).set("arrowStart", true);
+      const offBlock = source.raw.getMap("blocks").get(off) as Y.Map<unknown>;
+      (offBlock.get("attrs") as Y.Map<unknown>).set("arrowStart", false);
+    });
+
+    const target = newDoc();
+    target.applyUpdate(source.encode()); // the CRDT level applies remote data
+
+    // true -> "arrow" (the start marker stands its own arrow figure).
+    const onApplied = target.getBlock(on);
+    expect(onApplied).not.toBeNull();
+    if (onApplied === null || onApplied.type !== "connector") throw new Error("the connector must stand");
+    expect(onApplied.attrs).toMatchObject({ arrowStart: "arrow" });
+    // false -> absent (the key is dropped; the reader never sees a boolean).
+    const offApplied = target.getBlock(off);
+    expect(offApplied).not.toBeNull();
+    if (offApplied === null || offApplied.type !== "connector") throw new Error("the connector must stand");
+    expect(offApplied.attrs).not.toHaveProperty("arrowStart");
+    // The normalized read stands clean under the strict validator (the
+    // boolean never stands in the JSON; only the raw Yjs layer keeps it).
+    expect(validateDoc(target.toJSON()).some((e) => e.path.includes("arrowStart"))).toBe(false);
   });
 });

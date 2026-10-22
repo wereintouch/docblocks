@@ -1,12 +1,14 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
 // The connector's style attrs: the
-// strokeColor (the data hex), the strokeWidth (the 1–4 px stand), the
-// arrowHead's figure (none / arrow / circle) and the arrowStart stand —
-// the toolbar's applies over the wire (one updateBlock per apply), the
-// the render (the data color / width stand on the line, the per-fill
-// arrowhead defs), and the one-step undo. The selection's cyan emphasis
-// stands over the data color (the emphasis follows the selection).
+// strokeColor (the data hex), the strokeWidth (the 1–4 px stand), and the
+// two arrowheads' figures (none / arrow / circle — the start's independent
+// figure) — the toolbar's applies over the
+// wire (one updateBlock per apply), the render (the data color / width
+// stand on the line, the per-fill arrowhead defs — the start's and the
+// end's figures stand independently), and the one-step undo. The
+// selection's cyan emphasis stands over the data color (the emphasis
+// follows the selection).
 const RELAY = "ws://localhost:5199";
 const SETTLE = { timeout: 15_000 };
 
@@ -64,7 +66,7 @@ function connectorAttrs(page: Page, client: "a" | "b") {
 }
 
 test.describe("the connector's style attrs", () => {
-  test("the toolbar's applies over the wire (the color / width / arrowhead / start side, the one-step undo)", async ({
+  test("the toolbar's applies over the wire (the color / width / the two arrowheads, the one-step undo)", async ({
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-conn-style");
@@ -87,6 +89,12 @@ test.describe("the connector's style attrs", () => {
       await a.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
       const toolbar = a.getByRole("toolbar", { name: "Connector options" });
       await expect(toolbar).toBeVisible();
+      const line = a.locator("[data-connector-id]").first();
+
+      // The initial stand: the end's default arrow (marker-end) stands,
+      // no start marker (marker-start is null — the absent figure).
+      expect(await line.getAttribute("marker-start")).toBeNull();
+      expect(await line.getAttribute("marker-end")).not.toBeNull();
 
       // The width (the slider's right edge press: the 4 px dot's snap).
       const slider = a.locator('[data-slot="docblocks/figure-border-selector"]');
@@ -97,11 +105,21 @@ test.describe("the connector's style attrs", () => {
       const hex = a.getByLabel("Line color hex value");
       await hex.fill("#ff0000");
       await hex.press("Enter");
-      // The arrowhead's figure (the Circle pick).
-      await a.getByLabel("Arrowhead").click();
+      // The START arrowhead (the start's own figure — the Arrow pick).
+      await a.getByLabel("Start arrowhead").click();
+      await a.getByRole("menuitemcheckbox", { name: "Arrow" }).click();
+      // The END arrowhead (the end's own figure — the Circle pick).
+      await a.getByLabel("End arrowhead").click();
       await a.getByRole("menuitemcheckbox", { name: "Circle" }).click();
-      // The start side (the toggle).
-      await a.getByLabel("Arrow at the start").click();
+
+      // The two figures stand independently:
+      // the start's arrow marker (-s) and the end's circle marker (-ci)
+      // both stand on the line (distinct defs).
+      const startMarker = (await line.getAttribute("marker-start"))!;
+      const endMarker = (await line.getAttribute("marker-end"))!;
+      expect(startMarker).toMatch(/-s\)$/);
+      expect(endMarker).toMatch(/-ci\)$/);
+      expect(startMarker).not.toBe(endMarker);
 
       // The attrs stand in A and reach B over the wire (one updateBlock
       // per apply — the JSON's settle).
@@ -113,7 +131,7 @@ test.describe("the connector's style attrs", () => {
             attrs.strokeWidth === 4 &&
             attrs.strokeColor === "#ff0000" &&
             attrs.arrowHead === "circle" &&
-            attrs.arrowStart === true
+            attrs.arrowStart === "arrow"
           );
         }, SETTLE)
         .toBe(true);
@@ -121,14 +139,17 @@ test.describe("the connector's style attrs", () => {
         .poll(async () => {
           const attrs = await connectorAttrs(b, "b");
           return (
-            attrs !== null && attrs.strokeWidth === 4 && attrs.strokeColor === "#ff0000" && attrs.arrowStart === true
+            attrs !== null &&
+            attrs.strokeWidth === 4 &&
+            attrs.strokeColor === "#ff0000" &&
+            attrs.arrowHead === "circle" &&
+            attrs.arrowStart === "arrow"
           );
         }, SETTLE)
         .toBe(true);
 
       // The render (the line stands selected — the cyan emphasis over
       // the data color, the width's bump 4 + 1).
-      const line = a.locator("[data-connector-id]");
       await expect(line).toHaveAttribute("stroke-width", "5");
 
       // The Escape's deselect: the data color / width stand (the theme
@@ -138,16 +159,16 @@ test.describe("the connector's style attrs", () => {
       const stroke = await line.evaluate((el) => (el as SVGPathElement).style.stroke);
       expect(stroke).toBe("rgb(255, 0, 0)");
 
-      // The one-step undo chain: the arrowStart's revert (the last
-      // apply), then the arrowHead's, then the color's, then the
-      // width's (each apply is one transact). The focus is re-seated on
-      // the canvas view first (the portaled menu's press dropped the
-      // focus off the editor — the hotkey stands the editor's focus).
+      // The one-step undo chain: the end arrowhead's revert (the last
+      // apply), then the start's, then the color's, then the width's
+      // (each apply is one transact). The focus is re-seated on the
+      // canvas view first (the portaled menu's press dropped the focus
+      // off the editor — the hotkey stands the editor's focus).
       await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').focus();
       await a.keyboard.press("Control+z");
-      await expect.poll(async () => (await connectorAttrs(a, "a"))?.arrowStart, SETTLE).toBeUndefined();
-      await a.keyboard.press("Control+z");
       await expect.poll(async () => (await connectorAttrs(a, "a"))?.arrowHead, SETTLE).toBeUndefined();
+      await a.keyboard.press("Control+z");
+      await expect.poll(async () => (await connectorAttrs(a, "a"))?.arrowStart, SETTLE).toBeUndefined();
       await a.keyboard.press("Control+z");
       await expect.poll(async () => (await connectorAttrs(a, "a"))?.strokeColor, SETTLE).toBeUndefined();
       await a.keyboard.press("Control+z");

@@ -9,10 +9,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 
+import { SHAPE_TOOLS, isShapeTool } from "../src/blocks/canvas-view/models";
 import { CanvasDock } from "../src/canvas/CanvasDock";
 import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport-state";
-import { SHAPE_TOOLS, isShapeTool } from "../src/blocks/canvas-view/models";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 

@@ -3,11 +3,13 @@
  * selection): the three line types (straight / orthogonal / curved), the
  * stroke color (the palette section — the hex is data, not theme), the
  * width (the 1–4 px dots, the FigureBorderSelector's parity with the
- * shape's border), the arrowhead's figure (none / arrow / circle) and
- * the start-side stand. Each pick is one `updateBlock` in one transact
- * (one undo step, one wire update). The toolbar is canvas chrome (its
- * own pointers; a press on it starts no canvas session). The label is
- * not a toolbar control: the line's
+ * shape's border), and the two arrowheads' figures (none / arrow /
+ * circle) — the start first, then the end, the two equal three-way menus
+ * (the: the start stands its own figure, not a
+ * copy of the end). Each pick is one `updateBlock` in one transact (one
+ * undo step, one wire update). The toolbar is canvas chrome (its own
+ * pointers; a press on it starts no canvas session). The label is not a
+ * toolbar control: the line's
  * double-click stands the label's inline edit.
  */
 import type { CSSProperties, ReactNode } from "react";
@@ -25,7 +27,6 @@ import {
   FigureBorderSelector,
 } from "../shared/ui";
 import { Separator } from "../shared/ui/Separator";
-import { cn } from "../shared/ui/cn";
 import { ArrowRight, Circle, Curve, Diagonal, Elbow, Minus, Stroke } from "../shared/ui/icons";
 import { ColorSection } from "./shape-toolbar/ColorSection";
 import { BORDER_WIDTH_POINTS } from "./shape-toolbar/models";
@@ -54,7 +55,7 @@ function ConnectorToolbar({
   strokeColor: string | undefined;
   strokeWidth: number | undefined;
   arrowHead: "none" | "arrow" | "circle" | undefined;
-  arrowStart: boolean | undefined;
+  arrowStart: "none" | "arrow" | "circle" | undefined;
   /** The positioned style (the left/top at the line's midpoint). */
   style: CSSProperties;
 }) {
@@ -95,6 +96,53 @@ function ConnectorToolbar({
       {icon}
     </Button>
   );
+
+  // The arrowhead figure's three-way menu (the end and the start stand the
+  // equal menus —). `effective` is the
+  // current figure (the end defaults to the arrow, the start to none); a
+  // pick of the current figure is the no-op stand (it writes nothing).
+  const arrowHeadMenu = (
+    which: "start" | "end",
+    effective: "none" | "arrow" | "circle",
+    pick: (value: "none" | "arrow" | "circle") => void
+  ) => {
+    const label = `${which === "start" ? "Start" : "End"} arrowhead`;
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            data-slot={`docblocks/connector-toolbar-arrow-${which}`}
+            aria-label={label}
+            title={label}
+          >
+            {ARROW_HEADS.find((head) => head.value === effective)?.icon ?? <ArrowRight className="size-4" />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          sideOffset={8}
+          aria-label={`${which === "start" ? "Start" : "End"} arrowheads`}
+        >
+          {ARROW_HEADS.map(({ value, label: headLabel, icon }) => (
+            <DropdownMenuCheckboxItem
+              key={value}
+              aria-label={headLabel}
+              checked={effective === value}
+              onSelect={() => {
+                if (value === effective) return; // the no-op stand writes nothing
+                pick(value);
+              }}
+            >
+              {icon}
+              {headLabel}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   return (
     <div
@@ -148,51 +196,13 @@ function ConnectorToolbar({
           className="mr-0.5"
         />
         <Separator orientation="vertical" className="h-5" />
-        {/* The arrowhead's figure (absent = the arrow). */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              data-slot="docblocks/connector-toolbar-arrow-head"
-              aria-label="Arrowhead"
-              title="Arrowhead"
-            >
-              {ARROW_HEADS.find((head) => head.value === (arrowHead ?? "arrow"))?.icon ?? (
-                <ArrowRight className="size-4" />
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={8} aria-label="Arrowheads">
-            {ARROW_HEADS.map(({ value, label, icon }) => (
-              <DropdownMenuCheckboxItem
-                key={value}
-                aria-label={label}
-                checked={arrowHead === value || (value === "arrow" && arrowHead === undefined)}
-                onSelect={() => {
-                  if (value === (arrowHead ?? "arrow")) return; // the no-op stand writes nothing
-                  apply({ arrowHead: value });
-                }}
-              >
-                {icon}
-                {label}
-              </DropdownMenuCheckboxItem>
-            ))}
-          </DropdownMenuContent>
-        </DropdownMenu>
-        {/* The start-side stand (an arrowhead at the start endpoint too). */}
-        <Button
-          variant="ghost"
-          size="icon"
-          data-slot="docblocks/connector-toolbar-arrow-start"
-          aria-label="Arrow at the start"
-          title="Arrow at the start"
-          aria-pressed={arrowStart === true}
-          className={cn(arrowStart === true && "bg-accent text-accent-foreground")}
-          onClick={() => apply({ arrowStart: !arrowStart })}
-        >
-          <ArrowRight className="size-4" />
-        </Button>
+        {/* The two arrowheads' figures (the:
+            the start first, then the end — the two equal three-way menus,
+            none / arrow / circle). The end defaults to the arrow (absent
+            = "arrow"), the start to none (absent = no start marker); each
+            stands its own figure, not a copy of the other. */}
+        {arrowHeadMenu("start", arrowStart ?? "none", (value) => apply({ arrowStart: value }))}
+        {arrowHeadMenu("end", arrowHead ?? "arrow", (value) => apply({ arrowHead: value }))}
       </div>
     </div>
   );

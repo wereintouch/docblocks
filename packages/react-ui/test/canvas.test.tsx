@@ -371,7 +371,7 @@ describe("canvas: the connector's style attrs", () => {
           strokeColor: "#ff0000",
           strokeWidth: 3,
           arrowHead: "circle",
-          arrowStart: true,
+          arrowStart: "circle",
         },
         { parent: surface }
       );
