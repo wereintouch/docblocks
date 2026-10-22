@@ -594,13 +594,14 @@ describe("canvas: shape variants", () => {
     expect(paths[1]!.getAttribute("d")).toBe("M 1 16 A 49 15 0 0 0 99 16");
     expect(paths[1]!.getAttribute("fill")).toBe("none");
 
-    // The cloud (the 130x95 box): the scaled outline (the box-proportional
-    // stand — the arc radii scale anisotropically, the stroke width
-    // stands).
+    // The cloud (the 130x95 box): the mirrored outline (the lucide
+    // silhouette flipped over the vertical axis the box-proportional stand, the arc radii scale
+    // anisotropically, the stroke width stands, the inverse sweep
+    // flags).
     const cloud = document.querySelector<SVGElement>('[data-slot="docblocks/shape"][data-variant="cloud"]')!;
     const cloudPath = cloud.querySelector("path")!;
     expect(cloudPath.getAttribute("d")).toBe(
-      "M 102.74358974358974 94 H 46.94871794871795 A 45.94871794871795 40.6875 0 1 1 90.99384615384615 41.6875 H 102.74358974358974 A 29.538461538461537 26.15625 0 1 1 102.74358974358974 94 Z"
+      "M 27.256410256410255 94 H 83.05128205128204 A 45.94871794871795 40.6875 0 1 0 39.00615384615384 41.6875 H 27.256410256410255 A 29.538461538461537 26.15625 0 1 0 27.256410256410255 94 Z"
     );
   });
 });

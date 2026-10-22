@@ -71,8 +71,10 @@ function ShapeSvg({ id, block }: { id: BlockId; block: ShapeBlockView }) {
       </>
     );
   } else if (attrs?.variant === "cloud") {
-    // The cloud's outline (the lucide silhouette scaled to the box — the
-    // arc radii scale anisotropically, the stroke width stands).
+    // The cloud's outline (the lucide silhouette MIRRORED over its
+    // vertical axisscaled to the box:
+    // the arc radii scale anisotropically, the stroke width stands). The
+    // mirrored x's stand the inverse arc sweep flags (1 → 0).
     const boxW = Math.max(w - strokeWidth, 0);
     const boxH = Math.max(h - strokeWidth, 0);
     const px = (x: number) => inset + (x - 2) * (boxW / 19.5);
@@ -83,7 +85,7 @@ function ShapeSvg({ id, block }: { id: BlockId; block: ShapeBlockView }) {
     const ry45 = 4.5 * (boxH / 16);
     figure = (
       <path
-        d={`M ${px(17.5)} ${py(19)} H ${px(9)} A ${rx7} ${ry7} 0 1 1 ${px(15.71)} ${py(10)} H ${px(17.5)} A ${rx45} ${ry45} 0 1 1 ${px(17.5)} ${py(19)} Z`}
+        d={`M ${px(6)} ${py(19)} H ${px(14.5)} A ${rx7} ${ry7} 0 1 0 ${px(7.79)} ${py(10)} H ${px(6)} A ${rx45} ${ry45} 0 1 0 ${px(6)} ${py(19)} Z`}
       />
     );
   } else if (attrs?.variant === "line") {
