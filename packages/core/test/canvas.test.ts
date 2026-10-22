@@ -299,8 +299,11 @@ describe("strict validation (validateDoc)", () => {
     expect(zero.some((e) => e.path === "blocks.p1.geometry.w")).toBe(true);
     const nonNumeric = validateDoc(withGeometry({ x: "1", y: 2, w: 10, h: 10 }));
     expect(nonNumeric.some((e) => e.path === "blocks.p1.geometry.x")).toBe(true);
-    const nanRotation = validateDoc(withGeometry({ x: 1, y: 2, w: 10, h: 10, rotation: Number.NaN }));
-    expect(nanRotation.some((e) => e.path === "blocks.p1.geometry.rotation")).toBe(true);
+    // The removed rotation field: a finite legacy value stands the
+    // unknown-field branch (the strict validator rejects it).
+    const legacyRotation = validateDoc(withGeometry({ x: 1, y: 2, w: 10, h: 10, rotation: 7 }));
+    const rotationError = legacyRotation.find((e) => e.path === "blocks.p1.geometry.rotation");
+    expect(rotationError?.message).toBe('Unknown field "rotation" for geometry.');
     const unknownField = validateDoc(withGeometry({ x: 1, y: 2, w: 10, h: 10, z: 0 }));
     expect(unknownField.some((e) => e.path === "blocks.p1.geometry.z")).toBe(true);
     const notAnObject = validateDoc(withGeometry([1, 2, 3, 4]));
@@ -642,6 +645,26 @@ describe("lenient reader (newer-minor data)", () => {
     expect(target.getBlock(p)).toEqual({ type: "paragraph", geometry: { x: 1, y: 2, w: 3, h: 4, z: 7 } });
     const error = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${p}.geometry.z`);
     expect(error?.message).toContain("z");
+  });
+
+  it("reads the legacy geometry rotation as-is; the validator flags it", () => {
+    const source = newDoc();
+    const p = source.insertBlock("paragraph");
+    source.setGeometry(p, { x: 1, y: 2, w: 3, h: 4 });
+    // The legacy rotation field, written at the CRDT level: the way
+    // legacy data arrives (over the wire, not via the commands).
+    source.raw.transact(() => {
+      const block = source.raw.getMap("blocks").get(p) as Y.Map<unknown>;
+      (block.get("geometry") as Y.Map<unknown>).set("rotation", 45);
+    });
+
+    const target = newDoc();
+    target.applyUpdate(source.encode());
+
+    // The lenient read keeps the field untouched (the data is never rewritten).
+    expect(target.getBlock(p)).toEqual({ type: "paragraph", geometry: { x: 1, y: 2, w: 3, h: 4, rotation: 45 } });
+    const rotationError = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${p}.geometry.rotation`);
+    expect(rotationError?.message).toBe('Unknown field "rotation" for geometry.');
   });
 
   it('maps the legacy boolean arrowStart at read (true -> "arrow", false/absent -> absent)', () => {

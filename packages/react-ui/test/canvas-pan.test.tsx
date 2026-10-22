@@ -138,7 +138,7 @@ describe("the stale session drop (the lost release)", () => {
     // The lost release: the button-less move drops the session (the
     // preview stands down).
     fireEvent.pointerMove(r.view, { clientX: 160, clientY: 100, buttons: 0, pointerId: 2 });
-    expect(wrapper.style.transform).toBe("translate(-50%, -50%) rotate(0deg)");
+    expect(wrapper.style.transform).toBe("translate(-50%, -50%)");
     // The release after the drop writes nothing (the stale commit would
     // stand the geometry at the lost drag's delta).
     fireEvent.pointerUp(r.view, { pointerId: 2 });

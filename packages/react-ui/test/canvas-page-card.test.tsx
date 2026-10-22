@@ -4,7 +4,8 @@
 // one-item selection + the move session — a drag moves the miniature,
 // a sub-threshold release stands the selection only), the second press
 // (the card already selected) keeps the caret. The card stands the
-// shared selection's outline while selected, and no rotate handle.
+// shared selection's outline while selected and the eight box handles
+// (the rotate handle is gone from the editor — the negative pin below).
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -150,23 +151,23 @@ describe("the selection's outline", () => {
   });
 });
 
-describe("the rotate handle", () => {
-  it("stands the rotate handle for the shapes, not for the page miniature", () => {
+describe("the box handles", () => {
+  it("stands the eight box handles (no rotate handle) for the shape and the page miniature", () => {
     const r = renderCanvas();
     const wrapper = r.view.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${r.shape}"]`
     );
     if (wrapper === null) throw new Error("the shape's wrapper is missing");
 
-    // The shape: the nine handles (eight box + rotate).
+    // The shape: the eight box handles, no rotate handle.
     fireEvent.pointerDown(wrapper, { clientX: 50, clientY: 50, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerUp(r.view, { clientX: 50, clientY: 50, pointerId: 1 });
     let handles = r.handles(r.view);
-    expect(handles).toHaveLength(9);
-    expect(handles.some((el) => el.dataset.handle === "rotate")).toBe(true);
+    expect(handles).toHaveLength(8);
+    expect(handles.some((el) => el.dataset.handle === "rotate")).toBe(false);
 
-    // The page card (selected from its content): the eight box handles,
-    // no rotate.
+    // The page card (selected from its content): the same eight box
+    // handles, no rotate handle.
     const text = r.pageText();
     fireEvent.pointerDown(text, { clientX: 100, clientY: 100, button: 0, buttons: 1, pointerId: 2 });
     fireEvent.pointerUp(r.view, { clientX: 100, clientY: 100, pointerId: 2 });

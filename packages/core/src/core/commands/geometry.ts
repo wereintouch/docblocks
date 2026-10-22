@@ -20,9 +20,9 @@ function readGeometry(block: Y.Map<unknown>): Geometry | null {
   geometry.forEach((value, key) => {
     if (typeof value === "number") plain[key] = value;
   });
-  const { x, y, w, h, rotation } = plain;
+  const { x, y, w, h } = plain;
   if (x === undefined || y === undefined || w === undefined || h === undefined) return null;
-  return rotation === undefined ? { x, y, w, h } : { x, y, w, h, rotation };
+  return { x, y, w, h };
 }
 
 /**
@@ -30,8 +30,9 @@ function readGeometry(block: Y.Map<unknown>): Geometry | null {
  * existing geometry and the result must be complete (x/y/w/h all present
  * — a partial on a block without a geometry is an error), `null` removes
  * the geometry (the block returns to the flow / the default canvas
- * position). Patch values are validated (finite x/y/rotation, w/h > 0).
- * An equal-value set is a no-op (zero update bytes).
+ * position). Patch values are validated (finite x/y, w/h > 0); a patch
+ * carrying the `rotation` key is rejected. An equal-value set is a no-op
+ * (zero update bytes).
  */
 function setGeometry(ydoc: Y.Doc, blockId: string, geometry: Partial<Geometry> | null): void {
   const type = blockTypeOf(ydoc, blockId);
@@ -49,6 +50,13 @@ function setGeometry(ydoc: Y.Doc, blockId: string, geometry: Partial<Geometry> |
     return;
   }
 
+  // The geometry shape has no rotation field: a patch carrying it is
+  // rejected explicitly (the legacy data keeps the field — the data is
+  // never rewritten).
+  if ((geometry as Record<string, unknown>).rotation !== undefined) {
+    throw new InvalidGeometryError(`Unknown field "rotation" for geometry.`);
+  }
+
   for (const [key, value] of Object.entries(geometry)) {
     if (value === undefined) continue;
     if (typeof value !== "number" || !Number.isFinite(value)) {
@@ -64,7 +72,6 @@ function setGeometry(ydoc: Y.Doc, blockId: string, geometry: Partial<Geometry> |
   const mergedY = geometry.y ?? current?.y;
   const mergedW = geometry.w ?? current?.w;
   const mergedH = geometry.h ?? current?.h;
-  const mergedRotation = geometry.rotation ?? current?.rotation;
   if (mergedX === undefined || mergedY === undefined || mergedW === undefined || mergedH === undefined) {
     throw new InvalidGeometryError(
       `Incomplete geometry: x, y, w and h are required — block "${blockId}" has no existing geometry to merge into.`
@@ -76,8 +83,7 @@ function setGeometry(ydoc: Y.Doc, blockId: string, geometry: Partial<Geometry> |
     current.x === mergedX &&
     current.y === mergedY &&
     current.w === mergedW &&
-    current.h === mergedH &&
-    current.rotation === mergedRotation
+    current.h === mergedH
   ) {
     return; // no-op: an equal-value set emits no update
   }
@@ -92,7 +98,6 @@ function setGeometry(ydoc: Y.Doc, blockId: string, geometry: Partial<Geometry> |
     map.set("y", mergedY);
     map.set("w", mergedW);
     map.set("h", mergedH);
-    if (mergedRotation !== undefined) map.set("rotation", mergedRotation);
   });
 }
 

@@ -12,9 +12,9 @@ import { isPlainObject, show } from "./common";
 
 /**
  * The strict shape of the optional `geometry` field of ANY block: a plain
- * object with finite x/y (and rotation when present) and w/h > 0, where
- * x/y/w/h are required and unknown fields are rejected. Runs from
- * validateDoc for every block that carries a geometry field.
+ * object with finite x/y and w/h > 0, where x/y/w/h are required and
+ * unknown fields are rejected. Runs from validateDoc for every block that
+ * carries a geometry field.
  */
 function validateGeometry(geometry: unknown, path: string, errors: ValidationError[]): void {
   if (!isPlainObject(geometry)) {
@@ -36,15 +36,6 @@ function validateGeometry(geometry: unknown, path: string, errors: ValidationErr
     }
     if ((field === "w" || field === "h") && value <= 0) {
       errors.push({ path: `${path}.${field}`, message: `geometry.${field} must be positive (got ${value}).` });
-    }
-  }
-  if ("rotation" in geometry) {
-    const value = geometry.rotation;
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-      errors.push({
-        path: `${path}.rotation`,
-        message: `geometry.rotation must be a finite number (got ${show(value)}).`,
-      });
     }
   }
   for (const field of Object.keys(geometry)) {

@@ -72,7 +72,7 @@ interface PaneDoc {
   removeRow(databaseId: string, rowId: string): void;
   moveBlock(id: string, toParent: string, toIndex: number): void;
   changeBlockType(id: string, type: string, attrs?: Record<string, unknown>): void;
-  setGeometry(id: string, geometry: { x?: number; y?: number; w?: number; h?: number; rotation?: number } | null): void;
+  setGeometry(id: string, geometry: { x?: number; y?: number; w?: number; h?: number } | null): void;
   setMark(blockId: string, from: number, to: number, mark: unknown): void;
   insertTableRow(tableId: string, at?: number): string;
   removeTableRow(tableId: string, rowId: string): void;

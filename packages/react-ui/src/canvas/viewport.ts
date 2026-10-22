@@ -148,7 +148,7 @@ function screenDeltaToCanvas(dx: number, dy: number, zoom: number): CanvasPoint 
   return { x: dx / zoom, y: dy / zoom };
 }
 
-/** The resize handle ids (the eight box handles + the rotate handle). */
+/** The resize handle ids (the eight box handles). */
 type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 /** The box floor of a resize (canvas px, per axis). */
@@ -217,18 +217,6 @@ function resizeBox(box: Box, handle: ResizeHandle, dx: number, dy: number, shift
   };
 }
 
-/**
- * The rotate handle's angle (degrees, clockwise, 0° = up — the handle's
- * home position above the box center). `shift` snaps to the 15° grid.
- * The result normalizes to 0..359 (0 stands for no rotation).
- */
-function rotateAngle(center: ScreenPoint, pointer: ScreenPoint, shift: boolean): number {
-  const angle = (Math.atan2(pointer.x - center.x, center.y - pointer.y) * 180) / Math.PI;
-  let normalized = ((angle % 360) + 360) % 360;
-  if (shift) normalized = (Math.round(normalized / 15) * 15) % 360;
-  return (Math.round(normalized * 100) / 100) % 360;
-}
-
 /** The marquee rectangle from the drag's two corners (normalized). */
 function marqueeRect(start: ScreenPoint, end: ScreenPoint): ScreenRect {
   return {
@@ -290,7 +278,6 @@ export {
   pinchZoom,
   rectsIntersect,
   resizeBox,
-  rotateAngle,
   screenDeltaToCanvas,
   screenToCanvas,
   stepZoom,

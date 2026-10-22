@@ -99,7 +99,7 @@ describe("the shift-click toggle", () => {
     expect(selectedIds(r.view)).toEqual([r.a, r.b]);
     expect(JSON.stringify(r.json())).toBe(before); // no update (a no-op move would stand the same)
     // The no-preview pin: the wrapper's transform stands its own (no move preview).
-    expect(r.wrapperOf(r.b).style.transform).toBe("translate(-50%, -50%) rotate(0deg)");
+    expect(r.wrapperOf(r.b).style.transform).toBe("translate(-50%, -50%)");
   });
 
   it("removes the id from the selection (the anchor follows)", () => {
@@ -216,7 +216,7 @@ describe("the visual contract", () => {
     const r = renderCanvas();
     click(r.view, r.a);
     const handles = Array.from(r.view.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-handle']"));
-    expect(handles.length).toBe(9); // the eight box handles + the rotate handle
+    expect(handles.length).toBe(8); // the eight box handles
     for (const handle of handles) {
       expect(handle.className).toContain("bg-(--docblocks-canvas-selection-border-color)");
     }
@@ -247,7 +247,7 @@ describe("the Escape clear", () => {
 
     // The Escape drops the preview; the selection STANDS.
     fireEvent.keyDown(r.view, { key: "Escape" });
-    expect(wrapper.style.transform).toBe("translate(-50%, -50%) rotate(0deg)");
+    expect(wrapper.style.transform).toBe("translate(-50%, -50%)");
     expect(selectedIds(r.view)).toEqual([r.a]);
     // The release after the cancel writes nothing (the no-op contract).
     fireEvent.pointerUp(r.view, { pointerId: 5 });

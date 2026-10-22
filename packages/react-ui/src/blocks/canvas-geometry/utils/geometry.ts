@@ -22,10 +22,10 @@ function isCanvasSubType(type: BlockType): boolean {
  * The surface's origin is the container CENTER (the center-anchor
  * coordinate model, the geometry x/y parity): the element is placed at
  * (center + x, center + y) and centered over that point with
- * translate(-50%, -50%), rotated around its own center (the rotation is
- * 0 when absent). An element WITHOUT a geometry (the lenient reader)
- * renders at the center with the default size — the text / flow children
- * (the page blocks) keep their natural size (no width/height).
+ * translate(-50%, -50%). A stored legacy rotation value is ignored on
+ * read / render. An element WITHOUT a geometry (the lenient reader)
+ * renders at the center with the default size — the text / flow
+ * children (the page blocks) keep their natural size (no width/height).
  */
 function canvasItemStyle(block: Block): CSSProperties {
   const geometry = block.geometry;
@@ -33,7 +33,7 @@ function canvasItemStyle(block: Block): CSSProperties {
     position: "absolute",
     left: `calc(50% + ${geometry?.x ?? 0}px)`,
     top: `calc(50% + ${geometry?.y ?? 0}px)`,
-    transform: `translate(-50%, -50%) rotate(${geometry?.rotation ?? 0}deg)`,
+    transform: "translate(-50%, -50%)",
   };
   if (geometry !== undefined) {
     style.width = `${geometry.w}px`;
@@ -81,7 +81,7 @@ function pageCardStyle(root: Block): CSSProperties {
     position: "absolute",
     left: `calc(50% + ${geometry?.x ?? 0}px)`,
     top: `calc(50% + ${geometry?.y ?? 0}px)`,
-    transform: `translate(-50%, -50%) rotate(${geometry?.rotation ?? 0}deg)`,
+    transform: "translate(-50%, -50%)",
     width: `${geometry?.w ?? DEFAULT_PAGE_SIZE.w}px`,
     height: `${geometry?.h ?? DEFAULT_PAGE_SIZE.h}px`,
   };

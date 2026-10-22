@@ -37,7 +37,6 @@ function CanvasItem({
   pendingConnector = null,
   movePreview = null,
   resizeBox = null,
-  rotatePreview = null,
 }: {
   id: BlockId;
   pendingConnector?: string | null;
@@ -45,8 +44,6 @@ function CanvasItem({
   movePreview?: MovePreview | null;
   /** The in-flight resize preview (the canvas box); the wrapper adopts it. */
   resizeBox?: Box | null;
-  /** The in-flight rotate preview (degrees); the wrapper rotates to it. */
-  rotatePreview?: number | null;
 }) {
   const { store, renderers } = useEditorContext();
   const { siblings } = useBlockContext();
@@ -89,9 +86,9 @@ function CanvasItem({
   if (block.type === "connector" || block.type === "group") style.pointerEvents = "none";
   // The move preview stands the wrapper offset from its committed
   // position (the release commit writes the geometry; the preview is
-  // pure view state); the resize box / the rotate preview stand the same
-  // way (the rotation preview stands over the stored one).
-  if (movePreview !== null || resizeBox !== null || rotatePreview !== null) {
+  // pure view state); the resize box stands the same way (the live box
+  // replaces the committed one).
+  if (movePreview !== null || resizeBox !== null) {
     if (resizeBox !== null) {
       style.left = `calc(50% + ${resizeBox.x}px)`;
       style.top = `calc(50% + ${resizeBox.y}px)`;
@@ -99,11 +96,7 @@ function CanvasItem({
       style.height = `${resizeBox.h}px`;
     }
     const parts = ["translate(-50%, -50%)"];
-    // The move offset stands BEFORE the rotation (the Δ is in the canvas
-    // axes; a trailing translate would land in the rotated frame).
     if (movePreview !== null) parts.push(`translate(${movePreview.dx}px, ${movePreview.dy}px)`);
-    const rotation = rotatePreview !== null ? rotatePreview : (block.geometry?.rotation ?? 0);
-    if (rotation !== 0) parts.push(`rotate(${rotation}deg)`);
     style.transform = parts.join(" ");
   }
   if (block.type === "canvas-text") {

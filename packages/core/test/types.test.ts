@@ -276,7 +276,6 @@ describe("type shapes", () => {
       y: number;
       w: number;
       h: number;
-      rotation?: number | undefined;
     }>();
     // Extract keeps working per member and carries the geometry.
     type Shape = Extract<Block, { type: "shape" }>;

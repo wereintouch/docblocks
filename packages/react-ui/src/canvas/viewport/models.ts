@@ -1,5 +1,5 @@
 /** The canvas viewport's models: the session shapes (the move / resize /
- *  rotate / the connector endpoint drag), the rendered previews, and the
+ *  the connector endpoint drag), the rendered previews, and the
  *  `CanvasViewportState` the hook returns. */
 import type { CanvasPort } from "../../blocks/canvas-geometry";
 import type {
@@ -83,20 +83,6 @@ interface ResizeSession {
   box: Box | null;
 }
 
-/** The in-flight rotate session (one item, the box center). */
-interface RotateSession {
-  id: string;
-  /** The box center (canvas space) — the rotation's anchor. */
-  center: CanvasPoint;
-  /** The effective box snapshot (the commit writes the complete box + the rotation). */
-  snapshot: Box;
-  /** The press's client point (the 3px screen threshold anchor). */
-  startClientX: number;
-  startClientY: number;
-  dragging: boolean;
-  rotation: number | null;
-}
-
 /**
  * The in-flight connector endpoint drag (one connector, one endpoint).
  * The preview point stands in the CANVAS (world) space — the space the
@@ -170,8 +156,6 @@ interface CanvasViewportState {
   dropIndicators: DropIndicator[] | null;
   /** The rendered resize preview (null outside an in-flight drag). */
   resizePreview: { id: string; box: Box } | null;
-  /** The rendered rotate preview (null outside an in-flight drag). */
-  rotatePreview: { id: string; rotation: number } | null;
   /** The in-flight shape placement's preview (canvas coords, the center anchor); null outside a drag. */
   placePreview: PlacePreview | null;
   /** The connector's pending preview point (canvas coords, the cursor); null outside a pick. */
@@ -272,18 +256,6 @@ interface CanvasViewportState {
   endResize: () => void;
   /** Cancels the in-flight resize without a commit (the Escape / pointercancel path). */
   cancelResize: () => void;
-  /** Opens a rotate session (one item; the anchor is the box center). */
-  beginRotate: (id: string, center: CanvasPoint, startClientX: number, startClientY: number) => void;
-  /**
-   * Feeds the rotate session with a pointer move (shift = the 15° snap).
-   * Sub-threshold jitters are dropped (the no-op press-release writes
-   * nothing — the same contract as the move / resize sessions).
-   */
-  rotateDrag: (pointer: ScreenPoint, clientX: number, clientY: number, shift: boolean) => void;
-  /** Commits the rotation (one setGeometry) or cancels. */
-  endRotate: () => void;
-  /** Cancels the in-flight rotation without a commit (the Escape / pointercancel path). */
-  cancelRotate: () => void;
 }
 
 /** The endpoint drag's port snap radius (canvas px, the zoom-blind space). */
@@ -305,5 +277,4 @@ export type {
   MoveSession,
   PlacePreview,
   ResizeSession,
-  RotateSession,
 };

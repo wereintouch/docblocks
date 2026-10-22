@@ -29,7 +29,7 @@ const expectThrows = (fn: () => unknown, ctor: new (message: string) => Error): 
   throw new Error("expected the command to throw");
 };
 
-const GEOMETRY: Geometry = { x: -40, y: 20, w: 120, h: 80, rotation: 15 };
+const GEOMETRY: Geometry = { x: -40, y: 20, w: 120, h: 80 };
 
 describe("setGeometry", () => {
   it("sets the full geometry on any block type", () => {
@@ -85,8 +85,8 @@ describe("setGeometry", () => {
     doc.setGeometry(p, { x: 10 });
     expect(doc.getBlock(p)).toEqual({ type: "paragraph", geometry: { x: 10, y: 0, w: 100, h: 50 } });
 
-    doc.setGeometry(p, { rotation: 90, h: 60 });
-    expect(doc.getBlock(p)).toEqual({ type: "paragraph", geometry: { x: 10, y: 0, w: 100, h: 60, rotation: 90 } });
+    doc.setGeometry(p, { h: 60 });
+    expect(doc.getBlock(p)).toEqual({ type: "paragraph", geometry: { x: 10, y: 0, w: 100, h: 60 } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
@@ -111,12 +111,33 @@ describe("setGeometry", () => {
       { y: Number.POSITIVE_INFINITY },
       { w: 0 },
       { h: -1 },
-      { rotation: Number.NaN },
+      { w: Number.NaN },
     ];
     for (const patch of cases) {
       expectThrows(() => doc.setGeometry(p, patch), InvalidGeometryError);
     }
     expect(doc.toJSON()).toEqual(before); // every throw left the doc untouched
+  });
+
+  it("rejects a patch carrying the rotation key with InvalidGeometryError (the doc is untouched)", () => {
+    const doc = newDoc();
+    const p = doc.insertBlock("paragraph");
+    doc.setGeometry(p, GEOMETRY);
+    const before = doc.toJSON();
+
+    // A rotation-only patch is rejected, not a silent no-op.
+    const rotationOnly = expectThrows(
+      () => doc.setGeometry(p, { rotation: 45 } as Partial<Geometry>),
+      InvalidGeometryError
+    );
+    expect(rotationOnly.message).toContain("rotation");
+    // A mixed patch carrying the key is rejected too.
+    const mixed = expectThrows(
+      () => doc.setGeometry(p, { rotation: 45, h: 100 } as Partial<Geometry>),
+      InvalidGeometryError
+    );
+    expect(mixed.message).toContain("rotation");
+    expect(doc.toJSON()).toEqual(before); // the rejects left the doc untouched
   });
 
   it("null removes the geometry (the block returns to the flow)", () => {
@@ -136,7 +157,7 @@ describe("setGeometry", () => {
     const before = doc.encode().byteLength;
 
     doc.setGeometry(p, GEOMETRY); // the same values
-    doc.setGeometry(p, { x: GEOMETRY.x, rotation: GEOMETRY.rotation }); // a redundant partial
+    doc.setGeometry(p, { x: GEOMETRY.x }); // a redundant partial
     doc.setGeometry(q, null); // no geometry to remove (twice)
     doc.setGeometry(q, null);
     expect(doc.encode().byteLength).toBe(before);
@@ -256,11 +277,11 @@ describe("concurrency", () => {
     // A follow-up partial on one side reaches the other.
     const sharedA = a.getChildren(a.meta.id)[1]!;
     const sharedB = b.getChildren(b.meta.id)[1]!;
-    a.setGeometry(sharedA, { rotation: 45 });
+    a.setGeometry(sharedA, { w: 120 });
     b.applyUpdate(a.encode());
     expect(a.toJSON()).toEqual(b.toJSON());
     expect(a.getBlock(sharedA)?.geometry).toEqual(b.getBlock(sharedB)?.geometry);
-    expect(a.getBlock(sharedA)?.geometry).toMatchObject({ rotation: 45 });
+    expect(a.getBlock(sharedA)?.geometry).toMatchObject({ w: 120 });
   });
 });
 
