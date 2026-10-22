@@ -21,11 +21,11 @@ import {
 } from "./canvas-geometry";
 
 /** The v1 connector stroke (the shape token; the label uses the text color). */
-const STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
+const CONNECTOR_STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
 /** The selected connector's stroke (the canvas selection's cyan — the
  *  token stands in both themes; the page `--accent` is a hover surface,
  *  not a line color). */
-const SELECTED_STROKE = "var(--docblocks-canvas-selected-stroke)";
+const CONNECTOR_SELECTED_STROKE = "var(--docblocks-canvas-selected-stroke)";
 /** The connect badge's green (the endpoint drag's port snap indicator). */
 const CONNECT_COLOR = "var(--docblocks-canvas-connect-color, #16a34a)";
 /** The line's stroke width bounds (canvas px; the data stand is 1–4,
@@ -53,7 +53,12 @@ const SNAP_BADGE_LIFT = 16;
  * dropped: a hex's "#" would break the url(#...) fragment).
  */
 function arrowDefId(surfaceId: BlockId, fill: string): string {
-  const key = fill === STROKE ? "" : fill === SELECTED_STROKE ? "-selected" : `-c${fill.replace(/[^a-z0-9]/gi, "")}`;
+  const key =
+    fill === CONNECTOR_STROKE
+      ? ""
+      : fill === CONNECTOR_SELECTED_STROKE
+        ? "-selected"
+        : `-c${fill.replace(/[^a-z0-9]/gi, "")}`;
   return `docblocks-conn-arrow-${surfaceId}${key}`;
 }
 
@@ -97,6 +102,7 @@ function ConnectorLayer({
   endpointPreview,
   movePreview,
   resizePreview,
+  labelEditing,
 }: {
   id: BlockId;
   interactive?: boolean;
@@ -109,6 +115,10 @@ function ConnectorLayer({
   movePreview: MovePreview | null;
   /** The in-flight resize preview (the lines follow the resized item). */
   resizePreview: { id: BlockId; box: Box } | null;
+  /** The connector in the label's inline edit (the double-click's
+   *  session): the SVG's label text stands off while the edit's input
+   *  stands the draft (the commit re-stands it). */
+  labelEditing?: BlockId | null;
 }) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
@@ -231,9 +241,9 @@ function ConnectorLayer({
       draggingThis && endpointDrag !== null && endpointDrag.which === "end" ? (snapPoint("end") ?? endPoint) : endPoint;
 
     const stroke = selected
-      ? SELECTED_STROKE
+      ? CONNECTOR_SELECTED_STROKE
       : attrs.strokeColor === undefined || attrs.strokeColor === "none"
-        ? STROKE
+        ? CONNECTOR_STROKE
         : attrs.strokeColor;
     // The width stand (the 1–4 data attr; the lenient render clamps the
     // raw write) + the selection's bump (the 1x default stands the
@@ -309,9 +319,11 @@ function ConnectorLayer({
           : connectorPathPoints(startDraw, endDraw, attrs.variant ?? "straight", obstacleBoxes);
 
     // The label (the midpoint's text; the empty string is the removed
-    // state — the attr stands, the text stands nothing).
+    // state — the attr stands, the text stands nothing). The inline edit
+    // stands the label off (the edit's input stands the draft at the
+    // same seat).
     const label =
-      attrs.label !== undefined && attrs.label !== "" ? (
+      attrs.label !== undefined && attrs.label !== "" && childId !== labelEditing ? (
         <text
           data-connector-label={childId}
           x={path.mid.x}
@@ -476,4 +488,4 @@ function ConnectorLayer({
   );
 }
 
-export { ConnectorLayer };
+export { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE, ConnectorLayer };

@@ -51,20 +51,21 @@ import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { BlockGroups } from "../BlockView";
+import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../ConnectorLayer";
 import { ShapeSvg } from "../ShapeSvg";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import {
   connectorHandlePoints,
-  connectorPathPoints,
+  connectorMidpoint,
   edgeAnchor,
   effectiveGeometry,
-  endpointBoxOf,
   groupBoxOf,
   groupMemberIds,
   pageCardStyle,
   portsOf,
 } from "../canvas-geometry";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
+import { ConnectorLabelEdit } from "./ConnectorLabelEdit";
 import { ConnectorPreviewLine } from "./ConnectorPreviewLine";
 import { SurfaceLayer } from "./SurfaceLayer";
 import { ZoomControls } from "./ZoomControls";
@@ -245,33 +246,11 @@ function CanvasView() {
     const surface = surfaces.find((entry) => entry.children.includes(id));
     if (surface === undefined) return null;
     const childIds = surface.children;
-    // The endpoint stands (the 2026-10-15 shape): a ref resolves to its
-    // box, a free { x, y } point stands as-is; the toolbar seats at the
-    // line's midpoint between the two stands.
-    const startBox = endpointBoxOf(block.attrs.start, childIds, blocks);
-    const endBox = endpointBoxOf(block.attrs.end, childIds, blocks);
-    const startStand =
-      startBox !== null
-        ? { x: startBox.x, y: startBox.y }
-        : block.attrs.start.x !== undefined && block.attrs.start.y !== undefined
-          ? { x: block.attrs.start.x, y: block.attrs.start.y }
-          : null;
-    const endStand =
-      endBox !== null
-        ? { x: endBox.x, y: endBox.y }
-        : block.attrs.end.x !== undefined && block.attrs.end.y !== undefined
-          ? { x: block.attrs.end.x, y: block.attrs.end.y }
-          : null;
-    if (startStand === null || endStand === null) return null;
-    const mid = connectorPathPoints(
-      { ...startStand, nx: 0, ny: 0 },
-      { ...endStand, nx: 0, ny: 0 },
-      block.attrs.variant ?? "straight"
-    ).mid;
+    const mid = connectorMidpoint(block, childIds, blocks);
+    if (mid === null) return null;
     return {
       id,
       variant: block.attrs.variant,
-      label: block.attrs.label,
       strokeColor: block.attrs.strokeColor,
       strokeWidth: block.attrs.strokeWidth,
       arrowHead: block.attrs.arrowHead,
@@ -279,6 +258,27 @@ function CanvasView() {
       mid,
       childIds,
     };
+  })();
+
+  // The label's inline edit's target: the
+  // double-click's connector whose endpoints resolve (the input seats at
+  // the line's midpoint, the frame stands the line's effective stroke).
+  const connectorLabelTarget = (() => {
+    const id = viewport.connectorLabelEditing;
+    if (id === null) return null;
+    const block = blocks[id];
+    if (block === undefined || block.type !== "connector" || block.attrs === undefined) return null;
+    const surface = surfaces.find((entry) => entry.children.includes(id));
+    if (surface === undefined) return null;
+    const mid = connectorMidpoint(block, surface.children, blocks);
+    if (mid === null) return null;
+    const selected = storeSelection?.kind === "blocks" && storeSelection.ids.includes(id);
+    const stroke = selected
+      ? CONNECTOR_SELECTED_STROKE
+      : block.attrs.strokeColor === undefined || block.attrs.strokeColor === "none"
+        ? CONNECTOR_STROKE
+        : block.attrs.strokeColor;
+    return { id, mid, stroke, label: block.attrs.label ?? "" };
   })();
 
   // The selected line's endpoint handles' points (the screen-space
@@ -865,13 +865,25 @@ function CanvasView() {
     }
   };
 
-  // The shape's text double-click: the
-  // press's pointer capture retargets the dblclick to THIS container
-  // (the event's target is the container, not the shape) — the shape
-  // stands the point's element (the hit test through the world's
-  // transform). The page's inert surfaces stand no container handler
-  // (the read-only stand there).
-  const onShapeTextDoubleClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+  // The canvas content's double-click (the /
+  // 2026-10-22): the shape's text inline edit (the press's pointer
+  // capture retargets the dblclick to THIS container — the event's target
+  // is the container, not the shape — the shape stands the point's
+  // element, the hit test through the world's transform) and the
+  // connector's LABEL inline edit (the line's press keeps no capture —
+  // the hit path is the dblclick's target; the page's inert surfaces
+  // stand no container handler — the read-only stand there).
+  const onContentDoubleClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    // The line's double-click stands the label's edit (the hit path is
+    // the target's element; a capture-retargeted event — the target IS
+    // the container — falls to the point's element, the hit test through
+    // the world's transform).
+    const fromHit = event.target instanceof Element ? event.target.closest<SVGElement>("[data-connector-hit]") : null;
+    if (fromHit !== null) {
+      const id = fromHit.getAttribute("data-connector-hit");
+      if (id !== null) viewport.setConnectorLabelEditing(id);
+      return;
+    }
     // A retargeted event stands the target's closest first (the bubbling
     // path); the capture-retargeted one (the target IS the container)
     // falls to the point's element (the hit test through the world's
@@ -1116,7 +1128,7 @@ function CanvasView() {
         onPointerCancel={onPointerCancel}
         onLostPointerCapture={dropCanvasSessions}
         onMouseDown={onMouseDown}
-        onDoubleClick={onShapeTextDoubleClick}
+        onDoubleClick={onContentDoubleClick}
         onKeyDown={onKeyDown}
         onKeyUp={onKeyUp}
       >
@@ -1162,8 +1174,23 @@ function CanvasView() {
                 viewport.connectorEndpoint !== null ? (viewport.connectorEndpointPreview?.snap ?? null) : null
               }
               showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
+              labelEditing={viewport.connectorLabelEditing}
             />
           ))}
+          {connectorLabelTarget !== null && (
+            // The label's inline edit: the
+            // input at the line's midpoint (the world's space, so it
+            // scales with the zoom — the line's parity). The world stands
+            // it over the surface's layers (the line's text stands off
+            // while the edit stands the draft).
+            <ConnectorLabelEdit
+              id={connectorLabelTarget.id}
+              mid={connectorLabelTarget.mid}
+              stroke={connectorLabelTarget.stroke}
+              label={connectorLabelTarget.label}
+              onClose={() => viewport.setConnectorLabelEditing(null)}
+            />
+          )}
           {viewport.placePreview !== null && (
             // The drag-to-size placement preview (the shape's figure at the
             // dragged box, the dashed cyan line; the world's space, so it
@@ -1328,7 +1355,6 @@ function CanvasView() {
           <ConnectorToolbar
             id={connectorToolbarTarget.id}
             variant={connectorToolbarTarget.variant}
-            label={connectorToolbarTarget.label}
             strokeColor={connectorToolbarTarget.strokeColor}
             strokeWidth={connectorToolbarTarget.strokeWidth}
             arrowHead={connectorToolbarTarget.arrowHead}

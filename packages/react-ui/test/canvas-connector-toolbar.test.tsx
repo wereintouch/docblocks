@@ -251,43 +251,15 @@ describe("the style applies", () => {
     expect(styleOf(doc, connector).strokeColor).toBe("none");
   });
 
-  it("the label's commit applies the attr (the Enter / the blur; the empty commit is the removed stand)", () => {
+  it("stands no label input (the label's edit is the line's double-click)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
     selectBlock(view as HTMLElement, connector, true);
-    const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-toolbar-label"]');
-    if (input === null) throw new Error("the label input is missing");
-    const labelOf = () => {
-      const block = doc.getBlock(connector);
-      if (block === null || block.type !== "connector") return undefined;
-      return block.attrs.label;
-    };
-
-    // The no-op: the focus + the blur without the typed text writes
-    // nothing.
-    const before = JSON.stringify(doc.toJSON());
-    fireEvent.focus(input);
-    fireEvent.blur(input);
-    expect(JSON.stringify(doc.toJSON())).toBe(before);
-
-    // The typed commit (the Enter): one updateBlock (one undo step).
-    fireEvent.focus(input);
-    fireEvent.change(input, { target: { value: "link" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(labelOf()).toBe("link");
-    expect(validateDoc(doc.toJSON())).toEqual([]);
-    doc.undo();
-    expect(labelOf()).toBeUndefined();
-
-    // The clear: the existing label's empty commit stands the removed
-    // state (the attr stands the empty string).
-    doc.transact(() => {
-      doc.updateBlock(connector, { label: "old" });
-    });
-    fireEvent.focus(input);
-    fireEvent.change(input, { target: { value: "" } });
-    fireEvent.blur(input);
-    expect(labelOf()).toBe("");
+    expect(toolbar()).toBeTruthy();
+    // The toolbar's label control stands gone (the inline edit stands
+    // over the line instead — the canvas-connector-label's pins).
+    expect(document.querySelector('[data-slot="docblocks/connector-toolbar-label"]')).toBeNull();
+    expect(screen.queryByLabelText("Line label")).toBeNull();
   });
 });
 

@@ -5,7 +5,10 @@
 // canvas-geometry.
 import { describe, expect, it } from "vitest";
 
+import type { Block } from "docblocks-core";
+
 import {
+  connectorMidpoint,
   connectorPath,
   connectorPathPoints,
   edgeAnchor,
@@ -18,6 +21,17 @@ import {
 /** The scene boxes (the center-anchor geometry shape). */
 const A = { x: -300, y: -100, w: 200, h: 100 };
 const B = { x: 300, y: 100, w: 200, h: 100 };
+
+/** The scene's blocks map (the two shapes' boxes). */
+const BLOCKS: Record<string, Block> = {
+  a: { type: "shape", geometry: A },
+  b: { type: "shape", geometry: B },
+} as unknown as Record<string, Block>;
+
+/** The connector block's stand (the attrs's read). */
+function conn(attrs: Record<string, unknown>): Extract<Block, { type: "connector" }> {
+  return { type: "connector", attrs } as unknown as Extract<Block, { type: "connector" }>;
+}
 
 describe("edgeAnchor", () => {
   it("exits the box at the edge the direction points at (the four sides)", () => {
@@ -405,5 +419,69 @@ describe("connectorPath", () => {
     expect(orthogonal.end.x).toBe(200); // B's west edge x
     expect(straight.end.x).toBeCloseTo(orthogonal.end.x);
     expect(curved.end.x).toBeCloseTo(orthogonal.end.x);
+  });
+});
+
+describe("connectorMidpoint", () => {
+  const IDS = ["a", "b"];
+
+  it("the legacy plain-ref pair stands the box path's midpoint (the overlay's parity)", () => {
+    expect(connectorMidpoint(conn({ start: { blockId: "a" }, end: { blockId: "b" } }), IDS, BLOCKS)).toEqual({
+      x: 0,
+      y: 0,
+    });
+    // The orthogonal's legacy stand (the bend's midpoint — the same seat
+    // for this scene's geometry).
+    expect(
+      connectorMidpoint(conn({ start: { blockId: "a" }, end: { blockId: "b" }, variant: "orthogonal" }), IDS, BLOCKS)
+    ).toEqual({ x: 0, y: 0 });
+  });
+
+  it("the port / the free endpoint stands the resolved points' midpoint (not the box's)", () => {
+    // The ports: A's east port (-200, -100), B's west port (200, 100) —
+    // the mid (0, 0) (the port stand is the edge's midpoint, not the box
+    // center's projected anchor — the non-legacy path).
+    expect(
+      connectorMidpoint(
+        conn({ start: { blockId: "a", port: "east" }, end: { blockId: "b", port: "west" } }),
+        IDS,
+        BLOCKS
+      )
+    ).toEqual({ x: 0, y: 0 });
+    // The free points stand as-is (the world's space).
+    expect(connectorMidpoint(conn({ start: { x: -50, y: 0 }, end: { x: 50, y: 40 } }), IDS, BLOCKS)).toEqual({
+      x: 0,
+      y: 20,
+    });
+    // A free point with the FROZEN direction (the port on the free ref)
+    // stands the same seat (the direction is the line's, not the seat's).
+    expect(
+      connectorMidpoint(conn({ start: { x: -50, y: 0, port: "north" }, end: { x: 50, y: 40 } }), IDS, BLOCKS)
+    ).toEqual({ x: 0, y: 20 });
+  });
+
+  it("the stored points' polyline stands the endpoints' midpoint (the points stand the route, not the seat)", () => {
+    expect(
+      connectorMidpoint(
+        conn({
+          start: { x: -50, y: 0 },
+          end: { x: 50, y: 40 },
+          points: [
+            [0, 10],
+            [0, 30],
+          ],
+        }),
+        IDS,
+        BLOCKS
+      )
+    ).toEqual({ x: 0, y: 20 });
+  });
+
+  it("the unresolved endpoint stands null (the lenient posture — the line stands nothing)", () => {
+    // The blockId outside the surface's children: the ref resolves to
+    // nothing (the cross-surface / the absent block).
+    expect(connectorMidpoint(conn({ start: { blockId: "a" }, end: { blockId: "c" } }), IDS, BLOCKS)).toBeNull();
+    // The docId ref (the cross-doc's v1 stand): the null.
+    expect(connectorMidpoint(conn({ start: { docId: "other" }, end: { blockId: "a" } }), IDS, BLOCKS)).toBeNull();
   });
 });

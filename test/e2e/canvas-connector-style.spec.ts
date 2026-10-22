@@ -157,7 +157,7 @@ test.describe("the connector's style attrs", () => {
     }
   });
 
-  test("the label's commit over the wire (the midpoint's text stands in both panes, the undo reverts)", async ({
+  test("the label's inline edit over the wire (the line's double-click, the select-all's clear, the empty's removed stand)", async ({
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-conn-label");
@@ -172,24 +172,47 @@ test.describe("the connector's style attrs", () => {
         )
         .toBe(true);
 
-      // The line's press + the label's commit (the Enter).
+      // The line's double-click (the midpoint's press: the line runs
+      // through the canvas center) opens the label's inline edit (the
+      // chip over the midpoint; the toolbar's label input stands gone).
       const box = (await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').boundingBox())!;
-      await a.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-      await expect(a.getByRole("toolbar", { name: "Connector options" })).toBeVisible();
-      const input = a.getByLabel("Line label");
+      const midX = box.x + box.width / 2;
+      const midY = box.y + box.height / 2;
+      await a.mouse.dblclick(midX, midY);
+      const input = a.locator('[data-slot="docblocks/connector-label-edit"]');
+      await expect(input).toBeVisible();
+      await expect(a.getByLabel("Line label")).toHaveCount(0); // the toolbar's input stands gone
+
+      // The typed commit (the Enter): the attr stands in A and reaches B
+      // over the wire; the midpoint's text stands in both panes.
       await input.fill("link");
       await input.press("Enter");
-
-      // The attr stands in A and reaches B over the wire; the midpoint's
-      // text stands in both panes.
       await expect.poll(async () => (await connectorAttrs(a, "a"))?.label, SETTLE).toBe("link");
       await expect.poll(async () => (await connectorAttrs(b, "b"))?.label, SETTLE).toBe("link");
       await expect(a.locator("[data-connector-label]")).toHaveText("link");
       await expect(b.locator("[data-connector-label]")).toHaveText("link");
 
-      // The one-step undo (the focus re-seated on the canvas view — the
-      // input's commit dropped the focus off the editor).
+      // The select-all + the Backspace + the outside click's commit: the
+      // empty stand is the removed state (the attr stands the empty
+      // string — the one updateBlock over the wire). The second
+      // double-click stands over the rendered chip (pointer-transparent)
+      // on the hit path — the edit reopens over its seed.
+      await a.mouse.dblclick(midX, midY);
+      await expect(input).toBeVisible();
+      await input.dblclick(); // the double-click over the text: the select-all (the "link" seed)
+      await a.keyboard.press("Backspace"); // the selection's clear (the native stand)
+      await a.mouse.click(midX + 300, midY + 200); // the outside click's commit
+      await expect.poll(async () => (await connectorAttrs(a, "a"))?.label, SETTLE).toBe("");
+      await expect.poll(async () => (await connectorAttrs(b, "b"))?.label, SETTLE).toBe("");
+      await expect(a.locator("[data-connector-label]")).toHaveCount(0);
+
+      // The undo chain (the focus re-seated on the canvas view — the
+      // commit's blur dropped the focus off the editor): the clear's
+      // revert stands the prior label back, the write's revert stands
+      // the label gone (one transact per edit step).
       await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').focus();
+      await a.keyboard.press("Control+z");
+      await expect.poll(async () => (await connectorAttrs(a, "a"))?.label, SETTLE).toBe("link");
       await a.keyboard.press("Control+z");
       await expect.poll(async () => (await connectorAttrs(a, "a"))?.label, SETTLE).toBeUndefined();
       await expect(a.locator("[data-connector-label]")).toHaveCount(0);

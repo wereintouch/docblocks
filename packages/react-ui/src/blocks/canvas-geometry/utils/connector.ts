@@ -344,7 +344,7 @@ function connectorPathPoints(
   return { d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
 }
 
-export { connectorHandlePoints, connectorPath, connectorPathPoints, edgeAnchor };
+export { connectorHandlePoints, connectorMidpoint, connectorPath, connectorPathPoints, edgeAnchor };
 
 /**
  * The endpoint handles' stand for a single selected connector (the chrome
@@ -434,4 +434,60 @@ function connectorHandlePoints(
     start: livePoint("start", { x: startPoint.x, y: startPoint.y }),
     end: livePoint("end", { x: endPoint.x, y: endPoint.y }),
   };
+}
+
+/**
+ * The line's MIDPOINT seat (the label's / the toolbar's anchor) over the
+ * static render (no previews): the same path resolution as the overlay's
+ * label — the stored `points` polyline's end-midpoint, the legacy
+ * box-based path's midpoint (the plain-ref pair — the legacy look), the
+ * resolved endpoints' midpoint otherwise (the port / free stands). Null
+ * when an endpoint does not resolve within the surface (the lenient
+ * posture — the line stands nothing, the seat with it).
+ */
+function connectorMidpoint(
+  block: Extract<Block, { type: "connector" }>,
+  childIds: readonly string[],
+  blocks: Record<string, Block>
+): { x: number; y: number } | null {
+  const attrs = block.attrs;
+  if (attrs === undefined) return null; // lenient data without attrs: no line
+  const startBox = endpointBoxOf(attrs.start, childIds, blocks);
+  const endBox = endpointBoxOf(attrs.end, childIds, blocks);
+  const startFree =
+    attrs.start.x !== undefined && attrs.start.y !== undefined ? { x: attrs.start.x, y: attrs.start.y } : null;
+  const endFree = attrs.end.x !== undefined && attrs.end.y !== undefined ? { x: attrs.end.x, y: attrs.end.y } : null;
+  const startToward = endBox !== null ? { x: endBox.x, y: endBox.y } : (endFree ?? { x: 0, y: 0 });
+  const endToward = startBox !== null ? { x: startBox.x, y: startBox.y } : (startFree ?? { x: 0, y: 0 });
+  const startPoint = endpointPointOf(attrs.start, childIds, blocks, startToward);
+  const endPoint = endpointPointOf(attrs.end, childIds, blocks, endToward);
+  if (startPoint === null || endPoint === null) return null;
+  // The polyline's endpoints stand as the legacy centers for plain refs
+  // (the look preserved); a port / free endpoint stands at its own point.
+  const polyPoint = (
+    ref: { x?: number; y?: number; port?: string },
+    resolved: { x: number; y: number },
+    box: { x: number; y: number } | null
+  ): { x: number; y: number } =>
+    ref.x !== undefined && ref.y !== undefined
+      ? { x: ref.x, y: ref.y }
+      : ref.port !== undefined || box === null
+        ? { x: resolved.x, y: resolved.y }
+        : { x: box.x, y: box.y };
+  if (attrs.points !== undefined && attrs.points.length > 0) {
+    const a = polyPoint(attrs.start, startPoint, startBox);
+    const b = polyPoint(attrs.end, endPoint, endBox);
+    return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  }
+  const legacy =
+    startBox !== null &&
+    endBox !== null &&
+    startFree === null &&
+    endFree === null &&
+    attrs.start.port === undefined &&
+    attrs.end.port === undefined;
+  if (legacy) {
+    return connectorPath(startBox, endBox, attrs.variant ?? "straight").mid;
+  }
+  return { x: (startPoint.x + endPoint.x) / 2, y: (startPoint.y + endPoint.y) / 2 };
 }

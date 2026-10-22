@@ -59,6 +59,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
   const [connectorEndpointPreview, setConnectorEndpointPreview] = useState<EndpointPreview | null>(null);
   const [shapeTextEditing, setShapeTextEditing] = useState<string | null>(null);
+  const [connectorLabelEditing, setConnectorLabelEditing] = useState<string | null>(null);
   const endpointRef = useRef<EndpointSession | null>(null);
   const moveRef = useRef<MoveSession | null>(null);
 
@@ -542,6 +543,8 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     connectorEndpointPreview,
     shapeTextEditing,
     setShapeTextEditing,
+    connectorLabelEditing,
+    setConnectorLabelEditing,
     setConnectorPreview,
     setZoom,
     stepZoom: step,
