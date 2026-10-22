@@ -267,4 +267,36 @@ describe("the continuous edge snap", () => {
     expect(connector).toBeTruthy();
     expect(group).toBeTruthy();
   });
+
+  it("the port's stick disk locks the anchor at the midpoint", () => {
+    const { doc, a } = scene();
+    // A = (-100, 0, 100x60): the north port at (-100, -30). The point
+    // 8px along the edge from the port, 2px off it (distMid = ~8.2,
+    // inside the 12px disk): the port locks the anchor at t = 0.5 (the
+    // continuous projection would stand t = 0.42).
+    expect(snapEdgePoint(doc, a, { x: -108, y: -32 })).toEqual({ blockId: a, port: "north", t: 0.5 });
+    // Off the disk (the port's 12.8px): the continuous stand stands —
+    // the side's projection at the point's position (t = 0.42, 10px
+    // to the edge).
+    expect(snapEdgePoint(doc, a, { x: -108, y: -20 })).toEqual({ blockId: a, port: "north", t: 0.42 });
+    // The disk's override inside the side (the point 5px along the edge
+    // from the port, 6px off it — distMid ~7.8, the disk's; the
+    // continuous projection would stand t = 0.55 at 6px: the port's
+    // anchor wins, the line locks to the dot).
+    expect(snapEdgePoint(doc, a, { x: -95, y: -36 })).toEqual({ blockId: a, port: "north", t: 0.5 });
+  });
+
+  it("the sibling search's port disk stands over the siblings (the nearest port wins)", () => {
+    const { doc, surface, a, b } = scene();
+    // B = (100, 0, 100x60): the north port at (100, -30). The point
+    // 4px along the edge from B's north port (distMid ~6.8, inside the
+    // disk): the port locks the anchor at t = 0.5 (the continuous
+    // projection would stand t = 0.54); A's sides stand far off.
+    expect(snapEndpointEdge(doc, surface, { x: 104, y: -36 })).toEqual({ blockId: b, port: "north", t: 0.5 });
+    // Off B's disk (the port's 12.65px), over B's north edge (4px to it):
+    // the continuous stand stands (t = 0.62) — the stick is the disk's,
+    // not the side's.
+    expect(snapEndpointEdge(doc, surface, { x: 112, y: -34 })).toEqual({ blockId: b, port: "north", t: 0.62 });
+    expect(a).toBeTruthy();
+  });
 });

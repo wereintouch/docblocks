@@ -599,6 +599,80 @@ test.describe("the connector arrows", () => {
     }
   });
 
+  test("the port's stick: the release near the edge's central port locks the anchor to the port (the continuous stand stands the rest of the edge)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "cvs-conn-portstick");
+    try {
+      await toCanvas(a, "a");
+      const { right } = await seedShapes(a, "a");
+      const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
+      await dock.getByLabel("Connector").click();
+      const center = await canvasCenter(a, "a");
+      // The center-clicks stand off the ports' snap radius: the plain
+      // block refs (the legacy shape).
+      await pageClick(a, center.x - 300, center.y - 100);
+      await pageClick(a, center.x + 300, center.y + 100);
+      const connector = await connectorOf(a, "a");
+      expect(connector).not.toBeNull();
+      const connId = connector!;
+
+      // The line's click selects it: the endpoint handles stand.
+      const mid = await lineMid(a, "a", connId);
+      await a.mouse.click(mid.x, mid.y);
+      const startHandle = a.locator(
+        `[data-connector-endpoint="start"][data-connector-endpoint-id="${connId}"] circle:nth-child(2)`
+      );
+      const handleBox = (await startHandle.boundingBox())!;
+
+      // The right box's south port (the edge's central dot): (300, 150).
+      // The release 10px ALONG the edge from the port, 6px off it
+      // (distMid ~10.8 — inside the 12px disk): the port locks the
+      // anchor at t = 0.5 (the continuous projection would stand
+      // t = 0.55 — the pull is the disk's, not the edge's).
+      const southPort = { x: center.x + 300, y: center.y + 150 };
+      const drop = { x: southPort.x + 10, y: southPort.y - 6 };
+      await a.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
+      await a.mouse.down();
+      await a.mouse.move((handleBox.x + drop.x) / 2, (handleBox.y + drop.y) / 2, { steps: 8 });
+      await a.mouse.move(drop.x, drop.y, { steps: 8 });
+      // The live stick stands the PORT (not the cursor's edge point): the
+      // line's end is stuck at the port's point, the badge over it, the
+      // snapped port dot in the connect green.
+      const stuckD = await a.locator(`[data-connector-id="${connId}"]`).getAttribute("d");
+      expect(stuckD!.startsWith("M 300 150")).toBe(true);
+      await expect(a.locator(`[data-connector-snap-badge="${connId}"]`)).toHaveCount(1);
+      const snappedDot = a.locator("[data-canvas-port-snapped]");
+      await expect(snappedDot).toHaveCount(1);
+      await expect(snappedDot).toHaveAttribute("data-canvas-port", "south");
+      await a.mouse.up();
+      // The commit stands the port's anchor (t = 0.5 — the disk's lock,
+      // not the continuous's 0.55).
+      await expect
+        .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
+        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south", portT: 0.5 } }));
+
+      // The pull is the DISK's (12px): a release 30px along the edge
+      // (distMid ~30.6 — off the disk) stands the continuous projection
+      // (t = 0.65) — the edge stick keeps its stand off the port. The
+      // start handle stands at the port now (the first commit); the
+      // selection stands (the commit keeps it), the drag stands from
+      // there.
+      const dropFar = { x: center.x + 330, y: center.y + 144 };
+      const handleBox2 = (await startHandle.boundingBox())!;
+      await a.mouse.move(handleBox2.x + handleBox2.width / 2, handleBox2.y + handleBox2.height / 2);
+      await a.mouse.down();
+      await a.mouse.move((handleBox2.x + dropFar.x) / 2, (handleBox2.y + dropFar.y) / 2, { steps: 8 });
+      await a.mouse.move(dropFar.x, dropFar.y, { steps: 8 });
+      await a.mouse.up();
+      await expect
+        .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
+        .toEqual(expect.objectContaining({ start: { blockId: right, port: "south", portT: 0.65 } }));
+    } finally {
+      await close();
+    }
+  });
+
   test("the ports' visibility: the four edge dots stand while the connector tool is active (and only then)", async ({
     browser,
   }) => {

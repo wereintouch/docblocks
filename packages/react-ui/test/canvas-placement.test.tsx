@@ -159,6 +159,8 @@ describe("the dock", () => {
       connectorEndpointPreview: null,
       shapeTextEditing: null,
       setShapeTextEditing: noop,
+      connectorLabelEditing: null,
+      setConnectorLabelEditing: noop,
       resizePreview: null,
       rotatePreview: null,
       setZoom: noop,

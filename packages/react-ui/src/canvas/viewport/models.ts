@@ -160,9 +160,14 @@ interface CanvasViewportState {
   connectorEndpointPreview: EndpointPreview | null;
   /** The shape in the inline text edit (the double-click's target); null outside an edit. */
   shapeTextEditing: string | null;
+  /** The connector in the label's inline edit (the line's double-click); null outside an edit. */
+  connectorLabelEditing: string | null;
   /** Opens / closes the shape's inline text edit (the double-click, the
    * toolbar's add-text button, the edit's blur / Escape close). */
   setShapeTextEditing: (id: string | null) => void;
+  /** Opens / closes the connector's label inline edit (the line's
+   * double-click; the edit's blur / Escape close). */
+  setConnectorLabelEditing: (id: string | null) => void;
   setZoom: (zoom: number) => void;
   stepZoom: (direction: 1 | -1) => void;
   /** The zoom step at the screen point (the wheel): the point under the

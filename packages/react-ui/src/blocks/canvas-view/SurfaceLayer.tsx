@@ -32,6 +32,7 @@ function SurfaceLayer({
   endpointPreview,
   showPorts,
   endpointSnap,
+  labelEditing,
 }: {
   id: BlockId;
   children: BlockId[];
@@ -50,6 +51,9 @@ function SurfaceLayer({
    *  position — the continuous anchor,; the
    *  snapped dot stands the connect green at the anchor's point). */
   endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
+  /** The connector in the label's inline edit (the label's text stands
+   *  off while the edit's input stands the draft). */
+  labelEditing?: BlockId | null;
 }) {
   const { store } = useEditorContext();
   const contextValue = useBlockContextValue(id, children, "surface");
@@ -78,6 +82,7 @@ function SurfaceLayer({
         endpointPreview={endpointPreview}
         movePreview={movePreview}
         resizePreview={resizePreview}
+        labelEditing={labelEditing}
       />
       <GroupLayer id={id} movePreview={movePreview} />
       {showPorts && <PortDots id={id} snapped={endpointSnap} />}
