@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
-// The connector's LABEL inline edit: the
-// line's double-click opens the input at the line's midpoint (the SVG's
-// label text stands off), the double-click over the text selects the
-// whole label, the blur / the Escape / the Enter commit (one updateBlock
-// in one transact — one undo step), and the empty commit stands the
-// removed state (the attr stands the empty string). The no-op commit
-// (the value stands the committed label) writes nothing.
+// The connector's LABEL: the label's chip
+// stands always (not only in the edit) — the opaque theme background over
+// the 1px frame of the line's own color, at the line's midpoint (the world's
+// space). The line's double-click opens the inline edit (the display chip
+// stands off), the double-click over the text selects the whole label, the
+// blur / the Escape / the Enter commit (one updateBlock in one transact —
+// one undo step), and the empty commit stands the removed state (the attr
+// stands the empty string). The no-op commit (the value stands the committed
+// label) writes nothing.
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -78,8 +80,70 @@ function dblclickLine(view: HTMLElement, id: string): void {
   fireEvent.doubleClick(hitPath(view, id));
 }
 
-describe("the label's inline edit", () => {
-  it("the line's double-click opens the edit at the midpoint (the SVG's label stands off)", () => {
+describe("the label's chip + the inline edit", () => {
+  it("the label's chip stands always (the display stand) — the opaque theme background, the 1px frame, the midpoint, pointer-transparent", () => {
+    const { doc, connector } = seededDoc();
+    renderCanvas(doc);
+    expect(document.querySelector(`[data-connector-label="${connector}"]`)).toBeNull(); // the absent label
+
+    act(() => {
+      doc.transact(() => {
+        doc.updateBlock(connector, { label: "link" });
+      });
+    });
+    // The display chip stands (always — not only in the edit).
+    const chip = document.querySelector<HTMLElement>(`[data-connector-label="${connector}"]`);
+    expect(chip).not.toBeNull();
+    expect(chip!.dataset.slot).toBe("docblocks/connector-label-chip");
+    expect(chip!.textContent).toBe("link");
+    // The opaque theme background (the adaptive token — masks the line
+    // behind the label), the small corner rounding, the pointer-
+    // transparent stand (the line's hit path keeps the click / the
+    // double-click).
+    expect(chip!.style.background).toBe("var(--background)");
+    expect(chip!.style.borderRadius).toBe("var(--docblocks-radius, 6px)");
+    expect(chip!.style.pointerEvents).toBe("none");
+    // No wrap (the width follows the text — a long label stands one line).
+    expect(chip!.style.whiteSpace).toBe("nowrap");
+    // The 1px frame stands the line's default stroke (no data color
+    // stands).
+    expect(chip!.style.border).toContain("1px solid");
+    expect(chip!.style.border).toContain("var(--docblocks-canvas-shape-stroke");
+    // The frame follows the line's own color (the data's strokeColor; jsdom
+    // normalizes the hex to its rgb stand).
+    act(() => {
+      doc.transact(() => {
+        doc.updateBlock(connector, { strokeColor: "#c96a6a" });
+      });
+    });
+    expect(document.querySelector<HTMLElement>(`[data-connector-label="${connector}"]`)!.style.border).toContain(
+      "rgb(201, 106, 106)"
+    );
+  });
+
+  it("the page view's inert surface keeps the label's chip (the display stand, both views)", () => {
+    const { doc, connector } = seededDoc();
+    render(
+      <EditorProvider doc={doc}>
+        <Editor view="page" />
+      </EditorProvider>
+    );
+    act(() => {
+      doc.transact(() => {
+        doc.updateBlock(connector, { label: "relates to" });
+      });
+    });
+    // The page view's surface stands the chip (the label is not only a
+    // canvas-view stand).
+    const chip = document.querySelector<HTMLElement>(`[data-connector-label="${connector}"]`);
+    expect(chip).not.toBeNull();
+    expect(chip!.dataset.slot).toBe("docblocks/connector-label-chip");
+    expect(chip!.textContent).toBe("relates to");
+    expect(chip!.style.background).toBe("var(--background)");
+    expect(chip!.style.pointerEvents).toBe("none");
+  });
+
+  it("the line's double-click opens the edit at the midpoint (the display chip stands off)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
     expect(document.querySelector('[data-slot="docblocks/connector-label-edit"]')).toBeNull();
@@ -96,12 +160,11 @@ describe("the label's inline edit", () => {
     const input = document.querySelector<HTMLInputElement>('[data-slot="docblocks/connector-label-edit"]');
     expect(input).not.toBeNull();
     expect(input!.value).toBe("link"); // the committed label's seed
-    // The SVG's label text stands off while the edit stands the draft.
+    // The display chip stands off while the edit stands the draft.
     expect(document.querySelector(`[data-connector-label="${connector}"]`)).toBeNull();
-    // The chip's stand (the existing background token, the 1px frame of
-    // the line's color, the small rounding — the inline stand; the jsdom
-    // computed style parses the var()'s shorthand nothing).
-    expect(input!.style.background).toBe("var(--docblocks-page-card-background)");
+    // The edit's chip stand: the shared chip (the opaque theme background,
+    // the 1px frame, the small rounding).
+    expect(input!.style.background).toBe("var(--background)");
     expect(input!.style.border).toContain("1px solid");
     expect(input!.style.borderRadius).toBe("var(--docblocks-radius, 6px)");
     // The edit closes (the Escape's blur commit — the no-op: the value
@@ -110,7 +173,7 @@ describe("the label's inline edit", () => {
     fireEvent.keyDown(input!, { key: "Escape" });
     expect(document.querySelector('[data-slot="docblocks/connector-label-edit"]')).toBeNull();
     expect(JSON.stringify(doc.toJSON())).toBe(before);
-    // The label's text re-stands (the edit's close).
+    // The label's chip re-stands (the edit's close).
     expect(document.querySelector(`[data-connector-label="${connector}"]`)).not.toBeNull();
   });
 
@@ -143,7 +206,7 @@ describe("the label's inline edit", () => {
     expect(labelOf(doc, connector)).toBe("link");
     expect(validateDoc(doc.toJSON())).toEqual([]);
     expect(document.querySelector('[data-slot="docblocks/connector-label-edit"]')).toBeNull();
-    const label = document.querySelector<SVGElement>(`[data-connector-label="${connector}"]`);
+    const label = document.querySelector<HTMLElement>(`[data-connector-label="${connector}"]`);
     expect(label?.textContent).toBe("link");
     doc.undo();
     expect(labelOf(doc, connector)).toBeUndefined();

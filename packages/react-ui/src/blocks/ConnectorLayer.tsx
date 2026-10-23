@@ -20,7 +20,7 @@ import {
   endpointPointOf,
 } from "./canvas-geometry";
 
-/** The v1 connector stroke (the shape token; the label uses the text color). */
+/** The v1 connector stroke (the shape token). */
 const CONNECTOR_STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
 /** The selected connector's stroke (the canvas selection's cyan — the
  *  token stands in both themes; the page `--accent` is a hover surface,
@@ -39,7 +39,6 @@ const SELECTED_WIDTH_BUMP = 1;
 const HIT_STROKE_WIDTH = 12;
 /** The arrowhead's length (canvas px, the marker's coordinate space). */
 const ARROW_SIZE = 8;
-const LABEL_FONT_SIZE = 12;
 /** The connect badge's radius (canvas px, beside the snapped port). */
 const SNAP_BADGE_RADIUS = 10;
 /** The connect badge's offset from the snapped port along its outward
@@ -81,8 +80,9 @@ function arrowDefId(surfaceId: BlockId, fill: string): string {
  * arrowhead (the filled triangle marker) stands at the end point. An
  * endpoint that does not resolve within the surface's children (a docId
  * ref, an absent block) SKIPS the line (the lenient posture; the
- * element's wrapper carries data-missing). A label renders as an SVG
- * text at the line's midpoint.
+ * element's wrapper carries data-missing). The label stands the shared
+ * HTML chip at the line's midpoint (the canvas-view / the page view's
+ * surface — the world's space), not an SVG text.
  *
  * The handles: the TWO endpoint circles
  * render for the SELECTED connector and are DRAGGABLE — the pointerdown
@@ -102,7 +102,6 @@ function ConnectorLayer({
   endpointPreview,
   movePreview,
   resizePreview,
-  labelEditing,
 }: {
   id: BlockId;
   interactive?: boolean;
@@ -115,10 +114,6 @@ function ConnectorLayer({
   movePreview: MovePreview | null;
   /** The in-flight resize preview (the lines follow the resized item). */
   resizePreview: { id: BlockId; box: Box } | null;
-  /** The connector in the label's inline edit (the double-click's
-   *  session): the SVG's label text stands off while the edit's input
-   *  stands the draft (the commit re-stands it). */
-  labelEditing?: BlockId | null;
 }) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
@@ -320,25 +315,6 @@ function ConnectorLayer({
           ? connectorPath(startBox, endBox, attrs.variant ?? "straight")
           : connectorPathPoints(startDraw, endDraw, attrs.variant ?? "straight", obstacleBoxes);
 
-    // The label (the midpoint's text; the empty string is the removed
-    // state — the attr stands, the text stands nothing). The inline edit
-    // stands the label off (the edit's input stands the draft at the
-    // same seat).
-    const label =
-      attrs.label !== undefined && attrs.label !== "" && childId !== labelEditing ? (
-        <text
-          data-connector-label={childId}
-          x={path.mid.x}
-          y={path.mid.y}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={LABEL_FONT_SIZE}
-          fill="currentColor"
-        >
-          {attrs.label}
-        </text>
-      ) : null;
-
     // The connect badge (the endpoint drag's port snap): the green Link
     // beside the SNAPPED PORT (the port point + the outward normal's
     // offset — the "the point is connected" indicator; it follows the port, not the line's midpoint).
@@ -407,7 +383,6 @@ function ConnectorLayer({
             style={{ cursor: "pointer" }}
           />
         )}
-        {label}
         {snapBadge}
       </g>
     );

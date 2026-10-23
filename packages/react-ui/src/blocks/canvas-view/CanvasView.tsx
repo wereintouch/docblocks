@@ -80,6 +80,7 @@ import {
   portsOf,
 } from "../canvas-geometry";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
+import { ConnectorLabelChips } from "./ConnectorLabelChip";
 import { ConnectorLabelEdit } from "./ConnectorLabelEdit";
 import { ConnectorPreviewLine } from "./ConnectorPreviewLine";
 import { SurfaceLayer } from "./SurfaceLayer";
@@ -1437,7 +1438,19 @@ function CanvasView() {
                     : null
               }
               showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
-              labelEditing={viewport.connectorLabelEditing}
+            />
+          ))}
+          {/* The connector label chips (the shared chip's display stand):
+              every labeled connector's midpoint — the opaque theme
+              background over the line's own frame (the chip stands always,
+              not only in the edit). The
+              editing one stands off (its edit chip stands it). */}
+          {surfaces.map(({ id, children }) => (
+            <ConnectorLabelChips
+              key={`label-chips-${id}`}
+              children={children}
+              selectedIds={storeSelection?.kind === "blocks" ? storeSelection.ids : undefined}
+              skipId={viewport.connectorLabelEditing}
             />
           ))}
           {connectorLabelTarget !== null && (

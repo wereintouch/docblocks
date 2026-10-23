@@ -263,7 +263,10 @@ describe("canvas scene", () => {
     // The hit path (the wide transparent stroke the line clicks on).
     expect(layer.querySelector(`[data-connector-hit="${IDS.connector}"]`)).not.toBeNull();
 
-    const label = layer.querySelector<SVGElement>(`[data-connector-label="${IDS.connector}"]`)!;
+    // The label's chip (the HTML overlay — outside the SVG layer; the
+    //: the chip stands always, not only in the
+    // edit).
+    const label = document.querySelector<HTMLElement>(`[data-connector-label="${IDS.connector}"]`)!;
     expect(label.textContent).toBe("link");
 
     // The broken connector: no line, the wrapper is marked.

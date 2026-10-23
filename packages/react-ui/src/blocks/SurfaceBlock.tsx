@@ -3,6 +3,7 @@ import type { BlockId, SurfaceBlock as SurfaceBlockType } from "docblocks-core";
 import { CanvasItem } from "./CanvasItem";
 import { ConnectorLayer } from "./ConnectorLayer";
 import { BlockContext, useBlockContextValue } from "./block-context";
+import { ConnectorLabelChips } from "./canvas-view/ConnectorLabelChip";
 
 const EMPTY_IDS: BlockId[] = [];
 
@@ -46,6 +47,9 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
             movePreview={null}
             resizePreview={null}
           />
+          {/* The connector label chips (the display stand — the page view's
+              inert surface keeps the label). */}
+          <ConnectorLabelChips children={children} />
         </BlockContext.Provider>
       </div>
     </div>

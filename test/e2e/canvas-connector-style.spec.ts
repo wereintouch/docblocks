@@ -241,4 +241,80 @@ test.describe("the connector's style attrs", () => {
       await close();
     }
   });
+
+  // The label's CHIP: the chip stands always
+  // (not only in the edit) — the opaque theme background over the 1px frame
+  // of the line's own color, at the line's midpoint. The selected line's
+  // emphasis stands the frame too (the selected token over the data color).
+  test("the label's chip stands always (the opaque theme background over the line's own frame)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "canvas-conn-chip");
+    try {
+      await a.getByTestId("view-a-canvas").click();
+      await seedLine(a, "a");
+      // The line's data color (the frame's color) + the label.
+      await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        const blocks = doc.toJSON().blocks;
+        const surfaceId = Object.keys(blocks).find((id) => blocks[id]?.type === "surface")!;
+        const ids = doc.getChildren(surfaceId);
+        const conn = ids.find((id) => blocks[id]?.type === "connector")!;
+        doc.transact(() => {
+          doc.updateBlock(conn, { strokeColor: "#cf9155", label: "the chip" });
+        });
+      });
+
+      const chip = a.locator("[data-connector-label]");
+      await expect(chip).toHaveCount(1); // the chip stands (the line is unselected)
+      await expect(chip).toHaveText("the chip");
+      const stand = await chip.evaluate((el) => {
+        const computed = getComputedStyle(el);
+        const probe = document.createElement("div");
+        probe.style.background = "var(--background)";
+        document.body.appendChild(probe);
+        const tokenBg = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return {
+          bg: computed.backgroundColor,
+          border: computed.borderTopColor,
+          pointerEvents: computed.pointerEvents,
+          tokenBg,
+        };
+      });
+      // The opaque theme background (the adaptive token — stands --background,
+      // never transparent).
+      expect(stand.bg).toBe(stand.tokenBg);
+      expect(stand.bg).not.toContain("rgba(0, 0, 0, 0)");
+      // The 1px frame stands the line's own color (the data's strokeColor).
+      expect(stand.border).toBe("rgb(207, 145, 85)"); // #cf9155
+      // The pointer-transparent stand (the line's hit path keeps the click).
+      expect(stand.pointerEvents).toBe("none");
+
+      // The press over the chip (pointer-transparent) selects the line (the
+      // click passes through to the hit path); the selection's emphasis
+      // stands the frame (the selected token over the data color).
+      const box = (await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').boundingBox())!;
+      await a.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      await expect(a.locator("[data-connector-id]").first()).toHaveAttribute("data-selected", "true");
+      const selectedStand = await chip.evaluate((el) => {
+        const computed = getComputedStyle(el);
+        // The probe stands in the editor root (the --docblocks-* tokens
+        // stand there, not on :root).
+        const root = el.closest('[data-slot="docblocks/editor"]') ?? document.body;
+        const probe = document.createElement("span");
+        probe.style.border = "1px solid var(--docblocks-canvas-selected-stroke)";
+        probe.style.position = "absolute";
+        probe.style.visibility = "hidden";
+        root.appendChild(probe);
+        const tokenBorder = getComputedStyle(probe).borderTopColor;
+        probe.remove();
+        return { border: computed.borderTopColor, tokenBorder };
+      });
+      expect(selectedStand.border).toBe(selectedStand.tokenBorder);
+    } finally {
+      await close();
+    }
+  });
 });
