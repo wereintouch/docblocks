@@ -47,6 +47,7 @@ export { Pen } from "./Pen";
 export { Pilcrow } from "./Pilcrow";
 export { Plus } from "./Plus";
 export { Quote } from "./Quote";
+export { Scan } from "./Scan";
 export { Search } from "./Search";
 export { Sigma } from "./Sigma";
 export { Square } from "./Square";

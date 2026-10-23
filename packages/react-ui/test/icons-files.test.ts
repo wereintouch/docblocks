@@ -54,6 +54,7 @@ const ICON_SET = [
   "Pilcrow",
   "Plus",
   "Quote",
+  "Scan",
   "Search",
   "Sigma",
   "Square",
