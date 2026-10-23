@@ -344,6 +344,46 @@ describe("connectorPathPoints", () => {
     expect(clearElbow.d).toBe("M 0 0 L 50 0 L 50 60 L 100 60");
   });
 
+  it("orthogonal: the line inside a container routes around the members (the container's box stands no obstacle)", () => {
+    // The scene: a container with members A (left), B (right), C (middle).
+    // The connector A(east) -> B(west): the straight route at y = 0 crosses
+    // C. The CONTAINER's box (which encloses the members) stands no
+    // obstacle — the obstacles are the MEMBERS (the figures), so the clear
+    // route (over C's top) stands, not the crossing fallback.
+    const a = { x: -60, y: 0, nx: 1, ny: 0 }; // A's east edge
+    const b = { x: 60, y: 0, nx: -1, ny: 0 }; // B's west edge
+    const A = { x: -100, y: 0, w: 80, h: 80 };
+    const B = { x: 100, y: 0, w: 80, h: 80 };
+    const C = { x: 0, y: 0, w: 80, h: 80 };
+    // The FIXED behavior: the obstacles are the members (NOT the container's
+    // box). The route goes over C's top (C's top edge -40 offset by the
+    // 12-px margin: y = -40 - 12 = -52), NOT the straight line (which
+    // crosses C).
+    const fixed = connectorPathPoints(a, b, "orthogonal", [A, B, C]);
+    expect(fixed.d).toBe("M -60 0 L -48 0 L -48 -52 L 48 -52 L 48 0 L 60 0");
+    // The BUG (the container's box as an obstacle): every inside route hits
+    // the enclosing box -> the pool is empty -> the fallback elbow crosses C.
+    const G = { x: 0, y: 0, w: 400, h: 300 };
+    const bugged = connectorPathPoints(a, b, "orthogonal", [G, A, B, C]);
+    expect(bugged.d).toBe("M -60 0 L -48 0 L 0 0 L 48 0 L 60 0");
+  });
+
+  it("orthogonal: the equal-length tie prefers the FEWER bends (the obstacle scene only)", () => {
+    // a = (0, 0), b = (100, 60): the default elbow (t = 50, 2 bends) and the
+    // L-shapes (t = 100 / t = 0, 1 bend) all stand the same length (160 — the
+    // Manhattan span). A far obstacle keeps the scene's avoid flag (the
+    // actual lengths stand), so the 1-bend L-shape wins over the 2-bend
+    // elbow (the list order picks the earliest of the equal set — t = 100).
+    const withObs = connectorPathPoints({ x: 0, y: 0, nx: 0, ny: 0 }, { x: 100, y: 60, nx: 0, ny: 0 }, "orthogonal", [
+      { x: 500, y: 500, w: 100, h: 100 },
+    ]);
+    expect(withObs.d).toBe("M 0 0 L 100 0 L 100 60");
+    // The obstacle-free scene (the equal lengths stand 0) keeps the list
+    // order — the default elbow byte-for-byte (the bend tiebreaker stands off).
+    const noObs = connectorPathPoints({ x: 0, y: 0, nx: 0, ny: 0 }, { x: 100, y: 60, nx: 0, ny: 0 }, "orthogonal");
+    expect(noObs.d).toBe("M 0 0 L 50 0 L 50 60 L 100 60");
+  });
+
   it("curved: the anchored normals bow out; the free point bows perpendicular to the segment", () => {
     // Both anchored (the east / west normals): the same bow as the box
     // form's curved (the endpoints equal the edge anchors).

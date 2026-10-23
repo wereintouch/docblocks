@@ -1032,9 +1032,12 @@ test.describe("the connector arrows", () => {
       // 12-px offset OUTSIDE the box (y = 50 - 12 = 38) and turns into
       // the port at a right angle (the last segment (300, 38) ->
       // (300, 50) is vertical). The start stands the east port's 12-px
-      // stub off the left box's edge (-200 + 12 = -188).
+      // stub off the left box's edge (-200 + 12 = -188). The route's
+      // middle bend: the default elbow (3 bends) and the L-shape at the
+      // end's own line (1 bend) stand the same length — the (length, bends)
+      // tiebreaker picks the straighter L-shape.
       const d = (await lineD(a, "a", connId))!;
-      expect(d).toBe("M -200 -100 L -188 -100 L 56 -100 L 56 38 L 300 38 L 300 50");
+      expect(d).toBe("M -200 -100 L -188 -100 L 300 -100 L 300 38 L 300 50");
     } finally {
       await close();
     }
