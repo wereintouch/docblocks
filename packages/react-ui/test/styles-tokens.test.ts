@@ -69,7 +69,7 @@ describe("styles.css token contract", () => {
       "var(--border, #d0d7de)",
       "color-mix(in srgb, var(--muted, #afb8c1) 8%, transparent)",
       "var(--card, #ffffff)",
-      "color-mix(in srgb, var(--muted-foreground, #afb8c1) 35%, transparent)",
+      "color-mix(in srgb, var(--muted-foreground, #afb8c1) 24%, transparent)",
       "var(--popover, #ffffff)",
     ];
     for (const value of lightFallbackValues) {

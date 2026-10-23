@@ -480,6 +480,30 @@ test("the document canvas view and the page card read the zone-4 tokens", async 
   expect(grid.dotted).toBe(true);
   expect(grid.height).not.toBe("0px");
 
+  // The dot's alpha (the a bit more transparent stand): the token's resolved alpha stands ~20–25% (the first 35%
+  // stand's target below). The canvas 2D round-trip resolves the color-mix
+  // to an sRGB alpha regardless of the theme's color space.
+  const dot = await view.evaluate(() => {
+    const el = document.querySelector('[data-slot="docblocks/canvas-view"]');
+    if (el === null) return { alpha: null };
+    const token = getComputedStyle(el).getPropertyValue("--docblocks-canvas-view-dot").trim();
+    const canvas = document.createElement("canvas");
+    canvas.width = canvas.height = 1;
+    const ctx = canvas.getContext("2d");
+    if (ctx === null) return { alpha: null, token };
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = token;
+    ctx.fillRect(0, 0, 1, 1);
+    const data = ctx.getImageData(0, 0, 1, 1).data;
+    return { alpha: (data[3] ?? 0) / 255, token };
+  });
+  expect(dot.alpha).not.toBeNull();
+  // A bit more transparent than the first 35% stand (in the ~20–25% band,
+  // the rounding tolerance).
+  expect(dot.alpha as number).toBeGreaterThanOrEqual(0.19);
+  expect(dot.alpha as number).toBeLessThanOrEqual(0.26);
+  expect(dot.alpha as number).toBeLessThan(0.35);
+
   // The page miniature: the padding, the radius and the shadow tokens.
   const card = page.locator('[data-slot="docblocks/page-card"]');
   await expect(card).toHaveCount(1);

@@ -208,7 +208,9 @@
 
   /* Canvas view (the document-level canvas). */
   --docblocks-canvas-view-height: 100%;
-  --docblocks-canvas-view-dot: color-mix(in srgb, var(--muted-foreground, #afb8c1) 35%, transparent);
+  /* The dot-grid dot's alpha: a bit more transparent than the first stand
+     (the moire at the small zoom). */
+  --docblocks-canvas-view-dot: color-mix(in srgb, var(--muted-foreground, #afb8c1) 24%, transparent);
   --docblocks-canvas-view-grid: 24px;
   --docblocks-page-card-background: var(--card, #ffffff);
   --docblocks-page-card-shadow: 0 2px 16px rgba(0, 0, 0, 0.12);
