@@ -15,7 +15,7 @@
  * The canvas interaction (the pointer sessions on the container): the pan
  * mode (or the held space) drags the canvas from anywhere; the default
  * mode marquee-selects from the empty canvas (the block selection over the
- * intersecting canvas items; the focus parks on the editor root so the
+ * intersecting canvas items; the focus parks on the canvas container so the
  * Delete/Backspace path reaches the selection) and click-selects a single
  * canvas item. The editing surfaces (the canvas-text inners, the page
  * miniature's content) keep their own pointer handling (the caret), and
@@ -38,6 +38,7 @@ import { ConnectorToolbar } from "../../canvas/ConnectorToolbar";
 import { ShapeToolbar } from "../../canvas/ShapeToolbar";
 import { copyCanvasItems, pasteCanvasItems } from "../../canvas/clipboard";
 import { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "../../canvas/insert";
+import { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "../../canvas/nudge";
 import {
   MOVE_THRESHOLD_PX,
   canvasToScreen,
@@ -1154,6 +1155,52 @@ function CanvasView() {
           // selection back, the redo re-seats the pasted).
           selection.view?.set({ kind: "blocks", ids: pasted, anchorId: pasted[0]! });
           containerRef.current?.focus();
+        }
+        return;
+      }
+    }
+    // The arrow-key nudge: over the
+    // canvas's blocks selection and no in-flight gesture — each press is
+    // a real move (one setGeometry per item in one transact: one undo
+    // step, one wire update; the selection stands on the same items).
+    // The key stands over the container's own focus only (the hotkey's
+    // context — the selection's hotkeys park there): the view's own
+    // controls (the toolbar's width selector, the dock, the zoom) keep
+    // their own arrows. The in-flight gestures own the keys (the move /
+    // resize sessions, the pan / marquee / pen / placement, the endpoint
+    // drag, the tool's pick); the page view and the editing surfaces keep
+    // their own arrows (the isEditingSurface guard above). The key stands
+    // swallowed — the page never scrolls over the arrows.
+    if (
+      (NUDGE_KEYS as readonly string[]).includes(event.key) &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      event.target === event.currentTarget
+    ) {
+      const sel = selection.view?.get();
+      if (sel?.kind !== "blocks" || sel.ids.length === 0) return;
+      if (
+        nudgeGate(
+          {
+            move: viewport.moveSession,
+            resize: viewport.resizeSession,
+            pan: sessionRef.current !== null,
+            endpoint: viewport.connectorEndpoint !== null,
+            marquee: viewport.marquee !== null,
+            pen: viewport.penPoints.length > 0,
+            place: viewport.placePreview !== null,
+            tool: viewport.activeTool !== null,
+            pending: viewport.pendingConnector !== null || viewport.pendingFree !== null,
+          },
+          sel
+        )
+      ) {
+        const delta = nudgeDelta(event.key, event.shiftKey);
+        if (delta !== null) {
+          event.preventDefault();
+          event.stopPropagation();
+          nudgeSelection(doc, sel.ids, delta.dx, delta.dy);
         }
         return;
       }

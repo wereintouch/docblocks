@@ -148,6 +148,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [marquee, setMarquee] = useState<MarqueeState | null>(null);
   const [penPoints, setPenPoints] = useState<CanvasPoint[]>([]);
   const [movePreview, setMovePreview] = useState<MovePreview | null>(null);
+  const [moveSession, setMoveSession] = useState(false);
   const [dropIndicators, setDropIndicators] = useState<DropIndicator[] | null>(null);
   const [placePreview, setPlacePreview] = useState<PlacePreview | null>(null);
   const [connectorPreview, setConnectorPreview] = useState<EndpointPreview | null>(null);
@@ -519,6 +520,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       }
       moveRef.current = { ids: allIds, startClientX, startClientY, snapshot, dragging: false, dx: 0, dy: 0 };
       setMovePreview(null);
+      setMoveSession(true);
     },
     [doc]
   );
@@ -546,6 +548,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const endMove = useCallback(() => {
     const session = moveRef.current;
     moveRef.current = null;
+    setMoveSession(false);
     const drops = dropRef.current;
     dropRef.current = null;
     setMovePreview(null);
@@ -616,10 +619,12 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     dropRef.current = null;
     setMovePreview(null);
     setDropIndicators(null);
+    setMoveSession(false);
   }, []);
 
   const resizeRef = useRef<ResizeSession | null>(null);
   const [resizePreview, setResizePreview] = useState<{ id: string; box: Box } | null>(null);
+  const [resizeSession, setResizeSession] = useState(false);
 
   const beginResize = useCallback(
     (id: string, handle: ResizeHandle, startClientX: number, startClientY: number) => {
@@ -635,6 +640,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
         box: null,
       };
       setResizePreview(null);
+      setResizeSession(true);
     },
     [doc]
   );
@@ -658,6 +664,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     const session = resizeRef.current;
     resizeRef.current = null;
     setResizePreview(null);
+    setResizeSession(false);
     if (session === null || !session.dragging || session.box === null) return;
     doc.transact(() => {
       if (doc.getBlock(session.id) === null) return;
@@ -668,6 +675,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const cancelResize = useCallback(() => {
     resizeRef.current = null;
     setResizePreview(null);
+    setResizeSession(false);
   }, []);
 
   return {
@@ -683,8 +691,10 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     marquee,
     penPoints,
     movePreview,
+    moveSession,
     dropIndicators,
     resizePreview,
+    resizeSession,
     placePreview,
     connectorPreview,
     connectorHoverSnap,
@@ -729,4 +739,4 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   };
 }
 
-export { useCanvasViewport };
+export { unitMembers, useCanvasViewport };

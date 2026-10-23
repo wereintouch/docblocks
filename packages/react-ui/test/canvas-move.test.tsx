@@ -139,6 +139,37 @@ describe("the move session", () => {
     expect(doc.toJSON()).toEqual(before);
   });
 
+  it("stands the session's open state (the press window the preview does not reach)", () => {
+    const { doc, a } = seededDoc();
+    const { result } = renderHook(() => useCanvasViewport(doc));
+    expect(result.current.moveSession).toBe(false);
+
+    // The press stands the session (the pre-threshold window — the preview
+    // is still null).
+    act(() => {
+      result.current.beginMove([a], 0, 0);
+    });
+    expect(result.current.moveSession).toBe(true);
+    expect(result.current.movePreview).toBeNull();
+
+    // The release clears it.
+    act(() => {
+      result.current.endMove();
+    });
+    expect(result.current.moveSession).toBe(false);
+
+    // The cancel clears it (the in-flight preview dropped).
+    act(() => {
+      result.current.beginMove([a], 0, 0);
+      result.current.moveDrag(30, 30);
+    });
+    expect(result.current.moveSession).toBe(true);
+    act(() => {
+      result.current.cancelMove();
+    });
+    expect(result.current.moveSession).toBe(false);
+  });
+
   it("moves a geometry-less item with the synthesized default box", () => {
     const doc = newDoc();
     const surface = doc.insertBlock("surface");
@@ -249,6 +280,40 @@ describe("the resize session", () => {
 
     expect(doc.toJSON()).toEqual(before);
     expect(result.current.resizePreview).toBeNull();
+  });
+
+  it("stands the session's open state (the press window the preview does not reach)", () => {
+    const { doc, a } = seededDoc();
+    const { result } = renderHook(() => useCanvasViewport(doc));
+    expect(result.current.resizeSession).toBe(false);
+
+    // The press stands the session (the pre-threshold window — the preview
+    // is still null).
+    act(() => {
+      result.current.beginResize(a, "e", 0, 0);
+    });
+    expect(result.current.resizeSession).toBe(true);
+    expect(result.current.resizePreview).toBeNull();
+
+    // The drag stands the preview; the session stands.
+    act(() => {
+      result.current.resizeDrag(40, 0, false);
+    });
+    expect(result.current.resizeSession).toBe(true);
+    expect(result.current.resizePreview).not.toBeNull();
+
+    // The release / the cancel clear it.
+    act(() => {
+      result.current.endResize();
+    });
+    expect(result.current.resizeSession).toBe(false);
+
+    act(() => {
+      result.current.beginResize(a, "e", 0, 0);
+      result.current.resizeDrag(40, 0, false);
+      result.current.cancelResize();
+    });
+    expect(result.current.resizeSession).toBe(false);
   });
 
   it("resizes the geometry-less root with the default page box", () => {
