@@ -68,7 +68,7 @@
  */
 [data-slot="docblocks/editor"] {
   /* Typography. */
-  --docblocks-font-family: var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif);
+  --docblocks-font-family: var(--font-sans, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif);
   --docblocks-font-size: 16px;
   --docblocks-line-height: 1.6;
   /* The block's first-line box height (the font size times the line height —

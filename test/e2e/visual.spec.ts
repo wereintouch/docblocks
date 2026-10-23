@@ -19,6 +19,17 @@ async function openCatalogPane(page: Page): Promise<void> {
   // to wait for — the modes are exclusive, the preview render is pinned by
   // the mermaid spec).
   await expect(page.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
+  // Wait for the self-hosted UI font (Inter) to resolve: the page text renders
+  // in Inter (the UI default font), so the golden must capture the real font,
+  // not the FOUT fallback. Load the faces the catalog's text uses (the regular
+  // / semibold x the normal / italic styles) and wait for them to settle.
+  await page.evaluate(() =>
+    Promise.all(
+      ["400 16px Inter", "600 16px Inter", "italic 400 16px Inter", "italic 600 16px Inter"].map((font) =>
+        document.fonts.load(font)
+      )
+    ).then(() => document.fonts.ready)
+  );
 }
 
 /** The pane's editor root — the screenshot scope (the harness chrome stays out). The direct-child scope (through the shared Card frame) keeps the nested editor root (the catalog's sync-embed) out of the match. The element's top edge sits on a subpixel offset (the harness header's height), so a chrome change above the doc area can shift the integer clip height by 1px without any content change — regenerate the goldens in that case. */

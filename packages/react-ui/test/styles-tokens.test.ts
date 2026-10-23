@@ -53,7 +53,7 @@ describe("styles.css token contract", () => {
     // exact var()/color-mix() reference of the light block. A drifted
     // fallback (a wrong hex base, an alpha) changes the unthemed render.
     const lightFallbackValues = [
-      'var(--font-sans, system-ui, -apple-system, "Segoe UI", sans-serif)',
+      'var(--font-sans, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif)',
       "var(--foreground, #1f2328)",
       "var(--muted, rgba(175, 184, 193, 0.2))",
       "var(--primary, #0969da)",

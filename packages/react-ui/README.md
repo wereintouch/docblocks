@@ -64,6 +64,15 @@ pure seed (without the utility layer) also ships as
 `docblocks-react-ui/theme.css` — import it for the tokens alone, or copy
 its values into your own theme.
 
+**Fonts.** The default UI font (the editor's chrome + the page text) is the
+self-hosted `Inter` — the `--docblocks-font-family` token reads `--font-sans`
+first, so a `--font-sans` you define overrides it. The mono font (the code /
+latex blocks) — the `--docblocks-mono-font-family` token — defaults to the
+system mono and reads `--font-mono` first. The package's self-hosted font set
+(the UI font, the mono default, and the shape-text font options) is listed in
+the `fonts` registry (`UI_FONT_ID` / `UI_FONT_STACK`, `MONO_FONT_STACK`,
+`SHAPE_FONT_OPTIONS`).
+
 ### Design system primitives
 
 The package's design system primitives (Button, Checkbox, Card, Alert, … —
