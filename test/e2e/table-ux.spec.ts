@@ -457,18 +457,20 @@ test("the column color over the row color (the intersection); the remove reveals
     ]);
     await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
 
-    // The row 0 color (the amber) on its cells.
+    // The row 0 color (the amber) on its cells. The swatch's entry is a
+    // theme token; the commit resolves it to the active theme's hex (the
+    // harness stands dark — the muted amber / emerald).
     await pressHandle(a, "row", 0, 2);
     await expect(rowMenu(a)).toBeVisible();
     await rowMenu(a).getByText("Background", { exact: true }).click();
-    await a.locator('[data-slot="docblocks/table-swatch"][data-color="#f59e0b"]').click();
+    await a.locator('[data-slot="docblocks/table-swatch"][data-color="var(--docblocks-palette-orange)"]').click();
 
     // The column 0 color (the emerald) on its cells — the intersection cell
     // (0,0) stands the COLUMN color (the column over the row).
     await pressHandle(a, "column", 0, 2);
     await expect(colMenu(a)).toBeVisible();
     await colMenu(a).getByText("Background", { exact: true }).click();
-    await a.locator('[data-slot="docblocks/table-swatch"][data-color="#10b981"]').click();
+    await a.locator('[data-slot="docblocks/table-swatch"][data-color="var(--docblocks-palette-green)"]').click();
 
     // Computed backgrounds (A and B): the intersection = the column's
     // emerald; the row-only cell (0,1) = the row's amber.
@@ -477,22 +479,22 @@ test("the column color over the row color (the intersection); the remove reveals
         .locator("td")
         .nth(row * 2 + col)
         .evaluate((el) => getComputedStyle(el).backgroundColor);
-    await expect.poll(async () => cellBg(a, 0, 0), SETTLE).toBe("rgb(16, 185, 129)");
-    await expect.poll(async () => cellBg(a, 0, 1), SETTLE).toBe("rgb(245, 158, 11)");
-    await expect.poll(async () => cellBg(b, 0, 0), SETTLE).toBe("rgb(16, 185, 129)");
-    await expect.poll(async () => cellBg(b, 0, 1), SETTLE).toBe("rgb(245, 158, 11)");
+    await expect.poll(async () => cellBg(a, 0, 0), SETTLE).toBe("rgb(99, 184, 126)");
+    await expect.poll(async () => cellBg(a, 0, 1), SETTLE).toBe("rgb(207, 145, 85)");
+    await expect.poll(async () => cellBg(b, 0, 0), SETTLE).toBe("rgb(99, 184, 126)");
+    await expect.poll(async () => cellBg(b, 0, 1), SETTLE).toBe("rgb(207, 145, 85)");
 
     // The JSON's attrs (B): the column color stands on the column's cells,
     // the row color on the row's cells.
     const snap = await expect
       .poll(async () => (await tableSnapshot(b, "b", tableId))?.rows[0]?.[0]?.columnColor, SETTLE)
-      .toBe("#10b981")
+      .toBe("#63b87e")
       .then(async () => tableSnapshot(b, "b", tableId));
-    expect(snap?.rows[0]?.[0]?.columnColor).toBe("#10b981");
-    expect(snap?.rows[0]?.[0]?.rowColor).toBe("#f59e0b");
+    expect(snap?.rows[0]?.[0]?.columnColor).toBe("#63b87e");
+    expect(snap?.rows[0]?.[0]?.rowColor).toBe("#cf9155");
     expect(snap?.rows[0]?.[1]?.columnColor).toBeUndefined();
-    expect(snap?.rows[0]?.[1]?.rowColor).toBe("#f59e0b");
-    expect(snap?.rows[1]?.[0]?.columnColor).toBe("#10b981");
+    expect(snap?.rows[0]?.[1]?.rowColor).toBe("#cf9155");
+    expect(snap?.rows[1]?.[0]?.columnColor).toBe("#63b87e");
     expect(snap?.rows[1]?.[0]?.rowColor).toBeUndefined();
 
     // The remove (the column's) reveals the row's color at the intersection.
@@ -500,7 +502,7 @@ test("the column color over the row color (the intersection); the remove reveals
     await expect(colMenu(a)).toBeVisible();
     await expect(colMenu(a).locator('[data-slot="docblocks/table-remove-color"]')).toBeVisible();
     await colMenu(a).locator('[data-slot="docblocks/table-remove-color"]').click();
-    await expect.poll(async () => cellBg(a, 0, 0), SETTLE).toBe("rgb(245, 158, 11)");
+    await expect.poll(async () => cellBg(a, 0, 0), SETTLE).toBe("rgb(207, 145, 85)");
 
     // The row's remove clears the background (no color stands — the
     // computed color falls back to the transparent).

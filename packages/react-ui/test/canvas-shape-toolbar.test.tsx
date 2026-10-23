@@ -14,6 +14,11 @@ import { EditorProvider } from "../src/EditorProvider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
+// A hex palette for the applies (jsdom cannot resolve the default palette's
+// theme tokens — the commit would stand no write); the hex entries pass
+// through, so the applies are deterministic.
+const TEST_PALETTE = ["#3b82f6", "#e11d48", "#10b981"];
+
 type TestDoc = ReturnType<typeof createDoc>;
 
 function newDoc(): TestDoc {
@@ -37,10 +42,10 @@ function seededDoc(): { doc: TestDoc; surface: string; shape: string; text: stri
 
 afterEach(cleanup);
 
-function renderCanvas(doc: TestDoc) {
+function renderCanvas(doc: TestDoc, palette: readonly string[] = TEST_PALETTE) {
   const utils = render(
     <EditorProvider doc={doc}>
-      <Editor view="canvas" />
+      <Editor view="canvas" formatPalette={palette} />
     </EditorProvider>
   );
   const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
@@ -121,7 +126,7 @@ it("a portaled palette press starts no canvas session (the DOM-containment guard
   expect(toolbar()).toBeTruthy();
 
   fireEvent.click(screen.getByLabelText("Shape fill color"));
-  const swatch = screen.getByLabelText("fill color #3b82f6");
+  const swatch = screen.getByLabelText("fill color 1");
 
   // The palette stands in document.body (the radix portal). React 19
   // dispatches the portal content's pointer events through the
@@ -204,7 +209,7 @@ describe("the applies", () => {
     // (the popover is non-modal; the swatch click applies, the palette
     // stays open — the page format palette's behavior).
     fireEvent.click(screen.getByLabelText("Shape fill color"));
-    const swatch = screen.getByLabelText("fill color #3b82f6");
+    const swatch = screen.getByLabelText("fill color 1");
     fireEvent.click(swatch);
 
     expect(shapeAttr(doc, shape, "fill")).toBe("#3b82f6");
@@ -219,7 +224,7 @@ describe("the applies", () => {
     selectBlock(container, shape);
 
     fireEvent.click(screen.getByLabelText("Shape stroke color"));
-    fireEvent.click(screen.getByLabelText("stroke color #e11d48"));
+    fireEvent.click(screen.getByLabelText("stroke color 2"));
 
     expect(shapeAttr(doc, shape, "stroke")).toBe("#e11d48");
   });

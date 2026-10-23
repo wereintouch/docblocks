@@ -102,15 +102,17 @@ test.describe("the shape color toolbar", () => {
       expect(await toolbar(a, "a").count()).toBe(1);
 
       await a.locator('[data-slot="docblocks/shape-toolbar-fill"]').click();
-      await a.locator('[data-slot="docblocks/shape-fill-swatch"][data-color="#3b82f6"]').click();
+      await a.locator('[data-slot="docblocks/palette-swatch"][data-color="var(--docblocks-palette-blue)"]').click();
 
-      expect(await shapeAttrs(a, "a", shape)).toEqual({ fill: "#3b82f6", stroke: undefined });
-      await expect.poll(async () => shapeAttrs(b, "b", shape), SETTLE).toEqual({ fill: "#3b82f6", stroke: undefined });
+      // The swatch's entry is a theme token; the commit resolves it to the
+      // active theme's hex (the harness stands dark — the muted blue).
+      expect(await shapeAttrs(a, "a", shape)).toEqual({ fill: "#6585cd", stroke: undefined });
+      await expect.poll(async () => shapeAttrs(b, "b", shape), SETTLE).toEqual({ fill: "#6585cd", stroke: undefined });
 
       // The svg's paint group stands the applied fill.
       await expect(a.locator(`[data-slot="docblocks/shape"][data-block-id="${shape}"] g`)).toHaveAttribute(
         "fill",
-        "#3b82f6"
+        "#6585cd"
       );
     } finally {
       await close();
@@ -125,12 +127,14 @@ test.describe("the shape color toolbar", () => {
       await selectShape(a, "a");
 
       await a.locator('[data-slot="docblocks/shape-toolbar-stroke"]').click();
-      await a.locator('[data-slot="docblocks/shape-stroke-swatch"][data-color="#e11d48"]').click();
+      await a.locator('[data-slot="docblocks/palette-swatch"][data-color="var(--docblocks-palette-red)"]').click();
 
-      expect(await shapeAttrs(a, "a", shape)).toEqual({ fill: undefined, stroke: "#e11d48" });
+      // The theme token resolves to the active theme's hex (dark — the
+      // muted red).
+      expect(await shapeAttrs(a, "a", shape)).toEqual({ fill: undefined, stroke: "#c96a6a" });
       await expect(a.locator(`[data-slot="docblocks/shape"][data-block-id="${shape}"] g`)).toHaveAttribute(
         "stroke",
-        "#e11d48"
+        "#c96a6a"
       );
     } finally {
       await close();
@@ -145,7 +149,7 @@ test.describe("the shape color toolbar", () => {
       await selectShape(a, "a");
 
       await a.locator('[data-slot="docblocks/shape-toolbar-fill"]').click();
-      await a.locator('[data-slot="docblocks/shape-fill-none"]').click();
+      await a.locator('[data-slot="docblocks/palette-none"]').click();
 
       expect(await shapeAttrs(a, "a", shape)).toEqual({ fill: "none", stroke: undefined });
       await expect(a.locator(`[data-slot="docblocks/shape"][data-block-id="${shape}"] g`)).toHaveAttribute(

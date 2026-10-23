@@ -105,6 +105,15 @@ Tokens without a standard counterpart (`--docblocks-link-color`,
 sizes, and the presence tokens) are package defaults and override the same
 way.
 
+The color palette's default swatches read the `--docblocks-palette-*`
+tokens (red, orange, yellow, green, cyan, blue, violet) plus the theme's
+`--background` token. Unlike the editor-scoped tokens, these stand on
+`:root` / `.dark` (the seed ships a brighter light set and a more muted
+dark set, so the swatch follows the theme flip). Override them on
+`:root` / `.dark`, or pass the editor's `formatPalette` prop (a `string[]`
+of hex or `var(…)` entries) to replace the swatches outright; a picked
+swatch always commits a concrete hex to the document.
+
 ### Structure
 
 Structural styling hooks are `data-slot` attributes (`docblocks/editor`,

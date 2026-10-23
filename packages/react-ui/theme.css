@@ -19,7 +19,10 @@
  * without a theme has the full set.
  * The `--radius-*` scale (the radius steps around `--radius`) stands real
  * CSS variables: the shared primitives (the Calendar's cell radius) read
- * them with `var(--radius-…)`.
+ * them with `var(--radius-…)`. The `--docblocks-palette-*` set (the color
+ * palette's pastel tokens) stands here too — on `:root` / `.dark`, not the
+ * editor root, so it cascades to the portaled palette popovers (the toolbar
+ * palettes portal to `document.body`, outside the editor root).
  */
 
 :root {
@@ -62,6 +65,19 @@
   --sidebar-ring: oklch(0.708 0 0);
   --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* The color palette's pastel tokens (the shared palette primitive's
+     default swatches): a light (brighter) set here, a more muted dark set
+     under `.dark` — the swatch follows the theme flip. The eighth swatch
+     is the theme's own background token (`--background`), not part of this
+     set. */
+  --docblocks-palette-red: #f7a8a8;
+  --docblocks-palette-orange: #f9bd7d;
+  --docblocks-palette-yellow: #f4e07d;
+  --docblocks-palette-green: #97e3a8;
+  --docblocks-palette-cyan: #8ed2f2;
+  --docblocks-palette-blue: #93b4f2;
+  --docblocks-palette-violet: #c5aef2;
 }
 
 .dark {
@@ -96,4 +112,15 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* The color palette's pastel tokens, dark set (more muted than the light
+     set — the same hues, lower lightness / saturation, still legible over
+     the dark popover). */
+  --docblocks-palette-red: #c96a6a;
+  --docblocks-palette-orange: #cf9155;
+  --docblocks-palette-yellow: #cdb755;
+  --docblocks-palette-green: #63b87e;
+  --docblocks-palette-cyan: #5aa8cd;
+  --docblocks-palette-blue: #6585cd;
+  --docblocks-palette-violet: #9779cd;
 }

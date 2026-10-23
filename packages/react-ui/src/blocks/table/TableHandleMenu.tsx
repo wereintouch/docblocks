@@ -18,6 +18,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../../shared/ui/DropdownMenu";
+import { resolveColorToHex } from "../../shared/ui/color-utils";
 import { Ellipsis, EllipsisVertical } from "../../shared/ui/icons";
 import { EMPTY_IDS } from "./models";
 import type { HandleAction, HandleKind } from "./models";
@@ -178,7 +179,12 @@ function HandleMenuItems({
               title={swatch}
               className="size-6"
               style={{ background: swatch }}
-              onClick={() => onColor(swatch)}
+              onClick={(event) => {
+                // The palette entry is a theme token (or a consumer hex); the
+                // cell attr holds a hex, so the press resolves it first.
+                const hex = resolveColorToHex(swatch, event.currentTarget);
+                if (hex !== null) onColor(hex);
+              }}
             />
           ))}
         </DropdownMenuSubContent>

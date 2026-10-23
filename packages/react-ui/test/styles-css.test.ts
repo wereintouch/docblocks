@@ -103,3 +103,48 @@ describe("dist/styles.css contract", () => {
     expect(STYLES_CSS).toContain("-moz-appearance: textfield");
   });
 });
+
+// The color palette's shipped token contract: the seven pastel tokens stand
+// a light (brighter) value in `:root` and a more muted (darker) value in
+// `.dark`, so the swatch follows the theme flip (lighter on light, more
+// muted on dark). The values are pinned from the assembled stylesheet.
+describe("the color palette's shipped tokens (the light / dark pairs)", () => {
+  const TOKENS = ["red", "orange", "yellow", "green", "cyan", "blue", "violet"] as const;
+
+  function pairOf(name: string): { light: string; dark: string } {
+    const matches = [...STYLES_CSS.matchAll(new RegExp(`--docblocks-palette-${name}: (#[0-9a-fA-F]{3,8})`, "g"))];
+    expect(matches.length, `the ${name} token stands a light and a dark value`).toBe(2);
+    return { light: matches[0]![1]!, dark: matches[1]![1]! };
+  }
+
+  function luminance(hex: string): number {
+    const value = hex.slice(1);
+    const full =
+      value.length === 3
+        ? value
+            .split("")
+            .map((c) => c + c)
+            .join("")
+        : value;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    return 0.299 * r + 0.587 * g + 0.114 * b;
+  }
+
+  it.each(TOKENS)("the %s token stands a brighter light value and a more muted dark value", (name) => {
+    const { light, dark } = pairOf(name);
+    expect(luminance(light), `the light ${name} (${light}) is brighter than the dark (${dark})`).toBeGreaterThan(
+      luminance(dark)
+    );
+    // The dark value is more muted (lower luminance) but still legible over
+    // the dark popover (not near-black).
+    expect(luminance(dark)).toBeGreaterThan(40);
+  });
+
+  it("ships the theme background token the eighth swatch stands (light + dark)", () => {
+    // `--background` (the theme token's stand) has a light and a dark value.
+    const matches = [...STYLES_CSS.matchAll(/--background: (oklch\([^)]+\)|#[0-9a-fA-F]{3,8})/g)];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
+  });
+});

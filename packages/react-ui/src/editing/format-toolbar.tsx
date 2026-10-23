@@ -6,6 +6,7 @@ import type { Block, BlockId, TextAlign } from "docblocks-core";
 import { useEditorContext } from "../EditorProvider";
 import { useBlock, useSelection } from "../hooks";
 import { Button } from "../shared/ui/Button";
+import { ColorSwatches } from "../shared/ui/ColorSwatches";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +33,6 @@ import {
   TextAlignEnd,
   TextAlignStart,
   Underline,
-  X,
 } from "../shared/ui/icons";
 import { restoreSelectionIn } from "./block-commands";
 import {
@@ -77,8 +77,9 @@ import { type FormatMark, markToggleAction } from "./keyboard";
  * derived segment re-attaches to the paragraph as its nested content —
  * nothing is lost). The highlight control is a non-modal popover with a target
  * switch (the text `color` mark vs the background `highlight` mark) and a
- * color palette (the default six, overridable through the editor's
- * `formatPalette` prop) plus a clear entry. The popovers are portaled to
+ * color palette (the shared palette's eight swatches, overridable through
+ * the editor's `formatPalette` prop) plus a clear entry. The popovers are
+ * portaled to
  * the document body (radix) and — like the bar — suppress the default
  * mousedown so the editor's text selection stays alive while a swatch or
  * option is picked; outside dismiss (pointer and focus) is suppressed the
@@ -95,8 +96,19 @@ import { type FormatMark, markToggleAction } from "./keyboard";
 /** A 24px-stroke icon component (the package icon set). */
 type ToolbarIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
-/** The default format palette (a consumer can pass its own through the editor prop). */
-const FORMAT_PALETTE: readonly string[] = ["#71717a", "#e11d48", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6"];
+/** The default format palette: the shared palette's seven pastel theme
+ * tokens + the theme's own background token (a consumer can pass its own
+ * through the editor's `formatPalette` prop — a `string[]` of hex or var). */
+const FORMAT_PALETTE: readonly string[] = [
+  "var(--docblocks-palette-red)",
+  "var(--docblocks-palette-orange)",
+  "var(--docblocks-palette-yellow)",
+  "var(--docblocks-palette-green)",
+  "var(--docblocks-palette-cyan)",
+  "var(--docblocks-palette-blue)",
+  "var(--docblocks-palette-violet)",
+  "var(--background)",
+];
 
 /** The list-type menu options, in display order ("paragraph" = turn into text). */
 const LIST_MENU_OPTIONS: {
@@ -330,6 +342,13 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       ? uniformMarkValueRange(doc, range.cross, target) === value
       : uniformMarkValue(single, range.from, range.to, target) === value;
 
+  // The palette's current uniform value (a hex, null when no mark stands,
+  // or "mixed"): the selected swatch's seat. "mixed" matches no swatch.
+  const currentMarkValue =
+    range.kind === "cross"
+      ? uniformMarkValueRange(doc, range.cross, target)
+      : uniformMarkValue(single, range.from, range.to, target);
+
   // The list-type radio state (single-block eligible targets only — the
   // menu renders for paragraph, heading, and list-item blocks; the
   // cross-block target never renders it and has no `single` block).
@@ -483,36 +502,15 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
               </Button>
             ))}
           </div>
-          <div role="group" aria-label="Palette colors" className="grid grid-cols-3 gap-1">
-            {palette.map((color) => (
-              <Button
-                key={color}
-                variant="outline"
-                size="icon"
-                data-slot="docblocks/format-swatch"
-                data-color={color}
-                title={color}
-                aria-label={`${target} color ${color}`}
-                aria-pressed={paletteActive(color)}
-                className={cn("size-6", paletteActive(color) && "ring-2 ring-ring")}
-                style={{ background: color }}
-                onClick={() => onPaletteValue(color)}
-              />
-            ))}
-            <Button
-              variant="outline"
-              size="icon"
-              data-slot="docblocks/format-swatch"
-              data-color="none"
-              title="No color"
-              aria-label="No color"
-              aria-pressed={paletteActive(null)}
-              className={cn("size-6", paletteActive(null) && "ring-2 ring-ring")}
-              onClick={() => onPaletteValue(null)}
-            >
-              <X className="size-3.5" />
-            </Button>
-          </div>
+          <ColorSwatches
+            colors={palette}
+            current={currentMarkValue}
+            onSelect={(hex) => onPaletteValue(hex)}
+            label={target === "highlight" ? "highlight" : "text"}
+            allowNone
+            noneActive={paletteActive(null)}
+            onSelectNone={() => onPaletteValue(null)}
+          />
         </PopoverContent>
       </Popover>
     </div>
