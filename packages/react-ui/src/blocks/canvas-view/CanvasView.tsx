@@ -36,7 +36,8 @@ import { useEditorContext } from "../../EditorProvider";
 import { CanvasDock } from "../../canvas/CanvasDock";
 import { ConnectorToolbar } from "../../canvas/ConnectorToolbar";
 import { ShapeToolbar } from "../../canvas/ShapeToolbar";
-import { dissolveGroup, makeGroup } from "../../canvas/insert";
+import { copyCanvasItems, pasteCanvasItems } from "../../canvas/clipboard";
+import { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "../../canvas/insert";
 import {
   MOVE_THRESHOLD_PX,
   canvasToScreen,
@@ -115,6 +116,11 @@ function CanvasView() {
   // threshold (a sub-threshold press-release cancels the stand instead of
   // committing the free end).
   const connectorPressClientRef = useRef<{ x: number; y: number } | null>(null);
+  // The last pointer position (the container-center-relative screen px):
+  // the paste's seat point (the copy's union center lands at the pointer
+  // — the world position stands the conversion at the paste's own
+  // zoom / pan, the viewport center over no pointer).
+  const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
   // The wheel's delta accumulator (the zoom step crosses the threshold —
   // the remainder stands over to the next event, the trackpad's
   // momentum feel).
@@ -743,6 +749,9 @@ function CanvasView() {
   };
 
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    // The pointer's stand for the paste's seat (any tool / the drag's
+    // capture — the position is the cursor's, always current).
+    lastPointerRef.current = centerRelativePoint(event);
     // The connector's pending preview: the dashed line follows the cursor
     // (the hover of the two-click pick and the press-drag draw — the
     // button-less hover update runs before the buttons guard below). The
@@ -1099,6 +1108,55 @@ function CanvasView() {
         selection.view?.set({ kind: "blocks", ids: [created], anchorId: created });
       }
       return;
+    }
+    // The canvas clipboard's hotkeys:
+    // Ctrl/Cmd+C copies the selection's canvas items (the selection
+    // stands — the copy clears nothing), Ctrl/Cmd+V pastes at the pointer
+    // (the selection seats on the pasted; the snapshot stands the
+    // undo/redo's selection contract). The app-level hotkeys win over the
+    // editing surfaces (the isEditingSurface guard above keeps the
+    // text's own copy / paste).
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
+      const modKey = event.key.toLowerCase();
+      if (modKey === "c") {
+        const sel = selection.view?.get();
+        if (sel?.kind !== "blocks" || sel.ids.length === 0) return;
+        const clipboard = copyCanvasItems(doc, sel.ids);
+        if (clipboard === null) return; // the non-copiable selection stands nothing
+        event.preventDefault();
+        event.stopPropagation();
+        store.getState().setCanvasClipboard(clipboard);
+        return;
+      }
+      if (modKey === "v") {
+        const clipboard = store.getState().canvasClipboard;
+        if (clipboard === null) return;
+        const sel = selection.view?.get();
+        event.preventDefault();
+        event.stopPropagation();
+        // The paste's target surface: the selection's first item's
+        // surface, the doc's first surface over no canvas selection (the
+        // paste stands the canvas even over the page's selection). The
+        // surface-less stand creates the surface in its own transact (a
+        // reachable only when every surface was removed between the copy
+        // and the paste — the copy implies a surface stood).
+        const surface = sel?.kind === "blocks" && sel.ids.length > 0 ? findParentSurface(doc, sel.ids[0]!) : null;
+        const target = surface !== null ? surface : firstSurface(doc);
+        // The pointer's world position (the last pointer's stand over the
+        // paste's own zoom / pan; the viewport center over no pointer).
+        const pointer = lastPointerRef.current ?? { x: 0, y: 0 };
+        const center = screenToCanvas(pointer, viewport.zoom, viewport.pan);
+        const pasted = pasteCanvasItems(doc, clipboard, target, center);
+        if (pasted !== null && pasted.length > 0) {
+          // The paste seats the selection on the pasted : the core's SelectionView restores the selection
+          // over the undo / redo (each captured edit snapshots the selection
+          // it started from — the paste's undo stands the previous
+          // selection back, the redo re-seats the pasted).
+          selection.view?.set({ kind: "blocks", ids: pasted, anchorId: pasted[0]! });
+          containerRef.current?.focus();
+        }
+        return;
+      }
     }
     // The canvas items' delete (the page's removeBlocksSelection path
     // stands the root's page sequence — the canvas items are not in it).

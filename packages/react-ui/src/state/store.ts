@@ -4,6 +4,7 @@ import type { StoreApi } from "zustand/vanilla";
 import type { Block, BlockId, Change, Doc, DocMeta, PresenceState, Selection } from "docblocks-core";
 
 import { sequenceContainerOf, subtreeSegmentOf } from "../blocks/flat";
+import type { CanvasClipboard } from "../canvas/clipboard";
 
 /**
  * Per-instance editor state: a projection of one docblocks-core Doc.
@@ -36,6 +37,13 @@ interface EditorState {
   collapsedIds: BlockId[];
   /** Remote peers' ephemeral state; a separate slice for the same reason. */
   presence: PresenceState[];
+  /**
+   * The canvas clipboard: the deep copy of
+   * the copied canvas items — the view state per editor (not doc data, no
+   * wire); `null` when empty. A separate slice so the copy never re-renders
+   * blocks.
+   */
+  canvasClipboard: CanvasClipboard | null;
 }
 
 /** Internal write functions, called by the EditorProvider subscriptions. */
@@ -48,6 +56,8 @@ interface EditorActions {
   setSelection: (selection: Selection) => void;
   /** Sets the collapsed state of one list item (view state, no doc command). */
   setCollapsed: (id: BlockId, collapsed: boolean) => void;
+  /** Replaces the canvas clipboard slice (the copy / the clear). */
+  setCanvasClipboard: (clipboard: CanvasClipboard | null) => void;
 }
 
 /** The per-instance vanilla store created by `createEditorStore`. */
@@ -227,6 +237,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     selection: { kind: "none" },
     collapsedIds: [],
     presence: [],
+    canvasClipboard: null,
     applyChange,
     setPresence: (peers) => store.setState({ presence: peers }),
     setSelection: (selection) => store.setState({ selection }),
@@ -236,6 +247,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
         collapsedIds: collapsed ? [...(ids.includes(id) ? ids : [...ids, id])] : ids.filter((x) => x !== id),
       });
     },
+    setCanvasClipboard: (clipboard) => store.setState({ canvasClipboard: clipboard }),
   }));
 
   return store;
