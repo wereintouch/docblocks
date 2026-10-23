@@ -490,4 +490,11 @@ function ConnectorLayer({
   );
 }
 
-export { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE, ConnectorLayer };
+export {
+  CONNECT_COLOR,
+  CONNECTOR_SELECTED_STROKE,
+  CONNECTOR_STROKE,
+  ConnectorLayer,
+  SNAP_BADGE_LIFT,
+  SNAP_BADGE_RADIUS,
+};

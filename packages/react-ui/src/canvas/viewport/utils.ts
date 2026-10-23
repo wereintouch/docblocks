@@ -8,8 +8,8 @@
  *  continuous stand stands the rest of the edge. */
 import type { Doc } from "docblocks-core";
 
-import { edgePointOf, effectiveGeometry } from "../../blocks/canvas-geometry";
-import type { CanvasPort } from "../../blocks/canvas-geometry";
+import { edgeAnchor, edgePointOf, effectiveGeometry } from "../../blocks/canvas-geometry";
+import type { Box, CanvasPort } from "../../blocks/canvas-geometry";
 import type { CanvasPoint } from "../viewport";
 import { ENDPOINT_SNAP_RADIUS } from "./models";
 import type { EndpointSnap } from "./models";
@@ -97,23 +97,102 @@ function snapEdgePoint(doc: Doc, blockId: string, point: CanvasPoint): EndpointS
  * connector carries no box; the group's box is derived — the snap would
  * stand the default size).
  */
-function snapEndpointEdge(doc: Doc, surfaceId: string, point: CanvasPoint): EndpointSnap | null {
+function snapSurfaceEdge(doc: Doc, surfaceId: string, point: CanvasPoint): { snap: EndpointSnap; dist: number } | null {
   const children = doc.getChildren(surfaceId);
-  let snap: EndpointSnap | null = null;
-  let best = ENDPOINT_SNAP_RADIUS;
+  let best: { snap: EndpointSnap; dist: number } | null = null;
   for (const siblingId of children) {
     const sibling = doc.getBlock(siblingId);
     if (sibling === null || sibling.type === "connector" || sibling.type === "group") continue;
     const box = effectiveGeometry(sibling);
     for (const port of SIDE_ORDER) {
       const { t, dist } = sideCandidate(box, port, point);
-      if (dist < best) {
-        best = dist;
-        snap = { blockId: siblingId, port, t };
+      if (dist < ENDPOINT_SNAP_RADIUS && (best === null || dist < best.dist)) {
+        best = { snap: { blockId: siblingId, port, t }, dist };
       }
     }
   }
-  return snap;
+  return best;
 }
 
-export { snapEdgePoint, snapEndpointEdge };
+function snapEndpointEdge(doc: Doc, surfaceId: string, point: CanvasPoint): EndpointSnap | null {
+  return snapSurfaceEdge(doc, surfaceId, point)?.snap ?? null;
+}
+
+/**
+ * The hover / the preview end's edge snap over ALL the root-level
+ * surfaces' siblings (the nearest edge within the radius wins): the
+ * draw's stand and the line's end can stand on any surface, not just the
+ * hovered one's. The connector and the group stands no edges (the
+ * `snapSurfaceEdge`'s contract).
+ */
+function snapAnySurfaceEdge(doc: Doc, point: CanvasPoint): EndpointSnap | null {
+  const rootChildren = doc.getChildren(doc.meta.id);
+  let best: { snap: EndpointSnap; dist: number } | null = null;
+  for (const childId of rootChildren) {
+    const surface = doc.getBlock(childId);
+    if (surface === null || surface.type !== "surface") continue;
+    const candidate = snapSurfaceEdge(doc, childId, point);
+    if (candidate !== null && (best === null || candidate.dist < best.dist)) {
+      best = candidate;
+    }
+  }
+  return best?.snap ?? null;
+}
+
+/**
+ * The connector's press stand over the pressed block (the line stands from the pressed point, not the block's
+ * center): the edge snap's stand — the PORT ref within the port's stick
+ * disk (the legacy port stand, the portT's 0.5 absent), the FREE point at
+ * the snapped edge point over the continuous edge (the frozen direction
+ * = the snapped side), the PLAIN block ref over the interior (the auto
+ * anchor stands the render / the commit).
+ */
+function connectorPressStand(
+  doc: Doc,
+  blockId: string,
+  point: CanvasPoint
+): { blockId?: string; free?: CanvasPoint; port?: CanvasPort; freePort?: CanvasPort } {
+  const snap = snapEdgePoint(doc, blockId, point);
+  if (snap === null) return { blockId };
+  const block = doc.getBlock(blockId);
+  if (block === null) return { blockId };
+  const box = effectiveGeometry(block);
+  const portPoint = edgePointOf(box, snap.port, 0.5);
+  if (Math.hypot(point.x - portPoint.x, point.y - portPoint.y) <= ENDPOINT_SNAP_RADIUS) {
+    return { blockId, port: snap.port };
+  }
+  const edgePoint = edgePointOf(box, snap.port, snap.t);
+  return { free: { x: edgePoint.x, y: edgePoint.y }, freePort: snap.port };
+}
+
+/**
+ * The pending preview's FROM over the pending stand: the port's point
+ * over the port stand (the press's snap), the block's edge anchor toward
+ * the cursor over the plain block ref (the auto anchor), the origin over
+ * the missing block. The free stand stands its own point (no call).
+ */
+function connectorPreviewFrom(box: Box | null, port: CanvasPort | null, cursor: CanvasPoint): CanvasPoint {
+  if (box === null) return { x: 0, y: 0 };
+  if (port !== null) return edgePointOf(box, port, 0.5);
+  return edgeAnchor(box, cursor);
+}
+
+/**
+ * The pending preview's END point: the snapped edge point over the snap
+ * (the endpoint drag's parity — the stick to the port / the continuous
+ * edge within the radius), the raw cursor otherwise (or the cursor over
+ * the missing snap block — the lenient read).
+ */
+function connectorPreviewPoint(cursor: CanvasPoint, snap: EndpointSnap | null, box: Box | null): CanvasPoint {
+  if (snap === null || box === null) return cursor;
+  return edgePointOf(box, snap.port, snap.t);
+}
+
+export {
+  connectorPressStand,
+  connectorPreviewFrom,
+  connectorPreviewPoint,
+  snapAnySurfaceEdge,
+  snapEdgePoint,
+  snapEndpointEdge,
+};

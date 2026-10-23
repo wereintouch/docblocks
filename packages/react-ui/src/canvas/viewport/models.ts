@@ -146,6 +146,18 @@ interface CanvasViewportState {
   /** The connector's first endpoint as a FREE point (world canvas px, the
    * empty-canvas press); null when the stand is a block or no pick stands. */
   pendingFree: CanvasPoint | null;
+  /** The pending block stand's port (the press's edge snap over the port's
+   * stick disk — the legacy port ref, the portT's 0.5 absent); null over
+   * the plain block ref (the auto anchor) and over the free stand. */
+  pendingPort: CanvasPort | null;
+  /** The free stand's frozen direction (the snapped side, the owner's
+   * 2026-10-19 direction contract); null when the stand stands no
+   * direction (the empty-canvas press). */
+  pendingFreePort: CanvasPort | null;
+  /** The press's source block (the stand's self-pair guard — a second
+   * press / release over the stand's own block cancels, not commits);
+   * null over the empty-canvas stand. */
+  pendingSource: string | null;
   marquee: MarqueeState | null;
   /** The in-flight pen stroke (canvas space), between the pointer down/up. */
   penPoints: CanvasPoint[];
@@ -158,8 +170,14 @@ interface CanvasViewportState {
   resizePreview: { id: string; box: Box } | null;
   /** The in-flight shape placement's preview (canvas coords, the center anchor); null outside a drag. */
   placePreview: PlacePreview | null;
-  /** The connector's pending preview point (canvas coords, the cursor); null outside a pick. */
-  connectorPreview: CanvasPoint | null;
+  /** The connector's pending preview (the cursor's point + the end's edge
+   * snap — the endpoint drag's parity); null outside a pick. */
+  connectorPreview: EndpointPreview | null;
+  /** The connector tool's hover snap (before the stand): the nearest edge
+   * within the snap radius over any surface — the circle + the connect
+   * badge stand the press's stand point; null when no edge stands, a
+   * stand stands, or the tool is off. */
+  connectorHoverSnap: EndpointSnap | null;
   /** The in-flight connector endpoint drag (the handles' target); null outside a drag. */
   connectorEndpoint: EndpointDrag | null;
   /** The endpoint drag's live preview (the point + the port snap); null outside a drag. */
@@ -187,8 +205,14 @@ interface CanvasViewportState {
   setMode: (mode: CanvasMode) => void;
   setActiveTool: (tool: CanvasTool | null) => void;
   setPendingConnector: (id: string | null) => void;
-  /** Sets the pending stand (a block ref or a free point; null clears both). */
-  setPendingStand: (stand: { blockId?: string; free?: CanvasPoint } | null, pressPoint?: CanvasPoint | null) => void;
+  /** Sets the pending stand (a block ref, a block ref with the port — the
+   * press's edge snap — or a free point with the frozen direction; the
+   * `source` is the press's block, the self-pair guard; null clears the
+   * stand and its attributes). */
+  setPendingStand: (
+    stand: { blockId?: string; free?: CanvasPoint; port?: CanvasPort; freePort?: CanvasPort; source?: string } | null,
+    pressPoint?: CanvasPoint | null
+  ) => void;
   setMarquee: (marquee: MarqueeState | null) => void;
   setPenPoints: (points: CanvasPoint[]) => void;
   /** The in-flight marquee's rectangle (screen space, normalized); null outside a drag. */
@@ -202,7 +226,11 @@ interface CanvasViewportState {
    */
   onPlaceSize: (tool: CanvasTool, point: CanvasPoint, size: { w: number; h: number }) => void;
   setPlacePreview: (preview: PlacePreview | null) => void;
-  setConnectorPreview: (preview: CanvasPoint | null) => void;
+  /** The pending preview (the cursor's point + the end's edge snap); null
+   * drops the preview (the stand's cancel / the commit). */
+  setConnectorPreview: (preview: EndpointPreview | null) => void;
+  /** The hover snap (the pre-stand press preview); null drops it. */
+  setConnectorHoverSnap: (snap: EndpointSnap | null) => void;
   /** The connector's endpoint pick (the second pick creates the connector). */
   onConnectorPick: (id: string) => void;
   /**
