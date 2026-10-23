@@ -27,6 +27,16 @@ interface EditorState {
   rootChildren: BlockId[];
   /** Document meta; replaced only when the title changed. */
   meta: DocMeta;
+  /**
+   * The sequence-structure stamp: bumped only when the entry sequence's
+   * structure changes (a rootChildren change, or a sequence block's
+   * `indent` / `list` kind changing) — never on a text/mark change of an
+   * unchanged structure. The motion view's row derivation keys on it, so a
+   * text-only edit re-renders the edited row through its own subscription
+   * only (the origin is irrelevant — every change flows through
+   * `applyChange`).
+   */
+  seqStamp: number;
   /** Local view selection; a separate slice so caret moves never re-render blocks. */
   selection: Selection;
   /**
@@ -109,6 +119,13 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     const state = store.getState();
     const patch: Partial<EditorState> = {};
 
+    // A touched block IN the entry sequence whose `indent` or `list` kind
+    // moved (the seqStamp's source — the derivation's structure inputs; a
+    // text/mark change stands nothing, the row's own subscription
+    // re-renders it). An add/removal into or out of the sequence stands the
+    // rootChildren change (the stamp's other source).
+    let seqStructureAffected = false;
+
     if (change.blockIds.length > 0) {
       let blocks = state.blocks;
       let blocksChanged = false;
@@ -128,6 +145,15 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
           // Added or changed: replace the reference; unchanged blocks keep theirs.
           blocks = { ...blocks, [id]: fresh };
           blocksChanged = true;
+        }
+        if (prev !== undefined && fresh !== null && state.rootChildren.includes(id)) {
+          const prevAttrs = ("attrs" in prev ? prev.attrs : undefined) as
+            { indent?: unknown; list?: unknown } | undefined;
+          const freshAttrs = ("attrs" in fresh ? fresh.attrs : undefined) as
+            { indent?: unknown; list?: unknown } | undefined;
+          if (prevAttrs?.indent !== freshAttrs?.indent || prevAttrs?.list !== freshAttrs?.list) {
+            seqStructureAffected = true;
+          }
         }
       }
       if (blocksChanged) patch.blocks = blocks;
@@ -225,6 +251,12 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
 
     if (change.metaChanged) patch.meta = doc.meta;
 
+    // The sequence-structure stamp (the motion view's derivation key): a
+    // rootChildren change or a sequence block's indent / list kind moved.
+    if (patch.rootChildren !== undefined || seqStructureAffected) {
+      patch.seqStamp = state.seqStamp + 1;
+    }
+
     if (patch.blocks !== undefined || patch.rootChildren !== undefined || patch.meta !== undefined) {
       store.setState(patch);
     }
@@ -234,6 +266,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     blocks: initialBlocks,
     rootChildren: initialRootChildren,
     meta: initialMeta,
+    seqStamp: 0,
     selection: { kind: "none" },
     collapsedIds: [],
     presence: [],

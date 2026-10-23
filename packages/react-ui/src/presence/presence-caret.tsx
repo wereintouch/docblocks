@@ -161,7 +161,9 @@ function caretGeometry(
 function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement | null> }) {
   const { store, doc } = useEditorContext();
   const presence = useStore(store, (state) => state.presence);
-  const blocks = useStore(store, (state) => state.blocks);
+  // The blocks' wide read stands only with peers (the stable sentinel
+  // without them — a doc change with zero peers re-renders nothing here).
+  const blocks = useStore(store, (state) => (state.presence.length === 0 ? null : state.blocks));
   const [boxes, setBoxes] = useState<OverlayBox[]>([]);
 
   useLayoutEffect(() => {
@@ -187,7 +189,7 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
             ...caretGeometry(root, block, point.offset),
           });
         }
-        for (const segment of rangeSegmentsOf(peer.selection, doc, blocks)) {
+        for (const segment of rangeSegmentsOf(peer.selection, doc, blocks ?? {})) {
           // A range segment is text: it measures inside the inner editable;
           // a block without one (removed, non-text, unrendered) draws nothing.
           const block = root.querySelector<HTMLElement>(

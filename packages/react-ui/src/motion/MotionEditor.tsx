@@ -8,7 +8,6 @@
  * drag-reorder is pure framer `Reorder` (one drag = one range move of the
  * dragged block's derived subtree).
  */
-import { AnimatePresence, Reorder } from "framer-motion";
 import { useStore } from "zustand";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -30,7 +29,7 @@ import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
 import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
-import { RowItem } from "./RowItem";
+import { RowList } from "./RowList";
 import { useEnterAnimationGate, useTypingFlag } from "./hooks";
 import { HANDLE_GRAB_STYLE, SLIDE_SETTLE_MS } from "./models";
 import { type DropRow, clampTailSeatCrossing, commitFlatDrag, dropCandidateIndent, sameIds } from "./reorder";
@@ -45,7 +44,10 @@ function MotionEditor({
 }) {
   const { doc, store, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
-  const blocks = useStore(store, (state) => state.blocks);
+  // The sequence-structure stamp (the derivation's key): a text-only edit
+  // stands nothing here — the edited row re-renders through its own
+  // subscription, the row list and the rows' framer fibers stand.
+  const seqStamp = useStore(store, (state) => state.seqStamp);
   const collapsedIds = useStore(store, (state) => state.collapsedIds);
   // The gestures' command parent: the entry root's sequence container (a
   // subtree entry root is a page block — structurally childless, so its
@@ -60,16 +62,21 @@ function MotionEditor({
   useTypingFlag(rootRef);
   const enterGate = useEnterAnimationGate(rootRef);
 
-  // The flat page sequence, derived per render (the store stays a flat map
-  // projection). The interning cache: the previous derivation's byId
-  // stands while the sequence's data is unchanged (the row memo is keyed
-  // on the node identity).
+  // The flat page sequence, derived per structure change (the store stays a
+  // flat map projection). The stamp's rule: every derivation-affecting
+  // change bumps it (a text/mark change stands nothing — the interned rows
+  // keep their identity and the block's own subscription re-renders it).
+  // The interning cache: the previous derivation's byId stands while the
+  // sequence's data is unchanged (the row memo is keyed on the node
+  // identity). The blocks map is read from the store's live state (the
+  // stamp and the map advance in the same atomic write — the map stands
+  // fresh whenever the stamp does).
   const prevRef = useRef<Map<string, FlatNode> | null>(null);
   const derivation = useMemo(() => {
-    const result = deriveFlat(rootChildren, blocks, prevRef.current ?? undefined);
+    const result = deriveFlat(rootChildren, store.getState().blocks, prevRef.current ?? undefined);
     prevRef.current = result.byId;
     return result;
-  }, [rootChildren, blocks]);
+  }, [rootChildren, seqStamp, store]);
   // The visible rows: the sequence with every collapsed block's derived
   // segment unmounted (a view-state skip — the rows stand in the
   // data; the local drag order and the commit run over the visible rows).
@@ -263,6 +270,29 @@ function MotionEditor({
     [armSlide, doc, orderRef, rootBlockId, rootRef, seamCandidateAt, store]
   );
 
+  /**
+   * The framer reorder's live preview (the row order's local state): the
+   * tail seat's clamp (the preview side) — the full-doc root's trailing
+   * text paragraph stands last, a non-text-terminated dragged row stands
+   * above it (the release's commit stands the same landing, so the
+   * preview and the drop agree; a text-terminated segment lands its text
+   * tail last — the invariant stands and the crossing is clean).
+   */
+  const onRowReorder = useCallback(
+    (next: BlockId[]) => {
+      setOrder(
+        clampTailSeatCrossing(
+          next,
+          draggingKey ?? "",
+          rootBlockId === doc.meta.id && draggingKey !== null
+            ? tailSeatId(doc, rootBlockId, draggingKey, rowKeys[rowKeys.length - 1])
+            : undefined
+        )
+      );
+    },
+    [doc, draggingKey, rootBlockId, rowKeys]
+  );
+
   // The cross-drag selection session owns the root's pointerdown (the
   // rows' drag start is the gutter handle's pointerdown — a text inner
   // press and a gutter press are mutually exclusive targets).
@@ -303,49 +333,18 @@ function MotionEditor({
               {view === "canvas" ? (
                 <CanvasView />
               ) : (
-                <Reorder.Group
-                  as="div"
-                  axis="y"
-                  values={order}
-                  onReorder={(next) =>
-                    setOrder(
-                      // The tail seat's clamp (the preview side): the full-doc
-                      // root's trailing text paragraph stands last — a
-                      // non-text-terminated dragged row stands above it (the
-                      // release's commit stands the same landing, so the
-                      // preview and the drop agree; a text-terminated
-                      // segment lands its text tail last — the invariant
-                      // stands and the crossing is clean).
-                      clampTailSeatCrossing(
-                        next as BlockId[],
-                        draggingKey ?? "",
-                        rootBlockId === doc.meta.id && draggingKey !== null
-                          ? tailSeatId(doc, rootBlockId, draggingKey, rowKeys[rowKeys.length - 1])
-                          : undefined
-                      )
-                    )
-                  }
-                >
-                  <AnimatePresence initial={false} mode="sync">
-                    {order.map((id) => {
-                      const node = nodesById.get(id);
-                      if (node === undefined) return null;
-                      return (
-                        <RowItem
-                          key={id}
-                          node={node}
-                          layoutSlide={layoutSlide || draggingKey !== null}
-                          isDragged={draggingKey === id}
-                          animated={enterGate.current}
-                          previewIndent={draggingKey === id ? previewIndent : null}
-                          onDragStart={() => onRowDragStart(id)}
-                          onDragEnd={(event) => onRowDragEnd(id, event)}
-                          onDragMove={(event) => onRowDragMove(id, event)}
-                        />
-                      );
-                    })}
-                  </AnimatePresence>
-                </Reorder.Group>
+                <RowList
+                  order={order}
+                  nodesById={nodesById}
+                  layoutSlide={layoutSlide || draggingKey !== null}
+                  draggingKey={draggingKey}
+                  previewIndent={previewIndent}
+                  animated={enterGate.current}
+                  onReorder={onRowReorder}
+                  onDragStart={onRowDragStart}
+                  onDragMove={onRowDragMove}
+                  onDragEnd={onRowDragEnd}
+                />
               )}
               <PresenceCaretOverlay rootRef={rootRef} />
             </BlockContext.Provider>

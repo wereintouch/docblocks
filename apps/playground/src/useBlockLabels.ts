@@ -23,11 +23,18 @@ function useBlockLabels(
     for (const el of Array.from(container.querySelectorAll<HTMLElement>("[data-block-id]"))) {
       if (el.getAttribute("data-slot") === "docblocks/block-content") continue;
       const id = el.getAttribute("data-block-id");
-      el.removeAttribute("data-testid");
-      el.removeAttribute("data-current");
-      if (id !== null && ids.has(id)) {
-        el.setAttribute("data-testid", `block-${client}-${id}`);
-        if (id === currentId) el.setAttribute("data-current", "true");
+      // Write only on a value change: a text edit re-runs the effect over
+      // the whole sequence, and the no-op re-stamp (remove + set) is a
+      // per-block DOM mutation on every keystroke.
+      const wantTestid = id !== null && ids.has(id) ? `block-${client}-${id}` : null;
+      if (el.getAttribute("data-testid") !== wantTestid) {
+        if (wantTestid === null) el.removeAttribute("data-testid");
+        else el.setAttribute("data-testid", wantTestid);
+      }
+      const wantCurrent = id !== null && id === currentId;
+      if (el.hasAttribute("data-current") !== wantCurrent) {
+        if (wantCurrent) el.setAttribute("data-current", "true");
+        else el.removeAttribute("data-current");
       }
     }
   }, [blocks, currentId, client, docAreaRef]);
