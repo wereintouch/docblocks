@@ -6,17 +6,17 @@
  * Backspace / the Delete clear the selection natively); the blur (the
  * outside click) / the Escape / the Enter commit (one `updateBlock` in
  * one transact — one undo step, one wire update), and the empty commit
- * stands the removed state (the attr stands the empty string). The chip
- * stands the existing background token over the 1px frame of the line's
- * own color (the selection's emphasis stands the frame too) and the
- * small corner rounding. Pure view state: the doc writes on the commit
- * only.
+ * stands the removed state (the attr stands the empty string). The chip is
+ * the shared label chip (the opaque theme background over the 1px frame of
+ * the line's own color — {@link ConnectorLabelChip}); the input stands the
+ * draft inside it. Pure view state: the doc writes on the commit only.
  */
 import { useEffect, useRef } from "react";
 
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../EditorProvider";
+import { connectorLabelChipStyle } from "./ConnectorLabelChip";
 
 const LABEL_EDIT_WIDTH = 120;
 
@@ -71,18 +71,11 @@ function ConnectorLabelEdit({
       aria-label="Connector label"
       defaultValue={label}
       style={{
-        position: "absolute",
-        left: `calc(50% + ${mid.x}px)`,
-        top: `calc(50% + ${mid.y}px)`,
-        transform: "translate(-50%, -50%)",
+        // The shared chip's stand (the opaque theme background, the 1px
+        // frame in the line's color, the small corner rounding); the input
+        // adds the fixed edit width and drops its own focus ring.
+        ...connectorLabelChipStyle(mid, stroke),
         width: LABEL_EDIT_WIDTH,
-        boxSizing: "border-box",
-        padding: "2px 6px",
-        fontSize: 12,
-        textAlign: "center",
-        background: "var(--docblocks-page-card-background)",
-        border: `1px solid ${stroke}`,
-        borderRadius: "var(--docblocks-radius, 6px)",
         outline: "none",
       }}
       onDoubleClick={(event) => {
