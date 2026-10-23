@@ -23,7 +23,7 @@
  */
 import { useStore } from "zustand";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   KeyboardEvent as ReactKeyboardEvent,
   MouseEvent as ReactMouseEvent,
@@ -37,6 +37,7 @@ import { CanvasDock } from "../../canvas/CanvasDock";
 import { ConnectorToolbar } from "../../canvas/ConnectorToolbar";
 import { ShapeToolbar } from "../../canvas/ShapeToolbar";
 import { copyCanvasItems, pasteCanvasItems } from "../../canvas/clipboard";
+import { canvasContentBox, fitView } from "../../canvas/fit";
 import { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "../../canvas/insert";
 import { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "../../canvas/nudge";
 import {
@@ -135,6 +136,26 @@ function CanvasView() {
   useEffect(() => {
     viewportRef.current = viewport;
   });
+
+  // The fit's stand: the content's union
+  // box (the page miniature + the surface items + the connector's free
+  // points) centered at the viewport's center at the smallest zoom that
+  // fits both axes (the 25%–400% clamp). The empty canvas stands the no-op
+  // (the zoom and the pan keep). The doc's own read stands in the gesture
+  // (the handler is the chrome's memo input — the stable callback reads
+  // the live doc, not a render closure).
+  const onFit = useCallback(() => {
+    const container = containerRef.current;
+    if (container === null) return;
+    const rect = container.getBoundingClientRect();
+    const content = canvasContentBox(doc);
+    if (content === null) return;
+    const stand = fitView(content, { width: rect.width, height: rect.height });
+    if (stand === null) return;
+    const live = viewportRef.current;
+    live.setZoom(stand.zoom);
+    live.setPan(stand.pan);
+  }, [doc]);
 
   // The wheel's gesture: the pointer
   // mode pans (the 1:1 screen px, zoom-blind; the content stands opposite
@@ -1706,7 +1727,12 @@ function CanvasView() {
             }}
           />
         )}
-        <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={() => viewport.setZoom(1)} />
+        <ZoomControls
+          zoom={viewport.zoom}
+          onStep={viewport.stepZoom}
+          onReset={() => viewport.setZoom(1)}
+          onFit={onFit}
+        />
         <CanvasDock viewport={viewport} />
       </div>
     </CanvasTextEditProvider>
