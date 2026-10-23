@@ -1039,6 +1039,23 @@ function CanvasView() {
       if (groupId !== null) viewport.setShapeTextEditing(groupId);
       return;
     }
+    // The page miniature's blank body (no block under the point): a
+    // double-click stands no selection. The single-press select stands (the
+    // move session's affordance), but the dblclick clears it — the empty
+    // area stands nothing. The card's content keeps its contracts (the
+    // two-click caret, the block's own gestures). The point's element stands
+    // the capture-retargeting (the dblclick's target may be the container).
+    if (typeof document.elementFromPoint === "function") {
+      const dblElement = document.elementFromPoint(event.clientX, event.clientY);
+      if (
+        dblElement instanceof Element &&
+        dblElement.closest('[data-slot="docblocks/page-card"]') !== null &&
+        dblElement.closest('[data-slot="docblocks/block"]') === null
+      ) {
+        selection.view?.set({ kind: "none" });
+        return;
+      }
+    }
     // A retargeted event stands the target's closest first (the bubbling
     // path); the capture-retargeted one (the target IS the container)
     // falls to the point's element (the hit test through the world's
