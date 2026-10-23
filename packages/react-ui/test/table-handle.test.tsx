@@ -16,6 +16,10 @@ import { columnDropPosition, rowDropPosition } from "../src/blocks/TableBlock";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
+// A hex palette for the swatch applies (jsdom cannot resolve the default
+// palette's theme tokens — the hex entries pass through deterministically).
+const TEST_PALETTE = ["#3b82f6", "#e11d48", "#10b981"];
+
 /** A table with the given cols and row count as a page block. */
 function renderTableDoc(cols: number, rowCount = 2, columnWidths?: number[]) {
   const doc = createDoc({ id: "doc-tbl", createdAt: CREATED_AT });
@@ -30,7 +34,7 @@ function renderTableDoc(cols: number, rowCount = 2, columnWidths?: number[]) {
   }
   render(
     <EditorProvider doc={doc}>
-      <Editor />
+      <Editor formatPalette={TEST_PALETTE} />
     </EditorProvider>
   );
   return { doc, tableId };

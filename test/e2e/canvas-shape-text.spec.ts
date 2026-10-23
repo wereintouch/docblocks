@@ -175,8 +175,10 @@ test.describe("the shape's text", () => {
       const textColor = toolbar.locator('[data-slot="docblocks/shape-toolbar-text"]');
       await textColor.click();
       const palette = a.locator('[data-slot="docblocks/shape-text-palette"]');
-      await palette.locator('[data-slot="docblocks/shape-text-swatch"]').first().click();
-      await expect.poll(() => shapeAttrs(a, "a", id), SETTLE).toMatchObject({ textColor: "#71717a" });
+      // The first swatch (the theme's red token) resolves to the active
+      // theme's hex (the harness stands dark — the muted red).
+      await palette.locator('[data-slot="docblocks/palette-swatch"]').first().click();
+      await expect.poll(() => shapeAttrs(a, "a", id), SETTLE).toMatchObject({ textColor: "#c96a6a" });
 
       // The text style (the weight x the slant).
       const textStyle = toolbar.locator('[data-slot="docblocks/shape-toolbar-text-style"]');
@@ -199,7 +201,7 @@ test.describe("the shape's text", () => {
         .toMatchObject({
           text: "Текст",
           fontFamily: "PT Serif",
-          textColor: "#71717a",
+          textColor: "#c96a6a",
           textStyle: "light-italic",
           fontSize: 48,
           textAlign: "right",

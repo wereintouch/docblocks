@@ -7,8 +7,8 @@ import { useEffect, useState } from "react";
 
 import { useFormatPalette } from "../../blocks/format-palette-context";
 import { Button } from "../../shared/ui";
+import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
-import { cn } from "../../shared/ui/cn";
 import { X } from "../../shared/ui/icons";
 import { normalizeHex } from "./utils";
 
@@ -39,6 +39,7 @@ function ColorSection({
   const palette = useFormatPalette();
   const [draft, setDraft] = useState("");
   const none = allowNone && (current === undefined || current === "none");
+  const lower = current?.toLowerCase();
 
   // The draft is the open popover's state — a closed section starts
   // fresh (a stale valid draft would re-apply on the next Enter). The
@@ -104,23 +105,15 @@ function ColorSection({
         onPointerDownOutside={(event) => event.preventDefault()}
         onFocusOutside={(event) => event.preventDefault()}
       >
-        <div role="group" aria-label={`${label} colors`} className="grid grid-cols-3 gap-1">
-          {paletteSwatches(target, current, palette, onApply)}
-          {allowNone && (
-            <Button
-              variant="outline"
-              size="icon"
-              data-slot={`docblocks/shape-${target}-none`}
-              title="No color"
-              aria-label="No color"
-              aria-pressed={none}
-              className={cn("size-6", none && "ring-2 ring-ring")}
-              onClick={() => apply("none")}
-            >
-              <X className="size-3.5" />
-            </Button>
-          )}
-        </div>
+        <ColorSwatches
+          colors={palette}
+          current={lower}
+          onSelect={(hex) => onApply(hex)}
+          label={target}
+          allowNone={allowNone}
+          noneActive={none}
+          onSelectNone={allowNone ? () => apply("none") : undefined}
+        />
         <input
           data-slot={`docblocks/shape-${target}-hex`}
           aria-label={`${label} hex value`}
@@ -144,30 +137,6 @@ function ColorSection({
       </PopoverContent>
     </Popover>
   );
-}
-
-function paletteSwatches(
-  target: "fill" | "stroke" | "text",
-  current: string | undefined,
-  palette: readonly string[],
-  onApply: (value: string) => void
-) {
-  const lower = current?.toLowerCase();
-  return palette.map((color) => (
-    <Button
-      key={color}
-      variant="outline"
-      size="icon"
-      data-slot={`docblocks/shape-${target}-swatch`}
-      data-color={color}
-      title={color}
-      aria-label={`${target} color ${color}`}
-      aria-pressed={lower === color}
-      className={cn("size-6", lower === color && "ring-2 ring-ring")}
-      style={{ background: color }}
-      onClick={() => onApply(color)}
-    />
-  ));
 }
 
 export { ColorSection };
