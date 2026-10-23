@@ -35,6 +35,7 @@ import type {
   EndpointDrag,
   EndpointPreview,
   EndpointSession,
+  EndpointSnap,
   MarqueeState,
   MovePreview,
   MoveSession,
@@ -138,6 +139,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [activeTool, setActiveTool] = useState<CanvasTool | null>(null);
   const [pendingConnector, setPendingConnector] = useState<string | null>(null);
   const [pendingFree, setPendingFree] = useState<CanvasPoint | null>(null);
+  const [pendingPort, setPendingPort] = useState<CanvasPort | null>(null);
+  const [pendingFreePort, setPendingFreePort] = useState<CanvasPort | null>(null);
+  const [pendingSource, setPendingSource] = useState<string | null>(null);
   // The pending stand's press point (world canvas px): the block stand's
   // port snap reads it at the commit (the non-render gesture data).
   const standPointRef = useRef<CanvasPoint | null>(null);
@@ -146,7 +150,8 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   const [movePreview, setMovePreview] = useState<MovePreview | null>(null);
   const [dropIndicators, setDropIndicators] = useState<DropIndicator[] | null>(null);
   const [placePreview, setPlacePreview] = useState<PlacePreview | null>(null);
-  const [connectorPreview, setConnectorPreview] = useState<CanvasPoint | null>(null);
+  const [connectorPreview, setConnectorPreview] = useState<EndpointPreview | null>(null);
+  const [connectorHoverSnap, setConnectorHoverSnap] = useState<EndpointSnap | null>(null);
   const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
   const [connectorEndpointPreview, setConnectorEndpointPreview] = useState<EndpointPreview | null>(null);
   const [shapeTextEditing, setShapeTextEditing] = useState<string | null>(null);
@@ -262,9 +267,17 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
   );
 
   const setPendingStand = useCallback(
-    (stand: { blockId?: string; free?: CanvasPoint } | null, pressPoint: CanvasPoint | null = null) => {
+    (
+      stand: { blockId?: string; free?: CanvasPoint; port?: CanvasPort; freePort?: CanvasPort; source?: string } | null,
+      pressPoint: CanvasPoint | null = null
+    ) => {
       setPendingConnector(stand?.blockId ?? null);
       setPendingFree(stand?.free ?? null);
+      setPendingPort(stand?.port ?? null);
+      setPendingFreePort(stand?.freePort ?? null);
+      setPendingSource(stand?.source ?? null);
+      setConnectorPreview(null);
+      setConnectorHoverSnap(null);
       standPointRef.current = stand === null ? null : pressPoint;
     },
     []
@@ -282,10 +295,13 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     (second: { blockId?: string; free?: CanvasPoint }, pickPoint: CanvasPoint) => {
       const firstBlock = pendingConnector;
       const firstFree = pendingFree;
+      const firstPort = pendingPort;
+      const firstFreePort = pendingFreePort;
       const standPoint = standPointRef.current;
       setPendingStand(null);
       setActiveTool(null);
       setConnectorPreview(null);
+      setConnectorHoverSnap(null);
       if (firstBlock === null && firstFree === null) return;
       if (second.blockId !== undefined && second.blockId === firstBlock) return; // a self-pair
 
@@ -308,7 +324,18 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
         return s !== null ? { blockId, port: s.port, portT: roundPortT(s.t) } : { blockId };
       };
 
-      const start = firstBlock !== null ? snap(firstBlock, standPoint ?? pickPoint) : { ...firstFree! };
+      // The START stand: the port stand stands the press's snap (the
+      // — the press's port stand, the legacy
+      // port ref with the portT's 0.5 stand, no re-snap), the plain block
+      // stand re-snaps at the press point (the legacy path), the free
+      // stand stands the press point + the frozen direction (the snapped
+      // side).
+      const start =
+        firstBlock !== null
+          ? firstPort !== null
+            ? { blockId: firstBlock, port: firstPort, portT: 0.5 }
+            : snap(firstBlock, standPoint ?? pickPoint)
+          : { ...firstFree!, ...(firstFreePort !== null ? { port: firstFreePort } : {}) };
       const end = second.blockId !== undefined ? snap(second.blockId, pickPoint) : { ...second.free! };
       try {
         doc.transact(() => {
@@ -318,7 +345,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
         // A rejected placement: the stand drops, nothing is created.
       }
     },
-    [doc, pendingConnector, pendingFree, setPendingStand]
+    [doc, pendingConnector, pendingFree, pendingPort, pendingFreePort, setPendingStand]
   );
 
   const onConnectorPick = useCallback(
@@ -650,6 +677,9 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     activeTool,
     pendingConnector,
     pendingFree,
+    pendingPort,
+    pendingFreePort,
+    pendingSource,
     marquee,
     penPoints,
     movePreview,
@@ -657,6 +687,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     resizePreview,
     placePreview,
     connectorPreview,
+    connectorHoverSnap,
     connectorEndpoint,
     connectorEndpointPreview,
     shapeTextEditing,
@@ -664,6 +695,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     connectorLabelEditing,
     setConnectorLabelEditing,
     setConnectorPreview,
+    setConnectorHoverSnap,
     setZoom,
     stepZoom: step,
     zoomAt,

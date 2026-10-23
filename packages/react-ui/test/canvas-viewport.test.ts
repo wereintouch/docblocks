@@ -21,7 +21,14 @@ import {
   screenToCanvas,
   stepZoom,
 } from "../src/canvas/viewport";
-import { snapEdgePoint, snapEndpointEdge } from "../src/canvas/viewport/utils";
+import {
+  connectorPressStand,
+  connectorPreviewFrom,
+  connectorPreviewPoint,
+  snapAnySurfaceEdge,
+  snapEdgePoint,
+  snapEndpointEdge,
+} from "../src/canvas/viewport/utils";
 
 describe("resizeBox", () => {
   const box = { x: 100, y: 100, w: 200, h: 100 };
@@ -280,5 +287,105 @@ describe("the continuous edge snap", () => {
     // not the side's.
     expect(snapEndpointEdge(doc, surface, { x: 112, y: -34 })).toEqual({ blockId: b, port: "north", t: 0.62 });
     expect(a).toBeTruthy();
+  });
+});
+
+describe("the all-surfaces edge snap (the hover / the preview end)", () => {
+  const CREATED_AT = "2026-10-10T00:00:00.000Z";
+
+  function twoSurfaces() {
+    const doc = createDoc({ id: "any-snap-doc", createdAt: CREATED_AT });
+    const s1 = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: s1 });
+    doc.setGeometry(a, { x: -60, y: 0, w: 100, h: 60 });
+    const s2 = doc.insertBlock("surface");
+    const b = doc.insertBlock("shape", { variant: "rect" }, { parent: s2 });
+    doc.setGeometry(b, { x: 60, y: 0, w: 100, h: 60 });
+    return { doc, a, b };
+  }
+
+  it("the nearest edge over any surface wins", () => {
+    const { doc, a, b } = twoSurfaces();
+    // A's east edge at x = -10, B's west edge at x = 10 (the east / west
+    // midpoints stand t = 0.5 over the 60px side). 7px from A's edge,
+    // 13px from B's: A's sibling wins.
+    expect(snapAnySurfaceEdge(doc, { x: -3, y: 0 })).toEqual({ blockId: a, port: "east", t: 0.5 });
+    // 13px from A's edge, 7px from B's: B's sibling wins (the other
+    // surface's stand).
+    expect(snapAnySurfaceEdge(doc, { x: 3, y: 0 })).toEqual({ blockId: b, port: "west", t: 0.5 });
+  });
+
+  it("stands null outside every edge's radius", () => {
+    const { doc } = twoSurfaces();
+    expect(snapAnySurfaceEdge(doc, { x: 0, y: 200 })).toBeNull();
+  });
+
+  it("the port's stick disk locks the anchor (the all-surfaces' parity)", () => {
+    const { doc, a } = twoSurfaces();
+    // A's north port at (-60, -30): the point 4px off it (distMid ~5.7,
+    // inside the disk) locks t = 0.5.
+    expect(snapAnySurfaceEdge(doc, { x: -56, y: -34 })).toEqual({ blockId: a, port: "north", t: 0.5 });
+  });
+});
+
+describe("the press's stand over the pressed block", () => {
+  const CREATED_AT = "2026-10-10T00:00:00.000Z";
+
+  function pressScene() {
+    const doc = createDoc({ id: "press-stand-doc", createdAt: CREATED_AT });
+    const surface = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    doc.setGeometry(a, { x: -100, y: 0, w: 100, h: 60 });
+    return { doc, a };
+  }
+
+  it("stands the port ref over the port's stick disk (the legacy port stand)", () => {
+    const { doc, a } = pressScene();
+    // A's north port at (-100, -30): the point 3px above it stands the
+    // port ref (the line stands from the port on the commit).
+    expect(connectorPressStand(doc, a, { x: -100, y: -33 })).toEqual({ blockId: a, port: "north" });
+  });
+
+  it("stands the free point at the snapped edge point over the continuous edge", () => {
+    const { doc, a } = pressScene();
+    // The point 5px above the north edge at x = -130 (t = 0.2, 30px from
+    // the port): the FREE stand stands the edge's point — not the cursor
+    // — with the frozen direction (the snapped side).
+    expect(connectorPressStand(doc, a, { x: -130, y: -35 })).toEqual({
+      free: { x: -130, y: -30 },
+      freePort: "north",
+    });
+  });
+
+  it("stands the plain block ref over the interior (the auto anchor stands)", () => {
+    const { doc, a } = pressScene();
+    expect(connectorPressStand(doc, a, { x: -100, y: 0 })).toEqual({ blockId: a });
+  });
+});
+
+describe("the pending preview's stand points", () => {
+  const box = { x: -100, y: 0, w: 100, h: 60 };
+
+  it("the port stand stands the port's point (not the auto anchor)", () => {
+    expect(connectorPreviewFrom(box, "north", { x: 0, y: 0 })).toEqual({ x: -100, y: -30 });
+    // The plain block ref stands the edge anchor toward the cursor (the
+    // east edge's midpoint — the cursor's straight east of the center).
+    expect(connectorPreviewFrom(box, null, { x: 0, y: 0 })).toEqual({ x: -50, y: 0, nx: 1, ny: 0 });
+    // The missing block stands the origin (the render's fallback).
+    expect(connectorPreviewFrom(null, "north", { x: 0, y: 0 })).toEqual({ x: 0, y: 0 });
+  });
+
+  it("the end stands the snapped edge point over the snap, the cursor otherwise", () => {
+    // The stick: the raw cursor 5px off the edge stands the edge's point.
+    expect(connectorPreviewPoint({ x: -130, y: -35 }, { blockId: "a", port: "north", t: 0.2 }, box)).toEqual({
+      x: -130,
+      y: -30,
+    });
+    expect(connectorPreviewPoint({ x: 5, y: 7 }, null, box)).toEqual({ x: 5, y: 7 });
+    // The missing snap block (the lenient read): the cursor stands.
+    expect(connectorPreviewPoint({ x: 5, y: 7 }, { blockId: "gone", port: "north", t: 0.5 }, null)).toEqual({
+      x: 5,
+      y: 7,
+    });
   });
 });

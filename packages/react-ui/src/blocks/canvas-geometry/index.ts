@@ -8,4 +8,4 @@
  */
 export { DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "./models";
 export * from "./utils";
-export type { CanvasPort, ConnectorPath, ConnectorVariant, EndpointPoint, Ports } from "./models";
+export type { Box, CanvasPort, ConnectorPath, ConnectorVariant, EndpointPoint, Ports } from "./models";

@@ -69,7 +69,7 @@ const TOOL_GROUPS: DockTool[][] = [
  * sessions out (the buttons handle their own).
  */
 function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
-  const { mode, activeTool, setMode, setActiveTool, setPendingConnector } = viewport;
+  const { mode, activeTool, setMode, setActiveTool, setPendingStand } = viewport;
 
   const toggleHand = () => {
     const next = mode === "pan" ? "default" : "pan";
@@ -77,7 +77,7 @@ function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
     if (next === "pan") {
       // The pan mode drops the active tool (the pan never places).
       setActiveTool(null);
-      setPendingConnector(null);
+      setPendingStand(null);
     }
   };
 
@@ -86,12 +86,12 @@ function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
     // the pending connector pick); another pick replaces it.
     if (activeTool === tool) {
       setActiveTool(null);
-      setPendingConnector(null);
+      setPendingStand(null);
       return;
     }
     setMode("default");
     setActiveTool(tool);
-    setPendingConnector(null);
+    setPendingStand(null);
   };
 
   const shapesActive = activeTool !== null && SHAPE_IDS.includes(activeTool);

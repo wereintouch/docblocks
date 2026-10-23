@@ -47,18 +47,31 @@ import {
 } from "../../canvas/viewport";
 import type { ResizeHandle } from "../../canvas/viewport";
 import { useCanvasViewport } from "../../canvas/viewport-state";
+import {
+  connectorPressStand,
+  connectorPreviewFrom,
+  connectorPreviewPoint,
+  snapAnySurfaceEdge,
+} from "../../canvas/viewport/utils";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
-import { Container } from "../../shared/ui/icons";
+import { Container, Link } from "../../shared/ui/icons";
 import { BlockGroups } from "../BlockView";
-import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../ConnectorLayer";
+import {
+  CONNECTOR_SELECTED_STROKE,
+  CONNECTOR_STROKE,
+  CONNECT_COLOR,
+  SNAP_BADGE_LIFT,
+  SNAP_BADGE_RADIUS,
+} from "../ConnectorLayer";
 import { ShapeSvg } from "../ShapeSvg";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import {
+  PORT_NORMAL,
   connectorHandlePoints,
   connectorMidpoint,
-  edgeAnchor,
+  edgePointOf,
   effectiveGeometry,
   pageCardStyle,
   portsOf,
@@ -309,6 +322,42 @@ function CanvasView() {
         })
       : null;
 
+  // The pending connector's preview stand points (the world space, so
+  // they scale with the zoom): the FROM over the pending stand (the
+  // port's point over the port stand, the auto anchor over the plain
+  // block ref —; the free stand stands its
+  // own point), the END over the cursor's snap (the endpoint drag's
+  // parity — the stick to the port / the continuous edge within the
+  // radius).
+  const previewStandBlock = viewport.pendingConnector !== null ? blocks[viewport.pendingConnector] : undefined;
+  const previewFrom =
+    viewport.connectorPreview === null || (viewport.pendingConnector === null && viewport.pendingFree === null)
+      ? null
+      : viewport.pendingFree !== null
+        ? viewport.pendingFree
+        : connectorPreviewFrom(
+            previewStandBlock === undefined ? null : effectiveGeometry(previewStandBlock),
+            viewport.pendingPort,
+            viewport.connectorPreview.point
+          );
+  const previewSnap = viewport.connectorPreview?.snap ?? null;
+  const previewSnapBlock = previewSnap !== null ? blocks[previewSnap.blockId] : undefined;
+  const previewEnd =
+    viewport.connectorPreview === null
+      ? null
+      : connectorPreviewPoint(
+          viewport.connectorPreview.point,
+          previewSnap,
+          previewSnapBlock === undefined ? null : effectiveGeometry(previewSnapBlock)
+        );
+  // The hover snap's stand point (before the stand): the snapped edge's
+  // point over the hovered sibling (the circle + the badge's anchor).
+  const hoverSnapBlock = viewport.connectorHoverSnap !== null ? blocks[viewport.connectorHoverSnap.blockId] : undefined;
+  const hoverSnapPoint =
+    viewport.connectorHoverSnap === null || hoverSnapBlock === undefined
+      ? null
+      : edgePointOf(effectiveGeometry(hoverSnapBlock), viewport.connectorHoverSnap.port, viewport.connectorHoverSnap.t);
+
   if (root === undefined) return null;
 
   // The event point in the container space, center-relative (px) — the
@@ -451,9 +500,16 @@ function CanvasView() {
       const canvasPoint = screenToCanvas(point, viewport.zoom, viewport.pan);
       const standId = id ?? portBlockAt(canvasPoint);
       connectorPressClientRef.current = { x: event.clientX, y: event.clientY };
-      if (standId !== null && standId !== viewport.pendingConnector) {
+      if (standId !== null && standId !== viewport.pendingConnector && standId !== viewport.pendingSource) {
         if (!hasStand) {
-          viewport.setPendingStand({ blockId: standId }, canvasPoint);
+          // The press's edge snap: the
+          // stand stands the pressed point — the port ref at the port's
+          // stick disk, the free point over the continuous edge (the
+          // frozen direction = the snapped side), the plain block ref
+          // over the interior (the auto anchor). The source stands the
+          // self-pair guard (the stand's own block's second press
+          // cancels, not commits a degenerate line).
+          viewport.setPendingStand({ ...connectorPressStand(doc, standId, canvasPoint), source: standId }, canvasPoint);
         } else {
           // The second click on a different item: the completion.
           viewport.onConnectorCommit({ blockId: standId }, canvasPoint);
@@ -479,7 +535,7 @@ function CanvasView() {
         connectorPressClientRef.current = null;
         return;
       }
-      viewport.setConnectorPreview(canvasPoint);
+      viewport.setConnectorPreview({ point: canvasPoint, snap: snapAnySurfaceEdge(doc, canvasPoint) });
       // No pointer capture: the two-click's second pick and the
       // press-drag's release read the release TARGET (the item under the
       // cursor) — a capture would retarget the pointerup to the container
@@ -689,9 +745,18 @@ function CanvasView() {
   const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     // The connector's pending preview: the dashed line follows the cursor
     // (the hover of the two-click pick and the press-drag draw — the
-    // button-less hover update runs before the buttons guard below).
-    if (viewport.activeTool === "connector" && viewport.pendingConnector !== null) {
-      viewport.setConnectorPreview(screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan));
+    // button-less hover update runs before the buttons guard below). The
+    // end stands the endpoint drag's snap (the stick to the port / the
+    // continuous edge within the radius — the badge's parity); before the
+    // stand the hover snap stands the press's stand point.
+    if (viewport.activeTool === "connector") {
+      const canvasPoint = screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan);
+      const hasStand = viewport.pendingConnector !== null || viewport.pendingFree !== null;
+      if (hasStand) {
+        viewport.setConnectorPreview({ point: canvasPoint, snap: snapAnySurfaceEdge(doc, canvasPoint) });
+      } else {
+        viewport.setConnectorHoverSnap(snapAnySurfaceEdge(doc, canvasPoint));
+      }
     }
 
     // The release can be lost (the pointer leaves the window mid-drag
@@ -769,7 +834,7 @@ function CanvasView() {
           : null;
       const id = item?.getAttribute("data-block-id") ?? null;
       const standId = id ?? portBlockAt(canvasPoint);
-      if (standId !== null && standId !== viewport.pendingConnector) {
+      if (standId !== null && standId !== viewport.pendingConnector && standId !== viewport.pendingSource) {
         viewport.onConnectorCommit({ blockId: standId }, canvasPoint);
       } else if (standId === null) {
         const press = connectorPressClientRef.current;
@@ -1213,7 +1278,11 @@ function CanvasView() {
               endpointDrag={viewport.connectorEndpoint}
               endpointPreview={viewport.connectorEndpointPreview}
               endpointSnap={
-                viewport.connectorEndpoint !== null ? (viewport.connectorEndpointPreview?.snap ?? null) : null
+                viewport.connectorEndpoint !== null
+                  ? (viewport.connectorEndpointPreview?.snap ?? null)
+                  : viewport.activeTool === "connector"
+                    ? (viewport.connectorHoverSnap ?? viewport.connectorPreview?.snap ?? null)
+                    : null
               }
               showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
               labelEditing={viewport.connectorLabelEditing}
@@ -1273,27 +1342,35 @@ function CanvasView() {
             </div>
           )}
           {(viewport.pendingConnector !== null || viewport.pendingFree !== null) &&
-            viewport.connectorPreview !== null &&
-            viewport.pendingConnector !== undefined && (
+            previewFrom !== null &&
+            previewEnd !== null && (
               // The connector's pending preview line: the dashed segment
-              // from the pending stand (the block's edge anchor toward the
-              // cursor, or the free stand's own point) to the cursor (the
-              // world's space, so it scales with the zoom).
-              <ConnectorPreviewLine
-                id={viewport.pendingConnector ?? undefined}
-                from={
-                  viewport.pendingFree !== null
-                    ? viewport.pendingFree
-                    : viewport.pendingConnector !== null
-                      ? (() => {
-                          const block = blocks[viewport.pendingConnector!];
-                          return block === undefined
-                            ? { x: 0, y: 0 }
-                            : edgeAnchor(effectiveGeometry(block), viewport.connectorPreview!);
-                        })()
-                      : { x: 0, y: 0 }
-                }
-                point={viewport.connectorPreview}
+              // from the pending stand (the snapped press point, or the
+              // auto anchor over the plain block ref) to the cursor's snap
+              // (the endpoint drag's parity) (the world's space, so it
+              // scales with the zoom).
+              <ConnectorPreviewLine id={viewport.pendingConnector ?? undefined} from={previewFrom} point={previewEnd} />
+            )}
+          {previewFrom !== null && previewEnd !== null && previewSnap !== null && (
+            // The preview end's snap: the circle + the connect badge at
+            // the snapped edge point (the endpoint drag's parity).
+            <ConnectorSnapBadge
+              slot="docblocks/canvas-connector-preview-snap"
+              point={previewEnd}
+              port={previewSnap.port}
+            />
+          )}
+          {viewport.activeTool === "connector" &&
+            previewFrom === null &&
+            viewport.connectorHoverSnap !== null &&
+            hoverSnapPoint !== null && (
+              // The hover snap (before the stand): the circle + the connect
+              // badge at the snapped edge point — the press's stand
+              // preview (the line stands from that point on the press).
+              <ConnectorSnapBadge
+                slot="docblocks/canvas-connector-hover-snap"
+                point={hoverSnapPoint}
+                port={viewport.connectorHoverSnap.port}
               />
             )}
           {viewport.penPoints.length > 1 && (
@@ -1519,6 +1596,58 @@ function CanvasView() {
         <CanvasDock viewport={viewport} />
       </div>
     </CanvasTextEditProvider>
+  );
+}
+
+/**
+ * The connector snap's stand (the hover snap and the preview end's snap —
+ * the endpoint drag's parity): the green circle at the snapped edge point
+ * (the dot's stand) + the Link badge outside along the port's outward
+ * normal (the "the point is connected" indicator, the endpoint drag's
+ * badge's parity). A world-space overlay (the 1x1 overflow-visible svg —
+ * the ConnectorLayer's parity), so it scales with the zoom.
+ */
+function ConnectorSnapBadge({
+  slot,
+  point,
+  port,
+}: {
+  slot: string;
+  point: { x: number; y: number };
+  port: "north" | "east" | "south" | "west";
+}) {
+  const normal = PORT_NORMAL[port];
+  const badgeX = point.x + normal.nx * SNAP_BADGE_LIFT;
+  const badgeY = point.y + normal.ny * SNAP_BADGE_LIFT;
+  return (
+    <svg
+      data-slot={slot}
+      className="pointer-events-none absolute top-1/2 left-1/2 overflow-visible"
+      width={1}
+      height={1}
+    >
+      <circle cx={point.x} cy={point.y} r={3.5} fill={CONNECT_COLOR} stroke={CONNECT_COLOR} strokeWidth={1} />
+      <circle
+        cx={badgeX}
+        cy={badgeY}
+        r={SNAP_BADGE_RADIUS}
+        fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+        stroke={CONNECT_COLOR}
+        strokeWidth={1.5}
+      />
+      <Link
+        x={badgeX - 7}
+        y={badgeY - 7}
+        width={14}
+        height={14}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke={CONNECT_COLOR}
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
