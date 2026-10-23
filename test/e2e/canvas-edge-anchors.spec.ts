@@ -198,7 +198,7 @@ test.describe("the edge anchors", () => {
     const { a, close } = await twoPanes(browser, "cvs-edge-anchors-draw");
     try {
       await toCanvas(a, "a");
-      const { left } = await seedShapes(a, "a");
+      await seedShapes(a, "a");
       const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
       await dock.getByLabel("Connector").click();
       const center = await canvasCenter(a, "a");
@@ -207,8 +207,9 @@ test.describe("the edge anchors", () => {
       // the item's fill at the sub-pixel boundary), the drag to the
       // empty canvas (off the page miniature's card — a release on the
       // card stands the root's ref, the commit guard drops it): the
-      // start commits the side + the position, the end stands the free
-      // point.
+      // press inside the edge's snap band stands the free point at the
+      // snapped edge point + the frozen side (the continuous-edge stand
+      // — no block ref), the end stands the free point.
       const from = { x: center.x - 250, y: center.y - 148 };
       // The release inside the container (the view's box ~808x596 — the
       // canvas x ∈ [−404, 404], y ∈ [−298, 298] against the center): an
@@ -227,7 +228,7 @@ test.describe("the edge anchors", () => {
       }))!;
       expect(id).not.toBeNull();
       const attrs = await endpointAttrs(a, "a", id);
-      expect(attrs?.start).toEqual({ blockId: left, port: "north", portT: 0.75 });
+      expect(attrs?.start).toEqual({ x: -250, y: -150, port: "north" });
     } finally {
       await close();
     }
