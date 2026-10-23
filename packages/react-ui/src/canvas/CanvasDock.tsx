@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { ComponentType, SVGProps } from "react";
 
 import {
@@ -68,119 +69,132 @@ const TOOL_GROUPS: DockTool[][] = [
  * another pick). The chrome wrapper keeps the container's pointer
  * sessions out (the buttons handle their own).
  */
-function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
-  const { mode, activeTool, setMode, setActiveTool, setPendingStand } = viewport;
+const CanvasDock = memo(
+  function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
+    const { mode, activeTool, setMode, setActiveTool, setPendingStand } = viewport;
 
-  const toggleHand = () => {
-    const next = mode === "pan" ? "default" : "pan";
-    setMode(next);
-    if (next === "pan") {
-      // The pan mode drops the active tool (the pan never places).
-      setActiveTool(null);
+    const toggleHand = () => {
+      const next = mode === "pan" ? "default" : "pan";
+      setMode(next);
+      if (next === "pan") {
+        // The pan mode drops the active tool (the pan never places).
+        setActiveTool(null);
+        setPendingStand(null);
+      }
+    };
+
+    const pickTool = (tool: CanvasTool) => {
+      // A pick toggles: the active tool re-clicked is cancelled (along with
+      // the pending connector pick); another pick replaces it.
+      if (activeTool === tool) {
+        setActiveTool(null);
+        setPendingStand(null);
+        return;
+      }
+      setMode("default");
+      setActiveTool(tool);
       setPendingStand(null);
-    }
-  };
+    };
 
-  const pickTool = (tool: CanvasTool) => {
-    // A pick toggles: the active tool re-clicked is cancelled (along with
-    // the pending connector pick); another pick replaces it.
-    if (activeTool === tool) {
-      setActiveTool(null);
-      setPendingStand(null);
-      return;
-    }
-    setMode("default");
-    setActiveTool(tool);
-    setPendingStand(null);
-  };
+    const shapesActive = activeTool !== null && SHAPE_IDS.includes(activeTool);
 
-  const shapesActive = activeTool !== null && SHAPE_IDS.includes(activeTool);
-
-  return (
-    <div data-slot="docblocks/canvas-chrome" className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2">
-      <div
-        data-slot="docblocks/canvas-dock"
-        role="toolbar"
-        aria-label="Canvas tools"
-        className="
-          flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
-          bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
-        "
-        onMouseDown={(event) => event.preventDefault()}
-      >
-        {/* The mode's button: the icon stands the current mode (the
+    return (
+      <div data-slot="docblocks/canvas-chrome" className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2">
+        <div
+          data-slot="docblocks/canvas-dock"
+          role="toolbar"
+          aria-label="Canvas tools"
+          className="
+            flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
+            bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color)
+            shadow-(--docblocks-formatbar-shadow)
+          "
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          {/* The mode's button: the icon stands the current mode (the
             select pointer / the pan hand) — the press toggles it. The M
             key stands the select mode from the keyboard. */}
-        <Button
-          variant="ghost"
-          size="xl"
-          aria-label={mode === "pan" ? "Switch to the select mode" : "Switch to the pan mode"}
-          aria-pressed={mode === "pan"}
-          className={mode === "pan" ? "bg-accent text-accent-foreground" : undefined}
-          onClick={toggleHand}
-        >
-          {mode === "pan" ? <Hand className="size-6" /> : <MousePointer2 className="size-6" />}
-        </Button>
-        <span className="flex items-center gap-0.5">
-          <Separator orientation="vertical" className="h-6" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="xl"
-                title="Shapes"
-                aria-label="Shapes"
-                data-tool="shapes"
-                aria-pressed={shapesActive}
-                className={shapesActive ? "bg-accent text-accent-foreground" : undefined}
+          <Button
+            variant="ghost"
+            size="xl"
+            aria-label={mode === "pan" ? "Switch to the select mode" : "Switch to the pan mode"}
+            aria-pressed={mode === "pan"}
+            className={mode === "pan" ? "bg-accent text-accent-foreground" : undefined}
+            onClick={toggleHand}
+          >
+            {mode === "pan" ? <Hand className="size-6" /> : <MousePointer2 className="size-6" />}
+          </Button>
+          <span className="flex items-center gap-0.5">
+            <Separator orientation="vertical" className="h-6" />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="xl"
+                  title="Shapes"
+                  aria-label="Shapes"
+                  data-tool="shapes"
+                  aria-pressed={shapesActive}
+                  className={shapesActive ? "bg-accent text-accent-foreground" : undefined}
+                >
+                  <Square className="size-6" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                side="top"
+                className="flex flex-row"
+                aria-label="Shapes menu"
+                data-slot="docblocks/canvas-shapes-menu"
               >
-                <Square className="size-6" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              side="top"
-              className="flex flex-row"
-              aria-label="Shapes menu"
-              data-slot="docblocks/canvas-shapes-menu"
-            >
-              {SHAPE_TOOLS.map(({ id, label, icon: Icon }) => (
-                <DropdownMenuItem
+                {SHAPE_TOOLS.map(({ id, label, icon: Icon }) => (
+                  <DropdownMenuItem
+                    key={id}
+                    aria-label={label}
+                    data-tool={id}
+                    className={cn("px-2.5", activeTool === id && "bg-accent text-accent-foreground")}
+                    onSelect={() => pickTool(id)}
+                  >
+                    <Icon />
+                    {label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </span>
+          {TOOL_GROUPS.map((group, index) => (
+            <span key={group[0]!.id} className="flex items-center gap-0.5">
+              {index > 0 && <Separator orientation="vertical" className="h-6" />}
+              {group.map(({ id, label, icon: Icon }) => (
+                <Button
                   key={id}
+                  variant="ghost"
+                  size="xl"
+                  title={label}
                   aria-label={label}
                   data-tool={id}
-                  className={cn("px-2.5", activeTool === id && "bg-accent text-accent-foreground")}
-                  onSelect={() => pickTool(id)}
+                  aria-pressed={activeTool === id}
+                  className={activeTool === id ? "bg-accent text-accent-foreground" : undefined}
+                  onClick={() => pickTool(id)}
                 >
-                  <Icon />
-                  {label}
-                </DropdownMenuItem>
+                  <Icon className="size-6" />
+                </Button>
               ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </span>
-        {TOOL_GROUPS.map((group, index) => (
-          <span key={group[0]!.id} className="flex items-center gap-0.5">
-            {index > 0 && <Separator orientation="vertical" className="h-6" />}
-            {group.map(({ id, label, icon: Icon }) => (
-              <Button
-                key={id}
-                variant="ghost"
-                size="xl"
-                title={label}
-                aria-label={label}
-                data-tool={id}
-                aria-pressed={activeTool === id}
-                className={activeTool === id ? "bg-accent text-accent-foreground" : undefined}
-                onClick={() => pickTool(id)}
-              >
-                <Icon className="size-6" />
-              </Button>
-            ))}
-          </span>
-        ))}
+            </span>
+          ))}
+        </div>
       </div>
-    </div>
-  );
-}
+    );
+    // The viewport's object stands fresh per render (the hook's state
+    // bundle): compare the fields the dock reads (the mode / tool flip and
+    // the stable setters) so the session's pointermoves (the preview's
+    // churn) stand the dock.
+  },
+  (prev, next) =>
+    prev.viewport.mode === next.viewport.mode &&
+    prev.viewport.activeTool === next.viewport.activeTool &&
+    prev.viewport.setMode === next.viewport.setMode &&
+    prev.viewport.setActiveTool === next.viewport.setActiveTool &&
+    prev.viewport.setPendingStand === next.viewport.setPendingStand
+);
 
 export { CanvasDock };

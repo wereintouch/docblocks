@@ -1,4 +1,4 @@
-import { createContext, useContext } from "react";
+import { createContext, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 
 /**
@@ -40,7 +40,10 @@ function CanvasTextEditProvider({
   setEditingId: (id: string | null) => void;
   children: ReactNode;
 }) {
-  const value = { editingId, setEditingId };
+  // The value stands stable over the session's idle renders: a fresh
+  // object per canvas render would re-render every consumer (the shapes'
+  // text overlays) on the viewport's pointermoves.
+  const value = useMemo(() => ({ editingId, setEditingId }), [editingId, setEditingId]);
   return <CanvasTextEditContext.Provider value={value}>{children}</CanvasTextEditContext.Provider>;
 }
 

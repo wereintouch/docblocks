@@ -162,3 +162,66 @@ describe("createEditorStore", () => {
     expect(store.getState().collapsedIds).toEqual([]);
   });
 });
+
+describe("the sequence-structure stamp", () => {
+  it("stands on a text-only change (the row's subscription re-renders it)", () => {
+    const { doc, store } = setup();
+    const p1 = doc.insertBlock("paragraph");
+    doc.insertBlock("paragraph");
+    const stamp = store.getState().seqStamp;
+
+    doc.insertText(p1, 0, "hello");
+    doc.setMark(p1, 0, 5, { type: "bold" });
+
+    expect(store.getState().seqStamp).toBe(stamp);
+  });
+
+  it("bumps on a sequence block's indent change (the nesting's stand)", () => {
+    const { doc, store } = setup();
+    doc.insertBlock("paragraph");
+    const p2 = doc.insertBlock("paragraph");
+    const stamp = store.getState().seqStamp;
+
+    doc.updateBlock(p2, { indent: 1 });
+
+    expect(store.getState().seqStamp).toBe(stamp + 1);
+  });
+
+  it("bumps on a list item's kind change (the run's marker stand)", () => {
+    const { doc, store } = setup();
+    doc.insertBlock("paragraph");
+    const item = doc.insertBlock("list-item", { list: "bullet" });
+    const stamp = store.getState().seqStamp;
+
+    doc.updateBlock(item, { list: "number" });
+
+    expect(store.getState().seqStamp).toBe(stamp + 1);
+  });
+
+  it("bumps on a root-level insert and removal (the sequence's stand)", () => {
+    const { doc, store } = setup();
+    doc.insertBlock("paragraph");
+    const stamp = store.getState().seqStamp;
+
+    doc.insertBlock("paragraph");
+    expect(store.getState().seqStamp).toBe(stamp + 1);
+
+    const root = doc.meta.id;
+    const last = doc.getChildren(root)[doc.getChildren(root).length - 1]!;
+    doc.removeBlock(last);
+    expect(store.getState().seqStamp).toBe(stamp + 2);
+  });
+
+  it("stands on a non-sequence block's change (a surface's child stands off the page)", () => {
+    const { doc, store } = setup();
+    doc.insertBlock("paragraph");
+    const surface = doc.insertBlock("surface");
+    const shape = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    doc.setGeometry(shape, { x: 0, y: 0, w: 100, h: 50 });
+    const stamp = store.getState().seqStamp;
+
+    doc.updateBlock(shape, { fill: "#ff0000" });
+
+    expect(store.getState().seqStamp).toBe(stamp);
+  });
+});

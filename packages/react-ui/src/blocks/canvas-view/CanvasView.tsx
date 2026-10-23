@@ -127,6 +127,14 @@ function CanvasView() {
   // momentum feel).
   const wheelDeltaRef = useRef(0);
   const [spacePan, setSpacePan] = useState(false);
+  // The wheel listener's live viewport (the latest render's state and
+  // callbacks): the native listener subscribes once on mount — re-running
+  // the subscription on every pan / zoom change (the effect's former deps)
+  // tore and re-added the listener on the wheel's own events.
+  const viewportRef = useRef(viewport);
+  useEffect(() => {
+    viewportRef.current = viewport;
+  });
 
   // The wheel's gesture: the pointer
   // mode pans (the 1:1 screen px, zoom-blind; the content stands opposite
@@ -142,6 +150,7 @@ function CanvasView() {
     const container = containerRef.current;
     if (container === null) return;
     const onWheel = (event: WheelEvent) => {
+      const viewport = viewportRef.current;
       if (
         wheelGesture(viewport.mode, viewport.activeTool, {
           ctrlKey: event.ctrlKey,
@@ -179,7 +188,7 @@ function CanvasView() {
     };
     container.addEventListener("wheel", onWheel, { passive: false });
     return () => container.removeEventListener("wheel", onWheel);
-  }, [viewport.activeTool, viewport.mode, viewport.pan, viewport.pinchAt, viewport.setPan, viewport.zoomAt]);
+  }, []);
 
   // Split the root's children into the page (the non-surface blocks, in
   // reading order) and the surfaces (each rendered as its own layer).
