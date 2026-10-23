@@ -188,4 +188,111 @@ test.describe("the border's controls", () => {
 
     await close();
   });
+
+  test("the width's selector stands the filled-progress accent (the fill + the dots at/left; the dark stand)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "border-accent");
+    await a.getByTestId("view-a-canvas").click();
+    await a.waitForTimeout(200);
+
+    const id = await seedShape(a, "a");
+    await selectShape(a, "a", id);
+    const slider = a.getByRole("slider", { name: "Shape border width" });
+
+    // The accent stand's read (the fill's width + the colors, the rgb's
+    // luminance through a 1px canvas — the theme token's resolved stand).
+    const readStand = () =>
+      slider.evaluate((el) => {
+        const toLum = (color: string) => {
+          const c = document.createElement("canvas");
+          c.width = c.height = 1;
+          const ctx = c.getContext("2d")!;
+          ctx.fillStyle = color;
+          ctx.fillRect(0, 0, 1, 1);
+          const [r = 0, g = 0, b = 0] = ctx.getImageData(0, 0, 1, 1).data;
+          return 0.299 * r + 0.587 * g + 0.114 * b;
+        };
+        const fill = Array.from(el.querySelectorAll("div")).find((d) => d.style.width !== "");
+        const base = Array.from(el.querySelectorAll("div")).find((d) => d.style.width === "");
+        const dots = Array.from(el.querySelectorAll<HTMLElement>("span.rounded-full")).filter((d) =>
+          d.className.includes("size-1")
+        );
+        const accent = fill !== undefined ? getComputedStyle(fill).backgroundColor : "";
+        const border = base !== undefined ? getComputedStyle(base).backgroundColor : "";
+        return {
+          valuenow: Number(el.getAttribute("aria-valuenow")),
+          fillWidth: fill !== undefined ? parseFloat(fill.style.width) : null,
+          accent,
+          border,
+          accentLum: toLum(accent),
+          dotColors: dots.map((d) => getComputedStyle(d).backgroundColor),
+          dotCount: dots.length,
+        };
+      });
+
+    // Drag from the left edge's dot to the target's ratio (the snap stands
+    // the nearest dot — the final stand is the drag's release).
+    const dragTo = async (ratio: number) => {
+      const box = (await slider.boundingBox())!;
+      const y = box.y + box.height / 2;
+      await a.mouse.move(box.x + box.width * 0.02, y);
+      await a.mouse.down();
+      await a.mouse.move(box.x + box.width * ratio, y, { steps: 4 });
+      await a.mouse.up();
+      await a.waitForTimeout(80);
+    };
+
+    // Light theme (the harness loads dark by default — clear it).
+    await a.evaluate(() => document.documentElement.classList.remove("dark"));
+
+    // The default stand (2 px = index 1): the fill's width 33%, the dots 0–1
+    // the accent, 2–3 the border; the accent differs from the border.
+    let stand = await readStand();
+    expect(stand.valuenow).toBe(1);
+    expect(stand.fillWidth).toBeCloseTo((1 / 3) * 100, 1);
+    expect(stand.accent).not.toBe(stand.border);
+    expect(stand.dotCount).toBe(4);
+    stand.dotColors.forEach((color, i) => {
+      expect(color, `dot ${i} at the 2 px stand`).toBe(i <= 1 ? stand.accent : stand.border);
+    });
+
+    // 4 px (index 3): the fill's width 100%, every dot the accent.
+    await dragTo(0.95);
+    stand = await readStand();
+    expect(stand.valuenow).toBe(3);
+    expect(stand.fillWidth).toBeCloseTo(100, 1);
+    stand.dotColors.forEach((color) => expect(color).toBe(stand.accent));
+    expect(await shapeAttrs(a, "a", id)).toMatchObject({ strokeWidth: 4 });
+
+    // 1 px (index 0): the fill's width 0 (the whole line the border), only
+    // the leftmost dot the accent.
+    await dragTo(0.02);
+    stand = await readStand();
+    expect(stand.valuenow).toBe(0);
+    expect(stand.fillWidth).toBeCloseTo(0, 1);
+    stand.dotColors.forEach((color, i) => {
+      expect(color, `dot ${i} at the 1 px stand`).toBe(i === 0 ? stand.accent : stand.border);
+    });
+    expect(await shapeAttrs(a, "a", id)).toMatchObject({ strokeWidth: 1 });
+
+    // 3 px (index 2): the fill's width 66%, the dots 0–2 the accent.
+    await dragTo(0.65);
+    stand = await readStand();
+    expect(stand.valuenow).toBe(2);
+    expect(stand.fillWidth).toBeCloseTo((2 / 3) * 100, 1);
+    stand.dotColors.forEach((color, i) => {
+      expect(color, `dot ${i} at the 3 px stand`).toBe(i <= 2 ? stand.accent : stand.border);
+    });
+
+    // Dark theme: the accent stands the theme token (the bright stand,
+    // visible over the dark background, not a hardcoded color).
+    await a.evaluate(() => document.documentElement.classList.add("dark"));
+    await a.waitForTimeout(100);
+    stand = await readStand();
+    expect(stand.accentLum).toBeGreaterThan(160);
+    expect(stand.accent).not.toBe(stand.border);
+
+    await close();
+  });
 });

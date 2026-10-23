@@ -256,4 +256,34 @@ describe("FigureBorderSelector (the border's width dots)", () => {
     fireEvent.pointerMove(slider, { clientX: 8, buttons: 1 }); // ~12% -> the dot 0
     expect(changes).toEqual([3, 0]);
   });
+
+  it("stands the filled-progress accent (the fill's width per value, the dots' accent at/left, the handle's seat)", () => {
+    // The dot / fill / handle positions (the i / (points - 1) ratio).
+    const expectedPct = [0, (1 / 3) * 100, (2 / 3) * 100, 100];
+    for (let value = 0; value <= 3; value += 1) {
+      render(<FigureBorderSelector points={4} value={value} onChange={() => undefined} label="Border width" />);
+      const slider = screen.getByRole("slider", { name: "Border width" });
+      // The fill segment (the accent's line — the only div with an inline width).
+      const fill = Array.from(slider.querySelectorAll("div")).find((el) => el.style.width !== "");
+      expect(fill, `the fill's segment at value ${value}`).toBeDefined();
+      expect(fill!.className).toContain("bg-(--primary)");
+      expect(parseFloat(fill!.style.width)).toBeCloseTo(expectedPct[value]!, 3);
+      // The dots at / left of the handle stand the accent; the right ones the border.
+      const dots = Array.from(slider.querySelectorAll<HTMLElement>("span.rounded-full")).filter((el) =>
+        el.className.includes("size-1")
+      );
+      expect(dots.length).toBe(4);
+      dots.forEach((dot, index) => {
+        if (index <= value) expect(dot.className).toContain("bg-(--primary)");
+        else expect(dot.className).toContain("bg-(--border)");
+      });
+      // The handle stands at the current dot's position (the fill's end).
+      const handle = Array.from(slider.querySelectorAll<HTMLElement>("span.rounded-full")).find((el) =>
+        el.className.includes("size-2.5")
+      );
+      expect(handle).toBeDefined();
+      expect(parseFloat(handle!.style.left)).toBeCloseTo(expectedPct[value]!, 3);
+      cleanup();
+    }
+  });
 });

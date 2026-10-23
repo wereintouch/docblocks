@@ -9,9 +9,11 @@ import { cn } from "./cn";
  * standing on the current one. A press / a drag moves the handle and it
  * SNAPS to the nearest dot (the live stand — the onChange fires on the
  * move, not only on the release). The dots are evenly spaced across the
- * track (the first and the last stand at the edges). Keyboard: the
- * arrow keys step one dot, Home / End stand the edges (the slider
- * contract).
+ * track (the first and the last stand at the edges). The filled-progress
+ * stand: the track's segment from the start to the handle's center and the
+ * dots at / left of the handle stand the accent (`--primary`); the rest
+ * stands `--border`. Keyboard: the arrow keys step one dot, Home / End
+ * stand the edges (the slider contract).
  *
  * A UI-only primitive (the design system): no doc / command knowledge —
  * the values stand the consumer's (the toolbar maps the index to the
@@ -104,13 +106,21 @@ function FigureBorderSelector({
     >
       {/* The track (the horizontal line through the dots' centers). */}
       <div className="absolute top-1/2 right-0 left-0 h-px -translate-y-1/2 bg-(--border)" aria-hidden />
+      {/* The fill segment (the accent from the track's start to the
+          handle's center — the filled-progress stand; zero width at the
+          leftmost dot, the whole track at the rightmost). */}
+      <div
+        className="absolute top-1/2 left-0 h-px -translate-y-1/2 bg-(--primary)"
+        style={{ width: `${dotPosition(clamped)}%` }}
+        aria-hidden
+      />
       {Array.from({ length: points }, (_, index) => (
         <span
           key={index}
           aria-hidden
           className={cn(
             "absolute top-1/2 size-1 -translate-x-1/2 -translate-y-1/2 rounded-full",
-            index === clamped ? "bg-(--primary)" : "bg-(--border)"
+            index <= clamped ? "bg-(--primary)" : "bg-(--border)"
           )}
           style={{ left: `${dotPosition(index)}%` }}
         />
