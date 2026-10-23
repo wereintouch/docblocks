@@ -1,4 +1,8 @@
 import "docblocks-react-ui/styles.css";
+// The CDT-MCP DevTools hook installs on this import and must run before
+// `react-dom` is evaluated, or React won't connect to it — the line stands
+// before the react-dom import for that reason.
+import "react-devtools-cdt-mcp/register";
 import { createRoot } from "react-dom/client";
 
 import { StrictMode } from "react";
