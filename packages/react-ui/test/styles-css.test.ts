@@ -148,3 +148,24 @@ describe("the color palette's shipped tokens (the light / dark pairs)", () => {
     expect(matches.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+// The canvas view's dot-grid token: the alpha stands a bit more transparent
+// than the first stand (the moire at the small zoom). The value is pinned from the assembled stylesheet (one named
+// token — the light / dark follow `--muted-foreground`).
+describe("the canvas view's dot token (the a bit more transparent alpha)", () => {
+  function dotAlpha(): number {
+    const match = STYLES_CSS.match(
+      /--docblocks-canvas-view-dot: color-mix\(in srgb, var\(--muted-foreground, #[0-9a-fA-F]{3,8}\) (\d+(?:\.\d+)?)%, transparent\)/
+    );
+    expect(match, "the dot token is a color-mix over --muted-foreground").not.toBeNull();
+    return Number(match![1]);
+  }
+
+  it("stands the ~20–25% alpha (a bit more transparent than the first 35% stand)", () => {
+    const alpha = dotAlpha();
+    expect(alpha).toBeGreaterThanOrEqual(20);
+    expect(alpha).toBeLessThanOrEqual(25);
+    // Clearly below the first 35% stand (the regression's target).
+    expect(alpha).toBeLessThan(35);
+  });
+});
