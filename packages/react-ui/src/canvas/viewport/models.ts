@@ -163,11 +163,16 @@ interface CanvasViewportState {
   penPoints: CanvasPoint[];
   /** The rendered move preview (null outside an in-flight drag). */
   movePreview: MovePreview | null;
+  /** The move session's open state (the press to the release — the
+   * pre-threshold window the preview does not reach). */
+  moveSession: boolean;
   /** The in-flight move's drop indicators (the green / red stand); null
    * outside a drag or when no drop stands. */
   dropIndicators: DropIndicator[] | null;
   /** The rendered resize preview (null outside an in-flight drag). */
   resizePreview: { id: string; box: Box } | null;
+  /** The resize session's open state (the press to the release). */
+  resizeSession: boolean;
   /** The in-flight shape placement's preview (canvas coords, the center anchor); null outside a drag. */
   placePreview: PlacePreview | null;
   /** The connector's pending preview (the cursor's point + the end's edge
@@ -292,7 +297,13 @@ const ENDPOINT_SNAP_RADIUS = 12;
  * press-release commits nothing, the move sessions' contract). */
 const ENDPOINT_RELEASE_THRESHOLD_PX = 3;
 
-export { ENDPOINT_RELEASE_THRESHOLD_PX, ENDPOINT_SNAP_RADIUS };
+/** The arrow-key nudge's step (canvas world px — the data's space, the
+ * zoom-blind contract: the step stands the same over any zoom). */
+const NUDGE_STEP_PX = 10;
+/** The nudge's Shift multiplier (the step's factor — the 50 px stand). */
+const NUDGE_SHIFT_MULTIPLIER = 5;
+
+export { ENDPOINT_RELEASE_THRESHOLD_PX, ENDPOINT_SNAP_RADIUS, NUDGE_SHIFT_MULTIPLIER, NUDGE_STEP_PX };
 export type {
   CanvasViewportState,
   EndpointDrag,
