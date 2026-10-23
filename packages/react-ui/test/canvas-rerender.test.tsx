@@ -117,4 +117,38 @@ describe("the canvas re-render contract", () => {
     expect(seen[`shape:${c}`]).toBe(beforeC);
     expect(seen[`page:${page}`]).toBe(beforePage);
   });
+
+  it("stands the unselected items on a click-select (the tint stands the two items only)", () => {
+    const { page, a, b, c, seen, utils, wrapperA } = setup();
+    const wrapperB = utils.container.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${b}"]`
+    );
+    if (wrapperB === null) throw new Error("the canvas item is missing");
+    const beforeA = seen[`shape:${a}`] ?? 0;
+    const beforeB = seen[`shape:${b}`] ?? 0;
+    const beforeC = seen[`shape:${c}`] ?? 0;
+    const beforePage = seen[`page:${page}`] ?? 0;
+
+    act(() => {
+      fireEvent.pointerDown(wrapperA, { clientX: 100, clientY: 100 });
+      fireEvent.pointerUp(wrapperA);
+    });
+
+    // The selected item stands its tint (a re-render); the rest stand.
+    expect(seen[`shape:${a}`]).toBe(beforeA + 1);
+    expect(seen[`shape:${b}`]).toBe(beforeB);
+    expect(seen[`shape:${c}`]).toBe(beforeC);
+    expect(seen[`page:${page}`]).toBe(beforePage);
+
+    act(() => {
+      fireEvent.pointerDown(wrapperB, { clientX: 50, clientY: 50 });
+      fireEvent.pointerUp(wrapperB);
+    });
+
+    // The new selection stands; the old one drops its tint; the rest stand.
+    expect(seen[`shape:${b}`]).toBe(beforeB + 1);
+    expect(seen[`shape:${a}`]).toBe(beforeA + 2);
+    expect(seen[`shape:${c}`]).toBe(beforeC);
+    expect(seen[`page:${page}`]).toBe(beforePage);
+  });
 });
