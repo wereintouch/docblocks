@@ -81,6 +81,9 @@ interface ResizeSession {
   startClientY: number;
   dragging: boolean;
   box: Box | null;
+  /** The container's members' union box (the resize's per-edge clamp); absent
+   * for a shape (the plain floor-only resize). */
+  memberUnion?: Box;
 }
 
 /**

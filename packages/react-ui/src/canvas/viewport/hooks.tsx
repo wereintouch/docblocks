@@ -26,6 +26,7 @@ import {
   screenDeltaToCanvas,
   screenToCanvas,
   stepZoom,
+  unionBox,
 } from "../viewport";
 import type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle, ScreenPoint } from "../viewport";
 import { ENDPOINT_RELEASE_THRESHOLD_PX } from "./models";
@@ -630,6 +631,18 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     (id: string, handle: ResizeHandle, startClientX: number, startClientY: number) => {
       const block = doc.getBlock(id);
       if (block === null || block.type === "connector") return;
+      // The container's members' union stand (the resize's per-edge clamp);
+      // the shape's resize (the absent members) stands the plain floor.
+      let memberUnion: Box | undefined;
+      if (block.type === "group") {
+        const memberBoxes: Box[] = [];
+        for (const memberId of block.attrs.members) {
+          const member = doc.getBlock(memberId);
+          if (member === null || member.type === "connector") continue;
+          memberBoxes.push(effectiveGeometry(member));
+        }
+        memberUnion = unionBox(memberBoxes) ?? undefined;
+      }
       resizeRef.current = {
         id,
         handle,
@@ -638,6 +651,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
         startClientY,
         dragging: false,
         box: null,
+        memberUnion,
       };
       setResizePreview(null);
       setResizeSession(true);
@@ -654,7 +668,7 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
       session.dragging = true;
       // The session carries the box (the release commit reads the session,
       // not the render state).
-      session.box = resizeBox(session.snapshot, session.handle, delta.x, delta.y, shift);
+      session.box = resizeBox(session.snapshot, session.handle, delta.x, delta.y, shift, session.memberUnion);
       setResizePreview({ id: session.id, box: session.box });
     },
     [zoom]
