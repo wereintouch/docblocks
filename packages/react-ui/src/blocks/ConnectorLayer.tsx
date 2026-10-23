@@ -151,13 +151,16 @@ function ConnectorLayer({
     return next;
   })();
   // The route's AVOIDANCE obstacles: the
-  // surface's non-connector siblings' boxes — the endpoint's own box
-  // stands too (a route over it is a crossing). The orthogonal's bend
-  // line runs the first clear candidate around them.
+  // surface's non-connector, non-container siblings' boxes — the endpoint's
+  // own box stands too (a route over it is a crossing). The CONTAINER (the
+  // group) stands no obstacle: its box is a FRAME (the line routes through
+  // it to reach the members, avoiding the members' boxes — the figures),
+  // not a figure (the enclosing box would reject every inside route).
+  // The orthogonal's bend line runs the first clear candidate around them.
   const obstacleBoxes: Box[] = [];
   for (const childId of childIds) {
     const block = previewBlocks[childId];
-    if (block === undefined || block.type === "connector") continue;
+    if (block === undefined || block.type === "connector" || block.type === "group") continue;
     obstacleBoxes.push(effectiveGeometry(block));
   }
   const segments: ReactNode[] = [];

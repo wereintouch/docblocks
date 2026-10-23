@@ -152,6 +152,29 @@ function routeLength(points: readonly RoutePoint[]): number {
   return length;
 }
 
+/** The route's bend count (the direction changes in the axis-aligned
+ * polyline — straight = 0, the single-bend elbow = 1, the two-bend U = 2).
+ * The consecutive duplicate points collapse first (the degenerate bends
+ * stand no direction change). */
+function routeBends(points: readonly RoutePoint[]): number {
+  const pts: RoutePoint[] = [];
+  for (const p of points) {
+    const last = pts[pts.length - 1];
+    if (last === undefined || last.x !== p.x || last.y !== p.y) pts.push(p);
+  }
+  let bends = 0;
+  let prevAxis: "h" | "v" | null = null;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p = pts[i];
+    const q = pts[i + 1];
+    if (p === undefined || q === undefined) continue;
+    const axis: "h" | "v" = Math.abs(q.x - p.x) >= Math.abs(q.y - p.y) ? "h" : "v";
+    if (prevAxis !== null && prevAxis !== axis) bends += 1;
+    prevAxis = axis;
+  }
+  return bends;
+}
+
 /**
  * The connector's path between the RESOLVED endpoint points (the variant's
  * shape): the free-port generalization of connectorPath — straight is the
@@ -169,10 +192,11 @@ function routeLength(points: readonly RoutePoint[]): number {
  * shortest clear U; the fallback is the default elbow (the crossing
  * stands when no candidate is clear — the best effort). The candidate's
  * SELECTION is the shortest CLEAR route over the whole pool (the
- * single-bend's candidates + the U's; the list order — the default elbow
- * first — breaks the length ties), so an unrelated obstacle's far edge
- * cannot beat a near detour (a clear scene stands the default elbow
- * byte-for-byte — it is the shortest clear candidate).
+ * single-bend's candidates + the U's); the equal length prefers the
+ * FEWER bends (the straighter route), and the list order breaks only the
+ * full tie, so an unrelated obstacle's far edge cannot beat a near
+ * detour (an obstacle-free scene stands the default elbow byte-for-byte
+ * — it is the shortest and straightest).
  */
 function connectorPathPoints(
   a: EndpointPoint,
@@ -201,7 +225,8 @@ function connectorPathPoints(
     const aOut = aAnchored ? { x: a.x + a.nx * ORTHO_STUB_PX, y: a.y + a.ny * ORTHO_STUB_PX } : a;
     const bIn = bAnchored ? { x: b.x + b.nx * ORTHO_STUB_PX, y: b.y + b.ny * ORTHO_STUB_PX } : b;
     // The bend-line candidates (the deterministic order — the default
-    // elbow stands first, so a clear scene stands byte-for-byte): the
+    // elbow stands first, so an obstacle-free scene stands
+    // byte-for-byte): the
     // dominant axis' midpoint, the other axis' midpoint, the L-shapes
     // (the bend on an endpoint's own line), and the outer detours (the
     // span offset by the detour px, both sides).
@@ -262,9 +287,10 @@ function connectorPathPoints(
     };
     // The selection pool: the single-bend's CLEAR candidates stand first
     // (the list order — the default elbow first), the U's append (the
-    // sealed corridor's only clear set). The shortest stands; the pool's
-    // order breaks the length ties (deterministic).
-    const pool: { points: RoutePoint[]; length: number }[] = [];
+    // sealed corridor's only clear set). The shortest stands; the equal
+    // length prefers the FEWER bends (the straighter route); the pool's
+    // order breaks the remaining ties (deterministic).
+    const pool: { points: RoutePoint[]; length: number; bends: number }[] = [];
     for (let i = 0; i < structures.length; i++) {
       const structure = structures[i];
       const ts = tsList[i];
@@ -274,7 +300,7 @@ function connectorPathPoints(
         if (avoid && routeHitsObstacles(candidate, obstacles)) continue;
         // The obstacle-free scene: the lengths stand equal (0) and the
         // pool's first entry (the default elbow) stands the pick.
-        pool.push({ points: candidate, length: avoid ? routeLength(candidate) : 0 });
+        pool.push({ points: candidate, length: avoid ? routeLength(candidate) : 0, bends: routeBends(candidate) });
       }
     }
     if (avoid) {
@@ -296,7 +322,8 @@ function connectorPathPoints(
             { x: x1, y: y1 },
             { x: bIn.x, y: y1 },
           ]);
-          if (!routeHitsObstacles(f1, obstacles)) pool.push({ points: f1, length: routeLength(f1) });
+          if (!routeHitsObstacles(f1, obstacles))
+            pool.push({ points: f1, length: routeLength(f1), bends: routeBends(f1) });
           // F2: aOut -> (aOut.x, y1) -> (x1, y1) -> (x1, bIn.y) -> bIn
           // (the exit vertical first).
           const f2 = routeOf([
@@ -304,7 +331,8 @@ function connectorPathPoints(
             { x: x1, y: y1 },
             { x: x1, y: bIn.y },
           ]);
-          if (!routeHitsObstacles(f2, obstacles)) pool.push({ points: f2, length: routeLength(f2) });
+          if (!routeHitsObstacles(f2, obstacles))
+            pool.push({ points: f2, length: routeLength(f2), bends: routeBends(f2) });
         }
       }
     }
@@ -312,8 +340,16 @@ function connectorPathPoints(
     if (pool.length > 0) {
       let best = 0;
       for (let i = 1; i < pool.length; i++) {
-        const length = pool[i]!.length;
-        if (length < pool[best]!.length) best = i;
+        const candidate = pool[i]!;
+        const current = pool[best]!;
+        // The (length, bends) order: the shorter route stands; the equal
+        // length prefers the FEWER bends (the straighter route). The bend
+        // tiebreaker stands only over the obstacle scene (the avoid flag) —
+        // the obstacle-free scene's equal lengths (0) keep the list order
+        // (the default elbow byte-for-byte). The list order breaks the
+        // remaining ties (stability).
+        const fewerBends = avoid && candidate.length === current.length && candidate.bends < current.bends;
+        if (candidate.length < current.length || fewerBends) best = i;
       }
       points = pool[best]!.points;
     }
