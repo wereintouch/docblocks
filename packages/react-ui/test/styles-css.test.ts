@@ -10,6 +10,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { MONO_FONT_STACK, UI_FONT_STACK } from "../src/fonts";
+
 const STYLES_CSS = readFileSync(fileURLToPath(new URL("../dist/styles.css", import.meta.url)), "utf8");
 
 describe("dist/styles.css contract", () => {
@@ -50,7 +52,34 @@ describe("dist/styles.css contract", () => {
     // the utility layer: exactly one :root light set and one .dark set.
     expect(STYLES_CSS.split("--primary: oklch(0.205 0 0)").length - 1).toBe(1);
     expect(STYLES_CSS.split("--primary: oklch(0.922 0 0)").length - 1).toBe(1);
-    expect(STYLES_CSS).toContain('--font-sans: system-ui, -apple-system, "Segoe UI", sans-serif');
+    expect(STYLES_CSS).toContain('--font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif');
+    // The UI default font: the seed's --font-sans defaults to the self-hosted
+    // Inter, and the --docblocks-font-family token's own fallback (a consumer
+    // without the seed) also stands Inter. The consumer's --font-sans override
+    // (the var()'s first argument) takes priority.
+    expect(STYLES_CSS).toContain(
+      '--docblocks-font-family: var(--font-sans, "Inter", system-ui, -apple-system, "Segoe UI", sans-serif)'
+    );
+  });
+
+  it("stands the mono token unchanged (the system mono default)", () => {
+    expect(STYLES_CSS).toContain("--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace");
+    expect(STYLES_CSS).toContain(
+      "--docblocks-mono-font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace)"
+    );
+  });
+
+  it("keeps the fonts-registry constants in sync with the shipped token defaults (no drift)", () => {
+    // The src/fonts.ts constants mirror the stylesheet's token defaults (the
+    // source of truth); this pin catches the two drifting. The CSS uses
+    // double quotes, the constants single — normalize before comparing.
+    const normalize = (value: string) => value.replace(/'/g, '"').replace(/\s+/g, " ").trim();
+    const fallbackOf = (token: string) => {
+      const declaration = STYLES_CSS.match(new RegExp(`${token}:\\s*var\\([^,]+,\\s*(.+?)\\)`))?.[1];
+      return declaration === undefined ? undefined : normalize(declaration);
+    };
+    expect(fallbackOf("--docblocks-font-family")).toBe(normalize(UI_FONT_STACK));
+    expect(fallbackOf("--docblocks-mono-font-family")).toBe(normalize(MONO_FONT_STACK));
   });
 
   it("compiles the dark: variant to the .dark class selector, not a media query", () => {

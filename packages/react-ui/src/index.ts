@@ -35,6 +35,7 @@ export { FORMAT_PALETTE } from "./editing/format-toolbar";
 export { markToggleAction } from "./editing/keyboard";
 export type { FormatMark } from "./editing/keyboard";
 export { renderRuns } from "./text/runs";
+export { MONO_FONT_STACK, SHAPE_FONT_OPTIONS, SHAPE_FONT_STACKS, UI_FONT_ID, UI_FONT_STACK } from "./fonts";
 // The design system primitives (shared/ui) — styled by the compiled
 // utility layer shipped inside docblocks-react-ui/styles.css.
 export {
