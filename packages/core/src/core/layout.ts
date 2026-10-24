@@ -94,13 +94,15 @@ function rootBlockIdOf(ydoc: Y.Doc): string {
 }
 
 /** Write the registered meta map on a fresh doc. */
-function writeMeta(ydoc: Y.Doc, id: string, title: string, createdAt: string): void {
+function writeMeta(ydoc: Y.Doc, id: string, title: string, createdAt: string, avatar?: string): void {
   const meta = ydoc.getMap("meta");
   meta.set("v", 1);
   meta.set("id", id);
   meta.set("title", new Y.Text(title));
   meta.set("createdAt", createdAt);
   meta.set("updatedAt", createdAt);
+  // The avatar is optional: it stands only for a non-empty string (absent/empty = none).
+  if (avatar !== undefined && avatar !== "") meta.set("avatar", avatar);
 }
 
 /** Primitive attr values are stored directly; plain objects become nested Y.Maps, and arrays become Y.Arrays (array elements are stored as-is — the schema keeps them plain). */
@@ -251,7 +253,7 @@ function layoutDoc(id: string, title: string, createdAt: string): Y.Doc {
 /** Write a validated JSON document into a fresh doc (used by fromJSON). */
 function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
   ydoc.transact(() => {
-    writeMeta(ydoc, json.id, json.title, json.createdAt);
+    writeMeta(ydoc, json.id, json.title, json.createdAt, json.avatar);
     const blocks = getBlocks(ydoc);
     const rootOrder = rootOrderOf(ydoc);
     for (const [id, block] of Object.entries(json.blocks)) {

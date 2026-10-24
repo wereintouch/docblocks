@@ -26,12 +26,15 @@ function readMeta(ydoc: Y.Doc): DocMeta {
   const meta = ydoc.getMap("meta");
   const id = meta.get("id");
   const title = meta.get("title");
+  const avatar = meta.get("avatar");
   const createdAt = meta.get("createdAt");
   return {
     v: 1,
     id: typeof id === "string" ? id : "",
     // Yjs-only `updatedAt` is deliberately excluded from the JSON meta.
     title: title instanceof Y.Text ? title.toString() : typeof title === "string" ? title : "",
+    // The avatar is optional: absent or empty means none (the field stands off).
+    ...(typeof avatar === "string" && avatar !== "" ? { avatar } : {}),
     createdAt: typeof createdAt === "string" ? createdAt : "",
   };
 }

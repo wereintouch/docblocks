@@ -35,7 +35,7 @@
  */
 import mermaid from "mermaid";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { BlockId, CodeBlock } from "docblocks-core";
 
@@ -45,8 +45,8 @@ import { CodeHeader } from "../blocks/CodeHeader";
 import { TextBlock, textOf } from "../blocks/TextBlock";
 import type { BlockRendererProps } from "../blocks/renderers";
 import { Alert, AlertDescription, AlertTitle } from "../shared/ui/Alert";
+import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { Skeleton } from "../shared/ui/Skeleton";
-import { cn } from "../shared/ui/cn";
 import { CodeXml, Eye, LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 import { INLINE_CODE_CLASS } from "../text/runs";
 
@@ -134,118 +134,30 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
 
 /**
  * The code/preview mode segment of one mermaid code block's header (the
- * header's left group — right of the language button). Two plain
- * toggle buttons and one shared sliding pill (a framer-free CSS
- * transition over the measured active-button geometry — the pill is the
- * highlight; the active button carries no styling of its own). The mode
- * is the `mermaidMode` attr (default "code"); a switch is one
- * `updateBlock` (one undo step, one wire update), a repeat of the
- * current mode a no-op.
+ * header's left group — right of the language button). The mode is the
+ * `mermaidMode` attr (default "code"); a switch is one `updateBlock` (one
+ * undo step, one wire update), a repeat of the current mode a no-op.
  */
 function MermaidModeSelector({ id, block }: { id: BlockId; block: CodeBlock }) {
   const { doc } = useEditorContext();
   const mode = block.attrs?.mermaidMode ?? "code";
-  const listRef = useRef<HTMLDivElement>(null);
-  /** The sliding pill's geometry (the active button's position and size in the list). */
-  const [pill, setPill] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
-
-  // Measure the active button before paint (no first-mount flash) and on
-  // every list resize (a font or theme change). The reference-equality
-  // guard keeps the state stable across re-renders.
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    if (list === null) return;
-    const measure = (): void => {
-      const button = list.querySelector<HTMLElement>(`[data-mermaid-mode-button="${mode}"]`);
-      if (button === null) return;
-      const listRect = list.getBoundingClientRect();
-      const buttonRect = button.getBoundingClientRect();
-      const next = {
-        left: buttonRect.left - listRect.left,
-        top: buttonRect.top - listRect.top,
-        width: buttonRect.width,
-        height: buttonRect.height,
-      };
-      setPill((prev) =>
-        prev !== null &&
-        prev.left === next.left &&
-        prev.top === next.top &&
-        prev.width === next.width &&
-        prev.height === next.height
-          ? prev
-          : next
-      );
-    };
-    measure();
-    // jsdom (and SSR) have no ResizeObserver — the measurement on mount and
-    // on every mode change still runs; the resize watch is a browser bonus.
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(list);
-    return () => observer.disconnect();
-  }, [mode]);
-
-  const pick = (value: "code" | "preview"): void => {
-    if (mode === value) return;
-    doc.updateBlock(id, { mermaidMode: value });
+  const pick = (next: "code" | "preview"): void => {
+    if (next === mode) return;
+    doc.updateBlock(id, { mermaidMode: next });
   };
-
-  const buttonClass = (value: "code" | "preview"): string =>
-    cn(
-      `
-        relative z-10 flex size-6 items-center justify-center rounded-md transition-colors
-        focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
-        focus-visible:outline-ring
-      `,
-      mode === value ? "text-foreground" : "hover:text-foreground"
-    );
-
   return (
-    <div
-      ref={listRef}
-      role="group"
-      aria-label="Mermaid display mode"
-      data-slot="docblocks/mermaid-mode"
-      className="relative inline-flex items-center rounded-lg bg-muted p-0.75 text-muted-foreground"
-    >
-      {pill !== null && (
-        <span
-          data-slot="docblocks/mermaid-mode-pill"
-          aria-hidden
-          className="
-            absolute top-0 left-0 rounded-md bg-background shadow-sm transition-[transform,width,height] duration-200
-            ease-out
-          "
-          style={{
-            transform: `translate(${pill.left}px, ${pill.top}px)`,
-            width: pill.width,
-            height: pill.height,
-          }}
-        />
-      )}
-      <button
-        type="button"
-        data-mermaid-mode-button="code"
-        aria-pressed={mode === "code"}
-        aria-label="Show the code"
-        title="Code"
-        className={buttonClass("code")}
-        onClick={() => pick("code")}
-      >
-        <CodeXml className="size-4" />
-      </button>
-      <button
-        type="button"
-        data-mermaid-mode-button="preview"
-        aria-pressed={mode === "preview"}
-        aria-label="Show the diagram preview"
-        title="Preview"
-        className={buttonClass("preview")}
-        onClick={() => pick("preview")}
-      >
-        <Eye className="size-4" />
-      </button>
-    </div>
+    <SegmentSelector
+      options={[
+        { value: "code", label: "Show the code", icon: <CodeXml className="size-4" /> },
+        { value: "preview", label: "Show the diagram preview", icon: <Eye className="size-4" /> },
+      ]}
+      value={mode}
+      onChange={pick}
+      ariaLabel="Mermaid display mode"
+      slot="docblocks/mermaid-mode"
+      pillSlot="docblocks/mermaid-mode-pill"
+      buttonAttrName="mermaid-mode-button"
+    />
   );
 }
 

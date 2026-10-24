@@ -49,7 +49,7 @@ interface PaneBlock {
  * public command signatures, loosened where core is generic).
  */
 interface PaneDoc {
-  meta: { id: string };
+  meta: { id: string; title: string; avatar?: string };
   toJSON(): {
     id: string;
     blocks: Record<string, PaneBlock>;
@@ -93,9 +93,7 @@ interface PaneDoc {
 }
 
 /** The pane's master doc (the sync-embed target) — the structural surface the specs may read/drive (the mounted global is the full core `Doc`). */
-interface MasterDoc extends PaneDoc {
-  meta: { id: string };
-}
+type MasterDoc = PaneDoc;
 
 /**
  * Insert one v1 block of `type` into the pane's doc with the harness attrs

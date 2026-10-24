@@ -15,7 +15,11 @@ import type {
   TextRun,
 } from "@docblocks-core/schema";
 
-import { setTitle as setTitleCommand, updateBlock as updateBlockCommand } from "./commands/attrs";
+import {
+  setAvatar as setAvatarCommand,
+  setTitle as setTitleCommand,
+  updateBlock as updateBlockCommand,
+} from "./commands/attrs";
 import {
   insertBlock as insertBlockCommand,
   moveBlock as moveBlockCommand,
@@ -221,6 +225,11 @@ class Doc {
   /** Replaces the document title. */
   setTitle(text: string): void {
     setTitleCommand(this.#ydoc, text);
+  }
+
+  /** Sets the document's avatar (a short string / a few emoji); `null` or the empty string clears it. */
+  setAvatar(avatar: string | null): void {
+    setAvatarCommand(this.#ydoc, avatar);
   }
 
   /** Appends an empty row to a database block and returns its row id. */

@@ -49,6 +49,8 @@ export {
   SelectValue,
 } from "./Select";
 export { ScrollArea } from "./ScrollArea";
+export { SegmentSelector } from "./SegmentSelector";
+export type { SegmentOption } from "./SegmentSelector";
 export { Skeleton } from "./Skeleton";
 export { Tabs, TabsContent, TabsList, TabsTrigger, tabsListVariants } from "./Tabs";
 export { TimeSegment } from "./TimeSegment";
