@@ -24,6 +24,7 @@ const ICON_SET = [
   "Copy",
   "Curve",
   "Cylinder",
+  "Dashed",
   "Database",
   "Diagonal",
   "Diamond",

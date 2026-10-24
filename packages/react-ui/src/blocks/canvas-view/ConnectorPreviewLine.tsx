@@ -1,6 +1,8 @@
-/** The connector's pending preview line: the dashed cyan segment from the
+/** The connector's pending preview line: the solid cyan segment from the
  *  pending block's edge anchor (the box's edge the cursor points at) to the
- *  cursor (the world's space, so it scales with the zoom). */
+ *  cursor (the world's space, so it scales with the zoom). It stands PER THE
+ *  DATA — the pending new line has no stroke style, so it is the solid
+ *  default (the cyan color is the preview's stand, not a dash). */
 function ConnectorPreviewLine({
   id,
   from,
@@ -25,7 +27,6 @@ function ConnectorPreviewLine({
         y2={point.y}
         stroke="var(--docblocks-canvas-selection-border-color)"
         strokeWidth={1.5}
-        strokeDasharray="6 4"
       />
     </svg>
   );

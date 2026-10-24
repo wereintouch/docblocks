@@ -267,8 +267,13 @@ test.describe("the connector arrows", () => {
       await a.mouse.click(mid.x, mid.y);
       const toolbar = a.locator(`[data-testid="doc-a"] [data-slot="docblocks/connector-toolbar"]`);
       await expect(toolbar).toBeVisible();
-      // The default (absent) variant stands no pressed option.
-      expect(await toolbar.locator('[aria-pressed="true"]').count()).toBe(0);
+      // The default (absent) variant stands no pressed VARIANT option (the
+      // solid style stands pressed — the absent style's default).
+      for (const v of ["straight", "orthogonal", "curved"]) {
+        expect(
+          await toolbar.locator(`[data-slot="docblocks/connector-toolbar-${v}"]`).getAttribute("aria-pressed")
+        ).toBe("false");
+      }
 
       // The orthogonal pick: the doc patch (the other pane syncs) and the
       // elbow path (the right angles: at least three line segments).
@@ -330,7 +335,7 @@ test.describe("the connector arrows", () => {
     }
   });
 
-  test("the press-drag draw: the dashed preview follows the drag, the release over the second item connects", async ({
+  test("the press-drag draw: the preview follows the drag, the release over the second item connects", async ({
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "cvs-conn-drag");
@@ -345,7 +350,7 @@ test.describe("the connector arrows", () => {
       const from = { x: center.x - 300, y: center.y - 100 };
       const to = { x: center.x + 300, y: center.y + 100 };
 
-      // The press-drag: the preview stands during the drag (the dashed
+      // The press-drag: the preview stands during the drag (the solid
       // line, the 1x1 svg), the release over the right shape connects.
       await a.mouse.move(from.x, from.y);
       await a.mouse.down();

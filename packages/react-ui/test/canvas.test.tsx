@@ -303,6 +303,52 @@ describe("canvas scene", () => {
     expect(p3).toEqual({ x: 120, y: 0 });
   });
 
+  it("renders the connector's stroke style (the data-driven dasharray: dash / dot / the solid default)", () => {
+    const doc = renderScene({
+      seed: (d: TestDoc) => {
+        d.transact(() => {
+          const surface = d.insertBlock("surface");
+          const a = d.insertBlock("shape", { variant: "rect" }, { parent: surface });
+          d.setGeometry(a, { x: -100, y: 0, w: 80, h: 60 });
+          const b = d.insertBlock("shape", { variant: "rect" }, { parent: surface });
+          d.setGeometry(b, { x: 100, y: 0, w: 80, h: 60 });
+          d.insertBlock(
+            "connector",
+            { start: { blockId: a }, end: { blockId: b }, strokeStyle: "dash" },
+            { parent: surface }
+          );
+          d.insertBlock(
+            "connector",
+            { start: { blockId: a }, end: { blockId: b }, strokeStyle: "dot" },
+            { parent: surface }
+          );
+          d.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
+        });
+      },
+    });
+    const json = doc.toJSON();
+    const surfaceId = Object.keys(json.blocks).find((id) => json.blocks[id]?.type === "surface")!;
+    const layer = document.querySelector<SVGElement>("[data-slot='docblocks/connector-layer']")!;
+    // The connectors stand in the insertion order (the dash, the dot, the solid default).
+    const connIds = doc.getChildren(surfaceId).filter((id) => doc.getBlock(id)?.type === "connector");
+    const styleOf = (id: string): string | undefined => {
+      const block = doc.getBlock(id);
+      return block !== null && block.type === "connector" ? block.attrs?.strokeStyle : undefined;
+    };
+    const dashConn = connIds.find((id) => styleOf(id) === "dash")!;
+    const dotConn = connIds.find((id) => styleOf(id) === "dot")!;
+    const solidConn = connIds.find((id) => styleOf(id) === undefined)!;
+    const dashPath = layer.querySelector<SVGPathElement>(`[data-connector-id="${dashConn}"]`)!;
+    expect(dashPath.getAttribute("stroke-dasharray")).toBe("8 4");
+    const dotPath = layer.querySelector<SVGPathElement>(`[data-connector-id="${dotConn}"]`)!;
+    expect(dotPath.getAttribute("stroke-dasharray")).toBe("1 4");
+    // The dot's round linecap (the dots' stand).
+    expect(dotPath.getAttribute("stroke-linecap")).toBe("round");
+    const solidPath = layer.querySelector<SVGPathElement>(`[data-connector-id="${solidConn}"]`)!;
+    expect(solidPath.getAttribute("stroke-dasharray")).toBeNull();
+    expect(solidPath.getAttribute("stroke-linecap")).toBeNull();
+  });
+
   it("renders the variant shapes (the orthogonal elbow and the curved bow)", () => {
     const doc = renderScene();
     const layer = () => document.querySelector<SVGElement>("[data-slot='docblocks/connector-layer']")!;
