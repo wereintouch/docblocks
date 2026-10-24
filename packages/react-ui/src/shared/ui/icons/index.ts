@@ -59,6 +59,7 @@ export { Pen } from "./Pen";
 export { Pilcrow } from "./Pilcrow";
 export { Plus } from "./Plus";
 export { Quote } from "./Quote";
+export { RotateCcw } from "./RotateCcw";
 export { Scan } from "./Scan";
 export { Search } from "./Search";
 export { Shield } from "./Shield";
