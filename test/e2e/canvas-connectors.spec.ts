@@ -44,10 +44,20 @@ async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number;
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-/** Seeds the two seeded shapes (left / right) and returns their ids. */
-async function seedShapes(page: Page, client: "a" | "b"): Promise<{ left: string; right: string }> {
+/** Seeds the two seeded shapes (left / right) and returns their ids. The
+ *  vertical stand (the boxes stacked at (0, -200) and (0, 150)): the
+ *  endpoint handles stand clear of the selected line's toolbar strip (the
+ *  toolbar's overlap wins over the handles by the z-order's contract — the
+ *  handles stand reachable only off the strip), and the bottom box's south
+ *  port (0, 200) stands off the canvas dock's bottom band.
+ */
+async function seedShapes(
+  page: Page,
+  client: "a" | "b",
+  opts?: { vertical?: boolean }
+): Promise<{ left: string; right: string }> {
   return page.evaluate(
-    ({ client }) => {
+    ({ client, vertical }) => {
       const docs = window.__paneDocs;
       const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
       if (doc === null) throw new Error("the pane's doc is not mounted");
@@ -55,12 +65,12 @@ async function seedShapes(page: Page, client: "a" | "b"): Promise<{ left: string
       const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
       const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
       const left = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-      doc.setGeometry(left, { x: -300, y: -100, w: 200, h: 100 });
+      doc.setGeometry(left, vertical ? { x: 0, y: -200, w: 200, h: 100 } : { x: -300, y: -100, w: 200, h: 100 });
       const right = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-      doc.setGeometry(right, { x: 300, y: 100, w: 200, h: 100 });
+      doc.setGeometry(right, vertical ? { x: 0, y: 150, w: 200, h: 100 } : { x: 300, y: 100, w: 200, h: 100 });
       return { left, right };
     },
-    { client }
+    { client, vertical: opts?.vertical ?? false }
   );
 }
 
@@ -642,14 +652,16 @@ test.describe("the connector arrows", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const { right } = await seedShapes(a, "a");
+      const { right } = await seedShapes(a, "a", { vertical: true });
       const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
       await dock.getByLabel("Connector").click();
       const center = await canvasCenter(a, "a");
-      // The center-clicks stand off the ports' snap radius: the plain
-      // block refs (the legacy shape).
-      await pageClick(a, center.x - 300, center.y - 100);
-      await pageClick(a, center.x + 300, center.y + 100);
+      // The vertical stand (the endpoint handles clear the selected line's
+      // toolbar strip — the toolbar wins the overlap). The center-clicks
+      // stand off the ports' snap radius: the plain block refs (the legacy
+      // shape).
+      await pageClick(a, center.x, center.y - 200);
+      await pageClick(a, center.x, center.y + 150);
       const connector = await connectorOf(a, "a");
       expect(connector).not.toBeNull();
       const connId = connector!;
@@ -676,7 +688,7 @@ test.describe("the connector arrows", () => {
       // line's end jumps to the edge while the cursor stands off it —
       // the snap's live effect.
       const handleBox = (await startHandle.boundingBox())!;
-      const southPort = { x: center.x + 300, y: center.y + 150 };
+      const southPort = { x: center.x, y: center.y + 200 };
       await a.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
       await a.mouse.down();
       await a.mouse.move((handleBox.x + southPort.x) / 2, (handleBox.y + southPort.y) / 2, { steps: 8 });
@@ -690,7 +702,7 @@ test.describe("the connector arrows", () => {
       await expect(snappedDot).toHaveCount(1);
       await expect(snappedDot).toHaveAttribute("data-canvas-port", "south");
       const stuckD = await a.locator(`[data-connector-id="${connId}"]`).getAttribute("d");
-      expect(stuckD!.startsWith("M 300 150")).toBe(true);
+      expect(stuckD!.startsWith("M 0 200")).toBe(true);
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
@@ -705,7 +717,7 @@ test.describe("the connector arrows", () => {
       // (the end's last anchor stood the right box's south edge toward the
       // south port — the line stands its direction while in the air).
       const endBox = (await endHandle.boundingBox())!;
-      const freeTo = { x: center.x - 50, y: center.y + 400 };
+      const freeTo = { x: center.x - 150, y: center.y + 100 };
       await a.mouse.move(endBox.x + endBox.width / 2, endBox.y + endBox.height / 2);
       await a.mouse.down();
       await a.mouse.move((endBox.x + freeTo.x) / 2, (endBox.y + freeTo.y) / 2, { steps: 8 });
@@ -713,7 +725,7 @@ test.describe("the connector arrows", () => {
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
-        .toEqual(expect.objectContaining({ end: { x: -50, y: 400, port: "south" } }));
+        .toEqual(expect.objectContaining({ end: { x: -150, y: 100, port: "south" } }));
       const wireAfter = await outCount(a, "a");
       expect(wireAfter).toBe(wireBefore + 1); // one update per endpoint commit
 
@@ -736,14 +748,16 @@ test.describe("the connector arrows", () => {
     const { a, close } = await twoPanes(browser, "cvs-conn-portstick");
     try {
       await toCanvas(a, "a");
-      const { right } = await seedShapes(a, "a");
+      const { right } = await seedShapes(a, "a", { vertical: true });
       const dock = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" });
       await dock.getByLabel("Connector").click();
       const center = await canvasCenter(a, "a");
-      // The center-clicks stand off the ports' snap radius: the plain
-      // block refs (the legacy shape).
-      await pageClick(a, center.x - 300, center.y - 100);
-      await pageClick(a, center.x + 300, center.y + 100);
+      // The vertical stand (the endpoint handles clear the selected line's
+      // toolbar strip — the toolbar wins the overlap). The center-clicks
+      // stand off the ports' snap radius: the plain block refs (the legacy
+      // shape).
+      await pageClick(a, center.x, center.y - 200);
+      await pageClick(a, center.x, center.y + 150);
       const connector = await connectorOf(a, "a");
       expect(connector).not.toBeNull();
       const connId = connector!;
@@ -756,12 +770,12 @@ test.describe("the connector arrows", () => {
       );
       const handleBox = (await startHandle.boundingBox())!;
 
-      // The right box's south port (the edge's central dot): (300, 150).
+      // The bottom box's south port (the edge's central dot): (0, 200).
       // The release 10px ALONG the edge from the port, 6px off it
-      // (distMid ~10.8 — inside the 12px disk): the port locks the
+      // (distMid ~11.7 — inside the 12px disk): the port locks the
       // anchor at t = 0.5 (the continuous projection would stand
       // t = 0.55 — the pull is the disk's, not the edge's).
-      const southPort = { x: center.x + 300, y: center.y + 150 };
+      const southPort = { x: center.x, y: center.y + 200 };
       const drop = { x: southPort.x + 10, y: southPort.y - 6 };
       await a.mouse.move(handleBox.x + handleBox.width / 2, handleBox.y + handleBox.height / 2);
       await a.mouse.down();
@@ -771,7 +785,7 @@ test.describe("the connector arrows", () => {
       // line's end is stuck at the port's point, the badge over it, the
       // snapped port dot in the connect green.
       const stuckD = await a.locator(`[data-connector-id="${connId}"]`).getAttribute("d");
-      expect(stuckD!.startsWith("M 300 150")).toBe(true);
+      expect(stuckD!.startsWith("M 0 200")).toBe(true);
       await expect(a.locator(`[data-connector-snap-badge="${connId}"]`)).toHaveCount(1);
       const snappedDot = a.locator("[data-canvas-port-snapped]");
       await expect(snappedDot).toHaveCount(1);
@@ -789,7 +803,7 @@ test.describe("the connector arrows", () => {
       // start handle stands at the port now (the first commit); the
       // selection stands (the commit keeps it), the drag stands from
       // there.
-      const dropFar = { x: center.x + 330, y: center.y + 144 };
+      const dropFar = { x: center.x + 30, y: center.y + 194 };
       const handleBox2 = (await startHandle.boundingBox())!;
       await a.mouse.move(handleBox2.x + handleBox2.width / 2, handleBox2.y + handleBox2.height / 2);
       await a.mouse.down();

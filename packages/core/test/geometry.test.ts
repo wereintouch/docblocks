@@ -61,19 +61,19 @@ describe("setGeometry", () => {
     doc.setGeometry(group, { x: 0, y: 0, w: 200, h: 100 });
     expect(doc.getBlock(group)).toEqual({
       type: "group",
-      attrs: { members: [a] },
+      attrs: { members: [a], zIndex: 2 },
       geometry: { x: 0, y: 0, w: 200, h: 100 },
     });
     // The partial patch merges.
     doc.setGeometry(group, { w: 300 });
     expect(doc.getBlock(group)).toEqual({
       type: "group",
-      attrs: { members: [a] },
+      attrs: { members: [a], zIndex: 2 },
       geometry: { x: 0, y: 0, w: 300, h: 100 },
     });
     // The removal path drops the geometry.
     doc.setGeometry(group, null);
-    expect(doc.getBlock(group)).toEqual({ type: "group", attrs: { members: [a] } });
+    expect(doc.getBlock(group)).toEqual({ type: "group", attrs: { members: [a], zIndex: 2 } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 

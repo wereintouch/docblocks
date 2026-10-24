@@ -20,6 +20,7 @@ import { localTransact, writeAttrValue } from "../layout";
 import { readBlock } from "../read";
 import { assertValidDatabaseInsert } from "./database";
 import { blockTypeOf, childrenOf, findParent, getBlockMap, indentJumpViolation } from "./structure";
+import { refreshSurfaceZIndex } from "./z-order";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -185,6 +186,12 @@ function changeBlockType(ydoc: Y.Doc, id: string, type: BlockType, attrs: unknow
       block.delete("rows");
       block.delete("rowOrder");
     }
+
+    // The surface's z-order (the dense zIndex over the canvas elements) must
+    // stay consistent with the transition: the block leaves the index (the
+    // attrs are replaced whole — the zIndex falls out) or enters it (the
+    // index stands at the block's array position — the paint's stand).
+    if (parentType === "surface") refreshSurfaceZIndex(ydoc, parentId);
   });
 }
 

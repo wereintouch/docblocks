@@ -32,7 +32,7 @@ describe("placeShape", () => {
     const block = doc.getBlock(id);
     const shape = block?.type === "shape" ? block : null;
     expect(shape).not.toBeNull();
-    expect(shape?.attrs).toEqual({ variant: "ellipse" });
+    expect(shape?.attrs).toEqual({ variant: "ellipse", zIndex: 1 });
     expect(shape?.geometry).toEqual({ x: 12, y: -8, w: 100, h: 80 });
     // The target: the (created) first surface — the only root child (a
     // fresh doc has no page blocks: the starter paragraph is the consumer's).
@@ -92,7 +92,7 @@ describe("placeConnector", () => {
     const raw = doc.getBlock(id);
     const connector = raw?.type === "connector" ? raw : null;
     expect(connector).not.toBeNull();
-    expect(connector?.attrs).toEqual({ start: { blockId: a }, end: { blockId: b } });
+    expect(connector?.attrs).toEqual({ start: { blockId: a }, end: { blockId: b }, zIndex: 3 });
     expect(doc.getChildren(surface)).toEqual([a, b, id]);
     doc.undo();
     expect(doc.getBlock(id)).toBeNull();
@@ -131,6 +131,7 @@ describe("placePenStroke", () => {
         [12, 10],
         [24, 0],
       ],
+      zIndex: 1,
     });
     expect(shape?.geometry).toEqual({ x: 10, y: 5, w: 24, h: 10 });
     doc.undo();
@@ -354,6 +355,7 @@ describe("the pending stand's commit (the press's snap stand)", () => {
     expect(lastConnector(doc, surface)).toEqual({
       start: { blockId: a, port: "north", portT: 0.5 },
       end: { blockId: b },
+      zIndex: 3,
     });
   });
 
@@ -374,6 +376,7 @@ describe("the pending stand's commit (the press's snap stand)", () => {
     expect(lastConnector(doc, surface)).toEqual({
       start: { x: -30, y: 40, port: "south" },
       end: { blockId: b, port: "south", portT: 0.5 },
+      zIndex: 3,
     });
   });
 
@@ -388,7 +391,7 @@ describe("the pending stand's commit (the press's snap stand)", () => {
       result.current.onConnectorCommit({ blockId: b }, { x: 100, y: 50 });
     });
 
-    expect(lastConnector(doc, surface)).toEqual({ start: { x: 0, y: 50 }, end: { blockId: b } });
+    expect(lastConnector(doc, surface)).toEqual({ start: { x: 0, y: 50 }, end: { blockId: b }, zIndex: 3 });
   });
 
   it("the plain block stand (the interior press) re-snaps at the press point (the legacy path)", () => {
@@ -405,7 +408,7 @@ describe("the pending stand's commit (the press's snap stand)", () => {
       result.current.onConnectorCommit({ blockId: b }, { x: 100, y: 0 });
     });
 
-    expect(lastConnector(doc, surface)).toEqual({ start: { blockId: a }, end: { blockId: b } });
+    expect(lastConnector(doc, surface)).toEqual({ start: { blockId: a }, end: { blockId: b }, zIndex: 3 });
   });
 
   it("clears the stand's attributes on the cancel", () => {

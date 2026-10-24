@@ -49,6 +49,61 @@ function indentOf(block: Record<string, unknown>): number {
   return typeof indent === "number" && Number.isInteger(indent) ? indent : 0;
 }
 
+/** The canvas element types that carry the explicit z-order `zIndex`. */
+const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
+
+/**
+ * The surface's explicit z-order invariant (2026-10-24): the canvas elements
+ * (shape / connector / canvas-text / group) carry a `zIndex` attr that is the
+ * element's position among the surface's canvas elements (dense 1..N, the
+ * children order's mirror — 1 = bottom). The invariant is all-or-nothing per
+ * surface: if any canvas element carries a `zIndex`, all of them must, and the
+ * set must be the dense 1..N sequence. A surface with no `zIndex` at all is
+ * the legacy form (the lenient reader derives it from the children position).
+ */
+function validateSurfaceZOrder(blocks: Record<string, unknown>, errors: ValidationError[]): void {
+  for (const [, block] of Object.entries(blocks)) {
+    if (!isPlainObject(block) || block.type !== "surface") continue;
+    if (!Array.isArray(block.children)) continue; // a missing order is reported above
+    const canvasChildren: string[] = [];
+    for (const childId of block.children) {
+      if (typeof childId !== "string" || !(childId in blocks)) continue; // reported above
+      const child = blocks[childId];
+      if (!isPlainObject(child) || typeof child.type !== "string") continue;
+      if (CANVAS_ZORDER_TYPES.has(child.type as string)) canvasChildren.push(childId);
+    }
+    if (canvasChildren.length === 0) continue;
+    const hasZIndex = canvasChildren.some((childId) => {
+      const attrs = (blocks[childId] as Record<string, unknown>).attrs;
+      return isPlainObject(attrs) && (attrs as Record<string, unknown>).zIndex !== undefined;
+    });
+    if (!hasZIndex) continue; // the legacy form (no index) — the lenient reader derives it
+    canvasChildren.forEach((childId, i) => {
+      const child = blocks[childId] as Record<string, unknown>;
+      const attrs = isPlainObject(child.attrs) ? (child.attrs as Record<string, unknown>) : undefined;
+      const zIndex = attrs?.zIndex;
+      const path = `blocks.${childId}.attrs.zIndex`;
+      if (zIndex === undefined) {
+        errors.push({
+          path,
+          message: `A surface's canvas elements must all carry a zIndex (or none); "${childId}" is missing it.`,
+        });
+        return;
+      }
+      if (typeof zIndex !== "number" || !Number.isInteger(zIndex) || zIndex < 1) {
+        errors.push({ path, message: `The zIndex must be a positive integer (got ${show(zIndex)}).` });
+        return;
+      }
+      if (zIndex !== i + 1) {
+        errors.push({
+          path,
+          message: `The zIndex must be the element's position among the surface's canvas elements (dense 1..N); "${childId}" stands ${zIndex}, expected ${i + 1}.`,
+        });
+      }
+    });
+  }
+}
+
 /**
  * The indent-jump rule of a flat page sequence: a block's indent may
  * exceed the preceding block's indent by at most 1 (the first block anchors
@@ -246,6 +301,9 @@ function validateDoc(json: unknown): ValidationError[] {
 
   // The flat page sequences: the indent-jump rule per sequence container.
   validateSequences(blocks, errors);
+
+  // The surface's explicit z-order (the canvas elements' dense zIndex).
+  validateSurfaceZOrder(blocks, errors);
 
   // Every table row holds exactly the parent table's `cols` cells.
   for (const [id, block] of Object.entries(blocks)) {

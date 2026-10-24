@@ -2,9 +2,11 @@
  * The shape's floating toolbar (the single `shape` selection): the type
  * picker (the figure), the text controls (the add-text button for the
  * textless stand; the font / color / style / size / alignment for the
- * texted stand), and the fill and the stroke sections (the palette
- * swatches, the "none" entry, the custom hex). Each apply is one
- * `updateBlock` in one transact (one undo step, one wire update). The
+ * texted stand), the fill and the stroke sections (the palette
+ * swatches, the "none" entry, the custom hex), and the z-order menu
+ * (the 2026-10-22 explicit zIndex: the three-dots button, the four
+ * reorder picks — one `setZOrder` each). Each apply is one `updateBlock`
+ * in one transact (one undo step, one wire update). The
  * toolbar is canvas chrome (its own pointers; a press on it starts no
  * canvas session).
  */
@@ -38,6 +40,7 @@ import {
   X,
 } from "../../shared/ui/icons";
 import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "../text-fonts";
+import { ZOrderMenu } from "../z-order-menu";
 import { ColorSection } from "./ColorSection";
 import { BORDER_WIDTH_POINTS, SHAPE_VARIANTS } from "./models";
 import type { ShapeVariantId } from "./models";
@@ -56,6 +59,7 @@ function ShapeToolbar({
   textColor,
   textStyle,
   textAlign,
+  zStand,
   style,
 }: {
   id: BlockId;
@@ -72,6 +76,9 @@ function ShapeToolbar({
   textColor: string | undefined;
   textStyle: string | undefined;
   textAlign: string | undefined;
+  /** The z-order stand (the position / count over the surface's canvas
+   *  elements); absent when the target's surface is unknown. */
+  zStand: { position: number; count: number } | null;
   style: CSSProperties;
 }) {
   const { doc } = useEditorContext();
@@ -375,6 +382,12 @@ function ShapeToolbar({
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Separator orientation="vertical" className="h-5" />
+        {/* The z-order menu (the 2026-10-22 explicit zIndex): the
+            three-dots button, the four reorder picks. */}
+        {zStand !== null && (
+          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label="Arrange shape" />
+        )}
       </div>
     </div>
   );

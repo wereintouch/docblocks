@@ -1,13 +1,18 @@
 /** One surface's layer on the document canvas (the canvas view): its
  *  children (the canvas elements) under the surface's own block context —
- *  the connector endpoints resolve against this siblings list — plus the
- *  surface's connector overlay and the ports' dots. The context provider
- *  is not a DOM node, so several surfaces merge onto the same canvas in
- *  root order (the later surface paints on top: the DOM order is the
- *  z-order). */
+ *  the connector endpoints resolve against this siblings list. The Z-ORDER
+ *  stand (the 2026-10-22 explicit zIndex): the children's DOM order IS the
+ *  paint order — the connector's line stands inside its own wrapper (the
+ *  CanvasItem's content), interleaved with the figures, not in a single
+ *  overlay over everything. The surface's hidden arrowhead defs stand
+ *  once (the per-line SVGs reference them by the url fragment), and the
+ *  ports' dots stand the tool's chrome (always over the paint order). The
+ *  context providers are not DOM nodes, so several surfaces merge onto the
+ *  same canvas in root order (the later surface paints on top: the DOM
+ *  order is the z-order). */
 import { useStore } from "zustand";
 
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
 
 import type { BlockId } from "docblocks-core";
 
@@ -16,7 +21,8 @@ import type { Box } from "../../canvas/viewport";
 import type { MovePreview } from "../../canvas/viewport-state";
 import { useBlock } from "../../hooks";
 import { CanvasItem } from "../CanvasItem";
-import { ConnectorLayer } from "../ConnectorLayer";
+import { CanvasSessionContext, ConnectorArrowDefs } from "../ConnectorLayer";
+import type { CanvasSession } from "../ConnectorLayer";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import { effectiveGeometry, portsOf } from "../canvas-geometry";
 
@@ -49,25 +55,28 @@ function SurfaceLayer({
   endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
+  // The session's referential identity stands on the four inputs (a
+  // pointermove over an idle canvas stands no context churn — the
+  // per-line render reads it, the figures don't consume it).
+  const session = useMemo<CanvasSession>(
+    () => ({ movePreview, resizePreview, endpointDrag, endpointPreview }),
+    [movePreview, resizePreview, endpointDrag, endpointPreview]
+  );
   return (
     <BlockContext.Provider value={contextValue}>
-      {children.map((childId) => (
-        <CanvasItem
-          key={childId}
-          id={childId}
-          pendingConnector={pendingConnector}
-          movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
-          resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
-        />
-      ))}
-      <ConnectorLayer
-        id={id}
-        endpointDrag={endpointDrag}
-        endpointPreview={endpointPreview}
-        movePreview={movePreview}
-        resizePreview={resizePreview}
-      />
-      {showPorts && <PortDots id={id} snapped={endpointSnap} />}
+      <CanvasSessionContext.Provider value={session}>
+        <ConnectorArrowDefs id={id} />
+        {children.map((childId) => (
+          <CanvasItem
+            key={childId}
+            id={childId}
+            pendingConnector={pendingConnector}
+            movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
+            resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
+          />
+        ))}
+        {showPorts && <PortDots id={id} snapped={endpointSnap} />}
+      </CanvasSessionContext.Provider>
     </BlockContext.Provider>
   );
 }

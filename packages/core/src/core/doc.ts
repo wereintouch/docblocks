@@ -55,6 +55,7 @@ import { deleteText as deleteTextCommand, insertText as insertTextCommand } from
 import { deleteTextRange as deleteTextRangeCommand, setMarkRange as setMarkRangeCommand } from "./commands/text-range";
 import { changeBlockType as changeBlockTypeCommand } from "./commands/types";
 import type { ChangeBlockTypeArgs } from "./commands/types";
+import { type ZOrderAction, setZOrder as setZOrderCommand } from "./commands/z-order";
 import { InvalidSnapshotError, formatValidationErrors } from "./errors";
 import {
   observeText as observeDocText,
@@ -344,6 +345,16 @@ class Doc {
    */
   setGeometry(id: BlockId, geometry: Partial<Geometry> | null): void {
     setGeometryCommand(this.#ydoc, id, geometry);
+  }
+
+  /**
+   * Reorders a surface's canvas element (shape / connector / canvas-text /
+   * group) by the z-order action and rewrites the dense `zIndex` (one
+   * transaction — one undo step, one wire update). A step at the top / bottom
+   * edge is a no-op.
+   */
+  setZOrder(id: BlockId, action: ZOrderAction): void {
+    setZOrderCommand(this.#ydoc, id, action);
   }
 
   /** Inserts text at character offset `pos`, optionally carrying marks. */
