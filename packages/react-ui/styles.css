@@ -91,6 +91,7 @@
   --docblocks-callout-background-warning: rgba(187, 135, 0, 0.08);
   --docblocks-callout-border-color-danger: var(--destructive, #cf222e);
   --docblocks-callout-background-danger: color-mix(in srgb, var(--destructive, #cf222e) 8%, transparent);
+  --docblocks-callout-background-alpha: 8%;
 
   /* Layout. */
   --docblocks-block-spacing: 8px;
@@ -152,7 +153,15 @@
 
   /* Callout. */
   --docblocks-callout-border-width: 4px;
-  --docblocks-callout-padding: 8px 12px;
+  --docblocks-callout-padding-y: 8px;
+  --docblocks-callout-padding-x: 12px;
+  /* The callout's icon (the marker-zone icon: the preset per variant or an
+     override). The gutter reserves the icon's width + gap in the left padding. */
+  --docblocks-callout-icon-size: 18px;
+  --docblocks-callout-icon-gap: 8px;
+  --docblocks-callout-icon-gutter: calc(
+    var(--docblocks-callout-padding-x) + var(--docblocks-callout-icon-size) + var(--docblocks-callout-icon-gap)
+  );
 
   /* Quote (the left rule in the marker zone, first line to the last). */
   --docblocks-quote-border-width: 3px;
@@ -299,6 +308,7 @@
   --docblocks-callout-background-warning: rgba(210, 153, 34, 0.15);
   --docblocks-callout-border-color-danger: var(--destructive, #f85149);
   --docblocks-callout-background-danger: color-mix(in srgb, var(--destructive, #f85149) 15%, transparent);
+  --docblocks-callout-background-alpha: 15%;
 
   --docblocks-formatbar-background: var(--popover, #161b22);
   --docblocks-formatbar-border-color: var(--border, rgba(110, 118, 129, 0.65));

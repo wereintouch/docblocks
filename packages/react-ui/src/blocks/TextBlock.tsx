@@ -14,6 +14,7 @@ import { GripVertical, TriangleFilled } from "../shared/ui/icons";
 import { CodeCaption } from "./CodeCaption";
 import { CodeHighlight } from "./CodeHighlight";
 import { useBlockContext } from "./block-context";
+import { CALLOUT_ICON_COMPONENTS, calloutIconName } from "./callout-icon";
 import { isHighlightable } from "./code-highlight";
 import { measureCodeLines } from "./code-metrics";
 import type { CodeLineMetric } from "./code-metrics";
@@ -300,6 +301,30 @@ function TextBlock({
   // content). The state is task-only.
   const doneTask = block.type === "list-item" && block.attrs.list === "task" && block.attrs.checked === true;
 
+  // The callout's color / icon overrides (the null idiom — absent/null = the
+  // preset per variant). The color override paints the left border (full) + a
+  // low tint of the same color (data, not theme — inline); absent, the preset
+  // variant tokens stand. The icon stands in the marker zone: the preset per
+  // variant or an override by catalog name (an unknown name falls back to the
+  // preset — the lenient reader).
+  const calloutVariant = block.type === "callout" ? (block.attrs?.variant ?? "info") : undefined;
+  const calloutColor = block.type === "callout" ? block.attrs?.color : undefined;
+  const calloutColorOverride = typeof calloutColor === "string" && calloutColor !== "" ? calloutColor : undefined;
+  const effectiveCalloutIcon =
+    block.type === "callout" ? calloutIconName(block.attrs?.icon, calloutVariant) : undefined;
+  const CalloutIcon = effectiveCalloutIcon !== undefined ? CALLOUT_ICON_COMPONENTS[effectiveCalloutIcon] : undefined;
+  const calloutBorder =
+    block.type === "callout"
+      ? (calloutColorOverride ?? `var(--docblocks-callout-border-color-${calloutVariant})`)
+      : undefined;
+  const calloutStyle =
+    block.type === "callout" && calloutColorOverride !== undefined
+      ? {
+          borderLeftColor: calloutColorOverride,
+          background: `color-mix(in srgb, ${calloutColorOverride} var(--docblocks-callout-background-alpha), transparent)`,
+        }
+      : undefined;
+
   // rules as utilities). The selected background precedes the block-type
   // backgrounds: the merge drops it for a callout or code block (their
   // background wins — the way the unlayered callout/code CSS beat the
@@ -312,15 +337,20 @@ function TextBlock({
     headingSize,
     block.type === "callout" &&
       cn(
-        "border-l-(length:--docblocks-callout-border-width) border-l-(--docblocks-callout-border-color-info)",
-        "rounded-(--docblocks-radius) bg-(--docblocks-callout-background-info) p-(--docblocks-callout-padding)"
+        // The structural stand (the border width, the radius, the padding —
+        // the left stands the icon gutter). The color is the override (the
+        // inline style) or the preset variant tokens (absent the override).
+        "rounded-(--docblocks-radius) border-l-(length:--docblocks-callout-border-width)",
+        "py-(--docblocks-callout-padding-y) pr-(--docblocks-callout-padding-x) pl-(--docblocks-callout-icon-gutter)",
+        calloutColorOverride === undefined &&
+          cn(
+            "border-l-(--docblocks-callout-border-color-info) bg-(--docblocks-callout-background-info)",
+            calloutVariant === "warning" &&
+              "border-l-(--docblocks-callout-border-color-warning) bg-(--docblocks-callout-background-warning)",
+            calloutVariant === "danger" &&
+              "border-l-(--docblocks-callout-border-color-danger) bg-(--docblocks-callout-background-danger)"
+          )
       ),
-    block.type === "callout" &&
-      block.attrs?.variant === "warning" &&
-      cn("border-l-(--docblocks-callout-border-color-warning)", "bg-(--docblocks-callout-background-warning)"),
-    block.type === "callout" &&
-      block.attrs?.variant === "danger" &&
-      cn("border-l-(--docblocks-callout-border-color-danger)", "bg-(--docblocks-callout-background-danger)"),
     block.type === "code" &&
       "rounded-(--docblocks-radius) bg-(--docblocks-code-background) p-(--docblocks-code-padding)",
     // The quote's marker zone: the left rule stands in the 20px zone left
@@ -474,6 +504,8 @@ function TextBlock({
         data-list={block.type === "list-item" ? block.attrs.list : undefined}
         data-checked={block.type === "list-item" ? block.attrs.checked : undefined}
         data-variant={block.type === "callout" ? block.attrs?.variant : undefined}
+        data-callout-color={block.type === "callout" ? calloutColorOverride : undefined}
+        data-callout-icon={block.type === "callout" ? effectiveCalloutIcon : undefined}
         data-language={block.type === "code" ? block.attrs?.language : undefined}
         data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
         data-align={alignOf(block)}
@@ -481,6 +513,7 @@ function TextBlock({
         data-selected={selected ? "true" : undefined}
         tabIndex={0}
         className={cn("group", wrapperClass)}
+        style={calloutStyle}
         onKeyDown={onKeydown}
       >
         {header}
@@ -521,6 +554,22 @@ function TextBlock({
               bg-(--docblocks-quote-border-color)
             "
           />
+        )}
+        {block.type === "callout" && CalloutIcon !== undefined && (
+          <span
+            data-slot="docblocks/callout-icon"
+            aria-hidden
+            className="pointer-events-none absolute flex items-center justify-center"
+            style={{
+              top: "var(--docblocks-callout-padding-y)",
+              left: "var(--docblocks-callout-padding-x)",
+              width: "var(--docblocks-callout-icon-size)",
+              height: "var(--docblocks-callout-icon-size)",
+              color: calloutBorder,
+            }}
+          >
+            <CalloutIcon style={{ width: "100%", height: "100%" }} />
+          </span>
         )}
         {(flatMarkerIsNumber || flatMarkerIsBullet) && (
           <span data-slot="docblocks/row-marker" data-cycle={cycle} data-kind={block.attrs.list}>

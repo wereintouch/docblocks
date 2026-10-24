@@ -344,14 +344,16 @@ test("the callout, divider and table read the zone-2 tokens", async ({ page }) =
 
   // The default callout: the border-left width/style, the padding and the
   // radius tokens (the info color follows the standard --primary input and
-  // is not pinned — it is seed-dependent).
+  // is not pinned — it is seed-dependent). The left padding stands the
+  // icon's gutter (the padding-x + the icon zone); the other sides stand the
+  // padding tokens.
   const callout = doc.locator('[data-block-type="callout"]:not([data-variant])').first();
   await expect(callout).toHaveCount(1);
   const calloutStyle = await styleProps(callout, "border-left-width", "border-left-style", "padding", "border-radius");
   expect(calloutStyle).toEqual({
     "border-left-width": "4px",
     "border-left-style": "solid",
-    padding: "8px 12px",
+    padding: "8px 12px 8px 38px",
     "border-radius": "10px",
   });
   // The warning variant switches the border color to the package literal.

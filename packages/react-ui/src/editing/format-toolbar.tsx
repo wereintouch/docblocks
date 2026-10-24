@@ -2,8 +2,10 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, ReactNode, RefObject, SVGProps } from "react";
 
 import type { Block, BlockId, TextAlign } from "docblocks-core";
+import { CALLOUT_ICONS } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
+import { CALLOUT_ICON_COMPONENTS, CALLOUT_PRESET_ICONS, calloutIconName } from "../blocks/callout-icon";
 import { useBlock, useSelection } from "../hooks";
 import { Button } from "../shared/ui/Button";
 import { ColorSwatches } from "../shared/ui/ColorSwatches";
@@ -162,6 +164,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const barRef = useRef<HTMLDivElement | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [listMenuOpen, setListMenuOpen] = useState(false);
+  const [calloutMenuOpen, setCalloutMenuOpen] = useState(false);
   const [target, setTarget] = useState<PaletteTarget>("highlight");
 
   // The toolbar's target: a range inside a single block, or a cross-block
@@ -188,6 +191,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   useEffect(() => {
     setPaletteOpen(false);
     setListMenuOpen(false);
+    setCalloutMenuOpen(false);
   }, [selectionKey]);
 
   // Anchor the bar above the selection rect (below it when there is no
@@ -329,6 +333,30 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
   };
 
+  // The callout's controls (single-block callout target only). The type
+  // (preset) switch is one transact (the variant + the overrides reset to
+  // null — the preset resets the individual overrides); the color / icon are
+  // individual overrides (the variant stands — the preset identity is kept).
+  // A no-op stand writes nothing (one action is one updateBlock: one undo
+  // step, one wire update).
+  const onCalloutPreset = (variant: "info" | "warning" | "danger"): void => {
+    if (range.kind !== "single" || single.type !== "callout") return;
+    const a = single.attrs ?? {};
+    const noOverride = (a.color ?? null) === null && (a.icon ?? null) === null;
+    if ((a.variant ?? "info") === variant && noOverride) return; // no-op
+    doc.transact(() => doc.updateBlock(range.blockId, { variant, color: null, icon: null }));
+  };
+  const onCalloutColor = (color: string | null): void => {
+    if (range.kind !== "single" || single.type !== "callout") return;
+    if ((single.attrs?.color ?? null) === color) return; // no-op
+    doc.updateBlock(range.blockId, { color });
+  };
+  const onCalloutIcon = (icon: string | null): void => {
+    if (range.kind !== "single" || single.type !== "callout") return;
+    if ((single.attrs?.icon ?? null) === icon) return; // no-op
+    doc.updateBlock(range.blockId, { icon });
+  };
+
   const markActive = (mark: FormatMark): boolean =>
     range.kind === "cross"
       ? rangeMarkAction(doc, range.cross, mark) === "unset"
@@ -461,6 +489,113 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             </DropdownMenu>
           </>
         )}
+      {!cross && single.type === "callout" && (
+        <>
+          <Separator orientation="vertical" className="h-5" />
+          <Popover modal={false} open={calloutMenuOpen} onOpenChange={setCalloutMenuOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                title="Callout"
+                aria-label="Callout"
+                className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
+              >
+                <MenuIcon className="size-4" />
+              </Button>
+            </PopoverTrigger>
+            {/* The portaled content keeps the bar's mousedown guard: a default
+              mousedown would blur the editable and kill the selection the
+              gesture is about to re-seat. Outside dismiss (pointer and focus)
+              is suppressed — the editor owns the focus, and the selection
+              state owns the visibility. */}
+            <PopoverContent
+              align="start"
+              sideOffset={6}
+              data-slot="docblocks/format-callout-menu"
+              className="w-auto p-2"
+              onMouseDown={(event) => event.preventDefault()}
+              onPointerDownOutside={(event) => event.preventDefault()}
+              onFocusOutside={(event) => event.preventDefault()}
+            >
+              {/* Type (the preset: the variant + the overrides reset to the
+                preset — one transact). */}
+              <div role="group" aria-label="Callout type" className="flex gap-1">
+                {(["info", "warning", "danger"] as const).map((variant) => {
+                  const active = (single.attrs?.variant ?? "info") === variant;
+                  const PresetIcon = CALLOUT_ICON_COMPONENTS[CALLOUT_PRESET_ICONS[variant]];
+                  return (
+                    <Button
+                      key={variant}
+                      variant="ghost"
+                      size="sm"
+                      data-callout-type-btn={variant}
+                      aria-pressed={active}
+                      aria-label={`${variant} callout`}
+                      title={`${variant} callout`}
+                      className={cn("h-7", active && "bg-accent text-accent-foreground")}
+                      onClick={() => onCalloutPreset(variant)}
+                    >
+                      {PresetIcon !== undefined && <PresetIcon className="size-4" />}
+                    </Button>
+                  );
+                })}
+              </div>
+              {/* Color (the override; the transparent swatch = the preset). */}
+              <div className="mt-2 border-t border-border pt-2">
+                <ColorSwatches
+                  colors={palette}
+                  current={single.attrs?.color ?? null}
+                  onSelect={(hex) => onCalloutColor(hex)}
+                  label="callout"
+                  allowNone
+                  noneActive={(single.attrs?.color ?? null) === null}
+                  onSelectNone={() => onCalloutColor(null)}
+                />
+              </div>
+              {/* Icon (the catalog grid; "Preset" = the variant's icon). */}
+              <div className="mt-2 border-t border-border pt-2">
+                <div role="group" aria-label="Callout icon" className="grid grid-cols-6 gap-1">
+                  {CALLOUT_ICONS.map((name) => {
+                    const Icon = CALLOUT_ICON_COMPONENTS[name];
+                    const active = calloutIconName(single.attrs?.icon, single.attrs?.variant ?? "info") === name;
+                    if (Icon === undefined) return null; // the drift test keeps this in step
+                    return (
+                      <Button
+                        key={name}
+                        variant="ghost"
+                        size="icon"
+                        data-callout-icon-btn={name}
+                        aria-pressed={active}
+                        aria-label={`${name} icon`}
+                        title={name}
+                        className={cn("size-7", active && "bg-accent text-accent-foreground")}
+                        onClick={() => onCalloutIcon(name)}
+                      >
+                        <Icon className="size-4" />
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    data-callout-icon-preset
+                    aria-label="Preset icon"
+                    title="Preset icon"
+                    className={cn(
+                      "col-span-6 h-7 text-xs",
+                      (single.attrs?.icon ?? null) === null && "bg-accent text-accent-foreground"
+                    )}
+                    onClick={() => onCalloutIcon(null)}
+                  >
+                    Preset
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </>
+      )}
       <Separator orientation="vertical" className="h-5" />
       <Popover modal={false} open={paletteOpen} onOpenChange={setPaletteOpen}>
         <PopoverTrigger asChild>

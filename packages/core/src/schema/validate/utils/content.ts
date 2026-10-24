@@ -24,6 +24,12 @@ function validateAttrValue(
       }
       break;
     case "string":
+      if (value === null) {
+        if (!spec.nullable) {
+          errors.push({ path, message: `Attribute "${name}" must be a string (got null).` });
+        }
+        break;
+      }
       if (typeof value !== "string") {
         errors.push({ path, message: `Attribute "${name}" must be a string (got ${show(value)}).` });
       } else if (spec.nonEmpty && value.length === 0) {
@@ -48,6 +54,15 @@ function validateAttrValue(
       }
       break;
     case "enum":
+      if (value === null) {
+        if (!spec.nullable) {
+          errors.push({
+            path,
+            message: `Attribute "${name}" must be one of ${JSON.stringify(spec.values)} (got null).`,
+          });
+        }
+        break;
+      }
       if (!(spec.values ?? ([] as readonly unknown[])).includes(value)) {
         errors.push({
           path,
