@@ -181,6 +181,18 @@ const eslintConfig = tseslint.config(
       "docblocks/no-cross-boundary-import": "error",
     },
   },
+  // Build scripts: node globals (console / process / URL / Buffer).
+  {
+    files: ["**/scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        URL: "readonly",
+        Buffer: "readonly",
+      },
+    },
+  },
   {
     files: ["packages/react-ui/**/*.{ts,tsx}"],
     rules: {
