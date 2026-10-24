@@ -87,6 +87,9 @@ interface ShapeAttrs {
   textStyle?: "regular" | "semibold" | "light" | "light-italic" | "italic" | "semibold-italic";
   /** The text's alignment. */
   textAlign?: "left" | "center" | "right";
+  /** The explicit z-order index (dense 1..N over the surface's canvas
+   * elements; the order's mirror — the paint order, 1 = bottom). */
+  zIndex?: number;
 }
 
 interface ConnectorAttrs {
@@ -113,12 +116,19 @@ interface ConnectorAttrs {
    * marker). Independent of the end's figure: the start marker stands
    * its own figure, not a copy of the end. */
   arrowStart?: "none" | "arrow" | "circle";
+  /** The explicit z-order index (dense 1..N over the surface's canvas
+   * elements; the order's mirror — the paint order, 1 = bottom). The
+   * connector's line stands at its zIndex (over / under the shapes). */
+  zIndex?: number;
 }
 
 interface CanvasTextAttrs {
   fontSize?: number;
   fontFamily?: string;
   textAlign?: string;
+  /** The explicit z-order index (dense 1..N over the surface's canvas
+   * elements; the order's mirror — the paint order, 1 = bottom). */
+  zIndex?: number;
 }
 
 /**
@@ -137,6 +147,9 @@ interface GroupAttrs {
   members: BlockId[];
   /** The container's label (absent or the empty string = no title). */
   title?: string;
+  /** The explicit z-order index (dense 1..N over the surface's canvas
+   * elements; the order's mirror — the paint order, 1 = bottom). */
+  zIndex?: number;
 }
 
 interface SurfaceAttrs {

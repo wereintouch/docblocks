@@ -38,6 +38,7 @@ export type {
   MarkInput,
   Selection,
   TextPoint,
+  ZOrderAction,
 } from "./core";
 export { attach, presenceSelectionOf, WsSyncProvider } from "./sync";
 export type {

@@ -128,6 +128,7 @@ describe("the connector's pending preview", () => {
     expect(connectors[0]?.attrs).toEqual({
       start: { blockId: r.a, port: "east", portT: 0.5 },
       end: { blockId: r.b, port: "west", portT: 0.5 },
+      zIndex: 3,
     });
     expect(r.previewLine()).toBeNull();
   });
@@ -147,6 +148,7 @@ describe("the connector's pending preview", () => {
     expect(connectors[0]?.attrs).toEqual({
       start: { blockId: r.a, port: "east", portT: 0.5 },
       end: { x: 300, y: 80 },
+      zIndex: 3,
     });
   });
 
@@ -171,6 +173,7 @@ describe("the connector's pending preview", () => {
     expect(connectors[0]?.attrs).toEqual({
       start: { x: -200, y: 100 },
       end: { blockId: r.b, port: "west", portT: 0.5 },
+      zIndex: 3,
     });
   });
 

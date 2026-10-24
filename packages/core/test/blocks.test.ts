@@ -79,13 +79,13 @@ describe("insertBlock", () => {
     });
     expect(doc.getBlock(divider)).toEqual({ type: "divider" });
     expect(doc.getBlock(surface)).toEqual({ type: "surface", children: [shape, connector, frame, canvasText] });
-    expect(doc.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "rect" } });
+    expect(doc.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "rect", zIndex: 1 } });
     expect(doc.getBlock(connector)).toEqual({
       type: "connector",
-      attrs: { start: { blockId: surface }, end: { blockId: shape } },
+      attrs: { start: { blockId: surface }, end: { blockId: shape }, zIndex: 2 },
     });
     expect(doc.getBlock(frame)).toEqual({ type: "frame" });
-    expect(doc.getBlock(canvasText)).toEqual({ type: "canvas-text" });
+    expect(doc.getBlock(canvasText)).toEqual({ type: "canvas-text", attrs: { zIndex: 3 } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 

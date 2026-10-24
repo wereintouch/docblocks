@@ -56,6 +56,7 @@ import {
   connectorPreviewPoint,
   snapAnySurfaceEdge,
 } from "../../canvas/viewport/utils";
+import { zPositionOf } from "../../canvas/z-order-menu";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
@@ -282,6 +283,10 @@ function CanvasView() {
     if (viewport.movePreview !== null || viewport.resizePreview !== null) return null;
     const block = blocks[handleTarget.id];
     if (block === undefined || block.type !== "shape") return null;
+    // The z-order stand (the explicit zIndex's position over the surface's
+    // canvas elements — the arrange menu's disabled edges).
+    const surface = surfaces.find((entry) => entry.children.includes(handleTarget.id));
+    const zStand = surface !== undefined ? zPositionOf(surface.children, blocks, handleTarget.id) : null;
     return {
       id: handleTarget.id,
       fill: block.attrs?.fill,
@@ -295,6 +300,7 @@ function CanvasView() {
       textColor: block.attrs?.textColor,
       textStyle: block.attrs?.textStyle,
       textAlign: block.attrs?.textAlign,
+      zStand,
     };
   })();
 
@@ -324,6 +330,7 @@ function CanvasView() {
       arrowStart: block.attrs.arrowStart,
       mid,
       childIds,
+      zStand: zPositionOf(childIds, blocks, id),
     };
   })();
 
@@ -455,6 +462,17 @@ function CanvasView() {
   const isPageCard = (target: EventTarget | null) =>
     target instanceof Element && target.closest('[data-slot="docblocks/page-card"]') !== null;
 
+  // The stand target under the cursor (the connector tool's press / release):
+  // the canvas item — EXCEPT the connector's own wrapper (a press on the
+  // line's hit band stands no stand on the line: the connector carries no
+  // box — the band is the line's hit aid, and the stand falls to the port /
+  // the free stand under the band, the pre-wrapper contract).
+  const standItemAt = (target: EventTarget | null): HTMLElement | null => {
+    const item = target instanceof Element ? target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]') : null;
+    if (item !== null && item.querySelector("[data-connector-hit]") !== null) return null;
+    return item;
+  };
+
   // The port-proximity pick (the connector's press / release): the canvas
   // point stands within the pick radius of a canvas item's PORT (the
   // edge strip falls to the page card / the background under the item —
@@ -530,10 +548,7 @@ function CanvasView() {
       // empty-canvas press — the press point is the first endpoint, the
       // release commits). A press with a stand already standing cancels
       // (the second stand commits on the release / the second click).
-      const item =
-        event.target instanceof Element
-          ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]')
-          : null;
+      const item = standItemAt(event.target);
       const id = item?.getAttribute("data-block-id") ?? null;
       const hasStand = viewport.pendingConnector !== null || viewport.pendingFree !== null;
       const canvasPoint = screenToCanvas(point, viewport.zoom, viewport.pan);
@@ -645,6 +660,33 @@ function CanvasView() {
       return;
     }
 
+    // The connector's hit path (the wide transparent stroke): the press
+    // stands the line's press, not the item's — the line stands inside the
+    // connector's own canvas-item wrapper (the z-order's paint stand), so
+    // the hit check stands BEFORE the item's (a capture-less select: the
+    // connectors carry no geometry — the line follows the endpoint blocks,
+    // and the capture-less press keeps the line's double-click on the hit
+    // path — the label's inline edit's entry).
+    const connectorHit =
+      event.target instanceof Element ? event.target.closest<SVGElement>("[data-connector-hit]") : null;
+    if (connectorHit !== null) {
+      const id = connectorHit.getAttribute("data-connector-hit");
+      if (id !== null) {
+        if (event.shiftKey) {
+          // The shift toggle (the same contract as the item's: no move —
+          // the connectors carry no geometry at all).
+          containerRef.current?.focus();
+          if (selection.view !== null) toggleCanvasSelection(selection.view, id);
+          return;
+        }
+        const sel = selection.view?.get();
+        const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
+        selection.view?.set({ kind: "blocks", ids, anchorId: id });
+        containerRef.current?.focus();
+      }
+      return;
+    }
+
     const item =
       event.target instanceof Element ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]') : null;
     if (item !== null) {
@@ -673,30 +715,6 @@ function CanvasView() {
         containerRef.current?.focus();
         viewport.beginMove(ids, event.clientX, event.clientY);
         event.currentTarget.setPointerCapture?.(event.pointerId);
-      }
-      return;
-    }
-
-    // The connector's hit path (the wide transparent stroke, the overlay
-    // paints over the items): the click selects the connector — group-
-    // aware as the items', but NO move session (the connectors carry no
-    // geometry — the line follows the endpoint blocks).
-    const connectorHit =
-      event.target instanceof Element ? event.target.closest<SVGElement>("[data-connector-hit]") : null;
-    if (connectorHit !== null) {
-      const id = connectorHit.getAttribute("data-connector-hit");
-      if (id !== null) {
-        if (event.shiftKey) {
-          // The shift toggle (the same contract as the item's: no move —
-          // the connectors carry no geometry at all).
-          containerRef.current?.focus();
-          if (selection.view !== null) toggleCanvasSelection(selection.view, id);
-          return;
-        }
-        const sel = selection.view?.get();
-        const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
-        selection.view?.set({ kind: "blocks", ids, anchorId: id });
-        containerRef.current?.focus();
       }
       return;
     }
@@ -870,10 +888,7 @@ function CanvasView() {
     // two-click's second pick stands on the pointerdown instead.
     if (viewport.activeTool === "connector" && (viewport.pendingConnector !== null || viewport.pendingFree !== null)) {
       const canvasPoint = screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan);
-      const item =
-        event.target instanceof Element
-          ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]')
-          : null;
+      const item = standItemAt(event.target);
       const id = item?.getAttribute("data-block-id") ?? null;
       const standId = id ?? portBlockAt(canvasPoint);
       if (standId !== null && standId !== viewport.pendingConnector && standId !== viewport.pendingSource) {
@@ -1674,6 +1689,7 @@ function CanvasView() {
             strokeStyle={connectorToolbarTarget.strokeStyle}
             arrowHead={connectorToolbarTarget.arrowHead}
             arrowStart={connectorToolbarTarget.arrowStart}
+            zStand={connectorToolbarTarget.zStand}
             style={{
               left: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).x}px)`,
               top: `calc(50% + ${canvasToScreen(connectorToolbarTarget.mid, viewport.zoom, viewport.pan).y - TOOLBAR_OFFSET_PX}px)`,
@@ -1756,6 +1772,7 @@ function CanvasView() {
             textColor={shapeToolbarTarget.textColor}
             textStyle={shapeToolbarTarget.textStyle}
             textAlign={shapeToolbarTarget.textAlign}
+            zStand={shapeToolbarTarget.zStand}
             style={{
               left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
               top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y - (displayBox.h / 2) * viewport.zoom - TOOLBAR_OFFSET_PX}px)`,

@@ -145,7 +145,7 @@ describe("strict validation (validateDoc)", () => {
     });
     const target = newDoc();
     target.applyUpdate(source.encode());
-    expect(target.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "line" } });
+    expect(target.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "line", zIndex: 1 } });
   });
 
   it("rejects malformed points tuples (the canvas branch)", () => {
@@ -448,7 +448,7 @@ describe("group (the flat marker)", () => {
     const b = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
 
     const group = doc.insertBlock("group", { members: [a, b] }, { parent: surface });
-    expect(doc.getBlock(group)).toEqual({ type: "group", attrs: { members: [a, b] } });
+    expect(doc.getBlock(group)).toEqual({ type: "group", attrs: { members: [a, b], zIndex: 3 } });
     expect(doc.getChildren(surface)).toEqual([a, b, group]);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
@@ -600,7 +600,7 @@ describe("lenient reader (newer-minor data)", () => {
     const target = newDoc();
     target.applyUpdate(source.encode()); // the CRDT level applies remote data without validation
 
-    expect(target.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "hexagon" } });
+    expect(target.getBlock(shape)).toEqual({ type: "shape", attrs: { variant: "hexagon", zIndex: 1 } });
     const error = validateDoc(target.toJSON()).find((entry) => entry.path === `blocks.${shape}.attrs.variant`);
     expect(error?.message).toContain("hexagon");
   });

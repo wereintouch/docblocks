@@ -19,7 +19,9 @@ const CANVAS_BLOCK_SPECS: Pick<
     // Z-ORDER semantics: for a surface the children order is the Z-ORDER
     // (paint order), not the reading order — the only such case in the
     // schema (every other container's children order is the reading order).
-    // A moveBlock within the surface's children is a z-order change.
+    // The canvas elements (shape / connector / canvas-text / group) carry an
+    // explicit `zIndex` attr (dense 1..N, unique) that mirrors this order;
+    // a moveBlock within the surface's children is a z-order change.
   },
   shape: {
     content: false,
@@ -54,6 +56,9 @@ const CANVAS_BLOCK_SPECS: Pick<
         values: ["regular", "semibold", "light", "light-italic", "italic", "semibold-italic"],
       },
       textAlign: { kind: "enum", values: ["left", "center", "right"] },
+      // The explicit z-order index (dense 1..N over the surface's canvas
+      // elements; the order's mirror — the paint order, 1 = bottom).
+      zIndex: { kind: "number", positive: true, integer: true },
     },
   },
   connector: {
@@ -108,6 +113,10 @@ const CANVAS_BLOCK_SPECS: Pick<
       strokeWidth: { kind: "number", integer: true, min: 1, max: 4 },
       arrowHead: { kind: "enum", values: ["none", "arrow", "circle"] },
       arrowStart: { kind: "enum", values: ["none", "arrow", "circle"] },
+      // The explicit z-order index (dense 1..N over the surface's canvas
+      // elements; the order's mirror — the paint order, 1 = bottom). The
+      // connector's line stands at its zIndex (over / under the shapes).
+      zIndex: { kind: "number", positive: true, integer: true },
     },
   },
   frame: {
@@ -127,6 +136,9 @@ const CANVAS_BLOCK_SPECS: Pick<
       fontSize: { kind: "number", positive: true },
       fontFamily: { kind: "string" },
       textAlign: { kind: "string" },
+      // The explicit z-order index (dense 1..N over the surface's canvas
+      // elements; the order's mirror — the paint order, 1 = bottom).
+      zIndex: { kind: "number", positive: true, integer: true },
     },
   },
   // The canvas group (the container): the
@@ -142,6 +154,9 @@ const CANVAS_BLOCK_SPECS: Pick<
     attrs: {
       members: { kind: "array", required: true, items: { kind: "string", nonEmpty: true } },
       title: { kind: "string" },
+      // The explicit z-order index (dense 1..N over the surface's canvas
+      // elements; the order's mirror — the paint order, 1 = bottom).
+      zIndex: { kind: "number", positive: true, integer: true },
     },
   },
 };

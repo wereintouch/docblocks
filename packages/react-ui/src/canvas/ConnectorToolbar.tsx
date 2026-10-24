@@ -8,7 +8,9 @@
  * (none / arrow / circle) — the start first, then the end, the two
  * equal three-way menus
  * (the: the start stands its own figure, not a
- * copy of the end). Each pick is one `updateBlock` in one transact (one
+ * z-order menu (the explicit zIndex: the three-dots button, the four
+ * zIndex: the three-dots button, the four reorder picks — one
+ * `setZOrder` each). Each pick is one `updateBlock` in one transact (one
  * undo step, one wire update). The toolbar is canvas chrome (its own
  * pointers; a press on it starts no canvas session). The label is not a
  * toolbar control: the line's
@@ -32,6 +34,7 @@ import { Separator } from "../shared/ui/Separator";
 import { ArrowRight, Circle, Curve, Dashed, Diagonal, Elbow, Minus, Stroke } from "../shared/ui/icons";
 import { ColorSection } from "./shape-toolbar/ColorSection";
 import { BORDER_WIDTH_POINTS } from "./shape-toolbar/models";
+import { ZOrderMenu } from "./z-order-menu";
 
 const WIDTH_POINTS = BORDER_WIDTH_POINTS;
 /** The absent width's stand (the registry's default). */
@@ -51,6 +54,7 @@ function ConnectorToolbar({
   strokeStyle,
   arrowHead,
   arrowStart,
+  zStand,
   style,
 }: {
   id: BlockId;
@@ -60,6 +64,9 @@ function ConnectorToolbar({
   strokeStyle: "solid" | "dash" | "dot" | undefined;
   arrowHead: "none" | "arrow" | "circle" | undefined;
   arrowStart: "none" | "arrow" | "circle" | undefined;
+  /** The z-order stand (the position / count over the surface's canvas
+   *  elements); absent when the target's surface is unknown. */
+  zStand: { position: number; count: number } | null;
   /** The positioned style (the left/top at the line's midpoint). */
   style: CSSProperties;
 }) {
@@ -245,6 +252,12 @@ function ConnectorToolbar({
             stands its own figure, not a copy of the other. */}
         {arrowHeadMenu("start", arrowStart ?? "none", (value) => apply({ arrowStart: value }))}
         {arrowHeadMenu("end", arrowHead ?? "arrow", (value) => apply({ arrowHead: value }))}
+        <Separator orientation="vertical" className="h-5" />
+        {/* The z-order menu (the explicit zIndex): the three-dots button,
+            three-dots button, the four reorder picks. */}
+        {zStand !== null && (
+          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label="Arrange line" />
+        )}
       </div>
     </div>
   );

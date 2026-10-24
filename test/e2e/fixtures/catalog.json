@@ -631,7 +631,8 @@
       "type": "shape",
       "attrs": {
         "variant": "rect",
-        "fill": "rgba(9, 105, 218, 0.2)"
+        "fill": "rgba(9, 105, 218, 0.2)",
+        "zIndex": 1
       },
       "geometry": {
         "x": -120,
@@ -643,7 +644,8 @@
     "c0056": {
       "type": "shape",
       "attrs": {
-        "variant": "ellipse"
+        "variant": "ellipse",
+        "zIndex": 2
       },
       "geometry": {
         "x": 40,
@@ -655,7 +657,8 @@
     "c0057": {
       "type": "shape",
       "attrs": {
-        "variant": "diamond"
+        "variant": "diamond",
+        "zIndex": 3
       },
       "geometry": {
         "x": 160,
@@ -672,7 +675,8 @@
         "fontSize": 16,
         "fontFamily": "Inter",
         "textStyle": "semibold",
-        "textAlign": "center"
+        "textAlign": "center",
+        "zIndex": 4
       },
       "geometry": {
         "x": 60,
@@ -683,6 +687,9 @@
     },
     "c0059": {
       "type": "canvas-text",
+      "attrs": {
+        "zIndex": 5
+      },
       "geometry": {
         "x": 140,
         "y": -140,
@@ -705,7 +712,8 @@
         "end": {
           "blockId": "c0055"
         },
-        "label": "relates to"
+        "label": "relates to",
+        "zIndex": 6
       }
     },
     "c0061": {

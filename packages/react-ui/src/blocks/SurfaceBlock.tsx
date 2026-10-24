@@ -1,7 +1,7 @@
 import type { BlockId, SurfaceBlock as SurfaceBlockType } from "docblocks-core";
 
 import { CanvasItem } from "./CanvasItem";
-import { ConnectorLayer } from "./ConnectorLayer";
+import { ConnectorArrowDefs } from "./ConnectorLayer";
 import { BlockContext, useBlockContextValue } from "./block-context";
 import { ConnectorLabelChips } from "./canvas-view/ConnectorLabelChip";
 
@@ -9,13 +9,15 @@ const EMPTY_IDS: BlockId[] = [];
 
 /**
  * A surface (the canvas container): the canvas elements in the children
- * order — the order IS the z-order (no z-index: the DOM order is the
- * paint order, a moveBlock within the children is a z-order change).
- * The container is a relative viewport (the height, border, and
- * background tokens; it clips its elements — the canvas is a viewport,
- * pan/zoom is the interaction stage). The surface provides the block
- * context (the children are the elements) for the canvas-text gestures
- * and the page-block children.
+ * order — the order IS the z-order (the explicit zIndex: the
+ * dense indices stand the paint order, the legacy shape's children
+ * position is the lenient fallback). The connector's line stands inside
+ * its own wrapper (the interleaved paint order) with the hit path inert
+ * (the page view is not selectable). The container is a relative viewport
+ * (the height, border, and background tokens; it clips its elements — the
+ * canvas is a viewport, pan/zoom is the interaction stage). The surface
+ * provides the block context (the children are the elements) for the
+ * canvas-text gestures and the page-block children.
  */
 function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
   const children = block.children ?? EMPTY_IDS;
@@ -36,17 +38,10 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
         "
       >
         <BlockContext.Provider value={contextValue}>
+          <ConnectorArrowDefs id={id} />
           {children.map((childId) => (
-            <CanvasItem key={childId} id={childId} />
+            <CanvasItem key={childId} id={childId} interactive={false} />
           ))}
-          <ConnectorLayer
-            id={id}
-            interactive={false}
-            endpointDrag={null}
-            endpointPreview={null}
-            movePreview={null}
-            resizePreview={null}
-          />
           {/* The connector label chips (the display stand — the page view's
               inert surface keeps the label). */}
           <ConnectorLabelChips children={children} />

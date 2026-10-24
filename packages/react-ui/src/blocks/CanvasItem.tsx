@@ -10,6 +10,7 @@ import type { Box } from "../canvas/viewport";
 import type { MovePreview } from "../canvas/viewport-state";
 import { useBlock } from "../hooks";
 import { BlockView } from "./BlockView";
+import { ConnectorLine } from "./ConnectorLayer";
 import { FrameBlock } from "./FrameBlock";
 import { GroupBlock } from "./GroupBlock";
 import { ShapeSvg } from "./ShapeSvg";
@@ -31,7 +32,10 @@ import { canvasItemStyle, endpointOf, isCanvasSubType } from "./canvas-geometry"
  * wrapper. The connector's pending endpoint stands no tint of its own
  * (the dashed preview line is the pick's indicator; the shape itself
  * stands clean) — the wrapper only carries the data-connector-pending
- * hook.
+ * hook. The connector's line stands INSIDE the wrapper (the Z-ORDER
+ * stand, the explicit zIndex — the DOM order is the paint
+ * order, the line can stand over or under a figure); `interactive`
+ * toggles the line's hit path (the page view's surface stands it inert).
  */
 const CanvasItem = memo(
   function CanvasItem({
@@ -39,6 +43,7 @@ const CanvasItem = memo(
     pendingConnector = null,
     movePreview = null,
     resizeBox = null,
+    interactive = true,
   }: {
     id: BlockId;
     pendingConnector?: string | null;
@@ -46,6 +51,9 @@ const CanvasItem = memo(
     movePreview?: MovePreview | null;
     /** The in-flight resize preview (the canvas box); the wrapper adopts it. */
     resizeBox?: Box | null;
+    /** The line's interactivity (the hit path / the selection reach): the
+     *  canvas view stands it, the page view's surface stands it inert. */
+    interactive?: boolean;
   }) {
     const { store, renderers } = useEditorContext();
     const { siblings } = useBlockContext();
@@ -90,16 +98,19 @@ const CanvasItem = memo(
           <FrameBlock id={id} />
         ) : block.type === "group" ? (
           <GroupBlock id={id} block={block} selected={selected} />
-        ) : null; // connector: the line lives in the overlay layer
+        ) : block.type === "connector" ? (
+          <ConnectorLine id={id} interactive={interactive} />
+        ) : null;
     } else {
       content = <BlockView id={id} />;
     }
 
     const style = canvasItemStyle(block);
-    // The connector's body is the overlay layer's line (pointer-events:
-    // none): the wrapper is an empty box standing at the origin — it must
-    // not catch pointers (the press falls through to the item below / the
-    // empty canvas) and carries no geometry to move.
+    // The connector's body is the line (pointer-events: none over the
+    // svg root, the hit path re-enables the stroke): the wrapper is a
+    // box standing at the origin — it must not catch pointers (the press
+    // falls through to the item below / the empty canvas) and carries no
+    // geometry to move.
     if (block.type === "connector" || block.type === "group") style.pointerEvents = "none";
     // The move preview stands the wrapper offset from its committed
     // position (the release commit writes the geometry; the preview is
@@ -160,7 +171,8 @@ const CanvasItem = memo(
     prev.id === next.id &&
     prev.pendingConnector === next.pendingConnector &&
     prev.movePreview === next.movePreview &&
-    prev.resizeBox === next.resizeBox
+    prev.resizeBox === next.resizeBox &&
+    prev.interactive === next.interactive
 );
 
 export { CanvasItem };

@@ -33,6 +33,7 @@ import {
   isPageSequence,
   readCols,
 } from "./structure";
+import { CANVAS_ZORDER_TYPES, refreshSurfaceZIndex } from "./z-order";
 
 /** Where to insert a new block: under `parent`, after the sibling `after`. */
 interface InsertBlockPosition {
@@ -205,6 +206,10 @@ function insertBlock(
     const blocks = getBlocks(ydoc);
     if (!(blocks.get(id) instanceof Y.Map)) writeNewBlock(blocks, id, type, attrs);
     if (!children.toArray().includes(id)) children.insert(index, [id]);
+    // The canvas element's explicit z-order index (dense 1..N, the order's
+    // mirror): a new surface canvas element takes its position among the
+    // canvas elements (the default insert at the end is max + 1, on top).
+    if (parentType === "surface" && CANVAS_ZORDER_TYPES.has(type)) refreshSurfaceZIndex(ydoc, parentId);
   });
   return id;
 }
@@ -361,6 +366,13 @@ function moveBlock(ydoc: Y.Doc, id: string, toParent: string, toIndex: number): 
   localTransact(ydoc, () => {
     fromChildren.delete(fromIndex, 1);
     toChildren.insert(insertAt, [id]);
+    // The canvas z-order mirror: a surface move reorders the canvas elements
+    // (the children order is the z-order) — refresh the dense zIndex in the
+    // affected surface(s) so the index stays consistent with the order.
+    if (blockTypeOf(ydoc, toParent) === "surface") refreshSurfaceZIndex(ydoc, toParent);
+    if (fromParent !== toParent && blockTypeOf(ydoc, fromParent) === "surface") {
+      refreshSurfaceZIndex(ydoc, fromParent);
+    }
   });
 }
 
@@ -431,6 +443,11 @@ function removeBlock(ydoc: Y.Doc, id: string): void {
         .filter((index) => index !== -1)
         .sort((x, y) => y - x);
       for (const index of indices) parentChildren.delete(index, 1);
+    }
+    // The canvas z-order mirror: a surface removal leaves a gap in the dense
+    // zIndex — re-densify the remaining canvas elements (1..N, no gaps).
+    if (parentId !== null && blockTypeOf(ydoc, parentId) === "surface") {
+      refreshSurfaceZIndex(ydoc, parentId);
     }
     const blocks = getBlocks(ydoc);
     for (const blockId of subtree) blocks.delete(blockId);
