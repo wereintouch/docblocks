@@ -1681,12 +1681,15 @@ function CanvasView() {
           />
         )}
         {selectedConnectorHandles !== null && connectorToolbarTarget !== null && (
-          // The selected line's endpoint handles (the screen-space overlay
-          // over the chrome, above the floating toolbars — a wide toolbar
-          // stands no press on the line's endpoints). The invisible wider
-          // hit circle stands the pointerdown; the visible circle stands
-          // the selection's cyan (the handles stand only over the
-          // selected line).
+          // The selected line's endpoint handles (the screen-space
+          // overlay over the world and the other chrome, z-50). The line's
+          // OWN options toolbar stands above them (the topmost chrome,
+          // z-60) — in the overlap zone the menu wins (the port stands
+          // hidden and non-interactive there; the press hits the menu),
+          // and the port keeps its stand where the menu does not cover it.
+          // The invisible wider hit circle stands the pointerdown; the
+          // visible circle stands the selection's cyan (the handles stand
+          // only over the selected line).
           <div data-slot="docblocks/connector-handles" className="pointer-events-none absolute inset-0 z-50">
             {(["start", "end"] as const).map((which) => {
               const point = canvasToScreen(selectedConnectorHandles[which], viewport.zoom, viewport.pan);
