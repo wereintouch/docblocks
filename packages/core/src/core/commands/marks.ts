@@ -9,7 +9,7 @@
 import * as Y from "yjs";
 
 import { MARK_REGISTRY, validateMarkSet } from "@docblocks-core/schema";
-import type { MarkName, MarkSet } from "@docblocks-core/schema";
+import type { MarkName, MarkSet, MentionKind } from "@docblocks-core/schema";
 
 import { InvalidMarkError, InvalidOperationError, InvalidRangeError, formatValidationErrors } from "../errors";
 import { localTransact } from "../layout";
@@ -19,6 +19,7 @@ import { contentTextLength, requireTextBlock, splitRunAt } from "./text";
 type MarkInput =
   | { type: "bold" | "italic" | "strike" | "underline" | "code" }
   | { type: "link"; href: string }
+  | { type: "mention"; kind: MentionKind; id: string; label: string }
   | { type: "color"; value: string }
   | { type: "highlight"; value?: string };
 
@@ -28,6 +29,8 @@ function markInputToMark(mark: MarkInput): { name: MarkName; markSet: MarkSet } 
   switch (mark.type) {
     case "link":
       return { name: "link", markSet: { link: { href: mark.href } } };
+    case "mention":
+      return { name: "mention", markSet: { mention: { kind: mark.kind, id: mark.id, label: mark.label } } };
     case "color":
       return { name: "color", markSet: { color: { value: mark.value } } };
     case "highlight":

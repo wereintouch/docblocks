@@ -21,6 +21,14 @@ const LINK_CLASS = "text-(--docblocks-link-color)";
 function renderMarked(run: TextRun): ReactNode {
   const { marks } = run;
 
+  if (marks.mention !== undefined) {
+    return (
+      <span data-slot="docblocks/mention" data-mention-kind={marks.mention.kind} contentEditable={false}>
+        {marks.mention.label}
+      </span>
+    );
+  }
+
   if (marks.code === true) return <code className={INLINE_CODE_CLASS}>{run.text}</code>;
 
   let node: ReactNode = run.text;

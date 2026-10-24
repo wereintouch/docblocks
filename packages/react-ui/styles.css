@@ -82,6 +82,11 @@
   --docblocks-selection-background: #b6d7fe;
   --docblocks-inline-code-background: var(--muted, rgba(175, 184, 193, 0.2));
 
+  /* The mention chip (an atomic, display-only inline run): a brand tint +
+     the brand-colored label. */
+  --docblocks-mention-background: color-mix(in srgb, var(--primary, #0969da) 14%, transparent);
+  --docblocks-mention-color: var(--primary, #0969da);
+
   /* Callout borders / backgrounds per variant (info/danger follow the
      standard inputs; warning is package-owned — the standard set has no
      warning token). */
@@ -279,6 +284,8 @@
   --docblocks-link-color: #58a6ff;
   --docblocks-selection-background: rgba(56, 139, 253, 0.4);
   --docblocks-inline-code-background: var(--muted, rgba(110, 118, 129, 0.4));
+  --docblocks-mention-background: color-mix(in srgb, var(--primary, #58a6ff) 22%, transparent);
+  --docblocks-mention-color: var(--primary, #58a6ff);
 
   --docblocks-code-background: var(--muted, rgba(110, 118, 129, 0.35));
   --docblocks-code-token-keyword: #ff7b72;
@@ -489,4 +496,22 @@
  */
 [data-radix-popper-content-wrapper]:has(> [data-state="closed"]) {
   pointer-events: none;
+}
+
+/* The mention chip: an atomic inline run (contenteditable="false"); the
+   brand tint + the rounded pill. */
+[data-slot="docblocks/mention"] {
+  display: inline-block;
+  max-width: 100%;
+  margin: 0 1px;
+  padding: 0.05em 0.4em;
+  border-radius: var(--radius, 0.375rem);
+  background: var(--docblocks-mention-background, color-mix(in srgb, var(--primary, #0969da) 14%, transparent));
+  color: var(--docblocks-mention-color, var(--primary, #0969da));
+  font-weight: 500;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: baseline;
 }

@@ -83,6 +83,24 @@ describe("setMark", () => {
     expect(doc.getRuns(id)).toEqual([{ text: "abcdefghij", marks: { bold: true } }]);
   });
 
+  it("the mention mark: a plain multi-field value, combinable with bold", () => {
+    const { doc, id } = markedDoc();
+    doc.setMark(id, 8, 12, { type: "mention", kind: "user", id: "u1", label: "sync" });
+    doc.setMark(id, 8, 12, { type: "bold" });
+
+    const runs = doc.getRuns(id);
+    expect(runs).toEqual([
+      { text: "Help us ", marks: {} },
+      { text: "sync", marks: { mention: { kind: "user", id: "u1", label: "sync" }, bold: true } },
+      { text: " faster!", marks: {} },
+    ]);
+    // Plain data: the mark value is a plain object in the JSON.
+    expect(doc.toJSON().blocks[id]).toEqual({ type: "paragraph", content: runs });
+    // The mention composes over a run that already carries a mention (no error).
+    doc.setMark(id, 8, 12, { type: "mention", kind: "doc", id: "d9", label: "Spec" });
+    expect(doc.getRuns(id)[1]?.marks.mention).toEqual({ kind: "doc", id: "d9", label: "Spec" });
+  });
+
   it("marks the whole text over the full range (0, total)", () => {
     const { doc, id } = markedDoc();
     doc.setMark(id, 0, 20, { type: "bold" });

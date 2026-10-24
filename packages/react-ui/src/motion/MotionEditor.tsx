@@ -24,6 +24,7 @@ import type { FlatNode } from "../blocks/flat";
 import { FormatPaletteContext } from "../blocks/format-palette-context";
 import { segmentRange } from "../editing/block-commands";
 import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
+import { MentionMenuContext, useMentionMenu } from "../editing/mention";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
@@ -58,6 +59,7 @@ function MotionEditor({
   );
   const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
+  const mention = useMentionMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
   useTypingFlag(rootRef);
   const enterGate = useEnterAnimationGate(rootRef);
@@ -327,30 +329,33 @@ function MotionEditor({
         onPointerDown={onRootPointerDown}
       >
         <style>{HANDLE_GRAB_STYLE}</style>
-        <SlashMenuContext.Provider value={slash.api}>
-          <FormatPaletteContext.Provider value={formatPalette}>
-            <BlockContext.Provider value={rootContext}>
-              {view === "canvas" ? (
-                <CanvasView />
-              ) : (
-                <RowList
-                  order={order}
-                  nodesById={nodesById}
-                  layoutSlide={layoutSlide || draggingKey !== null}
-                  draggingKey={draggingKey}
-                  previewIndent={previewIndent}
-                  animated={enterGate.current}
-                  onReorder={onRowReorder}
-                  onDragStart={onRowDragStart}
-                  onDragMove={onRowDragMove}
-                  onDragEnd={onRowDragEnd}
-                />
-              )}
-              <PresenceCaretOverlay rootRef={rootRef} />
-            </BlockContext.Provider>
-          </FormatPaletteContext.Provider>
-        </SlashMenuContext.Provider>
+        <MentionMenuContext.Provider value={mention.api}>
+          <SlashMenuContext.Provider value={slash.api}>
+            <FormatPaletteContext.Provider value={formatPalette}>
+              <BlockContext.Provider value={rootContext}>
+                {view === "canvas" ? (
+                  <CanvasView />
+                ) : (
+                  <RowList
+                    order={order}
+                    nodesById={nodesById}
+                    layoutSlide={layoutSlide || draggingKey !== null}
+                    draggingKey={draggingKey}
+                    previewIndent={previewIndent}
+                    animated={enterGate.current}
+                    onReorder={onRowReorder}
+                    onDragStart={onRowDragStart}
+                    onDragMove={onRowDragMove}
+                    onDragEnd={onRowDragEnd}
+                  />
+                )}
+                <PresenceCaretOverlay rootRef={rootRef} />
+              </BlockContext.Provider>
+            </FormatPaletteContext.Provider>
+          </SlashMenuContext.Provider>
+        </MentionMenuContext.Provider>
         {slash.menuNode}
+        {mention.menuNode}
         {format.toolbarNode}
       </div>
     </Card>

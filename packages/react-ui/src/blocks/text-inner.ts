@@ -39,6 +39,7 @@ import {
 } from "../editing/dom-offset";
 import { useBlockInput } from "../editing/input-safety";
 import { useBlockKeyboard } from "../editing/keyboard";
+import { useMentionMenuApi } from "../editing/mention";
 import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { renderRunsInto } from "../text/runs-dom";
@@ -75,6 +76,7 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
 
   const innerRef = useRef<HTMLDivElement | null>(null);
   const slash = useSlashMenuApi();
+  const mention = useMentionMenuApi();
   /**
    * The caret a local gesture wants restored after the store-driven
    * rebuild (a flat offset in the new text); consumed by the next
@@ -138,11 +140,12 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
   const onKeydown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
       if (slash !== null && slash.onKeyDown(event, id)) return;
+      if (mention !== null && mention.onKeyDown(event, id)) return;
       onGestureKeyDown(event);
       if (event.defaultPrevented) return;
       onInputKeyDown(event);
     },
-    [id, onGestureKeyDown, onInputKeyDown, slash]
+    [id, onGestureKeyDown, onInputKeyDown, slash, mention]
   );
 
   // Capture a store block change that reaches while the DOM selection is

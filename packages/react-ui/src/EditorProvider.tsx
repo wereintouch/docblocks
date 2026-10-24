@@ -41,6 +41,25 @@ interface PdfPreviewProps {
 /** A PDF first-page preview renderer: a component over a resolved `pdf` blob. */
 type PdfPreview = ComponentType<PdfPreviewProps>;
 
+/** A mention search result: the stable target id + the display label. */
+interface MentionEntry {
+  id: string;
+  label: string;
+}
+
+/**
+ * The consumer's mention search provider: the user / document catalog behind
+ * the `@` mention trigger. The two sections are separate so the picker can
+ * stand "People" and "Documents" groups; a `kind` is derived from the
+ * section on the pick (`user` / `doc`).
+ */
+interface MentionProvider {
+  /** The users matching the query (the `user` mention kind). */
+  searchUsers(query: string): Promise<MentionEntry[]>;
+  /** The documents matching the query (the `doc` mention kind). */
+  searchDocs(query: string): Promise<MentionEntry[]>;
+}
+
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
 interface SelectionRef {
   view: SelectionView | null;
@@ -63,6 +82,8 @@ interface EditorContextValue {
   syncEmbedResolver: SyncEmbedResolver | null;
   /** The consumer's PDF first-page preview renderer; null when none was supplied (the native iframe stands). */
   pdfPreview: PdfPreview | null;
+  /** The consumer's mention search provider; null when none was supplied (`@` stays plain text). */
+  mentionProvider: MentionProvider | null;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
   rootBlockId: BlockId;
   /** The enclosing providers' doc ids, outermost first (the sync-embed cycle visited-set). */
@@ -160,6 +181,14 @@ interface EditorProviderProps {
    */
   pdfPreview?: PdfPreview;
   /**
+   * Optional mention search provider: the user / document catalog behind the
+   * `@` mention trigger in page text blocks. Without it the `@` stays plain
+   * text (no picker). Like `pdfPreview`, the value is read per render into
+   * the provider context: pass a stable reference. A nested provider that
+   * supplies none inherits the enclosing one.
+   */
+  mentionProvider?: MentionProvider;
+  /**
    * Optional entry-list root: render the entry list of this block instead
    * of the document root (the subtree view — the block itself plus its own
    * subtree). Defaults to the document root: behavior unchanged.
@@ -197,6 +226,7 @@ function EditorProvider({
   databaseBridge,
   syncEmbedResolver,
   pdfPreview,
+  mentionProvider,
   rootBlockId,
   commandPalettePlaceholder,
   children,
@@ -383,6 +413,7 @@ function EditorProvider({
       databaseBridge: effectiveDatabaseBridge,
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
       pdfPreview: pdfPreview ?? parent?.pdfPreview ?? null,
+      mentionProvider: mentionProvider ?? parent?.mentionProvider ?? null,
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
       embedDepth: parent === null ? 0 : parent.embedDepth + 1,
@@ -400,10 +431,19 @@ function EditorProvider({
     parentContext,
     commandPalettePlaceholder,
     pdfPreview,
+    mentionProvider,
   ]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }
 
 export { EditorProvider, useEditorContext };
-export type { EditorContextValue, EditorProviderProps, PdfPreview, PdfPreviewProps, SyncEmbedResolver };
+export type {
+  EditorContextValue,
+  EditorProviderProps,
+  MentionEntry,
+  MentionProvider,
+  PdfPreview,
+  PdfPreviewProps,
+  SyncEmbedResolver,
+};

@@ -20,6 +20,9 @@ import { INLINE_CODE_CLASS, LINK_CLASS } from "./runs";
 /** The data-slot of the trailing line-break anchor. */
 const LINE_ANCHOR_SLOT = "docblocks/line-anchor";
 
+/** The data-slot of the mention chip (an atomic, display-only inline run). */
+const MENTION_SLOT = "docblocks/mention";
+
 /** The zero-width caret seat of the trailing empty line. `contenteditable="false"` keeps the browser from absorbing typed text into the anchor. */
 function lineBreakAnchor(): HTMLElement {
   const anchor = document.createElement("span");
@@ -52,6 +55,20 @@ function wrap(node: Node, tag: string, attrs?: Record<string, string>): Node {
 function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
   const nodes: Node[] = [];
   for (const run of runs) {
+    // The mention renders alone: the chip is the atomic display of the label
+    // snapshot. `contenteditable="false"` keeps the caret out of the chip
+    // (the label is a data snapshot, not editable text); other marks on the
+    // run do not restyle the chip (the mention is display-only).
+    const mention = run.marks.mention;
+    if (mention !== undefined) {
+      const chip = document.createElement("span");
+      chip.setAttribute("data-slot", MENTION_SLOT);
+      chip.setAttribute("data-mention-kind", mention.kind);
+      chip.setAttribute("contenteditable", "false");
+      chip.textContent = mention.label;
+      nodes.push(chip);
+      continue;
+    }
     if (run.marks.code === true) {
       const code = document.createElement("code");
       code.className = INLINE_CODE_CLASS;
@@ -81,4 +98,4 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
   if (renderedTextOf(runs).endsWith("\n")) container.appendChild(lineBreakAnchor());
 }
 
-export { renderRunsInto, LINE_ANCHOR_SLOT };
+export { renderRunsInto, LINE_ANCHOR_SLOT, MENTION_SLOT };
