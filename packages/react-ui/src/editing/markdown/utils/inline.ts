@@ -1,6 +1,6 @@
 /**
  * The inline pass of the markdown paste parser: the
- * emphasis/strike/code/link/math delimiters with nesting and backslash
+ * emphasis/strike/code/link delimiters with nesting and backslash
  * escapes, the inline HTML tag spans (the standard tags map to the v1
  * marks, `<br>` is the soft line break, the other tags drop with their
  * content plain), the autolinks, and the single-pass entity decode.
@@ -79,10 +79,10 @@ function marksEqual(a: MarkSet, b: MarkSet): boolean {
 }
 
 /**
- * The inline pass: the emphasis/strike/code/link/math delimiters with
+ * The inline pass: the emphasis/strike/code/link delimiters with
  * nesting and backslash escapes. Emphasis openers require a non-word
  * boundary only for `_`/`__` (the snake_case identifiers stay literal);
- * the `code` and `math` spans are exclusive (their content carries no
+ * the `code` span is exclusive (its content carries no
  * other marks). Unmatched delimiters stay literal.
  */
 function parseInline(source: string): TextRun[] {
@@ -271,17 +271,6 @@ function parseInline(source: string): TextRun[] {
             i = close + token.length;
             continue;
           }
-        }
-      }
-
-      // The inline math: $…$ (exclusive; the delimiters are not spaced).
-      if (ch === "$" && text.charAt(i + 1) !== "" && text.charAt(i + 1) !== " ") {
-        const close = text.indexOf("$", i + 1);
-        if (close > i + 1 && text.charAt(close - 1) !== " ") {
-          flush();
-          push(text.slice(i + 1, close), { math: { tex: text.slice(i + 1, close) } });
-          i = close + 1;
-          continue;
         }
       }
 

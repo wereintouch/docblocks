@@ -15,8 +15,8 @@ import type { DocJSON } from "../src/schema";
 
 const CREATED_AT = "2026-10-01T00:00:00Z";
 
-/** The six remodeled types (the legacy `children` form). */
-const REFORMED = ["paragraph", "heading", "list-item", "callout", "code", "latex"] as const;
+/** The five remodeled types (the legacy `children` form). */
+const REFORMED = ["paragraph", "heading", "list-item", "callout", "code"] as const;
 
 const newDoc = (): Doc => createDoc({ id: "r", createdAt: CREATED_AT });
 
@@ -37,7 +37,7 @@ describe("the flat page model (registry)", () => {
     for (const type of REFORMED) {
       expect(BLOCK_REGISTRY[type].children, `${type} is structurally childless`).toBe(false);
     }
-    for (const type of ["paragraph", "heading", "callout", "code", "latex"] as const) {
+    for (const type of ["paragraph", "heading", "callout", "code"] as const) {
       expect(BLOCK_REGISTRY[type].legacyChildrenTypes, `${type} keeps the page set`).toEqual(pageSet);
     }
     // The list marker model stands: a list item nests only under a list item.
@@ -481,8 +481,6 @@ describe("the additive posture (no legacy children -> no children field)", () =>
       doc.insertText(h, 0, "h");
       const c = doc.insertBlock("code", { language: "ts" });
       doc.insertText(c, 0, "c");
-      const l = doc.insertBlock("latex", { display: true });
-      doc.insertText(l, 0, "l");
       const co = doc.insertBlock("callout", { variant: "info" });
       doc.insertText(co, 0, "co");
     });

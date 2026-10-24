@@ -71,13 +71,6 @@ describe("renderRuns", () => {
     expect(code?.querySelector("strong")).toBeNull();
   });
 
-  it("renders the exclusive math mark with its tex, not the run text", () => {
-    const el = renderText([run("ignored", { math: { tex: "a^2" } })]);
-    const math = el.querySelector("code[data-mark='math']");
-    expect(math?.textContent).toBe("a^2");
-    expect(el.textContent).toBe("a^2");
-  });
-
   it("keeps the text of a run with only unknown marks (lenient reader)", () => {
     const el = renderText([run("ok", { unknown: true } as TextRun["marks"])]) as HTMLElement;
     expect(el.textContent).toBe("ok");

@@ -14,7 +14,6 @@ const INSERTABLE_TYPES = [
   "list-item",
   "code",
   "code-mermaid",
-  "latex",
   "table",
   "image",
   "embed",
@@ -204,7 +203,7 @@ const blobStore: BlobStore = {
 /**
  * Insert one block of `type` at the root with the harness attrs (heading
  * level 2, list-item bullet, code language "ts", code-mermaid a code block
- * with language "mermaid" and the seed diagram, latex display, image the
+ * with language "mermaid" and the seed diagram, image the
  * fixed key, embed the fixed data: URL, sync-embed the ref to the pane's
  * master doc (the subtree variant narrows it to the seeded subtree
  * paragraph, the broken one a fixed unknown docId); a table comes
@@ -227,9 +226,6 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
       case "code-mermaid":
         id = doc.insertBlock("code", { language: "mermaid" });
         doc.insertText(id, 0, MERMAID_SEED);
-        break;
-      case "latex":
-        id = doc.insertBlock("latex", { display: true });
         break;
       case "image":
         id = doc.insertBlock("image", { src: IMAGE_KEY });

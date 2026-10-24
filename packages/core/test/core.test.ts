@@ -181,7 +181,7 @@ describe("reads return plain snapshots", () => {
 
   it("getText / getChildren are plain values", () => {
     expect(typeof doc.getText("b02")).toBe("string");
-    expect(doc.getChildren("d_8f3a2c")).toEqual(["b01", "b02", "b03", "b03a", "b04", "b05", "b06", "b07", "b08"]); // root id === doc id
+    expect(doc.getChildren("d_8f3a2c")).toEqual(["b01", "b02", "b03", "b03a", "b04", "b06", "b07", "b08"]); // root id === doc id
     expect(doc.getChildren("b03")).toEqual([]); // flat page: the nesting is the indent attr, not children
     expect(doc.getChildren("b01")).toEqual([]); // paragraph: no children
     expect(doc.getChildren("missing")).toEqual([]);

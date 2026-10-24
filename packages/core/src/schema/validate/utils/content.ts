@@ -233,10 +233,6 @@ function validateMarks(blockType: BlockType, marks: unknown, path: string, error
           message: `Mark "link" requires an href: http/https URL or relative path (got ${show(attrValue)}).`,
         });
       }
-    } else if (spec.attr === "tex") {
-      if (typeof attrValue !== "string") {
-        errors.push({ path: markPath, message: `Mark "math" requires a tex string (got ${show(attrValue)}).` });
-      }
     } else if (spec.attr === "value") {
       if (attrValue === undefined) {
         if (!spec.attrOptional) {

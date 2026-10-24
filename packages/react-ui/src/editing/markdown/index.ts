@@ -3,13 +3,13 @@
  * pasted markdown document or fragment into the v1 block set — headings,
  * paragraphs, lists (bullet/number/task, nesting via the flat `indent`
  * depth), quotes, fenced/indented code, dividers, GFM tables, standalone
- * images, and `$$` math — with the inline marks (bold, italic, strike,
- * code, link, math).
+ * images — with the inline marks (bold, italic, strike, code, link).
+ * The `$$`/`$` math syntax is no longer parsed: it degrades to literal text.
  *
  * The input is a pragmatic subset of CommonMark + GFM: block boundaries
  * are line-based (fences, the setext-vs-thematic `---` discriminator, the
  * 2–4-space list/quote depth, the GFM table shape), and the inline pass
- * resolves the standard emphasis/strike/code/link/math delimiters with
+ * resolves the standard emphasis/strike/code/link delimiters with
  * nesting and backslash escapes.
  *
  * Inline HTML tags share the same inline pass (a line resolves markdown

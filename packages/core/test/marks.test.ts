@@ -8,7 +8,7 @@ import {
   UnknownBlockError,
   createDoc,
 } from "../src/core";
-import type { Doc, MarkInput } from "../src/core";
+import type { Doc } from "../src/core";
 import type { MarkName } from "../src/schema";
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -57,16 +57,6 @@ describe("setMark", () => {
     expect(doc.getRuns(id)).toEqual([
       { text: "Help us sync", marks: { code: true } },
       { text: " faster!", marks: {} },
-    ]);
-  });
-
-  it("math replaces code on the same range", () => {
-    const { doc, id } = markedDoc();
-    doc.setMark(id, 0, 4, { type: "code" });
-    doc.setMark(id, 0, 4, { type: "math", tex: "x^2" });
-    expect(doc.getRuns(id)).toEqual([
-      { text: "Help", marks: { math: { tex: "x^2" } } },
-      { text: " us sync faster!", marks: {} },
     ]);
   });
 
@@ -142,7 +132,6 @@ describe("mark command errors", () => {
     const { doc, id } = markedDoc();
     expect(() => doc.setMark(id, 0, 1, { type: "color", value: "red" })).toThrow(InvalidMarkError);
     expect(() => doc.setMark(id, 0, 1, { type: "link", href: "javascript:alert(1)" })).toThrow(InvalidMarkError);
-    expect(() => doc.setMark(id, 0, 1, { type: "math", tex: 42 } as unknown as MarkInput)).toThrow(InvalidMarkError);
     expect(() => doc.unsetMark(id, 0, 1, "bogus" as MarkName)).toThrow(InvalidMarkError);
   });
 

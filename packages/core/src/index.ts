@@ -99,8 +99,6 @@ export type {
   HeadingBlock,
   ImageAttrs,
   ImageBlock,
-  LatexAttrs,
-  LatexBlock,
   ListItemAttrs,
   ListItemBlock,
   MarkName,

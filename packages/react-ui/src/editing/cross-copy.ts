@@ -7,7 +7,7 @@ function escapeHtml(text: string): string {
 
 /** The run's text wrapped in its mark's tags (link outermost, then the color spans, then the inline tags). */
 function wrapRun(text: string, marks: TextRun["marks"]): string {
-  // `code` and `math` are exclusive: the run carries no other marks.
+  // `code` is exclusive: the run carries no other marks.
   let out = escapeHtml(text);
   if (marks.underline === true) out = `<u>${out}</u>`;
   if (marks.strike === true) out = `<s>${out}</s>`;

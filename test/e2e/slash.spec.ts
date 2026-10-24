@@ -14,7 +14,7 @@ const RELAY = "ws://localhost:5199";
  * only a "/" keypress does), and a picked command converts the block's
  * type with the rest of the text surviving (the trigger phrase is
  * stripped). The trigger stands at any position and indent of a page text
- * block; code and latex are excluded (a "/" there is plain text).
+ * block; code is excluded (a "/" there is plain text).
  */
 
 /**
@@ -605,7 +605,7 @@ test("a same-type command is an attrs update: the kind swap keeps the text", asy
   await close();
 });
 
-test("code and latex do not trigger (a / there is plain text)", async ({ browser }) => {
+test("code does not trigger (a / there is plain text)", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "ux09-slash-code");
   const target = inner(a, "a");
   await target.click();
@@ -624,14 +624,5 @@ test("code and latex do not trigger (a / there is plain text)", async ({ browser
   await a.keyboard.type("a/b");
   await expect(menu(a)).toHaveCount(0);
   await expect(codeInner).toHaveText("a/b");
-
-  // A latex block (the doc API's insert): the same exclusion.
-  const latexId = await a.evaluate(() => window.__paneDocs?.a?.insertBlock("latex", { display: false }) ?? null);
-  expect(latexId).not.toBeNull();
-  const latexInner = a.locator(`[data-block-id="${latexId}"] [data-slot="docblocks/block-content"]`);
-  await latexInner.click();
-  await a.keyboard.type("x/y");
-  await expect(menu(a)).toHaveCount(0);
-  await expect(latexInner).toHaveText("x/y");
   await close();
 });

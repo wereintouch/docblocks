@@ -150,8 +150,6 @@ function insertSameTypeAfter(doc: Doc, block: Block, parent: BlockId, after: Blo
         block.attrs?.language !== undefined ? { language: block.attrs.language, indent } : { indent },
         { parent, after }
       );
-    case "latex":
-      return doc.insertBlock("latex", { display: block.attrs.display, indent }, { parent, after });
     case "canvas-text":
       return doc.insertBlock("canvas-text", block.attrs !== undefined ? { ...block.attrs } : undefined, {
         parent,

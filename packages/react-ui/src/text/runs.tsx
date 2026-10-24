@@ -10,24 +10,18 @@ function renderRuns(runs: TextRun[]): ReactNode {
   return runs.map((run, index) => <Fragment key={index}>{renderMarked(run)}</Fragment>);
 }
 
-/** The inline code / math run classes (the token-driven inline styling). */
+/** The inline code run class (the token-driven inline styling). */
 const INLINE_CODE_CLASS =
   "bg-(--docblocks-inline-code-background) rounded-(--docblocks-radius) p-(--docblocks-inline-code-padding)";
 
 /** The link mark class (the link color token). */
 const LINK_CLASS = "text-(--docblocks-link-color)";
 
-/** One run: exclusive marks (code, math) render alone; the rest nest. */
+/** One run: the exclusive code mark renders alone; the rest nest. */
 function renderMarked(run: TextRun): ReactNode {
   const { marks } = run;
 
   if (marks.code === true) return <code className={INLINE_CODE_CLASS}>{run.text}</code>;
-  if (marks.math !== undefined)
-    return (
-      <code data-mark="math" className={INLINE_CODE_CLASS}>
-        {marks.math.tex}
-      </code>
-    );
 
   let node: ReactNode = run.text;
   if (marks.link !== undefined)

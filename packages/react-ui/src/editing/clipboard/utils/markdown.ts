@@ -7,8 +7,8 @@
  * type and attrs stand) or follows it, the text after the original caret
  * (the suffix) lands in the last pasted text block (a trailing paragraph
  * when the last block is not text). An empty caret block converts in place
- * to the first pasted block. The code/latex targets take the raw text — no
- * parsing, no marks (the fence/`$$` syntax is their data). Every block the
+ * to the first pasted block. The code target takes the raw text — no
+ * parsing, no marks (the fence syntax is its data). Every block the
  * target parent does not accept is demoted (the list/quote → paragraph; the
  * table → one paragraph per row, the cells joined by ` | `) — the paste
  * never throws on legitimate markdown. The indents are re-based to the
@@ -35,10 +35,10 @@ function applyMdPaste(
   const seat = doc.getBlock(seatId);
   if (seat === null) return null;
 
-  // The code/latex target: the raw text, no parsing (the fence/`$$`
-  // syntax is their data). The clipboard's line endings are the
-  // platform's; the doc model is the LF.
-  if (seat.type === "code" || seat.type === "latex") {
+  // The code target: the raw text, no parsing (the fence syntax is its
+  // data). The clipboard's line endings are the platform's; the doc
+  // model is the LF.
+  if (seat.type === "code") {
     const raw = markdown.replace(/\r\n?/g, "\n");
     doc.transact(() => {
       if (to > from) doc.deleteText(seatId, from, to);
@@ -67,8 +67,8 @@ function applyMdPaste(
 
   // The materialization: the native type (demoted when the target is
   // ineligible — the table expands into the row-paragraphs) + the parser's
-  // attrs (the required schema attrs the parser does not carry — table.cols,
-  // latex.display — are supplied at the insertion).
+  // attrs (the required schema attrs the parser does not carry — table.cols
+  // — are supplied at the insertion).
   const material = parsed.flatMap((p): MaterializedBlock[] => {
     if (p.type === "table" && !eligible("table")) {
       return p.rows!.map((cells): MaterializedBlock => ({
@@ -309,8 +309,6 @@ function insertBlockOf(
         m.attrs.language !== undefined ? { language: m.attrs.language as string, indent } : { indent },
         at
       );
-    case "latex":
-      return doc.insertBlock("latex", { display: true, indent }, at);
     case "divider":
       return doc.insertBlock("divider", indent !== 0 ? { indent } : undefined, at);
     case "image":
@@ -346,9 +344,6 @@ function changeToType(doc: Doc, seatId: BlockId, m: MaterializedBlock): BlockTyp
         m.attrs.language !== undefined ? { language: m.attrs.language as string, indent } : { indent }
       );
       return "code";
-    case "latex":
-      doc.changeBlockType(seatId, "latex", { display: true, indent });
-      return "latex";
     default:
       doc.changeBlockType(seatId, "paragraph", indent !== 0 ? { indent } : undefined);
       return "paragraph";

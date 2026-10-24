@@ -30,8 +30,6 @@ interface MarkSet {
   color?: { value: string };
   /** Text highlight, hex `#RRGGBB` (alpha optional). */
   highlight?: { value?: string };
-  /** Inline formula (KaTeX-compatible source). Exclusive. */
-  math?: { tex: string };
 }
 
 /** All mark names. */
@@ -125,14 +123,6 @@ interface CodeAttrs {
   wrap?: boolean;
   /** The mermaid view mode (default "code"). */
   mermaidMode?: "code" | "preview";
-  /** Nesting depth in the page sequence (default 0). */
-  indent?: PageIndent;
-}
-
-interface LatexAttrs {
-  /** Display (block) formula vs inline. */
-  display: boolean;
-  align?: TextAlign;
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }
@@ -236,15 +226,6 @@ interface CodeBlock {
   children?: BlockId[];
 }
 
-interface LatexBlock {
-  type: "latex";
-  attrs: LatexAttrs;
-  /** Text is the LaTeX source. */
-  content?: BlockContent;
-  /** LEGACY nesting form (readable v1): normalized to `indent` on load; the writer never emits it. */
-  children?: BlockId[];
-}
-
 interface TableBlock {
   type: "table";
   attrs: TableAttrs;
@@ -327,8 +308,6 @@ export type {
   HeadingBlock,
   ImageAttrs,
   ImageBlock,
-  LatexAttrs,
-  LatexBlock,
   ListItemAttrs,
   ListItemBlock,
   MarkName,

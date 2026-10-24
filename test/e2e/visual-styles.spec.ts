@@ -89,13 +89,7 @@ test("every v1 mark renders with its expected style", async ({ page }) => {
 
   // code (exclusive): a lone <code>; the mono family is the UA default for
   // the element (the package stylesheet styles only its background).
-  expect((await styleProps(marks.locator('code:not([data-mark="math"])'), "font-family"))["font-family"]).toContain(
-    "mono"
-  );
-
-  // math (exclusive): the tex source is the visible text.
-  const math = marks.locator('code[data-mark="math"]');
-  expect(await math.textContent()).toBe("x^2");
+  expect((await styleProps(marks.locator("code"), "font-family"))["font-family"]).toContain("mono");
 });
 
 test("the catalog covers every v1 block structure", async ({ page }) => {
@@ -129,7 +123,6 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
       .locator('[data-block-type="code"][data-language="mermaid"] [data-slot="docblocks/code-line-numbers"]')
       .count()
   ).toBe(1);
-  expect(await doc.locator('[data-block-type="latex"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="table"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="image"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="embed"]').count()).toBe(1);
@@ -227,8 +220,8 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
       .locator(`[data-block-id="${id}"]`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
-  expect(await rowPaddingOf("c0065")).toBe("24px");
-  expect(await rowPaddingOf("c0066")).toBe("48px");
+  expect(await rowPaddingOf("c0064")).toBe("24px");
+  expect(await rowPaddingOf("c0065")).toBe("48px");
   expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 

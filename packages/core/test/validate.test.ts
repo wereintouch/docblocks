@@ -33,14 +33,13 @@ describe("valid documents", () => {
     expectValid(
       makeDoc({
         blocks: {
-          r: { type: "root", children: ["p1", "h1", "l1", "c1", "co1", "la1", "t1", "img1", "d1"] },
+          r: { type: "root", children: ["p1", "h1", "l1", "c1", "co1", "t1", "img1", "d1"] },
           p1: {
             type: "paragraph",
             content: [
               run("Hello ", { bold: true }),
               run("world", { link: { href: "/page" }, color: { value: "#0066CC" }, highlight: { value: "#FFFF0080" } }),
               run("code", { code: true }),
-              run("x^2", { math: { tex: "x^2" } }),
             ],
           },
           h1: {
@@ -52,7 +51,6 @@ describe("valid documents", () => {
           l2: { type: "list-item", attrs: { list: "task", checked: true }, content: [run("task")] },
           c1: { type: "callout", attrs: { variant: "warning" }, content: [run("note")] },
           co1: { type: "code", attrs: { language: "js" }, content: [run("const x = 1;")] },
-          la1: { type: "latex", attrs: { display: true }, content: [run("e^{i\\pi} + 1 = 0", { bold: true })] },
           t1: { type: "table", attrs: { cols: 2 }, children: ["row1", "row2"] },
           row1: { type: "table-row", children: ["c11", "c12"] },
           row2: { type: "table-row", children: ["c21", "c22"] },
@@ -176,6 +174,13 @@ describe("block structure", () => {
       { ...makeDoc(), blocks: { r: { type: "root", children: [] }, b: { type: "note" } } },
       "blocks.b",
       'Unknown block type "note"'
+    );
+    // The removed latex block is rejected as an unknown type (the strict
+    // import guard; the lenient reader falls back to a placeholder instead).
+    expectError(
+      { ...makeDoc(), blocks: { r: { type: "root", children: [] }, b: { type: "latex" } } },
+      "blocks.b",
+      'Unknown block type "latex"'
     );
     expectError({ ...makeDoc(), blocks: { r: { type: "root", children: [] }, b: null } }, "blocks.b", "plain object");
   });
@@ -333,7 +338,7 @@ describe("attributes", () => {
   it("validates enum domains and required attributes", () => {
     expectError(withBlock("h", { type: "heading", attrs: { level: 7 } }), "blocks.h.attrs.level", "one of");
     expectError(withBlock("h", { type: "heading" }), "blocks.h.attrs.level", "required");
-    expectError(withBlock("la", { type: "latex" }), "blocks.la.attrs.display", "required");
+    expectError(withBlock("e", { type: "embed" }), "blocks.e.attrs.kind", "required");
     expectError(withBlock("t", { type: "table" }), "blocks.t.attrs.cols", "required");
     expectError(withBlock("i", { type: "image", attrs: {} }), "blocks.i.attrs.src", "required");
   });
@@ -495,9 +500,9 @@ describe("runs and marks", () => {
       "hex color"
     );
     expectError(
-      withContent([{ text: "x", marks: { math: { tex: 5 } } }]),
+      withContent([{ text: "x", marks: { math: { tex: "x" } } }]),
       "blocks.p.content[0].marks.math",
-      "tex string"
+      "Unknown mark"
     );
     expectError(
       withContent([{ text: "x", marks: { color: {} } }]),
@@ -512,14 +517,9 @@ describe("runs and marks", () => {
     );
     expectError(withContent([{ text: "x", marks: { bold: null } }]), "blocks.p.content[0].marks.bold", "must be true");
     expectError(withContent([run("x", { code: true, bold: true })]), "blocks.p.content[0].marks", "exclusive");
-    expectError(
-      withContent([run("x", { math: { tex: "x" }, italic: true })]),
-      "blocks.p.content[0].marks",
-      "exclusive"
-    );
   });
 
-  it("forbids marks inside code blocks but allows them in latex", () => {
+  it("forbids marks inside code blocks", () => {
     expectError(
       {
         ...makeDoc(),
@@ -528,13 +528,6 @@ describe("runs and marks", () => {
       "blocks.co.content[0].marks",
       "code block must not carry marks"
     );
-    expectValid({
-      ...makeDoc(),
-      blocks: {
-        r: { type: "root", children: ["la"] },
-        la: { type: "latex", attrs: { display: false }, content: [run("x", { bold: true })] },
-      },
-    });
   });
 });
 

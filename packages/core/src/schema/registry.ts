@@ -171,13 +171,6 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       mermaidMode: { kind: "enum", values: ["code", "preview"] },
     },
   },
-  latex: {
-    content: true,
-    children: false,
-    rows: false,
-    legacyChildrenTypes: PAGE_BLOCK_TYPES,
-    attrs: { display: { kind: "boolean", required: true }, align: ALIGN },
-  },
   table: {
     content: false,
     children: true,
@@ -319,7 +312,7 @@ interface MarkSpec {
   /** Exclusive marks never coexist with other marks on a run. */
   exclusive: boolean;
   /** Attribute name for `attrs` marks. */
-  attr?: "href" | "value" | "tex";
+  attr?: "href" | "value";
   /** Whether the attribute may be absent (highlight). */
   attrOptional?: boolean;
 }
@@ -334,7 +327,6 @@ const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
   link: { kind: "attrs", exclusive: false, attr: "href" },
   color: { kind: "attrs", exclusive: false, attr: "value" },
   highlight: { kind: "attrs", exclusive: false, attr: "value", attrOptional: true },
-  math: { kind: "attrs", exclusive: true, attr: "tex" },
 };
 
 export { BLOCK_REGISTRY, CALLOUT_ICONS, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };

@@ -170,7 +170,7 @@
   /* Inline code. */
   --docblocks-inline-code-padding: 0.15em 0.35em;
 
-  /* Mono font (code and latex blocks). */
+  /* Mono font (code block). */
   --docblocks-mono-font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
 
   /* Code block. */

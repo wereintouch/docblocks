@@ -24,7 +24,7 @@ import { textOf, useTextInner } from "./text-inner";
 /** The text-editable block types (the wrapper tag and data attrs are props). */
 type EditableBlock = Extract<
   Block,
-  { type: "paragraph" | "quote" | "heading" | "callout" | "list-item" | "code" | "latex" | "canvas-text" }
+  { type: "paragraph" | "quote" | "heading" | "callout" | "list-item" | "code" | "canvas-text" }
 >;
 
 interface TextBlockProps {
@@ -368,7 +368,7 @@ function TextBlock({
   const innerClass = cn(
     "m-0 whitespace-pre-wrap outline-none",
     doneTask && "opacity-30",
-    (block.type === "code" || block.type === "latex") && "font-(family-name:--docblocks-mono-font-family)",
+    block.type === "code" && "font-(family-name:--docblocks-mono-font-family)",
     // The highlight layer stands the visible ink: the inner's text goes
     // transparent (the caret keeps the text color, the selection stands —
     // both are CSS properties, not text color).
@@ -507,7 +507,6 @@ function TextBlock({
         data-callout-color={block.type === "callout" ? calloutColorOverride : undefined}
         data-callout-icon={block.type === "callout" ? effectiveCalloutIcon : undefined}
         data-language={block.type === "code" ? block.attrs?.language : undefined}
-        data-display={block.type === "latex" ? (block.attrs.display ? "true" : "false") : undefined}
         data-align={alignOf(block)}
         data-depth={block.type === "list-item" ? cycle : undefined}
         data-selected={selected ? "true" : undefined}

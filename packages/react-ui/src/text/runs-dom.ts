@@ -15,9 +15,6 @@ import { INLINE_CODE_CLASS, LINK_CLASS } from "./runs";
  * seat appended when the text ends with a line break (Chromium's
  * contenteditable cannot seat a caret on a final empty line). The offset
  * and diff layers treat the anchor as carrying no logical character.
- * A math run renders its `tex` (mirroring renderRuns), so a math run whose
- * `tex` length differs from its text length breaks the offset mapping (a
- * v1 limitation).
  */
 
 /** The data-slot of the trailing line-break anchor. */
@@ -32,9 +29,9 @@ function lineBreakAnchor(): HTMLElement {
   return anchor;
 }
 
-/** The flattened run text as rendered (math runs contribute their `tex`). */
+/** The flattened run text as rendered. */
 function renderedTextOf(runs: TextRun[]): string {
-  return runs.reduce((text, run) => text + (run.marks.math !== undefined ? run.marks.math.tex : run.text), "");
+  return runs.reduce((text, run) => text + run.text, "");
 }
 
 /** Wrap the node in a new element with the given attributes. */
@@ -47,7 +44,7 @@ function wrap(node: Node, tag: string, attrs?: Record<string, string>): Node {
 
 /**
  * Replace the container's children with the DOM of the given runs (the
- * same structure renderRuns renders: exclusive code/math runs render
+ * same structure renderRuns renders: the exclusive code run renders
  * alone; the rest nest link, bold, italic, strike, underline, then the
  * color/highlight span, innermost to outermost). A trailing line break
  * gets the anchor appended after the last run.
@@ -60,14 +57,6 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
       code.className = INLINE_CODE_CLASS;
       code.textContent = run.text;
       nodes.push(code);
-      continue;
-    }
-    if (run.marks.math !== undefined) {
-      const math = document.createElement("code");
-      math.setAttribute("data-mark", "math");
-      math.className = INLINE_CODE_CLASS;
-      math.textContent = run.marks.math.tex;
-      nodes.push(math);
       continue;
     }
     let node: Node = document.createTextNode(run.text);
