@@ -61,7 +61,7 @@ const IMAGE_PORT_CORNERS: { corner: ImagePortCorner; cursor: string }[] = [
  * a structural placeholder card instead of a broken <img>.
  */
 function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
-  const { blobStore } = useEditorContext();
+  const { blobStore, pdfPreview } = useEditorContext();
   const src = block.attrs.src;
   const [ref, setRef] = useState<BlobRef | null>(null);
 
@@ -101,6 +101,12 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
 
   const { url, meta } = ref;
   if (meta.subtype === "pdf") {
+    // The consumer's PDF preview renderer (the `pdfPreview` provider prop)
+    // takes over the whole figure; without it the native iframe stands.
+    if (pdfPreview !== null) {
+      const Preview = pdfPreview;
+      return <Preview id={id} url={url} name={meta.name} />;
+    }
     return (
       <iframe
         data-slot="docblocks/image-pdf"

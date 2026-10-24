@@ -9,7 +9,13 @@ export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./bloc
 export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
 export { EditorProvider, useEditorContext } from "./EditorProvider";
-export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver } from "./EditorProvider";
+export type {
+  EditorContextValue,
+  EditorProviderProps,
+  PdfPreview,
+  PdfPreviewProps,
+  SyncEmbedResolver,
+} from "./EditorProvider";
 export { DocHeader } from "./DocHeader";
 export { blobSubtypeOf, createMemoryBlobStore } from "./blob-store";
 export type { BlobMeta, BlobRef, BlobSubtype, BlobStore } from "./blob-store";

@@ -1,4 +1,13 @@
-import { type ReactNode, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ComponentType,
+  type ReactNode,
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { BLOCK_REGISTRY, createSelection, presenceSelectionOf } from "docblocks-core";
 import type { BlockId, Doc, Selection, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
@@ -18,6 +27,19 @@ import type { EditorStore } from "./state/store";
  * the master is unknown to the consumer (the block renders its broken state).
  */
 type SyncEmbedResolver = (ref: SyncEmbedRef) => Doc | null;
+
+/** The props a PDF first-page preview renderer receives (the `pdfPreview` provider prop). */
+interface PdfPreviewProps {
+  /** The block's id — the renderer stamps it on its root, like the other block renderers. */
+  id: BlockId;
+  /** The resolved blob url (the store's resolve result). */
+  url: string;
+  /** The blob's display name (absent when the store has none). */
+  name?: string;
+}
+
+/** A PDF first-page preview renderer: a component over a resolved `pdf` blob. */
+type PdfPreview = ComponentType<PdfPreviewProps>;
 
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
 interface SelectionRef {
@@ -39,6 +61,8 @@ interface EditorContextValue {
   databaseBridge: DatabaseBridge;
   /** The sync-embed master-doc resolver; null when none was supplied. */
   syncEmbedResolver: SyncEmbedResolver | null;
+  /** The consumer's PDF first-page preview renderer; null when none was supplied (the native iframe stands). */
+  pdfPreview: PdfPreview | null;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
   rootBlockId: BlockId;
   /** The enclosing providers' doc ids, outermost first (the sync-embed cycle visited-set). */
@@ -125,6 +149,17 @@ interface EditorProviderProps {
    */
   syncEmbedResolver?: SyncEmbedResolver;
   /**
+   * Optional PDF first-page preview renderer: a component that renders a
+   * `pdf`-subtype image block's resolved blob as a client-side first-page
+   * preview (the `./pdf` subpath provides one over pdfjs-dist, an optional
+   * peer). Without it the block stands the native iframe viewer.
+   *
+   * Like `blockRenderers`, the value is read per render into the provider
+   * context: pass a stable reference (the component is module-level). A
+   * nested provider that supplies none inherits the enclosing one.
+   */
+  pdfPreview?: PdfPreview;
+  /**
    * Optional entry-list root: render the entry list of this block instead
    * of the document root (the subtree view — the block itself plus its own
    * subtree). Defaults to the document root: behavior unchanged.
@@ -161,6 +196,7 @@ function EditorProvider({
   blobStore,
   databaseBridge,
   syncEmbedResolver,
+  pdfPreview,
   rootBlockId,
   commandPalettePlaceholder,
   children,
@@ -346,6 +382,7 @@ function EditorProvider({
       blobStore: effectiveBlobStore,
       databaseBridge: effectiveDatabaseBridge,
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
+      pdfPreview: pdfPreview ?? parent?.pdfPreview ?? null,
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
       embedDepth: parent === null ? 0 : parent.embedDepth + 1,
@@ -362,10 +399,11 @@ function EditorProvider({
     rootId,
     parentContext,
     commandPalettePlaceholder,
+    pdfPreview,
   ]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }
 
 export { EditorProvider, useEditorContext };
-export type { EditorContextValue, EditorProviderProps, SyncEmbedResolver };
+export type { EditorContextValue, EditorProviderProps, PdfPreview, PdfPreviewProps, SyncEmbedResolver };

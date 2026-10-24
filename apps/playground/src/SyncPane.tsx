@@ -2,6 +2,7 @@ import { type BlockRendererMap, DocHeader, EditorProvider, type EditorView } fro
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
+import { PdfFirstPage } from "docblocks-react-ui/pdf";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
@@ -372,6 +373,7 @@ function SyncPane({
               blobStore={blobStore}
               blockRenderers={BLOCK_RENDERERS}
               syncEmbedResolver={syncEmbedResolver}
+              pdfPreview={PdfFirstPage}
             >
               <MotionEditor view={view} />
             </EditorProvider>

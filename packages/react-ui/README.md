@@ -14,7 +14,7 @@ npm i docblocks-react-ui docblocks-core
 
 Peer dependencies: `docblocks-core`, `react` (18 or 19), `react-dom`.
 Optional peers, used only by their subpaths: `framer-motion` (`./motion`),
-`mermaid` (`./mermaid`).
+`mermaid` (`./mermaid`), `pdfjs-dist` (`./pdf`).
 
 ## Usage
 
@@ -28,11 +28,31 @@ import "docblocks-react-ui/styles.css";
 ```
 
 `EditorProvider` takes the core `Doc` (plus optional sync `provider`,
-`blockRenderers` overrides, `blobResolver`, and the sync-embed props). The
-`docblocks-react-ui/motion` subpath renders the editor with layout
+`blockRenderers` overrides, `blobResolver`, `blobStore`, and the sync-embed
+props). The `docblocks-react-ui/motion` subpath renders the editor with layout
 animations and drag-reorder (requires `framer-motion`);
 `docblocks-react-ui/mermaid` renders mermaid diagrams above
-`code { language: "mermaid" }` blocks (requires `mermaid`).
+`code { language: "mermaid" }` blocks (requires `mermaid`);
+`docblocks-react-ui/pdf` provides a first-page preview renderer for
+`pdf`-subtype image blocks (requires `pdfjs-dist`) — pass it as the
+`pdfPreview` provider prop to replace the built-in native iframe viewer:
+
+```tsx
+import { PdfFirstPage } from "docblocks-react-ui/pdf";
+
+<EditorProvider doc={doc} pdfPreview={PdfFirstPage}>
+  <Editor />
+</EditorProvider>;
+```
+
+Without the `pdfPreview` prop a `pdf`-subtype image block stands the native
+iframe viewer; if a preview render fails it falls back to that iframe, so the
+document always stays viewable.
+
+A `pdfPreview` renderer receives `{ id, url, name }` (`id` is the block id,
+`url` the resolved blob url, `name` the blob's display name) and should stamp
+`data-block-id={id} data-block-type="image"` on its rendered root, like the
+other block renderers (the drag and selection gestures key off these).
 
 ## Theming
 
