@@ -319,6 +319,7 @@ function CanvasView() {
       variant: block.attrs.variant,
       strokeColor: block.attrs.strokeColor,
       strokeWidth: block.attrs.strokeWidth,
+      strokeStyle: block.attrs.strokeStyle,
       arrowHead: block.attrs.arrowHead,
       arrowStart: block.attrs.arrowStart,
       mid,
@@ -1670,6 +1671,7 @@ function CanvasView() {
             variant={connectorToolbarTarget.variant}
             strokeColor={connectorToolbarTarget.strokeColor}
             strokeWidth={connectorToolbarTarget.strokeWidth}
+            strokeStyle={connectorToolbarTarget.strokeStyle}
             arrowHead={connectorToolbarTarget.arrowHead}
             arrowStart={connectorToolbarTarget.arrowStart}
             style={{

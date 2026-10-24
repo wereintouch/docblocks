@@ -240,7 +240,7 @@ describe("strict validation (validateDoc)", () => {
     expect(absent.some((e) => e.path === "blocks.c1.attrs.variant")).toBe(false);
   });
 
-  it("checks the connector style attrs (the strokeColor / strokeWidth / arrowHead / arrowStart, registry-driven)", () => {
+  it("checks the connector style attrs (the strokeColor / strokeWidth / strokeStyle / arrowHead / arrowStart, registry-driven)", () => {
     const conn = (attrs: Record<string, unknown>) =>
       withBlock("c1", { type: "connector", attrs: { start: { blockId: "f1" }, end: { blockId: "sh1" }, ...attrs } });
     // The width is the 1–4 integer stand.
@@ -260,9 +260,13 @@ describe("strict validation (validateDoc)", () => {
     // lenient read maps it — the read's pin below).
     const legacyBoolean = validateDoc(conn({ arrowStart: true }));
     expect(legacyBoolean.some((e) => e.path === "blocks.c1.attrs.arrowStart")).toBe(true);
+    // The stroke style's enum (solid / dash / dot; the absent value stands
+    // the solid render — the validator does not require it).
+    const badStyle = validateDoc(conn({ strokeStyle: "wavy" }));
+    expect(badStyle.some((e) => e.path === "blocks.c1.attrs.strokeStyle")).toBe(true);
     // The full set stands (the strict validator is clean).
     const valid = validateDoc(
-      conn({ strokeColor: "#ff0000", strokeWidth: 4, arrowHead: "circle", arrowStart: "circle" })
+      conn({ strokeColor: "#ff0000", strokeWidth: 4, strokeStyle: "dot", arrowHead: "circle", arrowStart: "circle" })
     );
     expect(valid.some((e) => e.path.startsWith("blocks.c1.attrs."))).toBe(false);
   });

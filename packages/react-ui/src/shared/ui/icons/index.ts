@@ -17,6 +17,7 @@ export { CodeXml } from "./CodeXml";
 export { Copy } from "./Copy";
 export { Curve } from "./Curve";
 export { Cylinder } from "./Cylinder";
+export { Dashed } from "./Dashed";
 export { Database } from "./Database";
 export { Diagonal } from "./Diagonal";
 export { Diamond } from "./Diamond";

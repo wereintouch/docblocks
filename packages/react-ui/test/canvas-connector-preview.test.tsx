@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // The connector's pending preview + the press-drag draw: after the first
-// endpoint pick a dashed cyan line stands from the pending block's edge
+// endpoint pick a solid cyan line stands from the pending block's edge
 // anchor to the cursor (the hover update runs before the buttons guard —
 // the button-less hover follows too), the press-drag's release over the
 // second item stands the pick (the creation), and the completion / cancel
@@ -64,7 +64,7 @@ const connectorsOf = (doc: TestDoc) =>
 afterEach(cleanup);
 
 describe("the connector's pending preview", () => {
-  it("the first pick stands the preview (the dashed line on the cyan token, the 1x1 svg)", () => {
+  it("the first pick stands the preview (the solid line on the cyan token, the 1x1 svg)", () => {
     const r = renderCanvas();
     fireEvent.click(r.view.querySelector<HTMLElement>('[data-tool="connector"]')!);
 
@@ -76,7 +76,9 @@ describe("the connector's pending preview", () => {
     expect(svg.getAttribute("width")).toBe("1");
     expect(svg.getAttribute("height")).toBe("1");
     expect(line!.getAttribute("stroke")).toBe("var(--docblocks-canvas-selection-border-color)");
-    expect(line!.getAttribute("stroke-dasharray")).toBe("6 4");
+    // The pending new line has no stroke style: it stands the solid default
+    // (per the data) — no dash pattern, the cyan color is the preview's stand.
+    expect(line!.getAttribute("stroke-dasharray")).toBeNull();
     // The anchor stands on the pending block's edge (the box's border),
     // the far end is the cursor point (the jsdom bbox is 0 — the canvas
     // point is the client point as-is).

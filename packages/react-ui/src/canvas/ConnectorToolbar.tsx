@@ -3,8 +3,10 @@
  * selection): the three line types (straight / orthogonal / curved), the
  * stroke color (the palette section — the hex is data, not theme), the
  * width (the 1–4 px dots, the FigureBorderSelector's parity with the
- * shape's border), and the two arrowheads' figures (none / arrow /
- * circle) — the start first, then the end, the two equal three-way menus
+ * shape's border), the stroke style (the solid / the dashed stand — the
+ * dot data renders but stands no pick), and the two arrowheads' figures
+ * (none / arrow / circle) — the start first, then the end, the two
+ * equal three-way menus
  * (the: the start stands its own figure, not a
  * copy of the end). Each pick is one `updateBlock` in one transact (one
  * undo step, one wire update). The toolbar is canvas chrome (its own
@@ -27,7 +29,7 @@ import {
   FigureBorderSelector,
 } from "../shared/ui";
 import { Separator } from "../shared/ui/Separator";
-import { ArrowRight, Circle, Curve, Diagonal, Elbow, Minus, Stroke } from "../shared/ui/icons";
+import { ArrowRight, Circle, Curve, Dashed, Diagonal, Elbow, Minus, Stroke } from "../shared/ui/icons";
 import { ColorSection } from "./shape-toolbar/ColorSection";
 import { BORDER_WIDTH_POINTS } from "./shape-toolbar/models";
 
@@ -46,6 +48,7 @@ function ConnectorToolbar({
   variant,
   strokeColor,
   strokeWidth,
+  strokeStyle,
   arrowHead,
   arrowStart,
   style,
@@ -54,6 +57,7 @@ function ConnectorToolbar({
   variant: "straight" | "orthogonal" | "curved" | undefined;
   strokeColor: string | undefined;
   strokeWidth: number | undefined;
+  strokeStyle: "solid" | "dash" | "dot" | undefined;
   arrowHead: "none" | "arrow" | "circle" | undefined;
   arrowStart: "none" | "arrow" | "circle" | undefined;
   /** The positioned style (the left/top at the line's midpoint). */
@@ -82,6 +86,30 @@ function ConnectorToolbar({
   };
 
   const widthIndex = WIDTH_POINTS.indexOf(Math.round(strokeWidth ?? DEFAULT_WIDTH));
+
+  // The line's stroke style (the solid / the dashed stand): the absent
+  // value stands the solid default; the dot data renders but stands no
+  // UI pick. A pick of the current style is the no-op stand (it writes
+  // nothing).
+  const currentStyle = strokeStyle ?? "solid";
+  const applyStyle = (next: "solid" | "dash") => {
+    if (next === currentStyle) return; // the no-op stand writes nothing
+    apply({ strokeStyle: next });
+  };
+
+  const styleOption = (next: "solid" | "dash", label: string, icon: ReactNode) => (
+    <Button
+      variant="ghost"
+      size="icon"
+      data-slot={`docblocks/connector-toolbar-${next}`}
+      aria-label={label}
+      aria-pressed={currentStyle === next}
+      title={label}
+      onClick={() => applyStyle(next)}
+    >
+      {icon}
+    </Button>
+  );
 
   const option = (next: "straight" | "orthogonal" | "curved", label: string, icon: ReactNode) => (
     <Button
@@ -195,6 +223,12 @@ function ConnectorToolbar({
           title="Line width (1–4 px)"
           className="mr-0.5"
         />
+        <Separator orientation="vertical" className="h-5" />
+        {/* The line's stroke style (the solid / the dashed stand — the
+            dot data renders but stands no pick; a re-pick of the current
+            style is the no-op stand). */}
+        {styleOption("solid", "Solid line", <Minus className="size-4" />)}
+        {styleOption("dash", "Dashed line", <Dashed className="size-4" />)}
         <Separator orientation="vertical" className="h-5" />
         {/* The two arrowheads' figures (the:
             the start first, then the end — the two equal three-way menus,

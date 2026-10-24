@@ -87,9 +87,17 @@ describe("the render conditions", () => {
     expect(document.querySelector('[data-slot="docblocks/connector-toolbar-straight"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="docblocks/connector-toolbar-orthogonal"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="docblocks/connector-toolbar-curved"]')).not.toBeNull();
-    // The absent variant: no pressed option (the default stands straight).
-    const pressed = document.querySelectorAll('[data-slot^="docblocks/connector-toolbar-"][aria-pressed="true"]');
-    expect(pressed.length).toBe(0);
+    // The absent variant: no pressed variant option (the default stands
+    // straight). The solid style option stands pressed (the absent style's
+    // default).
+    for (const v of ["straight", "orthogonal", "curved"]) {
+      expect(
+        document.querySelector(`[data-slot="docblocks/connector-toolbar-${v}"]`)?.getAttribute("aria-pressed")
+      ).toBe("false");
+    }
+    expect(
+      document.querySelector('[data-slot="docblocks/connector-toolbar-solid"]')?.getAttribute("aria-pressed")
+    ).toBe("true");
   });
 
   it("hides the toolbar for a shape selection (the shape toolbar stands instead)", () => {
@@ -155,6 +163,7 @@ describe("the style applies", () => {
   ): {
     strokeWidth?: number;
     strokeColor?: string;
+    strokeStyle?: "solid" | "dash" | "dot";
     arrowHead?: "none" | "arrow" | "circle";
     arrowStart?: "none" | "arrow" | "circle";
   } {
@@ -248,6 +257,48 @@ describe("the style applies", () => {
     if (start === null || end === null) throw new Error("the arrowhead menus are missing");
     // The start menu precedes the end menu in the toolbar's DOM order.
     expect(start.compareDocumentPosition(end) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("the stroke style's pick applies the strokeStyle (the solid default; the no-op stand writes nothing)", () => {
+    const { doc, connector } = seededDoc();
+    const { view } = renderCanvas(doc);
+    selectBlock(view as HTMLElement, connector, true);
+
+    // The two style options stand (the solid / the dashed).
+    expect(document.querySelector('[data-slot="docblocks/connector-toolbar-solid"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/connector-toolbar-dash"]')).not.toBeNull();
+
+    // The absent stand is the solid default: the solid pick is the no-op
+    // stand (it writes nothing).
+    const before = JSON.stringify(doc.toJSON());
+    fireEvent.click(screen.getByLabelText("Solid line"));
+    expect(JSON.stringify(doc.toJSON())).toBe(before);
+    expect(styleOf(doc, connector).strokeStyle).toBeUndefined();
+
+    // The dashed pick: one updateBlock (one undo step).
+    fireEvent.click(screen.getByLabelText("Dashed line"));
+    expect(styleOf(doc, connector).strokeStyle).toBe("dash");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    // The current (dashed) option stands pressed, the solid does not.
+    expect(document.querySelector('[data-slot="docblocks/connector-toolbar-dash"]')?.getAttribute("aria-pressed")).toBe(
+      "true"
+    );
+    expect(
+      document.querySelector('[data-slot="docblocks/connector-toolbar-solid"]')?.getAttribute("aria-pressed")
+    ).toBe("false");
+
+    // A re-pick of the current (dashed) style is the no-op stand (it writes
+    // nothing).
+    const beforeDash = JSON.stringify(doc.toJSON());
+    fireEvent.click(screen.getByLabelText("Dashed line"));
+    expect(JSON.stringify(doc.toJSON())).toBe(beforeDash);
+    expect(styleOf(doc, connector).strokeStyle).toBe("dash");
+
+    // The solid pick: the switch back (one updateBlock, one undo step).
+    fireEvent.click(screen.getByLabelText("Solid line"));
+    expect(styleOf(doc, connector).strokeStyle).toBe("solid");
+    doc.undo();
+    expect(styleOf(doc, connector).strokeStyle).toBe("dash");
   });
 
   it("the palette's pick applies the strokeColor (the data color; the none stand is the theme token)", () => {

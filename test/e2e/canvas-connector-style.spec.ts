@@ -317,4 +317,63 @@ test.describe("the connector's style attrs", () => {
       await close();
     }
   });
+
+  // The stroke style's solid / dashed picks: the dasharray
+  // over the wire (the data stand on the line in both panes), the no-op
+  // stand (a re-pick of the current style writes nothing), and the one-step
+  // undo. The pending preview line stands the solid default (the new line
+  // has no style) — the cyan color is the preview's stand, not a dash.
+  test("the stroke style's solid / dashed picks (the dasharray over the wire, the no-op stand, the undo)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "canvas-conn-stroke-style");
+    try {
+      await a.getByTestId("view-a-canvas").click();
+      await b.getByTestId("view-b-canvas").click();
+      await seedLine(a, "a");
+      await expect
+        .poll(
+          async () => (await b.locator('[data-testid="doc-b"] [data-slot="docblocks/canvas-item"]').count()) >= 3,
+          SETTLE
+        )
+        .toBe(true);
+
+      // The line's press: the straight line runs through the canvas center.
+      const box = (await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').boundingBox())!;
+      await a.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      const toolbar = a.getByRole("toolbar", { name: "Connector options" });
+      await expect(toolbar).toBeVisible();
+      const line = a.locator("[data-connector-id]").first();
+
+      // The two style options stand (the solid / the dashed).
+      await expect(a.getByLabel("Solid line")).toBeVisible();
+      await expect(a.getByLabel("Dashed line")).toBeVisible();
+      // The solid default: no dasharray; the solid pick is the no-op stand.
+      expect(await line.getAttribute("stroke-dasharray")).toBeNull();
+      await a.getByLabel("Solid line").click();
+      expect((await connectorAttrs(a, "a"))?.strokeStyle).toBeUndefined();
+
+      // The dashed pick: one updateBlock (the dasharray stands over the wire
+      // in both panes).
+      await a.getByLabel("Dashed line").click();
+      await expect(line).toHaveAttribute("stroke-dasharray", "8 4");
+      await expect.poll(async () => (await connectorAttrs(a, "a"))?.strokeStyle, SETTLE).toBe("dash");
+      await expect.poll(async () => (await connectorAttrs(b, "b"))?.strokeStyle, SETTLE).toBe("dash");
+      const lineB = b.locator("[data-connector-id]").first();
+      await expect(lineB).toHaveAttribute("stroke-dasharray", "8 4");
+
+      // The no-op stand: a re-pick of the current (dashed) writes nothing.
+      const beforeDash = JSON.stringify(await connectorAttrs(a, "a"));
+      await a.getByLabel("Dashed line").click();
+      expect(JSON.stringify(await connectorAttrs(a, "a"))).toBe(beforeDash);
+
+      // The one-step undo: the dashed's revert stands the solid back.
+      await a.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]').focus();
+      await a.keyboard.press("Control+z");
+      await expect.poll(async () => (await connectorAttrs(a, "a"))?.strokeStyle, SETTLE).toBeUndefined();
+      await expect.poll(async () => await line.getAttribute("stroke-dasharray"), SETTLE).toBeNull();
+    } finally {
+      await close();
+    }
+  });
 });
