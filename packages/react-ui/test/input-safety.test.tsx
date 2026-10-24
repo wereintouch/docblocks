@@ -638,7 +638,7 @@ describe("code gestures (the soft-line family: Enter line break / exit, Backspac
   });
 });
 
-describe("the code/latex paste target (the raw text)", () => {
+describe("the code paste target (the raw text)", () => {
   let codeId: BlockId = "";
 
   /** A doc with one code block (the optional text). */
@@ -709,25 +709,6 @@ describe("the code/latex paste target (the raw text)", () => {
     });
 
     expect(doc.getText(codeId)).toBe("a\nb\nc");
-  });
-
-  it("the latex target stands the plain payload when the html is present", () => {
-    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-    const id = doc.insertBlock("latex", { display: true });
-    render(
-      <EditorProvider doc={doc}>
-        <Editor />
-      </EditorProvider>
-    );
-    const inner = document.querySelector<HTMLElement>(`[data-block-id="${id}"] [data-slot="docblocks/block-content"]`);
-    expect(inner, "the latex block should carry the inner editable").not.toBeNull();
-    caretAtEmpty(inner!);
-
-    act(() => {
-      dispatchPaste(inner!, "$$ y = x $$\n$$ z $$", "<pre>$$ y = x $$</pre>");
-    });
-
-    expect(doc.getText(id)).toBe("$$ y = x $$\n$$ z $$");
   });
 });
 

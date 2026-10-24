@@ -40,7 +40,6 @@ describe("insertBlock", () => {
     const q = doc.insertBlock("quote", { align: "center" });
     const c = doc.insertBlock("callout");
     const code = doc.insertBlock("code");
-    const latex = doc.insertBlock("latex", { display: true });
     const table = doc.insertBlock("table", { cols: 2 });
     const row = doc.insertBlock("table-row", undefined, { parent: table });
     const c1 = doc.insertBlock("table-cell", undefined, { parent: row });
@@ -62,22 +61,7 @@ describe("insertBlock", () => {
     const frame = doc.insertBlock("frame", undefined, { parent: surface });
     const canvasText = doc.insertBlock("canvas-text", undefined, { parent: surface });
 
-    expect(doc.getChildren("r")).toEqual([
-      p,
-      h,
-      li,
-      q,
-      c,
-      code,
-      latex,
-      table,
-      image,
-      embed,
-      sync,
-      database,
-      divider,
-      surface,
-    ]);
+    expect(doc.getChildren("r")).toEqual([p, h, li, q, c, code, table, image, embed, sync, database, divider, surface]);
     expect(doc.getChildren(table)).toEqual([row]);
     expect(doc.getChildren(row)).toEqual([c1, c2]);
     expect(doc.getChildren(surface)).toEqual([shape, connector, frame, canvasText]);

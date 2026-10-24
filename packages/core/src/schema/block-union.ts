@@ -32,8 +32,6 @@ import type {
   HeadingBlock,
   ImageAttrs,
   ImageBlock,
-  LatexAttrs,
-  LatexBlock,
   ListItemAttrs,
   ListItemBlock,
   ParagraphAttrs,
@@ -57,7 +55,6 @@ type Block =
   | WithGeometry<ListItemBlock>
   | WithGeometry<CalloutBlock>
   | WithGeometry<CodeBlock>
-  | WithGeometry<LatexBlock>
   | WithGeometry<TableBlock>
   | WithGeometry<TableRowBlock>
   | WithGeometry<TableCellBlock>
@@ -94,7 +91,6 @@ type BlockAttrsPatch = Partial<
     ListItemAttrs &
     Omit<CalloutAttrs, "variant"> &
     CodeAttrs &
-    LatexAttrs &
     TableAttrs &
     ImageAttrs &
     EmbedAttrs &

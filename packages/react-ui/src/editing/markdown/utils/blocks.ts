@@ -109,44 +109,6 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
       continue;
     }
 
-    // The $$ math block (single-line or up to the closing line).
-    if (trimmed.startsWith("$$")) {
-      closeParagraph();
-      const single = trimmed.match(/^\$\$(.*)\$\$$/);
-      if (single !== null) {
-        blocks.push({ type: "latex", indent: 0, attrs: {}, runs: [{ text: single[1]!.trim(), marks: {} }] });
-        i += 1;
-        continue;
-      }
-      const content: string[] = trimmed.slice(2).trim() === "" ? [] : [trimmed.slice(2).trim()];
-      i += 1;
-      let closed = false;
-      while (i < lines.length) {
-        const body = (lines[i] ?? "").trim();
-        if (body === "$$" || body.endsWith("$$")) {
-          if (body !== "$$") content.push(body.slice(0, -2));
-          closed = true;
-          i += 1;
-          break;
-        }
-        content.push(lines[i] ?? "");
-        i += 1;
-      }
-      if (!closed) {
-        // The unclosed $$ degrades to literal text (the lenient posture).
-        paragraph.push({ text: "$$", literal: false });
-        for (const c of content) paragraph.push({ text: c, literal: false });
-        continue;
-      }
-      blocks.push({
-        type: "latex",
-        indent: 0,
-        attrs: {},
-        runs: content.every((l) => l.trim() === "") ? [] : [{ text: content.join("\n"), marks: {} }],
-      });
-      continue;
-    }
-
     // The GFM table: the header row + the separator row of the SAME width, then the `|` rows.
     if (trimmed.includes("|") && i + 1 < lines.length && isTableSeparator(lines[i + 1] ?? "")) {
       closeParagraph();
@@ -294,12 +256,11 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
   return blocks.map(decodeBlockEntities);
 }
 
-/** The one-pass entity decode over a run list (the text, the link href, the math tex). */
+/** The one-pass entity decode over a run list (the text, the link href). */
 function decodeRuns(runs: TextRun[]): TextRun[] {
   return runs.map((run) => {
     const marks: MarkSet = { ...run.marks };
     if (marks.link !== undefined) marks.link = { href: decodeEntities(marks.link.href) };
-    if (marks.math !== undefined) marks.math = { tex: decodeEntities(marks.math.tex) };
     return { text: decodeEntities(run.text), marks };
   });
 }

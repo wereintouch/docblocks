@@ -302,9 +302,9 @@ describe("the edge cases", () => {
     expect(runsOf(single("<code><https://a.b></code>").runs)).toEqual([["<https://a.b>", { code: true }]]);
   });
 
-  it("the entities decode in the code block and the math content too", () => {
+  it("the entities decode in the code block and the literal text too", () => {
     const code = single("```\n&amp;lt;\n```");
     expect(textOf(code.runs)).toBe("&lt;");
-    expect(textOf(single("a $x &amp; y$ b").runs)).toBe("a x & y b");
+    expect(textOf(single("a $x &amp; y$ b").runs)).toBe("a $x & y$ b");
   });
 });

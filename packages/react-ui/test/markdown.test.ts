@@ -1,6 +1,6 @@
 // The markdown paste parser (the `text/plain` paste branch): the full
 // syntax corpus — the block pass (headings, paragraphs, lists, quotes,
-// code, dividers, tables, images, math) and the inline pass (the marks
+// code, dividers, tables, images) and the inline pass (the marks
 // with nesting, the escapes, the lenient fallbacks). Pure function, no
 // DOM — the node environment.
 import { describe, expect, it } from "vitest";
@@ -316,41 +316,29 @@ describe("mdToBlocks — images", () => {
   });
 });
 
-describe("mdToBlocks — math", () => {
-  it("the single-line $$ is the latex block", () => {
+describe("mdToBlocks — the `$$`/`$` math syntax (the literal-text degrade)", () => {
+  it("the single-line $$ degrades to the literal paragraph text", () => {
     const block = single("$$ x^2 $$");
-    expect(block.type).toBe("latex");
-    expect(textOf(block.runs)).toBe("x^2");
+    expect(block.type).toBe("paragraph");
+    expect(block.runs).toEqual([{ text: "$$ x^2 $$", marks: {} }]);
   });
 
-  it("the multi-line $$ block", () => {
-    const block = single("$$\na = b\nc = d\n$$");
-    expect(block.type).toBe("latex");
-    expect(textOf(block.runs)).toBe("a = b\nc = d");
-  });
-
-  it("the empty $$ is an empty latex block", () => {
-    const block = single("$$\n$$");
-    expect(block.type).toBe("latex");
-    expect(block.runs).toEqual([]);
-  });
-
-  it("the latex content is a plain run (no marks)", () => {
-    const block = single("$$ x^2 + y^2 $$");
-    expect(block.runs).toEqual([{ text: "x^2 + y^2", marks: {} }]);
-  });
-
-  it("the unclosed $$ degrades to the literal text", () => {
-    const blocks = mdToBlocks("$$\nabc");
+  it("the multi-line $$ degrades to the literal paragraph lines", () => {
+    const blocks = mdToBlocks("$$\na = b\nc = d\n$$");
     expect(blocks.map((b) => b.type)).toEqual(["paragraph"]);
-    expect(textOf(blocks[0]!.runs)).toBe("$$ abc");
+    expect(textOf(blocks[0]!.runs)).toBe("$$ a = b c = d $$");
   });
 
-  it("the inline $ is the exclusive math mark", () => {
+  it("the empty $$ degrades to the literal paragraph text", () => {
+    const blocks = mdToBlocks("$$\n$$");
+    expect(blocks.map((b) => b.type)).toEqual(["paragraph"]);
+    expect(textOf(blocks[0]!.runs)).toBe("$$ $$");
+  });
+
+  it("the inline $ stays literal (no math mark)", () => {
     const block = single("before $x^2$ after");
     expect(block.type).toBe("paragraph");
-    expect(block.runs.map((r) => textOf([r]))).toEqual(["before ", "x^2", " after"]);
-    expect(block.runs[1]!.marks.math).toEqual({ tex: "x^2" });
+    expect(block.runs).toEqual([{ text: "before $x^2$ after", marks: {} }]);
   });
 
   it("the spaced or the unclosed $ stays literal", () => {
@@ -450,11 +438,6 @@ describe("mdToBlocks — inline marks", () => {
     const block = single("<https://x.com> and <mailto:a@b.c>");
     const linkRuns = block.runs.filter((r) => r.marks.link !== undefined);
     expect(linkRuns.map((r) => r.marks.link)).toEqual([{ href: "https://x.com" }, { href: "mailto:a@b.c" }]);
-  });
-
-  it("the math mark is exclusive: no inherited marks, even nested", () => {
-    const block = single("**$x$**");
-    expect(block.runs).toEqual([{ text: "x", marks: { math: { tex: "x" } } }]);
   });
 
   it("the backslash escape keeps the punctuation literal", () => {

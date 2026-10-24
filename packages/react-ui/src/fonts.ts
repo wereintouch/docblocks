@@ -12,7 +12,7 @@
  * - The shape text's font options (`SHAPE_FONT_OPTIONS` — the shape
  *   `fontFamily` attr's catalog; a consumer's own loaded font is addressable
  *   by its raw name — the absent / an unrecognized name falls to the raw name).
- * - The mono font (the code / latex blocks) — the `--docblocks-mono-
+ * - The mono font (the code block) — the `--docblocks-mono-
  *   font-family` token's default (the consumer's `--font-mono` override takes
  *   priority).
  *
@@ -39,7 +39,7 @@ const UI_FONT_ID = "Inter";
 const UI_FONT_STACK = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
 
 /**
- * The mono default's stack (the code / latex blocks). Stands the
+ * The mono default's stack (the code block). Stands the
  * `--docblocks-mono-font-family` token's default.
  */
 const MONO_FONT_STACK = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";

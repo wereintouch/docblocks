@@ -30,7 +30,7 @@ const SLIDE_SETTLE_MS = 400;
 const HANDLE_GRAB_STYLE = '[data-docblocks-motion] [data-slot="docblocks/gutter"] { cursor: grab; }';
 
 /** The text types whose built-in renderer renders the row's gutter handle (the row-level one stands for every other type). */
-const TEXT_ROW_TYPES = new Set(["paragraph", "quote", "heading", "callout", "list-item", "code", "latex"]);
+const TEXT_ROW_TYPES = new Set(["paragraph", "quote", "heading", "callout", "list-item", "code"]);
 
 interface RowItemProps {
   node: FlatNode;

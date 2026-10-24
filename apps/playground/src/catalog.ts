@@ -16,7 +16,7 @@ const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
 /**
  * The marks paragraph's fixed run layout: a plain run, one run per
  * non-exclusive mark, the combined bold+italic run, then the exclusive code
- * and math runs (math's tex matches its text, so the flat offsets stay sane).
+ * run.
  */
 const MARKS_LAYOUT: { text: string; marks: MarkSet }[] = [
   { text: "plain ", marks: {} },
@@ -29,7 +29,6 @@ const MARKS_LAYOUT: { text: string; marks: MarkSet }[] = [
   { text: "highlight ", marks: { highlight: { value: "#ffdd00" } } },
   { text: "bold italic ", marks: { bold: true, italic: true } },
   { text: "code ", marks: { code: true } },
-  { text: "x^2", marks: { math: { tex: "x^2" } } },
 ];
 
 declare global {
@@ -137,8 +136,6 @@ function buildCatalogDoc(doc: Doc): void {
     // registered on every pane).
     const mermaidCode = doc.insertBlock("code", { language: "mermaid" });
     doc.insertText(mermaidCode, 0, "graph TD\n A --> B");
-    const latex = doc.insertBlock("latex", { display: true });
-    doc.insertText(latex, 0, "E = mc^2");
 
     // Table 2x2 with a paragraph in every cell, explicit column widths, and
     // a row color (the first row) and a column color (the second column —

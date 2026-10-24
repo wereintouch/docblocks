@@ -186,7 +186,7 @@ describe("built-in renderers: image", () => {
   });
 });
 
-describe("built-in renderers: code and latex", () => {
+describe("built-in renderers: code", () => {
   it("renders a code block as a mono <pre> wrapper with an editable inner", () => {
     let codeId = "";
     const doc = renderDoc((d) => {
@@ -210,21 +210,6 @@ describe("built-in renderers: code and latex", () => {
       inner!.dispatchEvent(new Event("input", { bubbles: true }));
     });
     expect(doc.getText(codeId)).toBe("const x = 2;");
-  });
-
-  it("renders a latex block as a div wrapper with a contenteditable inner carrying the tex source", () => {
-    renderDoc((d) => {
-      const l = d.insertBlock("latex", { display: true });
-      d.insertText(l, 0, "e^{i\\pi} + 1");
-    });
-
-    const el = document.querySelector<HTMLElement>("div[data-block-type='latex']");
-    expect(el).not.toBeNull();
-    expect(el!.getAttribute("data-display")).toBe("true");
-    const inner = el!.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
-    expect(inner).not.toBeNull();
-    expect(inner!.getAttribute("contenteditable")).toBe("true");
-    expect(inner!.textContent).toBe("e^{i\\pi} + 1");
   });
 
   it("renders a divider as a styled <hr>", () => {

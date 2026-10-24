@@ -147,8 +147,6 @@ function insertCommand(doc: Doc, command: SlashCommand, at?: InsertBlockPosition
           : { language: command.attrs.language, ...ind },
         at
       );
-    case "latex":
-      return doc.insertBlock("latex", { display: command.attrs.display, ...ind }, at);
     case "divider":
       return doc.insertBlock("divider", ind.indent === undefined ? undefined : { ...ind }, at);
     case "table": {
@@ -263,9 +261,6 @@ function applySlashPlan(
                 break;
               case "code":
                 doc.changeBlockType(blockId, "code", command.attrs);
-                break;
-              case "latex":
-                doc.changeBlockType(blockId, "latex", command.attrs);
                 break;
               default:
                 break;

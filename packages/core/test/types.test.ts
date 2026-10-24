@@ -18,7 +18,6 @@ import type {
   Geometry,
   HeadingAttrs,
   ImageAttrs,
-  LatexAttrs,
   ListItemAttrs,
   MarkSet,
   ParagraphAttrs,
@@ -43,7 +42,6 @@ describe("block registry", () => {
       "group",
       "heading",
       "image",
-      "latex",
       "list-item",
       "paragraph",
       "quote",
@@ -64,7 +62,7 @@ describe("block registry", () => {
     // The remodeled page types: no children of their own; the LEGACY form
     // (still valid v1) keeps its child-type rules.
     const pageSet = [...(BLOCK_REGISTRY.root.childrenTypes ?? [])].sort();
-    for (const type of ["paragraph", "quote", "heading", "callout", "code", "latex"] as const) {
+    for (const type of ["paragraph", "quote", "heading", "callout", "code"] as const) {
       expect(BLOCK_REGISTRY[type].children, `${type} is structurally childless`).toBe(false);
       expect([...(BLOCK_REGISTRY[type].legacyChildrenTypes ?? [])].sort(), `${type} legacy form`).toEqual(pageSet);
     }
@@ -87,7 +85,6 @@ describe("block registry", () => {
       "list-item",
       "callout",
       "code",
-      "latex",
       "table",
       "image",
       "embed",
@@ -133,7 +130,6 @@ describe("block registry", () => {
       "group",
       "heading",
       "image",
-      "latex",
       "list-item",
       "paragraph",
       "quote",
@@ -149,7 +145,6 @@ describe("block registry", () => {
       "embed",
       "heading",
       "image",
-      "latex",
       "list-item",
       "paragraph",
       "quote",
@@ -167,7 +162,6 @@ describe("block registry", () => {
       "embed",
       "heading",
       "image",
-      "latex",
       "list-item",
       "paragraph",
       "quote",
@@ -195,7 +189,6 @@ describe("block registry", () => {
       "embed",
       "heading",
       "image",
-      "latex",
       "paragraph",
       "sync-embed",
     ]);
@@ -212,17 +205,16 @@ describe("marks registry", () => {
       "highlight",
       "italic",
       "link",
-      "math",
       "strike",
       "underline",
     ]);
   });
 
-  it("marks code and math as the only exclusive ones", () => {
+  it("marks code as the only exclusive one", () => {
     const exclusive = Object.entries(MARK_REGISTRY)
       .filter(([, spec]) => spec.exclusive)
       .map(([name]) => name);
-    expect(exclusive.sort()).toEqual(["code", "math"]);
+    expect(exclusive.sort()).toEqual(["code"]);
   });
 });
 
@@ -240,10 +232,9 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["link"]>().toEqualTypeOf<{ href: string } | undefined>();
     expectTypeOf<MarkSet["color"]>().toEqualTypeOf<{ value: string } | undefined>();
     expectTypeOf<MarkSet["highlight"]>().toEqualTypeOf<{ value?: string } | undefined>();
-    expectTypeOf<MarkSet["math"]>().toEqualTypeOf<{ tex: string } | undefined>();
   });
 
-  it("exposes the 22-type block union", () => {
+  it("exposes the 21-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
@@ -252,7 +243,6 @@ describe("type shapes", () => {
       | "list-item"
       | "callout"
       | "code"
-      | "latex"
       | "table"
       | "table-row"
       | "table-cell"
@@ -322,7 +312,6 @@ describe("type shapes", () => {
     expectTypeOf<ListItemAttrs["indent"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<CalloutAttrs["indent"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<CodeAttrs["indent"]>().toEqualTypeOf<number | undefined>();
-    expectTypeOf<LatexAttrs["indent"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<TableAttrs["indent"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<ImageAttrs["indent"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<EmbedAttrs["indent"]>().toEqualTypeOf<number | undefined>();

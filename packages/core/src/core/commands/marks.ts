@@ -20,8 +20,7 @@ type MarkInput =
   | { type: "bold" | "italic" | "strike" | "underline" | "code" }
   | { type: "link"; href: string }
   | { type: "color"; value: string }
-  | { type: "highlight"; value?: string }
-  | { type: "math"; tex: string };
+  | { type: "highlight"; value?: string };
 
 /** The mark name and the single-mark set the input maps to. */
 function markInputToMark(mark: MarkInput): { name: MarkName; markSet: MarkSet } {
@@ -35,8 +34,6 @@ function markInputToMark(mark: MarkInput): { name: MarkName; markSet: MarkSet } 
       return mark.value === undefined
         ? { name: "highlight", markSet: { highlight: {} } }
         : { name: "highlight", markSet: { highlight: { value: mark.value } } };
-    case "math":
-      return { name: "math", markSet: { math: { tex: mark.tex } } };
     case "bold":
       return { name: "bold", markSet: { bold: true } };
     case "italic":

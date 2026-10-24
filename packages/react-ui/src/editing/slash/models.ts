@@ -15,7 +15,6 @@ import {
   ListOrdered,
   Pilcrow,
   Quote,
-  Sigma,
   SquareCheck,
   SquareSplitVertical,
   Table,
@@ -40,7 +39,6 @@ type SlashCommand =
   | { label: string; icon: SlashIcon; type: "quote" }
   | { label: string; icon: SlashIcon; type: "callout" }
   | { label: string; icon: SlashIcon; type: "code"; attrs?: { language?: string } }
-  | { label: string; icon: SlashIcon; type: "latex"; attrs: { display: boolean } }
   | { label: string; icon: SlashIcon; type: "divider" }
   | { label: string; icon: SlashIcon; type: "image" }
   | { label: string; icon: SlashIcon; type: "database" }
@@ -59,7 +57,6 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Callout", icon: TextQuote, type: "callout" },
   { label: "Code block", icon: CodeXml, type: "code" },
   { label: "Code block (mermaid)", icon: CodeXml, type: "code", attrs: { language: "mermaid" } },
-  { label: "Formula", icon: Sigma, type: "latex", attrs: { display: false } },
   { label: "Divider", icon: SquareSplitVertical, type: "divider" },
   { label: "Image", icon: ImageIcon, type: "image" },
   { label: "Database", icon: Database, type: "database" },

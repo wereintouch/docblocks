@@ -273,18 +273,6 @@ function dispatchBuiltIn(
           number={number}
         />
       );
-    case "latex":
-      return (
-        <TextBlock
-          id={id}
-          block={block}
-          tag="div"
-          nested={nested}
-          collapsible={collapsible}
-          flat={flat}
-          number={number}
-        />
-      );
     case "divider":
       return (
         <hr
@@ -380,7 +368,6 @@ const BlockNodeView = memo(
       block.type === "heading" ||
       block.type === "callout" ||
       block.type === "code" ||
-      block.type === "latex" ||
       isListItem;
     if (custom !== undefined) {
       const view = custom({ id: node.id, block });

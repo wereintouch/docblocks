@@ -14,7 +14,7 @@ const fixture: DocJSON = {
   createdAt: "2026-10-08T10:00:00Z",
 
   blocks: {
-    d_8f3a2c: { type: "root", children: ["b01", "b02", "b03", "b03a", "b04", "b05", "b06", "b07", "b08"] },
+    d_8f3a2c: { type: "root", children: ["b01", "b02", "b03", "b03a", "b04", "b06", "b07", "b08"] },
 
     b01: { type: "heading", attrs: { level: 1 }, content: [{ text: "Migration", marks: {} }] },
 
@@ -39,8 +39,6 @@ const fixture: DocJSON = {
     },
 
     b04: { type: "code", attrs: { language: "ts" }, content: [{ text: "const a = 1\nconst b = 2", marks: {} }] },
-
-    b05: { type: "latex", attrs: { display: true }, content: [{ text: "e^{i\\pi} + 1 = 0", marks: {} }] },
 
     b06: { type: "table", attrs: { cols: 3 }, children: ["r1"] },
     r1: { type: "table-row", children: ["c1", "c2", "c3"] },

@@ -73,7 +73,7 @@ describe("deriveSlash", () => {
 
 describe("filterCommands", () => {
   it("stands the full list on an empty query", () => {
-    expect(filterCommands("")).toHaveLength(16);
+    expect(filterCommands("")).toHaveLength(15);
   });
 
   it("filters by a case-insensitive substring of the label", () => {

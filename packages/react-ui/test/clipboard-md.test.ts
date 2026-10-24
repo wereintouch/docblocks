@@ -2,8 +2,8 @@
  * The multi-block markdown paste (the text/plain branch): the applyMdPaste
  * integration over a real core Doc (no DOM). The pins: the block
  * materialization (the types, the attrs, the runs), the caret-block split
- * (prefix/suffix), the empty-block in-place conversion, the code/latex
- * targets (raw text), the cross-seam landing, the demotion in a
+ * (prefix/suffix), the empty-block in-place conversion, the code target
+ * (raw text), the cross-seam landing, the demotion in a
  * table-cell target, the indent re-base, the one-transact undo (one undo
  * step over the whole paste), and the inline html tags (the unified pass
  * over the real doc).
@@ -115,11 +115,10 @@ describe("applyMdPaste: the block materialization", () => {
     expect(bRuns).toEqual([{ text: "b", marks: { bold: true } }]);
   });
 
-  it("the $$ math lands as the latex block (the display attr is supplied)", () => {
+  it("the $$ math degrades to the literal paragraph text", () => {
     const { block } = one("$$ x^2 $$");
-    expect(block.type).toBe("latex");
-    expect(block.attrs).toMatchObject({ display: true });
-    expect(block.text).toBe("x^2");
+    expect(block.type).toBe("paragraph");
+    expect(block.text).toBe("$$ x^2 $$");
   });
 
   it("the standalone image lands with the src attr (verbatim)", () => {
@@ -233,7 +232,7 @@ describe("applyMdPaste: the caret-block split", () => {
   });
 });
 
-describe("applyMdPaste: the code/latex targets (the raw text)", () => {
+describe("applyMdPaste: the code target (the raw text)", () => {
   it("the code target takes the fence as data (no parsing, no new blocks)", () => {
     const { doc } = docWithParagraph("");
     const codeId = doc.insertBlock("code", { language: "md" });
@@ -241,13 +240,6 @@ describe("applyMdPaste: the code/latex targets (the raw text)", () => {
     expect(rootBlocks(doc).length).toBe(2); // the seat paragraph + the code
     expect(contentOf(doc, codeId)).toBe("# not a heading\n- not a list\n```\n");
     expect(landing).toEqual({ blockId: codeId, offset: 33 });
-  });
-
-  it("the latex target takes the $$ as data", () => {
-    const { doc } = docWithParagraph("");
-    const latexId = doc.insertBlock("latex", { display: true });
-    applyMdPaste(doc, latexId, 0, 0, "$$ y = $$");
-    expect(contentOf(doc, latexId)).toBe("$$ y = $$");
   });
 });
 

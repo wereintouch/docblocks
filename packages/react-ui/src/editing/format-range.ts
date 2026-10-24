@@ -25,7 +25,6 @@ const TOOLBAR_BLOCK_TYPES: ReadonlySet<string> = new Set([
   "heading",
   "list-item",
   "callout",
-  "latex",
   "table-cell",
 ]);
 
@@ -140,7 +139,6 @@ function alignOfBlock(block: Block): TextAlign | undefined {
     case "callout":
       return block.attrs?.align;
     case "heading":
-    case "latex":
     case "list-item":
       return block.attrs.align;
     case "table-cell":

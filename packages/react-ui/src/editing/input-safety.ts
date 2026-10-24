@@ -39,7 +39,7 @@ import { useSlashMenuApi } from "./slash";
  * block keeps the typewriter Tab: a `\t` at the caret), and a "/" typed in a
  * page text block opens the slash command menu — the character and the
  * query typed after it enter the doc as plain text (the menu filters on
- * the live suffix; code and latex keep the "/" as plain text).
+ * the live suffix; code keeps the "/" as plain text).
  * Quote, callout, and code blocks share the soft-line gesture family:
  * Enter on a non-empty line is a line break, Enter on the empty LAST line
  * exits (the preceding lines stand as the block, a new empty paragraph
@@ -90,10 +90,10 @@ function useBlockInput({
       const html = event.clipboardData.getData("text/html");
       const text = event.clipboardData.getData("text/plain");
 
-      // The code/latex targets take the plain payload even when the html is
-      // present (their data is the raw text — the html pipeline flattens
+      // The code target takes the plain payload even when the html is
+      // present (its data is the raw text — the html pipeline flattens
       // the lines and destroys the indentation).
-      const plainWins = blockType === "code" || blockType === "latex";
+      const plainWins = blockType === "code";
 
       // A cross-block range: the range is deleted as text and the paste
       // content lands at the seam — one transaction (one undo step, one
@@ -118,11 +118,11 @@ function useBlockInput({
             const deleted = doc.deleteTextRange(from, to);
             if (deleted === null) return;
             const seamBlock = doc.getBlock(deleted.blockId);
-            const seamRaw = seamBlock !== null && (seamBlock.type === "code" || seamBlock.type === "latex");
+            const seamRaw = seamBlock !== null && seamBlock.type === "code";
             const seamCellId = findParentId(doc, deleted.blockId);
             // The cell seam takes the plain payload only (no markdown
             // pipeline in a cell; an html-only payload degrades to its
-            // text), like the code/latex targets keep the raw text.
+            // text), like the code target keeps the raw text.
             const seamCell = seamCellId !== null && doc.getBlock(seamCellId)?.type === "table-cell";
             if (seamCell) {
               const plain = text !== "" ? text : plainTextOfHtml(html);
@@ -175,7 +175,7 @@ function useBlockInput({
       // A rich payload: apply the whitelist-flattened runs as doc commands;
       // the selection collapses to its end first, so the store-driven
       // rebuild lands the caret after the inserted text (the rebase path).
-      // The code/latex targets stand the plain payload (the plainWins gate
+      // The code target stands the plain payload (the plainWins gate
       // above) — the raw text is their data; the cell paragraphs stand
       // plain text only (the markdown pipeline does not run in a cell);
       // the html-only fallback keeps the old behavior for every other
@@ -208,7 +208,7 @@ function useBlockInput({
       restoreSelection(el, to, null);
       // The markdown paste (the text/plain branch, always-parsed): the
       // blocks materialize at the caret (the caret block split; the
-      // code/latex targets take the raw text) — one transact.
+      // code target takes the raw text) — one transact.
       const landing = applyMdPaste(doc, id, from, to, text);
       if (landing !== null) {
         if (landing.blockId === id) {
@@ -307,7 +307,7 @@ function useBlockInput({
       }
 
       // The slash trigger: a "/" with a collapsed caret in a page text block
-      // (paragraph, heading, list-item, callout, quote — code and latex are
+      // (paragraph, heading, list-item, callout, quote — code is
       // excluded: a "/" there is plain text) at any position and any indent
       // of the root page sequence (or the provider's entry root itself)
       // opens the command menu. The character stands in the doc as a regular

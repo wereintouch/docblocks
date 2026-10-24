@@ -1,7 +1,7 @@
 import type { TextRun } from "docblocks-core";
 
 /** The v1 block type a parsed block materializes. */
-type MdBlockType = "paragraph" | "heading" | "quote" | "list-item" | "code" | "latex" | "divider" | "image" | "table";
+type MdBlockType = "paragraph" | "heading" | "quote" | "list-item" | "code" | "divider" | "image" | "table";
 
 /** A parsed paste block: the v1 type, the nesting depth, the attrs, and the text. */
 interface MdPasteBlock {

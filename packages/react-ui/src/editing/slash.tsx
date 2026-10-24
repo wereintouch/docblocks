@@ -17,7 +17,7 @@
  * the shrunken query's end after a Backspace and close the menu wrongly.
  *
  * Trigger: a "/" keypress with a collapsed caret in a page text block
- * (paragraph, heading, list-item, callout — code and latex are excluded:
+ * (paragraph, heading, list-item, callout — code is excluded:
  * a "/" there is plain text) at any position and any indent of the root
  * page sequence (or the provider's entry root itself).
  *
@@ -46,7 +46,7 @@
  *
  * The command list (v1): the page block types creatable from default
  * attrs — text, headings 1-3, the three list kinds, callout, code (plain
- * and mermaid), latex, divider, and table. The table is the only insert
+ * and mermaid), divider, and table. The table is the only insert
  * command: it lands after the caret block (2×2, the default widths), the
  * caret block stands, and the caret seats in the table's first cell (the
  * empty-cell activation). The image is an upload insert (the blob bridge,
