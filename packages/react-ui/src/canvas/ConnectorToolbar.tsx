@@ -175,7 +175,15 @@ function ConnectorToolbar({
   return (
     <div
       data-slot="docblocks/canvas-chrome"
-      className="absolute z-50"
+      // The toolbar (the selected line's menu) stands the TOPMOST chrome:
+      // above the connector's endpoint handles (the port circles, z-50)
+      // and the world layer. At an equal z-index the handles — rendered
+      // after the toolbar in the canvas view — would paint over the menu
+      // in the overlap zone (the zone under the menu belongs to the menu:
+      // the port stands hidden and non-interactive there, and a click hits
+      // the menu). The handles keep their stand (re-anchor / the port snap)
+      // everywhere the menu does not cover them.
+      className="absolute z-60"
       style={{ ...style, transform: "translate(-50%, -100%)" }}
       onMouseDown={(event) => {
         // The press on the toolbar body (the triggers) keeps the canvas
