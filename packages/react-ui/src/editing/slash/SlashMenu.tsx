@@ -9,6 +9,7 @@ import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { locatePosition } from "../dom-offset";
 import { DatabaseSlashPicker } from "../slash-database-picker";
+import { SlashEmbedForm } from "../slash-embed-form";
 import type { SlashDerivation, SlashMenuProps } from "./models";
 import { blockTextOf, deriveSlash, filterCommands, liveCaretOf, slashInnerOf } from "./utils";
 
@@ -30,6 +31,9 @@ function SlashMenu({
   databasePick,
   onDatabasePickCancel,
   onDatabaseCommit,
+  embedForm,
+  onEmbedCancel,
+  onEmbedCommit,
 }: SlashMenuProps) {
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
@@ -53,17 +57,17 @@ function SlashMenu({
   // of the query window).
   const [derived, setDerived] = useState<SlashDerivation | null>(null);
   useLayoutEffect(() => {
-    // The picker is standing (the input's focus is expected — the menu stays
-    // open over the phrase; the derivation is irrelevant while it stands).
-    if (databasePick) return;
+    // The picker / form is standing (the input's focus is expected — the menu
+    // stays open over the phrase; the derivation is irrelevant while it stands).
+    if (databasePick || embedForm) return;
     const caret = liveCaretOf(rootRef, state.blockId, state.slashOffset + 1);
     const derivation = deriveSlash(text, state.slashOffset, caret);
     setDerived(derivation);
     if (derivation.closed) onClose();
-  }, [text, state, rootRef, onClose, databasePick]);
+  }, [text, state, rootRef, onClose, databasePick, embedForm]);
 
   const items = derived === null ? [] : filterCommands(derived.query);
-  const visible = items.length > 0 || databasePick;
+  const visible = items.length > 0 || databasePick || embedForm;
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 
   // Anchor at the "/" character: below the line, or above it when the
@@ -145,7 +149,9 @@ function SlashMenu({
           onImageFile(file);
         }}
       />
-      {databasePick ? (
+      {embedForm ? (
+        <SlashEmbedForm onCommit={onEmbedCommit} onCancel={onEmbedCancel} />
+      ) : databasePick ? (
         <DatabaseSlashPicker onCommit={onDatabaseCommit} onCancel={onDatabasePickCancel} />
       ) : (
         <>

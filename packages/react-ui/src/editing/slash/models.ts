@@ -11,6 +11,7 @@ import {
   Heading2,
   Heading3,
   Image as ImageIcon,
+  Link,
   List,
   ListOrdered,
   Pilcrow,
@@ -31,6 +32,9 @@ const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
 /** A 24px-stroke icon component (the package icon set). */
 type SlashIcon = ComponentType<SVGProps<SVGSVGElement>>;
 
+/** The embed's kind (a renderer hint — all kinds render as an iframe in v1). */
+type EmbedKind = "iframe" | "github" | "figma" | "loom" | "html";
+
 /** One slash command: the block type, its default attrs, and the menu glyph. */
 type SlashCommand =
   | { label: string; icon: SlashIcon; type: "paragraph" }
@@ -41,6 +45,7 @@ type SlashCommand =
   | { label: string; icon: SlashIcon; type: "code"; attrs?: { language?: string } }
   | { label: string; icon: SlashIcon; type: "divider" }
   | { label: string; icon: SlashIcon; type: "image" }
+  | { label: string; icon: SlashIcon; type: "embed" }
   | { label: string; icon: SlashIcon; type: "database" }
   | { label: string; icon: SlashIcon; type: "table" };
 
@@ -59,6 +64,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Code block (mermaid)", icon: CodeXml, type: "code", attrs: { language: "mermaid" } },
   { label: "Divider", icon: SquareSplitVertical, type: "divider" },
   { label: "Image", icon: ImageIcon, type: "image" },
+  { label: "Embed", icon: Link, type: "embed" },
   { label: "Database", icon: Database, type: "database" },
   { label: "Table", icon: Table, type: "table" },
 ];
@@ -120,10 +126,14 @@ interface SlashMenuProps {
   databasePick: boolean;
   onDatabasePickCancel: () => void;
   onDatabaseCommit: (tableId: string) => void;
+  embedForm: boolean;
+  onEmbedCancel: () => void;
+  onEmbedCommit: (input: { kind: EmbedKind; src: string }) => void;
 }
 
 export { COMMAND_PALETTE_PLACEHOLDER, SLASH_COMMANDS };
 export type {
+  EmbedKind,
   OpenMenuKey,
   SlashApplyPlan,
   SlashCommand,

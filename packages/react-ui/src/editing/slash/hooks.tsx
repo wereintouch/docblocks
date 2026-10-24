@@ -11,7 +11,7 @@ import { useEditorContext } from "../../EditorProvider";
 import { focusCaretIn, segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
 import { SlashMenu } from "./SlashMenu";
-import type { OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
+import type { EmbedKind, OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
 import {
   applySlashPlan,
   blockTextOf,
@@ -54,16 +54,26 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const databasePickRef = useRef(false);
   databasePickRef.current = databasePick;
   const pendingDatabaseRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
+  // The slash Embed form: the open flag (the menu panel stands the form over
+  // the phrase) + the pending form context, committed on the form's commit.
+  const [embedForm, setEmbedForm] = useState(false);
+  const embedFormRef = useRef(false);
+  embedFormRef.current = embedForm;
+  const pendingEmbedRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
 
   const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
     setDatabasePick(false);
     pendingDatabaseRef.current = null;
+    setEmbedForm(false);
+    pendingEmbedRef.current = null;
     setState({ blockId, parentId, slashOffset, active: 0 });
   }, []);
 
   const close = useCallback(() => {
     setDatabasePick(false);
     pendingDatabaseRef.current = null;
+    setEmbedForm(false);
+    pendingEmbedRef.current = null;
     setState(null);
   }, []);
 
@@ -132,6 +142,14 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       if (command.type === "database") {
         pendingDatabaseRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
         setDatabasePick(true);
+        return;
+      }
+      // The embed is a form insert: the menu stands open (the phrase stays
+      // intact, the derivation stays live) while the form stands; the commit
+      // (phrase strip + the insert) lands on the form's commit.
+      if (command.type === "embed") {
+        pendingEmbedRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
+        setEmbedForm(true);
         return;
       }
       setState(null);
@@ -251,6 +269,49 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     [close, doc, rootRef]
   );
 
+  const commitEmbed = useCallback(
+    (input: { kind: EmbedKind; src: string }) => {
+      const pending = pendingEmbedRef.current;
+      pendingEmbedRef.current = null;
+      setEmbedForm(false);
+      if (pending === null) return;
+      const { blockId, parentId, slashOffset } = pending;
+      if (doc.getBlock(blockId) === null) return;
+      const scope = rootRef.current ?? document;
+      try {
+        doc.transact(() => {
+          const current = doc.getBlock(blockId);
+          if (current === null) return;
+          const indent = indentOf(current);
+          const ind = indent !== 0 ? { indent } : {};
+          const text = blockTextOf(current);
+          if (text.charAt(slashOffset) === "/") {
+            let queryEnd = slashOffset + 1;
+            while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
+            doc.deleteText(blockId, slashOffset, queryEnd);
+          }
+          const embedId = doc.insertBlock(
+            "embed",
+            { kind: input.kind, src: input.src, ...ind },
+            { parent: parentId, after: blockId }
+          );
+          const sequence = doc.getChildren(parentId);
+          if (sequence[sequence.length - 1] === embedId) {
+            const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: embedId });
+            focusCaretIn(trailingId, 0, scope);
+          } else {
+            focusCaretIn(blockId, slashOffset, scope);
+          }
+        });
+      } catch (error) {
+        if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
+        throw error;
+      }
+      close();
+    },
+    [close, doc, rootRef]
+  );
+
   const handleOpenMenuKey = useCallback(
     (key: OpenMenuKey, blockId: BlockId): boolean => {
       const s = stateRef.current;
@@ -267,6 +328,14 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         if (key.key === "Escape") {
           setDatabasePick(false);
           pendingDatabaseRef.current = null;
+          return true;
+        }
+        return false;
+      }
+      if (embedFormRef.current) {
+        if (key.key === "Escape") {
+          setEmbedForm(false);
+          pendingEmbedRef.current = null;
           return true;
         }
         return false;
@@ -342,9 +411,9 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     const onSelectionChange = () => {
       const s = stateRef.current;
       if (s === null) return;
-      // The picker is standing (the input's focus is expected — the menu
-      // stays open over the phrase until the pick commits or cancels).
-      if (databasePickRef.current) return;
+      // The picker / form is standing (the input's focus is expected — the
+      // menu stays open over the phrase until it commits or cancels).
+      if (databasePickRef.current || embedFormRef.current) return;
       const el = slashInnerOf(rootRef, s.blockId);
       if (el === null) {
         setState(null);
@@ -379,6 +448,12 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
           pendingDatabaseRef.current = null;
         }}
         onDatabaseCommit={commitDatabase}
+        embedForm={embedForm}
+        onEmbedCancel={() => {
+          setEmbedForm(false);
+          pendingEmbedRef.current = null;
+        }}
+        onEmbedCommit={commitEmbed}
       />
     ) : null;
 

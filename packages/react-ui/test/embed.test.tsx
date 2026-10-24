@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { act } from "react";
@@ -125,5 +125,118 @@ describe("renderer registry: embed", () => {
     expect(custom).not.toBeNull();
     expect(custom!.getAttribute("data-custom-src")).toBe("https://loom.com/x");
     expect(document.querySelector('iframe[data-slot="docblocks/embed"]')).toBeNull();
+  });
+});
+
+describe("embed pan/zoom (view state)", () => {
+  const EMBED_SELECTOR = 'iframe[data-slot="docblocks/embed"]';
+  const TOOLBAR_SELECTOR = '[data-slot="docblocks/embed-toolbar"]';
+  const ZOOM_LABEL_SELECTOR = '[data-slot="docblocks/embed-zoom"]';
+
+  function renderEmbed() {
+    const doc = renderDoc((d) => d.insertBlock("embed", { kind: "iframe", src: "https://example.com/page" }));
+    return doc;
+  }
+
+  it("the toolbar stands (zoom in / out / reset) over the iframe, hidden until the hover", () => {
+    renderEmbed();
+
+    const toolbar = document.querySelector<HTMLElement>(TOOLBAR_SELECTOR);
+    expect(toolbar).not.toBeNull();
+    // The hover reveal: the toolbar is in the DOM but display-none until the
+    // wrapper's `group-hover` (jsdom does not resolve the hover, so it stands
+    // `hidden` = display none).
+    expect(toolbar!.className).toContain("hidden");
+    expect(toolbar!.querySelector('[data-slot="docblocks/embed-zoom-in"]')).not.toBeNull();
+    expect(toolbar!.querySelector('[data-slot="docblocks/embed-zoom-out"]')).not.toBeNull();
+    expect(toolbar!.querySelector('[data-slot="docblocks/embed-zoom-reset"]')).not.toBeNull();
+    // The percent label stands the identity.
+    expect(document.querySelector<HTMLElement>(ZOOM_LABEL_SELECTOR)?.textContent).toBe("100%");
+    // The iframe stands the identity transform (the natural size, the top-left
+    // origin).
+    expect(document.querySelector<HTMLIFrameElement>(EMBED_SELECTOR)?.style.transform).toBe(
+      "translate(0px, 0px) scale(1)"
+    );
+  });
+
+  it("the zoom in / out stand the scale; the reset restores the identity", async () => {
+    renderEmbed();
+    const iframe = document.querySelector<HTMLIFrameElement>(EMBED_SELECTOR)!;
+    const label = document.querySelector<HTMLElement>(ZOOM_LABEL_SELECTOR)!;
+    const zoomIn = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-in']")!;
+    const zoomOut = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-out']")!;
+    const reset = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-reset']")!;
+
+    expect(reset.disabled).toBe(true);
+    expect(zoomOut.disabled).toBe(false);
+
+    await act(async () => {
+      fireEvent.click(zoomIn);
+    });
+    expect(iframe.style.transform).toContain("scale(1.2)");
+    expect(label.textContent).toBe("120%");
+    expect(reset.disabled).toBe(false);
+
+    await act(async () => {
+      fireEvent.click(zoomIn);
+    });
+    expect(label.textContent).toBe("144%");
+
+    await act(async () => {
+      fireEvent.click(reset);
+    });
+    expect(iframe.style.transform).toBe("translate(0px, 0px) scale(1)");
+    expect(label.textContent).toBe("100%");
+    expect(reset.disabled).toBe(true);
+
+    await act(async () => {
+      fireEvent.click(zoomOut);
+    });
+    expect(label.textContent).toBe("83%");
+  });
+
+  it("the zoom is clamped to the range and the no-op press writes nothing", async () => {
+    renderEmbed();
+    const iframe = document.querySelector<HTMLIFrameElement>(EMBED_SELECTOR)!;
+    const zoomIn = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-in']")!;
+    const zoomOut = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-out']")!;
+
+    // Push past the floor: the scale stands at the min, the press writes nothing
+    // (the transform is unchanged by the clamped press).
+    for (let i = 0; i < 20; i += 1) {
+      await act(async () => {
+        fireEvent.click(zoomOut);
+      });
+    }
+    expect(iframe.style.transform).toBe("translate(0px, 0px) scale(0.5)");
+    expect(zoomOut.disabled).toBe(true);
+
+    // Push past the ceiling.
+    for (let i = 0; i < 40; i += 1) {
+      await act(async () => {
+        fireEvent.click(zoomIn);
+      });
+    }
+    expect(iframe.style.transform).toBe("translate(0px, 0px) scale(4)");
+    expect(zoomIn.disabled).toBe(true);
+  });
+
+  it("the pan/zoom is PURE view state: the doc, the wire, and toJSON stay invariant", async () => {
+    const doc = renderEmbed();
+    const before = JSON.stringify(doc.toJSON());
+    const iframe = document.querySelector<HTMLIFrameElement>(EMBED_SELECTOR)!;
+    const zoomIn = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-in']")!;
+
+    await act(async () => {
+      fireEvent.click(zoomIn);
+    });
+    await act(async () => {
+      fireEvent.click(zoomIn);
+    });
+
+    expect(iframe.style.transform).toContain("scale(1.44)");
+    // The doc is untouched: the view state is not document data (one pane's
+    // pan/zoom never reaches the wire or the other pane).
+    expect(JSON.stringify(doc.toJSON())).toBe(before);
   });
 });
