@@ -96,6 +96,12 @@ interface ParagraphAttrs {
 
 interface CalloutAttrs {
   variant?: "info" | "warning" | "danger";
+  /** The color override (a hex); absent or `null` = the preset color per
+   *  `variant` (the null idiom — attrs are never removed). */
+  color?: string | null;
+  /** The icon override (a name from the callout's icon catalog); absent or
+   *  `null` = the preset icon per `variant`. */
+  icon?: string | null;
   align?: TextAlign;
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;

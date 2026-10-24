@@ -371,6 +371,57 @@ describe("updateBlock", () => {
   });
 });
 
+describe("callout color / icon (the preset + override)", () => {
+  it("round-trips the color/icon overrides (incl. the explicit null stand)", () => {
+    const doc = newDoc();
+    const co = doc.insertBlock("callout", { variant: "warning", color: "#ff0000", icon: "lightbulb" });
+    const attrs = { variant: "warning", color: "#ff0000", icon: "lightbulb" };
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs });
+    expect(doc.toJSON().blocks[co]).toEqual({ type: "callout", attrs });
+    // The JSON round-trip keeps the values (incl. an explicit null).
+    const reloaded = fromJSON(doc.toJSON());
+    expect(reloaded.getBlock(co)).toEqual({ type: "callout", attrs });
+    // Clearing an override stands null (the preset), keeping the variant + the other override.
+    doc.updateBlock(co, { color: null });
+    expect(doc.getBlock(co)).toEqual({
+      type: "callout",
+      attrs: { variant: "warning", color: null, icon: "lightbulb" },
+    });
+    expect(doc.toJSON().blocks[co]).toEqual({
+      type: "callout",
+      attrs: { variant: "warning", color: null, icon: "lightbulb" },
+    });
+  });
+
+  it("the preset switch (variant + the null overrides) is one transact, one undo step", () => {
+    const doc = newDoc();
+    const co = doc.insertBlock("callout", { variant: "info", color: "#ff0000", icon: "star" });
+    // The preset switch: the new variant + the overrides reset to null in one
+    // transact (the preset resets the individual overrides).
+    doc.transact(() => doc.updateBlock(co, { variant: "danger", color: null, icon: null }));
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "danger", color: null, icon: null } });
+    // One undo step restores the previous stand (the variant + the overrides).
+    doc.undo();
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "info", color: "#ff0000", icon: "star" } });
+  });
+
+  it("the individual override keeps the variant (the preset identity), one undo each", () => {
+    const doc = newDoc();
+    const co = doc.insertBlock("callout", { variant: "info" });
+    // An individual color override: the variant stands (the preset identity).
+    doc.updateBlock(co, { color: "#00ff00" });
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "info", color: "#00ff00" } });
+    // An individual icon override: the variant + color stand.
+    doc.updateBlock(co, { icon: "heart" });
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "info", color: "#00ff00", icon: "heart" } });
+    // One undo per individual change.
+    doc.undo();
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "info", color: "#00ff00" } });
+    doc.undo();
+    expect(doc.getBlock(co)).toEqual({ type: "callout", attrs: { variant: "info" } });
+  });
+});
+
 describe("moveBlock", () => {
   it("reorders within the same parent with pre-move index semantics", () => {
     const doc = newDoc();

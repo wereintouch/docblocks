@@ -396,6 +396,25 @@ describe("attributes", () => {
     expectError(withBlock("q", { type: "quote", attrs: { align: "justify" } }), "blocks.q.attrs.align", "one of");
   });
 
+  it("callout color/icon: hex/name/null stand; an invalid hex and an unknown name are rejected (strict)", () => {
+    // Absent (the preset default), a valid hex, and an explicit null = the
+    // preset (the null idiom).
+    expectValid(withBlock("c", { type: "callout", attrs: { variant: "info" } }));
+    expectValid(withBlock("c", { type: "callout", attrs: { variant: "info", color: "#ff0000" } }));
+    expectValid(withBlock("c", { type: "callout", attrs: { variant: "info", color: null } }));
+    expectValid(withBlock("c", { type: "callout", attrs: { variant: "info", icon: "info" } }));
+    expectValid(withBlock("c", { type: "callout", attrs: { variant: "info", icon: null } }));
+    expectValid(
+      withBlock("c", { type: "callout", attrs: { variant: "warning", color: "#ff0000", icon: "lightbulb" } })
+    );
+    // An invalid hex color is rejected.
+    expectError(withBlock("c", { type: "callout", attrs: { color: "red" } }), "blocks.c.attrs.color", "hex color");
+    expectError(withBlock("c", { type: "callout", attrs: { color: 5 } }), "blocks.c.attrs.color", "must be a string");
+    // An unknown icon name and a non-string icon are rejected (strict).
+    expectError(withBlock("c", { type: "callout", attrs: { icon: "not-an-icon" } }), "blocks.c.attrs.icon", "one of");
+    expectError(withBlock("c", { type: "callout", attrs: { icon: 5 } }), "blocks.c.attrs.icon", "one of");
+  });
+
   it("accepts a code block with the display attrs (incl. the empty-string caption)", () => {
     expectValid(
       withBlock("co", {

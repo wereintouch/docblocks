@@ -48,6 +48,8 @@ interface AttrSpec {
   nonEmpty?: boolean;
   /** `string`: must be a hex color #RRGGBB(AA). */
   hexColor?: boolean;
+  /** `string` / `enum`: `null` is a valid value (the "override cleared" idiom). */
+  nullable?: boolean;
 }
 
 /** Structural description of a block type. */
@@ -77,6 +79,34 @@ interface BlockSpec {
   /** Attribute schema; absent — the type has no attributes. */
   attrs?: Record<string, AttrSpec>;
 }
+
+/**
+ * The callout's icon catalog: the fixed set of icon names a callout's
+ * `icon` attr may stand (a kebab-case lucide name). The preset icon per
+ * variant (info → info, warning → triangle-alert, danger → circle-x) and
+ * any override name come from this set; the reader is lenient (an unknown
+ * name renders the preset) and the strict validator rejects it.
+ */
+const CALLOUT_ICONS: readonly string[] = [
+  "info",
+  "triangle-alert",
+  "circle-x",
+  "circle-check",
+  "circle-help",
+  "lightbulb",
+  "message-square",
+  "star",
+  "heart",
+  "zap",
+  "flag",
+  "lock",
+  "shield",
+  "book-open",
+  "ban",
+  "eye",
+  "sparkles",
+  "check",
+];
 
 /** The v1 block registry. */
 const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
@@ -118,7 +148,14 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     children: false,
     rows: false,
     legacyChildrenTypes: PAGE_BLOCK_TYPES,
-    attrs: { variant: { kind: "enum", values: ["info", "warning", "danger"] }, align: ALIGN },
+    attrs: {
+      variant: { kind: "enum", values: ["info", "warning", "danger"] },
+      // The color / icon overrides: null (or absent) = the preset per variant
+      // (the null idiom — attrs are never removed, null = "override cleared").
+      color: { kind: "string", hexColor: true, nullable: true },
+      icon: { kind: "enum", values: CALLOUT_ICONS, nullable: true },
+      align: ALIGN,
+    },
   },
   code: {
     content: true,
@@ -300,5 +337,5 @@ const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
   math: { kind: "attrs", exclusive: true, attr: "tex" },
 };
 
-export { BLOCK_REGISTRY, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };
+export { BLOCK_REGISTRY, CALLOUT_ICONS, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };
 export type { AttrSpec, BlockSpec, MarkSpec };
