@@ -3,7 +3,7 @@
  * Zero dependencies by design.
  */
 export { BLOCK_REGISTRY, CALLOUT_ICONS, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES } from "./registry";
-export type { AttrSpec, BlockSpec, MarkSpec } from "./registry";
+export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
 export { flattenDoc } from "./flatten";
 export {
   checkDatabaseCellValue,
@@ -51,6 +51,8 @@ export type {
   ListItemBlock,
   MarkName,
   MarkSet,
+  MentionKind,
+  MentionMark,
   PageIndent,
   ParagraphAttrs,
   ParagraphBlock,

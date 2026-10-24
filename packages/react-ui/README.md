@@ -54,6 +54,36 @@ A `pdfPreview` renderer receives `{ id, url, name }` (`id` is the block id,
 `data-block-id={id} data-block-type="image"` on its rendered root, like the
 other block renderers (the drag and selection gestures key off these).
 
+### Mentions
+
+The `mentionProvider` prop powers the `@` mention picker: typing `@` at a
+word boundary in a page text block (paragraph, heading, list item, callout,
+quote — a code block keeps `@` as plain text) opens a two-section picker
+(people and documents) anchored at the `@`. The provider searches its own
+catalog and returns `{ id, label }` entries:
+
+```ts
+const mentionProvider = {
+  searchUsers: async (query: string) => [
+    { id: "u1", label: "Ada Lovelace" },
+  ],
+  searchDocs: async (query: string) => [
+    { id: "d1", label: "API Reference" },
+  ],
+};
+
+<EditorProvider doc={doc} mentionProvider={mentionProvider}>
+  <Editor />
+</EditorProvider>;
+```
+
+A pick replaces the `@query` phrase with the label and stands the `mention`
+mark (the `kind` `"user"` or `"doc"`, the `id`, and the `label` snapshot) in
+one transaction — one undo step. The mention renders as an atomic, non-
+editable chip; copying it stands the `@label` plain text. Without the prop
+the `@` is plain text (no picker). The mark is non-exclusive (it composes
+with the other marks).
+
 ## Theming
 
 The editor carries no theme values in its component code: every theme-relevant
@@ -130,9 +160,9 @@ element (or a higher-specificity wrapper), for example:
 ```
 
 Tokens without a standard counterpart (`--docblocks-link-color`,
-`--docblocks-selection-background`, the callout warning colors, shadows,
-sizes, and the presence tokens) are package defaults and override the same
-way.
+`--docblocks-selection-background`, the callout warning colors, the mention
+chip colors, shadows, sizes, and the presence tokens) are package defaults
+and override the same way.
 
 The color palette's default swatches read the `--docblocks-palette-*`
 tokens (red, orange, yellow, green, cyan, blue, violet) plus the theme's

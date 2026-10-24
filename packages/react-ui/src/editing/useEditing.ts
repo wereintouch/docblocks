@@ -4,7 +4,7 @@ import type { ClipboardEvent, KeyboardEvent, PointerEvent, RefObject } from "rea
 import { useEditorContext } from "../EditorProvider";
 import { entrySequenceParent } from "../blocks/flat";
 import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection } from "./block-commands";
-import { crossRangeClipboardContent } from "./cross-copy";
+import { crossRangeClipboardContent, segmentOf } from "./cross-copy";
 import { useCrossDrag } from "./cross-drag";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
 
@@ -158,6 +158,37 @@ function useEditing(): EditingHandle {
     // covered segment of each chain block); same-block copies keep the
     // default copy.
     const selection = view.get();
+    // A same-block text range that includes a mention: serialize the segment
+    // (the mention copies as `@label`, not the chip's bare label). A segment
+    // without a mention keeps the default copy (the native fidelity).
+    if (
+      selection.kind === "text" &&
+      selection.to !== null &&
+      selection.to.blockId === selection.from.blockId &&
+      selection.from.offset < selection.to.offset
+    ) {
+      const block = doc.getBlock(selection.from.blockId);
+      const content = block !== null && "content" in block ? block.content : undefined;
+      if (content !== undefined) {
+        let runStart = 0;
+        let hasMention = false;
+        for (const run of content) {
+          const runEnd = runStart + run.text.length;
+          if (run.marks.mention !== undefined && runStart < selection.to.offset && runEnd > selection.from.offset) {
+            hasMention = true;
+            break;
+          }
+          runStart = runEnd;
+        }
+        if (hasMention) {
+          const segment = segmentOf(content, selection.from.offset, selection.to.offset);
+          event.preventDefault();
+          event.clipboardData.setData("text/plain", segment.text);
+          event.clipboardData.setData("text/html", segment.html);
+          return;
+        }
+      }
+    }
     const payload = crossRangeClipboardContent(doc, selection);
     if (payload === null) return;
     event.preventDefault();

@@ -18,6 +18,7 @@ function wrapRun(text: string, marks: TextRun["marks"]): string {
   if (marks.highlight?.value !== undefined)
     out = `<span style="background-color: ${marks.highlight.value}">${out}</span>`;
   if (marks.link !== undefined) out = `<a href="${escapeHtml(marks.link.href)}">${out}</a>`;
+  if (marks.mention !== undefined) out = `<span data-mention="${marks.mention.kind}">${out}</span>`;
   return out;
 }
 
@@ -32,7 +33,11 @@ function segmentOf(runs: readonly TextRun[], from: number, to: number): { text: 
     position = runEnd;
     if (runEnd <= from || runStart >= to) continue;
     const segment = run.text.slice(Math.max(from, runStart) - runStart, Math.min(to, runEnd) - runStart);
-    text += segment;
+    // The mention: the plain text is the `@label` form (the display is the
+    // label; the copy carries the `@` prefix). The mention is atomic, so the
+    // segment is the whole label (a partial slice degrades to the raw label).
+    const mention = run.marks.mention;
+    text += mention !== undefined && segment === run.text ? `@${segment}` : segment;
     html += wrapRun(segment, run.marks);
   }
   return { text, html };
@@ -69,4 +74,4 @@ function crossRangeClipboardContent(doc: Doc, selection: Selection): { text: str
   };
 }
 
-export { crossRangeClipboardContent };
+export { crossRangeClipboardContent, segmentOf };

@@ -9,6 +9,7 @@ import { BlockContext } from "./blocks/block-context";
 import { entrySequenceParent } from "./blocks/flat";
 import { FormatPaletteContext } from "./blocks/format-palette-context";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
+import { MentionMenuContext, useMentionMenu } from "./editing/mention";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
 import { PresenceCaretOverlay } from "./presence/presence-caret";
@@ -54,6 +55,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
   );
   const { rootRef, onKeyDown, onCopy, onPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
+  const mention = useMentionMenu(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
 
   return (
@@ -82,14 +84,17 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
         onPointerDown={onPointerDown}
       >
         <SlashMenuContext.Provider value={slash.api}>
-          <FormatPaletteContext.Provider value={formatPalette}>
-            <BlockContext.Provider value={rootContext}>
-              {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
-            </BlockContext.Provider>
-          </FormatPaletteContext.Provider>
+          <MentionMenuContext.Provider value={mention.api}>
+            <FormatPaletteContext.Provider value={formatPalette}>
+              <BlockContext.Provider value={rootContext}>
+                {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
+              </BlockContext.Provider>
+            </FormatPaletteContext.Provider>
+          </MentionMenuContext.Provider>
         </SlashMenuContext.Provider>
         <PresenceCaretOverlay rootRef={rootRef} />
         {slash.menuNode}
+        {mention.menuNode}
         {format.toolbarNode}
       </div>
     </Card>

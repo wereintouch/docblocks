@@ -20,6 +20,7 @@ import { PresencePanel } from "./inspect/PresencePanel";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
 import { CATALOG_MASTER_ID, createMasterRuntime, destroyMasterRuntime } from "./master";
 import type { MasterRuntime } from "./master";
+import { mentionProvider } from "./mention-provider";
 import { currentBlockOf, readBlocks } from "./pane-blocks";
 import type { PaneBlock } from "./pane-blocks";
 import { useBlockLabels } from "./useBlockLabels";
@@ -374,6 +375,7 @@ function SyncPane({
               blockRenderers={BLOCK_RENDERERS}
               syncEmbedResolver={syncEmbedResolver}
               pdfPreview={PdfFirstPage}
+              mentionProvider={mentionProvider}
             >
               <MotionEditor view={view} />
             </EditorProvider>

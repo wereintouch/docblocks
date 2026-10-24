@@ -519,6 +519,60 @@ describe("runs and marks", () => {
     expectError(withContent([run("x", { code: true, bold: true })]), "blocks.p.content[0].marks", "exclusive");
   });
 
+  it("the mention mark: kind enum + non-empty id/label, combinable", () => {
+    expectValid(withContent([run("@Jane", { mention: { kind: "user", id: "u1", label: "Jane" } })]));
+    expectValid(withContent([run("@Spec", { mention: { kind: "doc", id: "d9", label: "Spec" } })]));
+    // Combinable (non-exclusive): the mention composes with other marks.
+    expectValid(withContent([run("@Jane", { mention: { kind: "user", id: "u1", label: "Jane" }, bold: true })]));
+    // A bad kind enum.
+    expectError(
+      withContent([
+        { text: "x", marks: { mention: { kind: "page", id: "u1", label: "Jane" } as unknown as MarkSet["mention"] } },
+      ]),
+      "blocks.p.content[0].marks.mention.kind",
+      "one of"
+    );
+    // Missing id.
+    expectError(
+      withContent([
+        { text: "x", marks: { mention: { kind: "user", label: "Jane" } as unknown as MarkSet["mention"] } },
+      ]),
+      "blocks.p.content[0].marks.mention.id",
+      "requires"
+    );
+    // An empty id.
+    expectError(
+      withContent([{ text: "x", marks: { mention: { kind: "user", id: "", label: "Jane" } } }]),
+      "blocks.p.content[0].marks.mention.id",
+      "non-empty"
+    );
+    // Missing label.
+    expectError(
+      withContent([{ text: "x", marks: { mention: { kind: "user", id: "u1" } as unknown as MarkSet["mention"] } }]),
+      "blocks.p.content[0].marks.mention.label",
+      "requires"
+    );
+    // A non-string field.
+    expectError(
+      withContent([
+        { text: "x", marks: { mention: { kind: "user", id: 5, label: "Jane" } as unknown as MarkSet["mention"] } },
+      ]),
+      "blocks.p.content[0].marks.mention.id",
+      "must be a string"
+    );
+    // An unknown field.
+    expectError(
+      withContent([
+        {
+          text: "x",
+          marks: { mention: { kind: "user", id: "u1", label: "Jane", href: "x" } as unknown as MarkSet["mention"] },
+        },
+      ]),
+      "blocks.p.content[0].marks.mention.href",
+      "Unknown attribute"
+    );
+  });
+
   it("forbids marks inside code blocks", () => {
     expectError(
       {

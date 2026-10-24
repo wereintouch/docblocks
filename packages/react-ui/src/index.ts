@@ -12,6 +12,8 @@ export { EditorProvider, useEditorContext } from "./EditorProvider";
 export type {
   EditorContextValue,
   EditorProviderProps,
+  MentionEntry,
+  MentionProvider,
   PdfPreview,
   PdfPreviewProps,
   SyncEmbedResolver,

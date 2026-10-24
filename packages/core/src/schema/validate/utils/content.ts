@@ -5,7 +5,7 @@
  */
 import type { BlockType } from "../../block-union";
 import { MARK_REGISTRY } from "../../registry";
-import type { AttrSpec, BlockSpec } from "../../registry";
+import type { AttrSpec, BlockSpec, MarkFieldSpec } from "../../registry";
 import type { MarkName } from "../../types";
 import type { ValidationError } from "../models";
 import { isHexColor, isLinkHref, isPlainObject, show } from "./common";
@@ -185,6 +185,46 @@ function validateAttrs(
   }
 }
 
+/** The known fields of a multi-field `attrs` mark: each field's shape + no
+ *  unknown keys. */
+function validateMarkFields(
+  name: MarkName,
+  fields: Record<string, MarkFieldSpec>,
+  value: Record<string, unknown>,
+  markPath: string,
+  errors: ValidationError[]
+): void {
+  for (const [key, field] of Object.entries(fields)) {
+    const fieldValue = value[key];
+    if (fieldValue === undefined) {
+      if (field.required) {
+        errors.push({ path: `${markPath}.${key}`, message: `Mark "${name}" requires a "${key}" attribute.` });
+      }
+      continue;
+    }
+    if (typeof fieldValue !== "string") {
+      errors.push({
+        path: `${markPath}.${key}`,
+        message: `Mark "${name}" field "${key}" must be a string (got ${show(fieldValue)}).`,
+      });
+      continue;
+    }
+    if (field.enum !== undefined && !field.enum.includes(fieldValue)) {
+      errors.push({
+        path: `${markPath}.${key}`,
+        message: `Mark "${name}" field "${key}" must be one of ${field.enum.join(" | ")} (got ${show(fieldValue)}).`,
+      });
+    } else if (field.nonEmptyString && fieldValue.length === 0) {
+      errors.push({ path: `${markPath}.${key}`, message: `Mark "${name}" field "${key}" must be a non-empty string.` });
+    }
+  }
+  for (const key of Object.keys(value)) {
+    if (!(key in fields)) {
+      errors.push({ path: `${markPath}.${key}`, message: `Unknown attribute "${key}" for mark "${name}".` });
+    }
+  }
+}
+
 function validateMarks(blockType: BlockType, marks: unknown, path: string, errors: ValidationError[]): void {
   if (marks === undefined) {
     errors.push({ path, message: "run.marks is required (use {} when a run carries no marks)." });
@@ -218,6 +258,10 @@ function validateMarks(blockType: BlockType, marks: unknown, path: string, error
 
     if (!isPlainObject(value)) {
       errors.push({ path: markPath, message: `Mark "${name}" must be an object with attribute "${spec.attr}".` });
+      continue;
+    }
+    if (spec.fields !== undefined) {
+      validateMarkFields(name as MarkName, spec.fields, value, markPath, errors);
       continue;
     }
     for (const key of Object.keys(value)) {

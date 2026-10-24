@@ -305,6 +305,16 @@ for (const type of PAGE_BLOCK_TYPES) {
   BLOCK_REGISTRY[type].attrs = { ...BLOCK_REGISTRY[type].attrs, indent: INDENT };
 }
 
+/** A multi-field attribute of an `attrs` mark (e.g. `mention`). */
+interface MarkFieldSpec {
+  /** The field must be present. */
+  required: boolean;
+  /** The value must be a non-empty string. */
+  nonEmptyString?: boolean;
+  /** The value must be one of the given names (an enum). */
+  enum?: readonly string[];
+}
+
 /** Structural description of a mark. */
 interface MarkSpec {
   /** `toggle`: the mark value is `true`; `attrs`: the value is an object. */
@@ -315,6 +325,8 @@ interface MarkSpec {
   attr?: "href" | "value";
   /** Whether the attribute may be absent (highlight). */
   attrOptional?: boolean;
+  /** The known fields for a multi-field `attrs` mark (e.g. `mention`). */
+  fields?: Record<string, MarkFieldSpec>;
 }
 
 /** The v1 marks registry. */
@@ -325,9 +337,18 @@ const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
   underline: { kind: "toggle", exclusive: false },
   code: { kind: "toggle", exclusive: true },
   link: { kind: "attrs", exclusive: false, attr: "href" },
+  mention: {
+    kind: "attrs",
+    exclusive: false,
+    fields: {
+      kind: { required: true, enum: ["user", "doc"] },
+      id: { required: true, nonEmptyString: true },
+      label: { required: true, nonEmptyString: true },
+    },
+  },
   color: { kind: "attrs", exclusive: false, attr: "value" },
   highlight: { kind: "attrs", exclusive: false, attr: "value", attrOptional: true },
 };
 
 export { BLOCK_REGISTRY, CALLOUT_ICONS, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };
-export type { AttrSpec, BlockSpec, MarkSpec };
+export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec };

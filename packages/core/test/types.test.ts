@@ -205,6 +205,7 @@ describe("marks registry", () => {
       "highlight",
       "italic",
       "link",
+      "mention",
       "strike",
       "underline",
     ]);

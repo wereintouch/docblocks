@@ -21,6 +21,7 @@ import {
 import { applyMdPaste, applyRichPaste, plainTextOfHtml } from "./clipboard";
 import { handleCrossRangeKey } from "./cross-range-keys";
 import { caretOffsetIn, editorRootOf, restoreSelection } from "./dom-offset";
+import { useMentionMenuApi } from "./mention";
 import { mapDomSelection, selectionsEqual } from "./selection-mapping";
 import { useSlashMenuApi } from "./slash";
 
@@ -77,6 +78,7 @@ function useBlockInput({
 }) {
   const { doc, selection: selectionRef, store, rootBlockId } = useEditorContext();
   const slash = useSlashMenuApi();
+  const mention = useMentionMenuApi();
   // The cell context (the block is a table cell or lives in one): the cell
   // gestures own the keys — Enter is a soft line break at every position
   // (no split / no exit), Backspace at the line start is a no-op (no
@@ -340,6 +342,41 @@ function useBlockInput({
             // rebase rule keeps a caret at the insertion offset in place.
             declareLocalCaret(caret + 1);
             doc.insertText(id, caret, "/");
+            return;
+          }
+        }
+      }
+
+      // The mention trigger: an "@" with a collapsed caret in a page text
+      // block (the same page-text set as the slash; code is excluded — an
+      // "@" there is plain text) at a boundary (the start or after
+      // whitespace) opens the mention picker when a provider stands. The
+      // character stands in the doc as a regular one (the editor commits
+      // it; the browser's insertion is suppressed) — the picker tracks the
+      // text after it. Without a provider, or at a non-boundary, the "@" is
+      // plain text (the trigger declines and the key flows to the browser).
+      if (
+        mention !== null &&
+        event.key === "@" &&
+        !event.nativeEvent.isComposing &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey
+      ) {
+        const domSelection = window.getSelection();
+        if (domSelection === null || !domSelection.isCollapsed) return;
+        if (domSelection.anchorNode === null || !inner.contains(domSelection.anchorNode)) return;
+        const block = store.getState().blocks[id];
+        if (block === undefined) return;
+        const type = block.type;
+        const isPageText =
+          type === "paragraph" || type === "heading" || type === "list-item" || type === "callout" || type === "quote";
+        const inPageSequence = context.parentId === rootBlockId || id === rootBlockId;
+        if (isPageText && inPageSequence) {
+          const caret = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
+          if (mention.onMentionKey(event, id, context.parentId, caret)) {
+            declareLocalCaret(caret + 1);
+            doc.insertText(id, caret, "@");
             return;
           }
         }
