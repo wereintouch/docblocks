@@ -469,6 +469,70 @@ describe("setTitle", () => {
   });
 });
 
+describe("setAvatar", () => {
+  it("sets and clears the avatar in meta and JSON", () => {
+    const doc = newDoc();
+    expect(doc.meta.avatar).toBeUndefined();
+    expect(doc.toJSON().avatar).toBeUndefined();
+    doc.setAvatar("🦊");
+    expect(doc.meta.avatar).toBe("🦊");
+    expect(doc.toJSON().avatar).toBe("🦊");
+    doc.setAvatar(null);
+    expect(doc.meta.avatar).toBeUndefined();
+    expect(doc.toJSON().avatar).toBeUndefined();
+    // The empty string is the clear stand, like null.
+    doc.setAvatar("x");
+    doc.setAvatar("");
+    expect(doc.meta.avatar).toBeUndefined();
+    expect(doc.toJSON().avatar).toBeUndefined();
+  });
+
+  it("round-trips the avatar through JSON", () => {
+    const doc = newDoc();
+    doc.setAvatar("🦊");
+    const json = doc.toJSON();
+    expect(json.avatar).toBe("🦊");
+    const restored = fromJSON(json);
+    expect(restored.meta.avatar).toBe("🦊");
+    expect(restored.toJSON().avatar).toBe("🦊");
+    // The absent avatar stands off the JSON (no field).
+    const bare = newDoc();
+    expect("avatar" in bare.toJSON()).toBe(false);
+  });
+
+  it("one undo step per commit (the undo reverts the write, the redo reapplies)", () => {
+    const doc = newDoc();
+    doc.setAvatar("A");
+    doc.undo();
+    expect(doc.meta.avatar).toBeUndefined();
+    doc.redo();
+    expect(doc.meta.avatar).toBe("A");
+    // The clear is its own step (the undo restores the value).
+    doc.setAvatar(null);
+    doc.undo();
+    expect(doc.meta.avatar).toBe("A");
+  });
+
+  it("the no-op stand (the same value) writes nothing (no undo step, no wire update)", () => {
+    const doc = newDoc();
+    doc.setAvatar("A");
+    const settled = doc.encode();
+    doc.setAvatar("A"); // the no-op stand
+    // The no-op stand emits no wire update (the doc's state is unchanged).
+    expect(doc.encode()).toStrictEqual(settled);
+    // No undo step was created by the no-op: one undo reverts the "A" write.
+    doc.undo();
+    expect(doc.meta.avatar).toBeUndefined();
+  });
+
+  it("reads stay plain snapshots after setAvatar", () => {
+    const doc = newDoc();
+    doc.setAvatar("🦊");
+    const meta = doc.meta;
+    expect(JSON.parse(JSON.stringify(meta))).toEqual(meta);
+  });
+});
+
 describe("command guarantees", () => {
   it("same commands + injected id + counter generateId -> equal toJSON (determinism)", () => {
     const make = (): Doc => {

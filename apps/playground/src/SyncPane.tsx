@@ -1,4 +1,4 @@
-import { type BlockRendererMap, EditorProvider, type EditorView } from "docblocks-react-ui";
+import { type BlockRendererMap, DocHeader, EditorProvider, type EditorView } from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
@@ -362,6 +362,7 @@ function SyncPane({
               canvas
             </button>
           </div>
+          {runtime !== null && <DocHeader doc={runtime.doc} view={view} onViewChange={setView} />}
         </header>
         <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
           {runtime !== null && (

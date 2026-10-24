@@ -15,6 +15,10 @@ const WEB_URL = /^https?:\/\//i;
 const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:/i;
 
 const DOC_FIELDS = ["v", "id", "title", "createdAt", "blocks"] as const;
+/** The optional top-level document fields (known but not required). */
+const DOC_OPTIONAL_FIELDS = ["avatar"] as const;
+/** Every known top-level document field (the required plus the optional). */
+const KNOWN_DOC_FIELDS: readonly string[] = [...DOC_FIELDS, ...DOC_OPTIONAL_FIELDS];
 
 /** The known geometry fields (the strict shape rejects the rest). */
 const GEOMETRY_FIELDS = ["x", "y", "w", "h"] as const;
@@ -23,5 +27,15 @@ const GEOMETRY_FIELDS = ["x", "y", "w", "h"] as const;
  *  builds no deeper; a backend may allow more, it validates on its own). */
 const MAX_DATABASE_FILTER_DEPTH = 8;
 
-export { DOC_FIELDS, GEOMETRY_FIELDS, HEX_COLOR, ISO_8601, MAX_DATABASE_FILTER_DEPTH, SCHEME_PREFIX, WEB_URL };
+export {
+  DOC_FIELDS,
+  DOC_OPTIONAL_FIELDS,
+  GEOMETRY_FIELDS,
+  HEX_COLOR,
+  ISO_8601,
+  KNOWN_DOC_FIELDS,
+  MAX_DATABASE_FILTER_DEPTH,
+  SCHEME_PREFIX,
+  WEB_URL,
+};
 export type { ValidationError };

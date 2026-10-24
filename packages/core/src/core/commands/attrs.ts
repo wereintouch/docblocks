@@ -1,7 +1,7 @@
 /**
- * The attribute/title write commands: updateBlock, setTitle. A command
- * validates first (typed errors, no silent no-ops) and then mutates in one
- * transaction with the local origin.
+ * The attribute/title/avatar write commands: updateBlock, setTitle,
+ * setAvatar. A command validates first (typed errors, no silent no-ops) and
+ * then mutates in one transaction with the local origin.
  */
 import * as Y from "yjs";
 
@@ -139,4 +139,24 @@ function setTitle(ydoc: Y.Doc, text: string): void {
   });
 }
 
-export { setTitle, updateBlock };
+/**
+ * Sets the document's avatar (a short string / a few emoji). `null` and the
+ * empty string clear it (the field stands off). A set of the current value
+ * is the no-op stand (no write, no undo step, no wire update).
+ */
+function setAvatar(ydoc: Y.Doc, avatar: string | null): void {
+  const next = avatar === null ? "" : avatar;
+  const meta = ydoc.getMap("meta");
+  const current = meta.get("avatar");
+  const currentValue = typeof current === "string" ? current : "";
+  if (currentValue === next) return;
+  localTransact(ydoc, () => {
+    if (next === "") {
+      meta.delete("avatar");
+    } else {
+      meta.set("avatar", next);
+    }
+  });
+}
+
+export { setAvatar, setTitle, updateBlock };

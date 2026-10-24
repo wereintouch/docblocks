@@ -57,6 +57,8 @@ interface DocMeta {
   id: string;
   /** Document title (empty string is a valid state). */
   title: string;
+  /** The page avatar (a short string / a few emoji; absent or empty = none). */
+  avatar?: string;
   /** Creation time, ISO 8601. */
   createdAt: string;
 }

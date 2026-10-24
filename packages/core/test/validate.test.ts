@@ -140,6 +140,17 @@ describe("metadata", () => {
     expectError({ ...makeDoc(), title: 5 }, "title", "must be a string");
   });
 
+  it("accepts the optional avatar (a string) and its absence", () => {
+    expectValid(makeDoc()); // absent avatar is valid
+    expectValid({ ...makeDoc(), avatar: "🦊" });
+    expectValid({ ...makeDoc(), avatar: "" }); // the empty string is a valid (cleared) stand
+  });
+
+  it("rejects a non-string avatar", () => {
+    expectError({ ...makeDoc(), avatar: 5 }, "avatar", "must be a string");
+    expectError({ ...makeDoc(), avatar: { x: 1 } }, "avatar", "must be a string");
+  });
+
   it("rejects non-ISO createdAt values", () => {
     expectError({ ...makeDoc(), createdAt: "10/05/2026" }, "createdAt", "ISO 8601");
     expectError({ ...makeDoc(), createdAt: "2026-13-01T00:00:00Z" }, "createdAt", "ISO 8601");

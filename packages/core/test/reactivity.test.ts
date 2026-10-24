@@ -60,6 +60,37 @@ describe("onChange", () => {
     offText();
   });
 
+  it("fires with metaChanged for an avatar change and no block ids", () => {
+    const doc = withParagraph();
+    const changes: Change[] = [];
+    const off = doc.onChange((change) => changes.push(change));
+    doc.setAvatar("🦊");
+    expect(changes).toEqual([{ blockIds: [], metaChanged: true }]);
+    // The clear is its own emission.
+    changes.length = 0;
+    doc.setAvatar(null);
+    expect(changes).toEqual([{ blockIds: [], metaChanged: true }]);
+    // The no-op stand (the same value) fires nothing.
+    doc.setAvatar("🦊");
+    changes.length = 0;
+    doc.setAvatar("🦊");
+    expect(changes).toHaveLength(0);
+    off();
+  });
+
+  it("delivers the avatar change over the wire (the peer stands the value, the clear stands absent)", () => {
+    const base = withParagraph();
+    const state = base.encode();
+    const doc = loadDoc(state);
+    const peer = loadDoc(state);
+    peer.setAvatar("🦊");
+    doc.applyUpdate(peer.encodeUpdate(Y.encodeStateVector(doc.raw)));
+    expect(doc.meta.avatar).toBe("🦊");
+    peer.setAvatar(null);
+    doc.applyUpdate(peer.encodeUpdate(Y.encodeStateVector(doc.raw)));
+    expect(doc.meta.avatar).toBeUndefined();
+  });
+
   it("fires for remote updates too", () => {
     const base = withParagraph();
     const state = base.encode();

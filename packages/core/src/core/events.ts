@@ -17,7 +17,7 @@ import { readBlock, readText } from "./read";
  * per-block onBlock / observeText.
  */
 
-/** A document change: which block snapshots changed and whether the title changed. */
+/** A document change: which block snapshots changed and whether the meta (title / avatar) changed. */
 interface Change {
   /**
    * Every block whose snapshot changed (own fields or its children list).
@@ -25,7 +25,7 @@ interface Change {
    * removed block is included too (its children changed).
    */
   blockIds: BlockId[];
-  /** True when the document title changed. */
+  /** True when the document's meta (the title or the avatar) changed. */
   metaChanged: boolean;
 }
 
@@ -81,14 +81,14 @@ function pendingOf(hub: Hub): PendingChange {
   return hub.pending;
 }
 
-/** The meta observer: the title only; the Yjs-only `updatedAt` never counts. */
+/** The meta observer: the title and the avatar; the Yjs-only `updatedAt` never counts. */
 function observeMeta(hub: Hub, events: Y.YEvent<Y.AbstractType<unknown>>[]): void {
   const pending = pendingOf(hub);
   for (const event of events) {
     const path = event.path;
     // Paths are relative to the meta map: [] is the map itself, [title] the Y.Text.
     if (path.length === 0) {
-      if (event.keys.has("title")) pending.metaChanged = true;
+      if (event.keys.has("title") || event.keys.has("avatar")) pending.metaChanged = true;
     } else if (path[0] === "title") {
       pending.metaChanged = true;
     }

@@ -6,7 +6,7 @@
  */
 import type { BlockType } from "../../block-union";
 import { BLOCK_REGISTRY } from "../../registry";
-import { DOC_FIELDS } from "../models";
+import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../models";
 import type { ValidationError } from "../models";
 import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
 import { isIso8601, isPlainObject, show } from "./common";
@@ -17,7 +17,7 @@ function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): 
     if (!(field in doc)) errors.push({ path: field, message: `Missing required field "${field}".` });
   }
   for (const field of Object.keys(doc)) {
-    if (!(DOC_FIELDS as readonly string[]).includes(field)) {
+    if (!KNOWN_DOC_FIELDS.includes(field)) {
       errors.push({ path: field, message: `Unknown field "${field}".` });
     }
   }
@@ -30,6 +30,9 @@ function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): 
   }
   if ("title" in doc && typeof doc.title !== "string") {
     errors.push({ path: "title", message: `title must be a string (got ${show(doc.title)}).` });
+  }
+  if ("avatar" in doc && typeof doc.avatar !== "string") {
+    errors.push({ path: "avatar", message: `avatar must be a string (got ${show(doc.avatar)}).` });
   }
   if ("createdAt" in doc && !isIso8601(doc.createdAt)) {
     errors.push({
