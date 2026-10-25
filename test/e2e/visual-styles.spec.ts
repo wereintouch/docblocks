@@ -521,16 +521,19 @@ test("the editor root typography and the block spacing read the tokens", async (
   expect(rootStyle["line-height"]).toBe("25.6px");
 
   // A block wrapper's vertical spacing reads the spacing token (the old
-  // generic wrapper rule is the wrappers' classes), and the gutter sits
-  // in the left margin at the derived left-edge token.
+  // generic wrapper rule is the wrappers' classes), and the gutter stands
+  // in the left margin at the derived left-edge tokens: the grip at the
+  // band's left edge, the quick-insert plus one slot right of it.
   const paragraph = root.locator('[data-slot="docblocks/block"]').first();
   const margin = await styleProps(paragraph, "margin-top", "margin-bottom");
   expect(margin["margin-top"]).toBe("8px");
   expect(margin["margin-bottom"]).toBe("8px");
   const gutterStyle = await styleProps(paragraph.locator('[data-slot="docblocks/gutter"]'), "left", "top");
-  expect(gutterStyle["left"]).toBe("-48px");
+  expect(gutterStyle["left"]).toBe("-72px");
   // Centered on the first line: (16px * 1.6 - 20px) / 2 at the default font.
   expect(gutterStyle["top"]).toBe("2.8px");
+  const gutterPlusStyle = await styleProps(paragraph.locator('[data-slot="docblocks/gutter-plus"]'), "left");
+  expect(gutterPlusStyle["left"]).toBe("-48px");
 
   // The collapse toggle (a list item with children — the catalog's first
   // collapsible) stands in the gutter band, gap-1 clear of the content,

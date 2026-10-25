@@ -111,16 +111,21 @@
   /* Block selection. */
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);
   --docblocks-gutter-size: 20px;
+  /* The gutter's quick-insert plus (the empty paragraph under the item):
+     the grip's size, one slot right of the grip in the band. */
+  --docblocks-gutter-plus-size: 20px;
   --docblocks-gutter-color: var(--muted-foreground, #8b949e);
   --docblocks-collapse-size: 20px;
-  /* The page gutter band (every view): [outer px-2][grip][gap-1][collapse
-     triangle][gap-1][content] — 8px outer clearance, 4px between the grip,
-     the triangle, and the content. */
+  /* The page gutter band (every view): [outer px-2][grip][gap-1][plus][gap-1]
+     [collapse triangle][gap-1][content] — 8px outer clearance, 4px between
+     the grip, the plus, the triangle, and the content. */
   --docblocks-gutter-outer: 8px;
   --docblocks-gutter-gap: 4px;
-  /* The grip's right edge clears the block content by the collapse
-     triangle's slot plus the two gaps. */
-  --docblocks-gutter-offset: calc(var(--docblocks-collapse-size) + 2 * var(--docblocks-gutter-gap));
+  /* The grip's right edge clears the block content by the plus button's
+     slot, the collapse triangle's slot, and the three gaps. */
+  --docblocks-gutter-offset: calc(
+    var(--docblocks-gutter-plus-size) + var(--docblocks-collapse-size) + 3 * var(--docblocks-gutter-gap)
+  );
   /* The collapse triangle's left edge in the gutter band: its right edge
      gap-1 clear of the block content. */
   --docblocks-collapse-band-left: calc(-1 * (var(--docblocks-collapse-size) + var(--docblocks-gutter-gap)));
