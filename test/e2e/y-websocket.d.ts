@@ -1,7 +1,10 @@
 /**
  * Local typing of the untyped CJS subpath `y-websocket/bin/utils` (the
  * classic relay) — the exports the real-server spec uses, per the
- * package's `bin/utils.cjs`.
+ * package's `bin/utils.cjs`. The dependency is pinned to the exact
+ * 2.1.0 (the typed-version stand): the
+ * subpath is unversioned CJS, so a semver-major bump could change its
+ * shape silently; this file is the pin's type surface.
  */
 declare module "y-websocket/bin/utils" {
   import type { IncomingMessage } from "node:http";
