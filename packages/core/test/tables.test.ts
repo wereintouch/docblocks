@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DocBlocksError, InvalidOperationError, createDoc } from "../src/core";
+import { DocBlocksError, InvalidChildError, InvalidOperationError, createDoc } from "../src/core";
 import type { Doc } from "../src/core";
 import { validateDoc } from "../src/schema";
 
@@ -92,6 +92,40 @@ describe("moveBlock table-cell / table-row", () => {
     doc.moveBlock(r2, t1, 0); // complete row, matching cols
     expect(doc.getChildren(t1)).toEqual([r2, r1]);
     expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+});
+
+describe("moveBlock leaf text into / out of the cell's children (registry-legal)", () => {
+  /** A 1x1 table with the cell's id. */
+  const buildCell = (doc: Doc): string => {
+    const table = doc.insertBlock("table", { cols: 1 });
+    const row = doc.insertBlock("table-row", undefined, { parent: table });
+    return doc.insertBlock("table-cell", undefined, { parent: row });
+  };
+
+  it("a leaf text block moves into the cell's children and back to the page (the cell's children are leaf types)", () => {
+    const doc = newDoc();
+    const cell = buildCell(doc);
+    const p = doc.insertBlock("paragraph");
+
+    // Into the cell: the leaf text is registry-legal there.
+    doc.moveBlock(p, cell, 0);
+    expect(doc.getChildren(cell)).toEqual([p]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+
+    // Out of the cell, back to the page: legal in both directions.
+    doc.moveBlock(p, doc.meta.id, 1);
+    expect(doc.getChildren(cell)).toEqual([]);
+    expect(doc.getChildren(doc.meta.id)).toContain(p);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("a non-leaf type still cannot move into the cell's children (the child rule stands)", () => {
+    const doc = newDoc();
+    const cell = buildCell(doc);
+    const table = doc.insertBlock("table", { cols: 1 });
+    expectThrows(() => doc.moveBlock(table, cell, 0), InvalidChildError);
+    expect(doc.getChildren(cell)).toEqual([]);
   });
 });
 
