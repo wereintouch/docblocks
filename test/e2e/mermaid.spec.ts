@@ -105,6 +105,40 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
   };
 }
 
+test("the diagram follows the editor's theme (EXT-02: the dark stand + a flip re-renders)", async ({ browser }) => {
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  try {
+    await openPane(a, "a", "ext02-theme");
+    await insertType(a, "a", "code-mermaid");
+    const block = mermaidBlock(a, "a");
+    await switchToPreview(a, "a");
+    const diagram = block.locator('[data-slot="docblocks/mermaid"][data-state="diagram"] svg');
+    await expect(diagram).toHaveCount(1, SETTLE);
+
+    // The scoped <style> of the rendered svg carries the theme's stand:
+    // the dark theme renders the light ink on the dark canvas, the
+    // default theme the dark ink.
+    const readStyle = async () =>
+      a.evaluate(
+        () =>
+          document
+            .querySelector('[data-testid="doc-a"] [data-slot="docblocks/mermaid"][data-state="diagram"] svg')
+            ?.querySelector("style")?.textContent ?? "NO-STYLE"
+      );
+    // The harness loads dark by default.
+    expect(await readStyle()).toContain("font-size:16px;fill:#ccc");
+
+    // A theme flip (the dark class leaves <html>) re-renders the diagram
+    // in the default (light) theme.
+    await a.evaluate(() => document.documentElement.classList.remove("dark"));
+    await expect.poll(readStyle, SETTLE).not.toContain("font-size:16px;fill:#ccc");
+    expect(await readStyle()).toContain("font-size:16px;fill:#333");
+  } finally {
+    await context.close();
+  }
+});
+
 test("a mermaid code block inserted in A switches to the diagram in both panes", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ext02-mermaid");
 
