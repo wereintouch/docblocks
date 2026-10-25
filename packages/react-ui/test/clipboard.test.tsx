@@ -150,18 +150,24 @@ describe("rich clipboard paste", () => {
       });
     });
 
-    // The span maps color and background-color, drops the rest; the div and
-    // the img contribute text only, the script content is excluded — no raw
-    // nodes survive the store-driven rebuild.
+    // The span maps color and background-color, drops the rest; the div
+    // wrapper stands its own paragraph (transparent to the structure), the
+    // img and the script are excluded (the script content is metadata) —
+    // three blocks, no raw nodes survive the store-driven rebuild.
+    expect(doc.getText(paragraphId)).toBe("ab");
     expect(doc.getRuns(paragraphId)).toEqual([
       { text: "ab", marks: { color: { value: "#123456" }, highlight: { value: "#ff0000" } } },
-      { text: " cdef", marks: {} },
     ]);
+    const children = doc.getChildren(doc.meta.id).filter((id) => id !== paragraphId);
+    expect(children).toHaveLength(2);
+    expect(doc.getText(children[0]!)).toBe("cd");
+    expect(doc.getBlock(children[0]!)?.type).toBe("paragraph");
+    expect(doc.getText(children[1]!)).toBe("ef");
+    expect(doc.getBlock(children[1]!)?.type).toBe("paragraph");
     expect(inner.querySelectorAll("img, script").length).toBe(0);
-    expect(inner.textContent).toBe("ab cdef");
   });
 
-  it("collapses multi-line HTML into one line with a space at the block boundary", () => {
+  it("splits the multi-line HTML into the blocks at the block boundaries", () => {
     const doc = renderParagraph("");
     const inner = innerEl();
     caretAt(0);
@@ -170,8 +176,14 @@ describe("rich clipboard paste", () => {
       dispatchPaste(inner, { "text/html": "<p>one</p><p>two</p>" });
     });
 
-    expect(doc.getText(paragraphId)).toBe("one two");
-    expect(doc.getRuns(paragraphId)).toEqual([{ text: "one two", marks: {} }]);
+    // The first block merges into the caret block; the second stands its
+    // own paragraph (the block boundaries stand the blocks).
+    expect(doc.getText(paragraphId)).toBe("one");
+    expect(doc.getRuns(paragraphId)).toEqual([{ text: "one", marks: {} }]);
+    const children = doc.getChildren(doc.meta.id).filter((id) => id !== paragraphId);
+    expect(children).toHaveLength(1);
+    expect(doc.getBlock(children[0]!)?.type).toBe("paragraph");
+    expect(doc.getText(children[0]!)).toBe("two");
   });
 
   it("a code block receives the flattened text without marks", () => {

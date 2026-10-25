@@ -419,6 +419,105 @@ test("a cross paste replaces the range at the seam (one undo step)", async ({ br
   await close();
 });
 
+test("a rich cross paste materializes the blocks at the seam (the seam block stands; one undo step)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "c5d-rich-cross-paste");
+  await typeTwoBlocks(a, "a");
+  const blocks = await blocksOf(a, "a");
+  const [first, second] = [blocks[0]!, blocks[1]!];
+
+  // The rich payload: two paragraphs (the html wins over the plain at the
+  // seam — the rich branch of the pipeline).
+  await a.evaluate(async () => {
+    await navigator.clipboard.write([
+      new ClipboardItem({
+        "text/html": new Blob(["<p>m1</p><p>m2</p>"], { type: "text/html" }),
+        "text/plain": new Blob(["m1 m2"], { type: "text/plain" }),
+      }),
+    ]);
+  });
+
+  // The cross range from block 1's start to 5 chars into block 2 (both
+  // blocks keep their outside parts; block 1 is fully covered).
+  await selectAcrossBlocks(a, "a", 5, 1, false);
+  const sel = await domSelection(a);
+  expect(sel!.startBlock).toBe(first.id);
+  expect(sel!.endBlock).toBe(second.id);
+
+  // Read the real clipboard and dispatch the paste event to the focused
+  // inner (headless Chromium does not synthesize it from Control+v).
+  await a.evaluate(async () => {
+    let html: string | null = null;
+    let plain: string | null = null;
+    for (const item of await navigator.clipboard.read()) {
+      if (item.types.includes("text/html")) html = await (await item.getType("text/html")).text();
+      if (item.types.includes("text/plain")) plain = await (await item.getType("text/plain")).text();
+    }
+    if (html === null) throw new Error("the clipboard should carry the rich payload");
+    const target = document.activeElement;
+    if (!(target instanceof HTMLElement)) throw new Error("the paste target should be focused");
+    const transfer = new DataTransfer();
+    transfer.setData("text/html", html);
+    if (plain !== null) transfer.setData("text/plain", plain);
+    const event = new Event("paste", { bubbles: true, cancelable: true });
+    Object.defineProperty(event, "clipboardData", { value: transfer });
+    target.dispatchEvent(event);
+  });
+
+  // The range starts at block 1's start: block 1 is fully covered and
+  // removed; the seam is (block 2, 0) — the first pasted block merges into
+  // it (the seam block keeps its id; the peer carets rebase onto it), the
+  // second stands its own paragraph, and block 2's tail from the range end
+  // (the suffix) lands in the last pasted block.
+  await expect.poll(async () => blockOf(a, "a", first.id), SETTLE).toBeNull();
+  const tail = second.text.slice(sel!.endOffset);
+  await expect
+    .poll(async () => (await blockOf(a, "a", second.id))?.content?.map((run) => run.text).join(""), SETTLE)
+    .toBe("m1");
+  const blocksAfter = await blocksOf(a, "a");
+  const m2 = blocksAfter.find((block) => block.id !== second.id);
+  expect(m2).toBeDefined();
+  expect(m2!.text).toBe("m2" + tail);
+
+  // The other pane converges over the wire (the seam block + the new one).
+  await expect
+    .poll(async () => (await blockOf(b, "b", second.id))?.content?.map((run) => run.text).join(""), SETTLE)
+    .toBe("m1");
+  await expect
+    .poll(
+      async () =>
+        (await b.evaluate((id) => {
+          const doc = window.__paneDocs?.b;
+          if (doc === undefined || doc === null) return null;
+          const other = (doc.getChildren(doc.meta.id) as string[]).find((x) => x !== id);
+          return other === undefined ? null : doc.getText(other);
+        }, second.id)) ?? "",
+      SETTLE
+    )
+    .toBe("m2" + tail);
+
+  // The seam caret stands at the end of the last pasted block (the m2
+  // block — the landing of the material) — settle it before the undo
+  // hotkey, which the editor root receives by bubbling from the focus.
+  await expect
+    .poll(
+      async () => a.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("data-block-id") ?? ""),
+      SETTLE
+    )
+    .toBe(m2!.id);
+
+  // ONE undo step restores the whole replace (the delete + the material
+  // were one transaction); redo re-applies it.
+  await a.keyboard.press("Control+z");
+  expect((await blockOf(a, "a", first.id))?.content?.map((run) => run.text).join("")).toBe(first.text);
+  expect((await blockOf(a, "a", second.id))?.content?.map((run) => run.text).join("")).toBe(second.text);
+  await a.keyboard.press("Control+Shift+z");
+  expect(await blockOf(a, "a", first.id)).toBeNull();
+  expect((await blockOf(a, "a", second.id))?.content?.map((run) => run.text).join("")).toBe("m1");
+  await close();
+});
+
 test("a cross copy serializes the range from the doc (the default copy cannot cross the boundary)", async ({
   browser,
 }) => {

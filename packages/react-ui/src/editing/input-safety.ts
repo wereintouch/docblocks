@@ -134,9 +134,12 @@ function useBlockInput({
                 seam.landing = { blockId: deleted.blockId, offset: deleted.offset + normalized.length };
               }
             } else if (html !== "" && !(seamRaw && text !== "")) {
-              // The rich cross paste keeps the single-line pipeline.
-              const length = applyRichPaste(doc, deleted.blockId, deleted.offset, deleted.offset, html);
-              seam.landing = length > 0 ? { blockId: deleted.blockId, offset: deleted.offset + length } : null;
+              // The rich cross paste materializes at the seam (the multi-block
+              // pipeline over the seam's open transact; the seam block keeps
+              // its id — the peer carets rebase onto it).
+              seam.landing = applyRichPaste(doc, deleted.blockId, deleted.offset, deleted.offset, html, {
+                keepSeat: true,
+              });
             } else if (text !== "") {
               // The plain cross paste goes through the markdown pipeline at
               // the seam (one transact with the range deletion; the seam
@@ -184,7 +187,21 @@ function useBlockInput({
       // target when there is no plain to stand on.
       if (html !== "" && !inCell && (!plainWins || text === "")) {
         restoreSelection(el, to, null);
-        applyRichPaste(doc, id, from, to, html);
+        // The multi-block rich paste materializes at the caret (the caret
+        // block split; the code target takes the raw text) — one transact.
+        const landing = applyRichPaste(doc, id, from, to, html);
+        if (landing !== null) {
+          if (landing.blockId === id) {
+            // The store-driven rebuild consumes the declaration (the DOM
+            // selection set before the apply would be re-seated by it).
+            declareLocalCaret(landing.offset);
+          } else {
+            // The landing block is new (the multi-block paste): focusCaretIn
+            // defers to the next frame, after the mount.
+            const root = innerRef.current?.closest('[data-slot="docblocks/editor"]') ?? document;
+            focusCaretIn(landing.blockId, landing.offset, root);
+          }
+        }
         return;
       }
 
