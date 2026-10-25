@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import mermaid from "mermaid";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { act } from "react";
 
@@ -209,5 +210,55 @@ describe("MermaidCodeRenderer", () => {
     expect(nested, "the nested slot should stand after the replaced view").not.toBeNull();
     expect(nested!.getAttribute("data-slot")).toBe("docblocks/nested");
     expect(nested!.querySelector(`[data-block-id="${child}"]`), "the child renders inside").not.toBeNull();
+  });
+});
+
+describe("the editor-theme follow (EXT-02)", () => {
+  afterEach(() => {
+    cleanup();
+    document.querySelectorAll("body > div.dark").forEach((el) => el.remove());
+    vi.restoreAllMocks();
+  });
+
+  it("stands the dark theme for a dark editor and re-renders on a flip", async () => {
+    const spy = vi.spyOn(mermaid, "initialize");
+    const doc = mermaidDoc("graph TD\n A-->B", "preview");
+    // The dark class stands on a wrapper element (set imperatively — the
+    // theme contract is the `dark` class on the editor root or an
+    // ancestor).
+    const darkEl = document.createElement("div");
+    darkEl.className = "dark";
+    document.body.appendChild(darkEl);
+    render(
+      <EditorProvider doc={doc} blockRenderers={{ code: MermaidCodeRenderer }}>
+        <Editor />
+      </EditorProvider>,
+      { container: darkEl }
+    );
+
+    // The dark class stands on the wrapper: the theme effect detects it
+    // and the diagram's effect re-runs with the dark stand (the
+    // module-scope light stand and the first mount stand precede it in
+    // the call log).
+    await waitFor(
+      () => {
+        const last = spy.mock.calls.at(-1);
+        expect(last).toBeDefined();
+        expect(last![0]?.theme).toBe("dark");
+      },
+      { timeout: 1_000 }
+    );
+
+    // A flip to light (the class leaves the ancestor chain) re-stands
+    // the default theme.
+    darkEl.classList.remove("dark");
+    await waitFor(
+      () => {
+        const last = spy.mock.calls.at(-1);
+        expect(last).toBeDefined();
+        expect(last![0]?.theme).toBe("default");
+      },
+      { timeout: 1_000 }
+    );
   });
 });
