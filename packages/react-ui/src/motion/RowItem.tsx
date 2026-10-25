@@ -10,10 +10,13 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 import { useEditorContext } from "../EditorProvider";
 import { BlockNodeView } from "../blocks/BlockView";
 import { useBlockContext } from "../blocks/block-context";
+import { indentOf } from "../blocks/flat";
+import { insertParagraphAfter } from "../blocks/gutter-plus";
+import { editorRootOf } from "../editing/dom-offset";
 import { useBlock } from "../hooks";
 import { Button } from "../shared/ui/Button";
 import { cn } from "../shared/ui/cn";
-import { GripVertical } from "../shared/ui/icons";
+import { GripVertical, Plus } from "../shared/ui/icons";
 import { ANIMATE, ENTER, EXIT, TEXT_ROW_TYPES, TRANSITION } from "./models";
 import type { RowItemProps } from "./models";
 
@@ -100,6 +103,16 @@ const RowItem = memo(
       event.preventDefault();
     }, []);
 
+    /** Gutter plus: an empty paragraph under this row's block (one transact), the caret at its start. */
+    const onGutterPlusClick = useCallback(
+      (event: ReactMouseEvent<HTMLButtonElement>) => {
+        event.preventDefault();
+        const id = node.id;
+        insertParagraphAfter(doc, id, blockContext.parentId, indentOf(block), editorRootOf(rowRef.current ?? document));
+      },
+      [block, blockContext, doc, node.id, rowRef]
+    );
+
     return (
       <Reorder.Item
         as="div"
@@ -171,6 +184,34 @@ const RowItem = memo(
             }}
           >
             <GripVertical />
+          </Button>
+        )}
+        {needsRowGutter && (
+          <Button
+            type="button"
+            data-slot="docblocks/gutter-plus"
+            aria-label="Add block below"
+            variant="ghost"
+            size="icon"
+            onClick={onGutterPlusClick}
+            onMouseDown={onHandleMouseDown}
+            // The band's plus slot: one slot right of the grip (the grip's
+            // size + the band's gap), on the row's indent step as the grip.
+            className={cn(
+              "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-plus-size))/2)]",
+              "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
+              "text-(--docblocks-gutter-color)",
+              "size-5",
+              selected && "opacity-100"
+            )}
+            style={{
+              left: `calc(
+                ${previewIndent ?? node.indent} * var(--docblocks-nested-indent) +
+                var(--docblocks-gutter-left) + var(--docblocks-gutter-size) + var(--docblocks-gutter-gap)
+              )`,
+            }}
+          >
+            <Plus />
           </Button>
         )}
         <BlockNodeView node={node} flat />

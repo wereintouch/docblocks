@@ -6,11 +6,12 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "re
 import type { Block, BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
+import { editorRootOf } from "../editing/dom-offset";
 import { Button } from "../shared/ui/Button";
 import { Checkbox } from "../shared/ui/Checkbox";
 import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
-import { GripVertical, TriangleFilled } from "../shared/ui/icons";
+import { GripVertical, Plus, TriangleFilled } from "../shared/ui/icons";
 import { CodeCaption } from "./CodeCaption";
 import { CodeHighlight } from "./CodeHighlight";
 import { useBlockContext } from "./block-context";
@@ -19,6 +20,7 @@ import { isHighlightable } from "./code-highlight";
 import { measureCodeLines } from "./code-metrics";
 import type { CodeLineMetric } from "./code-metrics";
 import { indentOf, markerCycle, numberMarkerLabel } from "./flat";
+import { insertParagraphAfter } from "./gutter-plus";
 import { textOf, useTextInner } from "./text-inner";
 
 /** The text-editable block types (the wrapper tag and data attrs are props). */
@@ -154,6 +156,11 @@ function TextBlock({
   // keeps its text path, but the row chrome (the drag grip) and the
   // slash-command hint do not stand in a cell.
   const inCell = blockContext.parentType === "table-cell";
+  // The quick-insert plus is a page-sequence affordance: a canvas item's
+  // surface context stands the grip (the selection-only stand) but not the
+  // plus — its click would write a page paragraph into the surface's
+  // z-ordered children.
+  const onSurface = blockContext.parentType === "surface";
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
   // The marker's cycle index (1|2|3) from the block's indent — the
@@ -243,6 +250,34 @@ function TextBlock({
       wrapperRef.current?.focus();
     },
     [blockContext, doc, id, selectionRef]
+  );
+
+  /**
+   * The quick-insert plus classes: the reveal and the axis stand with the
+   * grip (centered on the first line), the position is the band's plus
+   * slot (the derived left, one slot right of the grip).
+   */
+  const gutterPlusClass = cn(
+    "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-plus-size))/2)]",
+    "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
+    "left-[calc(var(--docblocks-gutter-left)+var(--docblocks-gutter-size)+var(--docblocks-gutter-gap))]",
+    "text-(--docblocks-gutter-color)",
+    selected && "opacity-100"
+  );
+
+  /** Gutter plus: an empty paragraph under this block (one transact), the caret at its start. */
+  const onGutterPlusClick = useCallback(
+    (event: ReactMouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      insertParagraphAfter(
+        doc,
+        id,
+        blockContext.parentId,
+        indentOf(block),
+        editorRootOf(wrapperRef.current ?? document)
+      );
+    },
+    [block, blockContext, doc, id, wrapperRef]
   );
 
   /** Keep a mousedown on a block control from moving the text caret. */
@@ -463,6 +498,18 @@ function TextBlock({
     flatListShift === undefined ? undefined : { left: `calc(var(--docblocks-gutter-left) - ${flatListShift})` };
 
   /**
+   * The quick-insert plus position: one slot right of the grip in the gutter
+   * band (the grip's size + the band's gap). The flat list shift stands
+   * with the grip.
+   */
+  const gutterPlusShift =
+    flatListShift === undefined
+      ? undefined
+      : {
+          left: `calc(var(--docblocks-gutter-left) + var(--docblocks-gutter-size) + var(--docblocks-gutter-gap) - ${flatListShift})`,
+        };
+
+  /**
    * The task checkbox position (the list marker gutter; the Checkbox
    * primitive sizes itself). Centered on the first line like the gutter
    * band: the checkbox's box stands in the first line box, on the same
@@ -529,6 +576,21 @@ function TextBlock({
             style={gutterShift}
           >
             <GripVertical />
+          </Button>
+        )}
+        {!inCell && !onSurface && (
+          <Button
+            type="button"
+            data-slot="docblocks/gutter-plus"
+            aria-label="Add block below"
+            variant="ghost"
+            size="icon"
+            onClick={onGutterPlusClick}
+            onMouseDown={onControlMouseDown}
+            className={cn(gutterPlusClass, "size-5")}
+            style={gutterPlusShift}
+          >
+            <Plus />
           </Button>
         )}
         {block.type === "list-item" && block.attrs.list === "task" && (
