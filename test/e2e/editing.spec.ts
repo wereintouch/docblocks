@@ -170,3 +170,81 @@ test("mod+z outside the editor does not undo the document", async ({ browser }) 
 
   await close();
 });
+
+/** The DOM caret offset inside the given block's inner (negative = no seat). */
+function caretInBlock(page: Page, id: string, client: "a" | "b"): Promise<number> {
+  return page.evaluate(
+    ({ id, client }) => {
+      const inner = document.querySelector<HTMLElement>(
+        `[data-testid="doc-${client}"] [data-block-id="${id}"][data-slot="docblocks/block-content"]`
+      );
+      const selection = window.getSelection();
+      if (inner === null || selection === null || selection.rangeCount === 0) return -1;
+      if (selection.anchorNode === null || !inner.contains(selection.anchorNode)) return -2;
+      return selection.anchorOffset;
+    },
+    { id, client }
+  );
+}
+
+test("undo of a type change re-seats the caret in the remounted block", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ui02a-undo-reseat");
+  const para = paragraph(a, "a");
+  await para.click();
+  await a.keyboard.type("hello");
+  // The selectionchange mapping (the view's caret snapshot) settles
+  // after the last keystroke's event — the type change's snapshot reads
+  // the view at commit time.
+  await a.waitForTimeout(100);
+
+  const id: string | null = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a;
+    if (doc === undefined || doc === null) return null;
+    return doc.getChildren(doc.meta.id)[0] ?? null;
+  });
+  expect(id).not.toBeNull();
+
+  // The type change remounts the block (the div -> li swap): the forward
+  // remount is driven by the doc command directly (the undo's inverse
+  // remount is what the re-seat pins).
+  await a.evaluate((blockId) => {
+    const doc = window.__paneDocs?.a;
+    if (doc === undefined || doc === null) throw new Error("no pane doc");
+    doc.changeBlockType(blockId, "list-item", { list: "bullet" });
+  }, id!);
+  await expect
+    .poll(
+      async () => a.locator(`[data-testid="doc-a"] [data-block-type="list-item"][data-block-id="${id}"]`).count(),
+      SETTLE
+    )
+    .toBe(1);
+
+  // The remount drops the focus to the document: park it on the editor
+  // root (the hotkey's reach) and undo.
+  await a.locator('[data-testid="doc-a"] [data-slot="docblocks/editor"]').first().focus();
+  await a.keyboard.press("Control+z");
+
+  // The undo restored the paragraph and the caret stands in the remounted
+  // inner at the pre-gesture seat (the end of "hello"), not stranded on
+  // the document.
+  await expect
+    .poll(
+      async () => a.locator(`[data-testid="doc-a"] [data-block-type="paragraph"][data-block-id="${id}"]`).count(),
+      SETTLE
+    )
+    .toBe(1);
+  await expect.poll(async () => caretInBlock(a, id!, "a"), SETTLE).toBe(5);
+
+  // The redo takes the type change (and the remount) again: the same
+  // re-seat stands over it.
+  await a.keyboard.press("Control+Shift+z");
+  await expect
+    .poll(
+      async () => a.locator(`[data-testid="doc-a"] [data-block-type="list-item"][data-block-id="${id}"]`).count(),
+      SETTLE
+    )
+    .toBe(1);
+  await expect.poll(async () => caretInBlock(a, id!, "a"), SETTLE).toBe(5);
+
+  await close();
+});

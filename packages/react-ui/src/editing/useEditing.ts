@@ -3,7 +3,7 @@ import type { ClipboardEvent, KeyboardEvent, PointerEvent, RefObject } from "rea
 
 import { useEditorContext } from "../EditorProvider";
 import { entrySequenceParent } from "../blocks/flat";
-import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection } from "./block-commands";
+import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection, reseatHistorySelection } from "./block-commands";
 import { crossRangeClipboardContent, segmentOf } from "./cross-copy";
 import { useCrossDrag } from "./cross-drag";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
@@ -138,9 +138,17 @@ function useEditing(): EditingHandle {
     if (key === "z" && !event.shiftKey) {
       event.preventDefault();
       doc.undo();
+      // The inverse step may remount the restored selection's block (a
+      // type change): the remount takes the DOM caret and focus with the
+      // old element, so the restored selection re-seats the DOM.
+      if (view !== null) reseatHistorySelection(doc, view, root ?? document);
     } else if ((key === "z" && event.shiftKey) || key === "y") {
       event.preventDefault();
       doc.redo();
+      // The redo's step is the same remount case in the other direction
+      // (the forward type change takes the old element out from under
+      // the seat).
+      if (view !== null) reseatHistorySelection(doc, view, root ?? document);
     }
   };
 

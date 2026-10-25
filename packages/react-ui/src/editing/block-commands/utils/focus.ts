@@ -5,7 +5,7 @@
  * the browser focus and selection into the (possibly remounted) inner
  * editables.
  */
-import type { BlockId, Doc } from "docblocks-core";
+import type { BlockId, Doc, SelectionView } from "docblocks-core";
 
 import { editorRootOf, locatePosition, logicalTextOf, restoreSelection } from "../../dom-offset";
 import { findParentId } from "./commands";
@@ -72,15 +72,18 @@ function domParentBlockIdOf(el: HTMLElement): BlockId | null {
 /**
  * Whether the candidate inner is the SURVIVOR of the remount, not a framer
  * exit clone. On a wrapper-tag swap (list-item in/out) the exit clone
- * renders the block's NEW type at the OLD position: the clone's list-item
- * wrapper stands in a bare framer positioning div (never the list group),
- * and a non-list block's clone is an li — a wrong wrapper tag for the new
- * type. The survivor stands in its real structural parent.
+ * renders the block's NEW type at the OLD position — a wrong wrapper tag
+ * for the new type in one shape of the view, or a twin candidate (the
+ * count check's ambiguity stand) in the other. The survivor stands in a
+ * wrapper that matches the new type: a list-item in its li (the motion
+ * view's li stands directly under the row — the nesting is the indent
+ * data, no list wrapper — and the base view's li in the list run), any
+ * other type in a div.
  */
 function isSurvivorInner(el: HTMLElement, blockType: string): boolean {
   const wrapper = el.parentElement;
   if (blockType === "list-item") {
-    return wrapper?.tagName === "LI" && wrapper.parentElement?.matches('[data-slot="docblocks/list"]') === true;
+    return wrapper?.tagName === "LI";
   }
   return wrapper?.tagName === "DIV";
 }
@@ -184,6 +187,30 @@ function restoreSelectionIn(
 }
 
 /**
+ * Re-seat the DOM selection after an undo/redo whose inverse step
+ * remounts the target block (a type change): the core's selection view
+ * restores the doc selection from the step's pre-gesture snapshot, but
+ * the remount takes the DOM caret and focus with the old element. The
+ * seat rides the remount survivor watch (restoreSelectionIn): a
+ * text-only step leaves the DOM selection live in the same element (the
+ * store-driven text rebuild owns that restore) and the watch stops at
+ * the first seated attempt; a cross-block range reduces to a caret at
+ * the range's end (a cross-boundary DOM selection cannot stand from one
+ * inner).
+ */
+function reseatHistorySelection(doc: Doc, view: SelectionView, scope: ParentNode = document): void {
+  const selection = view.get();
+  if (selection.kind !== "text") return;
+  const from = selection.from;
+  const to = selection.to;
+  if (to !== null && to.blockId !== from.blockId) {
+    restoreSelectionIn(doc, to.blockId, to.offset, null, scope);
+    return;
+  }
+  restoreSelectionIn(doc, from.blockId, from.offset, to === null ? null : to.offset, scope);
+}
+
+/**
  * Re-base the browser's selection anchor at (anchorNode, anchorOffset) and
  * put the focus end at the flat offset in the target block (DOM-only: the
  * doc is untouched). The browser's shift+arrow cannot cross a contenteditable
@@ -204,4 +231,4 @@ function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: Bloc
   domSelection.setBaseAndExtent(anchorNode, anchorOffset, target.node, target.offset);
 }
 
-export { extendSelectionTo, focusCaretIn, focusCellActivation, restoreSelectionIn };
+export { extendSelectionTo, focusCaretIn, focusCellActivation, reseatHistorySelection, restoreSelectionIn };
