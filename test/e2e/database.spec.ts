@@ -2009,3 +2009,169 @@ test("the long text's cell: the double press stands the floating 6-row editor (t
     await close();
   }
 });
+
+test("the multi-enum / the multi row-links: the empty cell stands the multi editor (the first pick's array; the two picks' stand over the echo; the single's pick stands the scalar; the undo's per toggle)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-multiselect");
+  try {
+    // A fresh table over the shared bridge: the multi-enum (the demo's
+    // statuses' dict), the multi row-links (the linked's people), the
+    // single-enum + the single row-link (the regression's stand).
+    const tableId = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const id = await bridge.createTable("MultiSelect");
+      await bridge.createTable("LinkPeople");
+      await bridge.createColumn("table-linkpeople", { id: "name", name: "Name", type: "text" });
+      await bridge.insertRows("table-linkpeople", [{ name: "Ann" }, { name: "Bob" }]);
+      await bridge.createColumn(id, {
+        id: "tags",
+        name: "Tags",
+        type: "text",
+        refKind: "enum",
+        refTableId: "table-statuses",
+        refMany: true,
+      });
+      await bridge.createColumn(id, {
+        id: "owners",
+        name: "Owners",
+        type: "text",
+        refKind: "row",
+        refTableId: "table-linkpeople",
+        refMany: true,
+      });
+      await bridge.createColumn(id, {
+        id: "status",
+        name: "Status",
+        type: "text",
+        refKind: "enum",
+        refTableId: "table-statuses",
+      });
+      await bridge.createColumn(id, {
+        id: "owner",
+        name: "Owner",
+        type: "text",
+        refKind: "row",
+        refTableId: "table-linkpeople",
+      });
+      await bridge.insertRows(id, [{}]);
+      return id;
+    });
+    // The block's id scopes the grid (the doc's seed blocks stand the
+    // other grids — the `first`'s stand is out).
+    const blockA = await a.evaluate((id) => window.__paneDocs!.a!.insertBlock("database", { tableId: id }), tableId);
+    await b.evaluate((id) => window.__paneDocs!.b!.insertBlock("database", { tableId: id }), tableId);
+    const gridA = a.locator(`[data-block-id='${blockA}'] [data-slot='docblocks/database-grid']`);
+    await expect(gridA).toBeVisible(SETTLE);
+
+    const cell = (column: string) =>
+      gridA.locator(`[data-slot='docblocks/database-cell'][data-column-id='${column}'][data-row='0']`);
+    const chipsOf = (column: string) =>
+      cell(column).locator("[data-slot='docblocks/database-ref-chip']").allTextContents();
+    const option = (value: string) =>
+      a.locator(`[data-slot='docblocks/database-ref-multi-option'][data-option-value='${value}']`);
+    const bridgeCells = (pane: Page) =>
+      pane.evaluate(async (id) => {
+        const page = await window.__bridge!.queryRows(id, {});
+        return Object.values(page.rows)[0] as Record<string, unknown>;
+      }, tableId);
+
+    // ---- The multi-enum: the EMPTY cell stands the multi editor (the
+    // single-pick's stand is out) — the first pick commits the ARRAY.
+    await cell("tags").dblclick();
+    await expect(option("todo")).toBeVisible(SETTLE);
+    await expect(option("todo")).not.toHaveAttribute("data-state", "checked");
+    await option("todo").click();
+    await a.waitForTimeout(50);
+    await option("done").click();
+    await a.waitForTimeout(50);
+    // The two picks' stand: the chips' train (the joined text is out) +
+    // the array over both panes' bridges (the echo).
+    await expect(async () => {
+      expect(await chipsOf("tags")).toEqual(["todo", "done"]);
+    }).toPass({ timeout: 5_000 });
+    const cellsA = await bridgeCells(a);
+    expect(cellsA.tags).toEqual(["todo", "done"]);
+    const cellsB = await bridgeCells(b);
+    expect(cellsB.tags).toEqual(["todo", "done"]);
+
+    // The uncheck's stand: the chips' update + the array's stand.
+    await cell("tags").dblclick();
+    await expect(option("done")).toBeVisible(SETTLE);
+    await option("todo").click();
+    await a.waitForTimeout(50);
+    await expect(async () => {
+      expect(await chipsOf("tags")).toEqual(["done"]);
+    }).toPass({ timeout: 5_000 });
+    expect((await bridgeCells(a)).tags).toEqual(["done"]);
+
+    // ---- The undo's per toggle (the existing's contract): the two
+    // toggles' stand the two entries (the uncheck's + the add's). The
+    // outside press stands the popover's close (the modal layer's
+    // one-click stand); the grid's hotkey stands the undo over the
+    // table's focus (the cell's press stands the focus stand).
+    const chipsWait = (values: string[]) =>
+      expect(async () => {
+        expect(await chipsOf("tags")).toEqual(values);
+      }).toPass({ timeout: 5_000 });
+    // The cell's raw press: the popover's close (the outside press) + the
+    // table's focus stand (the cell's pointerdown stands it — the hotkey's
+    // reach; the popover's close stands the focus over the trigger's row,
+    // so the press stands the stand back).
+    const statusBox = await a.evaluate((id) => {
+      const scope = document.querySelector(`[data-block-id='${id}']`);
+      const el = scope?.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='status']");
+      const r = el?.getBoundingClientRect();
+      return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+    }, blockA);
+    expect(statusBox).not.toBeNull();
+    await a.mouse.move(statusBox!.x, statusBox!.y);
+    await a.mouse.down();
+    await a.mouse.up();
+    await a.keyboard.press("Control+Z");
+    await chipsWait(["todo", "done"]);
+    await a.keyboard.press("Control+Z");
+    await chipsWait(["todo"]);
+
+    // ---- The multi row-links: the same scenario over the linked's rows
+    // (the chips stand the resolved displays).
+    await cell("owners").dblclick();
+    const ownerOption = (rowId: string) =>
+      a.locator(`[data-slot='docblocks/database-ref-multi-option'][data-option-value='${rowId}']`);
+    await expect(ownerOption("r-table-linkpeople-1")).toBeVisible(SETTLE);
+    await ownerOption("r-table-linkpeople-1").click();
+    await a.waitForTimeout(50);
+    await ownerOption("r-table-linkpeople-2").click();
+    await a.waitForTimeout(50);
+    await expect(async () => {
+      expect(await chipsOf("owners")).toEqual(["Ann", "Bob"]);
+    }).toPass({ timeout: 5_000 });
+    expect((await bridgeCells(a)).owners).toEqual(["r-table-linkpeople-1", "r-table-linkpeople-2"]);
+
+    // ---- The single's pick stands the SCALAR (the regression): the
+    // single-enum's cell opens the Select (the multi's stand is out), the
+    // pick commits the string (not the array).
+    await cell("status").dblclick();
+    await expect(a.locator("[role='listbox']")).toBeVisible(SETTLE);
+    expect(await a.locator("[data-slot='docblocks/database-ref-multi-option']").count()).toBe(0);
+    await a.locator("[role='option']", { hasText: "doing" }).first().click();
+    await a.waitForTimeout(50);
+    const singleEnum = (await bridgeCells(a)).status;
+    expect(singleEnum).toBe("doing");
+
+    // The single row-link's cell opens the picker (the multi's stand is
+    // out), the pick commits the row id's scalar.
+    await cell("owner").dblclick();
+    // The picker's rows stand in the portaled content (the block's scope
+    // is out — the pane's locator stands the pick, like the multi's).
+    const rowPick = a.locator("[data-slot='docblocks/database-row-picker-row']");
+    await expect(rowPick.first()).toBeVisible(SETTLE);
+    expect(await a.locator("[data-slot='docblocks/database-ref-multi-option']").count()).toBe(0);
+    await rowPick.first().click();
+    await a.waitForTimeout(50);
+    const singleLink = (await bridgeCells(a)).owner;
+    expect(singleLink).toBe("r-table-linkpeople-1");
+  } finally {
+    await close();
+  }
+});

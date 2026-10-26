@@ -165,6 +165,33 @@ interface RefOption {
   value: string;
   label: string;
 }
+/**
+ * The many value's chips stand (the multi-enum / the row-links): the train
+ * of the option labels over the cell (the joined text's stand is out —
+ * the single line, the overflow's clip over the cell's stand). The empty
+ * stand stands none (the cell's background only). The option's color (the
+ * enum's rework) frames the chip later — the neutral stand over the
+ * absent color.
+ */
+function RefValueChips({ values, options }: { values: string[]; options: RefOption[] }) {
+  if (values.length === 0) return null;
+  return (
+    <span
+      data-slot="docblocks/database-ref-chips"
+      className="flex w-full flex-nowrap items-center gap-1 overflow-hidden px-1 text-(length:--docblocks-font-size)"
+    >
+      {values.map((value) => (
+        <span
+          key={value}
+          data-slot="docblocks/database-ref-chip"
+          className="max-w-full shrink truncate rounded-(--docblocks-radius) bg-muted px-1.5 leading-5"
+        >
+          {options.find((option) => option.value === value)?.label ?? value}
+        </span>
+      ))}
+    </span>
+  );
+}
 interface RefMultiEditorProps {
   /** The current values (the committed array, string stand). */
   values: string[];
@@ -197,13 +224,9 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
       <PopoverTrigger asChild>
         <span
           data-slot="docblocks/database-ref-multi-trigger"
-          className="block w-full cursor-default px-1 text-(length:--docblocks-font-size)"
+          className="block w-full cursor-default text-(length:--docblocks-font-size)"
         >
-          {values.length === 0 ? null : (
-            <span className="line-clamp-1">
-              {values.map((value) => options.find((entry) => entry.value === value)?.label ?? value).join(", ")}
-            </span>
-          )}
+          <RefValueChips values={values} options={options} />
         </span>
       </PopoverTrigger>
       <PopoverContent align="start" sideOffset={4} className="flex w-52 flex-col gap-1 p-2">
@@ -406,7 +429,7 @@ function DatabaseCell({
   refTableData,
 }: DatabaseCellProps) {
   const annotation: BridgeColumnAnnotation = columnAnnotation(column);
-  const empty = value === undefined || value === null || value === "";
+  const empty = value === undefined || value === null || value === "" || (Array.isArray(value) && value.length === 0);
   const isDate = annotation.valueInput === "date";
   const isDateTime = annotation.valueInput === "datetime";
   const isText = annotation.valueInput === "text";
@@ -564,18 +587,29 @@ function DatabaseCell({
       : refRowIds.map((rowId) => ({ value: rowId, label: refDisplays[rowId] ?? rowId }));
 
   let content: ReactNode;
-  if (Array.isArray(value)) {
+  const isManyRef = column.refKind !== undefined && column.refMany === true;
+  // The ref value's stand (the many cardinality): the empty / the legacy
+  // scalar value normalizes to the array (the editor's commit stands the
+  // array always — the single scalar is the lenient read, not the state).
+  const refValues = Array.isArray(value)
+    ? value.map((item) => String(item))
+    : isManyRef && value !== undefined && value !== null && String(value) !== ""
+      ? [String(value)]
+      : [];
+  if (isManyRef || Array.isArray(value)) {
     // The many cardinality (the multi-enum / the row-links): the edit is
-    // the popover's checkbox list (the toggle commits immediately — no
-    // draft), the display stands the joined labels / displays (the
-    // non-ref array keeps the raw join — the lenient stand).
-    const refValues = value.map((item) => String(item));
+    // the popover's checkbox list (the toggle commits immediately — one
+    // `updateRow` per option, the draft stands none; the commit stands the
+    // array always — the first pick over the empty cell stands `[value]`),
+    // the display stands the option's chips (the train over the cell — the
+    // joined text is out; the non-ref array keeps the raw join — the
+    // lenient stand).
     if (editing && column.refKind !== undefined) {
       content = <RefMultiEditor values={refValues} options={refOptions} onCommit={onChange} onEditEnd={onEditEnd} />;
+    } else if (column.refKind !== undefined) {
+      content = <RefValueChips values={refValues} options={refOptions} />;
     } else {
-      const text =
-        column.refKind === "row" ? refValues.map((item) => refDisplays[item] ?? item).join(", ") : refValues.join(", ");
-      content = <CellDisplay text={text} />;
+      content = <CellDisplay text={refValues.join(", ")} />;
     }
   } else {
     switch (annotation.valueInput) {
