@@ -1,12 +1,8 @@
-import {
-  type BridgeColumn,
-  type BridgeTableDescription,
-  type TableEvent,
-  type TableRef,
-  getDefaultDatabaseBridge,
-} from "docblocks-react-ui";
+import { type BridgeColumn, type BridgeTableDescription, type TableEvent, type TableRef } from "docblocks-react-ui";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { persistentDatabaseBridge } from "../persistent-bridge";
 
 /** The PostgreSQL type catalog the add-column form offers (the package's
  *  default annotation resolves each to its operator catalog + input). */
@@ -67,7 +63,7 @@ function slugify(name: string, taken: Set<string>): string {
  * events.
  */
 function BridgeInspector({ client }: { client: "a" | "b" }) {
-  const bridge = getDefaultDatabaseBridge();
+  const bridge = persistentDatabaseBridge;
   const [tables, setTables] = useState<TableRef[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [desc, setDesc] = useState<BridgeTableDescription | null>(null);

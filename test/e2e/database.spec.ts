@@ -1748,3 +1748,70 @@ test("the grid's rows stand the constant height (every column type fits the stan
     await context.close();
   }
 });
+
+test("the bridge's state survives the tab's reload (the harness's persistent bridge: the tables / the rows / the row-link ids stand over the restore)", async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  try {
+    await openPane(a, "a", `ext04-persist-${Math.random().toString(36).slice(2, 8)}`);
+    // The table + the rows (the explicit row ids: the restore's pk stand) +
+    // the row-link's reference over the other table's row.
+    const tableId = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const id = await bridge.createTable("Persist");
+      await bridge.createColumn(id, { id: "name", name: "Name", type: "text" });
+      await bridge.createTable("Persist People");
+      // The display column (the row-link's display resolution stands the
+      // first text column — its absence stands the raw id's stand).
+      await bridge.createColumn("table-persist-people", { id: "name", name: "Name", type: "text" });
+      const [ann] = await bridge.insertRows("table-persist-people", [{ id: "p-ann", name: "Ann" }]);
+      await bridge.createColumn(id, {
+        id: "owner",
+        name: "Owner",
+        type: "text",
+        refKind: "row",
+        refTableId: "table-persist-people",
+      });
+      await bridge.insertRows(id, [
+        { id: "p-1", name: "Row one", owner: ann },
+        { id: "p-2", name: "Row two" },
+      ]);
+      return id;
+    });
+    // The snapshot's save (the debounce's window + the re-read's pass).
+    await a.waitForTimeout(750);
+    await a.reload();
+    await expect(a.getByTestId("status-a")).toHaveText("connected");
+
+    // The restore: the table's id / the rows' ids / the cells / the
+    // row-link's reference stand (the doc's references survive too).
+    const after = await a.evaluate(async (id) => {
+      const bridge = window.__bridge!;
+      const page = await bridge.queryRows(id, {});
+      return {
+        ids: Object.keys(page.rows),
+        owner: page.rows["p-1"]?.owner as string | undefined,
+        name: page.rows["p-1"]?.name as string | undefined,
+      };
+    }, tableId);
+    expect(after.ids).toEqual(["p-1", "p-2"]);
+    expect(after.owner).toBe("p-ann");
+    expect(after.name).toBe("Row one");
+
+    // The grid renders the restored rows (the restore stands before the
+    // grid's first read; the row-link's display stands the restored
+    // reference).
+    await a.evaluate((id) => window.__paneDocs!.a!.insertBlock("database", { tableId: id }), tableId);
+    const gridA = a.locator("[data-slot='docblocks/database-grid']");
+    await expect(gridA).toBeVisible(SETTLE);
+    await expect(gridA.getByText("Row one")).toBeVisible(SETTLE);
+    await expect(gridA.getByText("Row two")).toBeVisible(SETTLE);
+    // The row-link's display (the joined name over the restored id).
+    const ownerCell = gridA.locator("[data-slot='docblocks/database-cell'][data-column-id='owner']").first();
+    await expect(ownerCell).toContainText("Ann", SETTLE);
+  } finally {
+    await context.close();
+  }
+});
