@@ -1,9 +1,10 @@
-import { createMemoryBlobStore, getDefaultDatabaseBridge } from "docblocks-react-ui";
-import type { BlobRef, BlobStore, DatabaseBridge } from "docblocks-react-ui";
+import { createMemoryBlobStore } from "docblocks-react-ui";
+import type { BlobRef, BlobStore, BridgeColumn, DatabaseBridge } from "docblocks-react-ui";
 
 import type { BlockId, DatabaseAttrs, Doc } from "docblocks-core";
 
 import { MASTER_SUBTREE_BLOCK_ID } from "./master";
+import { databaseBridgeReady, persistentDatabaseBridge } from "./persistent-bridge";
 
 /** The v1 page block types the harness insert control offers (top level). */
 const INSERTABLE_TYPES = [
@@ -39,26 +40,35 @@ const MERMAID_SEED = "graph TD\n A --> B";
 /** The fixed unknown docId the broken sync-embed option references. */
 const MISSING_MASTER_ID = "missing-master";
 
-/** The default bridge's demo table (seeded once per page / per channel —
- *  the seed skips when a "Demo" table stands: the other pane's or the
- *  other tab's seed, synced by the bridge's event echo). */
-
-// The default bridge's demo table: seeded once per page / per channel
-// (the name-aware guard: the other pane's / tab's seed stands, the event
-// echo keeps the state shared). The e2e bridge suite and the slash picker
-// demo read from it.
+/** The persistent bridge's demo tables (seeded once per page / per channel —
+ *  the seed is idempotent: the tables adopt the standing state, the columns'
+ *  duplicate create adopts the peer's column, the rows stand the pk-value
+ *  insertion (the same id adopts the row). The complete-Demo guard skips the
+ *  re-seed over the persisted snapshot's restore; the partial stand (a peer
+ *  tab's mid-seed save) completes below). The e2e bridge suite and the slash
+ *  picker demo read from it. */
 void (async () => {
-  const bridge = getDefaultDatabaseBridge();
-  if ((await bridge.listTables()).some((table) => table.name === "Demo")) return;
+  // The persisted snapshot's seed stands first (the guard reads the
+  // snapshot's tables, not the empty bridge).
+  await databaseBridgeReady();
+  const bridge = persistentDatabaseBridge;
+  const demo = (await bridge.listTables()).find((table) => table.name === "Demo");
+  if (demo !== undefined) {
+    const { columns } = await bridge.describeTable(demo.id);
+    if (["title", "count", "done", "status"].every((id) => columns.some((column) => column.id === id))) return;
+  }
+  // The duplicate-column create's refusal is the adoption stand (the peer
+  // tab's concurrent seed already stood the column).
+  const ensureColumn = (tableId: string, column: BridgeColumn) => bridge.createColumn(tableId, column).catch(() => {});
   // The dict table (the Demo table's status enum options — the PK IS the
   // option label).
   await bridge.createTable("Statuses");
   await bridge.insertRows("table-statuses", [{ id: "todo" }, { id: "doing" }, { id: "done" }]);
   const demoId = await bridge.createTable("Demo");
-  await bridge.createColumn(demoId, { id: "title", name: "Title", type: "text" });
-  await bridge.createColumn(demoId, { id: "count", name: "Count", type: "integer" });
-  await bridge.createColumn(demoId, { id: "done", name: "Done", type: "boolean" });
-  await bridge.createColumn(demoId, {
+  await ensureColumn(demoId, { id: "title", name: "Title", type: "text" });
+  await ensureColumn(demoId, { id: "count", name: "Count", type: "integer" });
+  await ensureColumn(demoId, { id: "done", name: "Done", type: "boolean" });
+  await ensureColumn(demoId, {
     id: "status",
     name: "Status",
     type: "text",
@@ -66,22 +76,23 @@ void (async () => {
     refTableId: "table-statuses",
   });
   await bridge.insertRows(demoId, [
-    { title: "First task", count: 1, done: false, status: "todo" },
-    { title: "Second task", count: 2, done: true, status: "done" },
-    { title: "Third task", count: 3, done: false, status: "doing" },
+    { id: "demo-1", title: "First task", count: 1, done: false, status: "todo" },
+    { id: "demo-2", title: "Second task", count: 2, done: true, status: "done" },
+    { id: "demo-3", title: "Third task", count: 3, done: false, status: "doing" },
   ]);
   // A second demo table with a spread of PostgreSQL types (the per-type
   // cell editors / filter inputs read from it; the e2e suite only reads
   // the demo table, so this stays purely a dev-harness fixture).
   const projectsId = await bridge.createTable("Projects");
-  await bridge.createColumn(projectsId, { id: "code", name: "Code", type: "text" });
-  await bridge.createColumn(projectsId, { id: "budget", name: "Budget", type: "double precision" });
-  await bridge.createColumn(projectsId, { id: "progress", name: "Progress", type: "numeric" });
-  await bridge.createColumn(projectsId, { id: "started", name: "Started", type: "date" });
-  await bridge.createColumn(projectsId, { id: "deadline", name: "Deadline", type: "timestamptz" });
-  await bridge.createColumn(projectsId, { id: "archived", name: "Archived", type: "boolean" });
+  await ensureColumn(projectsId, { id: "code", name: "Code", type: "text" });
+  await ensureColumn(projectsId, { id: "budget", name: "Budget", type: "double precision" });
+  await ensureColumn(projectsId, { id: "progress", name: "Progress", type: "numeric" });
+  await ensureColumn(projectsId, { id: "started", name: "Started", type: "date" });
+  await ensureColumn(projectsId, { id: "deadline", name: "Deadline", type: "timestamptz" });
+  await ensureColumn(projectsId, { id: "archived", name: "Archived", type: "boolean" });
   await bridge.insertRows(projectsId, [
     {
+      id: "prj-1",
       code: "PRJ-1",
       budget: 12000,
       progress: 0.75,
@@ -90,6 +101,7 @@ void (async () => {
       archived: false,
     },
     {
+      id: "prj-2",
       code: "PRJ-2",
       budget: 8500,
       progress: 0.2,
@@ -98,6 +110,7 @@ void (async () => {
       archived: false,
     },
     {
+      id: "prj-3",
       code: "PRJ-3",
       budget: 4300,
       progress: 1,
@@ -108,8 +121,8 @@ void (async () => {
   ]);
 })();
 
-/** The pane's default database bridge (the e2e + the dev tools drive it). */
-const databaseBridge: DatabaseBridge = getDefaultDatabaseBridge();
+/** The pane's persistent database bridge (the e2e + the dev tools drive it). */
+const databaseBridge: DatabaseBridge = persistentDatabaseBridge;
 
 /** The database seed the harness inserts (harness convenience; the user edits it in the block). */
 const DATABASE_COLUMNS: DatabaseAttrs["columns"] = [
