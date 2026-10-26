@@ -1641,3 +1641,110 @@ test("the cell's pickers stand the unified row height (the enum / the multi-enum
     await context.close();
   }
 });
+
+test("the grid's rows stand the constant height (every column type fits the standard row; the enum's add grows none; the theme flip stands none)", async ({
+  browser,
+}) => {
+  // A single pane: the heights are the bounding boxes (no sync needed);
+  // a unique room (the relay keeps the room's doc for the dev server's
+  // lifetime).
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  try {
+    await openPane(a, "a", `ext04-rowheight-${Math.random().toString(36).slice(2, 8)}`);
+    // A fresh table over the pane's own bridge: the text column only.
+    const tableId = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const id = await bridge.createTable("All types");
+      await bridge.createColumn(id, { id: "a", name: "A", type: "text" });
+      const rowIds = await bridge.insertRows(id, [{ a: "Task one" }, { a: "Task two" }]);
+      await bridge.updateRow(id, rowIds[0]!, { a: "Task one" });
+      return id;
+    });
+    await a.evaluate((id) => window.__paneDocs!.a!.insertBlock("database", { tableId: id }), tableId);
+    const gridA = a.locator("[data-slot='docblocks/database-grid']");
+    await expect(gridA.first()).toBeVisible(SETTLE);
+    const rowHeight = (row: number) =>
+      a
+        .locator(`[data-slot='docblocks/database-cell'][data-row='${row}']`)
+        .all()
+        .then(async (cells) => Promise.all(cells.map((cell) => cell.evaluate((el) => getComputedStyle(el).height))));
+
+    // The text-only stand: every row stands the standard height (the
+    // empty / the text's cells alike).
+    const base = await rowHeight(0);
+    expect(new Set(base).size).toBe(1);
+    expect(await rowHeight(1)).toEqual(base);
+
+    // The enum's column's add: the grid stands live (the bridge's event),
+    // and the row's height stands — the trigger fits the standard row
+    // (no grow; the new column's cells stand the stand's height).
+    await a.evaluate(async (id) => {
+      const bridge = window.__bridge!;
+      await bridge.createColumn(id, {
+        id: "e1",
+        name: "E1",
+        type: "text",
+        refKind: "enum",
+        refTableId: "table-statuses",
+      });
+      const page = await bridge.queryRows(id, {});
+      const rowId = Object.keys(page.rows)[0]!;
+      await bridge.updateRow(id, rowId, { e1: "todo" });
+    }, tableId);
+    await expect(a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='e1']")).toBeVisible(SETTLE);
+    const afterEnum = await rowHeight(0);
+    expect(new Set(afterEnum).size).toBe(1);
+    expect(afterEnum.every((h) => h === base[0])).toBe(true);
+    const afterEnumRow1 = await rowHeight(1);
+    expect(afterEnumRow1.every((h) => h === base[0])).toBe(true);
+
+    // Every column type over the same table (the multi-enum / the
+    // row-link / the date / the datetime / the number / the boolean):
+    // the row's height stands over all of them.
+    await a.evaluate(async (id) => {
+      const bridge = window.__bridge!;
+      await bridge.createColumn(id, {
+        id: "e2",
+        name: "E2",
+        type: "text",
+        refKind: "enum",
+        refMany: true,
+        refTableId: "table-statuses",
+      });
+      await bridge.createTable("People");
+      const peopleId = await bridge.insertRows("table-people", [{ name: "Ann" }]);
+      await bridge.createColumn(id, { id: "r1", name: "R1", type: "text", refKind: "row", refTableId: "table-people" });
+      await bridge.createColumn(id, { id: "d1", name: "D1", type: "date" });
+      await bridge.createColumn(id, { id: "dt1", name: "DT1", type: "timestamptz" });
+      await bridge.createColumn(id, { id: "n1", name: "N1", type: "integer" });
+      await bridge.createColumn(id, { id: "b1", name: "B1", type: "boolean" });
+      const page = await bridge.queryRows(id, {});
+      const rowId = Object.keys(page.rows)[0]!;
+      await bridge.updateRow(id, rowId, {
+        e2: ["todo"],
+        r1: peopleId[0],
+        d1: "2026-09-01",
+        dt1: "2026-12-15T18:00",
+        n1: 7,
+        b1: true,
+      });
+    }, tableId);
+    await expect(a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='b1']")).toBeVisible(SETTLE);
+    const all = await rowHeight(0);
+    expect(new Set(all).size).toBe(1);
+    expect(all.every((h) => h === base[0])).toBe(true);
+
+    // The theme flip (the harness stands dark by default): the height
+    // stands (the token is the theme-independent stand).
+    await a.evaluate(() => document.documentElement.classList.remove("dark"));
+    await expect
+      .poll(async () => {
+        const heights = await rowHeight(0);
+        return new Set(heights).size === 1 && heights.every((h) => h === base[0]);
+      }, SETTLE)
+      .toBe(true);
+  } finally {
+    await context.close();
+  }
+});

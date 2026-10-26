@@ -704,8 +704,9 @@ function DatabaseCell({
               size="sm"
               bare
               className="
-                h-full w-full cursor-default justify-start rounded-(--docblocks-radius) border-0 bg-transparent px-1
+                w-full cursor-default justify-start rounded-(--docblocks-radius) border-0 bg-transparent px-1
                 text-(length:--docblocks-font-size) shadow-none outline-none
+                data-[size=sm]:h-6
               "
             >
               <span className="line-clamp-1">{empty ? "" : String(value)}</span>

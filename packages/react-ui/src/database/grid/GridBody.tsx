@@ -779,7 +779,13 @@ function GridBody({
             // editable inputs stand the explicit `select-text`).
             className="grid w-full outline-none select-none"
             onKeyDown={onTableKeyDown}
+            // The fixed row track (the standard row height): every row —
+            // over any column type mix — stands the one height (the header
+            // stands its own auto row; the enum's trigger fits the content
+            // box, so a new enum column grows no row).
             style={{
+              gridTemplateRows: "auto",
+              gridAutoRows: "var(--docblocks-database-row-height)",
               gridTemplateColumns: `${columns
                 .map((_, index) => {
                   const preview =
