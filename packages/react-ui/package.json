@@ -1,9 +1,9 @@
 {
   "name": "docblocks-react-ui",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "React rendering + editing layer for docblocks: hooks, block renderers, caret/selection, keyboard, clipboard.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "files": [
     "dist",
     "theme.css"

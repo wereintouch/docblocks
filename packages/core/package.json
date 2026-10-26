@@ -1,9 +1,9 @@
 {
   "name": "docblocks-core",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Headless CRDT document engine: schema v1, Doc (commands/transactions/undo), sync providers. Yjs-based, zero UI dependencies.",
   "type": "module",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "files": [
     "dist"
   ],
