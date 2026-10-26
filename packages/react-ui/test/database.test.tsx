@@ -1548,13 +1548,31 @@ describe("the number column (the display format + the create form)", () => {
     fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='row-link']")!);
     await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
     // The ref form's stands: the name input + the ref table's pick (the
-    // catalog's tables — the Demo + the Statuses dict table).
-    const refSelect = document.querySelector<HTMLSelectElement>("[data-slot='docblocks/database-add-column-ref']")!;
-    expect(refSelect.value).toBe("");
+    // catalog's tables — the Demo + the Statuses dict table). The pick is
+    // the package's Select (the Radix combobox — the native select is gone
+    // over the form's fields).
+    const refTrigger = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/database-add-column-ref']")!;
+    expect(refTrigger.tagName).toBe("BUTTON");
+    expect(refTrigger.textContent).toContain("— Select a table —");
     const create = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/database-add-column-create']")!;
     expect(create.disabled).toBe(true);
-    // The pick of the existing table stands the enabled create.
-    fireEvent.change(refSelect, { target: { value: "table-statuses" } });
+    // The pick of the existing table stands the enabled create (the
+    // keyboard gesture — the radix a11y path; the jsdom pointer events
+    // stand no pointerType, the real mouse pick is pinned in the e2e).
+    fireEvent.click(refTrigger);
+    await until(() => document.querySelector("[role='listbox']") !== null, "the table's list");
+    const listbox = document.querySelector<HTMLElement>("[role='listbox']")!;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    fireEvent.keyDown(listbox, { key: "s", bubbles: true });
+    await until(
+      () => document.querySelector("[role='option'][data-highlighted]")?.textContent === "Statuses",
+      "the Statuses highlight"
+    );
+    fireEvent.keyDown(document.querySelector("[role='option'][data-highlighted]")!, { key: "Enter", bubbles: true });
+    await settleGrid();
+    expect(refTrigger.textContent).toBe("Statuses");
     expect(create.disabled).toBe(false);
     fireEvent.click(create);
     await until(
@@ -1583,10 +1601,23 @@ describe("the number column (the display format + the create form)", () => {
     await until(() => document.querySelector("[data-column-entry='enum']") !== null, "the add-column menu");
     fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='enum']")!);
     await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
-    // The "new table" entry stands the name's input (the createTable's
-    // commit over the form's button).
-    const refSelect = document.querySelector<HTMLSelectElement>("[data-slot='docblocks/database-add-column-ref']")!;
-    fireEvent.change(refSelect, { target: { value: "__new__" } });
+    // The "new table" entry (the package's Select's option — the keyboard
+    // gesture, the jsdom pointer's stand) stands the name's input (the
+    // createTable's commit over the form's button).
+    const refTrigger = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/database-add-column-ref']")!;
+    fireEvent.click(refTrigger);
+    await until(() => document.querySelector("[role='listbox']") !== null, "the table's list");
+    const listbox = document.querySelector<HTMLElement>("[role='listbox']")!;
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    });
+    fireEvent.keyDown(listbox, { key: "n", bubbles: true });
+    await until(
+      () => document.querySelector("[role='option'][data-highlighted]")?.textContent === "New table…",
+      "the new-table highlight"
+    );
+    fireEvent.keyDown(document.querySelector("[role='option'][data-highlighted]")!, { key: "Enter", bubbles: true });
+    await settleGrid();
     const newTableInput = document.querySelector<HTMLInputElement>(
       "[data-slot='docblocks/database-add-column-ref-new']"
     )!;

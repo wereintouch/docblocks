@@ -14,6 +14,7 @@ import { Checkbox } from "../../shared/ui/Checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../shared/ui/Select";
 import { Plus } from "../../shared/ui/icons";
 import type { BridgeColumn } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
@@ -26,6 +27,7 @@ import {
   DRAG_START_THRESHOLD_PX,
   MIN_DATABASE_COLUMN_WIDTH_PX,
   NEW_TABLE_PICK,
+  REF_NONE_PICK,
   emptyColumnForm,
 } from "./models";
 import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession } from "./models";
@@ -987,31 +989,42 @@ function GridBody({
                       <>
                         {/* The ref table's pick (the enum's dict table / the
                             row-link's linked table): the existing tables +
-                            the new-table creation. */}
+                            the new-table creation. The package's Select
+                            (the native select is gone) — the "none" stand
+                            is the sentinel pick (Radix takes no empty
+                            value), the portaled list stands the standard
+                            tokens (the --docblocks-* do not reach the
+                            body). */}
                         <label className="flex items-center gap-2 text-xs text-foreground">
                           Table
-                          <select
-                            data-slot="docblocks/database-add-column-ref"
-                            className="
-                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
-                              text-foreground outline-none
-                              focus:bg-muted/60
-                            "
-                            value={columnForm?.refPick ?? ""}
-                            onChange={(event) =>
+                          <Select
+                            value={
+                              columnForm === null || columnForm.refPick === "" ? REF_NONE_PICK : columnForm.refPick
+                            }
+                            onValueChange={(next) =>
                               setColumnForm((draft) =>
-                                draft === null ? draft : { ...draft, refPick: event.target.value, newTableName: "" }
+                                draft === null
+                                  ? draft
+                                  : { ...draft, refPick: next === REF_NONE_PICK ? "" : next, newTableName: "" }
                               )
                             }
                           >
-                            <option value="">— Select a table —</option>
-                            {bridgeTables.map((table) => (
-                              <option key={table.id} value={table.id}>
-                                {table.name}
-                              </option>
-                            ))}
-                            <option value={NEW_TABLE_PICK}>New table…</option>
-                          </select>
+                            <SelectTrigger
+                              data-slot="docblocks/database-add-column-ref"
+                              className="w-full justify-start px-2 py-0.5 text-xs shadow-none data-[size=default]:h-7"
+                            >
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent align="start" sideOffset={4}>
+                              <SelectItem value={REF_NONE_PICK}>— Select a table —</SelectItem>
+                              {bridgeTables.map((table) => (
+                                <SelectItem key={table.id} value={table.id}>
+                                  {table.name}
+                                </SelectItem>
+                              ))}
+                              <SelectItem value={NEW_TABLE_PICK}>New table…</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </label>
                         {(columnForm?.refPick ?? "") === NEW_TABLE_PICK && (
                           <label className="flex items-center gap-2 text-xs text-foreground">

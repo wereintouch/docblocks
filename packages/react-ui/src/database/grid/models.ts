@@ -77,6 +77,10 @@ function emptyColumnForm(entry: AddColumnTypeEntry): AddColumnFormDraft {
 /** The "new table" entry of the ref form's pick (the table id stand the
  *  created id, the `createTable` commit over the form's button). */
 const NEW_TABLE_PICK = "__new__";
+/** The "no table" stand of the ref form's pick: the package's Select
+ *  (Radix) takes no empty value, so the draft's "" maps to the sentinel
+ *  at the boundary (the pick over it clears the stand). */
+const REF_NONE_PICK = "docblocks/ref-none";
 /** The header cell's column-drag session (the press stands the snapshot;
  *  the release stands the commit). */
 interface ColumnDragSession {
@@ -152,6 +156,7 @@ export {
   EMPTY_CELL_OPTION,
   MIN_DATABASE_COLUMN_WIDTH_PX,
   NEW_TABLE_PICK,
+  REF_NONE_PICK,
   emptyColumnForm,
 };
 export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, ColumnResizeSession };

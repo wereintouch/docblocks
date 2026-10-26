@@ -1401,6 +1401,85 @@ test("the number column: the create form's attributes stand the cell's display (
   await close();
 });
 
+test("the add-column form's ref pick: the package's Select stands (the native select is gone; the existing + the new-table flows)", async ({
+  browser,
+}) => {
+  // The shared-context panes (the same origin): the bridge echo carries the
+  // column's create to pane B's grid.
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-refpick");
+  try {
+    const demo = await bridgeDemoTable(a);
+    await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+    const gridA = a.locator("[data-slot='docblocks/database-grid']");
+    await expect(gridA.first()).toBeVisible(SETTLE);
+    await b.locator("[data-slot='docblocks/database-grid']").first().waitFor({ timeout: 15000 });
+
+    const trigger = a.locator("[data-slot='docblocks/database-add-column-trigger']");
+    const menu = a.locator("[data-slot='dropdown-menu-content']");
+    const form = a.locator("[data-slot='docblocks/database-add-column-form']");
+    const openForm = async (entry: string) => {
+      await trigger.click();
+      await expect(menu).toBeVisible(SETTLE);
+      await menu.locator(`[data-column-entry='${entry}']`).click();
+      await expect(form).toBeVisible(SETTLE);
+    };
+    const columnOf = async (id: string) =>
+      a.evaluate(
+        async (args) => {
+          const { tableId, colId } = args as { tableId: string; colId: string };
+          const schema = await window.__bridge!.describeTable(tableId);
+          return schema.columns.find((column) => column.id === colId);
+        },
+        { tableId: demo.id, colId: id }
+      );
+
+    // Flow 1 — the existing table's pick: the trigger is the package's
+    // Select (the native select is gone over the form's fields), the pick
+    // commits the column over the bridge echo (both panes).
+    await openForm("enum");
+    const refTrigger = form.locator("[data-slot='docblocks/database-add-column-ref']");
+    await expect(refTrigger).toBeVisible(SETTLE);
+    // The DOM's pin: no native <select> stands in the form (the trigger is
+    // the Radix's button) — the package's Select's stand.
+    expect(await form.locator("select").count()).toBe(0);
+    await expect(refTrigger).toContainText("— Select a table —");
+    // The create stands disabled over the unpicked ref.
+    await expect(form.locator("[data-slot='docblocks/database-add-column-create']")).toBeDisabled();
+    await refTrigger.click();
+    const listbox = a.locator("[role='listbox']");
+    await expect(listbox).toBeVisible(SETTLE);
+    await listbox.locator("[role='option']", { hasText: "Statuses" }).click();
+    await expect(refTrigger).toHaveText("Statuses", SETTLE);
+    await form.locator("[data-slot='docblocks/database-add-column-create']").click();
+    await expect(form).toBeHidden(SETTLE);
+    await expect(a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeVisible(SETTLE);
+    expect(await columnOf("col5")).toMatchObject({ refKind: "enum", refTableId: "table-statuses" });
+    await expect(b.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeVisible(SETTLE);
+
+    // Flow 2 — the "New table…" pick: the name's input stands over the
+    // form, the create commits the table + the column (the bridge's echo).
+    await openForm("row-link");
+    const refTrigger2 = form.locator("[data-slot='docblocks/database-add-column-ref']");
+    await refTrigger2.click();
+    const listbox2 = a.locator("[role='listbox']");
+    await expect(listbox2).toBeVisible(SETTLE);
+    await listbox2.locator("[role='option']", { hasText: "New table…" }).click();
+    await expect(listbox2).toBeHidden(SETTLE);
+    const newName = form.locator("[data-slot='docblocks/database-add-column-ref-new']");
+    await expect(newName).toBeVisible(SETTLE);
+    await newName.fill("People");
+    await form.locator("[data-slot='docblocks/database-add-column-create']").click();
+    await expect(form).toBeHidden(SETTLE);
+    await expect(a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col6']")).toBeVisible(SETTLE);
+    expect(await columnOf("col6")).toMatchObject({ refKind: "row", refTableId: "table-people" });
+    const tableNames = await a.evaluate(async () => (await window.__bridge!.listTables()).map((t) => t.name));
+    expect(tableNames).toContain("People");
+    await expect(b.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col6']")).toBeVisible(SETTLE);
+  } finally {
+    await close();
+  }
+});
+
 test("the add-column form stands for every type (the name over the create; the Escape closes without the create)", async ({
   browser,
 }) => {
