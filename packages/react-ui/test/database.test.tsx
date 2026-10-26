@@ -1238,6 +1238,103 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
   });
 });
 
+describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
+  const cellOf = (row: number, col: number) =>
+    document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-row='${row}'][data-col='${col}']`);
+
+  /** The press's selection stand (the document-level teardown listener stands over it). */
+  const pressSelect = async (cell: HTMLElement) => {
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    await settleGrid();
+  };
+
+  it("the typed draft commits on the outside press (the input unmounts before the DOM's blur)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const titleCell = cellOf(0, 0)!;
+    await pressSelect(titleCell);
+    fireEvent.doubleClick(titleCell);
+    await settleGrid();
+    const input = titleCell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "typed draft" } });
+    });
+    // The outside press (over the body — outside the grid): the grid's
+    // session clear stands before the input's blur (the input unmounts with
+    // the session) — the draft stands committed (the teardown's stand, not
+    // the blur's).
+    fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
+    await settleGrid();
+    expect(titleCell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
+    const page = await bridge.queryRows(tableId, {});
+    expect(page.rows[rowId]!.title).toBe("typed draft");
+  });
+
+  it("the typed number draft commits on the other cell's press (the session's swap)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const numberCell = cellOf(0, 1)!;
+    const otherCell = cellOf(1, 1)!;
+    await pressSelect(numberCell);
+    fireEvent.doubleClick(numberCell);
+    await settleGrid();
+    const input = numberCell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "42" } });
+    });
+    // The other cell's press tears the session down (the swap) — the draft
+    // stands committed as a number.
+    fireEvent.pointerDown(otherCell, { button: 0, clientX: 10, clientY: 5 });
+    await settleGrid();
+    expect(numberCell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
+    const page = await bridge.queryRows(tableId, {});
+    expect(page.rows[rowId]!.n).toBe(42);
+  });
+
+  it("the Escape cancels the draft (the session closes, no write)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const titleCell = cellOf(0, 0)!;
+    await pressSelect(titleCell);
+    fireEvent.doubleClick(titleCell);
+    await settleGrid();
+    const input = titleCell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "the escaped draft" } });
+    });
+    fireEvent.keyDown(input, { key: "Escape" });
+    await settleGrid();
+    expect(titleCell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
+    const page = await bridge.queryRows(tableId, {});
+    expect(page.rows[rowId]!.title).toBe("a");
+  });
+
+  it("the unchanged draft stands no commit (the no-op teardown's no undo entry)", async () => {
+    await renderGrid();
+    const titleCell = cellOf(0, 0)!;
+    await pressSelect(titleCell);
+    fireEvent.doubleClick(titleCell);
+    await settleGrid();
+    expect(titleCell.querySelector("[data-slot='docblocks/database-cell-input']")).not.toBeNull();
+    // The outside press over the untouched draft: the no-write stand (the
+    // undo's disabled stand).
+    fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
+    await settleGrid();
+    expect(document.querySelector("[data-slot='docblocks/database-undo']")?.getAttribute("data-disabled")).toBe("true");
+    // The changed draft stands the undo entry (the commit's stand).
+    await pressSelect(titleCell);
+    fireEvent.doubleClick(titleCell);
+    await settleGrid();
+    const input = titleCell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
+    await act(async () => {
+      fireEvent.change(input, { target: { value: "changed" } });
+    });
+    fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
+    await settleGrid();
+    expect(document.querySelector("[data-slot='docblocks/database-undo']")?.getAttribute("data-disabled")).toBe(null);
+  });
+});
+
 describe("the keyboard's selection (the arrows' slide + the shift+arrow's extension)", () => {
   const cellOf = (row: number, col: number) =>
     document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-row='${row}'][data-col='${col}']`);
