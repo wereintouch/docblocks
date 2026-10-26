@@ -60,10 +60,18 @@ void (async () => {
   // The duplicate-column create's refusal is the adoption stand (the peer
   // tab's concurrent seed already stood the column).
   const ensureColumn = (tableId: string, column: BridgeColumn) => bridge.createColumn(tableId, column).catch(() => {});
-  // The dict table (the Demo table's status enum options — the PK IS the
-  // option label).
-  await bridge.createTable("Statuses");
-  await bridge.insertRows("table-statuses", [{ id: "todo" }, { id: "doing" }, { id: "done" }]);
+  // The enum's options' system table (the hidden stand — the `listTables`
+  // stands it out; the options' rows over the `name` / the `color`
+  // columns, the pk IS the option's value — the legacy dict's stand
+  // keeps the demo's cell values intact).
+  await bridge.createTable("Statuses-enum", { system: true });
+  ensureColumn("table-statuses-enum", { id: "name", name: "name", type: "text" });
+  ensureColumn("table-statuses-enum", { id: "color", name: "color", type: "text" });
+  await bridge.insertRows("table-statuses-enum", [
+    { id: "todo", name: "todo", color: "#f4e07d" },
+    { id: "doing", name: "doing", color: "#93b4f2" },
+    { id: "done", name: "done", color: "#97e3a8" },
+  ]);
   const demoId = await bridge.createTable("Demo");
   await ensureColumn(demoId, { id: "title", name: "Title", type: "text" });
   await ensureColumn(demoId, { id: "count", name: "Count", type: "integer" });
@@ -73,7 +81,7 @@ void (async () => {
     name: "Status",
     type: "text",
     refKind: "enum",
-    refTableId: "table-statuses",
+    refTableId: "table-statuses-enum",
   });
   await bridge.insertRows(demoId, [
     { id: "demo-1", title: "First task", count: 1, done: false, status: "todo" },

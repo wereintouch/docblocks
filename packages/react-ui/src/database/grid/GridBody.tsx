@@ -15,8 +15,9 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../shared/ui/Select";
-import { Plus } from "../../shared/ui/icons";
+import { GripVertical, Plus, X } from "../../shared/ui/icons";
 import type { BridgeColumn } from "../bridge";
+import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN, ENUM_OPTION_PALETTE } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
 import { useDatabaseTable } from "../use-database-table";
 import { DatabaseCell, RowMenuCell } from "./Cells";
@@ -30,10 +31,149 @@ import {
   REF_NONE_PICK,
   emptyColumnForm,
 } from "./models";
-import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession } from "./models";
+import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession, EnumOptionDraft } from "./models";
 import { refEntryKey, useBridgeTables, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
 import { cellKeyOf, visibleColumns } from "./utils";
+
+/**
+ * The enum's options editor (the create / the edit's form stand): the
+ * option's rows over the draft (the grip's press-drag stands the live
+ * reorder — the draft's pure stand, no bridge write until the form's
+ * commit; the color's swatch stands the palette's popover — the hex
+ * stands the data; the name's input; the delete's control) + the
+ * add-option's entry. The row's pitch stands the drag's index math
+ * (the 32 px row + the 4 px gap = the 36 px pitch).
+ */
+function EnumOptionsEditor({
+  options,
+  onChange,
+}: {
+  options: EnumOptionDraft[];
+  onChange: (next: EnumOptionDraft[]) => void;
+}) {
+  const [colorOpen, setColorOpen] = useState<number | null>(null);
+
+  const setOption = (index: number, patch: Partial<EnumOptionDraft>) => {
+    onChange(options.map((option, i) => (i === index ? { ...option, ...patch } : option)));
+  };
+
+  /** The grip's drag session (the window-level pointer stand — the capture
+   *  would retarget the presses): the live reorder over the draft's stand
+   *  (the release stands nothing extra — the draft IS the order). */
+  const beginGripDrag = (index: number) => (event: ReactPointerEvent) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const pitch = 36;
+    const startY = event.clientY;
+    let current = options;
+    const move = (pointer: PointerEvent) => {
+      const delta = Math.round((pointer.clientY - startY) / pitch);
+      const target = Math.min(current.length - 1, Math.max(0, index + delta));
+      if (target !== index) {
+        const next = [...current];
+        const [moved] = next.splice(index, 1);
+        if (moved === undefined) return;
+        next.splice(target, 0, moved);
+        current = next;
+        onChange(next);
+      }
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+
+  return (
+    <div data-slot="docblocks/database-enum-options" className="flex flex-col gap-1">
+      <div className="text-xs text-foreground">Options</div>
+      {options.map((option, index) => (
+        <div
+          key={option.rowId ?? `draft-${index}`}
+          data-slot="docblocks/database-enum-option-row"
+          className="flex h-8 items-center gap-1"
+        >
+          <span
+            data-slot="docblocks/database-enum-option-grip"
+            onPointerDown={beginGripDrag(index)}
+            className="
+              flex size-5 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground
+              active:cursor-grabbing
+            "
+          >
+            <GripVertical className="size-3.5" />
+          </span>
+          <Popover open={colorOpen === index} onOpenChange={(open) => setColorOpen(open ? index : null)}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                data-slot="docblocks/database-enum-option-color"
+                data-color={option.color ?? ""}
+                title="Option's color"
+                className="size-4 shrink-0 cursor-pointer rounded-full border border-border"
+                style={option.color !== null ? { backgroundColor: option.color } : undefined}
+              />
+            </PopoverTrigger>
+            <PopoverContent className="flex w-fit flex-wrap items-center gap-1 p-2" style={{ width: "108px" }}>
+              {ENUM_OPTION_PALETTE.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className="size-4 cursor-pointer rounded-full border border-border"
+                  style={{ backgroundColor: color }}
+                  onClick={() => setOption(index, { color })}
+                />
+              ))}
+              <button
+                type="button"
+                data-slot="docblocks/database-enum-option-color-none"
+                className="size-4 cursor-pointer rounded-full border border-dashed border-border"
+                onClick={() => setOption(index, { color: null })}
+              />
+            </PopoverContent>
+          </Popover>
+          <input
+            type="text"
+            data-slot="docblocks/database-enum-option-name"
+            placeholder="Option"
+            className="
+              w-full min-w-0 flex-1 cursor-text rounded-md border border-border bg-transparent px-2 text-xs
+              text-foreground outline-none
+              focus:bg-muted/60
+            "
+            value={option.name}
+            onChange={(event) => setOption(index, { name: event.target.value })}
+          />
+          <button
+            type="button"
+            data-slot="docblocks/database-enum-option-delete"
+            className="
+              flex size-5 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none
+              hover:text-foreground
+            "
+            onClick={() => onChange(options.filter((_, i) => i !== index))}
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        data-slot="docblocks/database-enum-option-add"
+        className="
+          cursor-pointer self-start rounded-sm px-1 py-0.5 text-xs text-muted-foreground outline-none
+          hover:bg-accent hover:text-accent-foreground
+        "
+        onClick={() => onChange([...options, { name: "", color: null }])}
+      >
+        + Add option
+      </button>
+    </div>
+  );
+}
 
 interface GridBodyProps {
   id: BlockId;
@@ -94,12 +234,19 @@ function GridBody({
   /** The form's create commit (the button's press only): the name over the
    *  input, the type-specific block over the draft; the ref's new-table
    *  creation stands before the column's (the `createTable` → the
-   *  `refTableId` data). */
+   *  `refTableId` data). The enum stands its own hidden system table (the
+   *  options' rows over the `name` / the `color` columns — the table's
+   *  name is derived over the data table + the column's name, so the
+   *  two tabs' seeds share one table). */
   const commitColumnForm = () => {
     const draft = columnForm;
     if (draft === null || draft.name.trim() === "") return;
     const name = draft.name.trim();
-    const commit = (refTableId: string | undefined) => {
+    if (draft.editColumnId !== undefined) {
+      commitColumnEdit(draft);
+      return;
+    }
+    const commitRef = (refTableId: string | undefined) => {
       const columnSuffix = String((data.table?.columns.length ?? 0) + 1);
       const column: BridgeColumn = { id: `col${columnSuffix}`, name, type: draft.type };
       if (draft.numberKind !== undefined) {
@@ -118,8 +265,37 @@ function GridBody({
       setColumnFormOpen(false);
       setColumnForm(null);
     };
+    if (draft.refKind === "enum") {
+      void bridge
+        .createTable(`${tableId}-enum-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, { system: true })
+        .then(async (enumTableId) => {
+          await bridge.createColumn(enumTableId, {
+            id: ENUM_OPTION_NAME_COLUMN,
+            name: ENUM_OPTION_NAME_COLUMN,
+            type: "text",
+          });
+          await bridge.createColumn(enumTableId, {
+            id: ENUM_OPTION_COLOR_COLUMN,
+            name: ENUM_OPTION_COLOR_COLUMN,
+            type: "text",
+          });
+          for (const option of draft.enumOptions ?? []) {
+            if (option.name.trim() === "") continue;
+            const cells: Record<string, unknown> = { [ENUM_OPTION_NAME_COLUMN]: option.name.trim() };
+            if (option.color !== null) cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
+            await bridge.insertRow(enumTableId, cells);
+          }
+          setCatalogRefresh((key) => key + 1);
+          commitRef(enumTableId);
+        })
+        .catch(() => {
+          // The system table's create failure: the form stands open (the
+          // commit stands none — the retry is the form's own press).
+        });
+      return;
+    }
     if (draft.refKind === undefined) {
-      commit(undefined);
+      commitRef(undefined);
       return;
     }
     if (draft.refPick === NEW_TABLE_PICK) {
@@ -129,7 +305,7 @@ function GridBody({
         .createTable(tableName)
         .then((tableId) => {
           setCatalogRefresh((key) => key + 1);
-          commit(tableId);
+          commitRef(tableId);
         })
         .catch(() => {
           // The table's create failure: the form stands open (the commit
@@ -138,7 +314,100 @@ function GridBody({
       return;
     }
     if (draft.refPick === "") return; // the ref stand is required
-    commit(draft.refPick);
+    commitRef(draft.refPick);
+  };
+
+  /** The form's edit commit (the enum's options over the existing system
+   *  table): the diff over the table's current rows (the matched's
+   *  name / color's updates, the removed's removals, the added's inserts,
+   *  the order's stand over the `moveRow`'s ops) + the column's name over
+   *  the `renameColumn` (the undo entry's stand). The bridge's calls stand
+   *  direct (the system table's rows keep no per-block undo — the create
+   *  form's table-creation contract). */
+  const commitColumnEdit = (draft: AddColumnFormDraft) => {
+    const columnId = draft.editColumnId;
+    const refTableId = draft.refPick;
+    const column = data.table?.columns.find((entry) => entry.id === columnId);
+    if (columnId === undefined || refTableId === "" || column === undefined) return;
+    void (async () => {
+      const page = await bridge.queryRows(refTableId, { limit: 200 });
+      const current: { rowId: string; name: string; color: string | null }[] = [];
+      for (const [rowId, cells] of Object.entries(page.rows)) {
+        current.push({
+          rowId,
+          name: typeof cells[ENUM_OPTION_NAME_COLUMN] === "string" ? cells[ENUM_OPTION_NAME_COLUMN] : rowId,
+          color: typeof cells[ENUM_OPTION_COLOR_COLUMN] === "string" ? cells[ENUM_OPTION_COLOR_COLUMN] : null,
+        });
+      }
+      const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
+      const keptRowIds = new Set<string>();
+      const addedRowIds: string[] = [];
+      for (let i = 0; i < draftOptions.length; i++) {
+        const option = draftOptions[i];
+        if (option === undefined) continue;
+        if (option.rowId === undefined) {
+          const cells: Record<string, unknown> = { [ENUM_OPTION_NAME_COLUMN]: option.name.trim() };
+          if (option.color !== null) cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
+          addedRowIds.push(await bridge.insertRow(refTableId, cells));
+          continue;
+        }
+        keptRowIds.add(option.rowId);
+        const before = current.find((entry) => entry.rowId === option.rowId);
+        if (before === undefined) continue;
+        const cells: Record<string, unknown> = {};
+        if (before.name !== option.name.trim()) cells[ENUM_OPTION_NAME_COLUMN] = option.name.trim();
+        if (before.color !== (option.color ?? null)) {
+          cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
+        }
+        if (Object.keys(cells).length > 0) await bridge.updateRow(refTableId, option.rowId, cells);
+      }
+      for (const entry of current) {
+        if (!keptRowIds.has(entry.rowId)) await bridge.removeRow(refTableId, entry.rowId);
+      }
+      const orderedIds = draftOptions.map((option, i) => option.rowId ?? addedRowIds[i]);
+      for (let i = 0; i < orderedIds.length - 1; i++) {
+        const rowId = orderedIds[i];
+        const beforeRowId = orderedIds[i + 1];
+        if (rowId === undefined || beforeRowId === undefined) continue;
+        await bridge.moveRow(refTableId, rowId, beforeRowId);
+      }
+      if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
+      setColumnFormOpen(false);
+      setColumnForm(null);
+    })().catch(() => {
+      // The commit's failure: the form stands open (the retry is the
+      // form's own save press).
+    });
+  };
+
+  /** The edit form's open (the enum's options over the column's system
+   *  table): the draft prefills from the column + the ref table's data
+   *  (the row order's stand, the `name`'s display, the `color`'s hex). */
+  const openColumnFormEdit = (column: BridgeColumn) => {
+    if (column.refKind !== "enum" || column.refTableId === undefined) return;
+    const refData = refTableData[refEntryKey({ tableId: column.refTableId, displayColumn: column.refDisplayColumn })];
+    const options = (refData?.rowIds ?? []).map((rowId) => ({
+      rowId,
+      name: refData?.displays[rowId] ?? rowId,
+      color: refData?.colors[rowId] ?? null,
+    }));
+    setColumnForm({
+      key: column.id,
+      type: "enum",
+      name: column.name,
+      decimals: 0,
+      thousands: false,
+      prefix: "",
+      suffix: "",
+      allowNegative: true,
+      refKind: "enum",
+      refMany: column.refMany === true,
+      refPick: column.refTableId,
+      newTableName: "",
+      enumOptions: options,
+      editColumnId: column.id,
+    });
+    setColumnFormOpen(true);
   };
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   /** The in-flight column drag (pure view state): the column id, the live dx, the live drop index (the parting preview), the press-time width.
@@ -171,8 +440,17 @@ function GridBody({
   // --- The column drag session (the header cell's press).
   const onColumnPointerDown = (column: BridgeColumn, event: ReactPointerEvent<HTMLDivElement>) => {
     // The menu's own controls (the Ellipsis trigger, the rename input) own
-    // their presses: no drag session over them.
-    if (event.target instanceof Element && event.target.closest('[data-slot="docblocks/database-column-menu"]')) return;
+    // their presses: no drag session over them. The menu's content stands
+    // portaled outside the cell's DOM — but inside its REACT tree, so a
+    // press on a menu item still bubbles to this handler (the synthetic
+    // dispatch follows the React tree): the capture over the portaled
+    // content would retarget the item's pointerup and swallow its click.
+    if (
+      event.target instanceof Element &&
+      event.target.closest('[data-slot="docblocks/database-column-menu"], [role="menu"]')
+    ) {
+      return;
+    }
     const index = columns.findIndex((entry) => entry.id === column.id);
     if (index === -1) return;
     dragSession.current = {
@@ -812,6 +1090,11 @@ function GridBody({
                 menuOpen={columnMenu === column.id}
                 onMenuChange={(open) => setColumnMenu(open ? column.id : null)}
                 onRename={(renameName) => void data.renameColumn(column.id, renameName)}
+                onEditOptions={
+                  column.refKind === "enum" && column.refTableId !== undefined
+                    ? () => openColumnFormEdit(column)
+                    : undefined
+                }
                 onHide={() => updateView({ hiddenColumns: [...(hiddenColumns ?? []), column.id] })}
                 onShow={() =>
                   updateView({ hiddenColumns: (hiddenColumns ?? []).filter((entryId) => entryId !== column.id) })
@@ -995,11 +1278,22 @@ function GridBody({
                         </label>
                       </>
                     )}
-                    {columnFormRef && (
+                    {columnFormRef && columnForm?.refKind === "enum" && (
+                      /* The enum's options' editor (the create / the edit's
+                          stand): the ref table's pick is out (the options
+                          stand over the column's own system table — the
+                          created / the edited stand). */
+                      <EnumOptionsEditor
+                        options={columnForm.enumOptions ?? []}
+                        onChange={(next) =>
+                          setColumnForm((draft) => (draft === null ? draft : { ...draft, enumOptions: next }))
+                        }
+                      />
+                    )}
+                    {columnFormRef && columnForm?.refKind === "row" && (
                       <>
-                        {/* The ref table's pick (the enum's dict table / the
-                            row-link's linked table): the existing tables +
-                            the new-table creation. The package's Select
+                        {/* The row-link's table's pick: the existing tables
+                            + the new-table creation. The package's Select
                             (the native select is gone) — the "none" stand
                             is the sentinel pick (Radix takes no empty
                             value), the portaled list stands the standard
@@ -1062,14 +1356,16 @@ function GridBody({
                     <button
                       type="button"
                       data-slot="docblocks/database-add-column-create"
-                      // The create commits on the press only (the outside
-                      // press / the Escape close without the create); the
-                      // empty name / the unpicked ref stand the disabled
-                      // stand (the commit is impossible over it).
+                      // The create / the save commits on the press only
+                      // (the outside press / the Escape close without the
+                      // commit); the empty name / the unpicked row's table
+                      // stand the disabled stand (the commit is impossible
+                      // over it).
                       disabled={
                         columnForm === null ||
                         columnForm.name.trim() === "" ||
                         (columnFormRef &&
+                          columnForm.refKind === "row" &&
                           (columnForm.refPick === "" ||
                             (columnForm.refPick === NEW_TABLE_PICK && columnForm.newTableName.trim() === "")))
                       }
@@ -1083,7 +1379,7 @@ function GridBody({
                         commitColumnForm();
                       }}
                     >
-                      Add column
+                      {columnForm?.editColumnId !== undefined ? "Save" : "Add column"}
                     </button>
                   </div>
                 </PopoverContent>

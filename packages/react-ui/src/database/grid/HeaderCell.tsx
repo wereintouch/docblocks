@@ -20,6 +20,9 @@ interface HeaderCellProps {
   menuOpen: boolean;
   onMenuChange: (open: boolean) => void;
   onRename: (name: string) => void;
+  /** The enum's options' edit (the form's edit mode's open — the enum's
+   *  columns only; the absent stand stands no menu entry). */
+  onEditOptions?: () => void;
   onHide: () => void;
   onShow: () => void;
   onDelete: () => void;
@@ -48,6 +51,7 @@ function HeaderCell({
   menuOpen,
   onMenuChange,
   onRename,
+  onEditOptions,
   onHide,
   onShow,
   onDelete,
@@ -134,6 +138,17 @@ function HeaderCell({
               </span>
             </div>
             <Separator />
+            {onEditOptions !== undefined && (
+              <DropdownMenuItem
+                data-slot="docblocks/database-column-edit-options"
+                onClick={() => {
+                  onMenuChange(false);
+                  onEditOptions();
+                }}
+              >
+                Edit options
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={hidden ? onShow : onHide}>
               {hidden ? "Show column" : "Hide column"}
             </DropdownMenuItem>

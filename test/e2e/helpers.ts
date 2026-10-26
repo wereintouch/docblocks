@@ -13,7 +13,7 @@ declare global {
     /** The playground pane's default database bridge (harness global; the state is per page) — the e2e bridge suite reads/drives it. */
     __bridge?: {
       listTables(): Promise<{ id: string; name: string }[]>;
-      createTable(name: string): Promise<string>;
+      createTable(name: string, options?: { system?: boolean }): Promise<string>;
       createColumn(
         tableId: string,
         column: {
@@ -27,6 +27,8 @@ declare global {
         }
       ): Promise<void>;
       insertRows(tableId: string, rows: Record<string, unknown>[]): Promise<string[]>;
+      insertRow(tableId: string, row: Record<string, unknown>): Promise<string>;
+      moveRow(tableId: string, rowId: string, beforeRowId: string | null): Promise<void>;
       describeTable(tableId: string): Promise<{ name: string; columns: { id: string; name: string; type: string }[] }>;
       queryRows(
         tableId: string,

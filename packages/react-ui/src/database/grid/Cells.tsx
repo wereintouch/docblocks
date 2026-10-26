@@ -9,7 +9,6 @@ import { Calendar } from "../../shared/ui/Calendar";
 import { Checkbox } from "../../shared/ui/Checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "../../shared/ui/Select";
 import { Separator } from "../../shared/ui/Separator";
 import { TimeSegments } from "../../shared/ui/TimeSegments";
 import { cn } from "../../shared/ui/cn";
@@ -18,14 +17,7 @@ import type { BridgeColumn, BridgeColumnAnnotation } from "../bridge";
 import { columnAnnotation, parseCellValue } from "../bridge";
 import { formatNumberValue } from "../number-format";
 import type { DatabaseTableRow } from "../use-database-table";
-import {
-  CELL_INPUT,
-  CELL_SELECTED,
-  CELL_SELECTED_MULTI,
-  CELL_WRAP,
-  CHECKBOX_TOGGLE_GUARD_MS,
-  EMPTY_CELL_OPTION,
-} from "./models";
+import { CELL_INPUT, CELL_SELECTED, CELL_SELECTED_MULTI, CELL_WRAP, CHECKBOX_TOGGLE_GUARD_MS } from "./models";
 import type { RefTableData } from "./use-ref-tables";
 import {
   cellKeyOf,
@@ -159,19 +151,25 @@ function CellDisplay({
     </span>
   );
 }
-/** One option of the ref multi editor (the option's value + its display
- *  label — the enum's option label, the row-link's resolved display). */
+/** One option of the ref's picker / editor (the option's value + its
+ *  display label — the enum's option label, the row-link's resolved
+ *  display; the enum's option's chip color — the `color` column's hex,
+ *  the absent stand stands the neutral chip). */
 interface RefOption {
   value: string;
   label: string;
+  color?: string;
 }
+/** The chip's ink (the option's colors stand the pastel data — the dark
+ *  ink stands legible on them over both themes). */
+const OPTION_CHIP_INK = "#262626";
 /**
  * The many value's chips stand (the multi-enum / the row-links): the train
  * of the option labels over the cell (the joined text's stand is out —
- * the single line, the overflow's clip over the cell's stand). The empty
- * stand stands none (the cell's background only). The option's color (the
- * enum's rework) frames the chip later — the neutral stand over the
- * absent color.
+ * the single line, the overflow's clip over the cell's stand). The chip
+ * stands the option's color's background (the data — the inline stand,
+ * the neutral chip over the absent color). The empty stand stands none
+ * (the cell's background only).
  */
 function RefValueChips({ values, options }: { values: string[]; options: RefOption[] }) {
   if (values.length === 0) return null;
@@ -180,16 +178,126 @@ function RefValueChips({ values, options }: { values: string[]; options: RefOpti
       data-slot="docblocks/database-ref-chips"
       className="flex w-full flex-nowrap items-center gap-1 overflow-hidden px-1 text-(length:--docblocks-font-size)"
     >
-      {values.map((value) => (
-        <span
-          key={value}
-          data-slot="docblocks/database-ref-chip"
-          className="max-w-full shrink truncate rounded-(--docblocks-radius) bg-muted px-1.5 leading-5"
-        >
-          {options.find((option) => option.value === value)?.label ?? value}
-        </span>
-      ))}
+      {values.map((value) => {
+        const option = options.find((entry) => entry.value === value);
+        return (
+          <span
+            key={value}
+            data-slot="docblocks/database-ref-chip"
+            data-option-value={value}
+            style={option?.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined}
+            className={cn(
+              "max-w-full shrink truncate rounded-(--docblocks-radius) px-1.5 leading-5",
+              option?.color === undefined && "bg-muted"
+            )}
+          >
+            {option?.label ?? value}
+          </span>
+        );
+      })}
     </span>
+  );
+}
+/** The shared option picker's list (the single's / the multi's): the
+ *  search's row (the autofocus stand over the open), the empty's option
+ *  (the single's clear stand — the multi stands the toggles only), and
+ *  the options over the configured's order (the row's chip stands the
+ *  option's color). */
+function OptionPickerList({
+  options,
+  multi,
+  values,
+  onPick,
+  onToggle,
+  onClear,
+  onEditEnd,
+}: {
+  options: RefOption[];
+  multi: boolean;
+  values: string[];
+  onPick: (value: string) => void;
+  onToggle: (value: string) => void;
+  onClear?: () => void;
+  onEditEnd: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const filtered = needle === "" ? options : options.filter((option) => option.label.toLowerCase().includes(needle));
+  return (
+    <div className="flex flex-col gap-2">
+      <input
+        type="search"
+        data-slot="docblocks/database-enum-picker-search"
+        autoFocus
+        placeholder="Search options"
+        className="
+          h-7 cursor-text rounded-md border border-border bg-transparent px-2 text-xs text-foreground outline-none
+          focus:bg-muted/40
+        "
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
+      <div className="max-h-48 overflow-y-auto">
+        <div className="flex flex-col gap-1">
+          {onClear !== undefined && (
+            <button
+              type="button"
+              data-slot="docblocks/database-enum-picker-clear"
+              className="
+                block w-full cursor-pointer rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground outline-none
+                hover:bg-accent hover:text-accent-foreground
+              "
+              onClick={() => {
+                onClear();
+                onEditEnd();
+              }}
+            >
+              —
+            </button>
+          )}
+          {filtered.map((option) => (
+            <div
+              key={option.value}
+              data-slot={multi ? "docblocks/database-ref-multi-option" : "docblocks/database-enum-picker-row"}
+              data-option-value={option.value}
+              data-state={multi ? (values.includes(option.value) ? "checked" : "unchecked") : undefined}
+              role={multi ? undefined : "button"}
+              className="
+                flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground
+                hover:bg-accent
+              "
+              onClick={() => {
+                if (multi) onToggle(option.value);
+                else {
+                  onPick(option.value);
+                  onEditEnd();
+                }
+              }}
+            >
+              {multi && (
+                <Checkbox
+                  checked={values.includes(option.value)}
+                  onCheckedChange={() => undefined}
+                  className="pointer-events-none"
+                />
+              )}
+              <span
+                style={
+                  option.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined
+                }
+                className={cn(
+                  "max-w-full shrink truncate rounded-(--docblocks-radius) px-1.5 leading-5",
+                  option.color === undefined && "bg-muted"
+                )}
+              >
+                {option.label}
+              </span>
+            </div>
+          ))}
+          {filtered.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No options.</div>}
+        </div>
+      </div>
+    </div>
   );
 }
 interface RefMultiEditorProps {
@@ -206,6 +314,13 @@ interface RefMultiEditorProps {
  * links): the popover's checkbox list over the options; the press over
  * the option stands the immediate toggle (one `updateRow` per option —
  * the draft stands none, so the external teardown loses nothing).
+ */
+/**
+ * The enum column's many-cardinality editor (the multi-enum): the popover's
+ * option list over the cell's width (the search's row, the option's chip +
+ * the check over the selected); the press over the option stands the
+ * immediate toggle (one `updateRow` per option — the draft stands none,
+ * so the external teardown loses nothing).
  */
 function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditorProps) {
   const toggle = (option: RefOption, include: boolean) => {
@@ -229,30 +344,76 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
           <RefValueChips values={values} options={options} />
         </span>
       </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={4} className="flex w-52 flex-col gap-1 p-2">
-        {options.length === 0 ? (
-          <div data-slot="docblocks/database-ref-multi-empty" className="text-xs text-muted-foreground">
-            No options.
-          </div>
-        ) : (
-          options.map((option) => (
-            <label
-              key={option.value}
-              className="
-                flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground outline-none
-                hover:bg-accent hover:text-accent-foreground
-              "
-            >
-              <Checkbox
-                data-slot="docblocks/database-ref-multi-option"
-                data-option-value={option.value}
-                checked={values.includes(option.value)}
-                onCheckedChange={(checked) => toggle(option, checked === true)}
-              />
-              <span className="line-clamp-1">{option.label}</span>
-            </label>
-          ))
-        )}
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="flex w-(--radix-popover-trigger-width) flex-col gap-1 p-2"
+      >
+        <OptionPickerList
+          options={options}
+          multi
+          values={values}
+          onPick={() => undefined}
+          onToggle={(value) => {
+            const option = options.find((entry) => entry.value === value);
+            if (option !== undefined) toggle(option, !values.includes(value));
+          }}
+          onEditEnd={onEditEnd}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+interface EnumPickerProps {
+  /** The options (the configured's order — the picker's list order). */
+  options: RefOption[];
+  /** The current value (the option's row id or the empty stand). */
+  current: string | null;
+  /** The session stand (the grid's edit session). */
+  open: boolean;
+  onPick: (value: string) => void;
+  /** The empty's option (the clear → the null's commit). */
+  onClear: () => void;
+  onEditEnd: () => void;
+}
+/**
+ * The enum column's single-cardinality picker: the popover's option list
+ * over the cell's width (the search's row, the empty's clear option, the
+ * options over the configured's order). The empty cell stands the cell's
+ * background only (the trigger's box is out — the chip stands the value).
+ * The one press stands the cell's select (the grid's contract), the second
+ * press / the double press stands the list (the `open`'s session stand).
+ */
+function EnumPicker({ options, current, open, onPick, onClear, onEditEnd }: EnumPickerProps) {
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(isOpen) => {
+        if (!isOpen) onEditEnd();
+      }}
+    >
+      <PopoverTrigger asChild>
+        <span
+          data-slot="docblocks/database-enum-picker-trigger"
+          className="block w-full cursor-default px-1 text-(length:--docblocks-font-size)"
+        >
+          <RefValueChips values={current === null ? [] : [current]} options={options} />
+        </span>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="flex w-(--radix-popover-trigger-width) flex-col gap-1 p-2"
+      >
+        <OptionPickerList
+          options={options}
+          multi={false}
+          values={[]}
+          onPick={onPick}
+          onToggle={() => undefined}
+          onClear={onClear}
+          onEditEnd={onEditEnd}
+        />
       </PopoverContent>
     </Popover>
   );
@@ -576,15 +737,18 @@ function DatabaseCell({
     commitDateTime();
   }, [editing]);
 
-  // The ref table's stand (the enum's dict options — the dict table's PK
-  // IS the option label, so the row ids stand the options; the row-link's
-  // displays — the dead row id keeps the raw stand, the lenient read).
+  // The ref table's stand (the enum's options — the option's row id stands
+  // the value, the display stands the label (the dict's legacy PK-as-label
+  // stand stands the display too), the `color` column stands the chip's
+  // color; the row-link's displays — the dead row id keeps the raw stand,
+  // the lenient read).
   const refRowIds = refTableData?.rowIds ?? [];
   const refDisplays = refTableData?.displays ?? {};
-  const refOptions: RefOption[] =
-    column.refKind === "enum"
-      ? refRowIds.map((rowId) => ({ value: rowId, label: rowId }))
-      : refRowIds.map((rowId) => ({ value: rowId, label: refDisplays[rowId] ?? rowId }));
+  const refOptions: RefOption[] = refRowIds.map((rowId) => ({
+    value: rowId,
+    label: refDisplays[rowId] ?? rowId,
+    color: refTableData?.colors[rowId],
+  }));
 
   let content: ReactNode;
   const isManyRef = column.refKind !== undefined && column.refMany === true;
@@ -747,34 +911,14 @@ function DatabaseCell({
       }
       case "enum":
         content = (
-          <Select
-            value={value === undefined || value === null ? EMPTY_CELL_OPTION : String(value)}
-            onValueChange={(next) => onChange(next === EMPTY_CELL_OPTION ? null : next)}
+          <EnumPicker
+            options={refOptions}
+            current={value === undefined || value === null ? null : String(value)}
             open={editing}
-            onOpenChange={(open) => {
-              if (!open) onEditEnd();
-            }}
-          >
-            <SelectTrigger
-              size="sm"
-              bare
-              className="
-                w-full cursor-default justify-start rounded-(--docblocks-radius) border-0 bg-transparent px-1
-                text-(length:--docblocks-font-size) shadow-none outline-none
-                data-[size=sm]:h-6
-              "
-            >
-              <span className="line-clamp-1">{empty ? "" : String(value)}</span>
-            </SelectTrigger>
-            <SelectContent align="start" sideOffset={4}>
-              <SelectItem value={EMPTY_CELL_OPTION}>—</SelectItem>
-              {refRowIds.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onPick={(next) => onChange(next)}
+            onClear={() => onChange(null)}
+            onEditEnd={onEditEnd}
+          />
         );
         break;
       case "row-link":

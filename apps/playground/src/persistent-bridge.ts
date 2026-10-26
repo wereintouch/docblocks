@@ -23,6 +23,9 @@ const SAVE_DEBOUNCE_MS = 150;
 
 interface SnapshotTable {
   name: string;
+  /** The system (hidden) table's stand (the enum's options — the
+   *  `listTables` stands it out, so the snapshot names it explicitly). */
+  system?: boolean;
   columns: BridgeColumn[];
   rows: { id: string; cells: Record<string, unknown> }[];
 }
@@ -42,10 +45,13 @@ function loadSnapshot(): Snapshot | null {
   }
 }
 
-/** The full state re-read over the public API (the snapshot's source). */
+/** The full state re-read over the public API (the snapshot's source; the
+ *  system tables stand over the `systemTableIds`' set — the `listTables`
+ *  stands them out). */
 async function snapshotOf(bridge: DatabaseBridge): Promise<Snapshot> {
   const tables: SnapshotTable[] = [];
-  for (const ref of await bridge.listTables()) {
+  const refs = [...(await bridge.listTables()), ...[...systemTableIds].map((id) => ({ id, name: id }))];
+  for (const ref of refs) {
     const description = await bridge.describeTable(ref.id);
     const rows: SnapshotTable["rows"] = [];
     let cursor: string | undefined;
@@ -56,7 +62,12 @@ async function snapshotOf(bridge: DatabaseBridge): Promise<Snapshot> {
       }
       cursor = page.nextCursor ?? undefined;
     } while (cursor !== undefined);
-    tables.push({ name: description.name, columns: description.columns, rows });
+    tables.push({
+      name: description.name,
+      system: systemTableIds.has(ref.id) ? true : undefined,
+      columns: description.columns,
+      rows,
+    });
   }
   return { tables };
 }
@@ -68,7 +79,8 @@ async function snapshotOf(bridge: DatabaseBridge): Promise<Snapshot> {
 function seed(bridge: DatabaseBridge, snapshot: Snapshot): Promise<void> {
   return (async () => {
     for (const table of snapshot.tables) {
-      const id = await bridge.createTable(table.name);
+      const id = await bridge.createTable(table.name, table.system === true ? { system: true } : undefined);
+      if (table.system === true) systemTableIds.add(id);
       for (const column of table.columns) {
         try {
           await bridge.createColumn(id, column);
@@ -89,6 +101,11 @@ function seed(bridge: DatabaseBridge, snapshot: Snapshot): Promise<void> {
 }
 
 let seedPromise: Promise<void> | null = null;
+
+/** The system tables' ids (the `listTables` stands them out — the
+ *  snapshot names them over this set; the seed restores the flag, the
+ *  create records the fresh id). */
+const systemTableIds = new Set<string>();
 
 /** The seed's readiness (the harness's table seed awaits it: the guard
  * reads the snapshot's tables, not the empty bridge). */
@@ -141,9 +158,10 @@ function scheduleSave(): void {
  * snapshot's save. */
 export const persistentDatabaseBridge: DatabaseBridge = {
   listTables: () => databaseBridgeReady().then(() => getDefaultDatabaseBridge().listTables()),
-  createTable: (name) =>
+  createTable: (name, options) =>
     databaseBridgeReady().then(async () => {
-      const id = await getDefaultDatabaseBridge().createTable(name);
+      const id = await getDefaultDatabaseBridge().createTable(name, options);
+      if (options?.system === true) systemTableIds.add(id);
       scheduleSave();
       return id;
     }),

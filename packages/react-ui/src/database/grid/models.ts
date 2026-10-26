@@ -53,6 +53,20 @@ interface AddColumnFormDraft {
   refPick: string;
   /** The new ref table's name (the "new table" entry's creation stand). */
   newTableName: string;
+  /** The enum's options' draft (the create / the edit's stand — the order
+   *  is the display order; the existing option's row id stands over the
+   *  edit's diff, the added draft's option stands none). */
+  enumOptions?: EnumOptionDraft[];
+  /** The edit mode's column id (the create stands none). */
+  editColumnId?: string;
+}
+/** The enum's option's draft row (the editor's stand — the option's
+ *  label + the chip's color; the existing option's row id stands over
+ *  the edit's commit's diff). */
+interface EnumOptionDraft {
+  rowId?: string;
+  name: string;
+  color: string | null;
 }
 /** The form draft over a catalog entry (the name prefills the type's
  *  label — the create's commit takes the input's name). */
@@ -115,9 +129,6 @@ interface ColumnResizeSession {
   width: number;
   visible: string[];
 }
-/** The empty cell's option value (the radix Select rejects the empty
- *  string; the sentinel stands the "no value" pick and commits null). */
-const EMPTY_CELL_OPTION = "docblocks/empty-cell";
 /** The shared cell wrapper classes (the left border + the padding). */
 const CELL_WRAP =
   "flex min-h-6 min-w-0 items-center overflow-hidden border-(--docblocks-table-border-color) p-(--docblocks-table-cell-padding)";
@@ -153,10 +164,9 @@ export {
   CHECKBOX_TOGGLE_GUARD_MS,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
   DRAG_START_THRESHOLD_PX,
-  EMPTY_CELL_OPTION,
   MIN_DATABASE_COLUMN_WIDTH_PX,
   NEW_TABLE_PICK,
   REF_NONE_PICK,
   emptyColumnForm,
 };
-export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, ColumnResizeSession };
+export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, ColumnResizeSession, EnumOptionDraft };

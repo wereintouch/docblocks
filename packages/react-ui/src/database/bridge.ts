@@ -107,7 +107,7 @@ interface RowPage {
  * row store (the subscription knows no view state).
  */
 type TableEvent =
-  | { type: "table.created"; tableId: string; name: string; columns: BridgeColumn[] }
+  | { type: "table.created"; tableId: string; name: string; columns: BridgeColumn[]; system?: boolean }
   | { type: "row.created"; rowId: string; cells: Record<string, unknown> }
   | { type: "row.updated"; rowId: string; cells: Record<string, unknown>; before?: Record<string, unknown> }
   | { type: "row.removed"; rowId: string }
@@ -122,10 +122,12 @@ type TableEvent =
  * with the same event shape) and returns the unsubscribe.
  */
 interface DatabaseBridge {
-  /** The table catalog. */
+  /** The table catalog (the consumer's visible tables — the system
+   *  tables, created over `createTable` with the `system` flag, stand
+   *  excluded; their schema / rows stay reachable by id). */
   listTables(): Promise<TableRef[]>;
-  /** Create a table by name → its id (created EMPTY — the schema is filled by the createColumn calls). */
-  createTable(name: string): Promise<string>;
+  /** Create a table by name → its id (created EMPTY — the schema is filled by the createColumn calls). The `system` flag marks the hidden table (absent from `listTables` — the enum's options' stand). */
+  createTable(name: string, options?: { system?: boolean }): Promise<string>;
   /** Rename the table (the name stands on the table, shared by every block
    *  that references it). */
   renameTable(tableId: string, name: string): Promise<void>;
@@ -438,7 +440,41 @@ function between(value: unknown, expected: unknown): boolean {
   return num >= numberOr(pair[0]) && num <= numberOr(pair[1]);
 }
 
-export { TEXT_TYPES, VALUELESS_OPERATORS, columnAnnotation, conditionMatches, parseCellValue };
+/**
+ * The enum option's system table's schema (the option IS a row of the
+ * table — the row's pk stands the option's identity, so the rename / the
+ * reorder stand the cell values intact; the `name` column stands the
+ * option's label, the `color` column stands the option's chip color (the
+ * hex data — the absent value stands the neutral display)). The enum
+ * column's `refTableId` points at the table; the cell's value stands the
+ * option's row id.
+ */
+const ENUM_OPTION_NAME_COLUMN = "name";
+const ENUM_OPTION_COLOR_COLUMN = "color";
+
+/** The enum's option catalog (the chip's colors stand the data — the
+ *  consumer's palette stand over the hex; the form's color pick reads it).
+ */
+const ENUM_OPTION_PALETTE: readonly string[] = [
+  "#f7a8a8",
+  "#f9bd7d",
+  "#f4e07d",
+  "#97e3a8",
+  "#8ed2f2",
+  "#93b4f2",
+  "#c5aef2",
+];
+
+export {
+  TEXT_TYPES,
+  VALUELESS_OPERATORS,
+  ENUM_OPTION_COLOR_COLUMN,
+  ENUM_OPTION_NAME_COLUMN,
+  ENUM_OPTION_PALETTE,
+  columnAnnotation,
+  conditionMatches,
+  parseCellValue,
+};
 export type {
   BridgeColumn,
   BridgeColumnAnnotation,

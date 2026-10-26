@@ -37,6 +37,9 @@ const ROW_ORDER_COLUMN = "rowOrder";
 
 interface MemoryTable {
   name: string;
+  /** The system (hidden) table — absent from `listTables` (the enum's
+   *  options' stand). */
+  system?: boolean;
   columns: BridgeColumn[];
   /** row id (the pk value) → the cells. */
   rows: Map<string, Record<string, unknown>>;
@@ -92,6 +95,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       if (event.type === "table.created" && !tables.has(tableId)) {
         tables.set(tableId, {
           name: event.name,
+          system: event.system === true ? true : undefined,
           columns: clone(event.columns),
           rows: new Map(),
           orderValues: new Map(),
@@ -249,18 +253,30 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
 
   const bridge: DatabaseBridge = {
     async listTables(): Promise<TableRef[]> {
-      return [...tables.entries()].map(([id, table]) => ({ id, name: table.name }));
+      return [...tables.entries()]
+        .filter(([, table]) => table.system !== true)
+        .map(([id, table]) => ({ id, name: table.name }));
     },
 
-    async createTable(name: string): Promise<string> {
+    async createTable(name: string, options?: { system?: boolean }): Promise<string> {
       // The id stands derived from the name (deterministic across the
       // channel's instances: the two tabs' identically-named tables share
       // one table — the demo-seed contract); an existing table of the name
       // (the local seed or the peer's created echo) is adopted as-is.
       const id = tableIdFor(name);
       if (tables.has(id)) return id;
-      tables.set(id, { name, columns: [], rows: new Map(), orderValues: new Map(), trash: new Map(), rowCounter: 0 });
-      emit(id, [{ type: "table.created", tableId: id, name, columns: [] }]);
+      tables.set(id, {
+        name,
+        system: options?.system === true ? true : undefined,
+        columns: [],
+        rows: new Map(),
+        orderValues: new Map(),
+        trash: new Map(),
+        rowCounter: 0,
+      });
+      emit(id, [
+        { type: "table.created", tableId: id, name, columns: [], system: options?.system === true ? true : undefined },
+      ]);
       return id;
     },
 
