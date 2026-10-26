@@ -575,7 +575,7 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     expect(cleared.rows[rowId]!.owner ?? null).toBeNull();
   });
 
-  it("the multi-enum cell: the display joins the labels; the editor's toggle commits the array", async () => {
+  it("the multi-enum cell: the display stands the chips; the editor's toggle commits the array", async () => {
     const { bridge, tableId } = await renderGrid();
     await bridge.createColumn(tableId, {
       id: "tags",
@@ -590,8 +590,14 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await bridge.updateRow(tableId, rowId, { tags: ["todo", "done"] });
     const cell = () =>
       document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='tags']");
+    const chips = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
+        (chip) => chip.textContent
+      );
     await until(() => cell() !== null, "the cell");
-    await until(() => (cell()!.textContent ?? "") === "todo, done", "the joined display");
+    // The display stands the chips' train (the joined text is out).
+    await until(() => chips().length === 2, "the chips");
+    expect(chips()).toEqual(["todo", "done"]);
 
     // The double press opens the checkbox list (the toggle commits the
     // array immediately — one `updateRow` per option).
@@ -611,11 +617,127 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await settleGrid();
     const after = await bridge.queryRows(tableId, {});
     expect(after.rows[rowId]!.tags).toEqual(["todo", "done", "active"]);
+    // The chips stand the live values.
+    await until(() => chips().length === 3, "the chips' update");
+    expect(chips()).toEqual(["todo", "done", "active"]);
     // The uncheck drops the option (the array's stand).
     fireEvent.click(option("todo")!);
     await settleGrid();
     const after2 = await bridge.queryRows(tableId, {});
     expect(after2.rows[rowId]!.tags).toEqual(["done", "active"]);
+    await until(() => chips().length === 2, "the chips' uncheck");
+    expect(chips()).toEqual(["done", "active"]);
+  });
+
+  it("the multi-enum's EMPTY cell: the double press stands the multi editor; the first pick commits the array", async () => {
+    const { bridge, tableId } = await renderGrid();
+    await bridge.createColumn(tableId, {
+      id: "tags",
+      name: "Tags",
+      type: "text",
+      refKind: "enum",
+      refTableId: "table-statuses",
+      refMany: true,
+    });
+    const page = await bridge.queryRows(tableId, {});
+    const rowId = Object.keys(page.rows)[0]!;
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='tags']");
+    const chips = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
+        (chip) => chip.textContent
+      );
+    await until(() => cell() !== null, "the cell");
+    // The empty stand (the cell's background only — no chip, no joined
+    // text) + the empty stand's flag.
+    expect(chips().length).toBe(0);
+    expect(cell()!.getAttribute("data-empty")).toBe("true");
+
+    // The double press over the empty cell stands the MULTI editor (the
+    // single-pick's stand is out — the bug's regression pin).
+    fireEvent.doubleClick(cell()!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-ref-multi-option']") !== null,
+      "the multi editor"
+    );
+    const option = (value: string) =>
+      document.querySelector<HTMLElement>(
+        `[data-slot='docblocks/database-ref-multi-option'][data-option-value='${value}']`
+      );
+    expect(option("todo")!.getAttribute("data-state")).not.toBe("checked");
+
+    // The first pick commits the ARRAY (the scalar's stand is out —
+    // `[value]`), the second pick appends (the toggle's one `updateRow`).
+    fireEvent.click(option("todo")!);
+    await settleGrid();
+    let after = await bridge.queryRows(tableId, {});
+    expect(Array.isArray(after.rows[rowId]!.tags)).toBe(true);
+    expect(after.rows[rowId]!.tags).toEqual(["todo"]);
+    await until(() => chips().length === 1, "the chip");
+    expect(chips()).toEqual(["todo"]);
+    fireEvent.click(option("done")!);
+    await settleGrid();
+    after = await bridge.queryRows(tableId, {});
+    expect(after.rows[rowId]!.tags).toEqual(["todo", "done"]);
+    await until(() => chips().length === 2, "the chips");
+
+    // The uncheck over the last value stands the empty array (the cell's
+    // empty stand is back — the null's stand is out for the many's
+    // cardinality: the commit is the array always).
+    fireEvent.click(option("todo")!);
+    await settleGrid();
+    fireEvent.click(option("done")!);
+    await settleGrid();
+    after = await bridge.queryRows(tableId, {});
+    expect(after.rows[rowId]!.tags).toEqual([]);
+    await until(() => chips().length === 0, "the chips' clear");
+  });
+
+  it("the multi row-links' EMPTY cell: the picks stand the array of the row ids; the chips stand the displays", async () => {
+    const { bridge, tableId } = await renderGrid();
+    await bridge.createTable("People");
+    await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
+    await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
+    await bridge.createColumn(tableId, {
+      id: "owners",
+      name: "Owners",
+      type: "text",
+      refKind: "row",
+      refTableId: "table-people",
+      refMany: true,
+    });
+    const page = await bridge.queryRows(tableId, {});
+    const rowId = Object.keys(page.rows)[0]!;
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owners']");
+    const chips = () =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
+        (chip) => chip.textContent
+      );
+    await until(() => cell() !== null, "the cell");
+    fireEvent.doubleClick(cell()!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-ref-multi-option']") !== null,
+      "the multi editor"
+    );
+    const option = (rowId: string) =>
+      document.querySelector<HTMLElement>(
+        `[data-slot='docblocks/database-ref-multi-option'][data-option-value='${rowId}']`
+      );
+    // The options stand the linked table's rows (the displays' labels).
+    expect(option("r-table-people-1")!).not.toBeNull();
+    fireEvent.click(option("r-table-people-1")!);
+    await settleGrid();
+    let after = await bridge.queryRows(tableId, {});
+    expect(after.rows[rowId]!.owners).toEqual(["r-table-people-1"]);
+    await until(() => chips().length === 1, "the chip");
+    expect(chips()).toEqual(["Ann"]);
+    fireEvent.click(option("r-table-people-2")!);
+    await settleGrid();
+    after = await bridge.queryRows(tableId, {});
+    expect(after.rows[rowId]!.owners).toEqual(["r-table-people-1", "r-table-people-2"]);
+    await until(() => chips().length === 2, "the chips");
+    expect(chips()).toEqual(["Ann", "Bob"]);
   });
 
   it("the header's press-drag reorders the columns (the columnOrder attr; the live preview stands no write)", async () => {
