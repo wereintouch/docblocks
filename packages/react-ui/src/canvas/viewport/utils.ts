@@ -188,10 +188,32 @@ function connectorPreviewPoint(cursor: CanvasPoint, snap: EndpointSnap | null, b
   return edgePointOf(box, snap.port, snap.t);
 }
 
+/**
+ * The drag-to-size place's box: the center is the drag's midpoint (the
+ * anchor stands regardless of the constraint), the size is the free drag's
+ * W×H — or the SQUARE (W = H) while `shift` stands (the 1:1 constraint: the
+ * larger of |dx| / |dy| wins, the Figma idiom; the 1 px floor stands so a
+ * degenerate drag commits a 1 px figure). The preview and the release's
+ * commit read from this one function (the preview's stand is the commit's
+ * stand — the no-jump contract).
+ */
+function placeDragBox(
+  start: CanvasPoint,
+  current: CanvasPoint,
+  shift: boolean
+): { x: number; y: number; w: number; h: number } {
+  const dx = Math.abs(current.x - start.x);
+  const dy = Math.abs(current.y - start.y);
+  const w = shift ? Math.max(dx, dy, 1) : Math.max(dx, 1);
+  const h = shift ? Math.max(dx, dy, 1) : Math.max(dy, 1);
+  return { x: (start.x + current.x) / 2, y: (start.y + current.y) / 2, w, h };
+}
+
 export {
   connectorPressStand,
   connectorPreviewFrom,
   connectorPreviewPoint,
+  placeDragBox,
   snapAnySurfaceEdge,
   snapEdgePoint,
   snapEndpointEdge,

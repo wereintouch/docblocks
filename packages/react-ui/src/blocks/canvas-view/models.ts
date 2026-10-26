@@ -116,7 +116,14 @@ type CanvasSession =
   | { kind: "pan"; startClientX: number; startClientY: number; startPanX: number; startPanY: number }
   | { kind: "marquee"; additive: boolean }
   | { kind: "pen"; points: { x: number; y: number }[] }
-  | { kind: "place"; tool: PlaceTool; start: CanvasPoint; startClientX: number; startClientY: number };
+  | {
+      kind: "place";
+      tool: PlaceTool;
+      start: CanvasPoint;
+      startClientX: number;
+      startClientY: number;
+      lastPoint: CanvasPoint;
+    };
 
 /** The page-card scrollbar-strip guard width (the native thin bar's reach). */
 const SCROLLBAR_GUARD_PX = 12;

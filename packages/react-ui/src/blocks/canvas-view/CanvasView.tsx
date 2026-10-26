@@ -54,6 +54,7 @@ import {
   connectorPressStand,
   connectorPreviewFrom,
   connectorPreviewPoint,
+  placeDragBox,
   snapAnySurfaceEdge,
 } from "../../canvas/viewport/utils";
 import { zPositionOf } from "../../canvas/z-order-menu";
@@ -539,6 +540,7 @@ function CanvasView() {
           start,
           startClientX: event.clientX,
           startClientY: event.clientY,
+          lastPoint: start,
         };
         event.currentTarget.setPointerCapture?.(event.pointerId);
         return;
@@ -861,16 +863,17 @@ function CanvasView() {
       viewport.setMarquee({ start, end: point });
     } else if (session.kind === "place") {
       // The drag-to-size preview: the box is the drag's extent (the
-      // marquee's math), the center anchor is the drag's midpoint.
+      // marquee's math), the center anchor is the drag's midpoint; the shift
+      // stands the 1:1 square (the live constraint — the release's commit
+      // stands the same box, the preview's stand is the commit's stand).
       const current = screenToCanvas(point, viewport.zoom, viewport.pan);
+      session.lastPoint = current;
+      const box = placeDragBox(session.start, current, event.shiftKey);
       const isContainer = session.tool === "container";
       viewport.setPlacePreview({
         kind: isContainer ? "container" : "shape",
         variant: session.tool === "container" ? "rect" : session.tool,
-        x: (session.start.x + current.x) / 2,
-        y: (session.start.y + current.y) / 2,
-        w: Math.max(Math.abs(current.x - session.start.x), 1),
-        h: Math.max(Math.abs(current.y - session.start.y), 1),
+        ...box,
       });
     } else if (session.kind === "pen") {
       session.points.push(screenToCanvas(point, viewport.zoom, viewport.pan));
@@ -925,20 +928,16 @@ function CanvasView() {
 
     if (session.kind === "place") {
       // The release commits: a sub-threshold drag is the click place (the
-      // default size), a real drag lands the dragged size at the drag's
-      // midpoint (one transact, the tool resets, the preview drops).
+      // default size), a real drag lands the dragged box at the drag's
+      // midpoint (one transact, the tool resets, the preview drops); the
+      // shift stands the same 1:1 box as the preview (the no-jump contract
+      // — the preview's stand is the commit's stand).
       const current = screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan);
       if (Math.hypot(event.clientX - session.startClientX, event.clientY - session.startClientY) < MOVE_THRESHOLD_PX) {
         viewport.onPlace(session.start);
       } else {
-        viewport.onPlaceSize(
-          session.tool,
-          { x: (session.start.x + current.x) / 2, y: (session.start.y + current.y) / 2 },
-          {
-            w: Math.max(Math.abs(current.x - session.start.x), 1),
-            h: Math.max(Math.abs(current.y - session.start.y), 1),
-          }
-        );
+        const box = placeDragBox(session.start, current, event.shiftKey);
+        viewport.onPlaceSize(session.tool, { x: box.x, y: box.y }, { w: box.w, h: box.h });
       }
       viewport.setPlacePreview(null);
       return;
@@ -1155,6 +1154,22 @@ function CanvasView() {
       return;
     }
     if (isEditingSurface(event.target)) return;
+    // The place session's shift: the 1:1 constraint's live toggle (the
+    // preview re-stands from the session's last point over the new shift
+    // state — the constraint stands / drops without a mouse move; the
+    // release's commit stands the same box, the no-jump contract).
+    if (event.key === "Shift") {
+      const session = sessionRef.current;
+      if (session !== null && session.kind === "place") {
+        const box = placeDragBox(session.start, session.lastPoint, event.shiftKey);
+        viewport.setPlacePreview({
+          kind: session.tool === "container" ? "container" : "shape",
+          variant: session.tool === "container" ? "rect" : session.tool,
+          ...box,
+        });
+      }
+      return;
+    }
     // The group's hotkeys: Ctrl/Cmd+G
     // groups the multi selection (one transact — the makeGroup's null is
     // the no-op: the ineligible selection stands nothing),
@@ -1352,7 +1367,25 @@ function CanvasView() {
   };
 
   const onKeyUp = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === " ") setSpacePan(false);
+    if (event.key === " ") {
+      setSpacePan(false);
+      return;
+    }
+    // The place session's shift's release: the 1:1 constraint's live drop
+    // (the preview re-stands free over the session's last point — the
+    // same contract as the keydown's stand, the no-jump on release).
+    if (event.key === "Shift") {
+      const session = sessionRef.current;
+      if (session !== null && session.kind === "place") {
+        const box = placeDragBox(session.start, session.lastPoint, event.shiftKey);
+        viewport.setPlacePreview({
+          kind: session.tool === "container" ? "container" : "shape",
+          variant: session.tool === "container" ? "rect" : session.tool,
+          ...box,
+        });
+      }
+      return;
+    }
   };
 
   const cursor =
