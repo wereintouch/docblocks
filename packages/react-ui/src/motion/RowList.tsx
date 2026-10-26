@@ -41,7 +41,13 @@ const RowList = memo(function RowList({
   onDragEnd,
 }: RowListProps) {
   return (
-    <Reorder.Group as="div" axis="y" values={order} onReorder={(next) => onReorder(next as BlockId[])}>
+    <Reorder.Group
+      as="div"
+      data-slot="docblocks/rows"
+      axis="y"
+      values={order}
+      onReorder={(next) => onReorder(next as BlockId[])}
+    >
       <AnimatePresence initial={false} mode="sync">
         {order.map((id) => {
           const node = nodesById.get(id);

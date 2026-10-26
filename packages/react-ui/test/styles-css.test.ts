@@ -131,6 +131,15 @@ describe("dist/styles.css contract", () => {
     );
     expect(STYLES_CSS).toContain("-moz-appearance: textfield");
   });
+
+  it("ships the page content column's max-width token (the centered stand)", () => {
+    // The page view's content column stands the max width over the
+    // centered stand (the consumer's override hook): the token stands a
+    // literal default in the editor-root mapping, and the utility layer
+    // resolves the arbitrary-value class to the var reference.
+    expect(STYLES_CSS).toContain("--docblocks-page-max-width: 900px;");
+    expect(STYLES_CSS).toContain("max-width: var(--docblocks-page-max-width);");
+  });
 });
 
 // The color palette's shipped token contract: the seven pastel tokens stand

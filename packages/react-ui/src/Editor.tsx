@@ -73,10 +73,6 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
         className={cn(
           "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",
           "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
-          // The page view keeps the block content inside the card frame (the
-          // gutter grip stands in the left margin band, not past the border);
-          // the canvas view owns its own viewport and is unpadded.
-          view === "page" && "px-(--docblocks-page-padding-x)",
           "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
         )}
         onKeyDown={onKeyDown}
@@ -87,7 +83,23 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           <MentionMenuContext.Provider value={mention.api}>
             <FormatPaletteContext.Provider value={formatPalette}>
               <BlockContext.Provider value={rootContext}>
-                {view === "canvas" ? <CanvasView /> : <BlockGroups ids={rootChildren} />}
+                {view === "canvas" ? (
+                  <CanvasView />
+                ) : (
+                  // The page's content column: the max width over the
+                  // centered stand (the symmetric margins over the wide
+                  // window; the full width over the narrow one) + the
+                  // horizontal padding (the gutter band stands inside the
+                  // column, so the grip follows the content's edge, not
+                  // the viewport's). The canvas view owns its own
+                  // viewport and is unpadded.
+                  <div
+                    data-slot="docblocks/page"
+                    className="mx-auto w-full max-w-(--docblocks-page-max-width) px-(--docblocks-page-padding-x)"
+                  >
+                    <BlockGroups ids={rootChildren} />
+                  </div>
+                )}
               </BlockContext.Provider>
             </FormatPaletteContext.Provider>
           </MentionMenuContext.Provider>

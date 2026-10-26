@@ -70,11 +70,12 @@ describe("MotionEditor", () => {
     expect(wrappersOf(container)).toHaveLength(1);
 
     // The row's entry element: the block wrapper's nearest ancestor that
-    // is a direct child of the root group (the lift's content div sits in
-    // between).
+    // is a direct child of the rows group (the lift's content div sits in
+    // between; the rows group stands inside the page's content column —
+    // the centered max-width's stand).
     const entryOf = (index: number) => {
       const wrappers = wrappersOf(container);
-      const group = container.querySelector("[data-slot='docblocks/editor'] > div");
+      const group = container.querySelector("[data-slot='docblocks/rows']");
       let entry: HTMLElement | null = wrappers[index]?.parentElement ?? null;
       while (entry !== null && entry.parentElement !== group) entry = entry.parentElement;
       return entry;
