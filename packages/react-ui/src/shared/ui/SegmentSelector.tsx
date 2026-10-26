@@ -4,7 +4,9 @@
  * active-button geometry — the pill is the highlight; the active button
  * carries no styling of its own). A controlled component: the caller owns
  * the value and the `onChange` behavior (the no-op-on-current guard is the
- * caller's).
+ * caller's). The pill's travel runs a back-out easing (a slight overshoot
+ * that settles into the measured stand — the end position stands exact,
+ * the overshoot is the animation only).
  */
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -98,7 +100,7 @@ function SegmentSelector<T extends string>({
           aria-hidden
           className="
             absolute top-0 left-0 rounded-md bg-background shadow-sm transition-[transform,width,height] duration-200
-            ease-out
+            ease-[cubic-bezier(0.34,1.56,0.64,1)]
           "
           style={{
             transform: `translate(${pill.left}px, ${pill.top}px)`,

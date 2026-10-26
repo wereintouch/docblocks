@@ -162,6 +162,14 @@ test("a mermaid code block inserted in A switches to the diagram in both panes",
     // is the highlight; it slides on a mode switch).
     await block.hover();
     await pillOnButton(block, block.locator('[data-mermaid-mode-button="code"]'));
+    // The pill's travel stands the back-out easing (the slight overshoot's
+    // settle — the shared stand over the mode switcher; the geometry pins
+    // are the regression over the new easing).
+    expect(
+      await block
+        .locator('[data-slot="docblocks/mermaid-mode-pill"]')
+        .evaluate((el) => getComputedStyle(el).transitionTimingFunction)
+    ).toBe("cubic-bezier(0.34, 1.56, 0.64, 1)");
   }
 
   // The preview switch in A writes the mode attr — it syncs over the
