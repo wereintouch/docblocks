@@ -87,7 +87,7 @@ function HeaderCell({
       className={cn(
         `
           relative flex min-w-0 cursor-grab items-center gap-1 border-b-(length:--docblocks-table-border-width)
-          border-(--docblocks-table-border-color) bg-muted/40 px-(--docblocks-table-cell-padding) py-1 select-none
+          border-(--docblocks-table-border-color) bg-muted/40 px-2 py-1 select-none
           active:cursor-grabbing
         `,
         !first && "border-l-(length:--docblocks-table-border-width)"
@@ -96,7 +96,7 @@ function HeaderCell({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      <span className="min-w-0 truncate text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)">
+      <span className="min-w-0 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)">
         {column.name}
       </span>
       <div className="ml-auto shrink-0">

@@ -807,6 +807,87 @@ test("the create's column order stands the creation order (the new stands last);
   await close();
 });
 
+test("the header's name stands the px-2 padding (the text stands over the data's text; the rename stands)", async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  try {
+    await openPane(a, "a", "ext04-header-pad-" + Math.random().toString(36).slice(2, 8));
+
+    const tableId = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      await bridge.listTables();
+      const id = await bridge.createTable("header-pad-" + Date.now());
+      await bridge.createColumn(id, { id: "c1", name: "Alpha Column Name", type: "text" });
+      const row = { id: "r1" };
+      await bridge.insertRow(id, row);
+      await bridge.updateRow(id, "r1", { c1: "DataCellText" });
+      return id;
+    });
+    await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), tableId);
+
+    const grid = a.locator("[data-slot='docblocks/database-grid']");
+    await expect(grid).toHaveCount(1, SETTLE);
+
+    // The header cell's computed padding-x stands 8px (the px-2 — the
+    // `4px 8px` token's no-longer-misread padding-inline).
+    const headerPadding = () =>
+      a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='c1']").evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { left: cs.paddingLeft, right: cs.paddingRight };
+      });
+    // The name's text stands over the data's text (the same x — no jump):
+    // the glyph's offset from the cell's left edge is equal.
+    const glyphOffsets = () =>
+      a.evaluate(() => {
+        const grid = document.querySelector('[data-slot="docblocks/database-grid"]')!;
+        const headerCell = grid.querySelector(
+          '[data-slot="docblocks/database-header-cell"][data-column-id="c1"]'
+        ) as HTMLElement;
+        const nameSpan = headerCell.querySelector("span") as HTMLElement;
+        const nameGlyph =
+          nameSpan.getBoundingClientRect().left +
+          parseFloat(getComputedStyle(nameSpan).paddingLeft) -
+          headerCell.getBoundingClientRect().left;
+        const dataCell = grid.querySelector(
+          '[data-slot="docblocks/database-cell"][data-column-id="c1"]'
+        ) as HTMLElement;
+        const dataSpan = dataCell.querySelector("span") as HTMLElement;
+        const dataGlyph =
+          dataSpan.getBoundingClientRect().left +
+          parseFloat(getComputedStyle(dataSpan).paddingLeft) -
+          dataCell.getBoundingClientRect().left;
+        return { nameGlyph, dataGlyph };
+      });
+
+    // The dark stand (the harness's default): the padding-x = 8px, and the
+    // name's text stands over the data's text (aligned within half a px).
+    expect(await headerPadding()).toEqual({ left: "8px", right: "8px" });
+    let offsets = await glyphOffsets();
+    expect(Math.abs(offsets.nameGlyph - offsets.dataGlyph)).toBeLessThan(0.5);
+
+    // The light stand: the padding stands (the token is the theme-independent).
+    await a.evaluate(() => document.documentElement.classList.remove("dark"));
+    await expect.poll(async () => (await headerPadding()).left, SETTLE).toBe("8px");
+    offsets = await glyphOffsets();
+    expect(Math.abs(offsets.nameGlyph - offsets.dataGlyph)).toBeLessThan(0.5);
+
+    // The rename stands (the menu's press + the rename commit — the
+    // geometry / the hit stand unaffected by the padding): the column's
+    // name updates over the wire.
+    const headerCell = a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='c1']");
+    await headerCell.click();
+    const rename = a.locator("[data-slot='docblocks/database-rename-input']");
+    await expect(rename).toBeVisible(SETTLE);
+    await rename.fill("Renamed Column");
+    await a.keyboard.press("Enter");
+    await expect.poll(async () => (await headerCell.textContent())!.includes("Renamed Column"), SETTLE).toBe(true);
+  } finally {
+    await context.close();
+  }
+});
+
 test("the enum cell stands the package's EnumPicker (the pick stands over the wire); the number cell suppresses the spin buttons", async ({
   browser,
 }) => {
