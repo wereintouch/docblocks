@@ -658,19 +658,28 @@ describe("the grid's cells (the type editors)", () => {
     // reach it (no no-op refetch, no no-op undo entry).
     const updateRowSpy = vi.spyOn(bridge, "updateRow");
     const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='title']")!;
-    // The double press stands the edit session; the blur reverts nothing
-    // and commits nothing (the draft stands the value).
+    // The double press stands the edit session (the portaled 6-row
+    // textarea); the outside press (the blur's stand) reverts nothing and
+    // commits nothing (the draft stands the value).
+    fireEvent.pointerDown(cell, { button: 0 });
     fireEvent.doubleClick(cell);
-    await until(() => cell.querySelector("input") !== null, "the edit input");
-    fireEvent.blur(cell.querySelector("input")!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-cell-multiline']") !== null,
+      "the edit textarea"
+    );
+    fireEvent.pointerDown(document.body, { button: 0 });
     await settleGrid();
     expect(updateRowSpy).not.toHaveBeenCalled();
     // The changed value commits (the guard is equality-only).
-    const input = () => cell.querySelector("input")!;
+    const textarea = () =>
+      document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']");
+    fireEvent.pointerDown(cell, { button: 0 });
     fireEvent.doubleClick(cell);
-    await until(() => input() !== null, "the edit input (the re-open)");
-    fireEvent.change(input(), { target: { value: "edited" } });
-    fireEvent.blur(input());
+    await until(() => textarea() !== null, "the edit textarea (the re-open)");
+    await act(async () => {
+      fireEvent.change(textarea()!, { target: { value: "edited" } });
+    });
+    fireEvent.pointerDown(document.body, { button: 0 });
     await settleGrid();
     expect(updateRowSpy).toHaveBeenCalledTimes(1);
     expect(updateRowSpy).toHaveBeenCalledWith(tableId, rowId, { title: "edited" });
@@ -1062,18 +1071,19 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     expect(titleCell!.className).toContain("outline-(length:--docblocks-canvas-selection-border-width)");
     expect(titleCell!.className).toContain("outline-offset-[-1px]");
     expect(cellOf(0, 1)!.className).not.toContain("outline-(--docblocks-canvas-selection-border-color)");
-    // The edit stands on the double press (the input's mount), not the
-    // single one.
-    expect(titleCell!.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
+    // The edit stands on the double press (the portaled 6-row textarea's
+    // mount), not the single one.
+    expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).toBeNull();
     fireEvent.doubleClick(titleCell!);
     await settleGrid();
     expect(titleCell!.getAttribute("data-editing")).toBe("true");
-    expect(titleCell!.querySelector("[data-slot='docblocks/database-cell-input']")).not.toBeNull();
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']");
+    expect(textarea).not.toBeNull();
+    expect(textarea!.rows).toBe(6);
     // The grid's pointer model stands the selection — the native text
-    // selection over the drag is suppressed (the edit's own text selection
-    // stands the explicit select-text over the table's select-none).
+    // selection over the drag is suppressed (the table's select-none; the
+    // portaled textarea stands its own native text selection).
     expect(document.querySelector("[data-slot='docblocks/database-table']")!.className).toContain("select-none");
-    expect(titleCell!.querySelector("[data-slot='docblocks/database-cell-input']")!.className).toContain("select-text");
     // The header's background stands slightly over the rows' (the muted
     // token over the transparent row stand — the row's header distinction).
     expect(document.querySelector("[data-slot='docblocks/database-header-cell']")!.className).toContain("bg-muted/40");
@@ -1190,10 +1200,11 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     const cell = cellOf(0, 0)!;
     fireEvent.doubleClick(cell);
     await settleGrid();
-    const input = cell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
-    // The Delete inside the input stands the character editing (the cell
-    // clear is skipped).
-    fireEvent.keyDown(input, { key: "Delete", bubbles: true });
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']")!;
+    // The Delete inside the textarea stands the character editing (the
+    // cell clear is skipped — the portaled textarea is outside the
+    // table's keys' stand).
+    fireEvent.keyDown(textarea, { key: "Delete", bubbles: true });
     await settleGrid();
     const page = await bridge.queryRows(tableId, {});
     expect(page.rows[rowId]!.title).toBe("a");
@@ -1206,15 +1217,15 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     const cell = cellOf(0, 0)!;
     fireEvent.doubleClick(cell);
     await settleGrid();
-    const input = cell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']");
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']");
     await act(async () => {
-      fireEvent.change(input!, { target: { value: "drafted" } });
+      fireEvent.change(textarea!, { target: { value: "drafted" } });
     });
-    fireEvent.keyDown(input!, { key: "Escape", bubbles: true });
+    fireEvent.keyDown(textarea!, { key: "Escape", bubbles: true });
     await settleGrid();
     // The draft reverts to the value (the display stand), the edit session
     // closes, and the bridge stands the original value (no commit).
-    expect(cell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).toBeNull();
     expect(cell.textContent).toBe("a");
     const page = await bridge.queryRows(tableId, {});
     expect(page.rows[rowId]!.title).toBe("a");
@@ -1255,17 +1266,17 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
     await pressSelect(titleCell);
     fireEvent.doubleClick(titleCell);
     await settleGrid();
-    const input = titleCell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']")!;
     await act(async () => {
-      fireEvent.change(input, { target: { value: "typed draft" } });
+      fireEvent.change(textarea, { target: { value: "typed draft" } });
     });
     // The outside press (over the body — outside the grid): the grid's
-    // session clear stands before the input's blur (the input unmounts with
-    // the session) — the draft stands committed (the teardown's stand, not
-    // the blur's).
+    // session clear stands before the textarea's blur (the textarea
+    // unmounts with the session) — the draft stands committed (the
+    // teardown's stand, not the blur's).
     fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
     await settleGrid();
-    expect(titleCell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).toBeNull();
     const page = await bridge.queryRows(tableId, {});
     expect(page.rows[rowId]!.title).toBe("typed draft");
   });
@@ -1298,13 +1309,13 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
     await pressSelect(titleCell);
     fireEvent.doubleClick(titleCell);
     await settleGrid();
-    const input = titleCell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']")!;
     await act(async () => {
-      fireEvent.change(input, { target: { value: "the escaped draft" } });
+      fireEvent.change(textarea, { target: { value: "the escaped draft" } });
     });
-    fireEvent.keyDown(input, { key: "Escape" });
+    fireEvent.keyDown(textarea, { key: "Escape" });
     await settleGrid();
-    expect(titleCell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).toBeNull();
     const page = await bridge.queryRows(tableId, {});
     expect(page.rows[rowId]!.title).toBe("a");
   });
@@ -1315,7 +1326,7 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
     await pressSelect(titleCell);
     fireEvent.doubleClick(titleCell);
     await settleGrid();
-    expect(titleCell.querySelector("[data-slot='docblocks/database-cell-input']")).not.toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).not.toBeNull();
     // The outside press over the untouched draft: the no-write stand (the
     // undo's disabled stand).
     fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
@@ -1325,9 +1336,9 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
     await pressSelect(titleCell);
     fireEvent.doubleClick(titleCell);
     await settleGrid();
-    const input = titleCell.querySelector<HTMLInputElement>("[data-slot='docblocks/database-cell-input']")!;
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']")!;
     await act(async () => {
-      fireEvent.change(input, { target: { value: "changed" } });
+      fireEvent.change(textarea, { target: { value: "changed" } });
     });
     fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
     await settleGrid();
