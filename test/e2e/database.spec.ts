@@ -709,6 +709,104 @@ test("the header: the type stands in the menu only, the widths align with the ro
   await close();
 });
 
+test("the create's column order stands the creation order (the new stands last); the create commit keeps the columnOrder complete", async ({
+  browser,
+}) => {
+  // The shared-context panes: the default bridges share the BroadcastChannel
+  // echo, so the columns pane A creates stand over the wire in pane B.
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-colorder");
+
+  // A fresh (empty) table: the create's order is the append's stand.
+  const tableId = await a.evaluate(async () => {
+    const bridge = window.__bridge!;
+    await bridge.listTables();
+    return bridge.createTable("colorder-" + Date.now());
+  });
+  const dbId = (await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), tableId))!;
+
+  const gridA = a.locator("[data-testid=\"doc-a\"] [data-slot='docblocks/database-grid']");
+  await expect(gridA).toHaveCount(1, SETTLE);
+  const gridB = b.locator("[data-testid=\"doc-b\"] [data-slot='docblocks/database-grid']");
+  await expect(gridB).toHaveCount(1, SETTLE);
+
+  // The create form's drive: open the "+" menu, pick the type's entry,
+  // fill the name, commit on the form's button (awaited — the creates are
+  // sequential, not racy). The trigger's press may stand swallowed over a
+  // just-closed portaled wrapper (the ~150 ms exit capture) or a mid-
+  // re-render (a doc write just landed) — retry the press until the menu
+  // stands.
+  const addColumn = async (pane: Page, entryKey: string, colName: string) => {
+    const trigger = pane.locator("[data-slot='docblocks/database-add-column-trigger']");
+    const item = pane.locator(`[data-column-entry="${entryKey}"]`);
+    for (let attempt = 0; ; attempt++) {
+      await trigger.click();
+      const opened = await item
+        .waitFor({ state: "visible", timeout: 1500 })
+        .then(() => true)
+        .catch(() => false);
+      if (opened) break;
+      if (attempt >= 3) throw new Error(`the add-column menu did not open (entry ${entryKey})`);
+      await pane.keyboard.press("Escape");
+      await pane.waitForTimeout(250);
+    }
+    await item.click();
+    const form = pane.locator("[data-slot='docblocks/database-add-column-form']");
+    await form.waitFor({ state: "visible", timeout: 5000 });
+    await form.locator("[data-slot='docblocks/database-add-column-name']").fill(colName);
+    await form.getByRole("button", { name: "Add column" }).click();
+    // The form's popover's close animation stands the portaled wrapper's
+    // pointer capture for ~150 ms (the closing popper's gotcha): the next
+    // trigger's press stands swallowed over it. Settle the close.
+    await pane.waitForTimeout(250);
+  };
+  const headerIds = (pane: Page, client: "a" | "b") =>
+    pane
+      .locator(`[data-testid="doc-${client}"] [data-slot='docblocks/database-header-cell']`)
+      .evaluateAll((cells) => cells.map((cell) => cell.getAttribute("data-column-id")));
+  const columnOrderOf = (page: Page, client: "a" | "b") =>
+    page.evaluate(
+      ({ c, id }) => {
+        const doc = c === "a" ? window.__paneDocs?.a : window.__paneDocs?.b;
+        const block = doc?.toJSON().blocks[id];
+        return block?.type === "database" ? (block.attrs?.columnOrder ?? null) : null;
+      },
+      { c: client, id: dbId }
+    );
+
+  // Create: decimal -> text -> enum (the create form's sequence).
+  await addColumn(a, "decimal", "Dec");
+  await addColumn(a, "text", "Txt");
+  await addColumn(a, "enum", "Status");
+
+  // The header's DOM order stands the creation order (the new stands last);
+  // both panes stand the same order over the bridge's echo.
+  await expect.poll(async () => headerIds(a, "a"), SETTLE).toEqual(["col1", "col2", "col3"]);
+  await expect.poll(() => headerIds(b, "b"), SETTLE).toEqual(["col1", "col2", "col3"]);
+  // No explicit columnOrder yet (the bridge's schema order stands).
+  expect(await columnOrderOf(a, "a")).toBeNull();
+
+  // The create commit's columnOrder consistency: the block's explicit
+  // columnOrder (a drag's stand — the visible order) keeps the new column
+  // appended to its end (the one updateBlock). Simulate the drag's stand.
+  await a.evaluate((id) => window.__paneDocs!.a!.updateBlock(id, { columnOrder: ["col2", "col1", "col3"] }), dbId);
+  await addColumn(a, "text", "Link"); // col4
+  await expect.poll(async () => headerIds(a, "a"), SETTLE).toEqual(["col2", "col1", "col3", "col4"]);
+  await expect.poll(() => headerIds(b, "b"), SETTLE).toEqual(["col2", "col1", "col3", "col4"]);
+  expect(await columnOrderOf(a, "a")).toEqual(["col2", "col1", "col3", "col4"]);
+  expect(await columnOrderOf(b, "b")).toEqual(["col2", "col1", "col3", "col4"]);
+
+  // The create's undo stands the order back: the grid's Undo (the bridge's
+  // stack — the column's removal) drops the new column; the visible order
+  // stands the previous one (the columnOrder's stale tail stands ignored —
+  // the next drag re-commits it).
+  await a.locator("[data-slot='docblocks/database-undo']").click();
+  await expect.poll(async () => (await headerIds(a, "a")).length, SETTLE).toBe(3);
+  await expect.poll(() => headerIds(a, "a"), SETTLE).toEqual(["col2", "col1", "col3"]);
+  await expect.poll(() => headerIds(b, "b"), SETTLE).toEqual(["col2", "col1", "col3"]);
+
+  await close();
+});
+
 test("the enum cell stands the package's EnumPicker (the pick stands over the wire); the number cell suppresses the spin buttons", async ({
   browser,
 }) => {
