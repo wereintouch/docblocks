@@ -1447,7 +1447,7 @@ function GridBody({
               data-slot="docblocks/database-empty"
               className="
                 px-(--docblocks-table-cell-padding) py-(--docblocks-block-spacing) text-(length:--docblocks-font-size)
-                text-(--docblocks-placeholder-color)
+                text-(--docblocks-placeholder-color) select-none
               "
             >
               No rows{filter !== undefined ? " match the filter" : ""}.
@@ -1461,7 +1461,7 @@ function GridBody({
           className="
             cursor-pointer self-start rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
             border-(--docblocks-table-border-color) bg-transparent px-2 py-1 text-(length:--docblocks-font-size)
-            text-(--docblocks-placeholder-color) outline-none
+            text-(--docblocks-placeholder-color) outline-none select-none
             hover:text-(--docblocks-text-color)
           "
           onClick={() => void data.insertRow({})}
