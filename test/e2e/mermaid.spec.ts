@@ -109,7 +109,11 @@ test("the diagram follows the editor's theme (EXT-02: the dark stand + a flip re
   const context = await browser.newContext();
   const a = await context.newPage();
   try {
-    await openPane(a, "a", "ext02-theme");
+    // A unique room per run (the twoPanes suffix stand): the relay keeps the
+    // room's doc for the dev server's lifetime, so a fixed room name would
+    // stand the previous run's blocks (the diagram count's assertion is
+    // document-wide).
+    await openPane(a, "a", `ext02-theme-${Math.random().toString(36).slice(2, 8)}`);
     await insertType(a, "a", "code-mermaid");
     const block = mermaidBlock(a, "a");
     await switchToPreview(a, "a");
