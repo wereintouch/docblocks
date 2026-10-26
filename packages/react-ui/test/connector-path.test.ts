@@ -28,11 +28,6 @@ const BLOCKS: Record<string, Block> = {
   b: { type: "shape", geometry: B },
 } as unknown as Record<string, Block>;
 
-/** The connector block's stand (the attrs's read). */
-function conn(attrs: Record<string, unknown>): Extract<Block, { type: "connector" }> {
-  return { type: "connector", attrs } as unknown as Extract<Block, { type: "connector" }>;
-}
-
 describe("edgeAnchor", () => {
   it("exits the box at the edge the direction points at (the four sides)", () => {
     // East (the target right of the box): the border point at the box's
@@ -464,16 +459,23 @@ describe("connectorPath", () => {
 
 describe("connectorMidpoint", () => {
   const IDS = ["a", "b"];
+  const CONN = "c1";
+  // The connector's entry (the id-based signature — the block's own shape
+  // carries no id; the map key stands the identity).
+  const withConn = (attrs: Record<string, unknown>): Record<string, Block> => ({
+    ...BLOCKS,
+    [CONN]: { type: "connector", attrs } as unknown as Block,
+  });
 
   it("the legacy plain-ref pair stands the box path's midpoint (the overlay's parity)", () => {
-    expect(connectorMidpoint(conn({ start: { blockId: "a" }, end: { blockId: "b" } }), IDS, BLOCKS)).toEqual({
+    expect(connectorMidpoint(CONN, IDS, withConn({ start: { blockId: "a" }, end: { blockId: "b" } }))).toEqual({
       x: 0,
       y: 0,
     });
     // The orthogonal's legacy stand (the bend's midpoint — the same seat
     // for this scene's geometry).
     expect(
-      connectorMidpoint(conn({ start: { blockId: "a" }, end: { blockId: "b" }, variant: "orthogonal" }), IDS, BLOCKS)
+      connectorMidpoint(CONN, IDS, withConn({ start: { blockId: "a" }, end: { blockId: "b" }, variant: "orthogonal" }))
     ).toEqual({ x: 0, y: 0 });
   });
 
@@ -483,36 +485,36 @@ describe("connectorMidpoint", () => {
     // center's projected anchor — the non-legacy path).
     expect(
       connectorMidpoint(
-        conn({ start: { blockId: "a", port: "east" }, end: { blockId: "b", port: "west" } }),
+        CONN,
         IDS,
-        BLOCKS
+        withConn({ start: { blockId: "a", port: "east" }, end: { blockId: "b", port: "west" } })
       )
     ).toEqual({ x: 0, y: 0 });
     // The free points stand as-is (the world's space).
-    expect(connectorMidpoint(conn({ start: { x: -50, y: 0 }, end: { x: 50, y: 40 } }), IDS, BLOCKS)).toEqual({
+    expect(connectorMidpoint(CONN, IDS, withConn({ start: { x: -50, y: 0 }, end: { x: 50, y: 40 } }))).toEqual({
       x: 0,
       y: 20,
     });
     // A free point with the FROZEN direction (the port on the free ref)
     // stands the same seat (the direction is the line's, not the seat's).
     expect(
-      connectorMidpoint(conn({ start: { x: -50, y: 0, port: "north" }, end: { x: 50, y: 40 } }), IDS, BLOCKS)
+      connectorMidpoint(CONN, IDS, withConn({ start: { x: -50, y: 0, port: "north" }, end: { x: 50, y: 40 } }))
     ).toEqual({ x: 0, y: 20 });
   });
 
   it("the stored points' polyline stands the endpoints' midpoint (the points stand the route, not the seat)", () => {
     expect(
       connectorMidpoint(
-        conn({
+        CONN,
+        IDS,
+        withConn({
           start: { x: -50, y: 0 },
           end: { x: 50, y: 40 },
           points: [
             [0, 10],
             [0, 30],
           ],
-        }),
-        IDS,
-        BLOCKS
+        })
       )
     ).toEqual({ x: 0, y: 20 });
   });
@@ -520,8 +522,79 @@ describe("connectorMidpoint", () => {
   it("the unresolved endpoint stands null (the lenient posture — the line stands nothing)", () => {
     // The blockId outside the surface's children: the ref resolves to
     // nothing (the cross-surface / the absent block).
-    expect(connectorMidpoint(conn({ start: { blockId: "a" }, end: { blockId: "c" } }), IDS, BLOCKS)).toBeNull();
+    expect(connectorMidpoint(CONN, IDS, withConn({ start: { blockId: "a" }, end: { blockId: "c" } }))).toBeNull();
     // The docId ref (the cross-doc's v1 stand): the null.
-    expect(connectorMidpoint(conn({ start: { docId: "other" }, end: { blockId: "a" } }), IDS, BLOCKS)).toBeNull();
+    expect(connectorMidpoint(CONN, IDS, withConn({ start: { docId: "other" }, end: { blockId: "a" } }))).toBeNull();
+  });
+});
+
+describe("connectorMidpoint over the in-flight previews (the label chip's live stand)", () => {
+  const IDS = ["a", "b"];
+  const CONN = "c1";
+  const INERT = {
+    movePreview: null,
+    resizePreview: null,
+    endpointDrag: null,
+    endpointPreview: null,
+  };
+  const withConn = (attrs: Record<string, unknown>): Record<string, Block> => ({
+    ...BLOCKS,
+    [CONN]: { type: "connector", attrs } as unknown as Block,
+  });
+
+  it("the move preview stands the previewed block's seat (the same input as the line's re-draw)", () => {
+    // Committed (no preview): the symmetric scene's mid (0, 0).
+    expect(connectorMidpoint(CONN, IDS, withConn({ start: { blockId: "a" }, end: { blockId: "b" } }))).toEqual({
+      x: 0,
+      y: 0,
+    });
+    // A moved 100px east: the anchors re-stand on the previewed box — the
+    // seat stands the delta (the line and the seat stand from one number).
+    expect(
+      connectorMidpoint(CONN, IDS, withConn({ start: { blockId: "a" }, end: { blockId: "b" } }), {
+        ...INERT,
+        movePreview: { ids: ["a"], dx: 100, dy: 0 },
+      })
+    ).toEqual({ x: 50, y: 0 });
+  });
+
+  it("the endpoint drag's live point (the no-snap stand) stands the seat (the re-draw's parity)", () => {
+    const blocks = withConn({ start: { x: -50, y: 0 }, end: { x: 50, y: 40 } });
+    // Committed: the two free points' mid.
+    expect(connectorMidpoint(CONN, IDS, blocks)).toEqual({ x: 0, y: 20 });
+    // The end dragged to (50, 140): the seat stands the live point's mid.
+    expect(
+      connectorMidpoint(CONN, IDS, blocks, {
+        ...INERT,
+        endpointDrag: { connectorId: CONN, which: "end" },
+        endpointPreview: { point: { x: 50, y: 140 }, snap: null },
+      })
+    ).toEqual({ x: 0, y: 70 });
+  });
+
+  it("the endpoint drag's snap stands the edge anchor's seat (the stick effect's parity)", () => {
+    const blocks = withConn({ start: { blockId: "a", port: "east" }, end: { x: 50, y: 40 } });
+    // The end snaps to A's east port at t=0.5: the seat stands the snapped
+    // edge point (not the raw cursor point) — the stick's continuous anchor.
+    expect(
+      connectorMidpoint(CONN, IDS, blocks, {
+        ...INERT,
+        endpointDrag: { connectorId: CONN, which: "end" },
+        endpointPreview: { point: { x: 999, y: 999 }, snap: { blockId: "a", port: "east", t: 0.5 } },
+      })
+    ).toEqual({ x: -200, y: -100 });
+  });
+
+  it("the drag over another connector's endpoint stands no re-draw (the identity guard)", () => {
+    const blocks = withConn({ start: { x: -50, y: 0 }, end: { x: 50, y: 40 } });
+    // The drag targets another connector: the seat stands the committed
+    // geometry (the preview does not leak across lines).
+    expect(
+      connectorMidpoint(CONN, IDS, blocks, {
+        ...INERT,
+        endpointDrag: { connectorId: "c2", which: "end" },
+        endpointPreview: { point: { x: 50, y: 140 }, snap: null },
+      })
+    ).toEqual({ x: 0, y: 20 });
   });
 });
