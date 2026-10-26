@@ -1550,3 +1550,94 @@ function monthsIndexOf(name: string): number {
     "December",
   ].indexOf(name);
 }
+
+test("the cell's pickers stand the unified row height (the enum / the multi-enum / the row-link's lines; the pick's contract stands)", async ({
+  browser,
+}) => {
+  // A single pane: the heights are the computed styles (no sync needed);
+  // a unique room (the relay keeps the room's doc for the dev server's
+  // lifetime).
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  try {
+    await openPane(a, "a", `ext04-pickheight-${Math.random().toString(36).slice(2, 8)}`);
+    const demo = await bridgeDemoTable(a);
+    // The multi-enum + the row-link's columns (over the pane's own bridge:
+    // the demo's Statuses dict + the linked People table).
+    await a.evaluate(async (tableId) => {
+      const bridge = window.__bridge!;
+      await bridge.createColumn(tableId, {
+        id: "tags",
+        name: "Tags",
+        type: "text",
+        refKind: "enum",
+        refMany: true,
+        refTableId: "table-statuses",
+      });
+      await bridge.createTable("People");
+      await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
+      const peopleIds = await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bo" }]);
+      await bridge.createColumn(tableId, {
+        id: "owner",
+        name: "Owner",
+        type: "text",
+        refKind: "row",
+        refTableId: "table-people",
+      });
+      const page = await bridge.queryRows(tableId, {});
+      const rowId = Object.keys(page.rows)[0]!;
+      await bridge.updateRow(tableId, rowId, { tags: ["todo"], owner: peopleIds[0] });
+    }, demo.id);
+    await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+    const gridA = a.locator("[data-slot='docblocks/database-grid']");
+    await expect(gridA.first()).toBeVisible(SETTLE);
+    const cell = (colId: string) =>
+      a.locator(`[data-slot='docblocks/database-cell'][data-column-id='${colId}']`).first();
+
+    // The single-enum's list — the grid's main picker (the height's stand:
+    // the SelectItem's line over the theme's tokens).
+    await cell("status").dblclick();
+    const listbox = a.locator("[role='listbox']");
+    await expect(listbox).toBeVisible(SETTLE);
+    const enumHeight = await listbox
+      .locator("[role='option']")
+      .first()
+      .evaluate((el) => getComputedStyle(el).height);
+    await a.keyboard.press("Escape");
+    await expect(listbox).toBeHidden(SETTLE);
+
+    // The multi-enum's list (the checkbox rows).
+    await cell("tags").dblclick();
+    const multiRow = a.locator("label:has([data-slot='docblocks/database-ref-multi-option'])");
+    await expect(multiRow.first()).toBeVisible(SETTLE);
+    const multiHeight = await multiRow.first().evaluate((el) => getComputedStyle(el).height);
+    await a.keyboard.press("Escape");
+
+    // The row-link's picker (the search + the row lines).
+    await cell("owner").dblclick();
+    const rowLinkRow = a.locator("[data-slot='docblocks/database-row-picker-row']");
+    await expect(rowLinkRow.first()).toBeVisible(SETTLE);
+    const rowLinkHeight = await rowLinkRow.first().evaluate((el) => getComputedStyle(el).height);
+
+    // The unified stand: every picker's row stands the main picker's
+    // height (the padding + the font-size + the line-height over the
+    // theme's tokens).
+    expect(multiHeight).toBe(enumHeight);
+    expect(rowLinkHeight).toBe(enumHeight);
+
+    // The pick's contract stands (the regression): the enum's pick commits
+    // over the bridge (the cell stands the value).
+    await cell("status").dblclick();
+    await expect(listbox).toBeVisible(SETTLE);
+    await listbox.locator("[role='option']", { hasText: "done" }).click();
+    await expect(cell("status")).toHaveText("done", SETTLE);
+    const status = await a.evaluate(async (tableId) => {
+      const page = await window.__bridge!.queryRows(tableId, {});
+      const row = Object.values(page.rows)[0] as Record<string, unknown>;
+      return row.status;
+    }, demo.id);
+    expect(status).toBe("done");
+  } finally {
+    await context.close();
+  }
+});
