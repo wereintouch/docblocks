@@ -209,6 +209,10 @@
   --docblocks-table-border-color: var(--border, rgba(175, 184, 193, 0.4));
   --docblocks-table-border-width: 1px;
   --docblocks-table-cell-padding: 4px 8px;
+  /* The database grid's standard row height (the fixed row track: every
+     column type stands the one height — the cell's trigger / the input fit
+     the content box, the row never grows over its content). */
+  --docblocks-database-row-height: 32px;
 
   /* Image. */
   --docblocks-image-radius: 0;
