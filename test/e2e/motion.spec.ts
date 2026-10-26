@@ -61,7 +61,7 @@ async function twoPanes(
 async function settled(page: Page): Promise<void> {
   await page.waitForFunction(
     () =>
-      Array.from(document.querySelectorAll('[data-testid="doc-a"] [data-docblocks-motion] > div > *')).every(
+      Array.from(document.querySelectorAll('[data-testid="doc-a"] [data-slot="docblocks/rows"] > *')).every(
         (el) => el instanceof HTMLElement && (el.style.height === "" || el.style.height === "auto")
       ),
     null,
@@ -83,7 +83,7 @@ test("an insert before any input stands up instantly; an insert after input runs
   // that runs the enter animation does (opacity 0 from the ENTER values).
   const armMountCapture = (page: Page) => (key: string) =>
     page.evaluate((k: string) => {
-      const group = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"] > div');
+      const group = document.querySelector<HTMLElement>('[data-slot="docblocks/rows"]');
       (window as unknown as Record<string, { opacity: string | null }>)[k] = { opacity: null };
       if (group === null) return;
       const observer = new MutationObserver(() => {
@@ -170,7 +170,7 @@ test("an in-place line break reflows without a size projection (the text is neve
   // still requires every row to be clean.
   const changedTransform = () =>
     pane(a, "a").evaluate((root) => {
-      const group = root.querySelector("[data-docblocks-motion] > div");
+      const group = root.querySelector('[data-slot="docblocks/rows"]');
       if (group === null) return null;
       const changed = group.children[0];
       return changed instanceof HTMLElement ? changed.style.transform : null;
@@ -200,7 +200,7 @@ test("an in-place line break reflows without a size projection (the text is neve
     .poll(
       async () =>
         await pane(a, "a").evaluate((root) => {
-          const group = root.querySelector("[data-docblocks-motion] > div");
+          const group = root.querySelector('[data-slot="docblocks/rows"]');
           if (group === null) return "no-group";
           return Array.from(group.children)
             .filter((c) => c instanceof HTMLElement)
@@ -235,7 +235,7 @@ test("a real-pointer gutter drag slides the crossed sibling, commits over the wi
   // the pin is the crossed sibling's slide.
   const slid = a.waitForFunction(
     (draggedId) => {
-      const group = document.querySelector('[data-testid="doc-a"] [data-docblocks-motion] > div');
+      const group = document.querySelector('[data-testid="doc-a"] [data-slot="docblocks/rows"]');
       if (group === null) return false;
       return Array.from(group.children).some(
         (c) =>
