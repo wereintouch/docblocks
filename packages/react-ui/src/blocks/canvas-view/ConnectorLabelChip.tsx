@@ -19,6 +19,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../EditorProvider";
 import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../ConnectorLayer";
+import type { ConnectorPreviews } from "../canvas-geometry";
 import { connectorMidpoint } from "../canvas-geometry";
 
 /** The label's font size (the world's units — it scales with the zoom). */
@@ -93,6 +94,7 @@ function ConnectorLabelChips({
   children,
   selectedIds = EMPTY_SELECTED,
   skipId = null,
+  previews = undefined,
 }: {
   /** The surface's children (the connector's siblings — the midpoint's read). */
   children: readonly BlockId[];
@@ -100,6 +102,11 @@ function ConnectorLabelChips({
   selectedIds?: readonly BlockId[];
   /** The editing connector (the display chip stands off). */
   skipId?: BlockId | null;
+  /** The in-flight canvas previews (the midpoints stand the live geometry
+   *  — the chips follow the lines mid-drag, the same inputs as the
+   *  lines' re-draw). Absent (the page view's inert surface) stands the
+   *  committed geometry. */
+  previews?: ConnectorPreviews;
 }) {
   const { store } = useEditorContext();
   const blocks = useStore(store, (state) => state.blocks);
@@ -110,7 +117,7 @@ function ConnectorLabelChips({
         if (block === undefined || block.type !== "connector" || block.attrs === undefined) return [];
         const label = block.attrs.label ?? "";
         if (label === "" || cid === skipId) return [];
-        const mid = connectorMidpoint(block, children, blocks);
+        const mid = connectorMidpoint(cid, children, blocks, previews);
         if (mid === null) return [];
         const selected = selectedIds.includes(cid);
         const stroke = selected

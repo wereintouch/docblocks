@@ -318,7 +318,15 @@ function CanvasView() {
     const surface = surfaces.find((entry) => entry.children.includes(id));
     if (surface === undefined) return null;
     const childIds = surface.children;
-    const mid = connectorMidpoint(block, childIds, blocks);
+    // The midpoint's live stand (the endpoint drag's re-draw — the same
+    // inputs as the line, so the toolbar follows the line mid-drag; the
+    // move / resize's stand is the toolbar's absence above).
+    const mid = connectorMidpoint(id, childIds, blocks, {
+      movePreview: null,
+      resizePreview: null,
+      endpointDrag: viewport.connectorEndpoint,
+      endpointPreview: viewport.connectorEndpointPreview,
+    });
     if (mid === null) return null;
     return {
       id,
@@ -344,7 +352,7 @@ function CanvasView() {
     if (block === undefined || block.type !== "connector" || block.attrs === undefined) return null;
     const surface = surfaces.find((entry) => entry.children.includes(id));
     if (surface === undefined) return null;
-    const mid = connectorMidpoint(block, surface.children, blocks);
+    const mid = connectorMidpoint(id, surface.children, blocks);
     if (mid === null) return null;
     const selected = storeSelection?.kind === "blocks" && storeSelection.ids.includes(id);
     const stroke = selected
@@ -1467,6 +1475,12 @@ function CanvasView() {
               children={children}
               selectedIds={storeSelection?.kind === "blocks" ? storeSelection.ids : undefined}
               skipId={viewport.connectorLabelEditing}
+              previews={{
+                movePreview: viewport.movePreview,
+                resizePreview: viewport.resizePreview,
+                endpointDrag: viewport.connectorEndpoint,
+                endpointPreview: viewport.connectorEndpointPreview,
+              }}
             />
           ))}
           {connectorLabelTarget !== null && (
