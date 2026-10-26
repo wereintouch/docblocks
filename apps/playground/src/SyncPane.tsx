@@ -372,6 +372,7 @@ function SyncPane({
               doc={runtime.doc}
               provider={runtime.provider}
               blobStore={blobStore}
+              databaseBridge={databaseBridge}
               blockRenderers={BLOCK_RENDERERS}
               syncEmbedResolver={syncEmbedResolver}
               pdfPreview={PdfFirstPage}
