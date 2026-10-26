@@ -262,6 +262,19 @@ function GridBody({
         column.refTableId = refTableId;
       }
       void data.addColumn(column);
+      // The create commit keeps the view's column order complete: the
+      // block's explicit `columnOrder` (a previous drag committed it) stands
+      // the visible order, so the new column is appended to its end — one
+      // `updateBlock` (the view attr, CRDT / undo as the current ones). Read
+      // fresh over the doc: the enum's commit runs in the async's tail, where
+      // the render-time `columnOrder` prop stands stale. Without an explicit
+      // order the bridge's schema order stands (the create appends to the end)
+      // and the attr is left untouched.
+      const block = doc.getBlock(blockId);
+      const currentOrder = block !== null && block.type === "database" ? block.attrs.columnOrder : undefined;
+      if (currentOrder !== undefined) {
+        doc.updateBlock(blockId, { columnOrder: [...currentOrder, column.id] });
+      }
       setColumnFormOpen(false);
       setColumnForm(null);
     };
