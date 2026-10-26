@@ -1,17 +1,21 @@
 /**
  * The ref-table data provider for the grid: one page of the ref table's
  * rows + the row displays (`resolveRowDisplay` — the join stands in the
- * consumer backend). The enum columns read the option labels from it
- * (the dict table's PK IS the label — the row ids stand the options),
- * the row-link columns read the display text over the row ids (the
- * column's declared `refDisplayColumn`, else the bridge's default
- * resolution). The data refreshes on the ref table's live events (the
- * dict's extension stands in the cell's editor live, the linked row's
- * rename stands the display live). A broken ref table (the unknown id)
- * stands the empty data (the lenient read).
+ * consumer backend) + the option colors (the ref table's `color` column —
+ * the enum's option's chip color; the absent column / value stands none).
+ * The enum columns read the option labels from it (the option's row id
+ * stands the value, the display stands the label — the dict's legacy
+ * PK-as-label stand stands the display too), the row-link columns read
+ * the display text over the row ids (the column's declared
+ * `refDisplayColumn`, else the bridge's default resolution). The data
+ * refreshes on the ref table's live events (the dict's extension stands in
+ * the cell's editor live, the linked row's rename stands the display
+ * live). A broken ref table (the unknown id) stands the empty data (the
+ * lenient read).
  */
 import { useEffect, useState } from "react";
 
+import { ENUM_OPTION_COLOR_COLUMN } from "../bridge";
 import type { DatabaseBridge, TableRef } from "../bridge";
 
 /** The page size the ref table loads (the dict options / the picker's
@@ -19,10 +23,12 @@ import type { DatabaseBridge, TableRef } from "../bridge";
 const REF_PAGE_SIZE = 200;
 
 /** The loaded ref-table data: the row ids in the row order + the row
- *  displays (rowId → the display text). */
+ *  displays (rowId → the display text) + the option colors (rowId → the
+ *  `color` column's hex — the absent value stands none). */
 interface RefTableData {
   rowIds: string[];
   displays: Record<string, string>;
+  colors: Record<string, string>;
 }
 /** The ref entry (the table + the column's declared display column —
  *  the row-link's `refDisplayColumn`; the absent stand is the bridge's
@@ -74,12 +80,17 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
               rowIds,
               displayColumn === "" || displayColumn === undefined ? undefined : displayColumn
             );
-            return [entryKey, { rowIds, displays }] as const;
+            const colors: Record<string, string> = {};
+            for (const rowId of rowIds) {
+              const color = page.rows[rowId]?.[ENUM_OPTION_COLOR_COLUMN];
+              if (typeof color === "string" && color !== "") colors[rowId] = color;
+            }
+            return [entryKey, { rowIds, displays, colors }] as const;
           } catch {
             // The broken ref table (the unknown id / the transport
             // error): the empty stand (the lenient read — the cell keeps
             // its raw value display).
-            return [entryKey, { rowIds: [], displays: {} }] as const;
+            return [entryKey, { rowIds: [], displays: {}, colors: {} }] as const;
           }
         })
       );

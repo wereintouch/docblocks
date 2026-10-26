@@ -410,56 +410,52 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     expect(wrap()!.className).toContain("pointer-events-none");
   });
 
-  it("the enum cell stands the package's Select (the double press opens; the pick commits; the empty pick clears)", async () => {
+  it("the enum cell stands the package's picker (the double press opens; the pick commits; the search filters; the empty pick clears)", async () => {
     const { bridge, tableId } = await renderGrid();
     const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
     const cell = () =>
       document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='status']");
-    const trigger = () => cell()!.querySelector<HTMLElement>("[role='combobox']");
-    // The package's Select trigger (the radix combobox), not a native
-    // <select> — the flat stand (the value text; the single press is the
-    // selection, the double press opens the list).
+    // The picker's trigger (the chip's stand over the value) — the radix
+    // combobox / the native select stand out. The single press is the
+    // selection, the double press opens the list.
+    const trigger = () => cell()!.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-picker-trigger']");
     expect(trigger()).not.toBeNull();
-    expect(trigger()!.querySelector("select")).toBeNull();
+    expect(cell()!.querySelector("[role='combobox']")).toBeNull();
     expect(cell()!.textContent).toContain("todo");
 
-    // The pick commits to the bridge (one updateRow). The open is the
-    // double press (the controlled stand); the pick gesture is the keyboard
-    // one (the radix a11y path — the jsdom pointer events stand no
-    // pointerType; the real mouse pick is pinned in the e2e).
     const open = async () => {
       fireEvent.doubleClick(cell()!);
-      await until(() => document.querySelector("[role='listbox']") !== null, "the select's list");
-      // The content's open effect (the scroll to the current item) settles
-      // before the first typeahead keypress lands.
-      await act(async () => {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      });
+      await until(
+        () => document.querySelector("[data-slot='docblocks/database-enum-picker-search']") !== null,
+        "the picker's list"
+      );
     };
-    const highlighted = () => document.querySelector("[role='option'][data-highlighted]")?.textContent ?? null;
-    const typeAhead = async (key: string, option: string) => {
-      const listbox = document.querySelector<HTMLElement>("[role='listbox']");
-      fireEvent.keyDown(listbox!, { key, bubbles: true });
-      // The highlight lands asynchronously (the content's focus effect);
-      // poll it over the settled frames.
-      await until(() => (highlighted() === option ? true : null), `the "${option}" highlight`);
-    };
-    const commit = async () => {
-      fireEvent.keyDown(document.querySelector("[role='option'][data-highlighted]")!, { key: "Enter", bubbles: true });
-      await settleGrid();
-    };
+    const row = (label: string) =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']")].find(
+        (entry) => entry.textContent === label
+      );
 
+    // The pick commits to the bridge (one updateRow) over the row's press.
     await open();
-    await typeAhead("d", "done");
-    await commit();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.status).toBe("done");
+    fireEvent.click(row("done")!);
+    await settleGrid();
+    expect((await bridge.queryRows(tableId, {})).rows[rowId]!.status).toBe("done");
     expect(cell()!.textContent).toContain("done");
+
+    // The search filters the list (the client-side stand over the loaded
+    // options).
+    await open();
+    fireEvent.change(document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-enum-picker-search']")!, {
+      target: { value: "do" },
+    });
+    await settleGrid();
+    expect(row("active")).toBeUndefined();
+    expect(row("done")).toBeDefined();
 
     // The empty option clears the cell (the null stands).
     await open();
-    await typeAhead("—", "—");
-    await commit();
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-picker-clear']")!);
+    await settleGrid();
     const page2 = await bridge.queryRows(tableId, {});
     // The bridge drops the cleared cell (the absent value stands the null).
     expect(page2.rows[rowId]!.status ?? null).toBeNull();
@@ -475,10 +471,15 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await bridge.insertRow("table-statuses", { id: "review" });
     await until(() => cell() !== null, "the cell");
     fireEvent.doubleClick(cell()!);
-    await until(() => document.querySelector("[role='listbox']") !== null, "the select's list");
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-enum-picker-search']") !== null,
+      "the picker's list"
+    );
     await until(
       () =>
-        [...document.querySelectorAll<HTMLElement>("[role='option']")].some((entry) => entry.textContent === "review"),
+        [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']")].some(
+          (entry) => entry.textContent === "review"
+        ),
       "the live option"
     );
   });
@@ -591,9 +592,11 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     const cell = () =>
       document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='tags']");
     const chips = () =>
-      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
-        (chip) => chip.textContent
-      );
+      cell() === null
+        ? []
+        : [...cell()!.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
+            (chip) => chip.textContent
+          );
     await until(() => cell() !== null, "the cell");
     // The display stands the chips' train (the joined text is out).
     await until(() => chips().length === 2, "the chips");
@@ -644,9 +647,11 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     const cell = () =>
       document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='tags']");
     const chips = () =>
-      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
-        (chip) => chip.textContent
-      );
+      cell() === null
+        ? []
+        : [...cell()!.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
+            (chip) => chip.textContent
+          );
     await until(() => cell() !== null, "the cell");
     // The empty stand (the cell's background only — no chip, no joined
     // text) + the empty stand's flag.
@@ -711,9 +716,11 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     const cell = () =>
       document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owners']");
     const chips = () =>
-      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
-        (chip) => chip.textContent
-      );
+      cell() === null
+        ? []
+        : [...cell()!.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-chip']")].map(
+            (chip) => chip.textContent
+          );
     await until(() => cell() !== null, "the cell");
     fireEvent.doubleClick(cell()!);
     await until(
@@ -1727,16 +1734,18 @@ describe("the number column (the display format + the create form)", () => {
 
   it("the ref form's new-table creation commits the table + the column over the create", async () => {
     const { bridge, tableId } = await renderGrid();
-    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']");
+    if (trigger === null) return;
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
     fireEvent.click(trigger);
-    await until(() => document.querySelector("[data-column-entry='enum']") !== null, "the add-column menu");
-    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='enum']")!);
+    await until(() => document.querySelector("[data-column-entry='row-link']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='row-link']")!);
     await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
     // The "new table" entry (the package's Select's option — the keyboard
     // gesture, the jsdom pointer's stand) stands the name's input (the
-    // createTable's commit over the form's button).
+    // createTable's commit over the form's button). The enum's entry is
+    // out of the flow (the options' editor stands the ref table's pick).
     const refTrigger = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/database-add-column-ref']")!;
     fireEvent.click(refTrigger);
     await until(() => document.querySelector("[role='listbox']") !== null, "the table's list");
@@ -1767,9 +1776,9 @@ describe("the number column (the display format + the create form)", () => {
     const created = schema.columns.find((column) => column.id === "col5");
     expect(created).toEqual({
       id: "col5",
-      name: "Enum",
+      name: "Row link",
       type: "text",
-      refKind: "enum",
+      refKind: "row",
       refTableId: "table-tags",
     });
   });
@@ -2225,10 +2234,12 @@ describe("the filter builder — the ref value inputs (the enum's dict options /
     [refEntryKey({ tableId: "table-statuses" })]: {
       rowIds: ["todo", "done"],
       displays: { todo: "todo", done: "done" },
+      colors: {},
     },
     [refEntryKey({ tableId: "table-people" })]: {
       rowIds: ["r-people-1"],
       displays: { "r-people-1": "Ann" },
+      colors: {},
     },
   };
 
@@ -2274,5 +2285,276 @@ describe("the filter builder — the ref value inputs (the enum's dict options /
     ]);
     fireEvent.change(ownerSelect, { target: { value: "r-people-1" } });
     expect(payloads.at(-1)?.conditions[0]?.value).toBe("r-people-1");
+  });
+});
+
+describe("the enum's options' mechanics (the system table; the create / the edit's form; the chip's display)", () => {
+  it("the system table stands hidden (the listTables stands it out; the echo carries the flag)", async () => {
+    const sharedChannel = `enum-system-${Math.random().toString(36).slice(2, 8)}`;
+    const a = createMemoryDatabaseBridge({ channelName: sharedChannel });
+    const b = createMemoryDatabaseBridge({ channelName: sharedChannel });
+    const id = await a.createTable("Tags-enum", { system: true });
+    // The hidden stand: the consumer's catalog reads it out.
+    expect(await a.listTables()).toEqual([]);
+    // The schema / rows stay reachable by id (the grid's ref read).
+    const description = await a.describeTable(id);
+    expect(description.name).toBe("Tags-enum");
+    // The echo carries the flag (the peer's catalog stands it out too).
+    const seenDeadline = Date.now() + 2000;
+    for (;;) {
+      if (Date.now() > seenDeadline) throw new Error("the system table's echo did not arrive");
+      const tables = await b.listTables();
+      const descriptionB = await b.describeTable(id).catch(() => null);
+      if (descriptionB !== null && tables.length === 0) break;
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+    expect((await b.describeTable(id)).name).toBe("Tags-enum");
+    expect((await b.listTables()).map((table) => table.id)).not.toContain(id);
+  });
+
+  it("the enum's create form stands the options' editor (the reordering, the colors, the delete; the system table's commit)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
+    fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
+    fireEvent.click(trigger);
+    await until(() => document.querySelector("[data-column-entry='enum']") !== null, "the add-column menu");
+    fireEvent.click(document.querySelector<HTMLElement>("[data-column-entry='enum']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") !== null, "the form");
+    // The options' editor stands (the ref table's pick is out for the enum).
+    const form = () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-form']")!;
+    expect(form().querySelector("[data-slot='docblocks/database-enum-options']")).not.toBeNull();
+    expect(form().querySelector("[data-slot='docblocks/database-add-column-ref']")).toBeNull();
+    // The name's prefill stands the type's label (the "Enum" stand).
+    expect(form().querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")!.value).toBe(
+      "Enum"
+    );
+
+    const addOption = async (name: string) => {
+      fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-add']")!);
+      await settleGrid();
+      const inputs = document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']");
+      fireEvent.change(inputs[inputs.length - 1]!, { target: { value: name } });
+      await settleGrid();
+    };
+    await addOption("alpha");
+    await addOption("beta");
+    await addOption("gamma");
+
+    // The grip's drag stands the live reorder (the third over the first —
+    // the pointer's delta stands the index's shift).
+    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
+    fireEvent.pointerDown(grips[2]!, { clientX: 100, clientY: 400, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 * 2 });
+    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 * 2 });
+    await settleGrid();
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
+        (input) => input.value
+      )
+    ).toEqual(["gamma", "alpha", "beta"]);
+
+    // The delete's control drops the draft's row (the alpha's — the
+    // colored's stand keeps the gamma's row over it).
+    const deletes = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-delete']");
+    fireEvent.click(deletes[1]!);
+    await settleGrid();
+    expect(
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
+        (input) => input.value
+      )
+    ).toEqual(["gamma", "beta"]);
+
+    // The color's stand (the palette's popover pick over the swatch): the
+    // palette's popover stands portaled (the swatch's buttons stand the
+    // background color's inline stand — the palette's red).
+    const swatch = () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-color']")!;
+    fireEvent.click(swatch());
+    await settleGrid();
+    const paletteButtons = [...document.querySelectorAll<HTMLElement>("button")].filter(
+      (button) => button.style.backgroundColor === "rgb(247, 168, 168)"
+    );
+    expect(paletteButtons.length).toBeGreaterThan(0);
+    fireEvent.click(paletteButtons.at(-1)!);
+    await settleGrid();
+    expect(swatch().getAttribute("data-color")).toBe("#f7a8a8");
+
+    // The create's commit (the button's press): the system table's creation
+    // + the options' rows + the column's `refTableId` reference.
+    fireEvent.change(document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")!, {
+      target: { value: "Stage" },
+    });
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
+      "the column"
+    );
+    const schema = await bridge.describeTable(tableId);
+    const created = schema.columns.find((column) => column.id === "col5");
+    expect(created?.refKind).toBe("enum");
+    expect(created?.refTableId).not.toBeUndefined();
+    const enumTableId = created!.refTableId!;
+    // The hidden table stands the catalog out (the options are reachable
+    // by id only).
+    expect((await bridge.listTables()).map((table) => table.id)).not.toContain(enumTableId);
+    const page = await bridge.queryRows(enumTableId, {});
+    const optionRows = Object.values(page.rows).map((cells) => cells as Record<string, unknown>);
+    expect(optionRows.map((cells) => cells.name)).toEqual(["gamma", "beta"]);
+    expect(optionRows[0]?.color).toBe("#f7a8a8");
+  });
+
+  it("the enum's edit form stands the diff commit (the values stand; the names / the order / the colors update)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    // The enum column over the fresh system table (the created stand).
+    const enumTableId = await bridge.createTable("Stage-enum", { system: true });
+    await bridge.createColumn(enumTableId, { id: "name", name: "name", type: "text" });
+    await bridge.createColumn(enumTableId, { id: "color", name: "color", type: "text" });
+    await bridge.insertRows(enumTableId, [{ name: "alpha", color: "#f7a8a8" }, { name: "beta" }]);
+    await bridge.createColumn(tableId, {
+      id: "stage",
+      name: "Stage",
+      type: "text",
+      refKind: "enum",
+      refTableId: enumTableId,
+    });
+    const page = await bridge.queryRows(tableId, {});
+    const rowId = Object.keys(page.rows)[0]!;
+    // The cell value stands the option's row id (the edit's identity).
+    const alphaRowId = Object.keys((await bridge.queryRows(enumTableId, {})).rows)[0]!;
+    await bridge.updateRow(tableId, rowId, { stage: alphaRowId });
+    await settleGrid();
+    const cell = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='stage']");
+    await until(() => cell() !== null, "the cell");
+    await until(() => (cell()!.textContent ?? "").includes("alpha"), "the display");
+
+    // The edit's open (the column menu's "Edit options" entry — the
+    // header's press stands the menu): the draft prefills from the system
+    // table (the order's stand, the names, the colors).
+    const stageHeader = () =>
+      document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell'][data-column-id='stage']")!;
+    fireEvent.pointerDown(stageHeader(), { clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(stageHeader(), { clientX: 10, clientY: 5 });
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-column-edit-options']") !== null,
+      "the edit entry"
+    );
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-column-edit-options']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-enum-options']") !== null, "the editor");
+    const optionNames = () =>
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
+        (input) => input.value
+      );
+    expect(optionNames()).toEqual(["alpha", "beta"]);
+    // The color's swatch stands the committed hex (the alpha's red).
+    const swatches = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-color']");
+    expect(swatches[0]!.getAttribute("data-color")).toBe("#f7a8a8");
+
+    // The diff: the rename (alpha → alfa), the option's add (gamma), the
+    // reorder (gamma first).
+    fireEvent.change(
+      document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[0]!,
+      {
+        target: { value: "alfa" },
+      }
+    );
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-add']")!);
+    await settleGrid();
+    fireEvent.change(
+      document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[2]!,
+      {
+        target: { value: "gamma" },
+      }
+    );
+    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
+    fireEvent.pointerDown(grips[2]!, { clientX: 100, clientY: 400, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 * 2 });
+    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 * 2 });
+    await settleGrid();
+    expect(optionNames()).toEqual(["gamma", "alfa", "beta"]);
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
+    await settleGrid();
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-add-column-form']") === null,
+      "the form's close"
+    );
+
+    // The diff's commit over the system table (the alpha's row stands its
+    // id — the cell's value is intact; the names / the order updated).
+    const afterPage = await bridge.queryRows(enumTableId, {});
+    const ids = Object.keys(afterPage.rows);
+    expect(ids).toHaveLength(3);
+    expect(afterPage.rows[alphaRowId]!.name).toBe("alfa");
+    expect(ids[0]).not.toBe(alphaRowId); // the gamma's stand is first
+    expect(afterPage.rows[alphaRowId]!.color).toBe("#f7a8a8");
+
+    // The cell's display stands the renamed option (the identity's
+    // resolution over the row id).
+    await until(() => (cell()!.textContent ?? "").includes("alfa"), "the renamed display");
+    // The picker's list stands the new order + the renamed option (the
+    // old name is gone).
+    fireEvent.doubleClick(cell()!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-enum-picker-search']") !== null,
+      "the picker"
+    );
+    const rows = [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']")].map(
+      (entry) => entry.textContent
+    );
+    expect(rows).toEqual(["gamma", "alfa", "beta"]);
+  });
+
+  it("the enum cell's chip stands the option's color (the empty stand stands the background only)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    const enumTableId = await bridge.createTable("Color-enum", { system: true });
+    await bridge.createColumn(enumTableId, { id: "name", name: "name", type: "text" });
+    await bridge.createColumn(enumTableId, { id: "color", name: "color", type: "text" });
+    await bridge.insertRows(enumTableId, [{ name: "green", color: "#97e3a8" }, { name: "plain" }]);
+    await bridge.createColumn(tableId, {
+      id: "tint",
+      name: "Tint",
+      type: "text",
+      refKind: "enum",
+      refTableId: enumTableId,
+    });
+    const page = await bridge.queryRows(tableId, {});
+    const [rowA, rowB] = Object.keys(page.rows);
+    const greenRowId = Object.keys((await bridge.queryRows(enumTableId, {})).rows)[0]!;
+    await bridge.updateRow(tableId, rowA!, { tint: greenRowId });
+    await settleGrid();
+    const cellA = () =>
+      document.querySelector<HTMLElement>(
+        `[data-slot='docblocks/database-cell'][data-column-id='tint'][data-row='0']`
+      )!;
+    await until(() => cellA() !== null, "the cell");
+    const chip = () => cellA().querySelector<HTMLElement>("[data-slot='docblocks/database-ref-chip']");
+    await until(() => chip() !== null, "the chip");
+    // The chip's background stands the option's color (the data's inline
+    // stand), the label stands the option's name.
+    expect(chip()!.style.backgroundColor).toBe("rgb(151, 227, 168)");
+    expect(chip()!.textContent).toBe("green");
+    // The no-color option stands the neutral chip (the muted background).
+    const plainRowId = Object.keys((await bridge.queryRows(enumTableId, {})).rows)[1]!;
+    await bridge.updateRow(tableId, rowB!, { tint: plainRowId });
+    await settleGrid();
+    const cellB = () =>
+      document.querySelector<HTMLElement>(
+        `[data-slot='docblocks/database-cell'][data-column-id='tint'][data-row='1']`
+      )!;
+    await until(() => cellB().querySelector("[data-slot='docblocks/database-ref-chip']") !== null, "the neutral chip");
+    expect(cellB().querySelector<HTMLElement>("[data-slot='docblocks/database-ref-chip']")!.style.backgroundColor).toBe(
+      ""
+    );
+    expect(cellB().getAttribute("data-empty")).not.toBe("true");
+    // The empty stand: the cell's background only (no chip's box).
+    await bridge.insertRow(tableId, { title: "c" });
+    await settleGrid();
+    const cellC = () =>
+      document.querySelector<HTMLElement>(
+        `[data-slot='docblocks/database-cell'][data-column-id='tint'][data-row='2']`
+      )!;
+    await until(() => cellC() !== null, "the empty cell");
+    expect(cellC().querySelector("[data-slot='docblocks/database-ref-chip']")).toBeNull();
+    expect(cellC().getAttribute("data-empty")).toBe("true");
   });
 });

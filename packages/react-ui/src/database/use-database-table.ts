@@ -213,7 +213,16 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
           pushUndo({
             label: `update row ${rowId}`,
             forward: async () => bridge.updateRow(tableId, rowId, cleaned),
-            inverse: async () => bridge.updateRow(tableId, rowId, oldCells),
+            inverse: async () => {
+              // The key the forward set but that stood no value before
+              // stands the explicit null: the bridge's write is a merge
+              // (an absent key in the patch stands no removal).
+              const restore: Record<string, unknown> = { ...oldCells };
+              for (const [key, value] of Object.entries(cleaned)) {
+                if (oldCells[key] === undefined && value !== undefined) restore[key] = null;
+              }
+              await bridge.updateRow(tableId, rowId, restore);
+            },
           });
         }
         refresh();
@@ -267,7 +276,12 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
           const oldCells = before.get(rowId);
           if (oldCells === undefined) return [];
           const patch: Record<string, unknown> = {};
-          for (const key of Object.keys(cells)) patch[key] = oldCells[key];
+          for (const [key, value] of Object.entries(cells)) {
+            // The absent-before key stands the explicit null (the merge's
+            // removal stand — the `undefined` would be skipped by the
+            // bridge's cells' write).
+            patch[key] = oldCells[key] === undefined && value !== undefined ? null : oldCells[key];
+          }
           if (Object.keys(patch).length === 0) return [];
           return [{ rowId, ...patch }];
         });

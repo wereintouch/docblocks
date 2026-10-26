@@ -78,8 +78,9 @@ async function bridgeDemoTable(page: Page): Promise<{ id: string; name: string }
       result = await page.evaluate(async () => {
         if (window.__bridge === undefined) return null;
         const tables = await window.__bridge.listTables();
-        // The seed creates the dict table (Statuses) before the Demo table,
-        // so the demo is found by name, not by position.
+        // The seed creates the enum's system table before the Demo table
+        // (it stands the catalog out), so the demo is found by name, not by
+        // position.
         return tables.find((table) => table.name === "Demo") ?? null;
       });
       return result;
@@ -708,7 +709,7 @@ test("the header: the type stands in the menu only, the widths align with the ro
   await close();
 });
 
-test("the select cell stands the package's Select (the pick stands over the wire); the number cell suppresses the spin buttons", async ({
+test("the enum cell stands the package's EnumPicker (the pick stands over the wire); the number cell suppresses the spin buttons", async ({
   browser,
 }) => {
   // The shared-context panes (the same origin): the default bridges share
@@ -723,15 +724,16 @@ test("the select cell stands the package's Select (the pick stands over the wire
   const gridB = b.locator("[data-slot='docblocks/database-grid']");
   await expect(gridB).toHaveCount(1, SETTLE);
 
-  // The select cell stands the package's Select trigger (the radix
-  // combobox), not a native <select> (the demo table's status column):
-  // the cell stands the display, the combobox is the inner trigger, and
-  // the list opens on the double press (the single press is the selection).
-  const selectCellA = a.locator("[data-slot='docblocks/database-cell'][data-column-id='status']").first();
-  const selectTriggerA = selectCellA.locator("[role='combobox']");
-  await expect(selectTriggerA).toHaveCount(1, SETTLE);
-  await expect(selectCellA).toHaveText("todo", SETTLE);
-  await expect(selectCellA.locator("select")).toHaveCount(0);
+  // The single-enum cell stands the package's EnumPicker trigger (the chip
+  // over the popover — the Radix's Select is out over the enum), not a
+  // native <select> (the demo table's status column): the cell stands the
+  // display, the trigger is the inner chip, and the list opens on the
+  // double press (the single press is the selection).
+  const enumCellA = a.locator("[data-slot='docblocks/database-cell'][data-column-id='status']").first();
+  const enumTriggerA = enumCellA.locator("[data-slot='docblocks/database-enum-picker-trigger']");
+  await expect(enumTriggerA).toHaveCount(1, SETTLE);
+  await expect(enumCellA).toHaveText("todo", SETTLE);
+  await expect(enumCellA.locator("select")).toHaveCount(0);
 
   // The number cell stands the spin-button suppression (the structural
   // rule reaches the inner edit input: the webkit spin pseudo elements are
@@ -748,17 +750,17 @@ test("the select cell stands the package's Select (the pick stands over the wire
   expect(numberStyle.appearance).toBe("textfield");
   await a.keyboard.press("Escape");
 
-  // The pick over the real mouse: the double press opens the list, the
+  // The pick over the real mouse: the double press opens the picker, the
   // "doing" pick commits over the wire (the row is the consumer's data —
   // pane B's bridge and grid resync from the bridge's echo, the doc stands
   // unchanged).
-  await selectCellA.dblclick();
-  const option = a.getByRole("option", { name: "doing" });
+  await enumCellA.dblclick();
+  const option = a.locator("[data-slot='docblocks/database-enum-picker-row'][data-option-value='doing']");
   await expect(option).toBeVisible(SETTLE);
   await option.click();
-  await expect(selectCellA).toHaveText("doing", SETTLE);
-  const selectCellB = b.locator("[data-slot='docblocks/database-cell'][data-column-id='status']").first();
-  await expect(selectCellB).toHaveText("doing", SETTLE);
+  await expect(enumCellA).toHaveText("doing", SETTLE);
+  const enumCellB = b.locator("[data-slot='docblocks/database-cell'][data-column-id='status']").first();
+  await expect(enumCellB).toHaveText("doing", SETTLE);
   const rowB = await b.evaluate(async () => {
     const table = (await window.__bridge!.listTables()).find((item) => item.name === "Demo")!;
     const page = await window.__bridge!.queryRows(table!.id, {});
@@ -1406,7 +1408,7 @@ test("the number column: the create form's attributes stand the cell's display (
   await close();
 });
 
-test("the add-column form's ref pick: the package's Select stands (the native select is gone; the existing + the new-table flows)", async ({
+test("the add-column form's ref stand (the enum's options editor over the hidden system table; the row-link's table pick — the existing + the new-table flows)", async ({
   browser,
 }) => {
   // The shared-context panes (the same origin): the bridge echo carries the
@@ -1414,10 +1416,10 @@ test("the add-column form's ref pick: the package's Select stands (the native se
   const { a, b, close } = await twoPanesSharedContext(browser, "ext04-refpick");
   try {
     const demo = await bridgeDemoTable(a);
-    await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
-    const gridA = a.locator("[data-slot='docblocks/database-grid']");
-    await expect(gridA.first()).toBeVisible(SETTLE);
-    await b.locator("[data-slot='docblocks/database-grid']").first().waitFor({ timeout: 15000 });
+    const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+    const gridA = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
+    await expect(gridA).toBeVisible(SETTLE);
+    await b.locator("[data-slot='docblocks/database-grid']").last().waitFor({ timeout: 15000 });
 
     const trigger = a.locator("[data-slot='docblocks/database-add-column-trigger']");
     const menu = a.locator("[data-slot='dropdown-menu-content']");
@@ -1438,31 +1440,61 @@ test("the add-column form's ref pick: the package's Select stands (the native se
         { tableId: demo.id, colId: id }
       );
 
-    // Flow 1 — the existing table's pick: the trigger is the package's
-    // Select (the native select is gone over the form's fields), the pick
-    // commits the column over the bridge echo (both panes).
+    // Flow 1 — the enum's options' editor (the ref table's pick stands
+    // none — the options' rows stand the column's own system table, the
+    // hidden stand over the `listTables`).
     await openForm("enum");
+    expect(await form.locator("[data-slot='docblocks/database-add-column-ref']").count()).toBe(0);
+    await expect(form.locator("[data-slot='docblocks/database-enum-options']")).toBeVisible(SETTLE);
+    const addOption = async (name: string) => {
+      await form.locator("[data-slot='docblocks/database-enum-option-add']").click();
+      const inputs = form.locator("[data-slot='docblocks/database-enum-option-name']");
+      await inputs.last().fill(name);
+    };
+    await addOption("good");
+    await addOption("bad");
+    await form.locator("[data-slot='docblocks/database-add-column-name']").fill("Mood");
+    await form.locator("[data-slot='docblocks/database-add-column-create']").click();
+    await expect(form).toBeHidden(SETTLE);
+    const header1 = gridA.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col5']");
+    await expect(header1).toBeVisible(SETTLE);
+    const created1 = await columnOf("col5");
+    expect(created1).toMatchObject({ refKind: "enum" });
+    const moodTableId = (created1 as unknown as { refTableId: string }).refTableId;
+    const tableNames = await a.evaluate(async () => (await window.__bridge!.listTables()).map((t) => t.name));
+    expect(tableNames.map((name) => name.toLowerCase())).not.toContain(moodTableId.toLowerCase());
+    const moodRows = await a.evaluate(async (id) => {
+      const page = await window.__bridge!.queryRows(id, {});
+      return Object.values(page.rows).map((cells) => cells.name);
+    }, moodTableId);
+    expect(moodRows).toEqual(["good", "bad"]);
+    await expect(b.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeVisible(SETTLE);
+
+    // Flow 2 — the row-link's existing table's pick (the package's Select —
+    // the native select is gone; the demo's Projects table stands the
+    // pick): the pick commits the column over the bridge echo (both panes).
+    await openForm("row-link");
     const refTrigger = form.locator("[data-slot='docblocks/database-add-column-ref']");
     await expect(refTrigger).toBeVisible(SETTLE);
-    // The DOM's pin: no native <select> stands in the form (the trigger is
-    // the Radix's button) — the package's Select's stand.
     expect(await form.locator("select").count()).toBe(0);
     await expect(refTrigger).toContainText("— Select a table —");
-    // The create stands disabled over the unpicked ref.
     await expect(form.locator("[data-slot='docblocks/database-add-column-create']")).toBeDisabled();
     await refTrigger.click();
     const listbox = a.locator("[role='listbox']");
     await expect(listbox).toBeVisible(SETTLE);
-    await listbox.locator("[role='option']", { hasText: "Statuses" }).click();
-    await expect(refTrigger).toHaveText("Statuses", SETTLE);
+    await listbox.locator("[role='option']", { hasText: "Projects" }).click();
+    await expect(refTrigger).toHaveText("Projects", SETTLE);
     await form.locator("[data-slot='docblocks/database-add-column-create']").click();
     await expect(form).toBeHidden(SETTLE);
-    await expect(a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeVisible(SETTLE);
-    expect(await columnOf("col5")).toMatchObject({ refKind: "enum", refTableId: "table-statuses" });
-    await expect(b.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeVisible(SETTLE);
+    await expect(gridA.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col6']")).toBeVisible(
+      SETTLE
+    );
+    expect(await columnOf("col6")).toMatchObject({ refKind: "row", refTableId: "table-projects" });
+    await expect(b.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col6']")).toBeVisible(SETTLE);
 
-    // Flow 2 — the "New table…" pick: the name's input stands over the
-    // form, the create commits the table + the column (the bridge's echo).
+    // Flow 3 — the "New table…" pick (the row-link's): the name's input
+    // stands over the form, the create commits the table + the column
+    // (the bridge's echo).
     await openForm("row-link");
     const refTrigger2 = form.locator("[data-slot='docblocks/database-add-column-ref']");
     await refTrigger2.click();
@@ -1475,11 +1507,13 @@ test("the add-column form's ref pick: the package's Select stands (the native se
     await newName.fill("People");
     await form.locator("[data-slot='docblocks/database-add-column-create']").click();
     await expect(form).toBeHidden(SETTLE);
-    await expect(a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col6']")).toBeVisible(SETTLE);
-    expect(await columnOf("col6")).toMatchObject({ refKind: "row", refTableId: "table-people" });
-    const tableNames = await a.evaluate(async () => (await window.__bridge!.listTables()).map((t) => t.name));
-    expect(tableNames).toContain("People");
-    await expect(b.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col6']")).toBeVisible(SETTLE);
+    await expect(gridA.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col7']")).toBeVisible(
+      SETTLE
+    );
+    expect(await columnOf("col7")).toMatchObject({ refKind: "row", refTableId: "table-people" });
+    const tableNames2 = await a.evaluate(async () => (await window.__bridge!.listTables()).map((t) => t.name));
+    expect(tableNames2).toContain("People");
+    await expect(b.locator("[data-slot='docblocks/database-header-cell'][data-column-id='col7']")).toBeVisible(SETTLE);
   } finally {
     await close();
   }
@@ -1577,7 +1611,7 @@ test("the cell's pickers stand the unified row height (the enum / the multi-enum
         type: "text",
         refKind: "enum",
         refMany: true,
-        refTableId: "table-statuses",
+        refTableId: "table-statuses-enum",
       });
       await bridge.createTable("People");
       await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
@@ -1599,21 +1633,20 @@ test("the cell's pickers stand the unified row height (the enum / the multi-enum
     const cell = (colId: string) =>
       a.locator(`[data-slot='docblocks/database-cell'][data-column-id='${colId}']`).first();
 
-    // The single-enum's list — the grid's main picker (the height's stand:
-    // the SelectItem's line over the theme's tokens).
+    // The single-enum's list — the grid's main picker (the height's
+    // stand: the option's line over the theme's tokens). The picker is
+    // the custom popover (the Radix's Select is out over the enum).
     await cell("status").dblclick();
-    const listbox = a.locator("[role='listbox']");
-    await expect(listbox).toBeVisible(SETTLE);
-    const enumHeight = await listbox
-      .locator("[role='option']")
-      .first()
-      .evaluate((el) => getComputedStyle(el).height);
+    await a.waitForTimeout(150);
+    const enumRow = a.locator("[data-slot='docblocks/database-enum-picker-row']").first();
+    await expect(enumRow).toBeVisible(SETTLE);
+    const enumHeight = await enumRow.evaluate((el) => getComputedStyle(el).height);
     await a.keyboard.press("Escape");
-    await expect(listbox).toBeHidden(SETTLE);
 
-    // The multi-enum's list (the checkbox rows).
+    // The multi-enum's list (the checkbox rows — the row's line stands the
+    // checkbox's visual; the press stands the row's toggle).
     await cell("tags").dblclick();
-    const multiRow = a.locator("label:has([data-slot='docblocks/database-ref-multi-option'])");
+    const multiRow = a.locator("[data-slot='docblocks/database-ref-multi-option']");
     await expect(multiRow.first()).toBeVisible(SETTLE);
     const multiHeight = await multiRow.first().evaluate((el) => getComputedStyle(el).height);
     await a.keyboard.press("Escape");
@@ -1631,10 +1664,13 @@ test("the cell's pickers stand the unified row height (the enum / the multi-enum
     expect(rowLinkHeight).toBe(enumHeight);
 
     // The pick's contract stands (the regression): the enum's pick commits
-    // over the bridge (the cell stands the value).
+    // over the bridge (the cell stands the value). The row's option-value
+    // stands the option's row id (the pk's stand = the dict's value).
     await cell("status").dblclick();
-    await expect(listbox).toBeVisible(SETTLE);
-    await listbox.locator("[role='option']", { hasText: "done" }).click();
+    await a.waitForTimeout(150);
+    const doneRow = a.locator("[data-slot='docblocks/database-enum-picker-row'][data-option-value='done']");
+    await expect(doneRow).toBeVisible(SETTLE);
+    await doneRow.click();
     await expect(cell("status")).toHaveText("done", SETTLE);
     const status = await a.evaluate(async (tableId) => {
       const page = await window.__bridge!.queryRows(tableId, {});
@@ -1691,7 +1727,7 @@ test("the grid's rows stand the constant height (every column type fits the stan
         name: "E1",
         type: "text",
         refKind: "enum",
-        refTableId: "table-statuses",
+        refTableId: "table-statuses-enum",
       });
       const page = await bridge.queryRows(id, {});
       const rowId = Object.keys(page.rows)[0]!;
@@ -1715,7 +1751,7 @@ test("the grid's rows stand the constant height (every column type fits the stan
         type: "text",
         refKind: "enum",
         refMany: true,
-        refTableId: "table-statuses",
+        refTableId: "table-statuses-enum",
       });
       await bridge.createTable("People");
       const peopleId = await bridge.insertRows("table-people", [{ name: "Ann" }]);
@@ -2029,7 +2065,7 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
         name: "Tags",
         type: "text",
         refKind: "enum",
-        refTableId: "table-statuses",
+        refTableId: "table-statuses-enum",
         refMany: true,
       });
       await bridge.createColumn(id, {
@@ -2045,7 +2081,7 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
         name: "Status",
         type: "text",
         refKind: "enum",
-        refTableId: "table-statuses",
+        refTableId: "table-statuses-enum",
       });
       await bridge.createColumn(id, {
         id: "owner",
@@ -2149,12 +2185,15 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
     expect((await bridgeCells(a)).owners).toEqual(["r-table-linkpeople-1", "r-table-linkpeople-2"]);
 
     // ---- The single's pick stands the SCALAR (the regression): the
-    // single-enum's cell opens the Select (the multi's stand is out), the
-    // pick commits the string (not the array).
+    // single-enum's cell opens the picker (the multi's stand is out), the
+    // pick commits the string (not the array). The row's option-value
+    // stands the option's row id (the pk's stand = the dict's value).
     await cell("status").dblclick();
-    await expect(a.locator("[role='listbox']")).toBeVisible(SETTLE);
+    await a.waitForTimeout(150);
+    const enumPickerRow = a.locator("[data-slot='docblocks/database-enum-picker-row']");
+    await expect(enumPickerRow.first()).toBeVisible(SETTLE);
     expect(await a.locator("[data-slot='docblocks/database-ref-multi-option']").count()).toBe(0);
-    await a.locator("[role='option']", { hasText: "doing" }).first().click();
+    await a.locator("[data-slot='docblocks/database-enum-picker-row'][data-option-value='doing']").click();
     await a.waitForTimeout(50);
     const singleEnum = (await bridgeCells(a)).status;
     expect(singleEnum).toBe("doing");
@@ -2171,6 +2210,268 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
     await a.waitForTimeout(50);
     const singleLink = (await bridgeCells(a)).owner;
     expect(singleLink).toBe("r-table-linkpeople-1");
+  } finally {
+    await close();
+  }
+});
+
+test("the enum's create form (the options' editor: the reorder / the color / the delete; the system table stands hidden; the chip's stand; the picker's contract; the undo)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-enumform");
+  try {
+    const demo = await bridgeDemoTable(a);
+    const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+    const gridA = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
+    await expect(gridA).toBeVisible(SETTLE);
+    await b.locator("[data-slot='docblocks/database-grid']").last().waitFor({ timeout: 15000 });
+
+    // The demo's status enum stands the system table (the hidden stand):
+    // the `listTables` stands it out, the chip stands the option's color
+    // (the data's inline stand over the pastel palette).
+    const tables = await a.evaluate(async () => (await window.__bridge!.listTables()).map((t) => t.name));
+    expect(tables).not.toContain("Statuses-enum");
+    const chip = gridA.locator("[data-column-id='status'][data-row='0'] [data-slot='docblocks/database-ref-chip']");
+    await expect(chip).toHaveText("todo", SETTLE);
+    expect(await chip.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(244, 224, 125)");
+
+    // The enum's create form: the options' editor stands (the ref table's
+    // pick is out), the options' draft over the editor's rows.
+    const form = a.locator("[data-slot='docblocks/database-add-column-form']");
+    const trigger = a.locator("[data-slot='docblocks/database-add-column-trigger']");
+    await trigger.click();
+    const menu = a.locator("[data-slot='dropdown-menu-content']");
+    await menu.locator("[data-column-entry='enum']").click();
+    await expect(form).toBeVisible(SETTLE);
+    await expect(form.locator("[data-slot='docblocks/database-enum-options']")).toBeVisible(SETTLE);
+    expect(await form.locator("[data-slot='docblocks/database-add-column-ref']").count()).toBe(0);
+
+    const addOption = async (name: string) => {
+      await form.locator("[data-slot='docblocks/database-enum-option-add']").click();
+      const inputs = form.locator("[data-slot='docblocks/database-enum-option-name']");
+      await inputs.last().fill(name);
+    };
+    await addOption("low");
+    await addOption("high");
+    // The grip's drag stands the live reorder (the high stands first).
+    const grips = form.locator("[data-slot='docblocks/database-enum-option-grip']");
+    const first = await grips.nth(0).boundingBox();
+    const last = await grips.nth(1).boundingBox();
+    if (first === null || last === null) throw new Error("the grip's box stands none");
+    await a.mouse.move(last.x + last.width / 2, last.y + last.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(first.x + first.width / 2, first.y + first.height / 2 - 6, { steps: 8 });
+    await a.mouse.up();
+    await a.waitForTimeout(100);
+    const namesAfter = await form
+      .locator("[data-slot='docblocks/database-enum-option-name']")
+      .evaluateAll((elements) => elements.map((element) => (element as HTMLInputElement).value));
+    expect(namesAfter).toEqual(["high", "low"]);
+    // The color's palette (the popover pick over the swatch — the palette's
+    // red stands the first option's chip).
+    await form.locator("[data-slot='docblocks/database-enum-option-color']").first().click();
+    const paletteRed = a.locator("button[style*='rgb(247, 168, 168)']").first();
+    await paletteRed.click();
+    await a.waitForTimeout(100);
+    await form.locator("[data-slot='docblocks/database-add-column-name']").fill("Priority");
+    await form.locator("[data-slot='docblocks/database-add-column-create']").click();
+    await expect(form).toBeHidden(SETTLE);
+
+    // The column stands in both panes (the echo); the system table stands
+    // the hidden catalog out.
+    const header = (pane: typeof a) =>
+      pane.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-header-cell'][data-column-id='col5']`);
+    await expect(header(a)).toHaveText("Priority", SETTLE);
+    await expect(header(b)).toHaveText("Priority", SETTLE);
+    const schema = await a.evaluate(
+      async (tableId) => (await window.__bridge!.describeTable(tableId)).columns,
+      demo.id
+    );
+    const created = schema.find((column) => column.id === "col5");
+    expect(created).not.toBeNull();
+    const enumTableId = (created as unknown as { refTableId: string }).refTableId!;
+    expect(tables).not.toContain(enumTableId);
+    const optionRows = await a.evaluate(async (id) => {
+      const page = await window.__bridge!.queryRows(id, {});
+      return Object.values(page.rows);
+    }, enumTableId);
+    expect(optionRows.map((cells: Record<string, unknown>) => cells.name)).toEqual(["high", "low"]);
+    expect(optionRows[0]).toHaveProperty("color", "#f7a8a8");
+
+    // The empty cell's stand: the background only (the chip stands none —
+    // the trigger's box is out). The one press stands the selection, the
+    // double press stands the picker.
+    const cell = gridA.locator("[data-column-id='col5'][data-row='0']");
+    expect(await cell.locator("[data-slot='docblocks/database-ref-chip']").count()).toBe(0);
+    expect(await cell.getAttribute("data-empty")).toBe("true");
+    await cell.click();
+    await a.waitForTimeout(100);
+    // The selected's stand (the outline's class over the sole selection).
+    expect(await cell.getAttribute("class")).toContain("outline");
+    await cell.dblclick();
+    await a.waitForTimeout(150);
+    // The picker's stand: the width = the cell's width (the trigger's
+    // stand), the search stands the autofocus, the options' order, the
+    // clear's option.
+    const triggerBox = await a
+      .locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-enum-picker-trigger']`)
+      .first()
+      .boundingBox();
+    const contentBox = await a
+      .locator("[data-slot='popover-content']", {
+        has: a.locator("[data-slot='docblocks/database-enum-picker-search']"),
+      })
+      .last()
+      .boundingBox();
+    if (triggerBox === null || contentBox === null) throw new Error("the picker's box stands none");
+    expect(Math.abs(contentBox.width - triggerBox.width)).toBeLessThanOrEqual(2);
+    const focused = await a.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("data-slot"));
+    expect(focused).toBe("docblocks/database-enum-picker-search");
+    const optionRow = (label: string) =>
+      a.locator(`[data-slot='docblocks/database-enum-picker-row'][data-option-value]`, { hasText: label }).last();
+    await expect(optionRow("high")).toBeVisible(SETTLE);
+    await expect(optionRow("low")).toBeVisible(SETTLE);
+    const rows = a.locator("[data-slot='docblocks/database-enum-picker-row']");
+    expect(await rows.count()).toBe(2);
+    expect(await rows.nth(0).textContent()).toContain("high");
+    await expect(a.locator("[data-slot='docblocks/database-enum-picker-clear']")).toBeVisible(SETTLE);
+
+    // The pick commits the option's id (the chip stands over the echo),
+    // the undo reverts (the focus stands over the cell's press).
+    await optionRow("high").click();
+    await a.waitForTimeout(100);
+    const chipA = cell.locator("[data-slot='docblocks/database-ref-chip']");
+    await expect(chipA).toHaveText("high", SETTLE);
+    expect(await chipA.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgb(247, 168, 168)");
+    const chipB = b
+      .locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`)
+      .locator("[data-column-id='col5'][data-row='0'] [data-slot='docblocks/database-ref-chip']");
+    await expect(chipB).toHaveText("high", SETTLE);
+    await cell.click();
+    await a.keyboard.press("Control+Z");
+    await a.waitForTimeout(150);
+    expect(await cell.locator("[data-slot='docblocks/database-ref-chip']").count()).toBe(0);
+
+    // The multi-enum: the multi's editor over the empty cell (the check's
+    // toggle stands the array; the chips' train over the picks).
+    const trigger2 = a.locator("[data-slot='docblocks/database-add-column-trigger']");
+    await trigger2.click();
+    await a.locator("[data-slot='dropdown-menu-content'] [data-column-entry='multi-enum']").click();
+    await expect(form).toBeVisible(SETTLE);
+    const addOption2 = async (name: string) => {
+      await form.locator("[data-slot='docblocks/database-enum-option-add']").click();
+      const inputs = form.locator("[data-slot='docblocks/database-enum-option-name']");
+      await inputs.last().fill(name);
+    };
+    await addOption2("red");
+    await addOption2("blue");
+    await form.locator("[data-slot='docblocks/database-add-column-name']").fill("Tints");
+    await form.locator("[data-slot='docblocks/database-add-column-create']").click();
+    await expect(form).toBeHidden(SETTLE);
+    const multiCell = gridA.locator("[data-column-id='col6'][data-row='0']");
+    await multiCell.dblclick();
+    await a.waitForTimeout(150);
+    const multiOption = (value: string) =>
+      a.locator(`[data-slot='docblocks/database-ref-multi-option'][data-option-value='${value}']`);
+    // The option values stand the system table's row ids (the pk's stand).
+    const tintsTableId = (await a.evaluate(async (tableId) => {
+      const { columns } = await window.__bridge!.describeTable(tableId);
+      return (columns.find((column) => column.id === "col6") as unknown as { refTableId: string }).refTableId;
+    }, demo.id))!;
+    const tintsIds = await a.evaluate(
+      async (id) => Object.keys(await window.__bridge!.queryRows(id, {}).then((p) => p.rows)),
+      tintsTableId
+    );
+    await multiOption(tintsIds[0]!).click();
+    await a.waitForTimeout(100);
+    await multiOption(tintsIds[1]!).click();
+    await a.waitForTimeout(100);
+    // The chips' train (the two picks' stand; the order over the toggle's
+    // sequence).
+    const multiChips = multiCell.locator("[data-slot='docblocks/database-ref-chip']");
+    expect(await multiChips.count()).toBe(2);
+    expect(await multiChips.nth(0).textContent()).toBe("red");
+    expect(await multiChips.nth(1).textContent()).toBe("blue");
+    // The check's toggle over the list (the uncheck stands the array's
+    // drop).
+    await multiCell.dblclick();
+    await a.waitForTimeout(150);
+    await multiOption(tintsIds[0]!).click();
+    await a.waitForTimeout(100);
+    expect(await multiChips.count()).toBe(1);
+    expect(await multiChips.first().textContent()).toBe("blue");
+  } finally {
+    await close();
+  }
+});
+
+test("the enum's edit form (the options' diff: the values stand; the names / the order / the colors update)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-enumedit");
+  try {
+    const demo = await bridgeDemoTable(a);
+    const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+    const gridA = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
+    await expect(gridA).toBeVisible(SETTLE);
+    await b.locator("[data-slot='docblocks/database-grid']").last().waitFor({ timeout: 15000 });
+
+    // The demo's status column stands the system table (the options'
+    // diff's target). The cell's value stands the option's row id (the
+    // pk's stand — the identity over the rename).
+    const statusChip = gridA.locator(
+      "[data-column-id='status'][data-row='0'] [data-slot='docblocks/database-ref-chip']"
+    );
+    await expect(statusChip).toHaveText("todo", SETTLE);
+
+    // The edit's open (the column menu's "Edit options" entry): the draft
+    // prefills from the system table (the order's stand, the names, the
+    // colors).
+    const header = gridA.locator("[data-slot='docblocks/database-header-cell'][data-column-id='status']");
+    await header.click();
+    const menu = a.locator("[data-slot='dropdown-menu-content']");
+    await expect(menu).toBeVisible(SETTLE);
+    await menu.locator("[data-slot='docblocks/database-column-edit-options']").click();
+    const form = a.locator("[data-slot='docblocks/database-add-column-form']");
+    await expect(form).toBeVisible(SETTLE);
+    const optionNames = form.locator("[data-slot='docblocks/database-enum-option-name']");
+    expect(
+      await optionNames.evaluateAll((elements) => elements.map((element) => (element as HTMLInputElement).value))
+    ).toEqual(["todo", "doing", "done"]);
+    const nameInput = form.locator("[data-slot='docblocks/database-add-column-name']");
+    expect(await nameInput.inputValue()).toBe("Status");
+
+    // The diff: the rename (todo → planned), the option's add (stalled),
+    // the reorder (stalled stands last).
+    await optionNames.nth(0).fill("planned");
+    await form.locator("[data-slot='docblocks/database-enum-option-add']").click();
+    const inputs = form.locator("[data-slot='docblocks/database-enum-option-name']");
+    await inputs.nth(3).fill("stalled");
+    // The save's commit (the "Save" stand over the edit's mode).
+    await form.locator("[data-slot='docblocks/database-add-column-create']").click();
+    await expect(form).toBeHidden(SETTLE);
+    await a.waitForTimeout(200);
+
+    // The value stands (the identity's resolution: the todo's row id now
+    // stands the planned's label over the echo).
+    await expect(statusChip).toHaveText("planned", SETTLE);
+    const statusChipB = b
+      .locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`)
+      .locator("[data-column-id='status'][data-row='0'] [data-slot='docblocks/database-ref-chip']");
+    await expect(statusChipB).toHaveText("planned", SETTLE);
+
+    // The picker's list stands the new stand (the planned's rename,
+    // the stalled's stand at the end; the old name is gone). The order
+    // stands the table's row order (the rename keeps the row in place —
+    // the draft's order stands no reorder in this diff).
+    await gridA.locator("[data-column-id='status'][data-row='1']").dblclick();
+    await a.waitForTimeout(150);
+    const rows = a.locator("[data-slot='docblocks/database-enum-picker-row']");
+    expect(await rows.count()).toBe(4);
+    expect(await rows.nth(0).textContent()).toContain("planned");
+    expect(await rows.nth(1).textContent()).toContain("doing");
+    expect(await rows.nth(2).textContent()).toContain("done");
+    expect(await rows.nth(3).textContent()).toContain("stalled");
   } finally {
     await close();
   }
