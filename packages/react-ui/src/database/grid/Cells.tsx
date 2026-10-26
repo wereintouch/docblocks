@@ -103,84 +103,41 @@ function RowMenuCell({
     </div>
   );
 }
-/** The cell's edit input (the text / the number): the draft stands local,
- *  the commit stands on the blur / the Enter (one `updateRow`); an invalid
- *  number reverts to the last valid value (no commit) + shows
- *  `data-invalid`. The focus stands on the mount (the double-click
- *  session). */
+/** The cell's edit input (the text / the number): the dumb controlled
+ * stand — the draft stands in the cell (the grid's session teardown — the
+ * outside press, the other cell's press — drops the session before the
+ * DOM's blur stands, so the commit must not depend on the blur: the cell
+ * commits the draft on the teardown, like the datetime's close commit).
+ * The Enter stands the blur (the commit path); the Escape cancels the
+ * draft without a write. */
 interface CellEditInputProps {
-  value: unknown;
+  draft: string;
   kind: "text" | "number";
   /** The number input's minimum (the non-negative column stands 0). */
   min?: number;
   /** The number input's step stand (the column's decimals). */
   step?: string;
-  /** The negative values' reject (the column's `allowNegative` is false): the commit reverts. */
-  rejectNegative?: boolean;
-  onCommit: (value: unknown) => void;
-  onEditEnd: () => void;
+  onDraftChange: (draft: string) => void;
+  /** The blur / the Enter — the session's end (the cell commits the draft). */
+  onEnd: () => void;
+  /** The Escape — the draft's cancel (the session closes, no write). */
+  onCancel: () => void;
 }
-function CellEditInput({ value, kind, min, step, rejectNegative, onCommit, onEditEnd }: CellEditInputProps) {
-  const text = value === undefined || value === null ? "" : String(value);
-  const [draft, setDraft] = useState(text);
-  const [invalid, setInvalid] = useState(false);
-  // The Escape's cancel: the draft reverts to the value and the session
-  // closes without a commit (no write over the wire).
-  const cancelRef = useRef(false);
+function CellEditInput({ draft, kind, min, step, onDraftChange, onEnd, onCancel }: CellEditInputProps) {
   return (
     <input
       type={kind === "number" ? "number" : "text"}
       data-slot="docblocks/database-cell-input"
-      data-invalid={invalid ? "true" : undefined}
       autoFocus
       min={min}
       step={step}
       className={CELL_INPUT}
       value={draft}
-      onChange={(event) => {
-        setDraft(event.target.value);
-        setInvalid(false);
-      }}
-      onBlur={() => {
-        if (cancelRef.current) {
-          cancelRef.current = false;
-          setDraft(text);
-          setInvalid(false);
-          onEditEnd();
-          return;
-        }
-        const result = parseCellValue(kind, draft);
-        // The negative's reject (the column's `allowNegative` is false):
-        // the value parses, but the column does not take it — the input
-        // reverts as an invalid stand (no commit).
-        const rejected =
-          result.ok &&
-          rejectNegative === true &&
-          kind === "number" &&
-          result.value !== null &&
-          Number(result.value) < 0;
-        if (result.ok && !rejected) {
-          setInvalid(false);
-          // The unchanged value stands no commit (no bridge call, no
-          // refetch, no no-op undo entry) — the blur just closes the
-          // session.
-          const unchanged =
-            result.value === null
-              ? value === undefined || value === null
-              : value !== undefined && value !== null && value === result.value;
-          if (!unchanged) onCommit(result.value);
-        } else {
-          setInvalid(true);
-          setDraft(text);
-        }
-        onEditEnd();
-      }}
+      onChange={(event) => onDraftChange(event.target.value)}
+      onBlur={onEnd}
       onKeyDown={(event) => {
         if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-        if (event.key === "Escape") {
-          cancelRef.current = true;
-          (event.target as HTMLInputElement).blur();
-        }
+        if (event.key === "Escape") onCancel();
       }}
     />
   );
@@ -452,6 +409,8 @@ function DatabaseCell({
   const empty = value === undefined || value === null || value === "";
   const isDate = annotation.valueInput === "date";
   const isDateTime = annotation.valueInput === "datetime";
+  const isText = annotation.valueInput === "text";
+  const isNumber = annotation.valueInput === "number";
   const dateValue = isDate || isDateTime ? parseCellDateTime(value) : null;
   const rawValue = value === undefined || value === null ? "" : String(value);
   const dragStyle =
@@ -463,6 +422,56 @@ function DatabaseCell({
           transition: dragShifted ? "transform 120ms ease-out" : undefined,
         }
       : undefined;
+  // The text / number's draft stands from the value at the session's open
+  // (like the datetime's own stand below): the grid's session teardown — the
+  // outside press, the other cell's press — drops the `editing` prop before
+  // the input's blur stands (the input unmounts with the session), so the
+  // close commits the draft on the teardown itself (the cancel / the
+  // repeat guards keep the no-write + the double stand a no-write).
+  const [textDraft, setTextDraft] = useState<string | null>(null);
+  const textCancelledRef = useRef(false);
+  const textSettledRef = useRef(false);
+
+  /** The draft's close commit (the single commit path — the blur and the
+   * external teardown both end the session, the session's end commits):
+   * the parse's invalid stand no commit, the negative's reject stand no
+   * commit, the unchanged value stand no commit (no bridge call, no
+   * refetch, no no-op undo entry). */
+  const commitTextDraft = () => {
+    const draft = textDraft;
+    if (draft === null) return;
+    const result = parseCellValue(isNumber ? "number" : "text", draft);
+    if (result.ok === false) return;
+    const parsed = result.value;
+    const rejected = isNumber && column.allowNegative === false && parsed !== null && Number(parsed) < 0;
+    if (rejected) return;
+    const unchanged =
+      parsed === null
+        ? value === undefined || value === null
+        : value !== undefined && value !== null && value === parsed;
+    if (!unchanged) onChange(parsed);
+  };
+
+  /** The Escape's cancel: the session closes without a commit (no write
+   * over the wire). */
+  const cancelTextDraft = () => {
+    textCancelledRef.current = true;
+    onEditEnd();
+  };
+
+  // The external teardown's commit stand (the text / the number — the
+  // datetime's own stand below): the grid's session clear (the outside
+  // press, the other cell's press) drops the `editing` prop before the
+  // input's blur stands, so the draft commits on the teardown itself.
+  // The draft + the value stand as of the flip's render: a later draft
+  // change is impossible (the input unmounts with the close).
+  useEffect(() => {
+    if (editing) return;
+    if (textDraft === null || textCancelledRef.current || textSettledRef.current) return;
+    textSettledRef.current = true;
+    commitTextDraft();
+  }, [editing]);
+
   // The datetime's drafts stand from the value at the session's open (the
   // close commits; the in-flight draft never touches the consumer state and
   // stands the mid-session value changes — the picker session's own data
@@ -561,13 +570,13 @@ function DatabaseCell({
             : rawValue;
         content = editing ? (
           <CellEditInput
-            value={value}
+            draft={textDraft ?? ""}
             kind="number"
             min={column.allowNegative === false ? 0 : undefined}
             step={numberStepFor(column)}
-            rejectNegative={column.allowNegative === false}
-            onCommit={onChange}
-            onEditEnd={onEditEnd}
+            onDraftChange={setTextDraft}
+            onEnd={onEditEnd}
+            onCancel={cancelTextDraft}
           />
         ) : (
           <CellDisplay text={empty ? "" : display} />
@@ -727,7 +736,13 @@ function DatabaseCell({
         break;
       default:
         content = editing ? (
-          <CellEditInput value={value} kind="text" onCommit={onChange} onEditEnd={onEditEnd} />
+          <CellEditInput
+            draft={textDraft ?? ""}
+            kind="text"
+            onDraftChange={setTextDraft}
+            onEnd={onEditEnd}
+            onCancel={cancelTextDraft}
+          />
         ) : (
           <CellDisplay text={empty ? "" : String(value)} />
         );
@@ -761,6 +776,14 @@ function DatabaseCell({
           if (Date.now() - booleanPress.current.toggledTs < CHECKBOX_TOGGLE_GUARD_MS) return;
           onChange(value === true ? false : true);
           return;
+        }
+        // The text / number's draft stands from the value at the open (the
+        // double press is the session's single entry; the mid-session
+        // value changes stand the draft untouched until the close commits).
+        if (isText || isNumber) {
+          textCancelledRef.current = false;
+          textSettledRef.current = false;
+          setTextDraft(rawValue);
         }
         // The datetime's drafts stand from the value at the open (the double
         // press is the session's single entry; the mid-session value

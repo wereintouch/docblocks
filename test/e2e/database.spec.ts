@@ -1266,6 +1266,85 @@ test("the cell's press model: the single press selects, the double press edits, 
   await close();
 });
 
+test("the cell's mouse-blur: the typed draft commits over the other cell's / the outside press (the focus model stands)", async ({
+  browser,
+}) => {
+  // The shared-context panes (the same origin): the bridge echo carries the
+  // commits / the rename to pane B.
+  const { a, b, close } = await twoPanesSharedContext(browser, "ext04-mouseblur");
+  try {
+    const demo = await bridgeDemoTable(a);
+    const dbId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+    const gridA = a.locator("[data-slot='docblocks/database-grid']");
+    await expect(gridA.first()).toBeVisible(SETTLE);
+    await b.locator("[data-slot='docblocks/database-grid']").first().waitFor({ timeout: 15000 });
+
+    const cell = (pane: Page, r: number, c: number) =>
+      pane.locator(`[data-slot='docblocks/database-cell'][data-row='${r}'][data-col='${c}']`);
+    const firstRow = (pane: Page) =>
+      pane.evaluate(async (tableId) => {
+        const page = await window.__bridge!.queryRows(tableId, {});
+        const rows = Object.values(page.rows) as Record<string, unknown>[];
+        return rows[0];
+      }, demo.id);
+
+    // Case 1 — the other cell's press: the typed title draft commits over
+    // the session's swap (the draft does not die with the input's unmount).
+    await cell(a, 0, 0).dblclick();
+    const titleInput = cell(a, 0, 0).locator("[data-slot='docblocks/database-cell-input']");
+    await expect(titleInput).toBeVisible(SETTLE);
+    await titleInput.fill("First task edited");
+    await cell(a, 1, 0).click();
+    await expect(cell(a, 0, 0)).toHaveText("First task edited", SETTLE);
+    expect((await firstRow(a))?.title).toBe("First task edited");
+    await expect(cell(b, 0, 0)).toHaveText("First task edited", SETTLE);
+
+    // Case 2 — the outside press: the typed number draft commits over the
+    // real mouse over the editor's left padding (outside the grid + the
+    // portaled content).
+    await cell(a, 0, 1).dblclick();
+    const countInput = cell(a, 0, 1).locator("[data-slot='docblocks/database-cell-input']");
+    await expect(countInput).toBeVisible(SETTLE);
+    await countInput.fill("19");
+    const gridBox = await gridA.first().boundingBox();
+    await a.mouse.click(10, gridBox!.y + 40);
+    await expect(cell(a, 0, 1)).toHaveText("19", SETTLE);
+    expect((await firstRow(a))?.count).toBe(19);
+    await expect(cell(b, 0, 1)).toHaveText("19", SETTLE);
+
+    // Case 3 — the focus model: the press commit parks the focus on the
+    // table (the hotkeys reach the grid's undo stack) — the Control+Z
+    // stands the previous value back.
+    await cell(a, 1, 1).dblclick();
+    const count2Input = cell(a, 1, 1).locator("[data-slot='docblocks/database-cell-input']");
+    await expect(count2Input).toBeVisible(SETTLE);
+    await count2Input.fill("21");
+    await cell(a, 0, 1).click();
+    await expect(cell(a, 1, 1)).toHaveText("21", SETTLE);
+    await a.keyboard.press("Control+z");
+    await expect(cell(a, 1, 1)).toHaveText("2", SETTLE);
+
+    // Case 4 — the header's rename (the same class): the typed name commits
+    // over the cell's press (the blur); the bridge's renameTable stands in
+    // both panes, the block's JSON stands the reference only (no doc write).
+    await a.locator("[data-slot='docblocks/database-name']").click();
+    const nameInput = a.locator("[data-slot='docblocks/database-name-input']");
+    await expect(nameInput).toBeVisible(SETTLE);
+    await nameInput.fill("Mouse-blur Board");
+    await cell(a, 0, 0).click();
+    await expect(a.locator("[data-slot='docblocks/database-name']")).toHaveText("Mouse-blur Board", SETTLE);
+    await expect(b.locator("[data-slot='docblocks/database-name']").first()).toHaveText("Mouse-blur Board", SETTLE);
+    const dbAttrs = await a.evaluate((id) => {
+      const block = window.__paneDocs!.a!.toJSON().blocks[id]!;
+      return { tableId: block.attrs?.tableId, name: block.attrs?.name };
+    }, dbId);
+    expect(dbAttrs.tableId).toBe(demo.id);
+    expect(dbAttrs.name).toBeUndefined();
+  } finally {
+    await close();
+  }
+});
+
 test("the number column: the create form's attributes stand the cell's display (the prefix / the thousands over the bridge echo; the raw number stays the data)", async ({
   browser,
 }) => {
