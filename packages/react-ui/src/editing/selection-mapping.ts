@@ -43,11 +43,13 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
   // would flag the table row as selected and hand it to the
   // Delete/Backspace gesture, so the layer's selection maps to `none`.
   if (inActivationLayer(anchorNode) || inActivationLayer(focusNode)) return { kind: "none" };
-  // The database grid is an interactive surface with its own cell
-  // selection and keys: a DOM caret inside the grid is not a doc
+  // The database block is an interactive surface with its own cell
+  // selection and keys: a DOM caret anywhere inside it (the cells AND the
+  // chrome — the toolbar, the Add row / Add column buttons) is not a doc
   // position, and the `blocks` mapping would flag the block for the
-  // Delete/Backspace gesture (the cell clear is the grid's own key).
-  if (inDatabaseGrid(anchorNode) || inDatabaseGrid(focusNode)) return { kind: "none" };
+  // Delete/Backspace gesture (the cell clear is the grid's own key) or
+  // stand a text selection over a chrome word (the format toolbar).
+  if (inDatabaseBlock(anchorNode) || inDatabaseBlock(focusNode)) return { kind: "none" };
 
   const range = domSelection.getRangeAt(0);
   const anchorBlock = textBlockOf(anchorNode, root);
@@ -103,13 +105,16 @@ function inActivationLayer(node: Node): boolean {
 }
 
 /**
- * Whether the endpoint sits inside a database grid (the interactive
- * surface with its own cell selection; a DOM caret there carries no doc
- * selection — the grid's keys own the stand).
+ * Whether the endpoint sits inside a database block (the interactive
+ * surface with its own cell selection; the cells AND the chrome — the
+ * toolbar and the Add row / Add column buttons live outside the
+ * `database-grid` scroller but inside the block, so the guard stands the
+ * whole block). A DOM caret there carries no doc selection — the block's
+ * own keys / gestures own the stand.
  */
-function inDatabaseGrid(node: Node): boolean {
+function inDatabaseBlock(node: Node): boolean {
   const element = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-  return element?.closest('[data-slot="docblocks/database-grid"]') !== null;
+  return element?.closest('[data-slot="docblocks/database"]') !== null;
 }
 
 /** One DOM selection endpoint and its closest text-editable block. */

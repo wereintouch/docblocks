@@ -2476,3 +2476,63 @@ test("the enum's edit form (the options' diff: the values stand; the names / the
     await close();
   }
 });
+
+// The owner bug (2026-10-26): a double-click over an enum cell could land a
+// DOM word selection on the grid's chrome (the "+ Add row" button's text) —
+// the button lives OUTSIDE the `database-grid` scroller, so the old grid-only
+// guard missed it, and the mapping stood a selection + the format toolbar.
+// The fix: the guard stands the WHOLE database block (cells AND chrome) →
+// none, and the chrome's buttons carry `select-none`.
+test("a double-click over the enum cell stands the picker, no format toolbar / no chrome selection", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "ext04-chrome-noselect");
+  try {
+    const demo = await bridgeDemoTable(a);
+    await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+
+    const gridA = a.locator("[data-slot='docblocks/database-grid']");
+    await expect(gridA).toHaveCount(1, SETTLE);
+
+    // The enum cell's double press opens the picker (the edit session stands).
+    const enumCellA = a.locator("[data-slot='docblocks/database-cell'][data-column-id='status']").first();
+    await enumCellA.dblclick();
+    const option = a.locator("[data-slot='docblocks/database-enum-picker-row'][data-option-value='doing']");
+    await expect(option).toBeVisible(SETTLE);
+    await a.keyboard.press("Escape");
+    await expect(option).toHaveCount(0, SETTLE);
+
+    // THE BUG'S CONTRACT: no format toolbar anywhere (the chrome's word
+    // selection must not stand a doc text selection), and the DOM's
+    // selection is empty (the button's text is not selected).
+    await expect(a.locator('[data-slot="docblocks/format-toolbar"]')).toHaveCount(0);
+    expect(await a.evaluate(() => window.getSelection()?.toString() ?? "")).toBe("");
+
+    // The Add row button: `user-select: none` (the native word selection is
+    // impossible), and a press adds a row with no toolbar over it.
+    const addRow = a.locator("[data-slot='docblocks/database-add-row']");
+    await expect(addRow).toHaveCount(1);
+    expect(await addRow.evaluate((el) => getComputedStyle(el).userSelect)).toBe("none");
+    const titleCells = () => a.locator("[data-slot='docblocks/database-cell'][data-column-id='title']").count();
+    const countBefore = await titleCells();
+    await addRow.click();
+    await expect.poll(titleCells, SETTLE).toBe(countBefore + 1);
+    await expect(a.locator('[data-slot="docblocks/format-toolbar"]')).toHaveCount(0);
+
+    // Regression: the format toolbar stands over a REAL document text
+    // selection (a word double-click in a paragraph).
+    const paraId = await a.evaluate(() => {
+      const doc = window.__paneDocs!.a!;
+      const p = doc.insertBlock("paragraph");
+      doc.insertText(p, 0, "hello");
+      return p;
+    });
+    const paraInner = a.locator(`[data-block-id="${paraId}"] [data-slot="docblocks/block-content"]`);
+    // Double-click over the word itself (the element's center is past the
+    // short text — the click position lands on the first character).
+    await paraInner.dblclick({ position: { x: 5, y: 10 } });
+    await expect(a.locator('[data-slot="docblocks/format-toolbar"]')).toHaveCount(1, SETTLE);
+  } finally {
+    await close();
+  }
+});
