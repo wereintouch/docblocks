@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The connector's style attrs: the
 // strokeColor (the data hex), the strokeWidth (the 1–4 px stand), and the
 // two arrowheads' figures (none / arrow / circle — the start's independent
@@ -71,8 +73,8 @@ test.describe("the connector's style attrs", () => {
   }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-conn-style");
     try {
-      await a.getByTestId("view-a-canvas").click();
-      await b.getByTestId("view-b-canvas").click();
+      await switchPaneView(a, "a", "canvas");
+      await switchPaneView(b, "b", "canvas");
       await seedLine(a, "a");
       // The wire's settle (the shapes + the line stand in B).
       await expect
@@ -183,8 +185,8 @@ test.describe("the connector's style attrs", () => {
   }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-conn-label");
     try {
-      await a.getByTestId("view-a-canvas").click();
-      await b.getByTestId("view-b-canvas").click();
+      await switchPaneView(a, "a", "canvas");
+      await switchPaneView(b, "b", "canvas");
       await seedLine(a, "a");
       await expect
         .poll(
@@ -251,7 +253,7 @@ test.describe("the connector's style attrs", () => {
   }) => {
     const { a, close } = await twoPanes(browser, "canvas-conn-chip");
     try {
-      await a.getByTestId("view-a-canvas").click();
+      await switchPaneView(a, "a", "canvas");
       await seedLine(a, "a");
       // The line's data color (the frame's color) + the label.
       await a.evaluate(() => {
@@ -328,8 +330,8 @@ test.describe("the connector's style attrs", () => {
   }) => {
     const { a, b, close } = await twoPanes(browser, "canvas-conn-stroke-style");
     try {
-      await a.getByTestId("view-a-canvas").click();
-      await b.getByTestId("view-b-canvas").click();
+      await switchPaneView(a, "a", "canvas");
+      await switchPaneView(b, "b", "canvas");
       await seedLine(a, "a");
       await expect
         .poll(

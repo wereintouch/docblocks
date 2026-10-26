@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The canvas container (the reworked group):
 // the dock's container tool (the click's default-size place, the drag-to-size),
 // the container's own free box (the positioned render + the eight resize
@@ -34,7 +36,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 const canvasView = (page: Page, client: "a" | "b") =>

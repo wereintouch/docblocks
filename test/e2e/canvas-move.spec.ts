@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The canvas move session (the pointer drag over a canvas item): the press
 // selects (group-aware), the drag previews and commits one setGeometry
 // per item in one transact on release (one undo step), and a no-op press
@@ -33,7 +35,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 const canvasView = (page: Page, client: "a" | "b") =>

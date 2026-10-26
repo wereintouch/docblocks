@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The canvas arrow-key nudge: the
 // selection's canvas items shift by the world px step (the Arrow = 10,
 // the Shift+Arrow = 50 — the zoom-blind data's space, the step stands the
@@ -40,7 +42,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 const canvasView = (page: Page, client: "a" | "b") =>

@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The new figure variants: the cylinder
 // and the cloud stand the dock's shapes menu (the placement), the shape
 // toolbar's type picker (the switch), and the sync over the wire (the
@@ -31,7 +33,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 const canvasView = (page: Page, client: "a" | "b") =>

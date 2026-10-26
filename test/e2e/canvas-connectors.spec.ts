@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The connector arrows (the edge-to-edge lines): the two-click dock
 // placement, the edge anchors (the line leaves the source box's edge, the
 // arrowhead stands at the end box's edge), the sticky behavior (a moved
@@ -33,7 +35,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 const canvasView = (page: Page, client: "a" | "b") =>

@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -31,7 +33,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 
 /** Switch the pane to the canvas view (the harness's view toggle). */
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 /** The canvas-view container (the viewport's chrome root). */

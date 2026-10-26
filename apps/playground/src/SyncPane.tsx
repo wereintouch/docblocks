@@ -344,26 +344,6 @@ function SyncPane({
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — {client}</h1>
-          <div style={{ display: "flex", gap: 4 }}>
-            <button
-              type="button"
-              data-testid={`view-${client}-page`}
-              aria-pressed={view === "page"}
-              onClick={() => setView("page")}
-              style={toggleStyle(view === "page")}
-            >
-              page
-            </button>
-            <button
-              type="button"
-              data-testid={`view-${client}-canvas`}
-              aria-pressed={view === "canvas"}
-              onClick={() => setView("canvas")}
-              style={toggleStyle(view === "canvas")}
-            >
-              canvas
-            </button>
-          </div>
           {runtime !== null && <DocHeader doc={runtime.doc} view={view} onViewChange={setView} />}
         </header>
         <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
