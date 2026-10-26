@@ -1,5 +1,7 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The UI default font (2026-10-22): the editor's chrome + the page text render
 // in the self-hosted Inter (the @font-face ships it; the fetch is by
 // unicode-range). The consumer's `--font-sans` override takes priority (the
@@ -67,7 +69,7 @@ test("the shape text's own fontFamily stands over the UI default (the shape mech
   await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected");
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
-  await page.getByTestId("view-a-canvas").click();
+  await switchPaneView(page, "a", "canvas");
   const view = page.locator('[data-slot="docblocks/canvas-view"]');
 
   // Seed one shape with its own fontFamily (Lora) + text.

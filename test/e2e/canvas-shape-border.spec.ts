@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The shape's border controls (the owner request 2026-10-19): the
 // width's FigureBorderSelector (the 1–4 px dots, the handle's drag
 // SNAPS to the nearest dot — one updateBlock per stand) and the style
@@ -75,7 +77,7 @@ test.describe("the border's controls (the owner request 2026-10-19)", () => {
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "border-width");
-    await a.getByTestId("view-a-canvas").click();
+    await switchPaneView(a, "a", "canvas");
     await a.waitForTimeout(200);
 
     const id = await seedShape(a, "a");
@@ -143,7 +145,7 @@ test.describe("the border's controls (the owner request 2026-10-19)", () => {
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "border-style");
-    await a.getByTestId("view-a-canvas").click();
+    await switchPaneView(a, "a", "canvas");
     await a.waitForTimeout(200);
 
     const id = await seedShape(a, "a");
@@ -193,7 +195,7 @@ test.describe("the border's controls (the owner request 2026-10-19)", () => {
     browser,
   }) => {
     const { a, close } = await twoPanes(browser, "border-accent");
-    await a.getByTestId("view-a-canvas").click();
+    await switchPaneView(a, "a", "canvas");
     await a.waitForTimeout(200);
 
     const id = await seedShape(a, "a");

@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The canvas z-order (the 2026-10-22 explicit zIndex): the dense `zIndex`
 // (1..N over the surface's canvas elements — 1 = bottom) stands the paint
 // order (the children order's mirror). The three-dots menu over the shape /
@@ -35,7 +37,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 /** The surface + the three shapes (rect / ellipse / rect), disjoint boxes. */

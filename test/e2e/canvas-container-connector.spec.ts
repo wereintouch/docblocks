@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The orthogonal connector's AVOIDANCE inside a container (2026-10-22): a
 // line between two members of a container routes AROUND the members (the
 // clear route) — the container's box stands no obstacle (the enclosing box
@@ -33,7 +35,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 interface Scene {

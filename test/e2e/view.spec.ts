@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // Each test gets its own room via ?syncUrl= — the relay keeps rooms for
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
@@ -7,12 +9,21 @@ const RELAY = "ws://localhost:5199";
 
 const ROOT = '[data-testid="doc-a"]';
 
-test("the page/canvas view toggle renders the page miniature and the surface elements on one canvas", async ({
+test("the page/canvas view toggle (the DocHeader's switcher — the pane's single mode control) renders the page miniature and the surface elements on one canvas", async ({
   page,
 }) => {
   const room = `view-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?canvas=1&syncUrl=${RELAY}/${room}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected");
+
+  // The switcher's regression stand: the DocHeader's switcher is the pane's
+  // single mode control — the former toggle buttons stand removed (no
+  // testid) and the switcher's buttons stand over the group slot.
+  await expect(page.getByTestId("view-a-page")).toHaveCount(0);
+  await expect(page.getByTestId("view-a-canvas")).toHaveCount(0);
+  const headerView = page.locator(`[data-slot="docblocks/doc-header-view"]`);
+  await expect(headerView.getByRole("button", { name: "Page view" })).toBeVisible();
+  await expect(headerView.getByRole("button", { name: "Canvas view" })).toBeVisible();
 
   const card = page.locator(`${ROOT} [data-slot="docblocks/page-card"]`);
   const area = page.locator(ROOT);
@@ -51,14 +62,14 @@ test("the page/canvas view toggle renders the page miniature and the surface ele
 
   // Switch to the page view: the page flows, the surface renders as the
   // embedded viewport, and the page card is gone.
-  await page.getByTestId("view-a-page").click();
+  await switchPaneView(page, "a", "page");
   await expect(card).toBeHidden();
   await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas"]`)).toBeVisible();
 
   // Switch back: the canvas view returns (the toggle is view state — the
   // document data is untouched by the switch) and the layout is intact
   // (the card center is back at the canvas center).
-  await page.getByTestId("view-a-canvas").click();
+  await switchPaneView(page, "a", "canvas");
   const cardBoxBack = (await card.boundingBox())!;
   expect(cardBoxBack, "the page card must be laid out after switching back").not.toBeNull();
   expect(Math.abs(cardBoxBack.y + cardBoxBack.height / 2 - (areaBox.y + areaBox.height / 2))).toBeLessThan(40);

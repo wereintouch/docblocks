@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The connector's options toolbar (the selected line's menu) stands the
 // TOPMOST chrome: over the selected connector's endpoint handles (the port
 // circles) and the world layer. When the menu overlaps an endpoint's zone
@@ -35,7 +37,7 @@ async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: P
 }
 
 async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await page.getByTestId(`view-${client}-canvas`).click();
+  await switchPaneView(page, client, "canvas");
 }
 
 /** The connector block between the surface's shapes (the first such child). */

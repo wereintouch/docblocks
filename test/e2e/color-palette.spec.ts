@@ -1,5 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
+import { switchPaneView } from "./helpers";
+
 // The shared color palette's e2e contract (the real browser resolves the
 // theme tokens — jsdom cannot): the format palette popover and the shape
 // toolbar's palette stand the eight circular swatches (the seven pastel
@@ -57,7 +59,7 @@ test("the shape fill palette stands the eight swatches in order, theme-adaptive"
   const { page, close } = await openPage(browser);
   try {
     // The canvas view with a seeded, selected shape (the toolbar stands).
-    await page.getByTestId("view-a-canvas").click();
+    await switchPaneView(page, "a", "canvas");
     await page.evaluate(() => {
       const doc = window.__paneDocs?.a;
       if (doc === null || doc === undefined) return;

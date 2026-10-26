@@ -119,4 +119,22 @@ async function insertBlockType(page: Page, client: "a" | "b", type: string): Pro
   return id;
 }
 
-export { insertBlockType };
+/**
+ * Switch the pane's editor view (the page / the canvas) through the
+ * DocHeader's view switcher (the pane's single mode control — the former
+ * toggle buttons stand removed). The pane stands alone on its page (one
+ * DocHeader), so the switcher's button is the page-level locator; the wait
+ * pins the view's DOM stand (the canvas view's slot for the canvas, the
+ * page's content column for the page — the `first` over the mini-card's
+ * nested page column) and the harness's mount timing.
+ */
+async function switchPaneView(page: Page, client: "a" | "b", view: "page" | "canvas"): Promise<void> {
+  await page
+    .locator('[data-slot="docblocks/doc-header-view"]')
+    .getByRole("button", { name: view === "page" ? "Page view" : "Canvas view" })
+    .click();
+  const slot = view === "canvas" ? "docblocks/canvas-view" : "docblocks/page";
+  await page.locator(`[data-testid="doc-${client}"] [data-slot="${slot}"]`).first().waitFor({ state: "visible" });
+}
+
+export { insertBlockType, switchPaneView };
