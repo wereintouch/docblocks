@@ -216,8 +216,8 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
             <label
               key={option.value}
               className="
-                flex cursor-pointer items-center gap-2 rounded-sm px-1 text-sm text-foreground outline-none
-                hover:bg-accent
+                flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground outline-none
+                hover:bg-accent hover:text-accent-foreground
               "
             >
               <Checkbox
@@ -285,8 +285,8 @@ function RowLinkPickerList({
           type="button"
           data-slot="docblocks/database-row-picker-clear"
           className="
-            block w-full cursor-pointer rounded-sm px-1 py-0.5 text-left text-xs text-muted-foreground outline-none
-            hover:bg-accent
+            block w-full cursor-pointer rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground outline-none
+            hover:bg-accent hover:text-accent-foreground
           "
           onClick={() => {
             onClear();
@@ -302,8 +302,8 @@ function RowLinkPickerList({
             data-slot="docblocks/database-row-picker-row"
             data-row-id={rowId}
             className="
-              block w-full cursor-pointer truncate rounded-sm px-1 py-0.5 text-left text-xs text-foreground outline-none
-              hover:bg-accent
+              block w-full cursor-pointer truncate rounded-sm px-2 py-1.5 text-left text-sm text-foreground outline-none
+              hover:bg-accent hover:text-accent-foreground
             "
             onClick={() => {
               onPick(rowId);

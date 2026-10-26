@@ -16,7 +16,15 @@ declare global {
       createTable(name: string): Promise<string>;
       createColumn(
         tableId: string,
-        column: { id: string; name: string; type: string; options?: string[] }
+        column: {
+          id: string;
+          name: string;
+          type: string;
+          options?: string[];
+          refKind?: "enum" | "row";
+          refMany?: boolean;
+          refTableId?: string;
+        }
       ): Promise<void>;
       insertRows(tableId: string, rows: Record<string, unknown>[]): Promise<string[]>;
       describeTable(tableId: string): Promise<{ name: string; columns: { id: string; name: string; type: string }[] }>;
