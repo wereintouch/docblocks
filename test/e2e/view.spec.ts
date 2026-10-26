@@ -142,3 +142,65 @@ test("the page's content column stands the centered max width (the narrow stand 
     await context.close();
   }
 });
+
+// The sliding pill's boxes stand exactly over the given button (the
+// measured geometry — the settled stand).
+async function pillOverButton(
+  page: import("@playwright/test").Page,
+  pill: import("@playwright/test").Locator,
+  button: import("@playwright/test").Locator
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const p = await pill.boundingBox();
+        const t = await button.boundingBox();
+        if (p === null || t === null) return Number.POSITIVE_INFINITY;
+        return Math.abs(p.x - t.x) + Math.abs(p.y - t.y) + Math.abs(p.width - t.width);
+      },
+      { timeout: 15_000 }
+    )
+    .toBeLessThan(1);
+}
+
+test("the mode switcher's pill stands the back-out settle (the easing stand, the exact final stand over both modes, the rapid double switch's stable stand)", async ({
+  page,
+}) => {
+  const room = `viewpill-${Math.random().toString(36).slice(2, 8)}`;
+  await page.goto(`/?syncUrl=${RELAY}/${room}`);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
+
+  const headerView = page.locator('[data-slot="docblocks/doc-header-view"]');
+  const pill = headerView.locator('[data-slot="docblocks/doc-header-view-pill"]');
+  const pageButton = headerView.locator('[data-doc-header-view-button="page"]');
+  const canvasButton = headerView.locator('[data-doc-header-view-button="canvas"]');
+  await expect(pill).toBeVisible();
+
+  // The easing stand: the pill's travel runs the back-out cubic-bezier (the
+  // slight overshoot's settle — the framer-free house stand over the base
+  // entry).
+  expect(await pill.evaluate((el) => getComputedStyle(el).transitionTimingFunction)).toBe(
+    "cubic-bezier(0.34, 1.56, 0.64, 1)"
+  );
+
+  // The initial stand (the default page mode): the pill stands exactly
+  // over the page button (the measured geometry).
+  await pillOverButton(page, pill, pageButton);
+
+  // The switch to the canvas: the pill slides (the overshoot's animation)
+  // and settles EXACTLY over the canvas button (the end stand — no
+  // residual offset over the measured geometry).
+  await canvasButton.click();
+  await pillOverButton(page, pill, canvasButton);
+
+  // The rapid double switch (the second click lands inside the first's
+  // 200 ms transition): the pill settles over the last-picked button (the
+  // state's stable stand — the CSS transition retargets from the current
+  // position; it never drifts off the measured stand).
+  await canvasButton.click();
+  await page.waitForTimeout(60);
+  await pageButton.click();
+  await pillOverButton(page, pill, pageButton);
+  await canvasButton.click();
+  await pillOverButton(page, pill, canvasButton);
+});

@@ -50,7 +50,11 @@ describe("SegmentSelector", () => {
     // The per-button data attribute (the pill's measurement target).
     expect(a.getAttribute("data-test-segment-button")).toBe("a");
     // The sliding pill stands (jsdom has no layout, so its geometry is zero).
-    expect(document.querySelector('[data-slot="docblocks/test-segment-pill"]')).not.toBeNull();
+    const pillEl = document.querySelector<HTMLElement>('[data-slot="docblocks/test-segment-pill"]');
+    expect(pillEl).not.toBeNull();
+    // The pill's travel stands the back-out easing (the slight overshoot's
+    // settle — the framer-free stand over the base entry).
+    expect(pillEl!.className).toContain("ease-[cubic-bezier(0.34,1.56,0.64,1)]");
     // A pick commits to the caller's onChange (the active flips).
     fireEvent.click(b);
     expect(screen.getByRole("button", { name: "Option B" }).getAttribute("aria-pressed")).toBe("true");
