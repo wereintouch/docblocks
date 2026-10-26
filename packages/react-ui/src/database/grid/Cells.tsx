@@ -432,6 +432,27 @@ function DatabaseCell({
   const textCancelledRef = useRef(false);
   const textSettledRef = useRef(false);
 
+  // The multi-line edit's caret seat (the autoFocus's start seat): the
+  // session's open focuses the editor and seats the caret at the value's
+  // end (the edit stands over the existing text's tail). The seat stands
+  // the textarea's ref callback (the portal's content attaches after the
+  // commit's effects — a commit-time effect stands the null ref out), the
+  // element's identity keeps the re-renders' re-focus out (the typing's
+  // caret is never moved), the close's reset stands the next open's
+  // re-seat.
+  const multiLineSeatRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if (!editing) multiLineSeatRef.current = null;
+  }, [editing]);
+  const multiLineRefCallback = (el: HTMLTextAreaElement | null) => {
+    if (el !== null && editing && multiLineSeatRef.current !== el) {
+      multiLineSeatRef.current = el;
+      el.focus();
+      const end = el.value.length;
+      el.setSelectionRange(end, end);
+    }
+  };
+
   /** The draft's close commit (the single commit path — the blur and the
    * external teardown both end the session, the session's end commits):
    * the parse's invalid stand no commit, the negative's reject stand no
@@ -736,21 +757,20 @@ function DatabaseCell({
         );
         break;
       default:
-        content = editing ? (
-          <CellEditInput
-            draft={textDraft ?? ""}
-            kind="text"
-            onDraftChange={setTextDraft}
-            onEnd={onEditEnd}
-            onCancel={cancelTextDraft}
-          />
-        ) : (
-          <CellDisplay text={empty ? "" : String(value)} />
-        );
+        // The multi-line stand (the text's cell): the edit stands the
+        // floating editor over the cell (the Baserow's stand — the
+        // portaled layer: the top edge over the cell's top edge, the box's
+        // 6 rows stand over the rows below — the rows keep their fixed
+        // track, the layout stands no shift). The display stands none while
+        // the edit is open (the duplication is out), the Enter stands the
+        // soft break (the raw \n — no commit), the close (the blur / the
+        // session's teardown) commits the draft in one updateRow, the
+        // Escape cancels (no write).
+        content = editing && isText ? null : <CellDisplay text={empty ? "" : String(value)} />;
     }
   }
 
-  return (
+  const cell = (
     <div
       data-slot="docblocks/database-cell"
       data-key={cellKeyOf(rowId, column.id)}
@@ -799,6 +819,69 @@ function DatabaseCell({
       {content}
     </div>
   );
+  if (isText) {
+    // The multi-line text's edit stand (the text's cell): the double press
+    // opens the floating editor over the cell (the Baserow's stand — the
+    // portaled layer: the editor's top edge stands a few px over the
+    // cell's top edge, the width stands the cell's, the 6-row's box stands
+    // over the rows below — the scroller's clip is out, the rows stand no
+    // shift). The opaque stand (the popover's background) keeps the
+    // covered rows out of the sight. The Enter stands the soft break (the
+    // raw \n — no commit), the close (the real blur / the outside press /
+    // the session's teardown) commits the draft in one updateRow, the
+    // Escape cancels (no write — the content's onEscapeKeyDown keeps the
+    // radix's own close commit out).
+    return (
+      <Popover
+        open={editing}
+        onOpenChange={(open) => {
+          if (!open) {
+            // The popover's own close (the real blur / the outside press)
+            // commits the draft over its own stand; the session's teardown
+            // (the other cell's / the outside press over the grid's
+            // pointer model) commits over the teardown's effect — the
+            // settled ref keeps the repeat commit a no-write.
+            if (!textCancelledRef.current) {
+              textSettledRef.current = true;
+              commitTextDraft();
+            }
+            onEditEnd();
+          }
+        }}
+      >
+        <PopoverTrigger asChild>{cell}</PopoverTrigger>
+        <PopoverContent
+          side="bottom"
+          align="start"
+          // The editor's top edge stands the cell's top edge over (the box
+          // opens over the row's top): the cell's 32px's height + the 8px's
+          // stand, the negative offset over the anchor's bottom edge.
+          sideOffset={-40}
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          className="w-(--radix-popover-trigger-width) rounded-md border border-border bg-popover p-0 shadow-md ring-0"
+        >
+          <textarea
+            data-slot="docblocks/database-cell-multiline"
+            ref={multiLineRefCallback}
+            rows={6}
+            className="
+              box-border block w-full resize-none scrollbar-thin [scrollbar-color:var(--border)_transparent]
+              overflow-y-auto bg-transparent px-2.75 py-1.75 text-base outline-none select-text
+            "
+            value={textDraft ?? ""}
+            onChange={(event) => setTextDraft(event.target.value)}
+            onBlur={onEditEnd}
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                cancelTextDraft();
+              }
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+    );
+  }
+  return cell;
 }
 
 export { CellDisplay, CellEditInput, DatabaseCell, RowMenuCell };

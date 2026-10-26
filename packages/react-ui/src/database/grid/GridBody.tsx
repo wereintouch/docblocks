@@ -374,7 +374,10 @@ function GridBody({
   const onCellPointerDown =
     (rowId: string, colId: string, r: number, c: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
       if (event.button !== 0) return;
-      if (event.target instanceof HTMLInputElement) return;
+      // The press inside the edit's own control (the number's input, the
+      // text's 6-row textarea) is the edit's interaction (the caret's
+      // seat, the text's selection) — the session stands, no teardown.
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       // The press over the grid's own portaled content (the date / datetime
       // pickers, the select list) is that content's interaction — the
       // portaled nodes are not the cell's DOM descendants, but they stand
@@ -464,7 +467,7 @@ function GridBody({
     const isArrow =
       event.key === "ArrowUp" || event.key === "ArrowDown" || event.key === "ArrowLeft" || event.key === "ArrowRight";
     if (isArrow) {
-      if (event.target instanceof HTMLInputElement) return; // the input's own stand
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return; // the edit's own stand
       if (selectionFrame === null) return; // the stand stands the selected region only
       event.preventDefault();
       // The arrows over the stand are the grid's own gesture: the editor
@@ -512,7 +515,7 @@ function GridBody({
       return;
     }
     if (event.key !== "Delete" && event.key !== "Backspace") return;
-    if (event.target instanceof HTMLInputElement) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
     if (selectedCells.size === 0) return;
     event.preventDefault();
     // The cell clear is the grid's own gesture: the editor root's
@@ -782,7 +785,8 @@ function GridBody({
             // The fixed row track (the standard row height): every row —
             // over any column type mix — stands the one height (the header
             // stands its own auto row; the enum's trigger fits the content
-            // box, so a new enum column grows no row).
+            // box, so a new enum column grows no row). The multi-line's
+            // editor stands the portaled layer (no track's shift).
             style={{
               gridTemplateRows: "auto",
               gridAutoRows: "var(--docblocks-database-row-height)",
