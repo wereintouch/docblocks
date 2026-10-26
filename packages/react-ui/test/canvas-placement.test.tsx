@@ -14,6 +14,7 @@ import { CanvasDock } from "../src/canvas/CanvasDock";
 import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport-state";
 import { useCanvasViewport } from "../src/canvas/viewport-state";
+import { placeDragBox } from "../src/canvas/viewport/utils";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -434,5 +435,39 @@ describe("the pending stand's commit (the press's snap stand)", () => {
     expect(result.current.pendingSource).toBeNull();
     expect(result.current.pendingConnector).toBeNull();
     expect(result.current.pendingFree).toBeNull();
+  });
+});
+
+describe("placeDragBox (the drag-to-size place's box — the shift's 1:1)", () => {
+  const START = { x: 0, y: 0 };
+
+  it("the free drag (no shift) stands the drag's extent W×H", () => {
+    expect(placeDragBox(START, { x: 120, y: 80 }, false)).toEqual({ x: 60, y: 40, w: 120, h: 80 });
+    // The symmetric scene (the negative spans — the abs's stand).
+    expect(placeDragBox(START, { x: -90, y: -40 }, false)).toEqual({ x: -45, y: -20, w: 90, h: 40 });
+  });
+
+  it("the shift stands the square (W = H) — the larger span wins (both drag directions)", () => {
+    // dx > dy: the square's side is dx.
+    expect(placeDragBox(START, { x: 120, y: 80 }, true)).toEqual({ x: 60, y: 40, w: 120, h: 120 });
+    // dy > dx: the square's side is dy (the vertical drag's winner).
+    expect(placeDragBox(START, { x: 40, y: 200 }, true)).toEqual({ x: 20, y: 100, w: 200, h: 200 });
+    // The center is the drag's midpoint (the constraint stands the size, not the anchor).
+    expect(placeDragBox(START, { x: -100, y: 60 }, true)).toEqual({ x: -50, y: 30, w: 100, h: 100 });
+  });
+
+  it("the live shift toggle over the same input (the constraint stands / drops)", () => {
+    const drag = { x: 120, y: 80 };
+    expect(placeDragBox(START, drag, false)).toEqual({ x: 60, y: 40, w: 120, h: 80 });
+    expect(placeDragBox(START, drag, true)).toEqual({ x: 60, y: 40, w: 120, h: 120 });
+    // The toggle back: the free box stands again (the same input).
+    expect(placeDragBox(START, drag, false)).toEqual({ x: 60, y: 40, w: 120, h: 80 });
+  });
+
+  it("the 1 px floor stands over the degenerate drag (a zero extent commits a 1 px figure)", () => {
+    expect(placeDragBox(START, { x: 0, y: 0 }, false)).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+    expect(placeDragBox(START, { x: 0, y: 0 }, true)).toEqual({ x: 0, y: 0, w: 1, h: 1 });
+    // A sub-px drag stands the 1 px floor (the w / h never stand 0).
+    expect(placeDragBox(START, { x: 0.4, y: 0.2 }, false)).toEqual({ x: 0.2, y: 0.1, w: 1, h: 1 });
   });
 });
