@@ -638,10 +638,10 @@ describe("canvas: shape variants", () => {
     expect(paths[1]!.getAttribute("d")).toBe("M 1 16 A 49 15 0 0 0 99 16");
     expect(paths[1]!.getAttribute("fill")).toBe("none");
 
-    // The cloud (the 130x95 box): the mirrored outline (the lucide
-    // silhouette flipped over the vertical axis the box-proportional stand, the arc radii scale
-    // anisotropically, the stroke width stands, the inverse sweep
-    // flags).
+    // The cloud (the 130x95 box): the mirrored outline (the silhouette
+    // flipped over the vertical axisthe
+    // box-proportional stand, the arc radii scale anisotropically, the
+    // stroke width stands, the inverse sweep flags).
     const cloud = document.querySelector<SVGElement>('[data-slot="docblocks/shape"][data-variant="cloud"]')!;
     const cloudPath = cloud.querySelector("path")!;
     expect(cloudPath.getAttribute("d")).toBe(

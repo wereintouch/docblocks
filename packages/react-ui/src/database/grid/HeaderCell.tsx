@@ -71,7 +71,7 @@ function HeaderCell({
   // right / the boolean's center — the column stands whole: the header and
   // the value's stand match; the other types stand the left's default).
   const valueInput = columnAnnotation(column).valueInput;
-  // The type's mark (the lucide icon set — the header's name-line's left
+  // The type's mark (the type's icon set — the header's name-line's left
   // stand; a separate element, never part of the rename's input).
   const ColumnIcon = columnTypeIcon(column.type, column.refKind, column.refMany);
   const commitRename = () => {

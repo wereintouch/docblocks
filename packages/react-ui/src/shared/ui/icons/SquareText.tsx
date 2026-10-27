@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-/** The page mode's icon (a rounded page with text lines, the lucide "square-text" shape). */
+/** The page mode's icon (a rounded page with text lines). */
 function SquareText(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
