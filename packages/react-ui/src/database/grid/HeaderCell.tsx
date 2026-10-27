@@ -7,7 +7,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
 import { Ellipsis } from "../../shared/ui/icons";
-import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
 import { columnTypeIcon } from "./column-type-icon";
 
@@ -67,10 +66,9 @@ function HeaderCell({
   onResizePointerCancel,
 }: HeaderCellProps) {
   const [nameDraft, setNameDraft] = useState(column.name);
-  // The header's text follows the column's type's align (the number's
-  // right / the boolean's center — the column stands whole: the header and
-  // the value's stand match; the other types stand the left's default).
-  const valueInput = columnAnnotation(column).valueInput;
+  // The header's name stands next to the type's icon (the uniform gap over
+  // all the column's types — the align's stand is the value's, the header's
+  // label stands off the icon, not the value's edge).
   // The type's mark (the type's icon set — the header's name-line's left
   // stand; a separate element, never part of the rename's input).
   const ColumnIcon = columnTypeIcon(column.type, column.refKind, column.refMany);
@@ -107,11 +105,9 @@ function HeaderCell({
     >
       <ColumnIcon className="size-4 shrink-0 text-muted-foreground" />
       <span
-        className={cn(
-          `min-w-0 flex-1 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)`,
-          valueInput === "number" && "text-right",
-          valueInput === "boolean" && "text-center"
-        )}
+        className="
+          min-w-0 flex-1 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)
+        "
       >
         {column.name}
       </span>
