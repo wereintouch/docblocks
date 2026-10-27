@@ -36,10 +36,10 @@ interface HeaderCellProps {
   onResizePointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onResizePointerCancel: () => void;
 }
-/** The header cell (the column's name; the press stands the menu, the
- *  press-drag stands the column drag). The right-edge seam resizes the
- *  column (the table block's seam idiom: the 6 px strip, the 50 px floor,
- *  the live preview, the one `updateBlock` on the release). The menu
+/** The header cell (the column's name; the press-drag stands the column
+ *  drag, the Ellipsis's press stands the menu). The right-edge seam resizes
+ *  the column (the table block's seam idiom: the 6 px strip, the 50 px
+ *  floor, the live preview, the one `updateBlock` on the release). The menu
  *  content: the editable name line (the rename commits on the blur / the
  *  Enter), the type line (read-only), and the show / hide / delete items. */
 function HeaderCell({
@@ -111,7 +111,7 @@ function HeaderCell({
       >
         {column.name}
       </span>
-      <div className="ml-auto shrink-0">
+      <div className="ml-auto flex shrink-0 items-center">
         <DropdownMenu modal={false} open={menuOpen} onOpenChange={onMenuChange}>
           <DropdownMenuTrigger asChild>
             <button
