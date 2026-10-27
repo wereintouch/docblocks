@@ -5,7 +5,7 @@
 // session drops it — the world stands, no stale commit on the next
 // release).
 import { cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
@@ -79,6 +79,7 @@ function pageText(view: HTMLElement): HTMLElement {
   return inner;
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 describe("the hand over the editing surfaces", () => {

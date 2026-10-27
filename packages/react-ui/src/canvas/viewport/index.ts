@@ -5,4 +5,6 @@
  * Pure view state per editor instance.
  */
 export { useCanvasViewport } from "./hooks";
+export { readCanvasViewport, writeCanvasViewport, WRITE_DEBOUNCE_MS } from "./persistence";
+export type { PersistedViewport } from "./persistence";
 export type { CanvasViewportState, EndpointDrag, EndpointPreview, EndpointSnap, MovePreview } from "./models";

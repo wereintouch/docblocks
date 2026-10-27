@@ -4,7 +4,7 @@
 // division) and the hook's commit (one transact for the whole group —
 // one undo step; the no-op drag and the Escape cancel write nothing).
 import { act, cleanup, fireEvent, render, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
@@ -13,6 +13,7 @@ import { EditorProvider } from "../src/EditorProvider";
 import { screenDeltaToCanvas } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport-state";
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";

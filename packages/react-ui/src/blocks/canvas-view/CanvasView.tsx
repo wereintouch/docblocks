@@ -49,7 +49,7 @@ import {
   screenToCanvas,
 } from "../../canvas/viewport";
 import type { ResizeHandle } from "../../canvas/viewport";
-import { useCanvasViewport } from "../../canvas/viewport-state";
+import { readCanvasViewport, useCanvasViewport } from "../../canvas/viewport-state";
 import {
   connectorPressStand,
   connectorPreviewFrom,
@@ -110,7 +110,11 @@ function CanvasView() {
   // `selection` handle is stable, so the store slice drives the re-render.
   const storeSelection = useStore(store, (state) => state.selection);
   const root = useBlock(rootBlockId);
-  const viewport = useCanvasViewport(doc);
+  // The viewport's browser persistence:
+  // the restored state (the storage's read, once on mount) over the fit's
+  // stand (no stored state — the fit's mount stand below).
+  const [storedViewport] = useState(() => readCanvasViewport(doc.meta.id));
+  const viewport = useCanvasViewport(doc, storedViewport);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<CanvasSession | null>(null);
   // The page miniature's first press stands the card's move session over
@@ -159,6 +163,15 @@ function CanvasView() {
     live.setZoom(stand.zoom);
     live.setPan(stand.pan);
   }, [doc]);
+
+  // The viewport's entry stand: the
+  // stored state's restore (the hook's init — no stand flash) or the fit
+  // (the no-stored-state's first visit — the container's rect is the
+  // mount's read).
+  useEffect(() => {
+    if (storedViewport !== null) return;
+    onFit();
+  }, [onFit, storedViewport]);
 
   // The wheel's gesture: the pointer
   // mode pans (the 1:1 screen px, zoom-blind; the content stands opposite

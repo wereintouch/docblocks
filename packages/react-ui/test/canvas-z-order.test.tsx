@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { act } from "react";
 
@@ -61,6 +61,7 @@ function threeShapeDoc(): TestDoc {
 }
 
 describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", () => {
+  beforeEach(() => window.localStorage.clear());
   afterEach(cleanup);
 
   it("the DOM order follows the dense zIndex (the reorder's paint change)", () => {

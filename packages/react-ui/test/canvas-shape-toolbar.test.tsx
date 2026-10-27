@@ -5,7 +5,7 @@
 // palette swatch, the "none" entry, and the custom hex input — one
 // updateBlock per apply, one undo step; the invalid hex is ignored).
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 
@@ -40,6 +40,7 @@ function seededDoc(): { doc: TestDoc; surface: string; shape: string; text: stri
   return { doc, surface, shape, text };
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 function renderCanvas(doc: TestDoc, palette: readonly string[] = TEST_PALETTE) {

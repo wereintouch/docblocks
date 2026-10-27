@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, render } from "@testing-library/react";
 import { fireEvent } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
@@ -15,6 +15,7 @@ const CREATED_AT = "2026-10-10T00:00:00.000Z";
 const flushFrames = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 40));
 
 describe("the gutter's quick insert (the plus under the item)", () => {
+  beforeEach(() => window.localStorage.clear());
   afterEach(() => {
     cleanup();
   });

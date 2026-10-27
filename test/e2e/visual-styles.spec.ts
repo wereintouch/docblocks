@@ -467,6 +467,11 @@ test("the document canvas view and the page card read the zone-4 tokens", async 
   // view.spec).
   const view = page.locator('[data-slot="docblocks/canvas-view"]');
   await expect(view).toHaveCount(1);
+  // The fit's entry stand: the canvas demo
+  // seeds surface content, so the entry's fit stands a zoom over 100% —
+  // reset the zoom to the 100% stand (the grid's token's resolution) before
+  // the pin.
+  await view.getByRole("toolbar", { name: "Canvas zoom" }).getByLabel("Reset zoom").click();
   const grid = await view.evaluate((el) => {
     const s = getComputedStyle(el);
     return { size: s.backgroundSize, dotted: s.backgroundImage.includes("radial-gradient"), height: s.height };

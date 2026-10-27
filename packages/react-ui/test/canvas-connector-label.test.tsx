@@ -9,7 +9,7 @@
 // stands the empty string). The no-op commit (the value stands the committed
 // label) writes nothing.
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
@@ -295,4 +295,5 @@ function selectLine(container: HTMLElement, id: string): void {
   fireEvent.pointerUp(target, { pointerId: 1 });
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);

@@ -3,7 +3,7 @@
  *  endpoint-drag sessions over the doc. Pure view state per
  *  editor instance — it stands outside the doc and the awareness and
  *  resets on the canvas view's unmount. */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Block, Doc } from "docblocks-core";
 
@@ -44,6 +44,8 @@ import type {
   ResizeSession,
 } from "./models";
 import { snapEdgePoint, snapEndpointEdge } from "./utils";
+import { writeCanvasViewport, WRITE_DEBOUNCE_MS } from "./persistence";
+import type { PersistedViewport } from "./persistence";
 
 // The portT's commit rounding: the edge's fractional position stands at
 // the 4-digit stand (0.0001 — sub-pixel on any sane edge at any zoom).
@@ -133,9 +135,11 @@ function computeDropIndicators(doc: Doc, ids: string[], dx: number, dy: number):
   return indicators;
 }
 
-function useCanvasViewport(doc: Doc): CanvasViewportState {
-  const [zoom, setZoomState] = useState(1);
-  const [pan, setPan] = useState<ScreenPoint>({ x: 0, y: 0 });
+function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null): CanvasViewportState {
+  // The viewport's stand: the restored
+  // browser state (the storage's read) over the 100% / center's default.
+  const [zoom, setZoomState] = useState(() => initialViewport?.zoom ?? 1);
+  const [pan, setPan] = useState<ScreenPoint>(() => initialViewport?.pan ?? { x: 0, y: 0 });
   const [mode, setMode] = useState<CanvasMode>("default");
   const [activeTool, setActiveTool] = useState<CanvasTool | null>(null);
   const [pendingConnector, setPendingConnector] = useState<string | null>(null);
@@ -691,6 +695,24 @@ function useCanvasViewport(doc: Doc): CanvasViewportState {
     setResizePreview(null);
     setResizeSession(false);
   }, []);
+
+  // The viewport's browser persistence:
+  // the zoom / pan's commit over the debounced write (the wheel's / the
+  // pan's / the fit's last stand coalesces over the trailing edge) + the
+  // unmount's flush (the leave-within-the-window's last change stands
+  // committed). The doc's own data stands untouched.
+  const persistedRef = useRef({ docId: doc.meta.id, zoom, pan });
+  persistedRef.current = { docId: doc.meta.id, zoom, pan };
+  useEffect(() => {
+    const handle = setTimeout(() => writeCanvasViewport(doc.meta.id, { zoom, pan }), WRITE_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [doc, zoom, pan]);
+  useEffect(() => {
+    return () => {
+      const latest = persistedRef.current;
+      writeCanvasViewport(latest.docId, { zoom: latest.zoom, pan: latest.pan });
+    };
+  }, [doc]);
 
   return {
     zoom,

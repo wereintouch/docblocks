@@ -5,7 +5,7 @@
 // container move (the box + the members, one transact), the makeGroup /
 // dissolveGroup commands, and the Ctrl/Cmd+G hotkeys over the doc.
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 import type { Block } from "docblocks-core";
@@ -60,6 +60,7 @@ function renderCanvas(withGroup: boolean): Rendered {
   return { doc, a, b, c, group: group ?? "", view, json: () => doc.toJSON() };
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(() => {
   cleanup();
 });

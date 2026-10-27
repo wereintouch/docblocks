@@ -4,7 +4,7 @@
 // the disabled edge states, and the applies (one `setZOrder` per pick —
 // one transact, one undo step, the dense indices follow the order).
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 
@@ -90,6 +90,7 @@ function zIndexOf(doc: TestDoc, id: string): number {
   return block?.attrs?.zIndex ?? -1;
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 describe("the shape toolbar's z-order menu", () => {

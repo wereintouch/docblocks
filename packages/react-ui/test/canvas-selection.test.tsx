@@ -4,7 +4,7 @@
 // contract: the selected item's thin cyan outline over the tint, the
 // marquee's line only).
 import { cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
@@ -329,4 +329,5 @@ describe("the multi-selection's summary box", () => {
   });
 });
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
