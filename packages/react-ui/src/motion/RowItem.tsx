@@ -52,6 +52,17 @@ const RowItem = memo(
       store,
       (state) => state.selection.kind === "blocks" && state.selection.ids.includes(node.id)
     );
+    // The row holding the live text caret (the selection's active end): its
+    // position projection must never trail the container. A structural
+    // reflow (a deletion above) shrinks the rows' box instantly, while a
+    // sliding row holds its caret line below the new bottom edge for the
+    // slide's duration — the caret row takes the zero-duration projection
+    // instead (it snaps with the layout; the other rows keep the slide).
+    const caretRow = useStore(store, (state) => {
+      if (state.selection.kind !== "text") return false;
+      const head = state.selection.to !== null ? state.selection.to : state.selection.from;
+      return head.blockId === node.id;
+    });
     // The row-level gutter handle: the non-text page rows' drag trigger
     // (the text rows' handle stands inside their own wrapper). The gutter
     // column follows the indent steps only — a list row's marker zone stands
@@ -128,16 +139,19 @@ const RowItem = memo(
         // layout animation runs the 0.18 s slide only while the slide is
         // armed (a drag in flight, a structural settle) and 0 otherwise —
         // an in-place content change reflows instantly (a zero-duration
-        // projection, not a visible slide).
+        // projection, not a visible slide). The caret's row (the live text
+        // selection's active end) is always 0: its caret/placeholder must
+        // not trail the document's bounds over the slide (a deletion above
+        // shrinks the container instantly — a sliding caret row would carry
+        // the caret below the new bottom edge for the slide's duration).
         transition={{
           opacity: TRANSITION,
           height: TRANSITION,
           marginBottom: TRANSITION,
-          layout: layoutSlide ? TRANSITION : { duration: 0 },
+          layout: layoutSlide && !caretRow ? TRANSITION : { duration: 0 },
         }}
         // Position-only, always armed: a size projection would scale a row
-        // while its content height settles (the text squashes or
-        // stretches).
+        // while its content height settles (the text squashes or stretches).
         layout="position"
         // Framer's own row-wide drag is disarmed: the gutter handle owns
         // the pointer (a row-wide drag would fight the text selection and
