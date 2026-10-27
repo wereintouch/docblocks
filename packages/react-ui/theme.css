@@ -67,17 +67,19 @@
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   /* The color palette's pastel tokens (the shared palette primitive's
-     default swatches): a light (brighter) set here, a more muted dark set
-     under `.dark` — the swatch follows the theme flip. The eighth swatch
-     is the theme's own background token (`--background`), not part of this
-     set. */
-  --docblocks-palette-red: #f7a8a8;
-  --docblocks-palette-orange: #f9bd7d;
-  --docblocks-palette-yellow: #f4e07d;
-  --docblocks-palette-green: #97e3a8;
-  --docblocks-palette-cyan: #8ed2f2;
-  --docblocks-palette-blue: #93b4f2;
-  --docblocks-palette-violet: #c5aef2;
+     default swatches): the light set stands over the dark set (the `.dark`
+     values' same OKLCH hues, raised lightness + raised chroma — a bit
+     more saturated, not just lighter), so the swatch stands visibly more
+     saturated on the light theme and more muted on the dark. The eighth
+     swatch is the theme's own background token (`--background`), not part
+     of this set. */
+  --docblocks-palette-red: #ff8e8e;
+  --docblocks-palette-orange: #ffbc6c;
+  --docblocks-palette-yellow: #ffe765;
+  --docblocks-palette-green: #7eeea2;
+  --docblocks-palette-cyan: #73dbff;
+  --docblocks-palette-blue: #88b2ff;
+  --docblocks-palette-violet: #c9a1ff;
 }
 
 .dark {
@@ -114,8 +116,8 @@
   --sidebar-ring: oklch(0.556 0 0);
 
   /* The color palette's pastel tokens, dark set (more muted than the light
-     set — the same hues, lower lightness / saturation, still legible over
-     the dark popover). */
+     set — the same hues at lower lightness and lower chroma, still legible
+     over the dark popover). */
   --docblocks-palette-red: #c96a6a;
   --docblocks-palette-orange: #cf9155;
   --docblocks-palette-yellow: #cdb755;
