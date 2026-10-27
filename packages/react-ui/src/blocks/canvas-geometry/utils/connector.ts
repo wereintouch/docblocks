@@ -7,7 +7,7 @@
  */
 import type { Block } from "docblocks-core";
 
-import { ORTHO_AVOID_MARGIN_PX, ORTHO_DETOUR_PX, ORTHO_STUB_PX, ROUTE_EPS } from "../models";
+import { ORTHO_AVOID_MARGIN_PX, ORTHO_DETOUR_PX, ORTHO_STUB_PX, PORT_NORMAL, ROUTE_EPS } from "../models";
 import type {
   Box,
   CanvasPort,
@@ -173,6 +173,27 @@ function routeBends(points: readonly RoutePoint[]): number {
     prevAxis = axis;
   }
   return bends;
+}
+
+/** The MIDDLE of the polyline's LONGEST consecutive segment (the label's
+ * seat — on the visible line, on the longest run, so an elbow's short
+ * stubs (the 12-px port's offset) stand no anchor). The first longest
+ * segment stands on a tie (the deterministic order). */
+function longestSegmentMid(points: readonly RoutePoint[]): { x: number; y: number } {
+  let best = 0;
+  let bestLen = -1;
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i]!;
+    const q = points[i + 1]!;
+    const len = Math.hypot(q.x - p.x, q.y - p.y);
+    if (len > bestLen) {
+      bestLen = len;
+      best = i;
+    }
+  }
+  const p = points[best] ?? { x: 0, y: 0 };
+  const q = points[best + 1] ?? p;
+  return { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
 }
 
 /**
@@ -364,7 +385,9 @@ function connectorPathPoints(
     return {
       d,
       end: { x: b.x, y: b.y },
-      mid: { x: (aOut.x + bIn.x) / 2, y: (aOut.y + bIn.y) / 2 },
+      // The seat stands on the polyline's longest run (the visible line —
+      // not the stubs, not the endpoints' straight mid).
+      mid: longestSegmentMid(deduped),
     };
   }
   const dist = Math.hypot(b.x - a.x, b.y - a.y);
@@ -545,21 +568,27 @@ function connectorMidpoint(
   const startDragged =
     endpointDrag !== null && endpointDrag.connectorId === connectorId && endpointDrag.which === "start";
   const endDragged = endpointDrag !== null && endpointDrag.connectorId === connectorId && endpointDrag.which === "end";
-  const livePoint = (which: "start" | "end", resolved: { x: number; y: number }): { x: number; y: number } => {
+  const livePoint = (which: "start" | "end", resolved: EndpointPoint): EndpointPoint => {
     if (endpointDrag === null || endpointDrag.connectorId !== connectorId || endpointDrag.which !== which) {
       return resolved;
     }
     const preview = previews?.endpointPreview ?? null;
     if (preview === null) return resolved;
     const snap = preview.snap;
-    if (snap === null) return { x: preview.point.x, y: preview.point.y };
+    const point = { x: preview.point.x, y: preview.point.y };
+    if (snap === null) {
+      // The frozen direction: the stored endpoint's normal (the drag stands
+      // no doc write — the normal is the stored attrs' resolution).
+      return { ...point, nx: resolved.nx, ny: resolved.ny };
+    }
     const sibling = live[snap.blockId];
-    if (sibling === undefined) return { x: preview.point.x, y: preview.point.y };
+    if (sibling === undefined) return { ...point, nx: 0, ny: 0 };
     const p = edgePointOf(effectiveGeometry(sibling), snap.port, snap.t);
-    return { x: p.x, y: p.y };
+    const normal = PORT_NORMAL[snap.port];
+    return { x: p.x, y: p.y, nx: normal.nx, ny: normal.ny };
   };
-  const startDraw = livePoint("start", { x: startPoint.x, y: startPoint.y });
-  const endDraw = livePoint("end", { x: endPoint.x, y: endPoint.y });
+  const startDraw: EndpointPoint = livePoint("start", startPoint);
+  const endDraw: EndpointPoint = livePoint("end", endPoint);
   // The polyline's endpoints stand as the legacy centers for plain refs
   // (the look preserved); a port / free endpoint / the dragged end stands
   // at its own point.
@@ -594,5 +623,17 @@ function connectorMidpoint(
   if (legacy) {
     return connectorPath(startBox, endBox, attrs.variant ?? "straight").mid;
   }
-  return { x: (startDraw.x + endDraw.x) / 2, y: (startDraw.y + endDraw.y) / 2 };
+  // The port / free's stand: the seat resolves over the SAME path the line
+  // draws (the orthogonal's elbow + the stubs, the obstacle's avoidance) —
+  // the polyline's longest run's mid (one source: the label stands on the
+  // visible line, not the endpoints' straight mid). The obstacles stand the
+  // surface's sibling boxes (the group's frame stands no obstacle — like
+  // the line's re-draw).
+  const obstacleBoxes: Box[] = [];
+  for (const childId of childIds) {
+    const item = live[childId];
+    if (item === undefined || item.type === "connector" || item.type === "group") continue;
+    obstacleBoxes.push(effectiveGeometry(item));
+  }
+  return connectorPathPoints(startDraw, endDraw, attrs.variant ?? "straight", obstacleBoxes).mid;
 }
