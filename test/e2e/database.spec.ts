@@ -2902,7 +2902,7 @@ test("the cell's display stands the single line (the text's ellipsis; the multi'
   }
 });
 
-test("the cell's value stands the column type's align (the number's right; the boolean's center; the header's follow; the text's left regression)", async ({
+test("the cell's value stands the column type's align (the number's right; the boolean's center; the header's name stands off the icon; the text's left regression)", async ({
   browser,
 }) => {
   const { a, b, close } = await twoPanesSharedContext(browser, "db-align-stand");
@@ -2978,10 +2978,11 @@ test("the cell's value stands the column type's align (the number's right; the b
     // ---- The boolean: the checkbox's center stands the cell's center.
     expect(align?.cbCenterOffset).toBeLessThan(4);
 
-    // ---- The header's follow (the number's right / the boolean's center /
-    // the text's left's regression).
-    expect(align?.numHeaderAlign).toBe("right");
-    expect(align?.boolHeaderAlign).toBe("center");
+    // ---- The header's name stands off the icon (the uniform gap over all
+    // the column's types — the align's stand is the value's, the header's
+    // label stands next to the icon, not the value's edge).
+    expect(align?.numHeaderAlign).toBe("start");
+    expect(align?.boolHeaderAlign).toBe("start");
     expect(align?.bodyHeaderAlign).toBe("start");
 
     // ---- The number's EDIT input: the right align (the double press's
@@ -3137,6 +3138,93 @@ test("the header's type icon stands left of the name (the 10 types' icon set; bo
     await a.evaluate(() => document.documentElement.classList.remove("dark"));
     const light = await iconColor(a);
     expect(light.icon).toBe(light.token);
+  } finally {
+    await close();
+  }
+});
+
+test("the header's name stands the uniform gap chain over all the column's types (the cell's edge → the icon → the name — the per-type's pins)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanesSharedContext(browser, "db-header-gap");
+  try {
+    // The main table: one column per type (the 10) — the name's length
+    // stands different (the gap's parity is over the name's width, not the
+    // name's).
+    const { mainId, cols } = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const dictId = await bridge.createTable("Gap-enum", { system: true });
+      await bridge.createColumn(dictId, { id: "name", name: "name", type: "text" });
+      const linkId = await bridge.createTable("Gap-link");
+      await bridge.createColumn(linkId, { id: "label", name: "Label", type: "text" });
+      const mainId = await bridge.createTable("GapTable");
+      const spec: {
+        id: string;
+        name: string;
+        type: string;
+        refKind?: "enum" | "row";
+        refMany?: boolean;
+        refTableId?: string;
+      }[] = [
+        { id: "c_text", name: "Text", type: "text" },
+        { id: "c_int", name: "Int", type: "integer" },
+        { id: "c_dec", name: "Decimal", type: "numeric" },
+        { id: "c_bool", name: "Bool", type: "boolean" },
+        { id: "c_date", name: "Date", type: "date" },
+        { id: "c_dt", name: "DateTime", type: "timestamptz" },
+        { id: "c_enum", name: "Enum", type: "text", refKind: "enum", refTableId: dictId },
+        { id: "c_multi", name: "Multi", type: "text", refKind: "enum", refMany: true, refTableId: dictId },
+        { id: "c_rowlink", name: "RowLink", type: "text", refKind: "row", refTableId: linkId },
+        { id: "c_rowlinks", name: "RLs", type: "text", refKind: "row", refMany: true, refTableId: linkId },
+      ];
+      for (const s of spec) await bridge.createColumn(mainId, s);
+      return { mainId, cols: spec.map((s) => s.id) };
+    });
+    const blockA = await a.evaluate((id) => window.__paneDocs!.a!.insertBlock("database", { tableId: id }), mainId);
+
+    // The gap chain's read (the grid's own DOM): per column, the gap the
+    // icon's left edge stands off the cell's content edge (the cell's
+    // border-left over the non-first stand) + the gap the name's text left
+    // edge stands off the icon's right edge (the text's bbox — the name's
+    // stand over the icon, not the value's edge).
+    const readGaps = () =>
+      a.evaluate((id) => {
+        const grid = document.querySelector(
+          `[data-block-id="${id}"] [data-slot="docblocks/database-grid"]`
+        ) as HTMLElement | null;
+        if (grid === null) return null;
+        const out: Record<string, { cellToIcon: number; iconToText: number }> = {};
+        for (const cell of Array.from(
+          grid.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']")
+        )) {
+          const colId = cell.getAttribute("data-column-id")!;
+          const icon = cell.querySelector<SVGElement>(":scope > svg");
+          const span = cell.querySelector<HTMLElement>(":scope > span");
+          if (icon === null || span === null) return null;
+          const cellR = cell.getBoundingClientRect();
+          const borderLeft = parseFloat(getComputedStyle(cell).borderLeftWidth) || 0;
+          const iconR = icon.getBoundingClientRect();
+          const range = document.createRange();
+          range.selectNodeContents(span);
+          const textR = range.getBoundingClientRect();
+          if (textR.width === 0) return null;
+          out[colId] = {
+            cellToIcon: iconR.left - (cellR.left + borderLeft),
+            iconToText: textR.left - iconR.right,
+          };
+        }
+        return out;
+      }, blockA);
+    await expect.poll(async () => (await readGaps()) !== null, SETTLE).toBe(true);
+    const gaps = (await readGaps())!;
+    // Every type's chain stands the same (the cell's edge → the icon's 8
+    // px, the icon's → the name's 8 px — the gap-1 + the px-1's parity; the
+    // former align's stand pushed the number/boolean's names off the
+    // icon's over the name's width).
+    for (const col of cols) {
+      expect(gaps[col]?.cellToIcon, `the ${col}'s cell → icon's gap`).toBeCloseTo(8, 1);
+      expect(gaps[col]?.iconToText, `the ${col}'s icon → name's gap`).toBeCloseTo(8, 1);
+    }
   } finally {
     await close();
   }
