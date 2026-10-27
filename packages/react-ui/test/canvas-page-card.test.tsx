@@ -7,7 +7,7 @@
 // shared selection's outline while selected and the eight box handles
 // (the rotate handle is gone from the editor — the negative pin below).
 import { cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 
@@ -63,6 +63,7 @@ function renderCanvas(): Rendered {
 
 const rootIdOf = (doc: TestDoc): string => doc.meta.id;
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 describe("the two-click contract", () => {

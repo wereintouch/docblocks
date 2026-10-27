@@ -9,7 +9,7 @@
 // the smooth reaction, the trackpad's pinch). The pan and the zoom are
 // pure view state — the doc stands.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
@@ -34,6 +34,7 @@ function seededDoc(): { doc: TestDoc; shape: string } {
   return { doc, shape };
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 function renderCanvas(doc: TestDoc) {

@@ -7,7 +7,7 @@
 // drop the preview. The previews' svgs stand 1x1 (a 0x0 svg rasterizes no
 // content in Chromium).
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { type Block, createDoc } from "docblocks-core";
 
@@ -61,6 +61,7 @@ const connectorsOf = (doc: TestDoc) =>
     (block): block is Extract<Block, { type: "connector" }> => block.type === "connector"
   );
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 describe("the connector's pending preview", () => {

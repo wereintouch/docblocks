@@ -8,7 +8,7 @@
 // switch (the select mode; the dock's button icon stands the current
 // mode).
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
@@ -58,6 +58,7 @@ function renderCanvas(): Rendered {
   };
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 describe("the wheel's zoom at the cursor", () => {

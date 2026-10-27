@@ -5,7 +5,7 @@
 // the page miniature stands. A doc change re-renders only the changed
 // block's view (the items' point reads stand over the blocks-map change).
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
@@ -52,6 +52,7 @@ function setup() {
 }
 
 describe("the canvas re-render contract", () => {
+  beforeEach(() => window.localStorage.clear());
   afterEach(cleanup);
 
   it("stands the sibling items and the miniature on the move session's moves", () => {

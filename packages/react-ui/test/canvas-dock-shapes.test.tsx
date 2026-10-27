@@ -6,7 +6,7 @@
 // click stands the default-size place. The stale-session drop (the
 // button-less move) and the Escape cancel write nothing.
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 
@@ -57,6 +57,7 @@ function placedShapes(
     }));
 }
 
+beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
 
 describe("the drag-to-size placement", () => {
