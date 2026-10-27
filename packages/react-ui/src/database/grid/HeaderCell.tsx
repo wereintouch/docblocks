@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
 import { Ellipsis } from "../../shared/ui/icons";
+import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
 
 interface HeaderCellProps {
@@ -65,6 +66,10 @@ function HeaderCell({
   onResizePointerCancel,
 }: HeaderCellProps) {
   const [nameDraft, setNameDraft] = useState(column.name);
+  // The header's text follows the column's type's align (the number's
+  // right / the boolean's center — the column stands whole: the header and
+  // the value's stand match; the other types stand the left's default).
+  const valueInput = columnAnnotation(column).valueInput;
   const commitRename = () => {
     const trimmed = nameDraft.trim();
     if (trimmed !== "" && trimmed !== column.name) onRename(trimmed);
@@ -96,7 +101,13 @@ function HeaderCell({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
-      <span className="min-w-0 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)">
+      <span
+        className={cn(
+          `min-w-0 flex-1 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)`,
+          valueInput === "number" && "text-right",
+          valueInput === "boolean" && "text-center"
+        )}
+      >
         {column.name}
       </span>
       <div className="ml-auto shrink-0">

@@ -2895,3 +2895,100 @@ test("the cell's display stands the single line (the text's ellipsis; the multi'
     await close();
   }
 });
+
+test("the cell's value stands the column type's align (the number's right; the boolean's center; the header's follow; the text's left regression)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "db-align-stand");
+  try {
+    const tableId = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const id = await bridge.createTable("AlignCell");
+      await bridge.createColumn(id, { id: "body", name: "Body", type: "text" });
+      await bridge.createColumn(id, { id: "num", name: "Num", type: "integer" });
+      await bridge.createColumn(id, { id: "bool", name: "Flag", type: "boolean" });
+      await bridge.insertRows(id, [{ id: "row-1", body: "Some text", num: 1234567, bool: true }]);
+      return id;
+    });
+    const blockA = await a.evaluate((id) => window.__paneDocs!.a!.insertBlock("database", { tableId: id }), tableId);
+    await b.evaluate((id) => window.__paneDocs!.b!.insertBlock("database", { tableId: id }), tableId);
+    const gridA = a.locator(`[data-block-id='${blockA}'] [data-slot='docblocks/database-grid']`);
+    await expect(gridA).toBeVisible(SETTLE);
+
+    // The display's stand from one read (the grid's own DOM — no locator's
+    // auto-wait / the strict-mode's stand over the grid's rows).
+    const readAlign = () =>
+      a.evaluate((blockId) => {
+        const grid = document.querySelector(
+          `[data-block-id="${blockId}"] [data-slot="docblocks/database-grid"]`
+        ) as HTMLElement | null;
+        if (grid === null) return null;
+        const cell = (col: string) =>
+          grid.querySelector(
+            `[data-slot="docblocks/database-cell"][data-column-id="${col}"][data-row="0"]`
+          ) as HTMLElement | null;
+        const display = (col: string) =>
+          cell(col)?.querySelector('[data-slot="docblocks/database-cell-display"]') as HTMLElement | null;
+        const header = (col: string) =>
+          grid.querySelector(
+            `[data-slot="docblocks/database-header-cell"][data-column-id="${col}"] span`
+          ) as HTMLElement | null;
+        const checkbox = cell("bool")?.querySelector(
+          '[data-slot="docblocks/database-cell-checkbox"]'
+        ) as HTMLElement | null;
+        const num = display("num");
+        const body = display("body");
+        if (num === null || body === null || checkbox === null) return null;
+        const numCell = cell("num")!;
+        const boolCell = cell("bool")!;
+        const cbRect = checkbox.getBoundingClientRect();
+        const boolRect = boolCell.getBoundingClientRect();
+        return {
+          numDisplayAlign: getComputedStyle(num).textAlign,
+          bodyDisplayAlign: getComputedStyle(body).textAlign,
+          numHeaderAlign: header("num") !== null ? getComputedStyle(header("num")!).textAlign : null,
+          boolHeaderAlign: header("bool") !== null ? getComputedStyle(header("bool")!).textAlign : null,
+          bodyHeaderAlign: header("body") !== null ? getComputedStyle(header("body")!).textAlign : null,
+          // The value's right edge stands the cell's right edge (the number's
+          // right align — the text's right edge is over the cell's right
+          // padding, not the left).
+          numValueRightOffset: numCell.getBoundingClientRect().right - num.getBoundingClientRect().right,
+          // The checkbox's center stands the cell's center (the boolean's
+          // center — the offset is the padding's asymmetry, ~0).
+          cbCenterOffset: Math.abs(cbRect.left + cbRect.right - boolRect.left - boolRect.right) / 2,
+        };
+      }, blockA);
+    await expect.poll(async () => (await readAlign()) !== null, SETTLE).toBe(true);
+    const align = await readAlign();
+
+    // ---- The number: the display AND the value stand the right edge.
+    expect(align?.numDisplayAlign).toBe("right");
+    // The value's right edge is over the cell's right padding (the right
+    // align stands — not the left edge).
+    expect(align?.numValueRightOffset).toBeLessThan(12);
+    // ---- The text: the left's stand (the regression — the align is out;
+    // the default's `start` over the LTR).
+    expect(align?.bodyDisplayAlign).toBe("start");
+    // ---- The boolean: the checkbox's center stands the cell's center.
+    expect(align?.cbCenterOffset).toBeLessThan(4);
+
+    // ---- The header's follow (the number's right / the boolean's center /
+    // the text's left's regression).
+    expect(align?.numHeaderAlign).toBe("right");
+    expect(align?.boolHeaderAlign).toBe("center");
+    expect(align?.bodyHeaderAlign).toBe("start");
+
+    // ---- The number's EDIT input: the right align (the double press's
+    // stand; the input's cursor / the type stand standard over the right).
+    await gridA.locator(`[data-slot='docblocks/database-cell'][data-column-id='num'][data-row='0']`).dblclick();
+    const inputAlign = await a.evaluate((blockId) => {
+      const input = document.querySelector(
+        `[data-block-id="${blockId}"] [data-slot="docblocks/database-cell-input"]`
+      ) as HTMLElement | null;
+      return input !== null ? getComputedStyle(input).textAlign : null;
+    }, blockA);
+    expect(inputAlign).toBe("right");
+  } finally {
+    await close();
+  }
+});

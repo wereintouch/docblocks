@@ -109,13 +109,16 @@ interface CellEditInputProps {
   min?: number;
   /** The number input's step stand (the column's decimals). */
   step?: string;
+  /** The number column's right align (the type's contract — the value and
+   * the input's text stand the right edge). */
+  alignRight?: boolean;
   onDraftChange: (draft: string) => void;
   /** The blur / the Enter — the session's end (the cell commits the draft). */
   onEnd: () => void;
   /** The Escape — the draft's cancel (the session closes, no write). */
   onCancel: () => void;
 }
-function CellEditInput({ draft, kind, min, step, onDraftChange, onEnd, onCancel }: CellEditInputProps) {
+function CellEditInput({ draft, kind, min, step, alignRight, onDraftChange, onEnd, onCancel }: CellEditInputProps) {
   return (
     <input
       type={kind === "number" ? "number" : "text"}
@@ -123,7 +126,7 @@ function CellEditInput({ draft, kind, min, step, onDraftChange, onEnd, onCancel 
       autoFocus
       min={min}
       step={step}
-      className={CELL_INPUT}
+      className={cn(CELL_INPUT, alignRight && "text-right")}
       value={draft}
       onChange={(event) => onDraftChange(event.target.value)}
       onBlur={onEnd}
@@ -139,15 +142,24 @@ function CellEditInput({ draft, kind, min, step, onDraftChange, onEnd, onCancel 
  *  trigger chrome). */
 function CellDisplay({
   text,
+  alignRight,
   ...props
-}: { text: string } & React.ComponentPropsWithoutRef<"span"> & { ref?: React.Ref<HTMLSpanElement> }) {
+}: {
+  text: string;
+  /** The number column's right align (the type's contract — the value and
+   * the overflow's ellipsis stand the right edge). */
+  alignRight?: boolean;
+} & React.ComponentPropsWithoutRef<"span"> & { ref?: React.Ref<HTMLSpanElement> }) {
   // The read-only display stands one line (no wrap): the overflowing text
   // ends with the ellipsis (the multi-ref's stand stands the right fade
-  // instead — the `RefValueChips`' own stand, not this text's).
+  // instead — the `RefValueChips`' own stand, not this text's). The number's
+  // stand is the right align (the column's type's contract — the overflow's
+  // ellipsis stands the left edge over the right-aligned text, the
+  // browser's own stand).
   return (
     <span
       data-slot="docblocks/database-cell-display"
-      className="block w-full truncate px-1 text-(length:--docblocks-font-size)"
+      className={cn("block w-full truncate px-1 text-(length:--docblocks-font-size)", alignRight && "text-right")}
       {...props}
     >
       {text === "" ? null : text}
@@ -195,7 +207,7 @@ function RefValueChips({ values, options, fade }: { values: string[]; options: R
             data-option-value={value}
             style={option?.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined}
             className={cn(
-              "max-w-full shrink overflow-hidden whitespace-nowrap rounded-(--docblocks-radius) px-1.5 leading-5",
+              "max-w-full shrink overflow-hidden rounded-(--docblocks-radius) px-1.5 leading-5 whitespace-nowrap",
               !fade && "text-ellipsis",
               option?.color === undefined && "bg-muted"
             )}
@@ -805,9 +817,10 @@ function DatabaseCell({
             onDraftChange={setTextDraft}
             onEnd={onEditEnd}
             onCancel={cancelTextDraft}
+            alignRight
           />
         ) : (
-          <CellDisplay text={empty ? "" : display} />
+          <CellDisplay text={empty ? "" : display} alignRight />
         );
         break;
       }
@@ -892,7 +905,7 @@ function DatabaseCell({
           <span
             data-slot="docblocks/database-cell-checkbox-wrap"
             className={cn(
-              "flex w-full items-center px-1",
+              "flex w-full items-center justify-center px-1",
               checkboxInteractive ? "cursor-pointer" : "pointer-events-none"
             )}
             onClick={(event) => {
