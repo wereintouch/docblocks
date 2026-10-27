@@ -3230,6 +3230,75 @@ test("the header's name stands the uniform gap chain over all the column's types
   }
 });
 
+test("the header's Ellipsis stands the cell's vertical center (the border's half's stand; the right zone's stand; the menu's open regression)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanesSharedContext(browser, "db-ellipsis-center");
+  try {
+    const blockA = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const id = await bridge.createTable("EllipsisCenter");
+      for (const [cid, name, type] of [
+        ["colA", "Alpha", "text"],
+        ["colB", "Beta", "integer"],
+        ["colC", "Gamma", "boolean"],
+      ] as [string, string, string][]) {
+        await bridge.createColumn(id, { id: cid, name, type });
+      }
+      return window.__paneDocs!.a!.insertBlock("database", { tableId: id });
+    });
+    const gridA = a.locator(`[data-block-id='${blockA}'] [data-slot='docblocks/database-grid']`);
+    await expect(gridA).toBeVisible(SETTLE);
+
+    // The vertical center's stand (the grid's own DOM's read): per column,
+    // the Ellipsis's icon center vs the cell's center (the border-box — the
+    // 1 px bottom border stands over the content's center's read).
+    const readCenter = () =>
+      a.evaluate((id) => {
+        const grid = document.querySelector(
+          `[data-block-id="${id}"] [data-slot="docblocks/database-grid"]`
+        ) as HTMLElement | null;
+        if (grid === null) return null;
+        const out: Record<string, { deltaY: number; rightOffset: number }> = {};
+        for (const cell of Array.from(
+          grid.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']")
+        )) {
+          const colId = cell.getAttribute("data-column-id")!;
+          const btn = cell.querySelector<HTMLElement>("[data-slot='docblocks/database-column-menu']");
+          const svg = btn?.querySelector("svg") ?? null;
+          if (btn === null || svg === null) return null;
+          const cellR = cell.getBoundingClientRect();
+          const svgR = svg.getBoundingClientRect();
+          out[colId] = {
+            deltaY: svgR.top + svgR.height / 2 - (cellR.top + cellR.height / 2),
+            rightOffset: cellR.right - btn.getBoundingClientRect().right,
+          };
+        }
+        return out;
+      }, blockA);
+    await expect.poll(async () => (await readCenter()) !== null, SETTLE).toBe(true);
+    const center = (await readCenter())!;
+    for (const col of ["colA", "colB", "colC"]) {
+      // The icon's center stands the cell's center (the border's half's
+      // stand — the 1 px bottom border over the content's center).
+      expect(Math.abs(center[col]?.deltaY ?? 1), `the ${col}'s vertical's delta`).toBeLessThanOrEqual(0.5);
+      // The button's right edge stands the cell's right padding (the px-2's
+      // stand — the right zone's regression: the Ellipsis stands right).
+      expect(center[col]?.rightOffset, `the ${col}'s right's offset`).toBeCloseTo(8, 1);
+    }
+
+    // The menu's open stands the Ellipsis's press (the center's stand did
+    // not break the trigger — the rename's input stands over the open).
+    const btnA = a.locator(
+      `[data-block-id='${blockA}'] [data-slot='docblocks/database-header-cell'][data-column-id='colA'] [data-slot='docblocks/database-column-menu']`
+    );
+    await btnA.click();
+    expect(await a.locator("[data-slot='docblocks/database-rename-input']").count()).toBe(1);
+  } finally {
+    await close();
+  }
+});
+
 test("the header's menu opens only over the Ellipsis (the name's press stands nothing; the drag reorders; the cursor stands grab)", async ({
   browser,
 }) => {
