@@ -144,6 +144,16 @@ describe("dist/styles.css contract", () => {
     expect(STYLES_CSS).toContain("var(--docblocks-page-max-width) + 2 * var(--docblocks-page-padding-x)");
     expect(STYLES_CSS).toContain("max-width: var(--docblocks-page-column-max-width);");
   });
+
+  it("ships the canvas view's overscroll-behavior guard (the wheel's page-scroll chaining)", () => {
+    // The canvas view consumes every wheel (the pan / the zoom are the
+    // viewport's transform — view state, no data). The structural rule
+    // stands `overscroll-behavior: contain` on the canvas view so a wheel
+    // at the viewport's boundary never chains onto the page / the
+    // enclosing scroll container (the overlay scrollbar's flash).
+    expect(STYLES_CSS).toContain('[data-slot="docblocks/canvas-view"] {');
+    expect(STYLES_CSS).toContain("overscroll-behavior: contain");
+  });
 });
 
 // The color palette's shipped token contract: the seven pastel tokens stand
