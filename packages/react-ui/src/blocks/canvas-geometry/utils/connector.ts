@@ -102,7 +102,13 @@ function connectorPath(start: Box, end: Box, variant: ConnectorVariant): Connect
   const reach = dist / 3;
   const c1 = { x: a.x + a.nx * reach, y: a.y + a.ny * reach };
   const c2 = { x: b.x + b.nx * reach, y: b.y + b.ny * reach };
-  return { d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
+  // The seat stands on the curve's own midpoint (the bezier's t = 0.5) — the
+  // endpoints' straight mid stands in the air off the bow.
+  return {
+    d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`,
+    end: { x: b.x, y: b.y },
+    mid: cubicMid(a, c1, c2, b),
+  };
 }
 
 /** Whether the axis-aligned segment crosses the rect's INTERIOR (the
@@ -194,6 +200,21 @@ function longestSegmentMid(points: readonly RoutePoint[]): { x: number; y: numbe
   const p = points[best] ?? { x: 0, y: 0 };
   const q = points[best + 1] ?? p;
   return { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+}
+
+/** The cubic bezier's point at t = 0.5 (the curve's own midpoint — the seat
+ * stands on the bow, not the endpoints' straight mid which stands in the air
+ * off the curve). */
+function cubicMid(
+  a: { x: number; y: number },
+  c1: { x: number; y: number },
+  c2: { x: number; y: number },
+  b: { x: number; y: number }
+): { x: number; y: number } {
+  return {
+    x: 0.125 * a.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * b.x,
+    y: 0.125 * a.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * b.y,
+  };
 }
 
 /**
@@ -400,7 +421,14 @@ function connectorPathPoints(
   const bNormal = b.nx === 0 && b.ny === 0 ? perp : { nx: b.nx, ny: b.ny };
   const c1 = { x: a.x + aNormal.nx * reach, y: a.y + aNormal.ny * reach };
   const c2 = { x: b.x + bNormal.nx * reach, y: b.y + bNormal.ny * reach };
-  return { d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`, end: { x: b.x, y: b.y }, mid };
+  // The seat stands on the curve's own midpoint (the bezier's t = 0.5) — the
+  // endpoints' straight mid stands in the air off the bow (the owner's "the
+  // label in the air").
+  return {
+    d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`,
+    end: { x: b.x, y: b.y },
+    mid: cubicMid(a, c1, c2, b),
+  };
 }
 
 export { connectorHandlePoints, connectorMidpoint, connectorPath, connectorPathPoints, edgeAnchor };
