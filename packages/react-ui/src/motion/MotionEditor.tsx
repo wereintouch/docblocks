@@ -332,16 +332,19 @@ function MotionEditor({
                 {view === "canvas" ? (
                   <CanvasView />
                 ) : (
-                  // The page's content column: the max width over the
-                  // centered stand (the symmetric margins over the wide
-                  // window; the full width over the narrow one) + the
-                  // horizontal padding (the gutter band stands inside the
-                  // column, so the grip follows the content's edge, not
-                  // the viewport's). The canvas view owns its own
-                  // viewport and is unpadded.
+                  // The page's content column: the derived max width over
+                  // the centered stand (the block content's width — the
+                  // --docblocks-page-max-width token — + the two gutter
+                  // paddings: the token stands on the blocks, the paddings
+                  // stand outside it; the symmetric margins over the wide
+                  // window, the full width over the narrow one) + the
+                  // padding (the gutter band stands inside the column, so
+                  // the grip follows the content's edge, not the
+                  // viewport's). The canvas view owns its own viewport and
+                  // is unpadded.
                   <div
                     data-slot="docblocks/page"
-                    className="mx-auto w-full max-w-(--docblocks-page-max-width) px-(--docblocks-page-padding-x)"
+                    className="mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)"
                   >
                     <RowList
                       order={order}

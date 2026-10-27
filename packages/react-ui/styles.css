@@ -107,11 +107,15 @@
   --docblocks-page-padding-x: calc(
     var(--docblocks-gutter-outer) + var(--docblocks-gutter-size) + var(--docblocks-gutter-offset)
   );
-  /* The page view's content column: the max width of the centered page
-     (the gutter band + the block content stand inside it, so the gutter
-     follows the content, not the viewport's edge; a narrower viewport
+  /* The page view's content width: the max width of the BLOCK CONTENT
+     (the blocks' content-box — the gutter paddings stand outside it,
+     see the column's derived max width below; a narrower viewport
      stands the full width — the limit never over-constrains). */
   --docblocks-page-max-width: 900px;
+  /* The page view's centered column: the max width of the column's box
+     (the block content's width + the two gutter paddings — the token
+     stands on the blocks, the paddings stand outside it). */
+  --docblocks-page-column-max-width: calc(var(--docblocks-page-max-width) + 2 * var(--docblocks-page-padding-x));
 
   /* Block selection. */
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #0969da) 8%, transparent);
