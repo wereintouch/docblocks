@@ -11,6 +11,7 @@ import type { BlockId, DatabaseFilterPayload } from "docblocks-core";
 import { Badge } from "../../shared/ui/Badge";
 import { Card, CardContent } from "../../shared/ui/Card";
 import { Checkbox } from "../../shared/ui/Checkbox";
+import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
@@ -23,6 +24,7 @@ import { useDatabaseTable } from "../use-database-table";
 import { DatabaseCell, RowMenuCell } from "./Cells";
 import { HeaderCell } from "./HeaderCell";
 import { columnTypeIcon } from "./column-type-icon";
+import { useEnumOptionsMotion } from "./enum-options-motion";
 import {
   ADD_COLUMN_TYPES,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
@@ -61,11 +63,20 @@ function EnumOptionsEditor({
 
   /** The grip's drag session (the window-level pointer stand — the capture
    *  would retarget the presses): the live reorder over the draft's stand
-   *  (the release stands nothing extra — the draft IS the order). */
+   *  (the release stands nothing extra — the draft IS the order). The
+   *  pitch stands measured (the row's own box + the group's row-gap —
+   *  the stand is layout-driven, not a constant). */
   const beginGripDrag = (index: number) => (event: ReactPointerEvent) => {
     if (event.button !== 0) return;
     event.preventDefault();
-    const pitch = 36;
+    const gripEl = event.currentTarget as HTMLElement;
+    const rowEl = gripEl.closest<HTMLElement>('[data-slot="docblocks/database-enum-option-row"]');
+    const groupEl = gripEl.closest<HTMLElement>('[data-slot="docblocks/database-enum-options"]');
+    const measured =
+      rowEl !== null && groupEl !== null
+        ? rowEl.getBoundingClientRect().height + Number.parseFloat(getComputedStyle(groupEl).rowGap)
+        : Number.NaN;
+    const pitch = Number.isFinite(measured) && measured > 0 ? measured : 36;
     const startY = event.clientY;
     let current = options;
     const move = (pointer: PointerEvent) => {
@@ -90,10 +101,10 @@ function EnumOptionsEditor({
 
   return (
     <div data-slot="docblocks/database-enum-options" className="flex flex-col gap-1">
-      <div className="text-xs text-foreground">Options</div>
+      <div className="text-sm text-foreground">Options</div>
       {options.map((option, index) => (
         <div
-          key={option.rowId ?? `draft-${index}`}
+          key={option.rowId ?? option.uid ?? `draft-${index}`}
           data-slot="docblocks/database-enum-option-row"
           className="flex h-8 items-center gap-1"
         >
@@ -118,21 +129,19 @@ function EnumOptionsEditor({
                 style={option.color !== null ? { backgroundColor: option.color } : undefined}
               />
             </PopoverTrigger>
-            <PopoverContent className="flex w-fit flex-wrap items-center gap-1 p-2" style={{ width: "108px" }}>
-              {ENUM_OPTION_PALETTE.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  className="size-4 cursor-pointer rounded-full border border-border"
-                  style={{ backgroundColor: color }}
-                  onClick={() => setOption(index, { color })}
-                />
-              ))}
-              <button
-                type="button"
-                data-slot="docblocks/database-enum-option-color-none"
-                className="size-4 cursor-pointer rounded-full border border-dashed border-border"
-                onClick={() => setOption(index, { color: null })}
+            <PopoverContent className="flex items-center p-2">
+              {/* The shared color's palette (the format's / the shape's
+                  toolbars' stand): the hex's resolve over the press (the
+                  data stands the hex, never the token), the none's stand
+                  over the transparent's swatch. */}
+              <ColorSwatches
+                colors={ENUM_OPTION_PALETTE}
+                current={option.color ?? undefined}
+                label="option color"
+                allowNone
+                noneActive={option.color === null}
+                onSelect={(hex) => setOption(index, { color: hex })}
+                onSelectNone={() => setOption(index, { color: null })}
               />
             </PopoverContent>
           </Popover>
@@ -141,7 +150,7 @@ function EnumOptionsEditor({
             data-slot="docblocks/database-enum-option-name"
             placeholder="Option"
             className="
-              w-full min-w-0 flex-1 cursor-text rounded-md border border-border bg-transparent px-2 text-xs
+              w-full min-w-0 flex-1 cursor-text rounded-md border border-border bg-transparent px-2 text-sm
               text-foreground outline-none
               focus:bg-muted/60
             "
@@ -165,10 +174,10 @@ function EnumOptionsEditor({
         type="button"
         data-slot="docblocks/database-enum-option-add"
         className="
-          cursor-pointer self-start rounded-sm px-1 py-0.5 text-xs text-muted-foreground outline-none
+          cursor-pointer self-start rounded-sm px-1 py-0.5 text-sm text-muted-foreground outline-none
           hover:bg-accent hover:text-accent-foreground
         "
-        onClick={() => onChange([...options, { name: "", color: null }])}
+        onClick={() => onChange([...options, { name: "", color: null, uid: Math.random().toString(36).slice(2) }])}
       >
         + Add option
       </button>
@@ -227,6 +236,11 @@ function GridBody({
     return [...map.values()];
   }, [data.table?.columns]);
   const refTableData = useRefTables(bridge, refTableEntries);
+  // The motion's options' editor's variant (the framer's Reorder's stand
+  // over the `./motion`'s subpath — the null's stand stands the plain
+  // editor, the base's boundary's contract).
+  const motionEnumOptionsEditor = useEnumOptionsMotion();
+  const OptionsEditor = motionEnumOptionsEditor ?? EnumOptionsEditor;
   // The table catalog (the ref form's pick list; the new-table creation
   // stands the fresh catalog over the refresh bump).
   const [catalogRefresh, setCatalogRefresh] = useState(0);
@@ -1187,7 +1201,7 @@ function GridBody({
                 </PopoverTrigger>
                 <PopoverContent
                   align="end"
-                  className="w-60 p-3"
+                  className="w-72 p-3"
                   // The menu's entry stands the form: the menu's close
                   // restores the focus to the plus trigger (outside the
                   // popover content) — the focus-outside would close the
@@ -1197,13 +1211,13 @@ function GridBody({
                   onFocusOutside={(event) => event.preventDefault()}
                 >
                   <div data-slot="docblocks/database-add-column-form" className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 text-xs text-foreground">
+                    <label className="flex items-center gap-2 text-sm text-foreground">
                       Name
                       <input
                         type="text"
                         data-slot="docblocks/database-add-column-name"
                         className="
-                          w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                          w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
                           outline-none
                           focus:bg-muted/60
                         "
@@ -1216,7 +1230,7 @@ function GridBody({
                     {columnFormNumber && (
                       <>
                         {columnForm?.numberKind === "decimal" && (
-                          <label className="flex items-center gap-2 text-xs text-foreground">
+                          <label className="flex items-center gap-2 text-sm text-foreground">
                             Decimals
                             <input
                               type="number"
@@ -1224,7 +1238,7 @@ function GridBody({
                               max={10}
                               data-slot="docblocks/database-add-column-decimals"
                               className="
-                                w-16 cursor-text rounded-md border border-border bg-transparent px-1 py-0.5 text-xs
+                                w-16 cursor-text rounded-md border border-border bg-transparent px-1 py-0.5 text-sm
                                 outline-none
                                 focus:bg-muted/60
                               "
@@ -1237,7 +1251,7 @@ function GridBody({
                             />
                           </label>
                         )}
-                        <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
                           <Checkbox
                             data-slot="docblocks/database-add-column-thousands"
                             checked={columnForm?.thousands ?? false}
@@ -1249,13 +1263,13 @@ function GridBody({
                           />
                           Thousands' separator
                         </label>
-                        <label className="flex items-center gap-2 text-xs text-foreground">
+                        <label className="flex items-center gap-2 text-sm text-foreground">
                           Prefix
                           <input
                             type="text"
                             data-slot="docblocks/database-add-column-prefix"
                             className="
-                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
                               outline-none
                               focus:bg-muted/60
                             "
@@ -1267,13 +1281,13 @@ function GridBody({
                             }
                           />
                         </label>
-                        <label className="flex items-center gap-2 text-xs text-foreground">
+                        <label className="flex items-center gap-2 text-sm text-foreground">
                           Suffix
                           <input
                             type="text"
                             data-slot="docblocks/database-add-column-suffix"
                             className="
-                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
                               outline-none
                               focus:bg-muted/60
                             "
@@ -1285,7 +1299,7 @@ function GridBody({
                             }
                           />
                         </label>
-                        <label className="flex cursor-pointer items-center gap-2 text-xs text-foreground">
+                        <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
                           <Checkbox
                             data-slot="docblocks/database-add-column-negative"
                             checked={columnForm?.allowNegative ?? true}
@@ -1303,8 +1317,11 @@ function GridBody({
                       /* The enum's options' editor (the create / the edit's
                           stand): the ref table's pick is out (the options
                           stand over the column's own system table — the
-                          created / the edited stand). */
-                      <EnumOptionsEditor
+                          created / the edited stand). The motion's variant
+                          (the framer's Reorder's rows) stands over the
+                          slot's context; the plain's editor is the stand
+                          over its absence. */
+                      <OptionsEditor
                         options={columnForm.enumOptions ?? []}
                         onChange={(next) =>
                           setColumnForm((draft) => (draft === null ? draft : { ...draft, enumOptions: next }))
@@ -1320,7 +1337,7 @@ function GridBody({
                             value), the portaled list stands the standard
                             tokens (the --docblocks-* do not reach the
                             body). */}
-                        <label className="flex items-center gap-2 text-xs text-foreground">
+                        <label className="flex items-center gap-2 text-sm text-foreground">
                           Table
                           <Select
                             value={
@@ -1352,14 +1369,14 @@ function GridBody({
                           </Select>
                         </label>
                         {(columnForm?.refPick ?? "") === NEW_TABLE_PICK && (
-                          <label className="flex items-center gap-2 text-xs text-foreground">
+                          <label className="flex items-center gap-2 text-sm text-foreground">
                             Name
                             <input
                               type="text"
                               data-slot="docblocks/database-add-column-ref-new"
                               placeholder="New table name"
                               className="
-                                w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-xs
+                                w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
                                 text-foreground outline-none
                                 focus:bg-muted/60
                               "
@@ -1391,7 +1408,7 @@ function GridBody({
                             (columnForm.refPick === NEW_TABLE_PICK && columnForm.newTableName.trim() === "")))
                       }
                       className="
-                        cursor-pointer rounded-md border border-border bg-accent px-2 py-1 text-xs text-foreground
+                        cursor-pointer rounded-md border border-border bg-accent px-2 py-1 text-sm text-foreground
                         outline-none
                         hover:opacity-70
                         disabled:cursor-not-allowed disabled:opacity-50

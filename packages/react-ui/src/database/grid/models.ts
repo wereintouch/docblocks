@@ -65,6 +65,10 @@ interface AddColumnFormDraft {
  *  the edit's commit's diff). */
 interface EnumOptionDraft {
   rowId?: string;
+  /** A stable identity for a not-yet-committed draft row (the motion's
+   * reorder's key stands it — the index-based key stands the live swap's
+   * identity churn). */
+  uid?: string;
   name: string;
   color: string | null;
 }

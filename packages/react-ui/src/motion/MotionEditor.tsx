@@ -22,6 +22,7 @@ import { BlockContext } from "../blocks/block-context";
 import { deriveFlat, entrySequenceParent, visibleRows } from "../blocks/flat";
 import type { FlatNode } from "../blocks/flat";
 import { FormatPaletteContext } from "../blocks/format-palette-context";
+import { EnumOptionsMotionSlot } from "../database/grid/enum-options-motion";
 import { segmentRange } from "../editing/block-commands";
 import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "../editing/mention";
@@ -30,6 +31,7 @@ import { useEditing } from "../editing/useEditing";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
 import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
+import { MotionEnumOptionsEditor } from "./EnumOptions";
 import { RowList } from "./RowList";
 import { useEnterAnimationGate, useTypingFlag } from "./hooks";
 import { HANDLE_GRAB_STYLE, SLIDE_SETTLE_MS } from "./models";
@@ -309,66 +311,72 @@ function MotionEditor({
     // The inner div is the editor root: the focus and keyboard scope and
     // the token-mapping scope.
     <Card className={cn(view === "canvas" && "min-h-0 flex-1")}>
-      <div
-        ref={rootRef}
-        data-slot="docblocks/editor"
-        data-docblocks-motion=""
-        data-view={view}
-        tabIndex={-1}
-        className={cn(
-          "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",
-          "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
-          "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
-        )}
-        onKeyDown={onKeyDown}
-        onCopy={onCopy}
-        onPointerDown={onRootPointerDown}
-      >
-        <style>{HANDLE_GRAB_STYLE}</style>
-        <MentionMenuContext.Provider value={mention.api}>
-          <SlashMenuContext.Provider value={slash.api}>
-            <FormatPaletteContext.Provider value={formatPalette}>
-              <BlockContext.Provider value={rootContext}>
-                {view === "canvas" ? (
-                  <CanvasView />
-                ) : (
-                  // The page's content column: the derived max width over
-                  // the centered stand (the block content's width — the
-                  // --docblocks-page-max-width token — + the two gutter
-                  // paddings: the token stands on the blocks, the paddings
-                  // stand outside it; the symmetric margins over the wide
-                  // window, the full width over the narrow one) + the
-                  // padding (the gutter band stands inside the column, so
-                  // the grip follows the content's edge, not the
-                  // viewport's). The canvas view owns its own viewport and
-                  // is unpadded.
-                  <div
-                    data-slot="docblocks/page"
-                    className="mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)"
-                  >
-                    <RowList
-                      order={order}
-                      nodesById={nodesById}
-                      layoutSlide={layoutSlide || draggingKey !== null}
-                      draggingKey={draggingKey}
-                      previewIndent={previewIndent}
-                      animated={enterGate.current}
-                      onReorder={onRowReorder}
-                      onDragStart={onRowDragStart}
-                      onDragMove={onRowDragMove}
-                      onDragEnd={onRowDragEnd}
-                    />
-                  </div>
-                )}
-                <PresenceCaretOverlay rootRef={rootRef} />
-              </BlockContext.Provider>
-            </FormatPaletteContext.Provider>
-          </SlashMenuContext.Provider>
-        </MentionMenuContext.Provider>
-        {slash.menuNode}
-        {mention.menuNode}
-        {format.toolbarNode}
-      </div>
+      {/* The database's enum's options' editor stands the motion's variant
+          (the framer's Reorder's rows) over this provider — the database
+          block's grid renders through the base's BlockView, so the swap
+          stands the context, not the renderer's registry. */}
+      <EnumOptionsMotionSlot.Provider value={MotionEnumOptionsEditor}>
+        <div
+          ref={rootRef}
+          data-slot="docblocks/editor"
+          data-docblocks-motion=""
+          data-view={view}
+          tabIndex={-1}
+          className={cn(
+            "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",
+            "font-(family-name:--docblocks-font-family) text-(length:--docblocks-font-size)",
+            "leading-(--docblocks-line-height) text-(--docblocks-text-color)"
+          )}
+          onKeyDown={onKeyDown}
+          onCopy={onCopy}
+          onPointerDown={onRootPointerDown}
+        >
+          <style>{HANDLE_GRAB_STYLE}</style>
+          <MentionMenuContext.Provider value={mention.api}>
+            <SlashMenuContext.Provider value={slash.api}>
+              <FormatPaletteContext.Provider value={formatPalette}>
+                <BlockContext.Provider value={rootContext}>
+                  {view === "canvas" ? (
+                    <CanvasView />
+                  ) : (
+                    // The page's content column: the derived max width over
+                    // the centered stand (the block content's width — the
+                    // --docblocks-page-max-width token — + the two gutter
+                    // paddings: the token stands on the blocks, the paddings
+                    // stand outside it; the symmetric margins over the wide
+                    // window, the full width over the narrow one) + the
+                    // padding (the gutter band stands inside the column, so
+                    // the grip follows the content's edge, not the
+                    // viewport's). The canvas view owns its own viewport and
+                    // is unpadded.
+                    <div
+                      data-slot="docblocks/page"
+                      className="mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)"
+                    >
+                      <RowList
+                        order={order}
+                        nodesById={nodesById}
+                        layoutSlide={layoutSlide || draggingKey !== null}
+                        draggingKey={draggingKey}
+                        previewIndent={previewIndent}
+                        animated={enterGate.current}
+                        onReorder={onRowReorder}
+                        onDragStart={onRowDragStart}
+                        onDragMove={onRowDragMove}
+                        onDragEnd={onRowDragEnd}
+                      />
+                    </div>
+                  )}
+                  <PresenceCaretOverlay rootRef={rootRef} />
+                </BlockContext.Provider>
+              </FormatPaletteContext.Provider>
+            </SlashMenuContext.Provider>
+          </MentionMenuContext.Provider>
+          {slash.menuNode}
+          {mention.menuNode}
+          {format.toolbarNode}
+        </div>
+      </EnumOptionsMotionSlot.Provider>
     </Card>
   );
 }

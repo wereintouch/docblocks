@@ -2,7 +2,7 @@
  * read-only display and the cell itself (the column annotation's editor). */
 import { format } from "date-fns";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
 
 import { Calendar } from "../../shared/ui/Calendar";
@@ -178,6 +178,51 @@ interface RefOption {
 /** The chip's ink (the option's colors stand the pastel data — the dark
  *  ink stands legible on them over both themes). */
 const OPTION_CHIP_INK = "#262626";
+/** The picker's content's width's clamp: the cell's width's floor, the
+ *  widest option's width's drive, the 220 px's ceiling (the option's
+ *  ellipsis over the ceiling's stand). */
+const PICKER_MAX_WIDTH_PX = 220;
+/** The picker's width's chrome over the widest label (the row's px-2 +
+ *  the chip's px-2 + the content's p-2 — the 16 px × 3); the multi's
+ *  stand adds the checkbox's size-4 + the row's gap-2. */
+const PICKER_CHROME_SINGLE_PX = 48;
+const PICKER_CHROME_MULTI_PX = 72;
+/** The option's label's measurement (the row's `text-sm`'s stand): the
+ *  probe reads the label's width over the popover content's own font
+ *  (the portaled content stands the body's font, not the editor's). */
+function measureOptionLabelPx(label: string, fontFamily: string): number {
+  const probe = document.createElement("span");
+  probe.style.cssText = `position:fixed;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font-size:14px;font-family:${fontFamily};`;
+  probe.textContent = label;
+  document.body.appendChild(probe);
+  const width = probe.offsetWidth;
+  probe.remove();
+  return width;
+}
+/** The picker's content's width's clamp (the min = the cell's width, the
+ *  widest option's drive, the 220 px's ceiling): measured over the
+ *  content's mount (the font's read stands the portaled content's own
+ *  computed stand). */
+function usePickerWidthPx(
+  open: boolean,
+  trigger: HTMLElement | null,
+  labels: readonly string[],
+  multi: boolean
+): number | undefined {
+  const [width, setWidth] = useState<number | undefined>(undefined);
+  useEffect(() => {
+    if (!open || trigger === null) {
+      setWidth(undefined);
+      return;
+    }
+    const cellWidth = trigger.getBoundingClientRect().width;
+    const fontFamily = getComputedStyle(trigger).fontFamily;
+    const widest = labels.reduce((max, label) => Math.max(max, measureOptionLabelPx(label, fontFamily)), 0);
+    const chrome = multi ? PICKER_CHROME_MULTI_PX : PICKER_CHROME_SINGLE_PX;
+    setWidth(Math.min(PICKER_MAX_WIDTH_PX, Math.max(cellWidth, widest + chrome)));
+  }, [open, trigger, labels, multi]);
+  return width;
+}
 /**
  * The many value's chips stand (the multi-enum / the row-links): the train
  * of the option labels over the cell (the joined text's stand is out —
@@ -189,7 +234,9 @@ const OPTION_CHIP_INK = "#262626";
 function RefValueChips({ values, options, fade }: { values: string[]; options: RefOption[]; fade?: boolean }) {
   // The many value's stand (the multi's): the overflowing train's right edge
   // stands the fade (the `data-fade`'s mask — the chips clip without the
-  // ellipsis); the single's stand (the fade stands none) keeps the chip's
+  // ellipsis); the chip stands its text's natural width (the shrink stands
+  // none — the train overflows and the fade stands, the chip's text never
+  // compresses). The single's stand (the fade stands none) keeps the chip's
   // ellipsis over the long label (the text's stand).
   if (values.length === 0) return null;
   return (
@@ -207,8 +254,8 @@ function RefValueChips({ values, options, fade }: { values: string[]; options: R
             data-option-value={value}
             style={option?.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined}
             className={cn(
-              "max-w-full shrink overflow-hidden rounded-(--docblocks-radius) px-1.5 leading-5 whitespace-nowrap",
-              !fade && "text-ellipsis",
+              "overflow-hidden rounded-(--docblocks-radius) px-1.5 leading-5 whitespace-nowrap",
+              fade ? "shrink-0" : "max-w-full shrink text-ellipsis",
               option?.color === undefined && "bg-muted"
             )}
           >
@@ -228,6 +275,8 @@ function OptionPickerList({
   options,
   multi,
   values,
+  currentEmpty,
+  tall,
   onPick,
   onToggle,
   onClear,
@@ -235,7 +284,15 @@ function OptionPickerList({
 }: {
   options: RefOption[];
   multi: boolean;
+  /** The selected's values (the single's stand: the current's value over
+   *  the array; the multi's stand: the committed's array). */
   values: string[];
+  /** The single's empty's stand (the cell stands no value): the clear's
+   *  row stands the selected's background (the current's state's stand). */
+  currentEmpty?: boolean;
+  /** The overflow's popover's stand (the list's height's stretch — the
+   *  values' full's stand over the scroll's inner stand). */
+  tall?: boolean;
   onPick: (value: string) => void;
   onToggle: (value: string) => void;
   onClear?: () => void;
@@ -258,16 +315,20 @@ function OptionPickerList({
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
-      <div className="max-h-48 overflow-y-auto">
+      <div
+        data-slot="docblocks/database-enum-picker-list"
+        className={cn("overflow-y-auto", tall ? "max-h-80" : "max-h-48")}
+      >
         <div className="flex flex-col gap-1">
           {onClear !== undefined && (
             <button
               type="button"
               data-slot="docblocks/database-enum-picker-clear"
-              className="
-                block w-full cursor-pointer rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground outline-none
-                hover:bg-accent hover:text-accent-foreground
-              "
+              className={cn(
+                "block w-full cursor-pointer rounded-(--docblocks-radius) px-2 py-1.5 text-left text-sm",
+                "text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground",
+                currentEmpty && "bg-muted text-foreground"
+              )}
               onClick={() => {
                 onClear();
                 onEditEnd();
@@ -283,10 +344,11 @@ function OptionPickerList({
               data-option-value={option.value}
               data-state={multi ? (values.includes(option.value) ? "checked" : "unchecked") : undefined}
               role={multi ? undefined : "button"}
-              className="
-                flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground
-                hover:bg-accent
-              "
+              className={cn(
+                "flex cursor-pointer items-center gap-2 rounded-(--docblocks-radius) px-2 py-1.5 text-sm",
+                "text-foreground hover:bg-accent",
+                values.includes(option.value) && "bg-muted"
+              )}
               onClick={() => {
                 if (multi) onToggle(option.value);
                 else {
@@ -307,7 +369,7 @@ function OptionPickerList({
                   option.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined
                 }
                 className={cn(
-                  "max-w-full shrink truncate rounded-(--docblocks-radius) px-1.5 leading-5",
+                  "max-w-full shrink truncate rounded-(--docblocks-radius) px-2 leading-5",
                   option.color === undefined && "bg-muted"
                 )}
               >
@@ -350,6 +412,18 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
     else next.delete(option.value);
     onCommit([...next]);
   };
+  const [trigger, setTrigger] = useState<HTMLSpanElement | null>(null);
+  const optionLabels = useMemo(() => options.map((option) => option.label), [options]);
+  // The width's clamp (the cell's floor, the widest option's drive, the
+  // 220 px's ceiling) over the content's font's stand.
+  const width = usePickerWidthPx(true, trigger, optionLabels, true);
+  // The overflow's stand (the clipped's train): the list's height's stretch
+  // (the values' full's stand over the scroll's inner stand).
+  const [tall, setTall] = useState(false);
+  useEffect(() => {
+    const chips = trigger?.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chips"]');
+    setTall(chips != null && chips.scrollWidth > chips.clientWidth + 1);
+  }, [trigger]);
   return (
     <Popover
       open
@@ -359,8 +433,9 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
     >
       <PopoverTrigger asChild>
         <span
+          ref={setTrigger}
           data-slot="docblocks/database-ref-multi-trigger"
-          className="block w-full cursor-default text-(length:--docblocks-font-size)"
+          className="pointer-events-none block w-full text-(length:--docblocks-font-size)"
         >
           <RefValueChips values={values} options={options} fade />
         </span>
@@ -368,12 +443,14 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
       <PopoverContent
         align="start"
         sideOffset={4}
+        style={width !== undefined ? { width: `${width}px` } : undefined}
         className="flex w-(--radix-popover-trigger-width) flex-col gap-1 p-2"
       >
         <OptionPickerList
           options={options}
           multi
           values={values}
+          tall={tall}
           onPick={() => undefined}
           onToggle={(value) => {
             const option = options.find((entry) => entry.value === value);
@@ -406,6 +483,19 @@ interface EnumPickerProps {
  * press / the double press stands the list (the `open`'s session stand).
  */
 function EnumPicker({ options, current, open, onPick, onClear, onEditEnd }: EnumPickerProps) {
+  const [trigger, setTrigger] = useState<HTMLSpanElement | null>(null);
+  const optionLabels = useMemo(() => options.map((option) => option.label), [options]);
+  // The width's clamp (the cell's floor, the widest option's drive, the
+  // 220 px's ceiling) over the content's font's stand.
+  const width = usePickerWidthPx(open, trigger, optionLabels, false);
+  // The overflow's stand (the clipped's chip): the list's height's stretch
+  // (the value's full's stand over the scroll's inner stand).
+  const [tall, setTall] = useState(false);
+  useEffect(() => {
+    const chips = trigger?.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chips"]');
+    setTall(open && chips != null && chips.scrollWidth > chips.clientWidth + 1);
+  }, [open, trigger]);
+  const currentValues = current === null ? [] : [current];
   return (
     <Popover
       open={open}
@@ -415,21 +505,25 @@ function EnumPicker({ options, current, open, onPick, onClear, onEditEnd }: Enum
     >
       <PopoverTrigger asChild>
         <span
+          ref={setTrigger}
           data-slot="docblocks/database-enum-picker-trigger"
-          className="block w-full cursor-default px-1 text-(length:--docblocks-font-size)"
+          className="pointer-events-none block w-full px-1 text-(length:--docblocks-font-size)"
         >
-          <RefValueChips values={current === null ? [] : [current]} options={options} />
+          <RefValueChips values={currentValues} options={options} />
         </span>
       </PopoverTrigger>
       <PopoverContent
         align="start"
         sideOffset={4}
+        style={width !== undefined ? { width: `${width}px` } : undefined}
         className="flex w-(--radix-popover-trigger-width) flex-col gap-1 p-2"
       >
         <OptionPickerList
           options={options}
           multi={false}
-          values={[]}
+          values={currentValues}
+          currentEmpty={current === null}
+          tall={tall}
           onPick={onPick}
           onToggle={() => undefined}
           onClear={onClear}
@@ -538,7 +632,7 @@ function RowLinkPicker({ rowIds, displays, current, open, onPick, onClear, onEdi
       <PopoverTrigger asChild>
         <span
           data-slot="docblocks/database-row-picker-trigger"
-          className="block w-full cursor-default px-1 text-(length:--docblocks-font-size)"
+          className="pointer-events-none block w-full px-1 text-(length:--docblocks-font-size)"
         >
           {current === "" ? null : <span className="line-clamp-1">{displays[current] ?? current}</span>}
         </span>
@@ -989,6 +1083,24 @@ function DatabaseCell({
       )}
       style={dragStyle}
       onPointerDown={onPointerDown}
+      onClick={(event) => {
+        // The enum's overflow's stand (the value's display clipped — the
+        // ellipsis / the fade's mask): the press stands the picker's
+        // popover (the value's full's stand) over the selection's stand
+        // (the non-overflowing's value keeps the press model — the double
+        // press is the picker's stand). The single's chip truncates (the
+        // clip's measure stands the chip's own box); the multi's train
+        // overflows (the clip's measure stands the train's container).
+        // The open stands the click (the popover's mount over the
+        // in-flight press stands the radix's outside-dismiss).
+        if (annotation.valueInput !== "enum") return;
+        const prober = isManyRef
+          ? event.currentTarget.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chips"]')
+          : event.currentTarget.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chip"]');
+        if (prober !== null && prober.scrollWidth > prober.clientWidth + 1) {
+          onEditStart();
+        }
+      }}
       onDoubleClick={() => {
         if (annotation.valueInput === "boolean") {
           // The interactive click's toggle already stands over the double
