@@ -76,7 +76,7 @@ test("the page/canvas view toggle (the DocHeader's switcher — the pane's singl
   await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas-item"]`)).toHaveCount(4);
 });
 
-test("the page's content column stands the centered max width (the narrow stand full width; the wide stand's 900 px + the symmetric margins; the token's override; the gutter follows the content)", async ({
+test("the page's content column stands the centered max width (the narrow stand full width; the wide stand's block zone 900 px + the symmetric margins; the token's override stands on the blocks; the gutter follows the content)", async ({
   browser,
 }) => {
   const context = await browser.newContext({ viewport: { width: 1600, height: 900 } });
@@ -91,41 +91,52 @@ test("the page's content column stands the centered max width (the narrow stand 
     interface Boxes {
       r: { x: number; width: number };
       c: { x: number; width: number };
+      content: { x: number; width: number };
       grip: { x: number };
+      paddingLeft: number;
     }
     const boxes = async (): Promise<Boxes> => {
-      const [r, c, grip] = await Promise.all([
+      const [r, c, content, grip, paddingLeft] = await Promise.all([
         root.boundingBox(),
         column.boundingBox(),
+        a.locator(`${ROOT} [data-slot="docblocks/block-content"]`).first().boundingBox(),
         a.locator(`${ROOT} [data-slot="docblocks/gutter"]`).first().boundingBox(),
+        column.evaluate((el) => parseFloat(getComputedStyle(el).paddingLeft)),
       ]);
-      if (r === null || c === null || grip === null) throw new Error("the box stands none");
-      return { r, c, grip };
+      if (r === null || c === null || content === null || grip === null) {
+        throw new Error("the box stands none");
+      }
+      return { r, c, content, grip, paddingLeft };
     };
 
-    // The NARROW stand (the harness's golden width 720 < the 900 px
-    // token): the limit stands no compression — the column stands the
+    // The NARROW stand (the harness's golden width 720 < the column's
+    // derived max width — the 900 px's block zone + the two gutter
+    // paddings): the limit stands no compression — the column stands the
     // full width (no margins, no over-constraint).
     const narrow = await boxes();
     expect(narrow.c.width).toBeCloseTo(narrow.r.width, 0);
     expect(Math.abs(narrow.c.x - narrow.r.x)).toBeLessThan(2);
 
-    // The WIDE stand (the doc area's width over the token): the column
-    // stands 900 px, centered (the symmetric margins), and the gutter's
-    // grip stands at the content's edge (the outer clearance over the
-    // column's edge — the grip follows the content, not the viewport's
-    // edge).
+    // The WIDE stand (the doc area's width over the column's derived max
+    // width): the BLOCK ZONE stands 900 px (the token stands on the blocks'
+    // content-box — the column's box is 900 + 2×padding, centered; the
+    // symmetric margins; the gutter's grip stands at the column's edge,
+    // the outer clearance past it — the grip's relative geometry over the
+    // blocks stands: the column is wider by the two paddings, the grip
+    // and the blocks stand as before).
     await a.evaluate(() => {
       document.querySelector<HTMLElement>('[data-testid="doc-a"]')!.style.width = "1100px";
     });
     const wide = await boxes();
-    expect(wide.c.width).toBeCloseTo(900, 0);
+    expect(wide.content.width).toBeCloseTo(900, 0);
+    expect(wide.c.width - 2 * wide.paddingLeft).toBeCloseTo(900, 0);
     const leftMargin = wide.c.x - wide.r.x;
     const rightMargin = wide.r.x + wide.r.width - (wide.c.x + wide.c.width);
     expect(Math.abs(leftMargin - rightMargin)).toBeLessThan(2);
     expect(wide.grip.x - wide.c.x).toBeCloseTo(8, 0);
 
-    // The consumer's token override stands (the 700 px's column; the
+    // The consumer's token override stands (the 700 px stands on the
+    // blocks' content — the column's box re-stands 700 + 2×padding; the
     // margins re-stand symmetric over the re-measured column).
     await a.evaluate(() => {
       document
@@ -133,7 +144,8 @@ test("the page's content column stands the centered max width (the narrow stand 
         .style.setProperty("--docblocks-page-max-width", "700px");
     });
     const overridden = await boxes();
-    expect(overridden.c.width).toBeCloseTo(700, 0);
+    expect(overridden.content.width).toBeCloseTo(700, 0);
+    expect(overridden.c.width - 2 * overridden.paddingLeft).toBeCloseTo(700, 0);
     expect(Math.abs(overridden.c.x - overridden.r.x)).toBeCloseTo(
       overridden.r.x + overridden.r.width - (overridden.c.x + overridden.c.width),
       0

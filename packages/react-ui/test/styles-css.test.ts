@@ -132,13 +132,17 @@ describe("dist/styles.css contract", () => {
     expect(STYLES_CSS).toContain("-moz-appearance: textfield");
   });
 
-  it("ships the page content column's max-width token (the centered stand)", () => {
+  it("ships the page content column's max-width tokens (the centered stand; the block content's width over the paddings)", () => {
     // The page view's content column stands the max width over the
-    // centered stand (the consumer's override hook): the token stands a
-    // literal default in the editor-root mapping, and the utility layer
-    // resolves the arbitrary-value class to the var reference.
+    // centered stand (the consumer's override hook): the block content's
+    // width token stands a literal default, the derived column token
+    // (token + the two gutter paddings — the paddings stand outside the
+    // blocks' width) resolves the column's box, and the utility layer
+    // resolves the arbitrary-value class to the derived var reference.
     expect(STYLES_CSS).toContain("--docblocks-page-max-width: 900px;");
-    expect(STYLES_CSS).toContain("max-width: var(--docblocks-page-max-width);");
+    expect(STYLES_CSS).toContain("--docblocks-page-column-max-width: calc(");
+    expect(STYLES_CSS).toContain("var(--docblocks-page-max-width) + 2 * var(--docblocks-page-padding-x)");
+    expect(STYLES_CSS).toContain("max-width: var(--docblocks-page-column-max-width);");
   });
 });
 
