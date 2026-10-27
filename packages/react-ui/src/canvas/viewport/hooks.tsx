@@ -43,9 +43,9 @@ import type {
   PlacePreview,
   ResizeSession,
 } from "./models";
-import { snapEdgePoint, snapEndpointEdge } from "./utils";
-import { writeCanvasViewport, WRITE_DEBOUNCE_MS } from "./persistence";
+import { WRITE_DEBOUNCE_MS, writeCanvasViewport } from "./persistence";
 import type { PersistedViewport } from "./persistence";
+import { snapEdgePoint, snapEndpointEdge } from "./utils";
 
 // The portT's commit rounding: the edge's fractional position stands at
 // the 4-digit stand (0.0001 — sub-pixel on any sane edge at any zoom).
