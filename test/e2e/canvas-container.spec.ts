@@ -441,6 +441,69 @@ test.describe("the canvas container (the reworked group)", () => {
     }
   });
 
+  test("the title's chip stands the standard font size (the world-px stand, the zoom's scale)", async ({ browser }) => {
+    const { a, b, close } = await twoPanes(browser, "container-title-font");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      // The group's box is set so the top-left chip stands at the world's
+      // (0, 0) (the canvas's center) — the chip stays centered through the
+      // zoom's steps (the world-scale's read is clean).
+      const group = await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        let g = "";
+        doc.transact(() => {
+          const surface = doc.insertBlock("surface");
+          g = doc.insertBlock("group", { members: [], title: "report" }, { parent: surface });
+          doc.setGeometry(g, { x: 108, y: 80, w: 240, h: 160 });
+        });
+        return g;
+      });
+      await expect.poll(async () => (await docBlocks(b, "b"))[group] !== undefined, SETTLE).toBe(true);
+      const chip = a.locator("[data-slot='docblocks/group-title']");
+      await expect(chip).toHaveCount(1);
+      // The chip stands the STANDARD font size (the editor's
+      // --docblocks-font-size, not the former hardcoded 11px) — the world-px
+      // stand at zoom 100%.
+      const fontPx = await chip.evaluate((el) => getComputedStyle(el).fontSize);
+      const tokenPx = await a.evaluate(
+        () =>
+          new Promise<string>((resolve) => {
+            const probe = document.createElement("div");
+            probe.style.fontSize = "var(--docblocks-font-size)";
+            document.body.appendChild(probe);
+            resolve(getComputedStyle(probe).fontSize);
+            probe.remove();
+          })
+      );
+      expect(fontPx, "the chip's font-size stands the editor's standard").toBe(tokenPx);
+      expect(fontPx).not.toBe("11px");
+      // The display and the inline-edit stand the SAME size (the parity:
+      // display = edit-input).
+      await chip.dblclick();
+      const edit = a.locator('[data-slot="docblocks/group-title-edit"]');
+      await expect(edit).toHaveCount(1);
+      const editPx = await edit.evaluate((el) => getComputedStyle(el).fontSize);
+      expect(editPx).toBe(fontPx);
+      // The rename's commit stands (the inline-edit's contract is not
+      // broken by the re-sized chip).
+      await edit.fill("quarter report");
+      await edit.press("Enter");
+      await expect.poll(async () => (await docBlocks(b, "b"))[group]?.attrs?.title, SETTLE).toBe("quarter report");
+      // The world-scale regression: at zoom 200% the chip scales with the
+      // container (the world layer's transform — the px stands the world's).
+      const h100 = (await chip.boundingBox())!.height;
+      const zoom = a.getByRole("toolbar", { name: "Canvas zoom" });
+      for (let i = 0; i < 10; i += 1) await zoom.getByLabel("Zoom in").click();
+      expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("200%");
+      const h200 = (await chip.boundingBox())!.height;
+      expect(h200 / h100).toBeCloseTo(2, 1);
+    } finally {
+      await close();
+    }
+  });
+
   test("the between-container move: the member leaves the old and joins the new over the wire", async ({ browser }) => {
     const { a, b, close } = await twoPanes(browser, "container-between");
     try {
