@@ -67,12 +67,19 @@ async function setDocTitle(page: Page, title: string): Promise<void> {
   await input.press("Enter");
 }
 
-/** Commits an avatar through the panel's inline edit (click, fill, Enter). */
-async function setDocAvatar(page: Page, avatar: string): Promise<void> {
+/**
+ * Commits an avatar through the panel's emoji popover (open, pick the option
+ * by its accessible label). The popover closes on the pick.
+ */
+async function setDocAvatar(page: Page, emojiLabel: string): Promise<void> {
   await page.getByRole("button", { name: "Edit the document avatar" }).click();
-  const input = page.getByRole("textbox", { name: "Document avatar" });
-  await input.fill(avatar);
-  await input.press("Enter");
+  await page.getByRole("button", { name: emojiLabel }).click();
+}
+
+/** Clears the avatar through the panel's emoji popover's clear option. */
+async function clearDocAvatar(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Edit the document avatar" }).click();
+  await page.getByRole("button", { name: "Remove avatar" }).click();
 }
 
 test("the title edit commits one setTitle and syncs to the second pane (the JSON and the panel)", async ({
@@ -93,14 +100,23 @@ test("the title edit commits one setTitle and syncs to the second pane (the JSON
   }
 });
 
-test("the avatar edit commits one setAvatar and syncs to the second pane", async ({ browser }) => {
+test("the avatar pick commits one setAvatar and syncs to the second pane (the popover closes on the pick)", async ({
+  browser,
+}) => {
   const { a, b, close } = await twoPanes(browser, "doc-header-avatar");
   try {
-    await setDocAvatar(a, "🦊");
+    await setDocAvatar(a, "Fox");
     await expect.poll(() => metaOf(a, "a").then((m) => m.avatar), SETTLE).toBe("🦊");
+    // The popover closed on the pick (the grid is gone).
+    await expect(a.getByRole("button", { name: "Remove avatar" })).toHaveCount(0);
     // Pane B's JSON and its panel stand the synced avatar.
     await expect.poll(() => metaOf(b, "b").then((m) => m.avatar), SETTLE).toBe("🦊");
     await expect.poll(() => b.getByRole("button", { name: "Edit the document avatar" }).innerText(), SETTLE).toBe("🦊");
+    // The clear option removes it (the dashed plus stand) and syncs.
+    await clearDocAvatar(a);
+    await expect.poll(() => metaOf(a, "a").then((m) => m.avatar), SETTLE).toBe("");
+    await expect.poll(() => metaOf(b, "b").then((m) => m.avatar), SETTLE).toBe("");
+    await expect.poll(() => a.getByRole("button", { name: "Edit the document avatar" }).innerText(), SETTLE).toBe("+");
   } finally {
     await close();
   }
@@ -230,7 +246,7 @@ test("the title and the avatar edits are one undo step each (the undo reverts th
     });
     await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("");
 
-    await setDocAvatar(a, "🦊");
+    await setDocAvatar(a, "Fox");
     await expect.poll(() => metaOf(a, "a").then((m) => m.avatar), SETTLE).toBe("🦊");
     // The single undo reverts the avatar (the clear stands absent).
     await a.evaluate(() => {
@@ -250,6 +266,180 @@ test("the document views are headerless (the panel is the pane's chrome, not the
     await expect(docArea.locator('[data-slot="docblocks/doc-header"]')).toHaveCount(0);
     // The pane's chrome stands the panel.
     await expect(a.locator('[data-slot="docblocks/doc-header"]')).toHaveCount(1);
+  } finally {
+    await close();
+  }
+});
+
+test("the panel's composition stands the order (the switcher, the avatar, the title) and the Untitled placeholder", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "doc-header-composition");
+  try {
+    // The order left to right: the view switcher, the avatar, the title.
+    const order = await a.evaluate(() => {
+      const header = document.querySelector('[data-slot="docblocks/doc-header"]');
+      if (header === null) return null;
+      const els = [
+        header.querySelector('[data-slot="docblocks/doc-header-view"]'),
+        header.querySelector('[data-slot="docblocks/doc-header-avatar"]'),
+        header.querySelector('[data-slot="docblocks/doc-header-title"]'),
+      ];
+      const xs = els.map((el) => (el === null ? null : (el as HTMLElement).getBoundingClientRect().x));
+      return xs.every((x) => x !== null) ? (xs as number[]) : null;
+    });
+    expect(order).not.toBeNull();
+    expect(order).toEqual([...order!].sort((x, y) => x - y));
+    // The absent title stands the "Untitled" placeholder.
+    await expect(a.getByText("Untitled")).toBeVisible();
+  } finally {
+    await close();
+  }
+});
+
+test("the title edit seats the caret at the end (no select-all); the Enter commits and blurs; the Escape reverts and blurs", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "doc-header-title-caret");
+  try {
+    await setDocTitle(a, "Original title");
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("Original title");
+
+    // The caret stands after the last character (a select-all would stand
+    // the range 0..len — the selectionStart distinguishes the two).
+    await a.getByRole("button", { name: "Edit the document title" }).click();
+    const input = a.getByRole("textbox", { name: "Document title" });
+    await expect.poll(async () => input.inputValue(), SETTLE).toBe("Original title");
+    const selection = await a.evaluate(() =>
+      document.activeElement instanceof HTMLInputElement
+        ? { start: document.activeElement.selectionStart, end: document.activeElement.selectionEnd }
+        : null
+    );
+    expect(selection).toEqual({
+      start: "Original title".length,
+      end: "Original title".length,
+    });
+
+    // The Enter commits and blurs (the focus leaves the input).
+    await input.press("Enter");
+    await expect
+      .poll(async () => a.evaluate(() => document.activeElement?.getAttribute("data-slot") ?? null), SETTLE)
+      .not.toBe("docblocks/doc-header-title-edit");
+
+    // The Escape reverts (no write) and blurs.
+    await a.getByRole("button", { name: "Edit the document title" }).click();
+    const input2 = a.getByRole("textbox", { name: "Document title" });
+    await input2.fill("Changed");
+    await input2.press("Escape");
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("Original title");
+    await expect
+      .poll(async () => a.evaluate(() => document.activeElement?.getAttribute("data-slot") ?? null), SETTLE)
+      .not.toBe("docblocks/doc-header-title-edit");
+  } finally {
+    await close();
+  }
+});
+
+test("the title edit's blur commits over the wire (the click-away)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "doc-header-title-blur");
+  try {
+    await a.getByRole("button", { name: "Edit the document title" }).click();
+    const input = a.getByRole("textbox", { name: "Document title" });
+    await input.fill("Blur committed");
+    // The blur (the click on the view switcher) commits.
+    await a.getByRole("button", { name: "Page view" }).click();
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("Blur committed");
+    await expect.poll(() => metaOf(b, "b").then((m) => m.title), SETTLE).toBe("Blur committed");
+    await expect
+      .poll(() => b.getByRole("button", { name: "Edit the document title" }).innerText(), SETTLE)
+      .toBe("Blur committed");
+  } finally {
+    await close();
+  }
+});
+
+test("the empty title commit stands the Untitled placeholder (the undo reverts)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "doc-header-title-empty");
+  try {
+    await setDocTitle(a, "Gone");
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("Gone");
+    // The empty-string commit (the cleared input, the Enter).
+    await a.getByRole("button", { name: "Edit the document title" }).click();
+    const input = a.getByRole("textbox", { name: "Document title" });
+    await input.fill("");
+    await input.press("Enter");
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("");
+    await expect(a.getByText("Untitled")).toBeVisible();
+    await expect(a.getByText("Gone")).toHaveCount(0);
+    // The undo reverts to "Gone".
+    await a.evaluate(() => {
+      window.__paneDocs?.a?.undo();
+    });
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("Gone");
+  } finally {
+    await close();
+  }
+});
+
+test("the title edit's no-op commit (the unchanged value) stands no wire write and no undo step", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "doc-header-noop");
+  try {
+    await setDocTitle(a, "Same");
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("Same");
+    // The no-op commit (the same value, the Enter).
+    await a.getByRole("button", { name: "Edit the document title" }).click();
+    const input = a.getByRole("textbox", { name: "Document title" });
+    await input.press("Enter"); // the unchanged value
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("Same");
+    // A single undo reverts the seed (the no-op added no step).
+    await a.evaluate(() => {
+      window.__paneDocs?.a?.undo();
+    });
+    await expect.poll(() => metaOf(a, "a").then((m) => m.title), SETTLE).toBe("");
+    // A single undo reverts the seed (the no-op added no step): if the no-op
+    // had written, this undo would be the no-op and the title would stand.
+  } finally {
+    await close();
+  }
+});
+
+test("the avatar popover's portaled content stands the standard tokens (the `--popover` background, not the `--docblocks-*`)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "doc-header-avatar-tokens");
+  try {
+    await a.getByRole("button", { name: "Edit the document avatar" }).click();
+    await expect(a.getByRole("button", { name: "Remove avatar" })).toBeVisible();
+    // The portaled popover content's background resolves the standard
+    // `--popover` token (the panel is outside the editor root, where the
+    // `--docblocks-*` tokens are not mapped).
+    const info = await a.evaluate(() => {
+      const content = document.querySelector('[data-slot="popover-content"]');
+      if (content === null) return null;
+      const probe = (val: string) => {
+        const el = document.createElement("div");
+        el.style.backgroundColor = val;
+        el.style.position = "absolute";
+        el.style.width = "0";
+        el.style.height = "0";
+        document.body.appendChild(el);
+        const c = getComputedStyle(el).backgroundColor;
+        el.remove();
+        return c;
+      };
+      return {
+        bg: getComputedStyle(content).backgroundColor,
+        expected: probe("var(--popover)"),
+        // The popover content is portaled (a body-level surface, not nested
+        // under the doc-header panel).
+        portaled: !document.querySelector('[data-slot="docblocks/doc-header"]')?.contains(content),
+      };
+    });
+    expect(info).not.toBeNull();
+    expect(info!.bg).toBe(info!.expected);
+    expect(info!.portaled).toBe(true);
   } finally {
     await close();
   }

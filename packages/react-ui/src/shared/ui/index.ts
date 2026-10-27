@@ -6,8 +6,11 @@ export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader,
 export { Checkbox } from "./Checkbox";
 export { normalizeHex, resolveColorToHex, rgbToHex } from "./color-utils";
 export { ColorSwatches } from "./ColorSwatches";
+export { AVATAR_EMOJI } from "./emoji-catalog";
+export type { AvatarEmoji } from "./emoji-catalog";
 export { DatePicker } from "./DatePicker";
 export { DateTimePicker } from "./DateTimePicker";
+export { EmojiPicker } from "./EmojiPicker";
 export { FigureBorderSelector } from "./FigureBorderSelector";
 export {
   DropdownMenu,
