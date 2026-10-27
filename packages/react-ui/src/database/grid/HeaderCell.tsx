@@ -9,6 +9,7 @@ import { cn } from "../../shared/ui/cn";
 import { Ellipsis } from "../../shared/ui/icons";
 import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
+import { columnTypeIcon } from "./column-type-icon";
 
 interface HeaderCellProps {
   column: BridgeColumn;
@@ -70,6 +71,9 @@ function HeaderCell({
   // right / the boolean's center — the column stands whole: the header and
   // the value's stand match; the other types stand the left's default).
   const valueInput = columnAnnotation(column).valueInput;
+  // The type's mark (the lucide icon set — the header's name-line's left
+  // stand; a separate element, never part of the rename's input).
+  const ColumnIcon = columnTypeIcon(column.type, column.refKind, column.refMany);
   const commitRename = () => {
     const trimmed = nameDraft.trim();
     if (trimmed !== "" && trimmed !== column.name) onRename(trimmed);
@@ -101,6 +105,7 @@ function HeaderCell({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
     >
+      <ColumnIcon className="size-4 shrink-0 text-muted-foreground" />
       <span
         className={cn(
           `min-w-0 flex-1 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)`,
@@ -144,7 +149,11 @@ function HeaderCell({
                   }
                 }}
               />
-              <span data-slot="docblocks/database-column-type" className="px-1.5 text-xs text-muted-foreground">
+              <span
+                data-slot="docblocks/database-column-type"
+                className="flex items-center gap-1 px-1.5 text-xs text-muted-foreground"
+              >
+                <ColumnIcon className="size-3.5 shrink-0" />
                 {column.type}
               </span>
             </div>
