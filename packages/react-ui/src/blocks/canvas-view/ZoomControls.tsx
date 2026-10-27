@@ -40,8 +40,15 @@ const ZoomControls = memo(
           <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={() => onStep(-1)}>
             <Minus className="size-4" />
           </Button>
-          <Button variant="ghost" size="sm" aria-label="Reset zoom" className="min-w-14 tabular-nums" onClick={onReset}>
-            {Math.round(zoom * 100)}%
+          <Button variant="ghost" size="sm" aria-label="Reset zoom" onClick={onReset}>
+            {/* The fixed-width display (the widest stand — the 3 digits
+              + the % — the zoom's 25–400% range stands no 4-digit
+              value): the percentage's change never reflows the row —
+              the fit / the zoom out / the zoom in buttons stand put
+              over the zoom change. The width stands in ch (the font's
+              digit width over tabular-nums), so a consumer's font
+              stand scales it without a reflow. */}
+            <span className="w-[5ch] text-center tabular-nums">{Math.round(zoom * 100)}%</span>
           </Button>
           <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={() => onStep(1)}>
             <Plus className="size-4" />
