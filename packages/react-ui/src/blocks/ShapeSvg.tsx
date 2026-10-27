@@ -76,10 +76,10 @@ function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?
       </>
     );
   } else if (attrs?.variant === "cloud") {
-    // The cloud's outline (the lucide silhouette MIRRORED over its
-    // vertical axisscaled to the box:
-    // the arc radii scale anisotropically, the stroke width stands). The
-    // mirrored x's stand the inverse arc sweep flags (1 → 0).
+    // The cloud's outline (the silhouette MIRRORED over its vertical axis
+    //scaled to the box: the arc radii
+    // scale anisotropically, the stroke width stands). The mirrored x's
+    // stand the inverse arc sweep flags (1 → 0).
     const boxW = Math.max(w - strokeWidth, 0);
     const boxH = Math.max(h - strokeWidth, 0);
     const px = (x: number) => inset + (x - 2) * (boxW / 19.5);

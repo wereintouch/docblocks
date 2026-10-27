@@ -4,19 +4,25 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import * as Icons from "../src/shared/ui/icons";
 
-// The committed icon set: self-contained SVG files (lucide path data), no
-// runtime lucide-react dependency. Pin the exact set so a removal or an
-// unlisted addition is a test failure. The per-file self-containment is
-// pinned in icons-files.test.ts (node environment).
+// The committed icon set: self-contained SVG files (the local SVG path
+// data), no runtime icon-library dependency. Pin the exact set so a
+// removal or an unlisted addition is a test failure. The per-file
+// self-containment is pinned in icons-files.test.ts (node environment).
 const ICON_SET = [
   "Baseline",
   "Bold",
+  "Cable",
+  "Calendar",
+  "CalendarClock",
   "Captions",
   "Check",
   "ChevronDown",
+  "ChevronUp",
   "ChevronsDownUp",
   "ChevronsUpDown",
+  "Circle",
   "CircleCheck",
+  "CircleChevronDown",
   "CodeXml",
   "Copy",
   "Database",
@@ -31,6 +37,7 @@ const ICON_SET = [
   "Image",
   "Italic",
   "List",
+  "ListChecks",
   "ListOrdered",
   "LoaderCircle",
   "Menu",
@@ -50,6 +57,7 @@ const ICON_SET = [
   "Triangle",
   "TriangleAlert",
   "TriangleFilled",
+  "Type",
   "Underline",
   "X",
 ] as const;
@@ -57,6 +65,37 @@ const ICON_SET = [
 afterEach(cleanup);
 
 describe("shared/ui/icons", () => {
+  it("stands the consumer's props (the size's width/height, the className, the currentColor's stroke)", () => {
+    // The 13 icons of the default catalog (the consumer's API:
+    // the SVG props over the component).
+    const ownerSet = [
+      "Check",
+      "ChevronDown",
+      "ChevronUp",
+      "ChevronRight",
+      "Circle",
+      "Cable",
+      "Calendar",
+      "CalendarClock",
+      "CircleCheck",
+      "CircleChevronDown",
+      "Hash",
+      "ListChecks",
+      "Type",
+    ] as const;
+    for (const name of ownerSet) {
+      const Icon = Icons[name];
+      const { container, unmount } = render(<Icon width={14} height={14} className="hidden" />);
+      const svg = container.querySelector("svg");
+      expect(svg, name).not.toBeNull();
+      expect(svg?.getAttribute("width"), name).toBe("14");
+      expect(svg?.getAttribute("height"), name).toBe("14");
+      expect(svg?.getAttribute("class"), name).toBe("hidden");
+      expect(svg?.getAttribute("stroke"), name).toBe("currentColor");
+      expect(svg?.querySelector("path, line, rect, circle"), name).not.toBeNull();
+      unmount();
+    }
+  });
   it("renders a 24x24 color-anchored svg per icon", () => {
     for (const name of ICON_SET) {
       const Icon = Icons[name];

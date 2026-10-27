@@ -1,11 +1,20 @@
-/** The column type's icon mapping's pin (the 10 types' lucide set — the
+/** The column type's icon mapping's pin (the 10 types' icon set — the
  * header's name-line + the create-menu's entries). The relation's kinds
  * read first (a ref's type stands the plain `text`), then the scalar's
  * type. */
-import { Cable, Calendar, CalendarClock, CircleCheck, CircleChevronDown, Hash, ListChecks, Type } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import { columnTypeIcon } from "../src/database/grid/column-type-icon";
+import {
+  Cable,
+  Calendar,
+  CalendarClock,
+  CircleCheck,
+  CircleChevronDown,
+  Hash,
+  ListChecks,
+  Type,
+} from "../src/shared/ui/icons";
 
 describe("columnTypeIcon", () => {
   it("the scalar's types stand their icons", () => {

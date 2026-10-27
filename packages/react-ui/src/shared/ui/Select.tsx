@@ -1,11 +1,11 @@
 "use client";
 
 import * as SelectPrimitive from "@radix-ui/react-select";
-import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 
 import * as React from "react";
 
 import { cn } from "./cn";
+import { Check, ChevronDown, ChevronUp } from "./icons";
 
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />;
@@ -61,7 +61,7 @@ function SelectTrigger({
       {children}
       {bare ? null : (
         <SelectPrimitive.Icon asChild>
-          <ChevronDownIcon className="size-4 opacity-50" />
+          <ChevronDown className="size-4 opacity-50" />
         </SelectPrimitive.Icon>
       )}
     </SelectPrimitive.Trigger>
@@ -149,7 +149,7 @@ function SelectItem({ className, children, ...props }: React.ComponentProps<type
     >
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <CheckIcon className="size-4" />
+          <Check className="size-4" />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
@@ -174,7 +174,7 @@ function SelectScrollUpButton({ className, ...props }: React.ComponentProps<type
       className={cn("flex cursor-default items-center justify-center py-1", className)}
       {...props}
     >
-      <ChevronUpIcon className="size-4" />
+      <ChevronUp className="size-4" />
     </SelectPrimitive.ScrollUpButton>
   );
 }
@@ -189,7 +189,7 @@ function SelectScrollDownButton({
       className={cn("flex cursor-default items-center justify-center py-1", className)}
       {...props}
     >
-      <ChevronDownIcon className="size-4" />
+      <ChevronDown className="size-4" />
     </SelectPrimitive.ScrollDownButton>
   );
 }

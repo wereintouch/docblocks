@@ -2999,7 +2999,7 @@ test("the cell's value stands the column type's align (the number's right; the b
   }
 });
 
-test("the header's type icon stands left of the name (the 10 types' lucide set; both panes; the muted token's color; the px-2 stands)", async ({
+test("the header's type icon stands left of the name (the 10 types' icon set; both panes; the muted token's color; the px-2 stands)", async ({
   browser,
 }) => {
   const { a, b, close } = await twoPanesSharedContext(browser, "db-typeicon");
@@ -3037,16 +3037,16 @@ test("the header's type icon stands left of the name (the 10 types' lucide set; 
       return {
         mainId,
         expected: {
-          c_text: "lucide-type",
-          c_int: "lucide-hash",
-          c_dec: "lucide-hash",
-          c_bool: "lucide-circle-check",
-          c_date: "lucide-calendar",
-          c_dt: "lucide-calendar-clock",
-          c_enum: "lucide-circle-chevron-down",
-          c_multi: "lucide-list-checks",
-          c_rowlink: "lucide-cable",
-          c_rowlinks: "lucide-cable",
+          c_text: "type",
+          c_int: "hash",
+          c_dec: "hash",
+          c_bool: "circle-check",
+          c_date: "calendar",
+          c_dt: "calendar-clock",
+          c_enum: "circle-chevron-down",
+          c_multi: "list-checks",
+          c_rowlink: "cable",
+          c_rowlinks: "cable",
         },
       };
     });
@@ -3055,14 +3055,15 @@ test("the header's type icon stands left of the name (the 10 types' lucide set; 
 
     // The header's icon stand from one read (the grid's own DOM — no locator's
     // auto-wait / the strict-mode's stand over the grid's rows): per column,
-    // the direct-child svg's class list + the icon's left of the name.
+    // the direct-child svg's shape signature (the svg's path data +
+    // the line/rect/circle counts) + the icon's left of the name.
     const readIcons = (pane: Page) =>
       pane.evaluate((id) => {
         const grid = document.querySelector(
           `[data-block-id="${id}"] [data-slot="docblocks/database-grid"]`
         ) as HTMLElement | null;
         if (grid === null) return null;
-        const out: Record<string, { cls: string; iconLeftOfName: boolean }> = {};
+        const out: Record<string, { sig: string; iconLeftOfName: boolean }> = {};
         for (const cell of Array.from(
           grid.querySelectorAll<HTMLElement>('[data-slot="docblocks/database-header-cell"]')
         )) {
@@ -3070,21 +3071,44 @@ test("the header's type icon stands left of the name (the 10 types' lucide set; 
           const icon = cell.querySelector<SVGElement>(":scope > svg");
           const nameSpan = cell.querySelector<HTMLElement>(":scope > span");
           if (icon === null || nameSpan === null) return null;
+          const paths = Array.from(icon.querySelectorAll("path")).map((p) => p.getAttribute("d") ?? "");
+          const sig = [
+            `lines=${icon.querySelectorAll("line").length}`,
+            `rects=${icon.querySelectorAll("rect").length}`,
+            `circles=${icon.querySelectorAll("circle").length}`,
+            `paths=${paths.join(",")}`,
+          ].join(";");
           out[colId] = {
-            cls: Array.from(icon.classList).join(" "),
+            sig,
             iconLeftOfName: icon.getBoundingClientRect().left < nameSpan.getBoundingClientRect().left,
           };
         }
         return out;
       }, blockA);
 
-    // Both panes' icons stand the type's lucide class (the mapping) + the
-    // icon's left of the name.
+    // The markers the default SVG set stands (the mapping's parity over the
+    // former icon's class read): per type, the distinctive element's count
+    // + the path datum (the contains' stand over the full signature — the
+    // shape's identity, not the byte's).
+    const MARKERS: Record<string, string[]> = {
+      type: ["circles=0;paths=", "M12 4v16", "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"],
+      hash: ["lines=4"],
+      "circle-check": ["circles=1", "m16 9-5.5 5.5L8 12"],
+      calendar: ["rects=1", "M3 9h18"],
+      "calendar-clock": ["circles=1", "M16 14v2.2l1.6 1"],
+      "circle-chevron-down": ["circles=1", "m16 10-4 4-4-4"],
+      "list-checks": ["M13 5h8", "m3 17 2 2 4-4"],
+      cable: ["M19 14V6.5a1 1 0 0 0-7 0v11a1 1 0 0 1-7 0V10"],
+    };
+    // Both panes' icons stand the type's markers (the mapping) + the icon's
+    // left of the name.
     for (const pane of [a, b]) {
       await expect.poll(async () => (await readIcons(pane)) !== null, SETTLE).toBe(true);
       const icons = (await readIcons(pane))!;
-      for (const [col, cls] of Object.entries(expected)) {
-        expect(icons[col]?.cls, `the ${col}'s icon's class`).toContain(cls);
+      for (const [col, type] of Object.entries(expected)) {
+        for (const marker of MARKERS[type]!) {
+          expect(icons[col]?.sig, `the ${col}'s icon's signature`).toContain(marker);
+        }
         expect(icons[col]?.iconLeftOfName, `the ${col}'s icon's left of the name`).toBe(true);
       }
     }

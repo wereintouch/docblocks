@@ -222,8 +222,8 @@ function GroupTitleMenu({
         aria-expanded={open}
         className="
           rounded-(--docblocks-radius) border border-(--docblocks-table-border-color)
-          bg-(--docblocks-page-card-background) px-2 py-0.5 text-(length:--docblocks-font-size)
-          leading-5 text-(--docblocks-text-color)
+          bg-(--docblocks-page-card-background) px-2 py-0.5 text-(length:--docblocks-font-size) leading-5
+          text-(--docblocks-text-color)
         "
         onClick={() => onOpenChange(!open)}
       >

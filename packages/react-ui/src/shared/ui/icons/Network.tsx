@@ -1,6 +1,6 @@
 import type { SVGProps } from "react";
 
-/** The canvas mode's icon (the lucide "network" shape: the central node and its peers). */
+/** The canvas mode's icon (the central node and its peers). */
 function Network(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
