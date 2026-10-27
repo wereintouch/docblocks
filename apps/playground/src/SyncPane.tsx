@@ -319,12 +319,28 @@ function SyncPane({
           overflow: "hidden",
           background: "var(--background)",
         }
-      : // The page flow keeps the visual-golden editor width (702: the doc area's
-        // content width the goldens were captured at). The width is 720 because
-        // the shipped utility CSS puts box-sizing: border-box on every element
-        // (the preflight in the shipped styles.css's base layer): 702 content + 2x1 border +
-        // 2x8 padding.
-        { width: 720, maxWidth: "100%", border: "1px solid var(--border)", padding: 8, minHeight: 40 };
+      : // The page flow's doc area: a fixed width over the wide window —
+        // the box hugs the page column (the 1060 px's column — the 900 px
+        // block zone + the two 80 px gutter paddings — + the editor
+        // card's 2x1 border + the box's 2x1 border + 2x8 padding = 1080
+        // border-box): the blocks stand exactly the token's width over
+        // the box. The narrow window stands the full width (the limit
+        // never over-constrains). The CATALOG mode keeps the visual-golden
+        // editor width (702: the doc area's content width the goldens
+        // were captured at) — the width is 720 because the shipped
+        // utility CSS puts box-sizing: border-box on every element (the
+        // preflight in the shipped styles.css's base layer): 702 content
+        // + 2x1 border + 2x8 padding.
+        catalog
+        ? { width: 720, maxWidth: "100%", border: "1px solid var(--border)", padding: 8, minHeight: 40 }
+        : {
+            width: 1080,
+            maxWidth: "100%",
+            alignSelf: "center",
+            border: "1px solid var(--border)",
+            padding: 8,
+            minHeight: 40,
+          };
 
   // main must stay content-height (a viewport-pinned fixed height makes
   // Chrome swallow the default Home/End caret moves inside the nested
