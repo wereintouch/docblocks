@@ -393,6 +393,26 @@ describe("connectorPathPoints", () => {
     const free = connectorPathPoints({ x: 0, y: 0, nx: 0, ny: 0 }, { x: 300, y: 0, nx: 0, ny: 0 }, "curved");
     expect(free.d).toBe("M 0 0 C 0 -100, 300 -100, 300 0");
   });
+
+  it("curved: the seat stands on the curve's own midpoint (the bezier's t=0.5, not the endpoints' straight mid)", () => {
+    // The 777 scene: start's south port, end's west port, curved.
+    // The curve bows out — the endpoints' straight mid stands in the air
+    // off the bow; the seat stands on the curve (the bezier's t = 0.5).
+    const a = { x: 756.23, y: -46.39, nx: 0, ny: 1 };
+    const b = { x: 1168.82, y: 47.54, nx: -1, ny: 0 };
+    const path = connectorPathPoints(a, b, "curved");
+    // The straight mid (the former buggy stand — in the air).
+    const straight = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    expect(path.mid).not.toEqual(straight);
+    // The mid stands on the curve (the bezier's t = 0.5).
+    const reach = Math.hypot(b.x - a.x, b.y - a.y) / 3;
+    const c1 = { x: a.x + a.nx * reach, y: a.y + a.ny * reach };
+    const c2 = { x: b.x + b.nx * reach, y: b.y + b.ny * reach };
+    expect(path.mid).toEqual({
+      x: 0.125 * a.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * b.x,
+      y: 0.125 * a.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * b.y,
+    });
+  });
 });
 
 describe("connectorPath", () => {
@@ -442,6 +462,28 @@ describe("connectorPath", () => {
     expect(path.d).toBe(`M -200 ${yA} C ${-200 + reach} ${yA}, ${200 - reach} ${yB}, 200 ${yB}`);
     // The end stands at the end edge (the arrowhead's tip seat).
     expect(path.end).toEqual({ x: 200, y: yB });
+  });
+
+  it("curved: the seat stands on the curve's own midpoint (the bezier's t=0.5, not the endpoints' straight mid)", () => {
+    // The legacy box form (the plain-ref pair): the curve bows out along
+    // the anchored edges' normals — the endpoints' straight mid stands in
+    // the air off the bow; the seat stands on the curve (the bezier's
+    // t = 0.5).
+    const path = connectorPath(A, B, "curved");
+    const dist = Math.hypot(400, 200 - (100 / 600) * 400);
+    const reach = dist / 3;
+    const yA = -100 + (100 / 600) * 200;
+    const yB = 100 - (100 / 600) * 200;
+    const a = { x: -200, y: yA };
+    const c1 = { x: -200 + reach, y: yA };
+    const c2 = { x: 200 - reach, y: yB };
+    const b = { x: 200, y: yB };
+    expect(path.mid).toEqual({
+      x: 0.125 * a.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * b.x,
+      y: 0.125 * a.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * b.y,
+    });
+    // The straight mid (the former buggy stand) stands off the curve.
+    expect(path.mid).not.toEqual({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
   });
 
   it("the variant switch keeps the same endpoints (only the shape changes)", () => {
@@ -521,6 +563,34 @@ describe("connectorMidpoint", () => {
     expect(mid).not.toEqual({ x: 25, y: 125 });
     // The seat stands on the polyline (the longest run's mid — (0, 131)).
     expect(mid).toEqual({ x: 0, y: 131 });
+  });
+
+  it("the curved port-pair's seat stands on the curve (the 777 scene — the chip was in the air)", () => {
+    // start's south port, end's west port, curved: the curve bows out, so
+    // the endpoints' straight mid (the former stand) stood in the air off
+    // the bow. The seat stands on the curve (the bezier's t = 0.5).
+    const blocks = {
+      a: { type: "shape", geometry: { x: 756.23, y: -225.46, w: 333.29, h: 358.15 } },
+      b: { type: "shape", geometry: { x: 1253.39, y: 47.54, w: 169.14, h: 169.14 } },
+      c1: {
+        type: "connector",
+        attrs: { start: { blockId: "a", port: "south" }, end: { blockId: "b", port: "west" }, variant: "curved" },
+      },
+    } as unknown as Record<string, Block>;
+    const mid = connectorMidpoint(CONN, ["a", "b"], blocks);
+    // The resolved endpoints: a's south port (x, y + h/2), b's west port
+    // (x - w/2, y).
+    const a = { x: 756.23, y: -225.46 + 358.15 / 2 };
+    const b = { x: 1253.39 - 169.14 / 2, y: 47.54 };
+    const reach = Math.hypot(b.x - a.x, b.y - a.y) / 3;
+    const c1 = { x: a.x + 0 * reach, y: a.y + 1 * reach }; // the south normal (0, 1)
+    const c2 = { x: b.x + -1 * reach, y: b.y + 0 * reach }; // the west normal (-1, 0)
+    expect(mid).toEqual({
+      x: 0.125 * a.x + 0.375 * c1.x + 0.375 * c2.x + 0.125 * b.x,
+      y: 0.125 * a.y + 0.375 * c1.y + 0.375 * c2.y + 0.125 * b.y,
+    });
+    // The straight mid (the former air) stands off the curve.
+    expect(mid).not.toEqual({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
   });
 
   it("the stored points' polyline stands the endpoints' midpoint (the points stand the route, not the seat)", () => {
