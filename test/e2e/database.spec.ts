@@ -622,8 +622,10 @@ test("the header: the type stands in the menu only, the widths align with the ro
   const titleHeader = a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='title']");
   await expect(titleHeader).toHaveText("Title", SETTLE);
 
-  // The header's press stands the menu (the read-only type line + the hide).
-  await titleHeader.click();
+  // The Ellipsis's press stands the menu (the read-only type line + the
+  // hide) — the header's name zone's press stands nothing (the menu-open's
+  // only trigger is the Ellipsis's own press).
+  await titleHeader.locator("[data-slot='docblocks/database-column-menu']").click();
   const menuType = a.locator("[data-slot='docblocks/database-column-type']");
   await expect(menuType).toBeVisible(SETTLE);
   await expect(menuType).toHaveText("text");
@@ -877,11 +879,11 @@ test("the header's name stands the px-2 padding (the text stands over the data's
     expect(Math.abs(stands.iconLeftOffset - 8)).toBeLessThan(1);
     expect(stands.nameRightOfIcon).toBe(true);
 
-    // The rename stands (the menu's press + the rename commit — the
+    // The rename stands (the Ellipsis's press + the rename commit — the
     // geometry / the hit stand unaffected by the padding): the column's
     // name updates over the wire.
     const headerCell = a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='c1']");
-    await headerCell.click();
+    await headerCell.locator("[data-slot='docblocks/database-column-menu']").click();
     const rename = a.locator("[data-slot='docblocks/database-rename-input']");
     await expect(rename).toBeVisible(SETTLE);
     await rename.fill("Renamed Column");
@@ -2607,11 +2609,11 @@ test("the enum's edit form (the options' diff: the values stand; the names / the
     );
     await expect(statusChip).toHaveText("todo", SETTLE);
 
-    // The edit's open (the column menu's "Edit options" entry): the draft
-    // prefills from the system table (the order's stand, the names, the
-    // colors).
+    // The edit's open (the column menu's "Edit options" entry — the
+    // Ellipsis's press opens the menu): the draft prefills from the system
+    // table (the order's stand, the names, the colors).
     const header = gridA.locator("[data-slot='docblocks/database-header-cell'][data-column-id='status']");
-    await header.click();
+    await header.locator("[data-slot='docblocks/database-column-menu']").click();
     const menu = a.locator("[data-slot='dropdown-menu-content']");
     await expect(menu).toBeVisible(SETTLE);
     await menu.locator("[data-slot='docblocks/database-column-edit-options']").click();
@@ -3111,6 +3113,90 @@ test("the header's type icon stands left of the name (the 10 types' lucide set; 
     await a.evaluate(() => document.documentElement.classList.remove("dark"));
     const light = await iconColor(a);
     expect(light.icon).toBe(light.token);
+  } finally {
+    await close();
+  }
+});
+
+test("the header's menu opens only over the Ellipsis (the name's press stands nothing; the drag reorders; the cursor stands grab)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "db-header-menu");
+  try {
+    const { tableId, blockA } = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const id = await bridge.createTable("HeaderMenu");
+      for (const [cid, name] of [
+        ["colA", "Alpha"],
+        ["colB", "Beta"],
+        ["colC", "Gamma"],
+      ] as [string, string][]) {
+        await bridge.createColumn(id, { id: cid, name, type: "text" });
+      }
+      const blockA = window.__paneDocs!.a!.insertBlock("database", { tableId: id });
+      return { tableId: id, blockA };
+    });
+    await b.evaluate((id) => window.__paneDocs!.b!.insertBlock("database", { tableId: id }), tableId);
+
+    const headerA = a.locator(
+      `[data-block-id='${blockA}'] [data-slot='docblocks/database-header-cell'][data-column-id='colA']`
+    );
+    await expect(headerA).toBeVisible(SETTLE);
+
+    // The cursor stands grab over the header (the drag's affordance — the
+    // hand; the active's grabing over the press's stand).
+    expect(await headerA.evaluate((el) => getComputedStyle(el).cursor)).toBe("grab");
+
+    // A click on the name's zone (the header's left part — the Ellipsis
+    // stands right) stands nothing: the column menu's popover stands absent
+    // (the Ellipsis's own press is the only menu-open's trigger).
+    const nameSpan = headerA.locator(":scope > span").first();
+    const nameBox = (await nameSpan.boundingBox())!;
+    await a.mouse.click(nameBox.x + nameBox.width / 2, nameBox.y + nameBox.height / 2);
+    await a.waitForTimeout(250);
+    // The menu's rename input (the column menu's content) stands absent.
+    expect(await a.locator("[data-slot='docblocks/database-rename-input']").count()).toBe(0);
+
+    // The Ellipsis's press stands the menu (the rename's input + the items
+    // — the existing's content's regression: the type's line stands).
+    await a
+      .locator(
+        `[data-block-id='${blockA}'] [data-slot='docblocks/database-header-cell'][data-column-id='colA'] [data-slot='docblocks/database-column-menu']`
+      )
+      .click();
+    const rename = a.locator("[data-slot='docblocks/database-rename-input']");
+    await expect(rename).toBeVisible(SETTLE);
+    await expect(a.locator("[data-slot='docblocks/database-column-type']")).toHaveText("text", SETTLE);
+    await a.keyboard.press("Escape");
+    await expect(rename).toHaveCount(0, SETTLE);
+
+    const headerOrder = (pane: Page) =>
+      pane
+        .locator(`[data-block-id='${blockA}'] [data-slot='docblocks/database-header-cell']`)
+        .evaluateAll((cells) => cells.map((cell) => cell.getAttribute("data-column-id")));
+    // Before the drag: colA stands first (the creation's order).
+    expect((await headerOrder(a))[0]).toBe("colA");
+
+    // The drag's reorder stands from the header's name's zone (the past-
+    // threshold's press: the columnOrder's commit, both panes' resync). The
+    // name's stand is the same zone (the click's point) — the drag is a
+    // past-threshold press, not the click's no-op. The target stands past
+    // colC's (the last column's) live midpoint (the parting's shift) — colA
+    // lands at the sequence's end.
+    const dragBox = (await headerA.boundingBox())!;
+    const colCBox = (await a
+      .locator(`[data-block-id='${blockA}'] [data-slot='docblocks/database-header-cell'][data-column-id='colC']`)
+      .boundingBox())!;
+    await a.mouse.move(dragBox.x + 12, dragBox.y + dragBox.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(colCBox.x + colCBox.width + 50, dragBox.y + dragBox.height / 2, { steps: 12 });
+    await a.waitForTimeout(250);
+    await a.mouse.up();
+
+    // After the drag: colA stands no longer first (the reorder's commit).
+    await expect.poll(async () => (await headerOrder(a))[0], SETTLE).not.toBe("colA");
+    // Pane B's grid resyncs from the columnOrder's attr (the wire's commit).
+    await expect.poll(async () => (await headerOrder(b))[0], SETTLE).not.toBe("colA");
   } finally {
     await close();
   }

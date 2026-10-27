@@ -521,8 +521,11 @@ function GridBody({
     dragSession.current = null;
     if (session === null) return;
     if (!session.started) {
-      // A sub-threshold press: the header click stands the menu.
-      setColumnMenu(session.columnId);
+      // A sub-threshold press (a click) on the header's zone stands nothing:
+      // the properties' menu opens only over the Ellipsis's own press (the
+      // Radix trigger — a press without movement past the threshold). The
+      // name zone's cursor-grab is the drag's affordance; a click there is
+      // a no-op (the drag is a past-threshold press).
       return;
     }
     setDrag(null);
