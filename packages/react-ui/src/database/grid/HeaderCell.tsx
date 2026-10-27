@@ -184,7 +184,13 @@ function HeaderCell({
         data-slot="docblocks/database-col-resize"
         data-index={colIndex}
         className={cn(
-          `absolute top-0 -right-1.5 z-10 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity hover:opacity-100`,
+          // The strip stands centered on the cell's right edge (the 3 px
+          // over each side): the seam's line is the hit zone's middle, so
+          // the pointer over the border stands the stable col-resize.
+          `
+            absolute top-0 -right-0.75 z-10 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity
+            hover:opacity-100
+          `,
           resizing && "opacity-100"
         )}
         onPointerDown={onResizePointerDown}
@@ -192,7 +198,10 @@ function HeaderCell({
         onPointerUp={onResizePointerUp}
         onPointerCancel={onResizePointerCancel}
       >
-        <div data-slot="docblocks/database-col-resize-line" className="h-full w-0.5 rounded bg-(--muted-foreground)" />
+        <div
+          data-slot="docblocks/database-col-resize-line"
+          className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded bg-(--muted-foreground)"
+        />
       </div>
     </div>
   );
