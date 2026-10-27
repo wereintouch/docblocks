@@ -785,3 +785,88 @@ test.describe("the canvas dock", () => {
     }
   });
 });
+
+test("the zoom toolbar's width stands fixed over the percentage's digit change (the fit/zoom-out/zoom-in buttons stand put; the 25%–400% steps + the reset stand)", async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  const room = `zoomfixed-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await openPane(a, "a", room);
+    await toCanvas(a, "a");
+
+    const toolbar = zoomToolbar(a, "a");
+    const fit = toolbar.getByRole("button", { name: "Fit to screen" });
+    const zoomOut = toolbar.getByRole("button", { name: "Zoom out" });
+    const zoomIn = toolbar.getByRole("button", { name: "Zoom in" });
+    const reset = toolbar.getByRole("button", { name: "Reset zoom" });
+
+    // The fixed-width contract: the toolbar's width and the fit / zoom
+    // out / zoom in buttons' x-positions stand identical over the
+    // percentage's digit change (25% / 90% / 100% / 400%).
+    interface Stand {
+      toolbarWidth: number;
+      fitX: number;
+      zoomOutX: number;
+      zoomInX: number;
+    }
+    const stand = async (): Promise<Stand> => {
+      const [t, f, o, i] = await Promise.all([
+        toolbar.boundingBox(),
+        fit.boundingBox(),
+        zoomOut.boundingBox(),
+        zoomIn.boundingBox(),
+      ]);
+      if (t === null || f === null || o === null || i === null) throw new Error("the box stands none");
+      return { toolbarWidth: t.width, fitX: f.x, zoomOutX: o.x, zoomInX: i.x };
+    };
+
+    // The step's stand: click until the display's value (the step's
+    // clamp over the 25%–400% range — the stops stand 0.3, …, 0.25,
+    // so the value's stand, not the click count, is the contract).
+    const stepUntil = async (button: import("@playwright/test").Locator, value: string): Promise<void> => {
+      for (let step = 0; step < 50 && (await reset.textContent()) !== value; step += 1) {
+        await button.click();
+      }
+      expect(await reset.textContent()).toBe(value);
+    };
+
+    // The 100% stand (the canvas entry over the empty doc: the fit's
+    // no-op, the zoom stands the default 1).
+    expect(await reset.textContent()).toBe("100%");
+    const at100 = await stand();
+
+    // 90% (one step down): the display's digit count changes (4 → 3
+    // signs) — the toolbar stands no reflow.
+    await stepUntil(zoomOut, "90%");
+    const at90 = await stand();
+    expect(at90.toolbarWidth).toBeCloseTo(at100.toolbarWidth, 1);
+    expect(at90.fitX).toBeCloseTo(at100.fitX, 1);
+    expect(at90.zoomOutX).toBeCloseTo(at100.zoomOutX, 1);
+    expect(at90.zoomInX).toBeCloseTo(at100.zoomInX, 1);
+
+    // The reset stands (the 100% stand, the step's regression).
+    await reset.click();
+    expect(await reset.textContent()).toBe("100%");
+
+    // 400% (the max clamp — the step stands to the clamp): the 3-digit
+    // stand stands no reflow over the 4-digit stand's position.
+    await stepUntil(zoomIn, "400%");
+    const at400 = await stand();
+    expect(at400.toolbarWidth).toBeCloseTo(at100.toolbarWidth, 1);
+    expect(at400.fitX).toBeCloseTo(at100.fitX, 1);
+    expect(at400.zoomInX).toBeCloseTo(at100.zoomInX, 1);
+
+    // 25% (the min clamp — the step stands to the clamp): the 2-digit
+    // stand stands no reflow.
+    await stepUntil(zoomOut, "25%");
+    const at25 = await stand();
+    expect(at25.toolbarWidth).toBeCloseTo(at100.toolbarWidth, 1);
+    expect(at25.fitX).toBeCloseTo(at100.fitX, 1);
+    expect(at25.zoomOutX).toBeCloseTo(at100.zoomOutX, 1);
+    expect(at25.zoomInX).toBeCloseTo(at100.zoomInX, 1);
+  } finally {
+    await context.close();
+  }
+});
