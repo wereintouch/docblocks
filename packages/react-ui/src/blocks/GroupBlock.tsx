@@ -132,7 +132,10 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
       {hasTitle && !editing && (
         <div
           data-slot="docblocks/group-title"
-          className="absolute cursor-default truncate rounded-(--docblocks-radius) px-1.5 text-[11px] leading-5"
+          className="
+            absolute cursor-default truncate rounded-(--docblocks-radius) px-1.5 text-(length:--docblocks-font-size)
+            leading-5
+          "
           style={{
             pointerEvents: "auto",
             left: TITLE_LEFT_PX,
@@ -155,7 +158,7 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
           aria-label="Container title"
           defaultValue={title}
           onPointerDown={(event) => event.stopPropagation()}
-          className="absolute rounded-(--docblocks-radius) px-1.5 text-[11px] leading-5"
+          className="absolute rounded-(--docblocks-radius) px-1.5 text-(length:--docblocks-font-size) leading-5"
           style={{
             pointerEvents: "auto",
             left: TITLE_LEFT_PX,
@@ -217,7 +220,8 @@ function GroupTitleMenu({
         aria-expanded={open}
         className="
           rounded-(--docblocks-radius) border border-(--docblocks-table-border-color)
-          bg-(--docblocks-page-card-background) px-1.5 text-[11px] leading-5 text-(--docblocks-text-color)
+          bg-(--docblocks-page-card-background) px-1.5 text-(length:--docblocks-font-size) leading-5
+          text-(--docblocks-text-color)
         "
         onClick={() => onOpenChange(!open)}
       >
@@ -231,7 +235,8 @@ function GroupTitleMenu({
           autoFocus
           className="
             mt-1 w-40 rounded-(--docblocks-radius) border border-(--docblocks-table-border-color)
-            bg-(--docblocks-page-card-background) px-1.5 py-0.5 text-[11px] text-(--docblocks-text-color) outline-none
+            bg-(--docblocks-page-card-background) px-1.5 py-0.5 text-(length:--docblocks-font-size)
+            text-(--docblocks-text-color) outline-none
           "
           value={draft}
           placeholder="Container title"
