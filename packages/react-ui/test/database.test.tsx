@@ -314,9 +314,10 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     const header = document.querySelector<HTMLElement>(
       "[data-slot='docblocks/database-header-cell'][data-column-id='title']"
     );
-    // The sub-threshold press (the click) opens the menu.
-    fireEvent.pointerDown(header!, { clientX: 10, clientY: 5 });
-    fireEvent.pointerUp(header!, { clientX: 10, clientY: 5 });
+    // The Ellipsis's own press stands the menu (the header's name zone's
+    // press stands nothing — the menu-open's only trigger is the Ellipsis).
+    const ellipsis = header!.querySelector<HTMLElement>("[data-slot='docblocks/database-column-menu']")!;
+    fireEvent.pointerDown(ellipsis, { clientX: 10, clientY: 5 });
     await until(() => document.querySelector("[data-slot='docblocks/database-rename-input']") !== null, "the menu");
     const menuInput = document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-rename-input']");
     const typeLine = document.querySelector("[data-slot='docblocks/database-column-type']");
@@ -2433,8 +2434,8 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     // table (the order's stand, the names, the colors).
     const stageHeader = () =>
       document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell'][data-column-id='stage']")!;
-    fireEvent.pointerDown(stageHeader(), { clientX: 10, clientY: 5 });
-    fireEvent.pointerUp(stageHeader(), { clientX: 10, clientY: 5 });
+    const ellipsis = stageHeader().querySelector<HTMLElement>("[data-slot='docblocks/database-column-menu']")!;
+    fireEvent.pointerDown(ellipsis, { clientX: 10, clientY: 5 });
     await until(
       () => document.querySelector("[data-slot='docblocks/database-column-edit-options']") !== null,
       "the edit entry"
