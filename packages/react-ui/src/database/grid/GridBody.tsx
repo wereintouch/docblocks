@@ -22,6 +22,7 @@ import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder"
 import { useDatabaseTable } from "../use-database-table";
 import { DatabaseCell, RowMenuCell } from "./Cells";
 import { HeaderCell } from "./HeaderCell";
+import { columnTypeIcon } from "./column-type-icon";
 import {
   ADD_COLUMN_TYPES,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
@@ -1144,22 +1145,26 @@ function GridBody({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-32">
-                  {ADD_COLUMN_TYPES.map((entry) => (
-                    <DropdownMenuItem
-                      key={entry.key}
-                      data-column-entry={entry.key}
-                      onClick={() => {
-                        // Every entry stands the create form (the name
-                        // input + the type-specific block over it): the
-                        // create commits on the form's button only.
-                        setColumnForm(emptyColumnForm(entry));
-                        setAddingColumn(false);
-                        setColumnFormOpen(true);
-                      }}
-                    >
-                      {entry.label}
-                    </DropdownMenuItem>
-                  ))}
+                  {ADD_COLUMN_TYPES.map((entry) => {
+                    const EntryIcon = columnTypeIcon(entry.type, entry.refKind, entry.refMany);
+                    return (
+                      <DropdownMenuItem
+                        key={entry.key}
+                        data-column-entry={entry.key}
+                        onClick={() => {
+                          // Every entry stands the create form (the name
+                          // input + the type-specific block over it): the
+                          // create commits on the form's button only.
+                          setColumnForm(emptyColumnForm(entry));
+                          setAddingColumn(false);
+                          setColumnFormOpen(true);
+                        }}
+                      >
+                        <EntryIcon className="size-4 shrink-0 text-muted-foreground" />
+                        {entry.label}
+                      </DropdownMenuItem>
+                    );
+                  })}
                 </DropdownMenuContent>
               </DropdownMenu>
               {/* The create form (every menu entry opens it: the name

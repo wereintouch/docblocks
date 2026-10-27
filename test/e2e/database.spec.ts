@@ -837,41 +837,45 @@ test("the header's name stands the px-2 padding (the text stands over the data's
         const cs = getComputedStyle(el);
         return { left: cs.paddingLeft, right: cs.paddingRight };
       });
-    // The name's text stands over the data's text (the same x — no jump):
-    // the glyph's offset from the cell's left edge is equal.
-    const glyphOffsets = () =>
+    // The type's icon stands the left (the px-2's 8px padding edge — the
+    // icon is inside the padding), and the name stands to the right of it
+    // (the icon is left of the name; the data-alignment's former stand is
+    // the icon's now, the name's shifted by the icon's width + gap).
+    const iconStands = () =>
       a.evaluate(() => {
         const grid = document.querySelector('[data-slot="docblocks/database-grid"]')!;
         const headerCell = grid.querySelector(
           '[data-slot="docblocks/database-header-cell"][data-column-id="c1"]'
         ) as HTMLElement;
-        const nameSpan = headerCell.querySelector("span") as HTMLElement;
-        const nameGlyph =
-          nameSpan.getBoundingClientRect().left +
-          parseFloat(getComputedStyle(nameSpan).paddingLeft) -
-          headerCell.getBoundingClientRect().left;
-        const dataCell = grid.querySelector(
-          '[data-slot="docblocks/database-cell"][data-column-id="c1"]'
-        ) as HTMLElement;
-        const dataSpan = dataCell.querySelector("span") as HTMLElement;
-        const dataGlyph =
-          dataSpan.getBoundingClientRect().left +
-          parseFloat(getComputedStyle(dataSpan).paddingLeft) -
-          dataCell.getBoundingClientRect().left;
-        return { nameGlyph, dataGlyph };
+        const icon = headerCell.querySelector(":scope > svg") as HTMLElement;
+        const nameSpan = headerCell.querySelector(":scope > span") as HTMLElement;
+        const cellRect = headerCell.getBoundingClientRect();
+        const iconRect = icon.getBoundingClientRect();
+        const nameRect = nameSpan.getBoundingClientRect();
+        return {
+          // The icon's left edge stands the cell's left padding (the px-2's
+          // 8px — the icon is inside the padding, not over it).
+          iconLeftOffset: iconRect.left - cellRect.left,
+          // The name stands to the right of the icon (the icon's left of the
+          // name — the gap is between them).
+          nameRightOfIcon: nameRect.left >= iconRect.right - 1,
+        };
       });
 
-    // The dark stand (the harness's default): the padding-x = 8px, and the
-    // name's text stands over the data's text (aligned within half a px).
+    // The dark stand (the harness's default): the padding-x = 8px, the
+    // icon stands the left (the padding's edge), the name stands right of it.
     expect(await headerPadding()).toEqual({ left: "8px", right: "8px" });
-    let offsets = await glyphOffsets();
-    expect(Math.abs(offsets.nameGlyph - offsets.dataGlyph)).toBeLessThan(0.5);
+    let stands = await iconStands();
+    expect(Math.abs(stands.iconLeftOffset - 8)).toBeLessThan(1);
+    expect(stands.nameRightOfIcon).toBe(true);
 
-    // The light stand: the padding stands (the token is the theme-independent).
+    // The light stand: the padding stands (the token is the theme-independent),
+    // the icon's position stands.
     await a.evaluate(() => document.documentElement.classList.remove("dark"));
     await expect.poll(async () => (await headerPadding()).left, SETTLE).toBe("8px");
-    offsets = await glyphOffsets();
-    expect(Math.abs(offsets.nameGlyph - offsets.dataGlyph)).toBeLessThan(0.5);
+    stands = await iconStands();
+    expect(Math.abs(stands.iconLeftOffset - 8)).toBeLessThan(1);
+    expect(stands.nameRightOfIcon).toBe(true);
 
     // The rename stands (the menu's press + the rename commit — the
     // geometry / the hit stand unaffected by the padding): the column's
@@ -2988,6 +2992,125 @@ test("the cell's value stands the column type's align (the number's right; the b
       return input !== null ? getComputedStyle(input).textAlign : null;
     }, blockA);
     expect(inputAlign).toBe("right");
+  } finally {
+    await close();
+  }
+});
+
+test("the header's type icon stands left of the name (the 10 types' lucide set; both panes; the muted token's color; the px-2 stands)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "db-typeicon");
+  try {
+    // The main table: one column per type (the 10). The ref columns' ref
+    // tables stand (the enum's dict / the row's linked table).
+    const { mainId, expected } = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const dictId = await bridge.createTable("TypeIcon-enum", { system: true });
+      await bridge.createColumn(dictId, { id: "name", name: "name", type: "text" });
+      await bridge.createColumn(dictId, { id: "color", name: "color", type: "text" });
+      const linkId = await bridge.createTable("TypeIcon-link");
+      await bridge.createColumn(linkId, { id: "label", name: "Label", type: "text" });
+      const mainId = await bridge.createTable("TypeIcons");
+      const spec: {
+        id: string;
+        name: string;
+        type: string;
+        refKind?: "enum" | "row";
+        refMany?: boolean;
+        refTableId?: string;
+      }[] = [
+        { id: "c_text", name: "Text", type: "text" },
+        { id: "c_int", name: "Int", type: "integer" },
+        { id: "c_dec", name: "Dec", type: "numeric" },
+        { id: "c_bool", name: "Bool", type: "boolean" },
+        { id: "c_date", name: "Date", type: "date" },
+        { id: "c_dt", name: "DT", type: "timestamptz" },
+        { id: "c_enum", name: "Enum", type: "text", refKind: "enum", refTableId: dictId },
+        { id: "c_multi", name: "Multi", type: "text", refKind: "enum", refMany: true, refTableId: dictId },
+        { id: "c_rowlink", name: "RL", type: "text", refKind: "row", refTableId: linkId },
+        { id: "c_rowlinks", name: "RLs", type: "text", refKind: "row", refMany: true, refTableId: linkId },
+      ];
+      for (const s of spec) await bridge.createColumn(mainId, s);
+      return {
+        mainId,
+        expected: {
+          c_text: "lucide-type",
+          c_int: "lucide-hash",
+          c_dec: "lucide-hash",
+          c_bool: "lucide-circle-check",
+          c_date: "lucide-calendar",
+          c_dt: "lucide-calendar-clock",
+          c_enum: "lucide-circle-chevron-down",
+          c_multi: "lucide-list-checks",
+          c_rowlink: "lucide-cable",
+          c_rowlinks: "lucide-cable",
+        },
+      };
+    });
+    const blockA = await a.evaluate((id) => window.__paneDocs!.a!.insertBlock("database", { tableId: id }), mainId);
+    await b.evaluate((id) => window.__paneDocs!.b!.insertBlock("database", { tableId: id }), mainId);
+
+    // The header's icon stand from one read (the grid's own DOM — no locator's
+    // auto-wait / the strict-mode's stand over the grid's rows): per column,
+    // the direct-child svg's class list + the icon's left of the name.
+    const readIcons = (pane: Page) =>
+      pane.evaluate((id) => {
+        const grid = document.querySelector(
+          `[data-block-id="${id}"] [data-slot="docblocks/database-grid"]`
+        ) as HTMLElement | null;
+        if (grid === null) return null;
+        const out: Record<string, { cls: string; iconLeftOfName: boolean }> = {};
+        for (const cell of Array.from(
+          grid.querySelectorAll<HTMLElement>('[data-slot="docblocks/database-header-cell"]')
+        )) {
+          const colId = cell.getAttribute("data-column-id")!;
+          const icon = cell.querySelector<SVGElement>(":scope > svg");
+          const nameSpan = cell.querySelector<HTMLElement>(":scope > span");
+          if (icon === null || nameSpan === null) return null;
+          out[colId] = {
+            cls: Array.from(icon.classList).join(" "),
+            iconLeftOfName: icon.getBoundingClientRect().left < nameSpan.getBoundingClientRect().left,
+          };
+        }
+        return out;
+      }, blockA);
+
+    // Both panes' icons stand the type's lucide class (the mapping) + the
+    // icon's left of the name.
+    for (const pane of [a, b]) {
+      await expect.poll(async () => (await readIcons(pane)) !== null, SETTLE).toBe(true);
+      const icons = (await readIcons(pane))!;
+      for (const [col, cls] of Object.entries(expected)) {
+        expect(icons[col]?.cls, `the ${col}'s icon's class`).toContain(cls);
+        expect(icons[col]?.iconLeftOfName, `the ${col}'s icon's left of the name`).toBe(true);
+      }
+    }
+
+    // The icon's color resolves the muted-foreground token (the theme-
+    // independent stand — the probe stands the token's resolved value).
+    const iconColor = (pane: Page) =>
+      pane.evaluate((id) => {
+        const grid = document.querySelector(`[data-block-id="${id}"] [data-slot="docblocks/database-grid"]`)!;
+        const icon = grid.querySelector<SVGElement>(
+          '[data-slot="docblocks/database-header-cell"][data-column-id="c_text"] > svg'
+        )!;
+        const probe = document.createElement("div");
+        probe.style.color = "var(--muted-foreground)";
+        probe.style.position = "absolute";
+        document.body.appendChild(probe);
+        const token = getComputedStyle(probe).color;
+        probe.remove();
+        return { icon: getComputedStyle(icon).color, token };
+      }, blockA);
+    // The dark stand (the explicit dark): the color resolves the token.
+    await a.evaluate(() => document.documentElement.classList.add("dark"));
+    const dark = await iconColor(a);
+    expect(dark.icon).toBe(dark.token);
+    // The light stand (the flip stands the resolution).
+    await a.evaluate(() => document.documentElement.classList.remove("dark"));
+    const light = await iconColor(a);
+    expect(light.icon).toBe(light.token);
   } finally {
     await close();
   }
