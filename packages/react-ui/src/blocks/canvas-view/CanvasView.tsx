@@ -1465,7 +1465,18 @@ function CanvasView() {
       >
         <div
           data-slot="docblocks/canvas-world"
-          className="absolute inset-0"
+          className={cn(
+            "absolute inset-0",
+            // The native text selection (the connector's label chip / the
+            // shape's text / the canvas's text) stands no canvas drag
+            // session: a drag over the world's text stands no selection
+            // (the user-select is none over the world while a move / resize
+            // / rotate / endpoint session is live). The text-EDIT sessions
+            // (the shape's / the connector's label's inline edit) are not
+            // drag sessions — the user-select stands there (the edit
+            // contract allows the selection).
+            (viewport.moveSession || viewport.resizeSession || viewport.connectorEndpoint !== null) && "select-none"
+          )}
           style={{
             transform: `translate(${viewport.pan.x}px, ${viewport.pan.y}px) scale(${viewport.zoom})`,
             transformOrigin: "center",
@@ -1791,6 +1802,14 @@ function CanvasView() {
                     style={{ cursor: "grab" }}
                     onPointerDown={(event) => {
                       event.stopPropagation();
+                      // The press is prevented (the same contract as the resize
+                      // handle's branch): the compatibility mousedown's default
+                      // stands no caret / native text selection — the
+                      // re-anchor drag over the connector's label chip (or the
+                      // shape's text / the canvas's text) stands no selection.
+                      // The world layer's user-select none (the shared drag
+                      // session's stand) backstops it.
+                      event.preventDefault();
                       beginEndpointDrag(
                         connectorToolbarTarget.id,
                         which,
