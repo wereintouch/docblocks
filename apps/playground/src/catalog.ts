@@ -1,6 +1,6 @@
 import { type Doc, type MarkSet, createDoc } from "docblocks-core";
 
-import { EMBED_SRC, seedCanvas, seedDatabase } from "./insert-blocks";
+import { EMBED_SRC, seedCanvas, seedCatalogDatabase } from "./insert-blocks";
 import { CATALOG_MASTER_ID } from "./master";
 
 /** The fixed pane doc identity (the e2e room/doc conventions rely on it). */
@@ -165,9 +165,9 @@ function buildCatalogDoc(doc: Doc): void {
     // renders its content inside; the outer JSON carries the ref only.
     doc.insertBlock("sync-embed", { ref: { docId: CATALOG_MASTER_ID } });
 
-    // Database: the harness seed (the placeholder card in the goldens; the
-    // table UI is the consumer's level).
-    seedDatabase(doc);
+    // Database: the external form's stand (the current model's types live in
+    // the bridge's `Catalog-demo` table; the block holds the reference).
+    seedCatalogDatabase(doc);
 
     // Canvas (v2): the harness demo scene (the same seeded surface the
     // insert control offers — the deterministic ids continue the c00xx
