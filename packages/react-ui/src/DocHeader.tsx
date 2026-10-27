@@ -3,10 +3,13 @@
  * editor, so it takes the core `Doc` directly, not the editor context). It
  * stands the page/canvas mode switcher (left), the page avatar, and the
  * document title. It reads the doc's meta and re-renders on the meta
- * changes (the onChange feed). The title and the avatar are inline-editable:
- * a click opens the edit, the blur / the Enter commit (one command — one
- * undo step, one wire update), the Escape cancels without a write; a commit
- * of the current value is the no-op stand (nothing is written). The mode
+ * changes (the onChange feed). The title is inline-editable: a click opens
+ * the edit (the caret seats at the end — no select-all), the blur / the
+ * Enter commit (one command — one undo step, one wire update), the Escape
+ * cancels without a write; a commit of the current value is the no-op stand
+ * (nothing is written). The avatar is a popover picker: a click opens the
+ * emoji grid (a portaled standard-token surface), a pick commits
+ * `setAvatar` (one write) and closes, the clear option removes it. The mode
  * switcher is controlled (the `view` + the `onViewChange` — the consumer
  * owns the editor's view).
  *
@@ -19,11 +22,13 @@ import { useEffect, useRef, useState } from "react";
 import type { Doc } from "docblocks-core";
 
 import type { EditorView } from "./Editor";
+import { EmojiPicker } from "./shared/ui/EmojiPicker";
+import { Popover, PopoverContent, PopoverTrigger } from "./shared/ui/Popover";
 import { SegmentSelector } from "./shared/ui/SegmentSelector";
 import { cn } from "./shared/ui/cn";
 import { Network, SquareText } from "./shared/ui/icons";
 
-/** The inline edit's input: the focus + select-all on mount, the commit on the blur / the Enter (one write), the Escape cancels without a write. */
+/** The inline edit's input: the focus with the caret seated at the end (no select-all) on mount, the commit on the blur / the Enter (one write), the Escape cancels without a write. */
 function InlineEditInput({
   initial,
   ariaLabel,
@@ -43,8 +48,12 @@ function InlineEditInput({
   const committedRef = useRef(false);
 
   useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
+    const input = inputRef.current;
+    if (input === null) return;
+    input.focus();
+    // The caret seats at the end (the edit continues the value — a
+    // select-all would replace it on the first keystroke).
+    input.setSelectionRange(input.value.length, input.value.length);
   }, []);
 
   const commit = (value: string): void => {
@@ -86,7 +95,8 @@ function DocHeader({
   onViewChange: (view: EditorView) => void;
 }) {
   const [meta, setMeta] = useState(() => doc.meta);
-  const [editing, setEditing] = useState<null | "title" | "avatar">(null);
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
 
   // Re-render on the meta changes (the title / the avatar) — the doc's own
   // read (the peer's concurrent edit is not clobbered by a stale snapshot).
@@ -113,43 +123,48 @@ function DocHeader({
         pillSlot="docblocks/doc-header-view-pill"
         buttonAttrName="doc-header-view-button"
       />
-      {editing === "avatar" ? (
-        <InlineEditInput
-          initial={meta.avatar ?? ""}
-          ariaLabel="Document avatar"
-          slot="docblocks/doc-header-avatar-edit"
-          className={`
-            h-8 w-24 rounded-full border border-input bg-background px-3 text-center text-lg
-            focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
-            focus-visible:outline-ring
-          `}
-          onCommit={(value) => {
-            setEditing(null);
-            if (value.trim() === (meta.avatar ?? "")) return; // the no-op stand
-            doc.setAvatar(value.trim());
-          }}
-          onCancel={() => setEditing(null)}
-        />
-      ) : (
-        <button
-          type="button"
-          data-slot="docblocks/doc-header-avatar"
-          aria-label="Edit the document avatar"
-          title="Edit the avatar"
-          onClick={() => setEditing("avatar")}
-          className={cn(
-            `
-              flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-base transition-colors
-              focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
-              focus-visible:outline-ring
-            `,
-            meta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
-          )}
+      <Popover open={avatarOpen} onOpenChange={setAvatarOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            data-slot="docblocks/doc-header-avatar"
+            aria-label="Edit the document avatar"
+            title="Edit the avatar"
+            className={cn(
+              `
+                flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-base
+                transition-colors
+                focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
+                focus-visible:outline-ring
+              `,
+              meta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
+            )}
+          >
+            {meta.avatar ? meta.avatar : "+"}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={6}
+          onOpenAutoFocus={(event) => event.preventDefault()}
+          className="w-auto p-2.5"
         >
-          {meta.avatar ? meta.avatar : "+"}
-        </button>
-      )}
-      {editing === "title" ? (
+          <EmojiPicker
+            selected={meta.avatar ?? null}
+            onPick={(emoji) => {
+              // The core's setAvatar no-ops on the standing value (no write,
+              // no undo step) — the pick commits one command otherwise.
+              doc.setAvatar(emoji);
+              setAvatarOpen(false);
+            }}
+            onClear={() => {
+              doc.setAvatar(null);
+              setAvatarOpen(false);
+            }}
+          />
+        </PopoverContent>
+      </Popover>
+      {titleEditing ? (
         <InlineEditInput
           initial={meta.title}
           ariaLabel="Document title"
@@ -160,11 +175,11 @@ function DocHeader({
             focus-visible:outline-ring
           `}
           onCommit={(value) => {
-            setEditing(null);
+            setTitleEditing(false);
             if (value === doc.meta.title) return; // the no-op stand (the doc's own read)
             doc.setTitle(value);
           }}
-          onCancel={() => setEditing(null)}
+          onCancel={() => setTitleEditing(false)}
         />
       ) : (
         <button
@@ -172,7 +187,7 @@ function DocHeader({
           data-slot="docblocks/doc-header-title"
           aria-label="Edit the document title"
           title="Edit the title"
-          onClick={() => setEditing("title")}
+          onClick={() => setTitleEditing(true)}
           className={`
             min-w-0 flex-1 truncate rounded-md px-2 py-1 text-left text-lg font-semibold transition-colors
             hover:bg-accent
