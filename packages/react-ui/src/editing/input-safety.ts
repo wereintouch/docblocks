@@ -201,8 +201,13 @@ function useBlockInput({
             const root = innerRef.current?.closest('[data-slot="docblocks/editor"]') ?? document;
             focusCaretIn(landing.blockId, landing.offset, root);
           }
+          return;
         }
-        return;
+        // A rich parse that materialized nothing (the whitespace / anchor-only
+        // payload) is not a no-op when the plain payload carries content: the
+        // paste falls through to the plain branch below (the paste never
+        // fails). The html-only whitespace payload has no plain to stand on —
+        // the plain branch is a no-op there.
       }
 
       if (text === "" && !inCell) return;

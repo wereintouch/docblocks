@@ -33,6 +33,9 @@ function allowedHref(href: string): boolean {
   return scheme === "http" || scheme === "https" || scheme === "mailto";
 }
 
+/** The hex color the data model's `color` / `highlight` marks accept (`#RRGGBB(AA)`). */
+const HEX_COLOR = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
+
 /** The two style properties a span maps to; every other declaration is dropped. */
 function styleMarksOf(style: string | null): { color?: string; highlight?: string } {
   const result: { color?: string; highlight?: string } = {};
@@ -42,7 +45,12 @@ function styleMarksOf(style: string | null): { color?: string; highlight?: strin
     if (separator === -1) continue;
     const name = declaration.slice(0, separator).trim().toLowerCase();
     const value = declaration.slice(separator + 1).trim();
-    if (value === "") continue;
+    // Only hex colors stand the marks (the data model's `color` / `highlight`
+    // are hex). The browser's default copy serializes the rendered color as a
+    // computed `oklch()` / `rgb()` value (the theme's foreground, not a user-
+    // applied mark) — a non-hex value is not a mark and is dropped, so a
+    // copy of the editor's own text pastes clean instead of failing the insert.
+    if (!HEX_COLOR.test(value)) continue;
     if (name === "color") result.color = value;
     else if (name === "background-color" || name === "background") result.highlight = value;
   }
