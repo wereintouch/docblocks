@@ -420,6 +420,19 @@
   appearance: textfield;
 }
 
+/* The multi-ref cell's display (the multi-enum / the row-links' chips)
+   stands the right fade over the overflowing train: the mask gradients the
+   tail to transparency at the right edge (the chips clip without the
+   ellipsis — the text's stand ends with the `...`, the multi's fades). The
+   mask is theme-agnostic (it fades the chips' own ink, no background match
+   needed) and stands only over the overflow (the chips past the fade zone
+   are clipped by the cell's overflow; the train that fits stands none).
+   The single's stand (`data-fade` stands none) keeps the chip's ellipsis. */
+[data-slot="docblocks/database-ref-chips"][data-fade="true"] {
+  -webkit-mask-image: linear-gradient(to right, black 75%, transparent 100%);
+  mask-image: linear-gradient(to right, black 75%, transparent 100%);
+}
+
 /*
  * The hover grip stands hidden while the caret is typing: the typing
  * session starts on the first text keypress and ends on the first pointer

@@ -141,10 +141,13 @@ function CellDisplay({
   text,
   ...props
 }: { text: string } & React.ComponentPropsWithoutRef<"span"> & { ref?: React.Ref<HTMLSpanElement> }) {
+  // The read-only display stands one line (no wrap): the overflowing text
+  // ends with the ellipsis (the multi-ref's stand stands the right fade
+  // instead — the `RefValueChips`' own stand, not this text's).
   return (
     <span
       data-slot="docblocks/database-cell-display"
-      className="block w-full px-1 text-(length:--docblocks-font-size)"
+      className="block w-full truncate px-1 text-(length:--docblocks-font-size)"
       {...props}
     >
       {text === "" ? null : text}
@@ -171,11 +174,16 @@ const OPTION_CHIP_INK = "#262626";
  * the neutral chip over the absent color). The empty stand stands none
  * (the cell's background only).
  */
-function RefValueChips({ values, options }: { values: string[]; options: RefOption[] }) {
+function RefValueChips({ values, options, fade }: { values: string[]; options: RefOption[]; fade?: boolean }) {
+  // The many value's stand (the multi's): the overflowing train's right edge
+  // stands the fade (the `data-fade`'s mask — the chips clip without the
+  // ellipsis); the single's stand (the fade stands none) keeps the chip's
+  // ellipsis over the long label (the text's stand).
   if (values.length === 0) return null;
   return (
     <span
       data-slot="docblocks/database-ref-chips"
+      data-fade={fade ? "true" : undefined}
       className="flex w-full flex-nowrap items-center gap-1 overflow-hidden px-1 text-(length:--docblocks-font-size)"
     >
       {values.map((value) => {
@@ -187,7 +195,8 @@ function RefValueChips({ values, options }: { values: string[]; options: RefOpti
             data-option-value={value}
             style={option?.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined}
             className={cn(
-              "max-w-full shrink truncate rounded-(--docblocks-radius) px-1.5 leading-5",
+              "max-w-full shrink overflow-hidden whitespace-nowrap rounded-(--docblocks-radius) px-1.5 leading-5",
+              !fade && "text-ellipsis",
               option?.color === undefined && "bg-muted"
             )}
           >
@@ -341,7 +350,7 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
           data-slot="docblocks/database-ref-multi-trigger"
           className="block w-full cursor-default text-(length:--docblocks-font-size)"
         >
-          <RefValueChips values={values} options={options} />
+          <RefValueChips values={values} options={options} fade />
         </span>
       </PopoverTrigger>
       <PopoverContent
@@ -771,7 +780,7 @@ function DatabaseCell({
     if (editing && column.refKind !== undefined) {
       content = <RefMultiEditor values={refValues} options={refOptions} onCommit={onChange} onEditEnd={onEditEnd} />;
     } else if (column.refKind !== undefined) {
-      content = <RefValueChips values={refValues} options={refOptions} />;
+      content = <RefValueChips values={refValues} options={refOptions} fade />;
     } else {
       content = <CellDisplay text={refValues.join(", ")} />;
     }

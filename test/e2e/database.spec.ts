@@ -2715,3 +2715,183 @@ test("a double-click over the enum cell stands the picker, no format toolbar / n
     await close();
   }
 });
+
+test("the cell's display stands the single line (the text's ellipsis; the multi's right fade; the number / the date's single-line regression; the single's chip ellipsis)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanesSharedContext(browser, "db-display-stand");
+  try {
+    // A fresh table over the shared bridge: the long text (the ellipsis's
+    // stand), the number + the datetime (the single-line regression), the
+    // multi-enum + the multi row-links (the right fade over the overflow),
+    // and the single enum (the chip's ellipsis — the text's stand, not the
+    // fade). The enum's dict's long labels + the row-link's long names force
+    // the chips' train over the column's width (the overflow's stand).
+    const tableId = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const dictId = await bridge.createTable("DisplayOpts", { system: true });
+      await bridge.createColumn(dictId, { id: "name", name: "name", type: "text" });
+      await bridge.insertRows(dictId, [
+        { id: "alpha-very-long-option", name: "Alpha very long option label" },
+        { id: "beta-very-long-option", name: "Beta very long option label" },
+        { id: "gamma-very-long-option", name: "Gamma very long option label" },
+      ]);
+      await bridge.createTable("DisplayPeople");
+      await bridge.createColumn("table-displaypeople", { id: "name", name: "Name", type: "text" });
+      await bridge.insertRows("table-displaypeople", [
+        { id: "person-one", name: "Ann Longworth-Whitfield" },
+        { id: "person-two", name: "Bo Longworth-Whitfield" },
+        { id: "person-three", name: "Cy Longworth-Whitfield" },
+      ]);
+      const id = await bridge.createTable("DisplayCell");
+      await bridge.createColumn(id, { id: "body", name: "Body", type: "text" });
+      await bridge.createColumn(id, { id: "num", name: "Num", type: "integer" });
+      await bridge.createColumn(id, { id: "dt", name: "DT", type: "timestamptz" });
+      await bridge.createColumn(id, {
+        id: "tags",
+        name: "Tags",
+        type: "text",
+        refKind: "enum",
+        refTableId: dictId,
+        refMany: true,
+      });
+      await bridge.createColumn(id, {
+        id: "owners",
+        name: "Owners",
+        type: "text",
+        refKind: "row",
+        refTableId: "table-displaypeople",
+        refMany: true,
+      });
+      await bridge.createColumn(id, {
+        id: "status",
+        name: "Status",
+        type: "text",
+        refKind: "enum",
+        refTableId: dictId,
+      });
+      await bridge.insertRows(id, [
+        {
+          id: "row-1",
+          body: "A very long piece of text that will not fit inside the cell's width and must stand one line with the trailing ellipsis instead of wrapping onto a new line of the row",
+          num: 123456789,
+          dt: "2026-10-26T09:15:00",
+          tags: ["alpha-very-long-option", "beta-very-long-option", "gamma-very-long-option"],
+          owners: ["person-one", "person-two", "person-three"],
+          status: "alpha-very-long-option",
+        },
+      ]);
+      return id;
+    });
+    const blockA = await a.evaluate((id) => window.__paneDocs!.a!.insertBlock("database", { tableId: id }), tableId);
+    // The narrow widths force the multi's chips + the long text over the
+    // cell (the fade / the ellipsis stand over the clip).
+    await a.evaluate(
+      (id) => window.__paneDocs!.a!.updateBlock(id, { columnWidths: [150, 80, 120, 110, 110, 110] }),
+      blockA
+    );
+    await b.evaluate((id) => window.__paneDocs!.b!.insertBlock("database", { tableId: id }), tableId);
+
+    const gridA = a.locator(`[data-block-id='${blockA}'] [data-slot='docblocks/database-grid']`);
+    await expect(gridA).toBeVisible(SETTLE);
+
+    // The display styles stand from one read (the grid's own DOM — no
+    // locator's auto-wait / the strict-mode's stand over the grid's rows).
+    const readStyles = () =>
+      a.evaluate((blockId) => {
+        const grid = document.querySelector(
+          `[data-block-id="${blockId}"] [data-slot="docblocks/database-grid"]`
+        ) as HTMLElement | null;
+        if (grid === null) return null;
+        const cellOf = (col: string) =>
+          grid.querySelector(
+            `[data-slot="docblocks/database-cell"][data-column-id="${col}"][data-row="0"]`
+          ) as HTMLElement | null;
+        const displayOf = (col: string) =>
+          cellOf(col)?.querySelector('[data-slot="docblocks/database-cell-display"]') as HTMLElement | null;
+        // The number / the datetime's display: the `database-cell-display`
+        // span (the number) or the popover's trigger (the datetime — the
+        // radix's clone stands the `popover-trigger` slot). Both carry the
+        // `truncate`'s one line's stand.
+        const contentOf = (col: string) =>
+          cellOf(col)?.querySelector(
+            '[data-slot="docblocks/database-cell-display"], [data-slot="popover-trigger"]'
+          ) as HTMLElement | null;
+        const chipsOf = (col: string) =>
+          cellOf(col)?.querySelector('[data-slot="docblocks/database-ref-chips"]') as HTMLElement | null;
+        const chipOf = (col: string) =>
+          cellOf(col)?.querySelector('[data-slot="docblocks/database-ref-chip"]') as HTMLElement | null;
+        const body = displayOf("body");
+        const tags = chipsOf("tags");
+        const owners = chipsOf("owners");
+        const status = chipsOf("status");
+        const num = contentOf("num");
+        const dt = contentOf("dt");
+        if (body === null || tags === null || owners === null || status === null || num === null || dt === null) {
+          return null;
+        }
+        const cs = (el: Element) => getComputedStyle(el);
+        const mask = (el: Element) =>
+          cs(el).getPropertyValue("mask-image") || cs(el).getPropertyValue("-webkit-mask-image");
+        return {
+          bodyWhiteSpace: cs(body).whiteSpace,
+          bodyTextOverflow: cs(body).textOverflow,
+          bodyHeight: body.getBoundingClientRect().height,
+          numWhiteSpace: cs(num).whiteSpace,
+          dtWhiteSpace: cs(dt).whiteSpace,
+          tagsFade: tags.getAttribute("data-fade"),
+          tagsMask: mask(tags),
+          tagsChipOverflow: cs(chipOf("tags")!).getPropertyValue("text-overflow"),
+          ownersFade: owners.getAttribute("data-fade"),
+          ownersMask: mask(owners),
+          statusFade: status.getAttribute("data-fade"),
+          statusMask: mask(status),
+          statusChipOverflow: cs(chipOf("status")!).getPropertyValue("text-overflow"),
+        };
+      }, blockA);
+    // The readiness: the grid's cells + the displays / the chips stand.
+    await expect.poll(async () => (await readStyles()) !== null, SETTLE).toBe(true);
+    const styles = await readStyles();
+
+    // ---- The text's display: one line + the ellipsis (the wrap is out).
+    expect(styles?.bodyWhiteSpace).toBe("nowrap");
+    expect(styles?.bodyTextOverflow).toBe("ellipsis");
+    expect(styles?.bodyHeight).toBeLessThan(28);
+
+    // ---- The number / the datetime: one line (the regression — no wrap).
+    expect(styles?.numWhiteSpace).toBe("nowrap");
+    expect(styles?.dtWhiteSpace).toBe("nowrap");
+
+    // ---- The multi-enum / the multi row-links: the right fade (the mask
+    // over the overflow's train; the chips' clip stands none — no ellipsis).
+    expect(styles?.tagsFade).toBe("true");
+    expect(styles?.tagsMask).toContain("linear-gradient");
+    expect(styles?.tagsChipOverflow).toBe("clip");
+    expect(styles?.ownersFade).toBe("true");
+    expect(styles?.ownersMask).toContain("linear-gradient");
+
+    // ---- The single enum: the chip's ellipsis (the text's stand — the
+    // fade stands none, no mask).
+    expect(styles?.statusFade).toBe(null);
+    expect(styles?.statusMask).toBe("none");
+    expect(styles?.statusChipOverflow).toBe("ellipsis");
+
+    // ---- Dark / light: the fade stands the same mask (theme-agnostic —
+    // the chip's ink fades to the cell's own background over the theme).
+    await a.evaluate(() => document.documentElement.classList.remove("dark"));
+    await a.waitForTimeout(50);
+    const lightMask = await a.evaluate((blockId) => {
+      const grid = document.querySelector(
+        `[data-block-id="${blockId}"] [data-slot="docblocks/database-grid"]`
+      ) as HTMLElement | null;
+      const chips = grid?.querySelector(
+        '[data-slot="docblocks/database-cell"][data-column-id="tags"][data-row="0"] [data-slot="docblocks/database-ref-chips"]'
+      ) as HTMLElement | null;
+      return chips !== null ? getComputedStyle(chips).getPropertyValue("mask-image") : null;
+    }, blockA);
+    expect(lightMask).toContain("linear-gradient");
+    await a.evaluate(() => document.documentElement.classList.add("dark"));
+  } finally {
+    await close();
+  }
+});
