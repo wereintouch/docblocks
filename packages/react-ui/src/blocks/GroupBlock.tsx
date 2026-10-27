@@ -1,8 +1,9 @@
 /**
  * The canvas container's renderer (the reworked group): the rectangle's thin neutral border + the title chip at the
- * top-left (the chip stands off when the title is absent / empty). The
- * interior is pointer-transparent (the members stand z-above and clickable);
- * the border's wide hit band and the title chip are the press targets (they
+ * top-left (above the box's top frame, the small gap off the border line —
+ * the chip stands off when the title is absent / empty). The interior is
+ * pointer-transparent (the members stand z-above and clickable); the
+ * border's wide hit band and the title chip are the press targets (they
  * select the container). The selected border stands the canvas selection's
  * color (the wrapper's tint stands off — the box is the members' area). The
  * title's double-click enters the inline edit (the commit is one
@@ -23,7 +24,10 @@ type GROUP_BLOCK_VIEW = Extract<Block, { type: "group" }>;
 /** The border's wide hit band (px, both sides — the thin line's reach). */
 const BORDER_HIT_PX = 6;
 /** The title chip's left offset from the box's left edge (px). */
-const TITLE_LEFT_PX = 12;
+const TITLE_LEFT_PX = 16;
+/** The title chip's gap from the box's top frame (px): the chip stands
+ * ABOVE the frame line, its bottom edge the gap off the border. */
+const TITLE_GAP_PX = 4;
 
 function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_VIEW; selected: boolean }) {
   const { doc } = useEditorContext();
@@ -133,15 +137,14 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
         <div
           data-slot="docblocks/group-title"
           className="
-            absolute cursor-default truncate rounded-(--docblocks-radius) px-1.5 text-(length:--docblocks-font-size)
-            leading-5
+            absolute cursor-default truncate rounded-(--docblocks-radius) px-2 py-0.5
+            text-(length:--docblocks-font-size) leading-5
           "
           style={{
             pointerEvents: "auto",
             left: TITLE_LEFT_PX,
-            top: 0,
-            transform: "translateY(-50%)",
-            maxWidth: "calc(100% - 24px)",
+            bottom: `calc(100% + ${TITLE_GAP_PX}px)`,
+            maxWidth: "calc(100% - 32px)",
             background: "var(--docblocks-page-card-background)",
             border: `1px solid ${borderColor}`,
             color: "var(--docblocks-text-color)",
@@ -158,12 +161,11 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
           aria-label="Container title"
           defaultValue={title}
           onPointerDown={(event) => event.stopPropagation()}
-          className="absolute rounded-(--docblocks-radius) px-1.5 text-(length:--docblocks-font-size) leading-5"
+          className="absolute rounded-(--docblocks-radius) px-2 py-0.5 text-(length:--docblocks-font-size) leading-5"
           style={{
             pointerEvents: "auto",
             left: TITLE_LEFT_PX,
-            top: 0,
-            transform: "translateY(-50%)",
+            bottom: `calc(100% + ${TITLE_GAP_PX}px)`,
             width: 120,
             boxSizing: "border-box",
             background: "var(--docblocks-page-card-background)",
@@ -210,7 +212,7 @@ function GroupTitleMenu({
   return (
     <div
       className="absolute"
-      style={{ pointerEvents: "auto", left: TITLE_LEFT_PX, top: 0, transform: "translateY(-50%)" }}
+      style={{ pointerEvents: "auto", left: TITLE_LEFT_PX, bottom: `calc(100% + ${TITLE_GAP_PX}px)` }}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <button
@@ -220,8 +222,8 @@ function GroupTitleMenu({
         aria-expanded={open}
         className="
           rounded-(--docblocks-radius) border border-(--docblocks-table-border-color)
-          bg-(--docblocks-page-card-background) px-1.5 text-(length:--docblocks-font-size) leading-5
-          text-(--docblocks-text-color)
+          bg-(--docblocks-page-card-background) px-2 py-0.5 text-(length:--docblocks-font-size)
+          leading-5 text-(--docblocks-text-color)
         "
         onClick={() => onOpenChange(!open)}
       >

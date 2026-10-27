@@ -504,6 +504,69 @@ test.describe("the canvas container (the reworked group)", () => {
     }
   });
 
+  test("the title's chip stands above the box's top frame (the 16 px left, the 4 px gap off the border line — the world's stand over the zoom)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "container-title-above");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      // The group's box set so its top-left corner stands at the world's
+      // (-12, 0) (the canvas's center): the chip's seat (the 16 px left,
+      // the 4 px gap above the frame) stands at the world's (4, -4)
+      // bottom edge — the screenAt's clean read.
+      const group = await a.evaluate(() => {
+        const doc = window.__paneDocs?.a ?? null;
+        if (doc === null) throw new Error("the pane's doc is not mounted");
+        let g = "";
+        doc.transact(() => {
+          const surface = doc.insertBlock("surface");
+          g = doc.insertBlock("group", { members: [], title: "above" }, { parent: surface });
+          doc.setGeometry(g, { x: 108, y: 80, w: 240, h: 160 });
+        });
+        return g;
+      });
+      await expect.poll(async () => (await docBlocks(b, "b"))[group] !== undefined, SETTLE).toBe(true);
+      const chip = a.locator("[data-slot='docblocks/group-title']");
+      await expect(chip).toHaveCount(1);
+      const center = await canvasCenter(a, "a");
+      // The chip's box stand (the world's px — the computed read at zoom
+      // 100%): the 16 px left offset + the 4 px gap the chip's bottom
+      // edge stands off the border line (the chip stands ABOVE the
+      // frame — the seat over the former on-the-line stand). The
+      // text's padding stands off the chip's own frame (the 8 px / the
+      // 2 px).
+      expect(await chip.evaluate((el) => getComputedStyle(el).left)).toBe("16px");
+      expect(await chip.evaluate((el) => getComputedStyle(el).paddingLeft)).toBe("8px");
+      expect(await chip.evaluate((el) => getComputedStyle(el).paddingTop)).toBe("2px");
+      const box100 = (await chip.boundingBox())!;
+      expect(box100.x).toBeCloseTo(center.x + 4, 1);
+      expect(box100.y + box100.height).toBeCloseTo(center.y - 4, 1);
+      // The inline edit stands the SAME seat (the display / the input's
+      // parity) and the rename's commit stands (the contract's
+      // regression).
+      await chip.dblclick();
+      const edit = a.locator('[data-slot="docblocks/group-title-edit"]');
+      await expect(edit).toHaveCount(1);
+      expect(await edit.evaluate((el) => getComputedStyle(el).left)).toBe("16px");
+      const editBox = (await edit.boundingBox())!;
+      expect(editBox.x).toBeCloseTo(center.x + 4, 1);
+      expect(editBox.y + editBox.height).toBeCloseTo(center.y - 4, 1);
+      await edit.fill("above two");
+      await edit.press("Enter");
+      await expect.poll(async () => (await docBlocks(b, "b"))[group]?.attrs?.title, SETTLE).toBe("above two");
+      // The world-scale regression: at zoom 50% the seat scales (the
+      // world layer's transform — the offsets stand the world's).
+      const zoom = await zoomOut(a, "a", 50);
+      const seat50 = screenAtZoom(center, 4, -4, zoom);
+      const box50 = (await a.locator("[data-slot='docblocks/group-title']").boundingBox())!;
+      expect(box50.x).toBeCloseTo(seat50.x, 1);
+      expect(box50.y + box50.height).toBeCloseTo(seat50.y, 1);
+    } finally {
+      await close();
+    }
+  });
+
   test("the between-container move: the member leaves the old and joins the new over the wire", async ({ browser }) => {
     const { a, b, close } = await twoPanes(browser, "container-between");
     try {
