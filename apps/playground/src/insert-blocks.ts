@@ -40,25 +40,14 @@ const MERMAID_SEED = "graph TD\n A --> B";
 /** The fixed unknown docId the broken sync-embed option references. */
 const MISSING_MASTER_ID = "missing-master";
 
-/** The persistent bridge's demo tables (seeded once per page / per channel —
- *  the seed is idempotent: the tables adopt the standing state, the columns'
- *  duplicate create adopts the peer's column, the rows stand the pk-value
- *  insertion (the same id adopts the row). The complete-Demo guard skips the
- *  re-seed over the persisted snapshot's restore; the partial stand (a peer
- *  tab's mid-seed save) completes below). The e2e bridge suite and the slash
- *  picker demo read from it. */
+/** The persistent bridge's demo tables (the seed converges the standing state to the canonical demo tables — an idempotent upsert over the persisted snapshot's restore: the tables adopt by the name's slug, a duplicate column's create adopts the standing column, the rows stand the pk-value insertion (the same id adopts the row — no loss); the missing system table / columns / rows are created, and a legacy enum's column — the static select's options stand, no ref — stands the ref's update). The e2e bridge suite and the slash picker demo read from it. */
 void (async () => {
-  // The persisted snapshot's seed stands first (the guard reads the
+  // The persisted snapshot's seed stands first (the upsert reads the
   // snapshot's tables, not the empty bridge).
   await databaseBridgeReady();
   const bridge = persistentDatabaseBridge;
-  const demo = (await bridge.listTables()).find((table) => table.name === "Demo");
-  if (demo !== undefined) {
-    const { columns } = await bridge.describeTable(demo.id);
-    if (["title", "count", "done", "status"].every((id) => columns.some((column) => column.id === id))) return;
-  }
   // The duplicate-column create's refusal is the adoption stand (the peer
-  // tab's concurrent seed already stood the column).
+  // tab's concurrent seed or the standing column already stands it).
   const ensureColumn = (tableId: string, column: BridgeColumn) => bridge.createColumn(tableId, column).catch(() => {});
   // The enum's options' system table (the hidden stand — the `listTables`
   // stands it out; the options' rows over the `name` / the `color`
@@ -83,10 +72,45 @@ void (async () => {
     refKind: "enum",
     refTableId: "table-statuses-enum",
   });
+  // The legacy status's column (the static select's options stand, no ref)
+  // adopts the enum's ref — the upsert's update over the standing column;
+  // the current-form's column stands the no-op's guard (the re-update is
+  // the peer-tab's echo stand, adopted).
+  const { columns } = await bridge.describeTable(demoId);
+  const statusColumn = columns.find((column) => column.id === "status");
+  if (
+    statusColumn !== undefined &&
+    (statusColumn.refKind !== "enum" || statusColumn.refTableId !== "table-statuses-enum")
+  ) {
+    await bridge
+      .updateColumn(demoId, "status", {
+        type: "text",
+        refKind: "enum",
+        refTableId: "table-statuses-enum",
+      })
+      .catch(() => {});
+  }
   await bridge.insertRows(demoId, [
     { id: "demo-1", title: "First task", count: 1, done: false, status: "todo" },
     { id: "demo-2", title: "Second task", count: 2, done: true, status: "done" },
     { id: "demo-3", title: "Third task", count: 3, done: false, status: "doing" },
+  ]);
+  // The catalog's table (the external form's stand — the catalog doc's
+  // database block references it; the deterministic id's stand over the
+  // JSON golden's byte-stability).
+  const catalogId = await bridge.createTable("Catalog-demo");
+  await ensureColumn(catalogId, { id: "name", name: "Name", type: "text" });
+  await ensureColumn(catalogId, { id: "done", name: "Done", type: "boolean" });
+  await ensureColumn(catalogId, {
+    id: "status",
+    name: "Status",
+    type: "text",
+    refKind: "enum",
+    refTableId: "table-statuses-enum",
+  });
+  await bridge.insertRows(catalogId, [
+    { id: "cat-1", name: "First task", done: false, status: "todo" },
+    { id: "cat-2", name: "Second task", done: true, status: "done" },
   ]);
   // A second demo table with a spread of PostgreSQL types (the per-type
   // cell editors / filter inputs read from it; the e2e suite only reads
@@ -132,7 +156,7 @@ void (async () => {
 /** The pane's persistent database bridge (the e2e + the dev tools drive it). */
 const databaseBridge: DatabaseBridge = persistentDatabaseBridge;
 
-/** The database seed the harness inserts (harness convenience; the user edits it in the block). */
+/** The database seed the harness inserts (harness convenience; the user edits it in the block): the v1 inline form's contract (the rows and the columns stand in the document — the current model's types live in the bridge's external form, the catalog's stand over it). */
 const DATABASE_COLUMNS: DatabaseAttrs["columns"] = [
   { id: "name", name: "Name", type: "text" },
   { id: "done", name: "Done", type: "checkbox" },
@@ -151,6 +175,14 @@ function seedDatabase(doc: Doc): BlockId {
   doc.setCell(id, r2, "done", true);
   doc.setCell(id, r2, "status", "done");
   return id;
+}
+
+/** The catalog's database table (the external form's stand — the current model's types live in the bridge, not the inline form's legacy columns contract): the slug is deterministic, so the catalog doc's JSON golden (the block's `tableId` reference) stays byte-stable. */
+const CATALOG_TABLE_ID = "table-catalog-demo";
+
+/** Seeds the catalog's database block (the external form's reference to the harness' seeded `Catalog-demo` table) and returns its id. */
+function seedCatalogDatabase(doc: Doc): BlockId {
+  return doc.insertBlock("database", { tableId: CATALOG_TABLE_ID });
 }
 
 /** The canvas demo scene the harness inserts (harness convenience): the fixed geometries, one surface with a frame (seeded with a heading + a paragraph), four shapes (the rounded one texted — the shape text's stand), a canvas-text, and a connector between the frame and the rect. */
@@ -288,5 +320,14 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
   return id;
 }
 
-export { blobStore, databaseBridge, EMBED_SRC, insertBlockOf, INSERTABLE_TYPES, seedCanvas, seedDatabase };
+export {
+  blobStore,
+  databaseBridge,
+  EMBED_SRC,
+  insertBlockOf,
+  INSERTABLE_TYPES,
+  seedCanvas,
+  seedCatalogDatabase,
+  seedDatabase,
+};
 export type { InsertableType };

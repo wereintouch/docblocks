@@ -29,9 +29,10 @@ declare global {
       insertRows(tableId: string, rows: Record<string, unknown>[]): Promise<string[]>;
       insertRow(tableId: string, row: Record<string, unknown>): Promise<string>;
       moveRow(tableId: string, rowId: string, beforeRowId: string | null): Promise<void>;
-      describeTable(
-        tableId: string
-      ): Promise<{ name: string; columns: { id: string; name: string; type: string; refTableId?: string }[] }>;
+      describeTable(tableId: string): Promise<{
+        name: string;
+        columns: { id: string; name: string; type: string; refKind?: "enum" | "row"; refTableId?: string }[];
+      }>;
       queryRows(
         tableId: string,
         query?: { filter?: unknown; orderBy?: string[]; cursor?: string; limit?: number }
