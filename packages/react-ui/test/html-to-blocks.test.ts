@@ -100,14 +100,26 @@ describe("the block structure → the paste blocks", () => {
     ]);
   });
 
-  it("the span's color and highlight stand the marks", () => {
+  it("the span's color and highlight stand the marks (hex only)", () => {
     const blocks = htmlToBlocks(
-      '<p><span style="color: rgb(255, 0, 0); border: none">c</span><span style="background-color: yellow">h</span></p>'
+      '<p><span style="color: #ff0000; border: none">c</span><span style="background-color: #ffff00">h</span></p>'
     );
     expect(runsOf(blocks[0]!.runs)).toEqual([
-      ["c", { color: { value: "rgb(255, 0, 0)" } }],
-      ["h", { highlight: { value: "yellow" } }],
+      ["c", { color: { value: "#ff0000" } }],
+      ["h", { highlight: { value: "#ffff00" } }],
     ]);
+  });
+
+  it("the non-hex color / background (the browser's computed oklch / rgb / named) is not a mark (the text stands clean)", () => {
+    // The browser's default copy serializes the rendered color as a computed
+    // `oklch()` / `rgb()` value (and external payloads may carry a named
+    // color): the data model's marks are hex, so a non-hex value is dropped
+    // and the text pastes clean instead of failing the insert (the paste
+    // never fails).
+    const blocks = htmlToBlocks(
+      '<p><span style="color: oklch(0.985 0 0); background-color: oklch(0.205 0 0)">t</span><span style="color: rgb(255, 0, 0)">u</span><span style="background: yellow">v</span></p>'
+    );
+    expect(runsOf(blocks[0]!.runs)).toEqual([["tuv", {}]]);
   });
 
   it("ul/ol → the list items; the nesting → the deeper indent", () => {
