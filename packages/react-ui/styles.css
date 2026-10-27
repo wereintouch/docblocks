@@ -341,6 +341,18 @@
 }
 
 /*
+ * The canvas view consumes every wheel (the pan / the zoom are the
+ * viewport's transform — view state, no data). The `overscroll-behavior:
+ * contain` keeps a wheel at the viewport's boundary from chaining onto the
+ * page / the enclosing scroll container (the overlay scrollbar's flash).
+ * The primary stand is the CanvasView's non-passive wheel listener's
+ * preventDefault (every path); this is the scroll-chaining guard.
+ */
+[data-slot="docblocks/canvas-view"] {
+  overscroll-behavior: contain;
+}
+
+/*
  * The flat-row list marker (the motion view): a row is not in a list
  * element, so the marker is a rendered span in the marker gutter (the
  * row's first character — the marker zone's left edge, to the left of the

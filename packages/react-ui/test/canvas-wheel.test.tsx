@@ -206,4 +206,27 @@ describe("the wheel over the canvas view", () => {
     const block = doc.getBlock(shape);
     expect(block?.type === "shape" ? block.geometry : null).toEqual({ x: 0, y: 0, w: 200, h: 100 });
   });
+
+  it("consumes the wheel on every path (preventDefault — the page / the container never scrolls, the zero-delta no-op included)", () => {
+    // The canvas view's wheel is always the viewport's transform (view
+    // state), so every path — the pan, the zoom, and the zero-delta no-op —
+    // preventDefaults (the non-passive listener) to keep the wheel from
+    // chaining onto the page's scroll (the overlay scrollbar's flash).
+    const { view } = renderCanvas(seededDoc().doc);
+    const prevented = (init: WheelEventInit): boolean => {
+      const event = new WheelEvent("wheel", { bubbles: true, cancelable: true, ...init });
+      view.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    // The pan (the pointer mode's vertical notch).
+    expect(prevented({ deltaY: 120 })).toBe(true);
+    // The zero-delta no-op in the pointer mode: the pan's branch — the
+    // formerly-leaking path (it must still not chain to the page's scroll).
+    expect(prevented({ deltaX: 0, deltaY: 0 })).toBe(true);
+    // The zoom (the pinch / ctrl+wheel).
+    expect(prevented({ deltaY: -120, ctrlKey: true })).toBe(true);
+    // The zoom (the hand mode's step) — the threshold's stand preventDefaults.
+    fireEvent.click(screen.getByLabelText("Switch to the pan mode"));
+    expect(prevented({ deltaY: -120 })).toBe(true);
+  });
 });
