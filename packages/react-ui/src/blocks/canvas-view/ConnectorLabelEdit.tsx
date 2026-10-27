@@ -24,6 +24,8 @@ function ConnectorLabelEdit({
   id,
   mid,
   stroke,
+  width,
+  lineStyle,
   label,
   onClose,
 }: {
@@ -32,6 +34,10 @@ function ConnectorLabelEdit({
   mid: { x: number; y: number };
   /** The line's effective stroke (the frame's color — the token or the data hex). */
   stroke: string;
+  /** The line's effective width (the frame's thickness, canvas px). */
+  width: number;
+  /** The line's `strokeStyle` (the frame's border's style). */
+  lineStyle: "solid" | "dash" | "dot";
   /** The committed label (the edit's seed — the double-click's select-all stands over it). */
   label: string;
   /** Closes the edit (the viewport's state). */
@@ -71,10 +77,10 @@ function ConnectorLabelEdit({
       aria-label="Connector label"
       defaultValue={label}
       style={{
-        // The shared chip's stand (the opaque theme background, the 1px
-        // frame in the line's color, the small corner rounding); the input
+        // The shared chip's stand (the opaque theme background, the frame
+        // over the line's own stand, the small corner rounding); the input
         // adds the fixed edit width and drops its own focus ring.
-        ...connectorLabelChipStyle(mid, stroke),
+        ...connectorLabelChipStyle(mid, stroke, width, lineStyle),
         width: LABEL_EDIT_WIDTH,
         outline: "none",
       }}

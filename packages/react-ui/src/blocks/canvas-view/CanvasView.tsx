@@ -69,6 +69,7 @@ import {
   CONNECT_COLOR,
   SNAP_BADGE_LIFT,
   SNAP_BADGE_RADIUS,
+  connectorStrokeWidthOf,
 } from "../ConnectorLayer";
 import { ShapeSvg } from "../ShapeSvg";
 import { BlockContext, useBlockContextValue } from "../block-context";
@@ -374,7 +375,14 @@ function CanvasView() {
       : block.attrs.strokeColor === undefined || block.attrs.strokeColor === "none"
         ? CONNECTOR_STROKE
         : block.attrs.strokeColor;
-    return { id, mid, stroke, label: block.attrs.label ?? "" };
+    return {
+      id,
+      mid,
+      stroke,
+      width: connectorStrokeWidthOf(block.attrs, selected),
+      lineStyle: block.attrs.strokeStyle ?? "solid",
+      label: block.attrs.label ?? "",
+    };
   })();
 
   // The selected line's endpoint handles' points (the screen-space
@@ -1550,6 +1558,8 @@ function CanvasView() {
               id={connectorLabelTarget.id}
               mid={connectorLabelTarget.mid}
               stroke={connectorLabelTarget.stroke}
+              width={connectorLabelTarget.width}
+              lineStyle={connectorLabelTarget.lineStyle}
               label={connectorLabelTarget.label}
               onClose={() => viewport.setConnectorLabelEditing(null)}
             />

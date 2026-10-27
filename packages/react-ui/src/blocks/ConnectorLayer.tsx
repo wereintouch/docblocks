@@ -40,7 +40,9 @@ const SELECTED_WIDTH_BUMP = 1;
 /** The invisible hit path's width (a wide enough stroke to click the line). */
 const HIT_STROKE_WIDTH = 12;
 /** The arrowhead's length (canvas px, the marker's coordinate space). */
-const ARROW_SIZE = 8;
+const ARROW_SIZE = 11;
+/** The circle endpoint's radius (canvas px, the marker's coordinate space). */
+const CIRCLE_ENDPOINT_RADIUS = 4;
 /** The connect badge's radius (canvas px, beside the snapped port). */
 const SNAP_BADGE_RADIUS = 10;
 /** The connect badge's offset from the snapped port along its outward
@@ -61,6 +63,17 @@ function arrowDefId(surfaceId: BlockId, fill: string): string {
         ? "-selected"
         : `-c${fill.replace(/[^a-z0-9]/gi, "")}`;
   return `docblocks-conn-arrow-${surfaceId}${key}`;
+}
+
+/** The line's effective width: the 1–4 data attr's clamp stand (the
+ * lenient render over the raw write) + the selection's bump. The label
+ * chip's frame reads the same stand (the frame stands the line). */
+function connectorStrokeWidthOf(attrs: { strokeWidth?: number }, selected: boolean): number {
+  const baseWidth = Math.min(
+    MAX_STROKE_WIDTH,
+    Math.max(MIN_STROKE_WIDTH, Math.round(attrs.strokeWidth ?? DEFAULT_STROKE_WIDTH))
+  );
+  return selected ? baseWidth + SELECTED_WIDTH_BUMP : baseWidth;
 }
 
 /**
@@ -156,7 +169,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
           <marker
             key={`end-${fill}`}
             id={arrowDefId(id, fill)}
-            viewBox="0 0 8 8"
+            viewBox={`0 0 ${ARROW_SIZE} ${ARROW_SIZE}`}
             refX={ARROW_SIZE}
             refY={ARROW_SIZE / 2}
             markerWidth={ARROW_SIZE}
@@ -164,14 +177,14 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
             orient="auto"
             markerUnits="userSpaceOnUse"
           >
-            <path d="M 0 0 L 8 4 L 0 8 Z" style={{ fill }} />
+            <path d={`M 0 0 L ${ARROW_SIZE} ${ARROW_SIZE / 2} L 0 ${ARROW_SIZE} Z`} style={{ fill }} />
           </marker>
         ))}
         {[...startFills].map((fill) => (
           <marker
             key={`start-${fill}`}
             id={`${arrowDefId(id, fill)}-s`}
-            viewBox="0 0 8 8"
+            viewBox={`0 0 ${ARROW_SIZE} ${ARROW_SIZE}`}
             refX={0}
             refY={ARROW_SIZE / 2}
             markerWidth={ARROW_SIZE}
@@ -179,14 +192,14 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
             orient="auto"
             markerUnits="userSpaceOnUse"
           >
-            <path d="M 8 0 L 0 4 L 8 8 Z" style={{ fill }} />
+            <path d={`M ${ARROW_SIZE} 0 L 0 ${ARROW_SIZE / 2} L ${ARROW_SIZE} ${ARROW_SIZE} Z`} style={{ fill }} />
           </marker>
         ))}
         {[...circleFills].map((fill) => (
           <marker
             key={`circle-${fill}`}
             id={`${arrowDefId(id, fill)}-ci`}
-            viewBox="0 0 8 8"
+            viewBox={`0 0 ${ARROW_SIZE} ${ARROW_SIZE}`}
             refX={ARROW_SIZE / 2}
             refY={ARROW_SIZE / 2}
             markerWidth={ARROW_SIZE}
@@ -194,7 +207,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
             orient="auto"
             markerUnits="userSpaceOnUse"
           >
-            <circle cx={ARROW_SIZE / 2} cy={ARROW_SIZE / 2} r={2.5} style={{ fill }} />
+            <circle cx={ARROW_SIZE / 2} cy={ARROW_SIZE / 2} r={CIRCLE_ENDPOINT_RADIUS} style={{ fill }} />
           </marker>
         ))}
       </defs>
@@ -329,12 +342,8 @@ function connectorLineOf(
   const stroke = connectorStrokeOf(block, selected);
   // The width stand (the 1–4 data attr; the lenient render clamps the
   // raw write) + the selection's bump (the 1x default stands the
-  // former 1→2 emphasis).
-  const baseWidth = Math.min(
-    MAX_STROKE_WIDTH,
-    Math.max(MIN_STROKE_WIDTH, Math.round(attrs.strokeWidth ?? DEFAULT_STROKE_WIDTH))
-  );
-  const strokeWidth = selected ? baseWidth + SELECTED_WIDTH_BUMP : baseWidth;
+  // former 1→2 emphasis; the label chip's frame reads the same stand).
+  const strokeWidth = connectorStrokeWidthOf(attrs, selected);
   const dash = attrs.strokeStyle === "dash" ? "8 4" : attrs.strokeStyle === "dot" ? "1 4" : undefined;
   // The arrowheads (the independent
   // start figure 2026-10-22): each end stands its own figure — the end
@@ -536,5 +545,6 @@ export {
   INERT_CANVAS_SESSION,
   SNAP_BADGE_LIFT,
   SNAP_BADGE_RADIUS,
+  connectorStrokeWidthOf,
 };
 export type { CanvasSession };
