@@ -3299,6 +3299,61 @@ test("the header's Ellipsis stands the cell's vertical center (the border's half
   }
 });
 
+test("the header's cursor stands the grab zone (the Ellipsis's pointer; the seam's col-resize centered on the border)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "db-header-cursor");
+  const demo = await bridgeDemoTable(a);
+  await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
+  const gridA = a.locator("[data-slot='docblocks/database-grid']");
+  await expect(gridA).toHaveCount(1, SETTLE);
+  const titleHeader = a.locator("[data-slot='docblocks/database-header-cell'][data-column-id='title']");
+  await expect(titleHeader).toBeVisible(SETTLE);
+
+  // The cell's grab (the drag's affordance) and the Ellipsis's button's
+  // pointer (the menu's affordance) stand the header's cursor's zones.
+  const cellCursor = await titleHeader.evaluate((el) => getComputedStyle(el).cursor);
+  const btnCursor = await titleHeader
+    .locator("[data-slot='docblocks/database-column-menu']")
+    .evaluate((el) => getComputedStyle(el).cursor);
+  expect(cellCursor).toBe("grab");
+  expect(btnCursor).toBe("pointer");
+
+  // The seam stands centered on the cell's right edge (the 3 px over each
+  // side): the strip's center + the line's center stand the border (the
+  // pointer over the line stands the stable col-resize).
+  const seam = a.locator("[data-slot='docblocks/database-col-resize'][data-index='0']");
+  const line = seam.locator("[data-slot='docblocks/database-col-resize-line']");
+  const headerBox = (await titleHeader.boundingBox())!;
+  const seamBox = (await seam.boundingBox())!;
+  const lineBox = (await line.boundingBox())!;
+  const borderX = headerBox.x + headerBox.width;
+  expect(Math.abs(seamBox.x + seamBox.width / 2 - borderX)).toBeLessThanOrEqual(0.5);
+  expect(Math.abs(lineBox.x + lineBox.width / 2 - borderX)).toBeLessThanOrEqual(0.5);
+  expect(await seam.evaluate((el) => getComputedStyle(el).cursor)).toBe("col-resize");
+
+  // The header's sweep stands the grab over the cells + the Ellipsis's
+  // pointer + the col-resize's stand over the seams only (the auto stands
+  // off the header's zone — the block's edge + the add-column's column
+  // keep their own).
+  const sweep = await a.evaluate(() => {
+    const grid = document.querySelector("[data-slot='docblocks/database-grid']") as HTMLElement;
+    const cells = Array.from(grid.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']"));
+    const first = cells[0]!.getBoundingClientRect();
+    const last = cells[cells.length - 1]!.getBoundingClientRect();
+    const set = new Set<string>();
+    for (let x = first.left + 1; x <= last.right - 1; x += 2) {
+      const el = document.elementFromPoint(x, first.top + first.height / 2);
+      if (el !== null) set.add(getComputedStyle(el).cursor);
+    }
+    return Array.from(set);
+  });
+  expect(sweep).toEqual(expect.arrayContaining(["grab", "col-resize"]));
+  expect(sweep.every((value) => ["grab", "pointer", "col-resize"].includes(value))).toBeTruthy();
+
+  await close();
+});
+
 test("the header's menu opens only over the Ellipsis (the name's press stands nothing; the drag reorders; the cursor stands grab)", async ({
   browser,
 }) => {
