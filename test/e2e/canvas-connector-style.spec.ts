@@ -90,6 +90,45 @@ async function lineMidScreen(page: Page, client: "a" | "b"): Promise<{ x: number
   }, client);
 }
 
+// The label chip's dist to the connector's polyline (the owner's "the
+// label in the air" guard — the chip's center stands on the visible line).
+// The path's `d` stands the world's space; the chip's screen offset from the
+// view's center stands the world's offset (the zoom-1 / pan-0 stand).
+async function chipDistToPath(page: Page, client: "a" | "b"): Promise<number> {
+  return page.evaluate((c) => {
+    const doc = document.querySelector(`[data-testid="doc-${c}"]`)!;
+    const path = doc.querySelector<SVGPathElement>("[data-connector-id]")!;
+    const d = path.getAttribute("d")!;
+    const nums = d
+      .split(/[^0-9.eE-]+/)
+      .filter(Boolean)
+      .map(Number);
+    const pts: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i + 1 < nums.length; i += 2) {
+      pts.push({ x: nums[i]!, y: nums[i + 1]! });
+    }
+    const chip = doc.querySelector<HTMLElement>("[data-connector-label]")!;
+    const chipRect = chip.getBoundingClientRect();
+    const view = doc.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
+    const rect = view.getBoundingClientRect();
+    const seat = {
+      x: chipRect.x + chipRect.width / 2 - (rect.x + rect.width / 2),
+      y: chipRect.y + chipRect.height / 2 - (rect.y + rect.height / 2),
+    };
+    let min = Infinity;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = pts[i]!;
+      const q = pts[i + 1]!;
+      const dx = q.x - p.x;
+      const dy = q.y - p.y;
+      const lenSq = dx * dx + dy * dy;
+      const t = lenSq === 0 ? 0 : Math.max(0, Math.min(1, ((seat.x - p.x) * dx + (seat.y - p.y) * dy) / lenSq));
+      min = Math.min(min, Math.hypot(seat.x - (p.x + t * dx), seat.y - (p.y + t * dy)));
+    }
+    return min;
+  }, client);
+}
+
 test.describe("the connector's style attrs", () => {
   test("the toolbar's applies over the wire (the color / width / the two arrowheads, the one-step undo)", async ({
     browser,
@@ -541,6 +580,71 @@ test("the label's chip follows the line mid-drag over the endpoint's re-draw (th
     const chipEnd = (await chip.boundingBox())!;
     expect(Math.abs(chipEnd.x + chipEnd.width / 2 - midEnd.x)).toBeLessThan(2);
     expect(Math.abs(chipEnd.y + chipEnd.height / 2 - midEnd.y)).toBeLessThan(2);
+  } finally {
+    await close();
+  }
+});
+
+test("the label's chip stands on the line for the port-pairs (the dist-to-path stands zero — the owner's \"the label in the air\")", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "canvas-conn-chip-on-line");
+  try {
+    await switchPaneView(a, "a", "canvas");
+    await switchPaneView(b, "b", "canvas");
+    // The scene: A (top) + B (below and right) + an orthogonal
+    // labeled connector. The ports are swapped per pair — the chip's seat
+    // stands the polyline's longest run (the endpoints' straight mid would
+    // stand in the air off the line).
+    await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane's doc is not mounted");
+      (window as unknown as { __scene: unknown }).__scene = null;
+      doc.transact(() => {
+        const surface = doc.insertBlock("surface");
+        const sa = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+        doc.setGeometry(sa, { x: 0, y: 0, w: 100, h: 100 });
+        const sb = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+        doc.setGeometry(sb, { x: 100, y: 200, w: 100, h: 100 });
+        const conn = doc.insertBlock(
+          "connector",
+          {
+            start: { blockId: sa, port: "south" },
+            end: { blockId: sb, port: "west" },
+            variant: "orthogonal",
+            label: "on the line",
+          },
+          { parent: surface }
+        );
+        (window as unknown as { __scene: unknown }).__scene = { conn, sa, sb };
+      });
+    });
+    const scene = (await a.evaluate(
+      () => (window as unknown as { __scene: { conn: string; sa: string; sb: string } }).__scene
+    ))!;
+    // The wire's settle (the scene stands in B — the pane's own render).
+    await expect.poll(async () => await b.locator("[data-connector-label]").count(), SETTLE).toBe(1);
+    // The scene's pairs (bottom->left, top->right, left->right,
+    // bottom->bottom): the chip stands on the line in BOTH panes (the
+    // dist-to-path stands zero — no air).
+    const pairs: Array<[string, string]> = [
+      ["south", "west"],
+      ["north", "east"],
+      ["west", "west"],
+      ["south", "south"],
+    ];
+    for (const [sPort, ePort] of pairs) {
+      await a.evaluate(
+        ({ sa, sb, conn, sp, ep }) => {
+          const doc = window.__paneDocs?.a ?? null;
+          if (doc === null) throw new Error("the pane's doc is not mounted");
+          doc.updateBlock(conn, { start: { blockId: sa, port: sp }, end: { blockId: sb, port: ep } });
+        },
+        { sa: scene.sa, sb: scene.sb, conn: scene.conn, sp: sPort, ep: ePort }
+      );
+      await expect.poll(async () => await chipDistToPath(a, "a"), SETTLE).toBeLessThan(3);
+      await expect.poll(async () => await chipDistToPath(b, "b"), SETTLE).toBeLessThan(3);
+    }
   } finally {
     await close();
   }

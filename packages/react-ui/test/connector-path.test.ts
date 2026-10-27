@@ -502,6 +502,27 @@ describe("connectorMidpoint", () => {
     ).toEqual({ x: 0, y: 20 });
   });
 
+  it("the orthogonal port-pair's seat stands on the polyline's longest run (not the endpoints' straight mid)", () => {
+    // A's south port (the bottom) -> B's west port (the left), B below and
+    // right — the owner's "the label in the air" scene. The orthogonal's
+    // vertical-dominant elbow: the seat stands on the polyline's longest
+    // run (the vertical run's mid), not the endpoints' straight mid (the
+    // former stand — the chip floating off the line).
+    const blocks = {
+      a: { type: "shape", geometry: { x: 0, y: 0, w: 100, h: 100 } },
+      b: { type: "shape", geometry: { x: 100, y: 200, w: 100, h: 100 } },
+      c1: {
+        type: "connector",
+        attrs: { start: { blockId: "a", port: "south" }, end: { blockId: "b", port: "west" }, variant: "orthogonal" },
+      },
+    } as unknown as Record<string, Block>;
+    const mid = connectorMidpoint(CONN, ["a", "b"], blocks);
+    // The endpoints' straight mid (the former buggy stand — in the air).
+    expect(mid).not.toEqual({ x: 25, y: 125 });
+    // The seat stands on the polyline (the longest run's mid — (0, 131)).
+    expect(mid).toEqual({ x: 0, y: 131 });
+  });
+
   it("the stored points' polyline stands the endpoints' midpoint (the points stand the route, not the seat)", () => {
     expect(
       connectorMidpoint(
