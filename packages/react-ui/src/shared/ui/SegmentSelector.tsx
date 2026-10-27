@@ -98,9 +98,18 @@ function SegmentSelector<T extends string>({
         <span
           data-slot={pillSlot}
           aria-hidden
+          // The pill's background stands the standard `accent` token (the
+          // soft-highlight — the `background`'s stand was the dark theme's
+          // near-black, darker than the track's `muted` and "gloomy"); the
+          // neutral theme's `accent` == `muted` (the track), so the dark's
+          // pill blends with the track — the dark's stand takes the `ring`
+          // token's brighter stand (it reads over the track, and the active
+          // icon's `text-foreground` reads over it — the token's own contrast,
+          // the consumer's theme or the fallback literal).
           className="
-            absolute top-0 left-0 rounded-md bg-background shadow-sm transition-[transform,width,height] duration-200
+            absolute top-0 left-0 rounded-md bg-accent shadow-sm transition-[transform,width,height] duration-200
             ease-[cubic-bezier(0.34,1.56,0.64,1)]
+            dark:bg-ring
           "
           style={{
             transform: `translate(${pill.left}px, ${pill.top}px)`,
