@@ -537,7 +537,7 @@ test("a deletion above the caret over the tall doc stands the bounds and the scr
     await expect(a.locator('[data-slot="docblocks/row"]')).toHaveCount(15);
     await settled(a);
     const lastRow = a.locator('[data-slot="docblocks/row"]').last();
-    const survivorId = (await lastRow.locator(':scope > [data-block-id]').first().getAttribute("data-block-id")) ?? "";
+    const survivorId = (await lastRow.locator(":scope > [data-block-id]").first().getAttribute("data-block-id")) ?? "";
     const tableBox = await a.locator('[data-block-type="table"]').first().boundingBox();
     const tableHeight = tableBox === null ? 0 : tableBox.height;
     expect(tableHeight).toBeGreaterThan(0);
