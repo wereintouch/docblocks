@@ -84,6 +84,43 @@ describe("the default bridge — the ref contract (the dict tables / the updateC
     });
   });
 
+  it("an undelete restores the row over the channel (the other clients converge; the seat stands)", async () => {
+    // Two bridges over one channel (the two tabs' stand): A removes a row
+    // (B converges to the removal), then A undeletes it. The restore event
+    // (the cells + the original fractional position) reaches B, so both
+    // bridges converge to the restored row at its ORIGINAL seat (not the
+    // end), the cells intact. The repeat undelete stands idempotent.
+    const channelName = crypto.randomUUID();
+    const a = createMemoryDatabaseBridge({ channelName });
+    const b = createMemoryDatabaseBridge({ channelName });
+    const tableId = await a.createTable("Restore");
+    await vi.waitFor(async () => {
+      expect((await b.listTables()).some((table) => table.id === tableId)).toBe(true);
+    });
+    const [first, second] = await a.insertRows(tableId, [{ title: "first" }, { title: "second" }]);
+    if (first === undefined || second === undefined) throw new Error("the insert stands the row ids");
+    // A removes the first row; B converges to the removal.
+    await a.removeRow(tableId, first);
+    await vi.waitFor(async () => {
+      const pageB = await b.queryRows(tableId, {});
+      expect(Object.keys(pageB.rows)).toHaveLength(1);
+      expect(pageB.rows[second]?.["title"]).toBe("second");
+    });
+    // A undeletes the row; B converges to the restore (the row stands again
+    // before the second row — its original seat — the cells intact).
+    await a.undeleteRows!(tableId, [first]);
+    await vi.waitFor(async () => {
+      const pageB = await b.queryRows(tableId, {});
+      expect(Object.keys(pageB.rows)).toEqual([first, second]);
+      expect(pageB.rows[first]?.["title"]).toBe("first");
+      expect(pageB.rows[second]?.["title"]).toBe("second");
+    });
+    // The repeat undelete stands idempotent (the row is out of the trash —
+    // no second restore, no duplicate).
+    await a.undeleteRows!(tableId, [first]);
+    expect(Object.keys((await a.queryRows(tableId, {})).rows)).toHaveLength(2);
+  });
+
   it("the updateColumn's patch stands the attributes (the name keeps; the zero patch is a no-op)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const id = await bridge.createTable("T");

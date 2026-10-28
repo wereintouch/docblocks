@@ -112,6 +112,10 @@ type TableEvent =
   | { type: "row.updated"; rowId: string; cells: Record<string, unknown>; before?: Record<string, unknown> }
   | { type: "row.removed"; rowId: string }
   | { type: "row.moved"; rowId: string; beforeRowId: string | null }
+  // The soft-delete restore (the `undeleteRows`'s stand — the idempotent re-
+  // publication of the row). Carries the cells and the original fractional
+  // position, so the restore lands at the row's previous seat on every client.
+  | { type: "row.restored"; rowId: string; cells: Record<string, unknown>; orderValue: number }
   | { type: "schema.changed"; columns: BridgeColumn[] }
   | { type: "table.renamed"; name: string };
 
