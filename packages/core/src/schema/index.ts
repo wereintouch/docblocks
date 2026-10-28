@@ -5,6 +5,7 @@
 export { BLOCK_REGISTRY, CALLOUT_ICONS, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES } from "./registry";
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
 export { flattenDoc } from "./flatten";
+export { normalizeZOrder } from "./z-order";
 export {
   checkDatabaseCellValue,
   validateBlockAttrs,

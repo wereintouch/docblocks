@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 
-import { flattenDoc, validateDoc } from "@docblocks-core/schema";
+import { flattenDoc, normalizeZOrder, validateDoc } from "@docblocks-core/schema";
 import type {
   Block,
   BlockAttrsPatch,
@@ -144,12 +144,16 @@ class Doc {
 
   /** Factory for a document built from schema JSON (see fromJSON). */
   static fromJSON(json: DocJSON): Doc {
-    const errors = validateDoc(json);
+    // The z-order mirror (the canvas elements' dense `zIndex`) can be stale
+    // in a saved snapshot after a concurrent merge; re-derive it from the
+    // children order before validation (the single source of the z-order).
+    const normalized = normalizeZOrder(json);
+    const errors = validateDoc(normalized);
     if (errors.length > 0) throw errors;
     // The legacy nesting form is valid v1 input: normalize it to the flat
     // form on load, so the live document is always flat (and toJSON flat).
     const ydoc = new Y.Doc();
-    writeDocument(ydoc, flattenDoc(json));
+    writeDocument(ydoc, flattenDoc(normalized));
     return new Doc(ydoc, randomId);
   }
 

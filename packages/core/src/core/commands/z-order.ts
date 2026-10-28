@@ -21,6 +21,49 @@ type ZOrderAction = "forward" | "back" | "toFront" | "toBack";
 /** The canvas element types that carry the explicit z-order `zIndex`. */
 export const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
 
+/**
+ * The dense z-order position (1..N, 1 = bottom) of a canvas element among
+ * its surface's canvas elements, derived from the (converged) children
+ * order — the single source of the z-order. The stored `zIndex` attr is a
+ * mirror that can be stale after a concurrent merge (each peer wrote its
+ * own local position); the read path derives the index so the snapshot
+ * always reflects the true order and stays valid. A phantom (the id in the
+ * array but owned by another container) does not count. Null when the block
+ * is not a canvas element of a surface.
+ */
+function derivedZIndex(ydoc: Y.Doc, id: string): number | null {
+  const type = blockTypeOf(ydoc, id);
+  if (type === null || !CANVAS_ZORDER_TYPES.has(type)) return null;
+  const surfaceId = findParent(ydoc, id);
+  if (surfaceId === null || blockTypeOf(ydoc, surfaceId) !== "surface") return null;
+  const children = childrenOf(ydoc, surfaceId);
+  if (children === null) return null;
+  // A concurrent reorder (two full children rewrites) can leave duplicate
+  // ids in the raw array; count each id once (first occurrence), the same
+  // stand the lenient reader (readChildren) uses.
+  const seen = new Set<string>();
+  let pos = 0;
+  let anyStored = false;
+  let result: number | null = null;
+  for (const childId of children.toArray()) {
+    if (seen.has(childId)) continue; // a duplicate (concurrent reorder residue)
+    seen.add(childId);
+    const childType = blockTypeOf(ydoc, childId);
+    if (childType === null || !CANVAS_ZORDER_TYPES.has(childType)) continue;
+    if (findParent(ydoc, childId) !== surfaceId) continue; // a phantom (owned elsewhere)
+    const childBlock = getBlockMap(ydoc, childId);
+    const attrs = childBlock !== null ? childBlock.get("attrs") : null;
+    if (attrs instanceof Y.Map && typeof attrs.get("zIndex") === "number") anyStored = true;
+    pos += 1;
+    if (childId === id) result = pos;
+  }
+  if (result === null) return null; // not in the owner surface's children
+  // The legacy form (no stored zIndex at all) keeps the children order's lenient
+  // stand — the read path does not add a zIndex to a legacy surface.
+  if (!anyStored) return null;
+  return result;
+}
+
 /** Sets the block's `zIndex` attr (the `attrs` map is created when absent). */
 function writeZIndexAttr(ydoc: Y.Doc, block: Y.Map<unknown>, zIndex: number): void {
   const attrs = block.get("attrs");
@@ -135,5 +178,5 @@ function refreshSurfaceZIndex(ydoc: Y.Doc, surfaceId: string): void {
   }
 }
 
-export { refreshSurfaceZIndex, setZOrder, writeZIndexAttr };
+export { derivedZIndex, refreshSurfaceZIndex, setZOrder, writeZIndexAttr };
 export type { ZOrderAction };

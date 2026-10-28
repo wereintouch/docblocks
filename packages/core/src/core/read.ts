@@ -3,6 +3,7 @@ import * as Y from "yjs";
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
 import type { Block, BlockId, BlockType, DocJSON, DocMeta, TextRun } from "@docblocks-core/schema";
 
+import { derivedZIndex } from "./commands/z-order";
 import { rootBlockIdOf, rootOrderOf } from "./layout";
 import { normalizeRuns } from "./normalize";
 import { attrsToMarkSet } from "./text-model";
@@ -198,6 +199,17 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
       if (record.arrowStart) record.arrowStart = "arrow";
       else delete record.arrowStart;
     }
+  }
+
+  // The canvas element's z-order index (dense 1..N, the children order's
+  // derived mirror): a concurrent merge can leave the stored `zIndex` stale
+  // (each peer wrote its own local position), so the read path derives it
+  // from the (converged) children order — the single source of the z-order.
+  const zIndex = derivedZIndex(ydoc, id);
+  if (zIndex !== null) {
+    const record = block.attrs !== undefined ? (block.attrs as Record<string, unknown>) : {};
+    record.zIndex = zIndex;
+    block.attrs = record;
   }
 
   // The canvas geometry of any block: a plain copy of the nested Y.Map
