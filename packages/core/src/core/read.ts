@@ -253,14 +253,18 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
     const rowOrder = yblock.get("rowOrder");
     const hasCells = (rowId: string) => rowsMap instanceof Y.Map && rowsMap.has(rowId);
     block.rows = rows;
-    // A concurrent moveRow + removeRow of the same row can converge to a
-    // re-inserted order id with no cells entry (the move's delete +
-    // reinsert races the remove's delete on the same array element). The
-    // lenient reader drops the dangling id; the strict validator still
-    // rejects it in JSON.
+    // Two concurrent moveRows of the same row leave both re-inserts in the
+    // raw array (the deletes coalesce, the inserts accumulate); a concurrent
+    // moveRow + removeRow can converge to a re-inserted order id with no
+    // cells entry. The lenient reader drops the dangling id and deduplicates
+    // the rest (first occurrence — the raw CRDT order is deterministic on
+    // every peer, so all peers converge on the same single position); the
+    // strict validator still rejects either residue in JSON.
     block.rowOrder =
       rowOrder instanceof Y.Array
-        ? rowOrder.toArray().filter((rowId): rowId is string => typeof rowId === "string" && hasCells(rowId))
+        ? dedupeOrder(
+            rowOrder.toArray().filter((rowId): rowId is string => typeof rowId === "string" && hasCells(rowId))
+          )
         : [];
   }
 
