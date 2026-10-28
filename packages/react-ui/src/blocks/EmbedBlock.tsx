@@ -2,15 +2,20 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 
+import { useEditorContext } from "../EditorProvider";
 import { Minus, Plus, RotateCcw } from "../shared/ui/icons";
 
 /**
  * An embed (v1): a plain iframe for every kind — the kind is a renderer hint
  * only (all kinds render as an iframe; per-kind card renderers come later),
  * so an unknown kind (newer data) still renders the same iframe. `src` is a
- * URL, not a blob key: the consumer's blob resolver does not apply. No
- * sandbox attribute in v1 (the standard embed iframe). The block is not
- * text-editable, so the wrapper carries no gutter handle.
+ * URL, not a blob key: the consumer's blob resolver does not apply. The
+ * iframe stands a `sandbox` attribute — the safe default (no
+ * `allow-same-origin`, so the embedded content is an opaque origin and cannot
+ * read the parent's DOM / state; scripts, forms, and popups still run) or the
+ * consumer's `embedSandbox` policy (grant `allow-same-origin` only for trusted
+ * origins). The block is not text-editable, so the wrapper carries no gutter
+ * handle.
  *
  * Pan/zoom (view state, decision 2026-10-22): the iframe stands a CSS
  * `translate(x, y) scale(s)` transform (the wrapper clips the overflow). The
@@ -77,6 +82,12 @@ function zoomAtPoint(view: EmbedView, cx: number, cy: number, nextScale: number)
 
 function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
   const { kind, src, title } = block.attrs;
+  // The embed's sandbox: the policy (the consumer's or the safe default) maps
+  // the src to the `sandbox` value; `null` stands no sandbox (a fully trusted
+  // embed). The default is opaque-origin (no `allow-same-origin`), so the
+  // embedded content cannot read the parent's DOM / state.
+  const { embedSandbox } = useEditorContext();
+  const sandbox = embedSandbox(src);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [view, setView] = useState<EmbedView>(EMBED_VIEW_IDENTITY);
   const viewRef = useRef(view);
@@ -212,6 +223,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
         src={src}
         title={title ?? kind}
         loading="lazy"
+        sandbox={sandbox ?? undefined}
         className="block h-full w-full border-0"
         style={{
           transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,

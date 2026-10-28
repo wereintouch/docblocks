@@ -1,0 +1,31 @@
+<!doctype html>
+<!--
+  Same-origin fixture for theembed-sandbox e2e: served by the playground
+  dev server (Vite's public dir), so the embed points at the parent's own
+  origin. The embedded content attempts to write a marker to the parent's
+  state — the same-origin attackguards against. With the sandbox (no
+  allow-same-origin) the access throws and the marker is never set; without
+  the sandbox (the old behavior) it lands.
+-->
+<html>
+  <head>
+    <title>Sandbox test embed</title>
+  </head>
+  <body>
+    <p>Sandbox test embed body</p>
+    <script>
+      // Report to the parent that the script ran (postMessage works across
+      // origins, unlike the DOM access below) — so the test can tell a
+      // loaded-and-blocked fixture from a 404 that never ran.
+      window.parent.postMessage({ sandbox: "ran" }, "*");
+      try {
+        // The attack: reach the parent's state through the same origin.
+        window.parent.__sandboxmarker = "pwned";
+      } catch (error) {
+        // Sandboxed (opaque origin): the access is denied — the expected,
+        // safe outcome.
+        document.body.dataset.sandboxblocked = "1";
+      }
+    </script>
+  </body>
+</html>
