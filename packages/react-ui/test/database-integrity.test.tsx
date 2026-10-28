@@ -82,7 +82,7 @@ describe("the forward-only undo/redo over the bridge", () => {
     expect(columns).toEqual(["value", "other"]);
   });
 
-  it.fails("undo of an update changes only the edited field after a remote change", async () => {
+  it("undo of an update changes only the edited field after a remote change", async () => {
     const { bridge, id, result } = await setup([{ id: "a", value: "A", other: "original" }]);
     await act(async () => {
       await result.current.updateRow("a", { value: "B" });
@@ -96,6 +96,67 @@ describe("the forward-only undo/redo over the bridge", () => {
     });
     const row = (await bridge.queryRows(id, {})).rows.a;
     expect(row?.other).toBe("remote");
+    expect(row?.value).toBe("A");
+  });
+
+  it("undo of the same cell edit stands the local pre-operation value (the newest write)", async () => {
+    const { bridge, id, result } = await setup([{ id: "a", value: "A" }]);
+    await act(async () => {
+      await result.current.updateRow("a", { value: "B" });
+    });
+    // A remote peer edits the SAME cell after the local operation.
+    await act(async () => {
+      await bridge.updateRow(id, "a", { value: "C" });
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    // The same-cell conflict stands the undo as the newest write (the
+    // pre-operation value over the remote edit landed since).
+    const row = (await bridge.queryRows(id, {})).rows.a;
+    expect(row?.value).toBe("A");
+  });
+
+  it("undo of a batch update keeps the foreign edits of the other cells", async () => {
+    const { bridge, id, result } = await setup([
+      { id: "a", value: "A1", other: "o1" },
+      { id: "b", value: "B1", other: "o2" },
+    ]);
+    await act(async () => {
+      await result.current.updateRows([
+        { rowId: "a", cells: { value: "A2" } },
+        { rowId: "b", cells: { value: "B2" } },
+      ]);
+    });
+    // A remote peer edits a different cell of one of the touched rows.
+    await act(async () => {
+      await bridge.updateRow(id, "a", { other: "remote" });
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    const page = await bridge.queryRows(id, {});
+    expect(page.rows.a).toEqual({ value: "A1", other: "remote" });
+    expect(page.rows.b).toEqual({ value: "B1", other: "o2" });
+  });
+
+  it("the re-delivered remote update stands the undo intact (the idempotent echo)", async () => {
+    const { bridge, id, result } = await setup([{ id: "a", value: "A", other: "original" }]);
+    await act(async () => {
+      await result.current.updateRow("a", { value: "B" });
+    });
+    // The remote edit is delivered twice (the re-delivery; the bridge
+    // applies it idempotently — the second delivery stands a no-op).
+    await act(async () => {
+      await bridge.updateRow(id, "a", { other: "remote" });
+      await bridge.updateRow(id, "a", { other: "remote" });
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    const row = (await bridge.queryRows(id, {})).rows.a;
+    expect(row?.other).toBe("remote");
+    expect(row?.value).toBe("A");
   });
 
   it.fails("the undo stack does not target a previous table after relinking", async () => {

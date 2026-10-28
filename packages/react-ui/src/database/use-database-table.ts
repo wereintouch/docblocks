@@ -7,12 +7,14 @@
  * layer (the local apply before the bridge call, the rollback to the
  * pre-operation snapshot + the refetch on a reject) and the
  * FORWARD-ONLY per-block undo stack (the inverse operations: insert →
- * remove, update → update with the old cells, remove → undelete (when
- * the consumer has soft-delete — otherwise the removal is not undoable
- * and never enters the stack), move → move back, column delete →
- * restore (when the consumer's bridge preserves the deleted column's
- * data over `restoreDeletedColumn` — otherwise the destruction stands
- * not undoable and never enters the stack)). The doc-undo does not
+ * remove, update → update with the old values of the edited cells only
+ * (the full old row would clobber a remote edit of another cell — the
+ * same-cell conflict stands the undo as the newest write), remove →
+ * undelete (when the consumer has soft-delete — otherwise the removal is
+ * not undoable and never enters the stack), move → move back, column
+ * delete → restore (when the consumer's bridge preserves the deleted
+ * column's data over `restoreDeletedColumn` — otherwise the destruction
+ * stands not undoable and never enters the stack)). The doc-undo does not
  * cover the table rows (they are not in the doc); the hotkey wiring is
  * the consumer UI (the `undo` / `redo` API).
  */
@@ -217,12 +219,16 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
             label: `update row ${rowId}`,
             forward: async () => bridge.updateRow(tableId, rowId, cleaned),
             inverse: async () => {
-              // The key the forward set but that stood no value before
-              // stands the explicit null: the bridge's write is a merge
-              // (an absent key in the patch stands no removal).
-              const restore: Record<string, unknown> = { ...oldCells };
-              for (const [key, value] of Object.entries(cleaned)) {
-                if (oldCells[key] === undefined && value !== undefined) restore[key] = null;
+              // The inverse patch covers the EDITED KEYS ONLY (the full old
+              // row would clobber a remote edit of another cell landed
+              // after the operation): the pre-operation value of each
+              // edited key, the absent-before key over the explicit null
+              // (the merge's removal stand). The same-cell conflict policy:
+              // the undo stands the newest write (the local pre-operation
+              // value over a remote edit of the same cell landed since).
+              const restore: Record<string, unknown> = {};
+              for (const key of Object.keys(cleaned)) {
+                restore[key] = oldCells[key] === undefined ? null : oldCells[key];
               }
               await bridge.updateRow(tableId, rowId, restore);
             },
