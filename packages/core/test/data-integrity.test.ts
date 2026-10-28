@@ -22,7 +22,11 @@ import { validateDoc } from "../src/schema";
  * materialized at table creation); the database rowOrder is read with the
  * first-occurrence deduplication (a concurrent moveRow pair leaves both
  * re-inserts in the raw array — the deterministic CRDT order picks the
- * single position on every peer).
+ * single position on every peer). The snapshot's schema major stands
+ * checked on the raw binary before conversion: a stored v: 2 (or a missing
+ * / malformed v) is rejected with a clear error, and the JSON path's
+ * validator stand (a v2 payload / a missing v) keeps the strict rejection
+ * — a reader of major 1 never silently reads v2 data.
  *
  * The two peers load the settled state (`loadDoc` of the first peer's bytes),
  * so they are independent Y.Docs of the same content, not a concurrent init.
@@ -108,10 +112,55 @@ describe("concurrent text and block edits keep the data valid", () => {
 });
 
 describe("snapshot and serialization", () => {
-  it.fails("an unknown major version is rejected on load", () => {
+  it("an unknown major version is rejected on load", () => {
     const { a } = seedParagraph();
     a.raw.getMap("meta").set("v", 2);
-    expect(() => loadDoc(a.encode())).toThrow();
+    expect(() => loadDoc(a.encode())).toThrow(/unsupported schema version 2/);
+  });
+
+  it("a v1 snapshot loads (the supported major stands)", () => {
+    const { a } = seedParagraph();
+    const restored = loadDoc(a.encode());
+    expect(restored.toJSON().v).toBe(1);
+    expect(restored.meta.v).toBe(1);
+  });
+
+  it("a missing schema version is rejected on load (before the content is interpreted)", () => {
+    const { a } = seedParagraph();
+    a.raw.getMap("meta").delete("v");
+    expect(() => loadDoc(a.encode())).toThrow(/missing or malformed schema version/);
+  });
+
+  it("a malformed schema version (a non-number) is rejected on load", () => {
+    const { a } = seedParagraph();
+    a.raw.getMap("meta").set("v", "1");
+    expect(() => loadDoc(a.encode())).toThrow(/missing or malformed schema version/);
+  });
+
+  it("the JSON path: a v2 payload is rejected by the validator (no silent downgrade)", () => {
+    const { a } = seedParagraph();
+    const json = a.toJSON();
+    let thrown: unknown;
+    try {
+      fromJSON({ ...json, v: 2 as 1 });
+    } catch (e) {
+      thrown = e;
+    }
+    expect(thrown).toEqual([{ path: "v", message: "Unsupported schema version 2 (expected 1)." }]);
+  });
+
+  it("the JSON path: a missing schema version is rejected (the strict validator stand)", () => {
+    const { a } = seedParagraph();
+    const json = a.toJSON();
+    const rest: Record<string, unknown> = { ...json };
+    delete rest.v;
+    let thrown: unknown;
+    try {
+      fromJSON(rest as typeof json);
+    } catch (e) {
+      thrown = e;
+    }
+    expect(Array.isArray(thrown) ? (thrown as Array<{ path: string }>).map((e) => e.path) : []).toContain("v");
   });
 
   it.fails("an additive v1 attr survives loading", () => {
