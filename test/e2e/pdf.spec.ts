@@ -6,6 +6,11 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 const RELAY = "ws://localhost:5199";
 const SETTLE = { timeout: 20_000 };
 const FIXTURE = new URL("./fixtures/sample.pdf", import.meta.url).pathname;
+// A real scanned PDF whose text layers are JBIG2-encoded (a JPEG background
+// image plus separate JBIG2 glyph/signature layers). It exercises the JBIG2
+// decoder path: without a resolvable wasmUrl the worker drops those layers and
+// the page renders as a bare (mostly-white) background image.
+const FIXTURE_JBIG2 = new URL("./fixtures/scan-jbig2.pdf", import.meta.url).pathname;
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
@@ -41,12 +46,12 @@ async function imageAttrs(page: Page, client: "a" | "b"): Promise<Record<string,
   }, client);
 }
 
-/** Pick the slash Image and deliver the PDF fixture (the upload path). */
-async function uploadPdf(page: Page): Promise<void> {
+/** Pick the slash Image and deliver a PDF fixture (the upload path). */
+async function uploadPdf(page: Page, fixture: string): Promise<void> {
   const chooserPromise = page.waitForEvent("filechooser");
   await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "Image" }).click();
   const chooser = await chooserPromise;
-  await chooser.setFiles(FIXTURE);
+  await chooser.setFiles(fixture);
 }
 
 test("the pdf subtype stands the first-page canvas preview after the upload", async ({ browser }) => {
@@ -57,7 +62,7 @@ test("the pdf subtype stands the first-page canvas preview after the upload", as
     await target.click();
     await a.keyboard.type("/image");
     await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
-    await uploadPdf(a);
+    await uploadPdf(a, FIXTURE);
 
     // The preview settles from the loading phase into the ready phase: the
     // first page is rendered to the canvas by pdfjs-dist.
@@ -101,5 +106,47 @@ test("the pdf subtype stands the first-page canvas preview after the upload", as
     await expect(b.locator('[data-slot="docblocks/image-placeholder"]')).toHaveCount(1, SETTLE);
   } finally {
     await close();
+  }
+});
+
+test("the jbig2 text layers of a scanned pdf stand in the canvas preview", async ({ browser }) => {
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  const room = `jbig2-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await openPane(a, "a", room);
+    // Upload the scanned (JBIG2) PDF through the slash Image path.
+    const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
+    await target.click();
+    await a.keyboard.type("/image");
+    await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
+    await uploadPdf(a, FIXTURE_JBIG2);
+
+    // The preview settles into the ready phase and paints the first page.
+    const canvas = a.locator('[data-slot="docblocks/image-pdf-canvas"]');
+    await expect(a.locator('[data-slot="docblocks/image-pdf-preview"]')).toHaveAttribute("data-phase", "ready", SETTLE);
+    await expect(canvas).toBeVisible(SETTLE);
+
+    // The JBIG2 glyph layers render as dark text. The pin is the dark-pixel
+    // fraction of the backing store: a render that drops the JBIG2 layers
+    // shows only the (mostly-white) background image and reads near-zero,
+    // while the decoded text reads well above the threshold.
+    const darkFrac = await canvas.evaluate((el) => {
+      const c = el as HTMLCanvasElement;
+      const ctx = c.getContext("2d");
+      if (ctx === null) return -1;
+      const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+      let dark = 0;
+      let total = 0;
+      for (let i = 0; i + 2 < data.length; i += 16) {
+        const lum = ((data[i] ?? 0) + (data[i + 1] ?? 0) + (data[i + 2] ?? 0)) / 3;
+        total += 1;
+        if (lum < 128) dark += 1;
+      }
+      return width === 0 || height === 0 ? -1 : dark / total;
+    });
+    expect(darkFrac).toBeGreaterThan(0.01);
+  } finally {
+    await context.close();
   }
 });

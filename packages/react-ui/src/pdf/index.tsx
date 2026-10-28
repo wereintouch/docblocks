@@ -29,7 +29,18 @@ import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 // bundler asset handling (the dist is served as static ESM). The path is
 // composed at runtime so the bundler leaves the new URL untouched.
 const WORKER_FILE = "pdf.worker.min.mjs";
-GlobalWorkerOptions.workerSrc = new URL(`./${WORKER_FILE}`, import.meta.url).toString();
+const WORKER_URL = new URL(`./${WORKER_FILE}`, import.meta.url);
+GlobalWorkerOptions.workerSrc = WORKER_URL.toString();
+
+// The JBIG2 decoder (the wasm module + the no-wasm js fallback) is copied next
+// to the worker at build time and loaded by the worker from this base url —
+// pdfjs resolves `${wasmUrl}jbig2.wasm`, so the worker's directory is the base.
+// Derived from the worker URL object (not import.meta.url) so a bundler's
+// `new URL(_, import.meta.url)` asset rewrite cannot mangle the directory form.
+// Scanned PDFs encode their text layers as JBIG2; without a resolvable wasmUrl
+// the worker fails to initialize those layers and the page renders as a bare
+// background image (the text is dropped).
+const WASM_URL = new URL("./", WORKER_URL).toString();
 
 /** The preview's render phase. */
 type PdfPhase = "loading" | "ready" | "error";
@@ -58,7 +69,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
         if (cancelled) return;
         if (!response.ok) throw new Error(`Failed to fetch the PDF (HTTP ${response.status}).`);
         const data = new Uint8Array(await response.arrayBuffer());
-        const task = getDocument({ data });
+        const task = getDocument({ data, wasmUrl: WASM_URL });
         loadingTaskRef.current = task;
         // Unmounted while the fetch was in flight: drop the worker just
         // created (the effect cleanup already ran, so it cannot).
