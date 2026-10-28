@@ -121,6 +121,20 @@ class Doc {
         `loadDoc: malformed update bytes: ${error instanceof Error ? error.message : String(error)}`
       );
     }
+    // The schema major (meta.v) stands checked on the RAW binary before any
+    // conversion: the snapshot read stands the reader's own major, so a
+    // stored v: 2 would pass the validator unseen and be read silently as
+    // v1 — a reader of major N must never silently read N+1 data (the
+    // breaking-major stand). A missing or non-numeric v is not valid v1
+    // data either.
+    const schemaMajor = ydoc.getMap("meta").get("v");
+    if (schemaMajor !== 1) {
+      throw new InvalidSnapshotError(
+        typeof schemaMajor === "number"
+          ? `loadDoc: unsupported schema version ${schemaMajor} (this reader stands v1; a v${schemaMajor} document requires the corresponding migrator)`
+          : `loadDoc: missing or malformed schema version ${JSON.stringify(schemaMajor)} (expected the number 1)`
+      );
+    }
     // A full snapshot is the only loadable state: an incremental delta applied
     // to an empty doc yields a partial document, so validate it loudly.
     const json = toDocJSON(ydoc);
