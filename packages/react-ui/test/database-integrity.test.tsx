@@ -9,11 +9,13 @@ import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
 
 /**
- * Pins for known database undo/redo and relinking defects. Each test asserts
- * the expected (correct) behavior and is marked `.fails()`: while the defect
- * is present the assertion fails, so the `.fails()` expectation is met and the
- * suite stays green. Once a defect is corrected the assertion passes and this
- * test turns red — convert it to a plain `it()` in the same change.
+ * The database undo/redo and relinking integrity over the bridge's undo
+ * stack (the `useDatabaseTable` hook + the memory bridge). The former
+ * review pins are fixed behaviors (plain `it()`): the column
+ * delete's soft-delete restore, the update's key-scoped inverse patch,
+ * the insert's identity cell over the redo's fresh ids, the move's
+ * pre-move-successor anchor, and the per-(bridge, tableId) history (the
+ * relink's reset + the in-flight op's drop).
  */
 
 afterEach(cleanup);
@@ -286,7 +288,7 @@ describe("the forward-only undo/redo over the bridge", () => {
     expect(row?.value).toBe("A");
   });
 
-  it.fails("the undo stack does not target a previous table after relinking", async () => {
+  it("the undo stack does not target a previous table after relinking", async () => {
     const bridge = createMemoryDatabaseBridge({ channelName: crypto.randomUUID() });
     const first = await bridge.createTable("First");
     const second = await bridge.createTable("Second");
@@ -301,12 +303,95 @@ describe("the forward-only undo/redo over the bridge", () => {
     await act(async () => {
       await result.current.updateRow("a", { value: "B" });
     });
-    // Relink the hook to a different table, then undo.
+    expect(result.current.canUndo).toBe(true);
+    // Relink the hook to a different table: the history stands dropped
+    // (the stacks stand per table), the undo stands unavailable.
     rerender({ table: second });
     await waitFor(() => expect(result.current.table?.name).toBe("Second"));
+    expect(result.current.canUndo).toBe(false);
     await act(async () => {
       await result.current.undo();
     });
+    const row = (await bridge.queryRows(first, {})).rows.a;
+    expect(row?.value).toBe("B");
+  });
+
+  it("the undo stack does not target a previous bridge after the bridge swap", async () => {
+    const firstBridge = createMemoryDatabaseBridge({ channelName: crypto.randomUUID() });
+    const secondBridge = createMemoryDatabaseBridge({ channelName: crypto.randomUUID() });
+    const first = await firstBridge.createTable("bridge first");
+    const second = await secondBridge.createTable("bridge second");
+    await firstBridge.createColumn(first, { id: "value", name: "Value", type: "text" });
+    await secondBridge.createColumn(second, { id: "value", name: "Value", type: "text" });
+    await firstBridge.insertRows(first, [{ id: "a", value: "A" }]);
+
+    const { result, rerender } = renderHook(
+      ({ bridge, table }: { bridge: DatabaseBridge; table: string }) => useDatabaseTable(bridge, table),
+      { initialProps: { bridge: firstBridge, table: first } }
+    );
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await act(async () => {
+      await result.current.updateRow("a", { value: "B" });
+    });
+    rerender({ bridge: secondBridge, table: second });
+    await waitFor(() => expect(result.current.table?.name).toBe("bridge second"));
+    expect(result.current.canUndo).toBe(false);
+    await act(async () => {
+      await result.current.undo();
+    });
+    const row = (await firstBridge.queryRows(first, {})).rows.a;
+    expect(row?.value).toBe("B");
+  });
+
+  it("an in-flight op of the previous table stands no undo entry after the relink", async () => {
+    const bridge = createMemoryDatabaseBridge({ channelName: crypto.randomUUID() });
+    const first = await bridge.createTable("inflight first");
+    const second = await bridge.createTable("inflight second");
+    await bridge.createColumn(first, { id: "value", name: "Value", type: "text" });
+    await bridge.createColumn(second, { id: "value", name: "Value", type: "text" });
+    await bridge.insertRows(first, [{ id: "a", value: "A" }]);
+
+    // The gate bridge: the updateRow resolves AFTER the relink (the
+    // in-flight stand — the op's late completion must stand no entry over
+    // the new table's stack).
+    let release: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const gated = new Proxy(bridge, {
+      get(target, prop) {
+        const value = Reflect.get(target, prop);
+        if (prop === "updateRow") {
+          return async (tableId: string, rowId: string, cells: Record<string, unknown>) => {
+            await gate;
+            return target.updateRow(tableId, rowId, cells);
+          };
+        }
+        return typeof value === "function" ? value.bind(target) : value;
+      },
+    }) as DatabaseBridge;
+
+    const { result, rerender } = renderHook(({ table }: { table: string }) => useDatabaseTable(gated, table), {
+      initialProps: { table: first },
+    });
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    let operation: Promise<void> | null = null;
+    await act(async () => {
+      operation = result.current.updateRow("a", { value: "B" });
+    });
+    // Relink while the op is in flight.
+    rerender({ table: second });
+    await waitFor(() => expect(result.current.table?.name).toBe("inflight second"));
+    release!();
+    await act(async () => {
+      await operation;
+    });
+    expect(result.current.canUndo).toBe(false);
+    await act(async () => {
+      await result.current.undo();
+    });
+    // The committed stand keeps (the op was over the previous table and
+    // stands committed there — not undoable from the relinked block).
     const row = (await bridge.queryRows(first, {})).rows.a;
     expect(row?.value).toBe("B");
   });
