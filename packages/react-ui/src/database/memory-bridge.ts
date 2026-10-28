@@ -216,6 +216,17 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
           moveOrder(table, event.rowId, event.beforeRowId);
           break;
         }
+        case "row.restored": {
+          // The idempotent re-delivery: the row already stands (a duplicate
+          // restore, or the local origin already restored it) — stand skipped.
+          if (table.rows.has(event.rowId)) break;
+          table.rows.set(event.rowId, clone(event.cells));
+          // The original fractional position (the seat the row stood at before
+          // the remove — the restore lands it back, not at the end).
+          table.orderValues.set(event.rowId, event.orderValue);
+          table.trash.delete(event.rowId);
+          break;
+        }
         case "schema.changed": {
           table.columns = clone(event.columns);
           break;
@@ -497,13 +508,20 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
 
     async undeleteRows(tableId: string, rowIds: string[]): Promise<void> {
       const table = tableOf(tableId);
+      // The restore stands the `row.restored` event (the cells + the original
+      // fractional position) — it goes to the local listeners and out the
+      // channel, and the local state applies over the SAME `applyEvents`
+      // path as the remote echo (the single restore code path; the re-delivery
+      // stands idempotent — an already-present row is skipped).
+      const events: TableEvent[] = [];
       for (const rowId of rowIds) {
         const entry = table.trash.get(rowId);
         if (entry === undefined || table.rows.has(rowId)) continue;
-        table.rows.set(rowId, clone(entry.cells));
-        table.orderValues.set(rowId, entry.orderValue);
-        table.trash.delete(rowId);
+        events.push({ type: "row.restored", rowId, cells: clone(entry.cells), orderValue: entry.orderValue });
       }
+      if (events.length === 0) return; // the zero-change no-op (nothing to restore)
+      emit(tableId, events);
+      applyEvents(tableId, table, events);
     },
 
     async insertRows(tableId: string, rows: Record<string, unknown>[]): Promise<string[]> {
