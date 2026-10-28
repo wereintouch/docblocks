@@ -1,19 +1,20 @@
 /**
  * Mark commands: setMark, unsetMark over a text range [from, to).
  *
- * Runs are split at the range edges and fully covered runs are updated in
- * place. A run that carries an exclusive mark is left untouched when a
- * non-exclusive mark is applied; applying an exclusive mark replaces the
- * run's marks entirely.
+ * Marks are the Y.Text's per-character attributes. An exclusive mark (`code`)
+ * replaces every other mark on the range; a non-exclusive mark is applied only
+ * to characters that carry no exclusive mark (the exclusive characters stand
+ * untouched). Unsetting removes the named attribute over the range.
  */
-import * as Y from "yjs";
+import type * as Y from "yjs";
 
 import { MARK_REGISTRY, validateMarkSet } from "@docblocks-core/schema";
 import type { MarkName, MarkSet, MentionKind } from "@docblocks-core/schema";
 
 import { InvalidMarkError, InvalidOperationError, InvalidRangeError, formatValidationErrors } from "../errors";
 import { localTransact } from "../layout";
-import { contentTextLength, requireTextBlock, splitRunAt } from "./text";
+import { ALL_MARK_NAMES, exclusiveFreeSpans } from "../text-model";
+import { contentTextLength, requireTextBlock } from "./text";
 
 /** Mark input for setMark: one mark with its attributes. */
 type MarkInput =
@@ -53,21 +54,6 @@ function markInputToMark(mark: MarkInput): { name: MarkName; markSet: MarkSet } 
   throw new InvalidMarkError(`Unknown mark type "${String(kind)}".`);
 }
 
-/** Writes the mark value into a stored marks Y.Map. */
-function writeMarkValue(marksMap: Y.Map<unknown>, name: MarkName, value: MarkSet[MarkName]): void {
-  if (value === true) {
-    marksMap.set(name, true);
-    return;
-  }
-  if (value !== undefined && typeof value === "object") {
-    const nested = new Y.Map<unknown>();
-    for (const [key, attrValue] of Object.entries(value)) {
-      if (attrValue !== undefined) nested.set(key, attrValue);
-    }
-    marksMap.set(name, nested);
-  }
-}
-
 /**
  * Applies `mark` to the range [from, to). `from === to` is a no-op; a code
  * block rejects marks.
@@ -90,32 +76,25 @@ function setMark(ydoc: Y.Doc, blockId: string, from: number, to: number, mark: M
   }
   if (from === to) return; // no-op
 
+  const exclusive = MARK_REGISTRY[name].exclusive;
+  const value = markSet[name];
   localTransact(ydoc, () => {
-    splitRunAt(content, from);
-    splitRunAt(content, to);
-    const exclusive = MARK_REGISTRY[name].exclusive;
-    const value = markSet[name];
-    let offset = 0;
-    content.forEach((entry) => {
-      if (!(entry instanceof Y.Map)) return;
-      const text = entry.get("text");
-      if (!(text instanceof Y.Text)) return;
-      const start = offset;
-      offset += text.length;
-      if (text.length === 0 || start < from || start + text.length > to) return; // not fully covered
-      const marksMap = entry.get("marks");
-      if (!(marksMap instanceof Y.Map)) return;
-      const carriesExclusive = [...marksMap.keys()].some((key) => MARK_REGISTRY[key as MarkName]?.exclusive);
-      if (carriesExclusive && !exclusive) return; // never mark over an exclusive run
-      if (exclusive) {
-        for (const key of [...marksMap.keys()]) marksMap.delete(key);
+    if (exclusive) {
+      // An exclusive mark replaces every other mark on the range: the other
+      // names stand null (drop them) and the mark itself is set.
+      const clear: Record<string, unknown> = {};
+      for (const other of ALL_MARK_NAMES) if (other !== name) clear[other] = null;
+      content.format(from, to, { ...clear, [name]: value });
+    } else {
+      // A non-exclusive mark skips characters that carry an exclusive mark.
+      for (const span of exclusiveFreeSpans(content, from, to)) {
+        content.format(span.start, span.length, { [name]: value });
       }
-      writeMarkValue(marksMap, name, value);
-    });
+    }
   });
 }
 
-/** Removes `name` from the marks of the runs in [from, to); other marks stay. */
+/** Removes `name` from the marks of the characters in [from, to); other marks stay. */
 function unsetMark(ydoc: Y.Doc, blockId: string, from: number, to: number, name: MarkName): void {
   if (!(name in MARK_REGISTRY)) {
     throw new InvalidMarkError(`Unknown mark "${String(name)}".`);
@@ -128,19 +107,8 @@ function unsetMark(ydoc: Y.Doc, blockId: string, from: number, to: number, name:
   if (from === to) return; // no-op
 
   localTransact(ydoc, () => {
-    splitRunAt(content, from);
-    splitRunAt(content, to);
-    let offset = 0;
-    content.forEach((entry) => {
-      if (!(entry instanceof Y.Map)) return;
-      const text = entry.get("text");
-      if (!(text instanceof Y.Text)) return;
-      const start = offset;
-      offset += text.length;
-      if (text.length === 0 || start < from || start + text.length > to) return; // not fully covered
-      const marksMap = entry.get("marks");
-      if (marksMap instanceof Y.Map) marksMap.delete(name);
-    });
+    // Setting the attribute to null drops it (Yjs has no `unformat`).
+    content.format(from, to, { [name]: null });
   });
 }
 

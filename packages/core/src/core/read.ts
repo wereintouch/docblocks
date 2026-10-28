@@ -1,10 +1,12 @@
 import * as Y from "yjs";
 
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
-import type { Block, BlockId, BlockType, DocJSON, DocMeta, MarkSet, TextRun } from "@docblocks-core/schema";
+import type { Block, BlockId, BlockType, DocJSON, DocMeta, TextRun } from "@docblocks-core/schema";
 
 import { rootBlockIdOf, rootOrderOf } from "./layout";
 import { normalizeRuns } from "./normalize";
+import { attrsToMarkSet } from "./text-model";
+import type { TextDeltaOp } from "./text-model";
 
 /**
  * Snapshot readers: plain objects per the schema, never live Yjs types.
@@ -39,23 +41,6 @@ function readMeta(ydoc: Y.Doc): DocMeta {
   };
 }
 
-function readMarks(value: unknown): MarkSet {
-  const marks = {} as MarkSet;
-  if (!(value instanceof Y.Map)) return marks;
-  value.forEach((markValue, name) => {
-    if (markValue === true) {
-      (marks as Record<string, unknown>)[name] = true;
-    } else if (markValue instanceof Y.Map) {
-      const attrs: Record<string, string> = {};
-      markValue.forEach((attrValue, attrKey) => {
-        if (typeof attrValue === "string") attrs[attrKey] = attrValue;
-      });
-      (marks as Record<string, unknown>)[name] = attrs;
-    }
-  });
-  return marks;
-}
-
 /** Normalized runs of a text block; [] for non-text types or missing blocks. */
 function readRuns(ydoc: Y.Doc, blockId: string): TextRun[] {
   const yblock = getBlockMap(ydoc, blockId);
@@ -63,13 +48,14 @@ function readRuns(ydoc: Y.Doc, blockId: string): TextRun[] {
   const type = yblock.get("type");
   if (!isKnownBlockType(type) || !BLOCK_REGISTRY[type].content) return [];
   const content = yblock.get("content");
-  if (!(content instanceof Y.Array)) return [];
+  if (!(content instanceof Y.Text)) return [];
+  // The runs stand the Y.Text's delta: each insert op is a span carrying its
+  // marks as the character attributes.
   const raw: TextRun[] = [];
-  content.forEach((entry) => {
-    if (!(entry instanceof Y.Map)) return;
-    const text = entry.get("text");
-    raw.push({ text: text instanceof Y.Text ? text.toString() : "", marks: readMarks(entry.get("marks")) });
-  });
+  for (const op of content.toDelta() as TextDeltaOp[]) {
+    if (typeof op.insert !== "string") continue;
+    raw.push({ text: op.insert, marks: attrsToMarkSet(op.attributes) });
+  }
   return normalizeRuns(raw);
 }
 
