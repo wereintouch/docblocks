@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
-import type { BlockType, DocJSON, TextRun } from "@docblocks-core/schema";
+import type { Block, BlockType, DocJSON, TextRun } from "@docblocks-core/schema";
 
 import { markSetToAttrs } from "./text-model";
 
@@ -245,6 +245,31 @@ function layoutDoc(id: string, title: string, createdAt: string): Y.Doc {
   return ydoc;
 }
 
+/**
+ * Set the owner `parent` field on each non-root block, derived from the JSON
+ * tree (a clean snapshot holds each block under exactly one container). The
+ * field is a Yjs-layout-only owner stand (like `meta.updatedAt`): it never
+ * reaches the JSON, but it is the single CRDT-resolved ownership source the
+ * read and remove paths read (a concurrent move can leave the id in two
+ * containers' arrays, the field keeps one owner).
+ */
+function setParents(json: DocJSON, blocks: Y.Map<unknown>): void {
+  // `children` stands only on the container variants; read it through a
+  // structural view so the discriminated union does not reject the access.
+  const childIdsOf = (block: Block): readonly string[] => (block as { children?: readonly string[] }).children ?? [];
+  const setUnder = (parentId: string, block: Block): void => {
+    for (const childId of childIdsOf(block)) {
+      const child = json.blocks[childId];
+      if (child === undefined) continue; // dangling id (the lenient read drops it)
+      const childMap = blocks.get(childId);
+      if (childMap instanceof Y.Map) childMap.set("parent", parentId);
+      setUnder(childId, child);
+    }
+  };
+  const root = json.blocks[json.id];
+  if (root !== undefined) setUnder(json.id, root);
+}
+
 /** Write a validated JSON document into a fresh doc (used by fromJSON). */
 function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
   ydoc.transact(() => {
@@ -259,6 +284,7 @@ function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
       }
       writeBlock(blocks, id, writable);
     }
+    setParents(json, blocks);
   }, loadOriginOf(ydoc));
 }
 

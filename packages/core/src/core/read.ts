@@ -88,18 +88,32 @@ function readChildren(ydoc: Y.Doc, id: string): BlockId[] {
   // reader drops the dangling id (the raw Yjs layer keeps it — doc.raw is
   // the escape hatch); the strict validator still rejects it in JSON.
   const present = (childId: string) => getBlockMap(ydoc, childId) !== null;
+  // The owner filter: a concurrent move can leave the id in two containers'
+  // arrays; the block's `parent` field (set by insert/move/load) is the
+  // single owner. Only the owner's array lists the block in the snapshot —
+  // the non-owner containers' arrays drop the phantom. Legacy blocks (no
+  // field) keep the array membership stand.
+  const ownedBySelf = (childId: string): boolean => {
+    const childMap = getBlockMap(ydoc, childId);
+    if (childMap === null) return false;
+    const parent = childMap.get("parent");
+    if (typeof parent === "string" && parent !== "") return parent === id;
+    return true;
+  };
   // The root block's order lives in the registered rootOrder array.
   if (id === rootBlockIdOf(ydoc)) {
     return dedupeOrder(
       rootOrderOf(ydoc)
         .toArray()
-        .filter((childId): childId is string => typeof childId === "string" && present(childId))
+        .filter((childId): childId is string => typeof childId === "string" && present(childId) && ownedBySelf(childId))
     );
   }
   const children = yblock.get("children");
   if (!(children instanceof Y.Array)) return [];
   return dedupeOrder(
-    children.toArray().filter((childId): childId is string => typeof childId === "string" && present(childId))
+    children
+      .toArray()
+      .filter((childId): childId is string => typeof childId === "string" && present(childId) && ownedBySelf(childId))
   );
 }
 

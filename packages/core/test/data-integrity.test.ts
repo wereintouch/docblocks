@@ -11,9 +11,11 @@ import { validateDoc } from "../src/schema";
  * suite stays green. Once a defect is corrected the assertion passes and this
  * test turns red — convert it to a plain `it()` in the same change.
  *
- * The concurrent-formatting test is a fixed behavior (a plain `it()`): the
- * text model is now a single Y.Text with mark attributes, so concurrent
- * formatting and deletion keep the text intact.
+ * The concurrent-formatting and concurrent-moves tests are fixed
+ * behaviors (plain `it()`): the text model is a single Y.Text with mark
+ * attributes (concurrent formatting keeps the text intact), and the block
+ * owner is a single CRDT-resolved `parent` field (concurrent moves keep one
+ * owner).
  *
  * The two peers load the settled state (`loadDoc` of the first peer's bytes),
  * so they are independent Y.Docs of the same content, not a concurrent init.
@@ -49,7 +51,7 @@ describe("concurrent text and block edits keep the data valid", () => {
     expect(b.getText(id)).toBe("abcdef");
   });
 
-  it.fails("concurrent moves of one block keep a single owner", () => {
+  it("concurrent moves of one block keep a single owner", () => {
     const { a, id } = seedParagraph();
     const surface = a.insertBlock("surface");
     const frameA = a.insertBlock("frame", undefined, { parent: surface });

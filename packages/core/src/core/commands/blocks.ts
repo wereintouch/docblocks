@@ -206,6 +206,11 @@ function insertBlock(
     const blocks = getBlocks(ydoc);
     if (!(blocks.get(id) instanceof Y.Map)) writeNewBlock(blocks, id, type, attrs);
     if (!children.toArray().includes(id)) children.insert(index, [id]);
+    // The owner parent (the single CRDT-resolved ownership stand): set on
+    // the entry so a concurrent move/insert of the same id resolves to one
+    // owner, not a duplicate reference.
+    const blockMap = blocks.get(id);
+    if (blockMap instanceof Y.Map) blockMap.set("parent", parentId);
     // The canvas element's explicit z-order index (dense 1..N, the order's
     // mirror): a new surface canvas element takes its position among the
     // canvas elements (the default insert at the end is max + 1, on top).
@@ -366,6 +371,12 @@ function moveBlock(ydoc: Y.Doc, id: string, toParent: string, toIndex: number): 
   localTransact(ydoc, () => {
     fromChildren.delete(fromIndex, 1);
     toChildren.insert(insertAt, [id]);
+    // The owner parent: the single CRDT-resolved ownership stand. A
+    // concurrent move of the same block into a different container resolves
+    // to one owner (the field) instead of a duplicate reference in two
+    // arrays.
+    const blockMap = getBlockMap(ydoc, id);
+    if (blockMap !== null) blockMap.set("parent", toParent);
     // The canvas z-order mirror: a surface move reorders the canvas elements
     // (the children order is the z-order) — refresh the dense zIndex in the
     // affected surface(s) so the index stays consistent with the order.
@@ -412,6 +423,10 @@ function removeBlock(ydoc: Y.Doc, id: string): void {
     const children = childrenOf(ydoc, current);
     if (children === null) continue;
     for (const child of children.toArray()) {
+      // A concurrent move can leave a phantom (the id in `current`'s array,
+      // owned by another container per the parent field) — it is not part
+      // of `current`'s subtree and must not be deleted with it.
+      if (findParent(ydoc, child) !== current) continue;
       subtree.push(child);
       stack.push(child);
     }
