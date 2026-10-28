@@ -8,6 +8,15 @@ import type { SyncProvider } from "./provider";
  *
  * `detach` releases all routing and is idempotent. It does not disconnect
  * the provider — the provider lifecycle is owned by the application.
+ *
+ * Attach order: the remote subscription is registered BEFORE the
+ * bootstrap send, so a provider that answers synchronously (an in-memory
+ * relay, its accumulated-state delivery) cannot stand a reply lost over
+ * the send. The provider's accumulated wire state stands delivered to the
+ * new subscription at attach time (the onUpdate contract), so a late
+ * attach — the provider already connected and holding room state —
+ * recovers the full state over the CRDT merge; the doc and the provider
+ * then converge over the bootstrap + the usual update flow.
  */
 interface SyncSession {
   detach(): void;
@@ -49,17 +58,23 @@ function attach(doc: Doc, provider: SyncProvider): SyncSession {
   };
   ydoc.on("update", onUpdate);
 
-  // Bootstrap the session with the document's full state. The provider's
-  // internal doc starts empty, and the initial layout is written before
-  // attach: incremental updates alone reference client clocks and items
-  // the session has never seen, which Yjs cannot integrate (they stay
-  // pending and never enter any state vector).
-  provider.sendUpdate(doc.encode());
-
+  // Subscribe BEFORE the bootstrap send: a synchronous provider reply to
+  // the send would stand lost over a send-first order. The provider's
+  // accumulated state (if any) stands delivered right here, at subscribe
+  // time — the late-attach recovery (the contract stands in SyncProvider
+  // onUpdate).
   const unsubscribeRemote = provider.onUpdate((bytes) => {
     if (detached) return;
     doc.applyUpdate(bytes);
   });
+
+  // Bootstrap the session with the document's full state. The provider's
+  // internal doc starts empty (or stands state from earlier sessions), and
+  // the initial layout is written before attach: incremental updates alone
+  // reference client clocks and items the session has never seen, which
+  // Yjs cannot integrate (they stay pending and never enter any state
+  // vector).
+  provider.sendUpdate(doc.encode());
 
   return {
     detach() {

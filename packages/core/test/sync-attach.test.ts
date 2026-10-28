@@ -35,7 +35,11 @@ const deltaOf = (sender: Doc, receiver: Doc): Uint8Array => sender.encodeUpdate(
  * A recording transport: keeps every sent update (the first is the session
  * bootstrap that attach sends at attach time) and drives remote delivery,
  * and counts lifecycle and awareness-channel calls (attach must never
- * make any of them).
+ * make any of them). With `internalState()` the provider stands the
+ * SyncProvider accumulated-state stand: it holds an internal Y.Doc, and
+ * each new onUpdate subscription receives its full state first — but only
+ * after `receiveFromWire()` marks that the provider received state from
+ * the wire (the pre-connect buffered bootstrap is not "incoming").
  */
 class FakeProvider implements SyncProvider {
   readonly sent: Uint8Array[] = [];
@@ -46,6 +50,8 @@ class FakeProvider implements SyncProvider {
   connectCalls = 0;
   disconnectCalls = 0;
   #remoteCallbacks = new Set<(bytes: Uint8Array) => void>();
+  #internalDoc: Y.Doc | null = null;
+  #receivedSync = false;
 
   connect(): Promise<void> {
     this.connectCalls += 1;
@@ -54,11 +60,37 @@ class FakeProvider implements SyncProvider {
   disconnect(): void {
     this.disconnectCalls += 1;
   }
+  /**
+   * Opt into the accumulated-state stand (the SyncProvider contract):
+   * the provider keeps an internal doc that every sendUpdate feeds (and
+   * `receiveFromWire` marks the wire reception).
+   */
+  internalState(): Y.Doc {
+    this.#internalDoc ??= new Y.Doc();
+    return this.#internalDoc;
+  }
+  /**
+   * Simulate the socket receiving document state (a step2 / an update):
+   * the internal doc accumulates it, the wire-received gate stands for
+   * the accumulated-state delivery at the next onUpdate subscription, and
+   * the current subscribers stand the update (as the wire delivers it).
+   */
+  receiveFromWire(bytes: Uint8Array): void {
+    this.#internalDoc ??= new Y.Doc();
+    Y.applyUpdate(this.#internalDoc, bytes);
+    this.#receivedSync = true;
+    this.deliver(bytes);
+  }
   sendUpdate(bytes: Uint8Array): void {
     this.sent.push(bytes);
+    if (this.#internalDoc !== null) Y.applyUpdate(this.#internalDoc, bytes);
   }
   onUpdate(cb: (bytes: Uint8Array) => void): Unsubscribe {
     this.#remoteCallbacks.add(cb);
+    if (this.#receivedSync && this.#internalDoc !== null) {
+      const accumulated = Y.encodeStateAsUpdate(this.#internalDoc);
+      if (accumulated.byteLength > 0) cb(accumulated);
+    }
     return () => {
       this.#remoteCallbacks.delete(cb);
     };
@@ -351,5 +383,121 @@ describe("faulty delivery", () => {
 
     expect(provider.sent).toHaveLength(3); // bootstrap + partial batch + rollback inverse (CRDT wire property)
     expect(doc1.getText("b0")).toBe(""); // the batch did not stick
+  });
+});
+
+describe("late attach", () => {
+  it("a fresh doc attached after the provider already holds room state converges", () => {
+    const provider = new FakeProvider();
+    provider.internalState(); // the provider stands the accumulated-state stand
+
+    // The provider's internal doc holds the room state from a completed
+    // handshake with the other peer (the step2 stand); the app doc is
+    // created and attached only now.
+    const room = loadPeer(baseState());
+    room.insertText("b0", 0, "remote text");
+    provider.receiveFromWire(room.encode());
+
+    // The app doc is a FRESH joiner (no blocks of its own — only the
+    // concurrent meta init, which stands the same values on both sides;
+    // a second load of the same state would stand a non-deterministic
+    // concurrent-init collision on the block entries).
+    const doc1 = createDoc({ id: "d1", createdAt: CREATED_AT, generateId: makeIds("b") });
+    attach(doc1, provider);
+
+    expect(doc1.getText("b0")).toBe("remote text");
+    expect(doc1.toJSON()).toEqual(room.toJSON());
+    expect(provider.sent).toHaveLength(1); // the bootstrap only: the recovery stands no echo
+  });
+
+  it("a synchronous provider reply to the bootstrap send is captured by the session", () => {
+    const provider = new FakeProvider();
+    const state = baseState();
+    const doc1 = loadPeer(state);
+    const doc2 = loadPeer(state);
+    doc2.insertText("b0", 0, "remote");
+    const delta = deltaOf(doc2, doc1);
+    // A relay that answers synchronously inside the send path: the
+    // reply stands lost over a send-first order (the subscription is
+    // not live yet).
+    const originalSend = provider.sendUpdate.bind(provider);
+    provider.sendUpdate = (bytes: Uint8Array) => {
+      originalSend(bytes);
+      provider.deliver(delta);
+    };
+
+    attach(doc1, provider);
+
+    expect(doc1.getText("b0")).toBe("remote");
+    expect(provider.sent).toHaveLength(1); // the bootstrap only: the reply is not re-sent
+  });
+
+  it("a reattach after detach recovers the state the provider received while detached", () => {
+    const provider = new FakeProvider();
+    provider.internalState();
+    const state = baseState();
+    const doc1 = loadPeer(state);
+    const session = attach(doc1, provider);
+    session.detach();
+
+    // The provider keeps receiving the room state while the doc is out
+    // of the loop (the socket stands connected).
+    const doc2 = loadPeer(state);
+    doc2.insertText("b0", 0, "missed while detached");
+    provider.receiveFromWire(deltaOf(doc2, loadPeer(state)));
+
+    attach(doc1, provider); // the fresh session's subscription receives the accumulated state
+
+    expect(doc1.getText("b0")).toBe("missed while detached");
+    expect(doc1.toJSON()).toEqual(doc2.toJSON());
+  });
+
+  it("the pre-connect buffered bootstrap stands no accumulated delivery (the wire-received gate)", () => {
+    const provider = new FakeProvider();
+    provider.internalState();
+    const state = baseState();
+    const doc1 = loadPeer(state);
+    const session = attach(doc1, provider); // the bootstrap stands buffered into the provider's internal doc
+
+    // A consumer that keys off "the first incoming update" (the
+    // playground's seeder settle): over the pre-connect buffered
+    // bootstrap it must stand no delivery — the bootstrap is the doc's
+    // own state, not incoming state.
+    const seen: number[] = [];
+    const unsubscribe = provider.onUpdate((bytes) => seen.push(bytes.byteLength));
+    expect(seen).toHaveLength(0);
+
+    // The wire state arrives: the subscriber stands it (the gate is open
+    // now, and a fresh subscription would stand the accumulated state).
+    const doc2 = loadPeer(state);
+    doc2.insertText("b0", 0, "remote");
+    provider.receiveFromWire(deltaOf(doc2, loadPeer(state)));
+
+    expect(seen).toHaveLength(1);
+    expect(doc1.getText("b0")).toBe("remote");
+
+    unsubscribe();
+    session.detach();
+  });
+
+  it("two docs on one provider each recover the accumulated state at their attach", () => {
+    const provider = new FakeProvider();
+    provider.internalState();
+    const state = baseState();
+
+    const first = loadPeer(state);
+    attach(first, provider);
+    first.insertText("b0", 0, "first edit");
+    // The wire echo: the relay/peers deliver the edit back to the
+    // provider (the internal doc accumulates it from the wire, not from
+    // the send path).
+    provider.receiveFromWire(deltaOf(first, loadPeer(state)));
+
+    // A second doc joins the same provider after the first has written.
+    const second = loadPeer(state);
+    attach(second, provider);
+
+    expect(second.getText("b0")).toBe("first edit");
+    expect(second.toJSON()).toEqual(first.toJSON());
   });
 });

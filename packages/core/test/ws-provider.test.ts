@@ -222,3 +222,75 @@ describe("lifecycle", () => {
     expect(seen[seen.length - 1]).toBeGreaterThan(0);
   });
 });
+
+describe("late attach", () => {
+  it("a fresh doc attached after the handshake completes recovers the room state", async () => {
+    const relay = new WsRelay();
+    const a = makeClient(relay);
+    await a.provider.connect();
+    await relay.deliver();
+    const p = a.doc.insertBlock("paragraph");
+    a.doc.insertText(p, 0, "hello world");
+    await relay.deliver();
+
+    // B: the provider connects and completes the handshake BEFORE the app
+    // doc is attached (the late-attach stand).
+    const bProvider = new WsSyncProvider(URL, { webSocketImpl: (u) => relay.connect(u) });
+    await bProvider.connect();
+    await relay.deliver(); // the handshake stands done: bProvider's internal doc holds A's state
+    const bDoc = createDoc({ id: DOC_ID, createdAt: CREATED_AT });
+    attach(bDoc, bProvider);
+    await relay.deliver(); // settle the bootstrap exchange
+
+    expect(bDoc.getText(p)).toBe("hello world");
+    expect(bDoc.toJSON()).toEqual(a.doc.toJSON());
+  });
+
+  it("attach before connect stands the room state once the handshake completes", async () => {
+    const relay = new WsRelay();
+    const a = makeClient(relay);
+    await a.provider.connect();
+    await relay.deliver();
+    const p = a.doc.insertBlock("paragraph");
+    a.doc.insertText(p, 0, "early");
+    await relay.deliver();
+
+    // B: the app doc is attached BEFORE the provider connects (the
+    // bootstrap stands buffered until open).
+    const bProvider = new WsSyncProvider(URL, { webSocketImpl: (u) => relay.connect(u) });
+    const bDoc = createDoc({ id: DOC_ID, createdAt: CREATED_AT });
+    attach(bDoc, bProvider);
+    await bProvider.connect();
+    await relay.deliver();
+
+    expect(bDoc.getText(p)).toBe("early");
+    expect(bDoc.toJSON()).toEqual(a.doc.toJSON());
+  });
+
+  it("a reattach after detach recovers the state missed while detached", async () => {
+    const relay = new WsRelay();
+    const a = makeClient(relay);
+    await a.provider.connect();
+    await relay.deliver();
+
+    const bProvider = new WsSyncProvider(URL, { webSocketImpl: (u) => relay.connect(u) });
+    const bDoc = createDoc({ id: DOC_ID, createdAt: CREATED_AT });
+    const session = attach(bDoc, bProvider);
+    await bProvider.connect();
+    await relay.deliver();
+
+    // Detach: the doc is out of the loop while A writes.
+    session.detach();
+    const p = a.doc.insertBlock("paragraph");
+    a.doc.insertText(p, 0, "missed while detached");
+    await relay.deliver();
+
+    // Reattach: the fresh session's subscription stands the accumulated
+    // state (including everything the provider received while detached).
+    attach(bDoc, bProvider);
+    await relay.deliver();
+
+    expect(bDoc.getText(p)).toBe("missed while detached");
+    expect(bDoc.toJSON()).toEqual(a.doc.toJSON());
+  });
+});
