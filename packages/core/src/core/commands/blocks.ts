@@ -5,7 +5,7 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, isReservedId, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
 import type { AttrsFor, BlockId, BlockType, ValidationError } from "@docblocks-core/schema";
 
 import {
@@ -238,6 +238,13 @@ function insertBlock(
   }
 
   const id = explicitId ?? generateId();
+  // A reserved id (an Object.prototype key) would be lost on the JSON export
+  // (the id-keyed-map trap): reject it at the boundary.
+  if (isReservedId(id)) {
+    throw new InvalidOperationError(
+      `The block id "${id}" is reserved (it collides with Object.prototype) and cannot be used.`
+    );
+  }
   localTransact(ydoc, () => {
     // The explicit id is idempotent: a peer's concurrent insert of the
     // same id (the deterministic tail paragraph) wins — the entry and the
@@ -257,7 +264,17 @@ function insertBlock(
     if (type === "table" && blockMap instanceof Y.Map) {
       const columnOrder = blockMap.get("columnOrder");
       if (columnOrder instanceof Y.Array && columnOrder.length === 0) {
-        for (let i = 0; i < initialCols; i++) columnOrder.push([generateId()]);
+        for (let i = 0; i < initialCols; i += 1) {
+          const columnId = generateId();
+          // A reserved column id (a custom generateId) would be lost on the
+          // JSON export: reject it at the boundary.
+          if (isReservedId(columnId)) {
+            throw new InvalidOperationError(
+              `The column id "${columnId}" is reserved (it collides with Object.prototype) and cannot be used.`
+            );
+          }
+          columnOrder.push([columnId]);
+        }
       }
       // The caller's initial columnWidths (positional) stand identity-keyed
       // (columnId → width): an explicit entry only for the given values —

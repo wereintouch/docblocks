@@ -6,6 +6,7 @@
  * Run from validateDoc and from the command checks.
  */
 import type { BlockType } from "../../block-union";
+import { isReservedId } from "../../id-safety";
 import { GEOMETRY_FIELDS, MAX_DATABASE_FILTER_DEPTH } from "../models";
 import type { ValidationError } from "../models";
 import { isPlainObject, show } from "./common";
@@ -267,6 +268,15 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
       if (!isPlainObject(column)) continue; // the column shape is reported by the attrs spec
       const id = typeof column.id === "string" ? column.id : "";
       if (id.length === 0) continue;
+      // A reserved column id (an Object.prototype key) would be lost on the
+      // JSON export (the id-keyed-map trap): reject it.
+      if (isReservedId(id)) {
+        errors.push({
+          path: `${path}.attrs.columns`,
+          message: `The column id "${id}" is reserved (it collides with Object.prototype) and cannot be used.`,
+        });
+        continue;
+      }
       if (columns.some((existing) => existing.id === id)) {
         errors.push({ path: `${path}.attrs.columns`, message: `Duplicate column id "${id}".` });
         continue;
@@ -320,6 +330,15 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
   }
   if (!external) {
     for (const [rowId, cells] of Object.entries(rows ?? {})) {
+      // A reserved row id (an Object.prototype key) would be lost on the JSON
+      // export (the id-keyed-map trap): reject it.
+      if (isReservedId(rowId)) {
+        errors.push({
+          path: `${path}.rows.${rowId}`,
+          message: `The row id "${rowId}" is reserved (it collides with Object.prototype) and cannot be used.`,
+        });
+        continue;
+      }
       if (!isPlainObject(cells)) {
         errors.push({
           path: `${path}.rows.${rowId}`,
@@ -371,6 +390,13 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
       errors.push({
         path: `${path}.rowOrder[${index}]`,
         message: `A row id must be a non-empty string (got ${show(rowId)}).`,
+      });
+      return;
+    }
+    if (isReservedId(rowId)) {
+      errors.push({
+        path: `${path}.rowOrder[${index}]`,
+        message: `The row id "${rowId}" is reserved (it collides with Object.prototype) and cannot be used.`,
       });
       return;
     }

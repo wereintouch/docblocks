@@ -5,6 +5,7 @@
  * points over the registry specs.
  */
 import type { BlockType } from "../../block-union";
+import { isReservedId } from "../../id-safety";
 import { BLOCK_REGISTRY } from "../../registry";
 import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../models";
 import type { ValidationError } from "../models";
@@ -226,6 +227,15 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
   const referenceCount = new Map<string, number>();
 
   for (const [id, block] of Object.entries(blocks)) {
+    // A reserved id (an Object.prototype key) cannot be a key of the plain
+    // blocks map (it would be lost on the JSON round trip): reject it.
+    if (isReservedId(id)) {
+      errors.push({
+        path: `blocks.${id}`,
+        message: `The block id "${id}" is reserved (it collides with Object.prototype) and cannot be used.`,
+      });
+      continue;
+    }
     if (!isPlainObject(block)) {
       errors.push({ path: `blocks.${id}`, message: `A block must be a plain object (got ${show(block)}).` });
       continue;
@@ -392,6 +402,16 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
         errors.push({
           path: `blocks.${id}.columnOrder`,
           message: "The table's columnOrder must be an array of unique non-empty column ids.",
+        });
+        setValid = false;
+        break;
+      }
+      // A reserved column id (an Object.prototype key) would be lost on the
+      // JSON export (the id-keyed-map trap): reject it.
+      if (isReservedId(columnId)) {
+        errors.push({
+          path: `blocks.${id}.columnOrder`,
+          message: `The column id "${columnId}" is reserved (it collides with Object.prototype) and cannot be used.`,
         });
         setValid = false;
         break;

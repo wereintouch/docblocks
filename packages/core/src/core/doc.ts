@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 
-import { flattenDoc, normalizeZOrder, validateDoc } from "@docblocks-core/schema";
+import { flattenDoc, isReservedId, normalizeZOrder, validateDoc } from "@docblocks-core/schema";
 import type {
   Block,
   BlockAttrsPatch,
@@ -56,7 +56,7 @@ import { deleteTextRange as deleteTextRangeCommand, setMarkRange as setMarkRange
 import { changeBlockType as changeBlockTypeCommand } from "./commands/types";
 import type { ChangeBlockTypeArgs } from "./commands/types";
 import { type ZOrderAction, setZOrder as setZOrderCommand } from "./commands/z-order";
-import { InvalidSnapshotError, formatValidationErrors } from "./errors";
+import { InvalidOperationError, InvalidSnapshotError, formatValidationErrors } from "./errors";
 import {
   observeText as observeDocText,
   onBlock as onDocBlock,
@@ -106,6 +106,13 @@ class Doc {
   static create(options: CreateDocOptions = {}): Doc {
     const generateId = options.generateId ?? randomId;
     const id = options.id ?? generateId();
+    // The doc id is the root block's id: a reserved key would be lost on the
+    // JSON export (the id-keyed-map trap), so reject it at the boundary.
+    if (isReservedId(id)) {
+      throw new InvalidOperationError(
+        `The document id "${id}" is reserved (it collides with Object.prototype) and cannot be used.`
+      );
+    }
     const title = options.title ?? "";
     const createdAt = options.createdAt ?? new Date().toISOString();
     return new Doc(layoutDoc(id, title, createdAt), generateId);

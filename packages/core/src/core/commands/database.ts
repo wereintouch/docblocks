@@ -6,7 +6,7 @@
  */
 import * as Y from "yjs";
 
-import { checkDatabaseCellValue, validateDatabaseBlock } from "@docblocks-core/schema";
+import { checkDatabaseCellValue, isReservedId, validateDatabaseBlock } from "@docblocks-core/schema";
 import type { Block, DatabaseCellValue, ValidationError } from "@docblocks-core/schema";
 
 import {
@@ -158,6 +158,13 @@ function insertRow(ydoc: Y.Doc, generateId: () => string, databaseId: string): s
   const block = databaseOf(ydoc, databaseId);
   assertInlineForm(block, databaseId);
   const id = generateId();
+  // A reserved row id (a custom generateId) would be lost on the JSON export
+  // (the id-keyed-map trap): reject it at the boundary.
+  if (isReservedId(id)) {
+    throw new InvalidOperationError(
+      `The row id "${id}" is reserved (it collides with Object.prototype) and cannot be used.`
+    );
+  }
   localTransact(ydoc, () => {
     // A valid database always carries both fields (insertBlock creates
     // them); the lazy creation repairs a corrupt layout.
