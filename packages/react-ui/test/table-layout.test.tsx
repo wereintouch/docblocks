@@ -118,22 +118,22 @@ describe("the add row / add column chips", () => {
     const after = doc.getBlock(tableId);
     expect(after !== null && after.type === "table").toBe(true);
     if (after === null || after.type !== "table") return;
-    expect(after.attrs.cols).toBe(3);
-    expect(after.attrs.columnWidths).toEqual([100, 100, 100]);
+    expect(after.columnOrder.length).toBe(3);
+    expect(after.attrs?.columnWidths).toEqual([100, 100, 100]);
     for (const rowId of doc.getChildren(tableId)) {
       expect(doc.getChildren(rowId).length).toBe(3);
     }
     doc.undo();
     const restored = doc.getBlock(tableId);
     expect(restored !== null && restored.type === "table").toBe(true);
-    if (restored !== null && restored.type === "table") expect(restored.attrs.cols).toBe(2);
+    if (restored !== null && restored.type === "table") expect(restored.columnOrder.length).toBe(2);
   });
 
   it("the add-column chip appends at the end of the existing widths", () => {
     const { doc, tableId } = renderTableDoc(2, [120, 80]);
     fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/table-add-column"]')!);
     const after = doc.getBlock(tableId);
-    expect(after !== null && after.type === "table" && after.attrs.columnWidths).toEqual([120, 80, 100]);
+    expect(after !== null && after.type === "table" && after.attrs?.columnWidths).toEqual([120, 80, 100]);
   });
 });
 
@@ -193,19 +193,19 @@ describe("the add chips' drag (the multi add / remove)", () => {
     expect(document.querySelectorAll('[data-slot="docblocks/table-ghost-column"]').length).toBe(2);
     fireEvent.pointerUp(chip!, { clientX: 300, clientY: 100, pointerId: 1 });
     const after = doc.getBlock(tableId);
-    expect(after !== null && after.type === "table" && after.attrs.cols).toBe(4);
-    expect(after !== null && after.type === "table" && after.attrs.columnWidths).toEqual([120, 80, 100, 100]);
+    expect(after !== null && after.type === "table" && after.columnOrder.length).toBe(4);
+    expect(after !== null && after.type === "table" && after.attrs?.columnWidths).toEqual([120, 80, 100, 100]);
     doc.undo();
     const restored = doc.getBlock(tableId);
-    expect(restored !== null && restored.type === "table" && restored.attrs.cols).toBe(2);
+    expect(restored !== null && restored.type === "table" && restored.columnOrder.length).toBe(2);
   });
 
   it("the column chip's drag left removes the last columns (the floor keeps one)", () => {
     const { doc, tableId } = renderTableDoc(2, [120, 80]);
     dragChip(colChip()!, -100, 0);
     const after = doc.getBlock(tableId);
-    expect(after !== null && after.type === "table" && after.attrs.cols).toBe(1);
-    expect(after !== null && after.type === "table" && after.attrs.columnWidths).toEqual([120]);
+    expect(after !== null && after.type === "table" && after.columnOrder.length).toBe(1);
+    expect(after !== null && after.type === "table" && after.attrs?.columnWidths).toEqual([120]);
   });
 
   it("the short drag (below the step) stands a no-op (no command, no ghosts)", () => {
@@ -273,7 +273,7 @@ describe("the table's size stand (the columns x the rows' result)", () => {
     expect(badge()?.textContent).toBe("3 × 4");
     fireEvent.pointerUp(colChip!, { clientX: 200, clientY: 100, pointerId: 1 });
     const after = doc.getBlock(tableId);
-    expect(after !== null && after.type === "table" && after.attrs.cols).toBe(3);
+    expect(after !== null && after.type === "table" && after.columnOrder.length).toBe(3);
     expect(badge()).toBeNull();
   });
 

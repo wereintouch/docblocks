@@ -46,7 +46,7 @@ declare global {
 /**
  * The block-snapshot shape a spec reads (a harness view of core's `Block` —
  * the type-optional fields: `content` for the text types, `rows`/`rowOrder`
- * for the database, `children` for containers).
+ * for the database, `columnOrder` for the table, `children` for containers).
  */
 interface PaneBlock {
   type: string;
@@ -55,6 +55,7 @@ interface PaneBlock {
   children?: string[];
   rows?: Record<string, Record<string, unknown>>;
   rowOrder?: string[];
+  columnOrder?: string[];
 }
 
 /**

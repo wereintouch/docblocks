@@ -6,7 +6,7 @@
  */
 import * as Y from "yjs";
 
-import { validateBlockAttrs } from "@docblocks-core/schema";
+import { DEFAULT_TABLE_COLUMN_WIDTH, validateBlockAttrs } from "@docblocks-core/schema";
 import type { Block } from "@docblocks-core/schema";
 
 import {
@@ -22,9 +22,6 @@ import type { WritableBlock } from "../../layout";
 import { readBlock } from "../../read";
 import { blockTypeOf, childrenOf, getBlockMap, getBlocks } from "../structure";
 import { changeBlockType } from "../types";
-
-/** The default width of a column without a `columnWidths` entry. */
-const DEFAULT_TABLE_COLUMN_WIDTH = 100;
 
 /** The minimum column width (the validator's `columnWidths` item min). */
 const MIN_COLUMN_WIDTH = 50;
@@ -46,6 +43,15 @@ function rowsOf(table: Y.Map<unknown>, tableId: string): Y.Array<string> {
     throw new InvalidOperationError(`Table "${tableId}" has no row sequence (corrupt layout).`);
   }
   return rows as Y.Array<string>;
+}
+
+/** The table's column identities + order (the single source of the column set); typed error on a corrupt layout. */
+function columnOrderOf(table: Y.Map<unknown>, tableId: string): Y.Array<string> {
+  const columnOrder = table.get("columnOrder");
+  if (!(columnOrder instanceof Y.Array)) {
+    throw new InvalidOperationError(`Table "${tableId}" has no columnOrder (corrupt layout).`);
+  }
+  return columnOrder as Y.Array<string>;
 }
 
 /** The row by id; typed error when the id is not a child of the table. */
@@ -97,42 +103,20 @@ function assertCellColor(key: "columnColor" | "rowColor", color: string, tableId
   }
 }
 
-/** The table's `columnWidths` sequence (null when absent — the defaults stand). */
-function widthsArray(table: Y.Map<unknown>): Y.Array<unknown> | null {
+/** The table's identity-keyed `columnWidths` map (columnId → width; null when absent — the defaults stand at read time). */
+function widthsMap(table: Y.Map<unknown>): Y.Map<unknown> | null {
   const attrs = table.get("attrs");
   if (!(attrs instanceof Y.Map)) return null;
-  const widths = (attrs as Y.Map<unknown>).get("columnWidths");
-  // writeAttrValue stores plain arrays as Y.Array — read the live sequence.
-  return widths instanceof Y.Array ? (widths as Y.Array<unknown>) : null;
+  const widths = attrs.get("columnWidths");
+  return widths instanceof Y.Map ? (widths as Y.Map<unknown>) : null;
 }
 
-/** The table's column widths as a plain copy (null when absent or corrupt — the defaults stand). */
-function readWidths(table: Y.Map<unknown>): number[] | null {
-  const widths = widthsArray(table);
+/** The stored (explicit) width of a column (null when absent — the default stands at read time). */
+function readWidthOf(table: Y.Map<unknown>, columnId: string): number | null {
+  const widths = widthsMap(table);
   if (widths === null) return null;
-  const values = widths.toArray();
-  const numbers = values.filter((width): width is number => typeof width === "number");
-  return numbers.length === values.length ? numbers : null;
-}
-
-/** Writes the table's `columnWidths` attr (creates the attrs map when absent). */
-function writeWidths(table: Y.Map<unknown>, widths: number[]): void {
-  let attrs = table.get("attrs");
-  if (!(attrs instanceof Y.Map)) {
-    attrs = new Y.Map<unknown>();
-    table.set("attrs", attrs);
-  }
-  writeAttrValue(attrs as Y.Map<unknown>, "columnWidths", widths);
-}
-
-/** Writes the table's `cols` attr (creates the attrs map when absent). */
-function writeCols(table: Y.Map<unknown>, cols: number): void {
-  let attrs = table.get("attrs");
-  if (!(attrs instanceof Y.Map)) {
-    attrs = new Y.Map<unknown>();
-    table.set("attrs", attrs);
-  }
-  writeAttrValue(attrs as Y.Map<unknown>, "cols", cols);
+  const value = widths.get(columnId);
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
 /** Sets (or removes) one color attr on a cell inside the caller's transaction. */
@@ -190,7 +174,7 @@ function clearBlockChildren(ydoc: Y.Doc, blockId: string): void {
  * indent; the content array starts empty.
  */
 function convertToParagraph(ydoc: Y.Doc, tableId: string): void {
-  changeBlockType(ydoc, tableId, "paragraph", undefined);
+  changeBlockType(ydoc, undefined, tableId, "paragraph", undefined);
 }
 
 /** Reads one color attr of a cell (null when absent or invalid). */
@@ -254,16 +238,15 @@ export {
   cellsOf,
   clearBlockChildren,
   collectSubtree,
+  columnOrderOf,
   convertToParagraph,
   readCellColor,
-  readWidths,
+  readWidthOf,
   rowOf,
   rowsOf,
   setCellColor,
   snapshotSubtree,
   tableOf,
-  widthsArray,
-  writeCols,
+  widthsMap,
   writeSubtreeCopy,
-  writeWidths,
 };

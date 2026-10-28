@@ -19,18 +19,6 @@ const expectThrows = (fn: () => unknown, ctor: new (message: string) => Error): 
   throw new Error("expected the command to throw");
 };
 
-/** A `cols`-wide table with `rows` complete rows. */
-function buildTable(doc: Doc, cols: number, rows: number): { table: string; rowIds: string[] } {
-  const table = doc.insertBlock("table", { cols });
-  const rowIds: string[] = [];
-  for (let r = 0; r < rows; r++) {
-    const row = doc.insertBlock("table-row", undefined, { parent: table });
-    rowIds.push(row);
-    for (let c = 0; c < cols; c++) doc.insertBlock("table-cell", undefined, { parent: row });
-  }
-  return { table, rowIds };
-}
-
 describe("insertBlock table-cell", () => {
   it("rejects a cell into a full or over-full row", () => {
     const doc = newDoc();
@@ -54,7 +42,7 @@ describe("insertBlock table-cell", () => {
 });
 
 describe("moveBlock table-cell / table-row", () => {
-  it("rejects moving a cell to another row; same-row reorder works", () => {
+  it("rejects moving a cell to another row or reordering it within the row (the column binding)", () => {
     const doc = newDoc();
     const table = doc.insertBlock("table", { cols: 2 });
     const rowA = doc.insertBlock("table-row", undefined, { parent: table });
@@ -69,8 +57,13 @@ describe("moveBlock table-cell / table-row", () => {
     expect(doc.getChildren(rowA)).toEqual([c0, c1]); // source row untouched
     expect(doc.getChildren(rowB)).toEqual([d0, d1]);
 
-    doc.moveBlock(c1, rowA, 0); // same-row reorder stays allowed
-    expect(doc.getChildren(rowA)).toEqual([c1, c0]);
+    // A same-row reorder scrambles the columnOrder binding (the cell keeps
+    // its column) — rejected too; the column order is moveTableColumn's job.
+    expectThrows(() => doc.moveBlock(c1, rowA, 0), InvalidOperationError);
+    expect(doc.getChildren(rowA)).toEqual([c0, c1]);
+    // The in-place no-op stands (the position is unchanged).
+    doc.moveBlock(c0, rowA, 0);
+    expect(doc.getChildren(rowA)).toEqual([c0, c1]);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
@@ -145,27 +138,5 @@ describe("removeBlock table-cell", () => {
     doc.removeBlock(p1);
     expect(doc.getBlock(p1)).toBeNull();
     expect(doc.getChildren(partRow)).toEqual([]);
-  });
-});
-
-describe("updateBlock table cols", () => {
-  it("rejects a cols patch that mismatches the rows' cell counts", () => {
-    const doc = newDoc();
-    const { table, rowIds } = buildTable(doc, 2, 2);
-    const error = expectThrows(() => doc.updateBlock(table, { cols: 3 }), InvalidOperationError);
-    expect(error.message).toContain("3");
-    expect(doc.getBlock(table)).toEqual({ type: "table", attrs: { cols: 2 }, children: rowIds });
-  });
-
-  it("accepts a matching cols on a full table and any cols on an empty table", () => {
-    const doc = newDoc();
-    const { table, rowIds } = buildTable(doc, 2, 1);
-    doc.updateBlock(table, { cols: 2 }); // matching no-change
-    expect(doc.getBlock(table)).toEqual({ type: "table", attrs: { cols: 2 }, children: rowIds });
-
-    const empty = doc.insertBlock("table", { cols: 1 });
-    doc.updateBlock(empty, { cols: 4 }); // no rows: any valid cols accepted
-    expect(doc.getBlock(empty)).toEqual({ type: "table", attrs: { cols: 4 } });
-    expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 });

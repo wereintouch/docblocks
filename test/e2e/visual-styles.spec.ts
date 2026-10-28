@@ -220,8 +220,8 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
       .locator(`[data-block-id="${id}"]`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
-  expect(await rowPaddingOf("c0062")).toBe("24px");
-  expect(await rowPaddingOf("c0063")).toBe("48px");
+  expect(await rowPaddingOf("c0064")).toBe("24px");
+  expect(await rowPaddingOf("c0065")).toBe("48px");
   expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 

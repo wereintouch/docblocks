@@ -219,7 +219,7 @@ class Doc {
    */
   changeBlockType<T extends BlockType>(...args: ChangeBlockTypeArgs<T>): void {
     const [id, type, attrs] = args;
-    changeBlockTypeCommand(this.#ydoc, id, type, attrs);
+    changeBlockTypeCommand(this.#ydoc, this.#generateId, id, type, attrs);
   }
 
   /** Removes a block and its whole subtree. */

@@ -369,9 +369,9 @@ describe("strict validation (validateDoc)", () => {
       createdAt: CREATED_AT,
       blocks: {
         d2: { type: "root", children: ["t1"] },
-        t1: { type: "table", attrs: { cols: 1 }, children: ["r1"] },
+        t1: { type: "table", columnOrder: ["col1"], children: ["r1"] },
         r1: { type: "table-row", children: ["c1", "sh1"] },
-        c1: { type: "table-cell", content: [] },
+        c1: { type: "table-cell", attrs: { columnId: "col1" }, content: [] },
         sh1: { type: "shape", attrs: { variant: "rect" } },
       },
     };

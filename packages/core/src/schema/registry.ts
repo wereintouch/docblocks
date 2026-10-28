@@ -25,6 +25,9 @@ const ALIGN = { kind: "enum", values: ["left", "center", "right"] } as const;
  */
 const INDENT = { kind: "number", integer: true, min: 0 } as const;
 
+/** The default table column width (px) — the stand for an absent `columnWidths` entry. */
+const DEFAULT_TABLE_COLUMN_WIDTH = 100;
+
 /** Structural description of a block attribute. */
 interface AttrSpec {
   kind: "boolean" | "string" | "number" | "nullable-number" | "enum" | "object" | "array";
@@ -60,6 +63,8 @@ interface BlockSpec {
   children: boolean;
   /** The block carries row data (the `rows` map + the `rowOrder` order). */
   rows: boolean;
+  /** The block carries the column identities + order (`columnOrder` array, table only). */
+  columnOrder?: boolean;
   /** Allowed child block types (present whenever `children` is true). */
   childrenTypes?: readonly BlockType[];
   /**
@@ -175,12 +180,9 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     content: false,
     children: true,
     rows: false,
+    columnOrder: true,
     childrenTypes: ["table-row"],
     attrs: {
-      cols: { kind: "number", integer: true, min: 1, required: true },
-      // The per-column widths, in column order (the entry follows the
-      // column through a move/duplicate); absent — every column takes the
-      // reader's default width.
       columnWidths: { kind: "array", items: { kind: "number", min: 50 } },
     },
   },
@@ -192,6 +194,10 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     childrenTypes: LEAF_BLOCK_TYPES,
     sequence: true,
     attrs: {
+      // The column this cell belongs to (a `columnOrder` entry). Set
+      // automatically by the insert path (the cell's position in the row's
+      // columnOrder); the strict validator still checks the binding.
+      columnId: { kind: "string", nonEmpty: true },
       align: ALIGN,
       // The two background layers: the column color (set column-wide) is
       // the priority layer, the row color stands underneath it.
@@ -350,5 +356,5 @@ const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
   highlight: { kind: "attrs", exclusive: false, attr: "value", attrOptional: true },
 };
 
-export { BLOCK_REGISTRY, CALLOUT_ICONS, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };
+export { BLOCK_REGISTRY, CALLOUT_ICONS, DEFAULT_TABLE_COLUMN_WIDTH, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec };

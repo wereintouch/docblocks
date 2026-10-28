@@ -2,7 +2,14 @@
  * Schema v1 — data contract: public types and block/marks registries.
  * Zero dependencies by design.
  */
-export { BLOCK_REGISTRY, CALLOUT_ICONS, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES } from "./registry";
+export {
+  BLOCK_REGISTRY,
+  CALLOUT_ICONS,
+  DEFAULT_TABLE_COLUMN_WIDTH,
+  LEAF_BLOCK_TYPES,
+  MARK_REGISTRY,
+  PAGE_BLOCK_TYPES,
+} from "./registry";
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
 export { flattenDoc } from "./flatten";
 export { normalizeZOrder } from "./z-order";

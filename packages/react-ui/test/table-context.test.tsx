@@ -326,10 +326,10 @@ describe("the column seam resize", () => {
     fireEvent.pointerUp(seam(0), { clientX: 140, clientY: 50, pointerId: 1 });
 
     const after = doc.getBlock(tableId);
-    expect(after !== null && after.type === "table" && after.attrs.columnWidths).toEqual([140, 150]);
+    expect(after !== null && after.type === "table" && after.attrs?.columnWidths).toEqual([140, 150]);
     doc.undo();
     const afterUndo = doc.getBlock(tableId);
-    expect(afterUndo !== null && afterUndo.type === "table" && afterUndo.attrs.columnWidths).toEqual([100, 150]);
+    expect(afterUndo !== null && afterUndo.type === "table" && afterUndo.attrs?.columnWidths).toEqual([100, 150]);
   });
 
   it("the live preview stands the width locally (no wire traffic until the release)", () => {
@@ -353,7 +353,7 @@ describe("the column seam resize", () => {
     fireEvent.pointerUp(seam(0), { clientX: -50, clientY: 50, pointerId: 1 });
 
     const afterClamp = doc.getBlock(tableId);
-    expect(afterClamp !== null && afterClamp.type === "table" && afterClamp.attrs.columnWidths).toEqual([50, 150]);
+    expect(afterClamp !== null && afterClamp.type === "table" && afterClamp.attrs?.columnWidths).toEqual([50, 150]);
     expect(clampColumnWidth(10)).toBe(50);
     expect(clampColumnWidth(50.4)).toBe(50);
     expect(clampColumnWidth(120.6)).toBe(121);
@@ -365,7 +365,7 @@ describe("the column seam resize", () => {
     fireEvent.pointerUp(seam(0), { clientX: 100, clientY: 50, pointerId: 1 });
 
     const afterNoop = doc.getBlock(tableId);
-    expect(afterNoop !== null && afterNoop.type === "table" && afterNoop.attrs.columnWidths).toEqual([100, 150]);
+    expect(afterNoop !== null && afterNoop.type === "table" && afterNoop.attrs?.columnWidths).toEqual([100, 150]);
   });
 });
 

@@ -3,9 +3,20 @@
  * moveTableColumn, duplicateTableColumn, clearTableColumn,
  * setTableColumnColor, setTableColumnWidth.
  *
- * Column identity: `columnWidths` and the per-cell colors follow the
- * column (a move reorders the entries, a duplicate copies them), so a
- * reordered column keeps its width and colors.
+ * Column identity: the table's `columnOrder` (a shared CRDT array of column
+ * ids) is the single source of the column set — the column count is
+ * `columnOrder.length`, never a scalar counter. Each cell carries a
+ * `columnId` binding it to a column; the cells of a row stand in
+ * `columnOrder` order (the cell at position i ↔ `columnOrder[i]`), so the
+ * per-cell colors ride the column through an insert/remove/move/duplicate.
+ *
+ * Column widths are stored identity-keyed (`attrs.columnWidths` is a Y.Map
+ * of columnId → width — an element-level LWW op per column), so a concurrent
+ * move + width set of one column converge per key (a positional array's
+ * element ops would not). The positional `columnWidths` array in the JSON is
+ * derived from this map at read time (an absent key stands the default
+ * width), which is why these commands never move or reorder width entries —
+ * the width follows its column's id.
  *
  * Removing the LAST column converts the table into a plain paragraph in
  * place (the block id and the indent stand).
@@ -14,7 +25,7 @@ import * as Y from "yjs";
 
 import { InvalidOperationError, InvalidRangeError } from "../../errors";
 import { localTransact, writeBlock } from "../../layout";
-import { getBlockMap, getBlocks, readCols } from "../structure";
+import { getBlockMap, getBlocks } from "../structure";
 import {
   DEFAULT_TABLE_COLUMN_WIDTH,
   assertCellColor,
@@ -23,45 +34,63 @@ import {
   assertWidth,
   clearBlockChildren,
   collectSubtree,
+  columnOrderOf,
   convertToParagraph,
   readCellColor,
-  readWidths,
   rowsOf,
   setCellColor,
   snapshotSubtree,
   tableOf,
-  widthsArray,
-  writeCols,
+  widthsMap,
   writeSubtreeCopy,
-  writeWidths,
 } from "./common";
 
+/** Ensures the identity-keyed width map exists on the table's attrs (creating the attrs map if absent). */
+function ensureWidthsMap(table: Y.Map<unknown>): Y.Map<unknown> {
+  const existing = widthsMap(table);
+  if (existing !== null) return existing;
+  const attrs = table.get("attrs");
+  if (attrs instanceof Y.Map) {
+    const map = new Y.Map<unknown>();
+    attrs.set("columnWidths", map);
+    return map;
+  }
+  const freshAttrs = new Y.Map<unknown>();
+  const map = new Y.Map<unknown>();
+  freshAttrs.set("columnWidths", map);
+  table.set("attrs", freshAttrs);
+  return map;
+}
+
 /**
- * Inserts an empty column (100 px wide, cells without content blocks)
- * at `at` (0 = the first column, the column count = the last; appended
- * when omitted) and keeps `cols` and `columnWidths` in sync. The new
- * cells inherit the row colors (a row's color stands on every cell of the
- * row — an uncolored new cell would break the row's band).
+ * Inserts an empty column (a fresh column id, the default width, cells
+ * without content blocks) at `at` (0 = the first column, the column count =
+ * the last; appended when omitted). The new cells inherit the row colors (a
+ * row's color stands on every cell of the row — an uncolored new cell would
+ * break the row's band). No width entry is written: an absent key stands
+ * the default width at read time.
  */
 function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: string, at?: number): void {
   const table = tableOf(ydoc, tableId);
   const rows = rowsOf(table, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
+  const columnOrder = columnOrderOf(table, tableId);
+  const cols = columnOrder.length;
   if (at !== undefined) assertInsertIndex(at, cols, "Column");
   const index = at ?? cols;
+  const newColumnId = generateId();
   const rowIds = rows.toArray();
-  const cellIds = rowIds.map(() => generateId());
   localTransact(ydoc, () => {
     const blocks = getBlocks(ydoc);
-    rowIds.forEach((rowId, i) => {
+    // The column identity (the single source of the column set).
+    columnOrder.insert(index, [newColumnId]);
+    rowIds.forEach((rowId) => {
       const row = getBlockMap(ydoc, rowId);
       const cells = row !== null ? (row.get("children") as Y.Array<string> | undefined) : undefined;
       if (row === null || !(cells instanceof Y.Array)) {
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
-      const cellId = cellIds[i]!;
-      writeBlock(blocks, cellId, { type: "table-cell" });
+      const cellId = generateId();
+      writeBlock(blocks, cellId, { type: "table-cell", attrs: { columnId: newColumnId } });
       for (const existingId of cells.toArray()) {
         const color = readCellColor(ydoc, existingId, "rowColor");
         if (color !== null) {
@@ -71,30 +100,21 @@ function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: strin
       }
       cells.insert(index, [cellId]);
     });
-    writeCols(table, cols + 1);
-    // Element-level insert: the width follows the column position. When the
-    // array is absent it materializes as all defaults (value set).
-    const live = widthsArray(table);
-    if (live !== null) live.insert(index, [DEFAULT_TABLE_COLUMN_WIDTH]);
-    else {
-      const current = Array.from({ length: cols }, () => DEFAULT_TABLE_COLUMN_WIDTH);
-      current.splice(index, 0, DEFAULT_TABLE_COLUMN_WIDTH);
-      writeWidths(table, current);
-    }
   });
 }
 
 /**
- * Removes the column at `index` (the cells and their content, in every
- * row). The LAST column converts the table into a plain paragraph (the
- * block id and the indent stand).
+ * Removes the column at `index` (the column id, the cells and their content,
+ * in every row). The LAST column converts the table into a plain paragraph
+ * (the block id and the indent stand).
  */
 function removeTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
   const table = tableOf(ydoc, tableId);
   const rows = rowsOf(table, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
+  const columnOrder = columnOrderOf(table, tableId);
+  const cols = columnOrder.length;
   assertIndex(index, cols, "Column");
+  const columnId = columnOrder.toArray()[index]!;
   const rowIds = rows.toArray();
   localTransact(ydoc, () => {
     const blocks = getBlocks(ydoc);
@@ -104,33 +124,38 @@ function removeTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
       if (row === null || !(cells instanceof Y.Array)) {
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
-      const cellId = cells.toArray()[index]!;
+      const cellId = cells.toArray()[index];
+      // A short row (the concurrent row × column race residue) may lack this
+      // position's cell: skip it — the column op stands on the cells that
+      // exist (the column identity moves in the columnOrder regardless).
+      if (cellId === undefined) continue;
       for (const id of collectSubtree(ydoc, cellId)) blocks.delete(id);
       cells.delete(index, 1);
     }
+    // The column identity (the single source of the column set).
+    columnOrder.delete(index, 1);
+    // The width entry is identity-keyed: it dies with its column id.
+    widthsMap(table)?.delete(columnId);
     if (cols === 1) {
       // The last column: the rows are gone — convert the table in place.
       for (const rowId of rowIds) blocks.delete(rowId);
       rows.delete(0, rows.length);
       convertToParagraph(ydoc, tableId);
-    } else {
-      writeCols(table, cols - 1);
-      const live = widthsArray(table);
-      if (live !== null) live.delete(index, 1);
     }
   });
 }
 
 /**
  * Moves the column from `fromIndex` to `toIndex` (pre-move index
- * semantics, like moveRow): the cells of EVERY row move together with the
- * width entry (the colors ride the cells).
+ * semantics, like moveRow): the column id moves in the `columnOrder` and
+ * the cells of EVERY row move with it (the colors ride the cells; the width
+ * entry follows the column by id — no width op is needed).
  */
 function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toIndex: number): void {
   const table = tableOf(ydoc, tableId);
   const rows = rowsOf(table, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
+  const columnOrder = columnOrderOf(table, tableId);
+  const cols = columnOrder.length;
   assertIndex(fromIndex, cols, "Column");
   if (!Number.isInteger(toIndex) || toIndex < 0 || toIndex > cols) {
     throw new InvalidRangeError(`toIndex must be an integer in [0, ${cols}] (got ${toIndex}).`);
@@ -144,60 +169,73 @@ function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toInde
       if (row === null || !(cells instanceof Y.Array)) {
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
-      const cellId = cells.toArray()[fromIndex]!;
+      const cellId = cells.toArray()[fromIndex];
+      // A short row (the concurrent row × column race residue) may lack this
+      // position's cell: skip it — the column identity moves in the
+      // columnOrder regardless.
+      if (cellId === undefined) continue;
       cells.delete(fromIndex, 1);
       cells.insert(insertAt, [cellId]);
     }
-    // The width entry follows the column (element-level move).
-    const live = widthsArray(table);
-    if (live !== null) {
-      const width = live.toArray()[fromIndex];
-      live.delete(fromIndex, 1);
-      live.insert(insertAt, [width]);
-    }
+    // The column identity moves (element-level).
+    const columnId = columnOrder.toArray()[fromIndex]!;
+    columnOrder.delete(fromIndex, 1);
+    columnOrder.insert(insertAt, [columnId]);
   });
 }
 
 /**
- * Duplicates the column at `index` right of it: the cells are deep-copied
- * (content + colors) and the width entry is copied; `cols` grows.
+ * Duplicates the column at `index` right of it: a fresh column id is added
+ * to the `columnOrder`, the cells are deep-copied (content + colors, the
+ * `columnId` re-bound to the fresh id) and the explicit width entry, if any,
+ * is copied to the fresh id.
  */
 function duplicateTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: string, index: number): void {
   const table = tableOf(ydoc, tableId);
   const rows = rowsOf(table, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
+  const columnOrder = columnOrderOf(table, tableId);
+  const cols = columnOrder.length;
   assertIndex(index, cols, "Column");
+  const sourceColumnId = columnOrder.toArray()[index]!;
+  const newColumnId = generateId();
   const rowIds = rows.toArray();
-  const snaps = rowIds.map((rowId) => {
+  const snaps: Array<ReturnType<typeof snapshotSubtree> | undefined> = rowIds.map((rowId) => {
     const row = getBlockMap(ydoc, rowId);
     const cells = row !== null ? (row.get("children") as Y.Array<string> | undefined) : null;
     if (row === null || cells === null || !(cells instanceof Y.Array)) {
       throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
     }
-    return snapshotSubtree(ydoc, generateId, cells.toArray()[index]!);
+    // A short row (the concurrent row × column race residue) may lack this
+    // position's cell: the copied column stands without a cell there.
+    const cellId = cells.toArray()[index];
+    return cellId === undefined ? undefined : snapshotSubtree(ydoc, generateId, cellId);
   });
-  const width = readWidths(table)?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH;
   localTransact(ydoc, () => {
+    // The fresh column identity (the single source of the column set).
+    columnOrder.insert(index + 1, [newColumnId]);
     rowIds.forEach((rowId, i) => {
       const row = getBlockMap(ydoc, rowId);
       const cells = row !== null ? (row.get("children") as Y.Array<string> | undefined) : undefined;
       if (row === null || !(cells instanceof Y.Array)) {
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
-      cells.insert(index + 1, [writeSubtreeCopy(ydoc, snaps[i]!)]);
+      // The copied cell's columnId re-binds to the fresh column (a short
+      // row stands without a cell — the snap is absent).
+      const snap = snaps[i];
+      if (snap === undefined) return;
+      const newCellId = writeSubtreeCopy(ydoc, snap);
+      const newCell = getBlockMap(ydoc, newCellId);
+      if (newCell !== null) {
+        const attrs = newCell.get("attrs");
+        if (attrs instanceof Y.Map) attrs.set("columnId", newColumnId);
+        else newCell.set("attrs", new Y.Map<unknown>([["columnId", newColumnId]]));
+      }
+      cells.insert(index + 1, [newCellId]);
     });
-    writeCols(table, cols + 1);
-    // The width entry is copied (element-level insert; absent array
-    // materializes as all defaults).
-    const live = widthsArray(table);
-    if (live !== null) {
-      live.insert(index + 1, [width]);
-    } else {
-      const widths = Array.from({ length: cols }, () => DEFAULT_TABLE_COLUMN_WIDTH);
-      widths.splice(index + 1, 0, width);
-      writeWidths(table, widths);
-    }
+    // The explicit width entry, if any, follows the copy to the fresh id.
+    const widthMap = widthsMap(table);
+    const width = widthMap instanceof Y.Map ? widthMap.get(sourceColumnId) : undefined;
+    if (typeof width === "number") ensureWidthsMap(table).set(newColumnId, width);
   });
 }
 
@@ -211,12 +249,9 @@ function columnCellIds(ydoc: Y.Doc, table: Y.Map<unknown>, tableId: string, inde
       throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence (corrupt layout).`);
     }
     const cellId = (cells as Y.Array<string>).toArray()[index];
-    if (cellId === undefined) {
-      throw new InvalidOperationError(
-        `Row "${rowId}" of table "${tableId}" has fewer than ${index + 1} cell(s) (corrupt layout).`
-      );
-    }
-    cellIds.push(cellId);
+    // A short row (the concurrent row × column race residue) may lack this
+    // position's cell: skip it (its peers' cells still receive the op).
+    if (cellId !== undefined) cellIds.push(cellId);
   }
   return cellIds;
 }
@@ -224,8 +259,7 @@ function columnCellIds(ydoc: Y.Doc, table: Y.Map<unknown>, tableId: string, inde
 /** Clears the cell content of every cell in a column (the cells stay, empty). */
 function clearTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
   const table = tableOf(ydoc, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
+  const cols = columnOrderOf(table, tableId).length;
   assertIndex(index, cols, "Column");
   const cellIds = columnCellIds(ydoc, table, tableId, index);
   localTransact(ydoc, () => {
@@ -236,8 +270,7 @@ function clearTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
 /** Sets (or removes, `null`) the column color on every cell of a column. */
 function setTableColumnColor(ydoc: Y.Doc, tableId: string, index: number, color: string | null): void {
   const table = tableOf(ydoc, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
+  const cols = columnOrderOf(table, tableId).length;
   assertIndex(index, cols, "Column");
   if (color !== null) assertCellColor("columnColor", color, tableId);
   const cellIds = columnCellIds(ydoc, table, tableId, index);
@@ -247,31 +280,24 @@ function setTableColumnColor(ydoc: Y.Doc, tableId: string, index: number, color:
 }
 
 /**
- * Sets the width of the column at `index` (>= 50; no silent clamp). An
- * absent `columnWidths` starts as all defaults (only the changed entry
- * stands non-default). An equal-value set is a zero-byte no-op: the
- * comparison runs BEFORE the transaction (a transaction always stamps
+ * Sets the width of the column at `index` (>= 50; no silent clamp): a single
+ * identity-keyed entry (columnId → width). An equal-value set is a zero-byte
+ * no-op: the comparison (against the stored entry or the default the read
+ * would stand) runs BEFORE the transaction (a transaction always stamps
  * meta.updatedAt, so the no-op must skip the transaction, not the write).
  */
 function setTableColumnWidth(ydoc: Y.Doc, tableId: string, index: number, width: number): void {
   const table = tableOf(ydoc, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
+  const columnOrder = columnOrderOf(table, tableId);
+  const cols = columnOrder.length;
   assertIndex(index, cols, "Column");
   assertWidth(width, tableId);
-  const current = readWidths(table) ?? Array.from({ length: cols }, () => DEFAULT_TABLE_COLUMN_WIDTH);
-  if (current[index] === width) return;
-  const live = widthsArray(table);
+  const columnId = columnOrder.toArray()[index]!;
+  const stored = widthsMap(table)?.get(columnId);
+  const current = typeof stored === "number" ? stored : DEFAULT_TABLE_COLUMN_WIDTH;
+  if (current === width) return;
   localTransact(ydoc, () => {
-    if (live !== null) {
-      // Y.Array has no element set: replace via delete + insert.
-      live.delete(index, 1);
-      live.insert(index, [width]);
-    } else {
-      const widths = current.slice();
-      widths[index] = width;
-      writeWidths(table, widths);
-    }
+    ensureWidthsMap(table).set(columnId, width);
   });
 }
 

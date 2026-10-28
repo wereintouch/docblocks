@@ -51,10 +51,16 @@ interface InsertBlockPosition {
 
 /**
  * Argument tuple of `insertBlock`: attrs are required exactly when the type
- * has attrs (see AttrsFor); `at` is optional.
+ * has attrs (see AttrsFor); `at` is optional. The table's `cols` is a
+ * creation hint (the initial column count that seeds the columnOrder), not a
+ * stored attr — it is accepted in the insert attrs only. The table check is
+ * non-distributive (`[T] extends ["table"]`): a distributive form would
+ * collapse a union type argument (e.g. "paragraph" | "list-item") into
+ * per-member tuples and reject the call.
  */
-type InsertBlockArgs<T extends BlockType> =
-  undefined extends AttrsFor<T>
+type InsertBlockArgs<T extends BlockType> = [T] extends ["table"]
+  ? [type: T, attrs?: AttrsFor<T> & { cols?: number }, at?: InsertBlockPosition]
+  : undefined extends AttrsFor<T>
     ? [type: T, attrs?: AttrsFor<T>, at?: InsertBlockPosition]
     : [type: T, attrs: AttrsFor<T>, at?: InsertBlockPosition];
 
@@ -67,10 +73,19 @@ function writeNewBlock(blocks: Y.Map<unknown>, id: string, type: BlockType, attr
   const yblock = new Y.Map<unknown>();
   yblock.set("type", type);
 
+  // The attrs map is kept by reference: an unattached Y.Map cannot be read
+  // back through yblock.get (the read lands before the attach), so the
+  // type-specific branches below extend the local map instead.
+  let attrsMap: Y.Map<unknown> | undefined;
   if (spec.attrs !== undefined && isPlainObject(attrs)) {
-    const attrEntries = Object.entries(attrs).filter(([, value]) => value !== undefined);
+    // The table's columnWidths are stored identity-keyed (columnId → width,
+    // seeded from the caller's positional array by the insert transaction,
+    // which knows the generated column ids) — skipped here.
+    const attrEntries = Object.entries(attrs).filter(
+      ([key, value]) => value !== undefined && !(type === "table" && key === "columnWidths")
+    );
     if (attrEntries.length > 0) {
-      const attrsMap = new Y.Map<unknown>();
+      attrsMap = new Y.Map<unknown>();
       for (const [key, value] of attrEntries) writeAttrValue(attrsMap, key, value);
       yblock.set("attrs", attrsMap);
     }
@@ -81,6 +96,12 @@ function writeNewBlock(blocks: Y.Map<unknown>, id: string, type: BlockType, attr
   if (spec.rows) {
     yblock.set("rows", new Y.Map<unknown>());
     yblock.set("rowOrder", new Y.Array<string>());
+  }
+  if (spec.columnOrder) {
+    // The fresh table holds no width entries yet (an absent entry stands
+    // the default width at read time); the insert transaction seeds the
+    // caller's widths identity-keyed, keyed by the generated column ids.
+    yblock.set("columnOrder", new Y.Array<string>());
   }
   blocks.set(id, yblock);
 }
@@ -106,7 +127,24 @@ function insertBlock(
     }
   }
 
-  const attrErrors = validateBlockAttrs(type, attrs);
+  // The table's initial column count (a creation hint, not an attr): the
+  // columnOrder is seeded with the given number of column ids (default 1). The
+  // hint is extracted before the attrs validation (it is not a stored attr).
+  let tableAttrs = attrs;
+  let initialCols = 1;
+  if (type === "table" && isPlainObject(attrs) && typeof attrs.cols === "number") {
+    initialCols = attrs.cols;
+    if (!Number.isInteger(initialCols) || initialCols < 1) {
+      throw new InvalidAttrsError(
+        `Invalid attrs for block type "table": the initial column count must be an integer >= 1 (got ${initialCols}).`
+      );
+    }
+    const rest: Record<string, unknown> = { ...attrs };
+    delete rest.cols;
+    tableAttrs = rest;
+  }
+
+  const attrErrors = validateBlockAttrs(type, tableAttrs);
   if (attrErrors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${formatValidationErrors(attrErrors)}`);
   }
@@ -156,7 +194,9 @@ function insertBlock(
   // sequence's jump rule at its landing position.
   if (parentSpec.sequence) {
     const newIndent =
-      attrs !== undefined && isPlainObject(attrs) && typeof attrs.indent === "number" ? attrs.indent : 0;
+      tableAttrs !== undefined && isPlainObject(tableAttrs) && typeof tableAttrs.indent === "number"
+        ? tableAttrs.indent
+        : 0;
     const violation = indentJumpViolation(ydoc, childIds, index, newIndent);
     if (violation !== null) {
       throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${violation}.`);
@@ -204,13 +244,65 @@ function insertBlock(
     // order slot are written only when absent, so the race converges to
     // one block and one slot.
     const blocks = getBlocks(ydoc);
-    if (!(blocks.get(id) instanceof Y.Map)) writeNewBlock(blocks, id, type, attrs);
+    if (!(blocks.get(id) instanceof Y.Map)) writeNewBlock(blocks, id, type, tableAttrs);
     if (!children.toArray().includes(id)) children.insert(index, [id]);
     // The owner parent (the single CRDT-resolved ownership stand): set on
     // the entry so a concurrent move/insert of the same id resolves to one
     // owner, not a duplicate reference.
     const blockMap = blocks.get(id);
     if (blockMap instanceof Y.Map) blockMap.set("parent", parentId);
+    // The table's initial column set (the columnOrder): a fresh table starts
+    // with one column (the column commands add/remove the rest). Idempotent
+    // over the explicit-id race (only a fresh empty order is seeded).
+    if (type === "table" && blockMap instanceof Y.Map) {
+      const columnOrder = blockMap.get("columnOrder");
+      if (columnOrder instanceof Y.Array && columnOrder.length === 0) {
+        for (let i = 0; i < initialCols; i++) columnOrder.push([generateId()]);
+      }
+      // The caller's initial columnWidths (positional) stand identity-keyed
+      // (columnId → width): an explicit entry only for the given values —
+      // an absent key stands the default width at read time. Idempotent
+      // over the explicit-id race, like the columnOrder seed above.
+      const callerWidths = isPlainObject(attrs) ? (attrs as Record<string, unknown>).columnWidths : undefined;
+      if (Array.isArray(callerWidths)) {
+        const order = blockMap.get("columnOrder");
+        if (order instanceof Y.Array) {
+          let blockAttrs = blockMap.get("attrs");
+          if (!(blockAttrs instanceof Y.Map)) {
+            blockAttrs = new Y.Map<unknown>();
+            blockMap.set("attrs", blockAttrs);
+          }
+          let widths = blockAttrs.get("columnWidths");
+          if (!(widths instanceof Y.Map)) {
+            widths = new Y.Map<unknown>();
+            blockAttrs.set("columnWidths", widths);
+          }
+          order.toArray().forEach((columnId, i) => {
+            const value = callerWidths[i];
+            if (typeof value === "number" && Number.isFinite(value)) widths.set(columnId, value);
+          });
+        }
+      }
+    }
+    // The table cell's column binding: the cell's columnId stands the column
+    // at its position in the row (the table's columnOrder entry). Set
+    // automatically (the caller doesn't know the column context).
+    if (type === "table-cell" && blockMap instanceof Y.Map) {
+      const tableId = findParent(ydoc, parentId);
+      const tableMap = tableId !== null ? getBlockMap(ydoc, tableId) : null;
+      const columnOrder = tableMap !== null ? tableMap.get("columnOrder") : null;
+      if (columnOrder instanceof Y.Array) {
+        const columnId = columnOrder.toArray()[index];
+        if (typeof columnId === "string") {
+          let attrs = blockMap.get("attrs");
+          if (!(attrs instanceof Y.Map)) {
+            attrs = new Y.Map<unknown>();
+            blockMap.set("attrs", attrs);
+          }
+          attrs.set("columnId", columnId);
+        }
+      }
+    }
     // The canvas element's explicit z-order index (dense 1..N, the order's
     // mirror): a new surface canvas element takes its position among the
     // canvas elements (the default insert at the end is max + 1, on top).
@@ -344,28 +436,29 @@ function moveBlock(ydoc: Y.Doc, id: string, toParent: string, toIndex: number): 
     }
   }
 
-  // Table invariants: a cell reorders only within its own row; a row moves
-  // only into a table whose `cols` match its current cell count.
-  if (type === "table-cell" && toParent !== fromParent) {
-    const cellCount = fromChildren.toArray().length;
-    const tableId = findParent(ydoc, fromParent);
-    const cols = tableId !== null ? readCols(ydoc, tableId) : null;
-    throw new InvalidOperationError(
-      `Cell "${id}" cannot move between rows: row "${fromParent}" has ${cellCount} cells, the table has ${cols ?? "?"} columns.`
-    );
-  }
-  if (type === "table-row") {
-    const rowCells = childrenOf(ydoc, id);
-    const cellCount = rowCells !== null ? rowCells.toArray().length : 0;
-    const cols = readCols(ydoc, toParent);
-    if (cols === null) {
-      throw new InvalidOperationError(`Table "${toParent}" has no valid "cols" attribute.`);
-    }
-    if (cellCount !== cols) {
+  // Table invariants: a cell is bound to its column (its position in the
+  // row ↔ the table's columnOrder), so a cell cannot move at all — not
+  // between rows and not within its row (the column order is managed by
+  // moveTableColumn, which moves the cells with their column); a row moves
+  // only within its own table (its cells are bound to that table's column
+  // identities).
+  if (type === "table-cell") {
+    const samePosition = fromChildren === toChildren && insertAt === fromIndex;
+    if (!samePosition) {
+      const tableId = findParent(ydoc, fromParent);
+      const cols = tableId !== null ? readCols(ydoc, tableId) : null;
       throw new InvalidOperationError(
-        `Row "${id}" has ${cellCount} cells, but table "${toParent}" has ${cols} columns.`
+        `Cell "${id}" is bound to its column (position ${fromIndex} of ${cols ?? "?"}) and cannot move: a cell move would desync the row from the table's columnOrder. Column order is managed by moveTableColumn (the cells move with their column).`
       );
     }
+  }
+  if (type === "table-row" && toParent !== fromParent) {
+    const rowCells = childrenOf(ydoc, id);
+    const cellCount = rowCells !== null ? rowCells.toArray().length : 0;
+    const targetCols = readCols(ydoc, toParent);
+    throw new InvalidOperationError(
+      `Row "${id}" cannot move between tables: it has ${cellCount} cell(s) against table "${toParent}"'s ${targetCols ?? "?"} column(s), and its cells are bound to the source table's columnOrder identities.`
+    );
   }
 
   localTransact(ydoc, () => {

@@ -20,6 +20,7 @@ import { markSetToAttrs } from "./text-model";
  * │     "children": Y.Array<string> (container types only, except root)
  * │     "rows":     Y.Map<rowId, Y.Map<colId, value>> (database only — rows are data, not blocks)
  * │     "rowOrder": Y.Array<string> (database only — the row order)
+ * │     "columnOrder": Y.Array<string> (table only — the column identities + order)
  * └─ "rootOrder": Y.Array<string> — the root block's children (top-level order)
  * ```
  *
@@ -137,6 +138,8 @@ interface WritableBlock {
   children?: readonly string[];
   rows?: Record<string, Record<string, unknown>>;
   rowOrder?: string[];
+  /** The column identities + order (table only): the single source of the column set. */
+  columnOrder?: string[];
 }
 
 /**
@@ -151,12 +154,16 @@ function writeBlock(blocks: AnyMap, id: string, block: WritableBlock): void {
   const yblock = new Y.Map<unknown>();
   yblock.set("type", block.type);
 
+  // The attrs map is kept by reference: an unattached Y.Map cannot be read
+  // back through yblock.get (the read lands before the attach), so the
+  // type-specific branches below extend the local map instead.
+  let attrs: Y.Map<unknown> | undefined;
   if (spec.attrs !== undefined && isPlainObject(block.attrs)) {
     // Count present attrs here (not via Y.Map size): a not-yet-integrated map
     // reports size 0 until it is attached to the doc.
     const attrEntries = Object.entries(block.attrs).filter(([, value]) => value !== undefined);
     if (attrEntries.length > 0) {
-      const attrs = new Y.Map<unknown>();
+      attrs = new Y.Map<unknown>();
       for (const [key, value] of attrEntries) writeAttrValue(attrs, key, value);
       yblock.set("attrs", attrs);
     }
@@ -216,6 +223,45 @@ function writeBlock(blocks: AnyMap, id: string, block: WritableBlock): void {
     const rowOrder = new Y.Array<string>();
     for (const rowId of block.rowOrder ?? []) rowOrder.push([rowId]);
     yblock.set("rowOrder", rowOrder);
+  }
+
+  // Table: the column identities + order (the single source of the column set,
+  // like the database's rowOrder). The tokens are the column ids (stable, in
+  // the JSON), so the structure converges on sync.
+  if (spec.columnOrder) {
+    const columnOrder = new Y.Array<string>();
+    for (const columnId of block.columnOrder ?? []) columnOrder.push([columnId]);
+    yblock.set("columnOrder", columnOrder);
+
+    // The columnWidths are stored identity-keyed (a Y.Map of columnId →
+    // width): an element-level LWW op per column, so concurrent column
+    // moves / removes / inserts converge per key (a positional array's
+    // element ops would not — a concurrent set + move over one slot would
+    // leave a third entry). The positional number[] in the JSON is derived
+    // from this map and the columnOrder at read time (an absent key stands
+    // the default width) — the JSON↔Yjs image is a documented derivation,
+    // the same shape as the canvas zIndex (the stored form is the identity
+    // map, the read form is positional).
+    const given = isPlainObject(block.attrs) ? (block.attrs as Record<string, unknown>).columnWidths : undefined;
+    if (Array.isArray(given)) {
+      // Count the plain entries, not the map's size: an unattached Y.Map
+      // reports size 0 until it is integrated into the doc.
+      const entries: Array<[string, number]> = [];
+      (block.columnOrder ?? []).forEach((columnId, i) => {
+        const value = given[i];
+        if (typeof value === "number" && Number.isFinite(value)) entries.push([columnId, value]);
+      });
+      if (entries.length > 0) {
+        const widths = new Y.Map<unknown>();
+        for (const [columnId, value] of entries) widths.set(columnId, value);
+        if (attrs instanceof Y.Map) attrs.set("columnWidths", widths);
+        else {
+          const fresh = new Y.Map<unknown>();
+          fresh.set("columnWidths", widths);
+          yblock.set("attrs", fresh);
+        }
+      }
+    }
   }
 
   blocks.set(id, yblock);

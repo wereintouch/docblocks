@@ -143,6 +143,8 @@ interface CodeAttrs {
 }
 
 interface TableCellAttrs {
+  /** The column this cell belongs to (a `columnOrder` entry). Set automatically by the insert path (the cell's position in the row's columnOrder). */
+  columnId?: string;
   align?: TextAlign;
   /** The column background color (hex); the display priority layer over the row color. */
   columnColor?: string;
@@ -151,9 +153,7 @@ interface TableCellAttrs {
 }
 
 interface TableAttrs {
-  /** Column count; every row holds exactly `cols` cells. */
-  cols: number;
-  /** The per-column widths in px (column order); absent — the default width per column. */
+  /** The per-column widths in px (mirrors `columnOrder`); absent — the default width per column. */
   columnWidths?: number[];
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
@@ -243,14 +243,16 @@ interface CodeBlock {
 
 interface TableBlock {
   type: "table";
-  attrs: TableAttrs;
+  /** The column identities + order (the single source of the column set); the column count is `columnOrder.length`. */
+  columnOrder: string[];
+  attrs?: TableAttrs;
   /** `table-row` blocks only. */
   children?: BlockId[];
 }
 
 interface TableRowBlock {
   type: "table-row";
-  /** `table-cell` blocks only; exactly the table `cols` count. */
+  /** `table-cell` blocks only; exactly the table `columnOrder.length` count. */
   children?: BlockId[];
 }
 

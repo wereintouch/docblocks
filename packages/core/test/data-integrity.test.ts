@@ -11,12 +11,15 @@ import { validateDoc } from "../src/schema";
  * suite stays green. Once a defect is corrected the assertion passes and this
  * test turns red — convert it to a plain `it()` in the same change.
  *
- * The concurrent-formatting, concurrent-moves, and
- * concurrent-shape-insert tests are fixed behaviors (plain `it()`): the
- * text model is a single Y.Text with mark attributes; the block owner is a
- * single CRDT-resolved `parent` field; the canvas z-order is derived from the
- * children order (the stored `zIndex` is a dense mirror re-derived at read
- * time and on load).
+ * The concurrent-formatting, concurrent-moves,
+ * concurrent-shape-insert, and concurrent-table-column-insert
+ * tests are fixed behaviors (plain `it()`): the text model is a single
+ * Y.Text with mark attributes; the block owner is a single CRDT-resolved
+ * `parent` field; the canvas z-order is derived from the children order
+ * (the stored `zIndex` is a dense mirror re-derived at read time and on
+ * load); the table's column set is the shared `columnOrder` array (the
+ * `columnWidths` mirror it as element-level ops, materialized at table
+ * creation).
  *
  * The two peers load the settled state (`loadDoc` of the first peer's bytes),
  * so they are independent Y.Docs of the same content, not a concurrent init.
@@ -74,7 +77,7 @@ describe("concurrent text and block edits keep the data valid", () => {
     expect(() => loadDoc(a.encode())).not.toThrow();
   });
 
-  it.fails("concurrent table column inserts keep the grid consistent", () => {
+  it("concurrent table column inserts keep the grid consistent", () => {
     const a = createDoc({ id: "pin" });
     const table = a.insertBlock("table", { cols: 1 });
     a.insertTableRow(table);
