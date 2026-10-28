@@ -3,7 +3,7 @@ import * as Y from "yjs";
 
 import { type Doc, createDoc, fromJSON, loadDoc } from "../src/core";
 import { validateDoc } from "../src/schema";
-import type { OpaqueBlock } from "../src/schema";
+import type { DocJSON, OpaqueBlock } from "../src/schema";
 
 /**
  * Pins for known data-integrity defects. Each test asserts the expected
@@ -180,13 +180,56 @@ describe("snapshot and serialization", () => {
     // The re-save keeps the attr (the opaque stand round-trips, no data loss).
     expect(loadDoc(restored.encode()).toJSON().blocks[id]).toMatchObject({ attrs: { futureFlag: "preserve-me" } });
   });
+});
 
-  it.fails("an opaque block id (__proto__) survives a JSON round trip", () => {
-    const d = createDoc({ id: "pin" });
-    const id = d.insertBlock("paragraph", undefined, { id: "__proto__" });
-    d.insertText(id, 0, "keep");
-    const restored = fromJSON(JSON.parse(JSON.stringify(d.toJSON())));
-    expect(restored.getText(id)).toBe("keep");
+describe("the reserved id stand", () => {
+  // The id-keyed dictionaries (blocks / rows / cells) are plain objects in the
+  // JSON format: an id that collides with an Object.prototype key would be
+  // lost on the round trip (the __proto__ trap — the assignment reassigns the
+  // prototype instead of creating an own key). The engine rejects the reserved
+  // keys as ids at every input boundary (the commands + fromJSON) with a clear
+  // error, so no id-keyed dictionary ever carries one.
+  it("insertBlock rejects a reserved block id", () => {
+    const d = createDoc({ id: "r" });
+    for (const id of ["__proto__", "constructor", "toString"]) {
+      expect(() => d.insertBlock("paragraph", undefined, { id })).toThrow(/reserved/);
+    }
+  });
+
+  it("createDoc rejects a reserved document id", () => {
+    for (const id of ["__proto__", "constructor", "toString"]) {
+      expect(() => createDoc({ id })).toThrow(/reserved/);
+    }
+  });
+
+  it("fromJSON rejects a reserved block id (the JSON.parse input stand)", () => {
+    // A raw JSON string with __proto__ as an OWN block key: JSON.parse creates
+    // it as an own data property (bypassing the __proto__ setter), so the
+    // reader sees it and rejects it.
+    const raw =
+      '{"v":1,"id":"d","title":"t","createdAt":"2026-10-10T00:00:00.000Z","blocks":{"__proto__":{"type":"paragraph","content":[{"text":"x","marks":{}}]},"d":{"type":"root","children":["__proto__"]}}}';
+    const parsed = JSON.parse(raw) as DocJSON;
+    expect(Object.hasOwn(parsed.blocks, "__proto__")).toBe(true);
+    let thrown: unknown;
+    try {
+      fromJSON(parsed);
+    } catch (e) {
+      thrown = e;
+    }
+    const messages = Array.isArray(thrown) ? (thrown as Array<{ message: string }>).map((e) => e.message) : [];
+    expect(messages.some((m) => m.includes("reserved"))).toBe(true);
+  });
+
+  it("fromJSON rejects a reserved row and column id (the database dictionaries)", () => {
+    // The rows (rowId -> cells) and cells (colId -> value) are id-keyed maps
+    // too: a reserved row id or column id would be lost on the round trip.
+    const raw =
+      '{"v":1,"id":"d","title":"t","createdAt":"2026-10-10T00:00:00.000Z","blocks":{"d":{"type":"root","children":["db"]},"db":{"type":"database","attrs":{"columns":[{"id":"constructor","type":"text"}]},"rows":{"toString":{}},"rowOrder":["toString"]}}}';
+    const errs = validateDoc(JSON.parse(raw) as DocJSON);
+    const reserved = errs.filter((e) => e.message.includes("reserved"));
+    // The reserved column id, the reserved row id (the rows key), and the
+    // reserved row id (the rowOrder entry).
+    expect(reserved).toHaveLength(3);
   });
 });
 
