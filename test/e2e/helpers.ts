@@ -14,6 +14,7 @@ declare global {
     __bridge?: {
       listTables(): Promise<{ id: string; name: string }[]>;
       createTable(name: string, options?: { system?: boolean }): Promise<string>;
+      renameTable(tableId: string, name: string): Promise<void>;
       createColumn(
         tableId: string,
         column: {
