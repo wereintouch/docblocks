@@ -51,6 +51,12 @@ interface WsSyncOptions {
  * auto-reconnect: after an unexpected close the application calls
  * `connect()` again and the step1/step2 exchange resyncs.
  *
+ * Safe attach order: `attach` registers its remote subscription before the
+ * bootstrap send, so it stands correct pre-connect (the bootstrap buffered
+ * until open), mid-handshake, and after the handshake — a late attach over
+ * a provider that already holds room state recovers the state through the
+ * `onUpdate` accumulated-state delivery.
+ *
  * v1 scope cuts: no reconnect backoff, no periodic resync, no socket
  * watchdog, no sync-status reporting.
  */
@@ -63,6 +69,14 @@ class WsSyncProvider implements SyncProvider {
   #socket: WsLike | null = null;
   #open = false;
   #pending: Uint8Array[] = [];
+  /**
+   * The provider has received document state from the wire (a step2 or an
+   * update). Gates the onUpdate accumulated-state delivery: a pre-connect
+   * provider holds only the app doc's own buffered bootstrap, which is not
+   * "incoming" state — delivering it would stand the doc's own bytes as a
+   * remote update.
+   */
+  #receivedSync = false;
   #updateListeners = new Set<(bytes: Uint8Array) => void>();
   #awarenessListeners = new Set<(peers: PresenceState[]) => void>();
 
@@ -141,9 +155,22 @@ class WsSyncProvider implements SyncProvider {
     }
   }
 
-  /** Subscribe to incoming remote document updates. Returns unsubscribe. */
+  /**
+   * Subscribe to incoming remote document updates. The provider's
+   * accumulated state stands delivered once at subscribe time, when the
+   * provider has received state from the wire (`#receivedSync`) — a late
+   * attach recovers the room's state over the CRDT merge (the app doc's own
+   * items stand a no-op re-apply); a pre-connect provider stands nothing
+   * (its internal state is the app doc's own buffered bootstrap, not
+   * incoming state). Then every remote update stands as it arrives.
+   * Returns unsubscribe.
+   */
   onUpdate(cb: (bytes: Uint8Array) => void): Unsubscribe {
     this.#updateListeners.add(cb);
+    if (this.#receivedSync) {
+      const accumulated = Y.encodeStateAsUpdate(this.#doc);
+      if (accumulated.byteLength > 0) cb(accumulated);
+    }
     return () => {
       this.#updateListeners.delete(cb);
     };
@@ -207,6 +234,9 @@ class WsSyncProvider implements SyncProvider {
           const syncType = sync.readSyncMessage(decoder, reply, this.#doc, this, swallowDecodeError);
           if (encoding.length(reply) > 1) replies.push(encoding.toUint8Array(reply));
           if (syncType === sync.messageYjsSyncStep2 || syncType === sync.messageYjsUpdate) {
+            // The provider holds wire state now: the late attach's
+            // accumulated-state delivery stands (the onUpdate contract).
+            this.#receivedSync = true;
             // The app applies the same raw update bytes attach receives.
             const sub = decoding.createDecoder(frame);
             sub.pos = syncPos;
