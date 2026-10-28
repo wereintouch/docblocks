@@ -188,6 +188,11 @@ export const persistentDatabaseBridge: DatabaseBridge = {
       await getDefaultDatabaseBridge().deleteColumn(tableId, columnId);
       scheduleSave();
     }),
+  restoreDeletedColumn: (tableId, columnId) =>
+    databaseBridgeReady().then(async () => {
+      await getDefaultDatabaseBridge().restoreDeletedColumn!(tableId, columnId);
+      scheduleSave();
+    }),
   renameColumn: (tableId, columnId, name) =>
     databaseBridgeReady().then(async () => {
       await getDefaultDatabaseBridge().renameColumn(tableId, columnId, name);

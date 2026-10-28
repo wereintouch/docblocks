@@ -45,8 +45,18 @@ interface MemoryTable {
   rows: Map<string, Record<string, unknown>>;
   /** row id → the fractional order value. */
   orderValues: Map<string, number>;
-  /** The removed rows (the soft-delete trash): row id → the saved state. */
+  /** The removed rows (the soft-delete trash): row id → the saved state.
+   *  The trash keeps every cell the row had — the detached column's
+   *  values stand, so a column's restore covers the removed rows too. */
   trash: Map<string, { cells: Record<string, unknown>; orderValue: number }>;
+  /** The soft-deleted columns (the `deleteColumn`'s preserved state):
+   *  column id → the definition + the anchor position (the id of the
+   *  column that stood BEFORE it, null = the first). The cell values are
+   *  NOT cleared (they stay in the rows' / trash's objects, invisible
+   *  without the schema), so the restore re-inserts the schema and the
+   *  values are already in place. `createColumn` of the same id DROPS
+   *  the entry (the fresh column stands empty — the old data is gone). */
+  detachedColumns: Map<string, { column: BridgeColumn; prevColumnId: string | null }>;
   /** The row-id counter (the pk values are `r-{tableId}-1`, `r-{tableId}-2`, ...). */
   rowCounter: number;
 }
@@ -100,6 +110,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
           rows: new Map(),
           orderValues: new Map(),
           trash: new Map(),
+          detachedColumns: new Map(),
           rowCounter: 0,
         });
       }
@@ -272,6 +283,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
         rows: new Map(),
         orderValues: new Map(),
         trash: new Map(),
+        detachedColumns: new Map(),
         rowCounter: 0,
       });
       emit(id, [
@@ -297,6 +309,20 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       if (table.columns.some((existing) => existing.id === column.id)) {
         throw new Error(`The column "${column.id}" already exists in table "${tableId}".`);
       }
+      // The soft-delete's re-creation: a fresh column of the deleted
+      // column's id DROPS the detached data (the old values stand cleared
+      // — the live rows over the row.updated nulls, the trash's copy is
+      // dropped locally; the remote's trash keeps no read API).
+      const events: TableEvent[] = [];
+      if (table.detachedColumns.delete(column.id)) {
+        for (const [rowId, row] of table.rows) {
+          if (column.id in row) {
+            delete row[column.id];
+            events.push({ type: "row.updated", rowId, cells: { [column.id]: null }, before: {} });
+          }
+        }
+        for (const entry of table.trash.values()) delete entry.cells[column.id];
+      }
       const at =
         afterColumnId === undefined
           ? table.columns.length
@@ -304,16 +330,46 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       if (afterColumnId !== undefined && at === -1)
         throw new Error(`Unknown column "${afterColumnId}" in table "${tableId}".`);
       table.columns.splice(at, 0, clone(column));
-      emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
+      emit(tableId, [...events, { type: "schema.changed", columns: clone(table.columns) }]);
     },
 
     async deleteColumn(tableId: string, columnId: string): Promise<void> {
       const table = tableOf(tableId);
       const at = table.columns.findIndex((existing) => existing.id === columnId);
       if (at === -1) throw new Error(`Unknown column "${columnId}" in table "${tableId}".`);
+      // The soft delete: the definition + the anchor position stand
+      // preserved (the restore re-inserts the schema at the anchor), the
+      // cell values stay in the rows' objects (invisible without the
+      // schema) — the restore therefore covers every row, the loaded
+      // pages' and the removed ones alike.
+      const column = table.columns[at]!;
+      table.detachedColumns.set(columnId, {
+        column: clone(column),
+        prevColumnId: at > 0 ? table.columns[at - 1]!.id : null,
+      });
       table.columns.splice(at, 1);
-      for (const row of table.rows.values()) delete row[columnId];
-      for (const entry of table.trash.values()) delete entry.cells[columnId];
+      emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
+    },
+
+    async restoreDeletedColumn(tableId: string, columnId: string): Promise<void> {
+      const table = tableOf(tableId);
+      // The column stands in the schema again (the re-creation dropped the
+      // detached data) — the restore stands a no-op.
+      if (table.columns.some((existing) => existing.id === columnId)) return;
+      const detached = table.detachedColumns.get(columnId);
+      if (detached === undefined) throw new Error(`No deleted column "${columnId}" to restore in table "${tableId}".`);
+      table.detachedColumns.delete(columnId);
+      // The anchor position: the deleted stand's `null` anchor = the column
+      // stood first (the restore stands it at the head); a living anchor
+      // column = after it; a vanished anchor column = the end fallback.
+      let at: number;
+      if (detached.prevColumnId === null) {
+        at = 0;
+      } else {
+        const anchorIndex = table.columns.findIndex((existing) => existing.id === detached.prevColumnId);
+        at = anchorIndex === -1 ? table.columns.length : anchorIndex + 1;
+      }
+      table.columns.splice(at, 0, clone(detached.column));
       emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
     },
 

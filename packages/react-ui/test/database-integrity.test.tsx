@@ -66,7 +66,7 @@ describe("the forward-only undo/redo over the bridge", () => {
     expect(await rowIds(bridge, id)).toEqual(["a", "b", "c"]);
   });
 
-  it.fails("undo of a column delete restores the values and the column position", async () => {
+  it("undo of a column delete restores the values and the column position", async () => {
     const { bridge, id, result } = await setup([{ id: "a", value: "keep" }]);
     await act(async () => {
       await result.current.deleteColumn("value");
@@ -76,6 +76,10 @@ describe("the forward-only undo/redo over the bridge", () => {
     });
     const row = (await bridge.queryRows(id, {})).rows.a;
     expect(row?.value).toBe("keep");
+    // The column stands back at its original position (the restore re-inserts
+    // at the anchor, not appended at the end).
+    const columns = (await bridge.describeTable(id)).columns.map((column) => column.id);
+    expect(columns).toEqual(["value", "other"]);
   });
 
   it.fails("undo of an update changes only the edited field after a remote change", async () => {
@@ -117,5 +121,109 @@ describe("the forward-only undo/redo over the bridge", () => {
     });
     const row = (await bridge.queryRows(first, {})).rows.a;
     expect(row?.value).toBe("B");
+  });
+});
+
+describe("the column delete's soft-delete restore", () => {
+  it("undo restores a middle column at its anchor position", async () => {
+    const bridge = createMemoryDatabaseBridge({ channelName: crypto.randomUUID() });
+    const id = await bridge.createTable("mid");
+    await bridge.createColumn(id, { id: "first", name: "First", type: "text" });
+    await bridge.createColumn(id, { id: "value", name: "Value", type: "text" });
+    await bridge.createColumn(id, { id: "other", name: "Other", type: "text" });
+    await bridge.insertRows(id, [{ id: "a", value: "keep" }]);
+    const { result } = renderHook(() => useDatabaseTable(bridge, id));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await act(async () => {
+      await result.current.deleteColumn("value");
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    // The anchor position: the column stands back BEFORE the one that
+    // followed it (a restore appended at the end would stand [first, other,
+    // value]).
+    const columns = (await bridge.describeTable(id)).columns.map((column) => column.id);
+    expect(columns).toEqual(["first", "value", "other"]);
+    const row = (await bridge.queryRows(id, {})).rows.a;
+    expect(row?.value).toBe("keep");
+  });
+
+  it("undo restores the values of the rows outside the loaded page", async () => {
+    // The hook loads the first page (200 rows); the restore covers the rest
+    // of the table (the soft delete keeps the values in the bridge, the
+    // loaded pages' and the unloading'd alike).
+    const bridge = createMemoryDatabaseBridge({ channelName: crypto.randomUUID() });
+    const id = await bridge.createTable("pages");
+    await bridge.createColumn(id, { id: "value", name: "Value", type: "text" });
+    await bridge.insertRows(
+      id,
+      Array.from({ length: 210 }, (_, index) => ({ id: `r${index}`, value: `v${index}` }))
+    );
+    const { result } = renderHook(() => useDatabaseTable(bridge, id));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.rows).toHaveLength(200);
+    await act(async () => {
+      await result.current.deleteColumn("value");
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    const page = await bridge.queryRows(id, { limit: 200 });
+    const tail = await bridge.queryRows(id, { cursor: page.nextCursor ?? undefined, limit: 200 });
+    const tailIds = Object.keys(tail.rows);
+    expect(tail.rows[tailIds[tailIds.length - 1]!]?.value).toBe("v209");
+  });
+
+  it("undo of a column delete covers the removed rows (the trash keeps the value)", async () => {
+    const { bridge, id, result } = await setup([{ id: "a", value: "keep" }]);
+    await act(async () => {
+      await result.current.removeRow("a");
+    });
+    await act(async () => {
+      await result.current.deleteColumn("value");
+    });
+    await act(async () => {
+      await result.current.undo(); // the column's restore (the stack's top)
+    });
+    await bridge.undeleteRows!(id, ["a"]);
+    const row = (await bridge.queryRows(id, {})).rows.a;
+    expect(row?.value).toBe("keep");
+  });
+
+  it("undo of a column delete keeps the foreign edits of another column", async () => {
+    const { bridge, id, result } = await setup([{ id: "a", value: "keep", other: "original" }]);
+    await act(async () => {
+      await result.current.deleteColumn("value");
+    });
+    // A remote peer edits another column of the same row.
+    await act(async () => {
+      await bridge.updateRow(id, "a", { other: "remote" });
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    const row = (await bridge.queryRows(id, {})).rows.a;
+    expect(row?.value).toBe("keep");
+    expect(row?.other).toBe("remote");
+  });
+
+  it("a re-creation over the deleted column drops the old data (the restore stands a no-op)", async () => {
+    const { bridge, id, result } = await setup([{ id: "a", value: "keep" }]);
+    await act(async () => {
+      await result.current.deleteColumn("value");
+    });
+    await act(async () => {
+      await bridge.createColumn(id, { id: "value", name: "Value (new)", type: "text" });
+    });
+    await act(async () => {
+      await result.current.undo(); // nothing left to restore — a no-op
+    });
+    const description = await bridge.describeTable(id);
+    expect(description.columns.some((column) => column.id === "value" && column.name === "Value (new)")).toBe(true);
+    // The old value was dropped by the re-creation (the fresh column stands
+    // empty).
+    const row = (await bridge.queryRows(id, {})).rows.a;
+    expect(row?.value).toBeUndefined();
   });
 });
