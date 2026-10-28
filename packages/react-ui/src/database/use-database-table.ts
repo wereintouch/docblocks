@@ -9,7 +9,10 @@
  * FORWARD-ONLY per-block undo stack (the inverse operations: insert →
  * remove, update → update with the old cells, remove → undelete (when
  * the consumer has soft-delete — otherwise the removal is not undoable
- * and never enters the stack), move → move back). The doc-undo does not
+ * and never enters the stack), move → move back, column delete →
+ * restore (when the consumer's bridge preserves the deleted column's
+ * data over `restoreDeletedColumn` — otherwise the destruction stands
+ * not undoable and never enters the stack)). The doc-undo does not
  * cover the table rows (they are not in the doc); the hotkey wiring is
  * the consumer UI (the `undo` / `redo` API).
  */
@@ -410,15 +413,20 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
 
   const deleteColumn = useCallback(
     async (columnId: string) => {
-      const column = table?.columns.find((entry) => entry.id === columnId);
-      if (column === undefined) return;
+      if (table?.columns.some((entry) => entry.id === columnId) !== true) return;
       try {
         await bridge.deleteColumn(tableId, columnId);
-        pushUndo({
-          label: `delete column ${columnId}`,
-          forward: async () => bridge.deleteColumn(tableId, columnId),
-          inverse: async () => bridge.createColumn(tableId, column),
-        });
+        // Without the reversible delete (no `restoreDeletedColumn`) the
+        // backend destroys the column's data — the removal is NOT
+        // undoable and never enters the stack (the same stand as the row
+        // removal without soft-delete).
+        if (bridge.restoreDeletedColumn !== undefined) {
+          pushUndo({
+            label: `delete column ${columnId}`,
+            forward: async () => bridge.deleteColumn(tableId, columnId),
+            inverse: async () => bridge.restoreDeletedColumn!(tableId, columnId),
+          });
+        }
       } catch (operationError) {
         throw new Error(messageOf(operationError), { cause: operationError });
       }

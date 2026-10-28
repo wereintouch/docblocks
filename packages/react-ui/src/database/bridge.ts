@@ -143,8 +143,19 @@ interface DatabaseBridge {
    *  the consumer backend; `displayColumn` = the column's declared
    *  display column, else the first text column / the pk). */
   resolveRowDisplay(tableId: string, rowIds: string[], displayColumn?: string): Promise<Record<string, string>>;
-  /** Remove a column (the consumer destroys its data). */
+  /** Remove a column. The consumer MAY stand the soft-delete posture:
+   *  keep the column's cell values (and its definition) so the removal
+   *  can be restored via `restoreDeletedColumn`; the destructing posture
+   *  (the values are destroyed) stands the no-`restoreDeletedColumn`
+   *  bridge (the removal is then not undoable). */
   deleteColumn(tableId: string, columnId: string): Promise<void>;
+  /** Restore a deleted column — its schema, its column position, and the
+   *  cell values the soft-delete `deleteColumn` preserved. Only present
+   *  when the consumer's `deleteColumn` preserves the column's data; when
+   *  absent, a column removal is NOT undoable (it never enters the undo
+   *  stack). A no-op when the column stands in the schema again (it was
+   *  re-created over the detached data — the old data was dropped). */
+  restoreDeletedColumn?(tableId: string, columnId: string): Promise<void>;
   /** Rename a column. */
   renameColumn(tableId: string, columnId: string, name: string): Promise<void>;
   /** Query a page of rows (the cursor pagination). */
