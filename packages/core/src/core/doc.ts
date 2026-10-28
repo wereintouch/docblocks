@@ -136,9 +136,15 @@ class Doc {
       );
     }
     // A full snapshot is the only loadable state: an incremental delta applied
-    // to an empty doc yields a partial document, so validate it loudly.
+    // to an empty doc yields a partial document, so validate it loudly. The
+    // cross-minor load is the LENIENT posture (a reader of major 1 opening a
+    // newer minor's v1 data): the additive unknowns (an unknown block type,
+    // an unknown attr, an unknown mark) are preserved as opaque data, not
+    // rejected; the structural invariants and the known-data value checks
+    // stand. The strict validator is the writer's stand (the public
+    // validateDoc, the command paths).
     const json = toDocJSON(ydoc);
-    const errors = validateDoc(json);
+    const errors = validateDoc(json, true);
     if (errors.length > 0) {
       throw new InvalidSnapshotError(
         `loadDoc expects a full document snapshot; got an incomplete or invalid state: ${formatValidationErrors(errors)}`
@@ -162,7 +168,10 @@ class Doc {
     // in a saved snapshot after a concurrent merge; re-derive it from the
     // children order before validation (the single source of the z-order).
     const normalized = normalizeZOrder(json);
-    const errors = validateDoc(normalized);
+    // The JSON import is a reader boundary like the snapshot load: the
+    // cross-minor (lenient) posture tolerates the additive unknowns (the
+    // structural invariants and the known-data checks stand).
+    const errors = validateDoc(normalized, true);
     if (errors.length > 0) throw errors;
     // The legacy nesting form is valid v1 input: normalize it to the flat
     // form on load, so the live document is always flat (and toJSON flat).
@@ -181,7 +190,7 @@ class Doc {
     return readMeta(this.#ydoc);
   }
 
-  /** Snapshot of a block; null when the block is missing. */
+  /** Snapshot of a block; null when the block is missing or its type is unknown (the opaque data stands in the export). */
   getBlock(id: BlockId): Block | null {
     return readBlock(this.#ydoc, id);
   }

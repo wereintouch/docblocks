@@ -152,7 +152,8 @@ function validateAttrs(
   spec: BlockSpec,
   attrs: unknown,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  lenient = false
 ): void {
   const attrSpecs = spec.attrs;
 
@@ -178,7 +179,12 @@ function validateAttrs(
   for (const [name, value] of Object.entries(attrs)) {
     const attrSpec = attrSpecs[name];
     if (!attrSpec) {
-      errors.push({ path: `${path}.${name}`, message: `Unknown attribute "${name}" for block type "${type}".` });
+      // Lenient (cross-minor load): an unknown attr (a future minor's data)
+      // is preserved as-is, not rejected; the known attrs keep their value
+      // checks either way.
+      if (!lenient) {
+        errors.push({ path: `${path}.${name}`, message: `Unknown attribute "${name}" for block type "${type}".` });
+      }
       continue;
     }
     validateAttrValue(name, attrSpec, value, `${path}.${name}`, errors);
@@ -225,7 +231,13 @@ function validateMarkFields(
   }
 }
 
-function validateMarks(blockType: BlockType, marks: unknown, path: string, errors: ValidationError[]): void {
+function validateMarks(
+  blockType: BlockType,
+  marks: unknown,
+  path: string,
+  errors: ValidationError[],
+  lenient = false
+): void {
   if (marks === undefined) {
     errors.push({ path, message: "run.marks is required (use {} when a run carries no marks)." });
     return;
@@ -237,13 +249,23 @@ function validateMarks(blockType: BlockType, marks: unknown, path: string, error
 
   const names = Object.keys(marks);
   if (blockType === "code" && names.length > 0) {
-    errors.push({ path, message: "Runs in a code block must not carry marks." });
+    // A future minor's mark on a code block: the cross-minor stand — the
+    // marks are not the engine's data to judge (only the known-mark shape
+    // rules stand); the strict posture rejects any mark on a code run.
+    if (!lenient || names.some((name) => name in MARK_REGISTRY)) {
+      errors.push({ path, message: "Runs in a code block must not carry marks." });
+    }
   }
 
   for (const name of names) {
     const spec = MARK_REGISTRY[name as MarkName];
     if (!spec) {
-      errors.push({ path: `${path}.${name}`, message: `Unknown mark "${name}".` });
+      // Lenient (cross-minor load): an unknown mark (a future minor's data)
+      // is preserved as-is (the text stands without it); the strict posture
+      // rejects it.
+      if (!lenient) {
+        errors.push({ path: `${path}.${name}`, message: `Unknown mark "${name}".` });
+      }
       continue;
     }
     const markPath = `${path}.${name}`;
@@ -297,7 +319,13 @@ function validateMarks(blockType: BlockType, marks: unknown, path: string, error
   }
 }
 
-function validateContent(blockType: BlockType, content: unknown, path: string, errors: ValidationError[]): void {
+function validateContent(
+  blockType: BlockType,
+  content: unknown,
+  path: string,
+  errors: ValidationError[],
+  lenient = false
+): void {
   if (!Array.isArray(content)) {
     errors.push({ path, message: `content must be an array of runs (got ${show(content)}).` });
     return;
@@ -311,7 +339,7 @@ function validateContent(blockType: BlockType, content: unknown, path: string, e
     if (typeof run.text !== "string") {
       errors.push({ path: `${runPath}.text`, message: `run.text must be a string (got ${show(run.text)}).` });
     }
-    validateMarks(blockType, run.marks, `${runPath}.marks`, errors);
+    validateMarks(blockType, run.marks, `${runPath}.marks`, errors, lenient);
   });
 }
 

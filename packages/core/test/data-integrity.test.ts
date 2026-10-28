@@ -3,6 +3,7 @@ import * as Y from "yjs";
 
 import { type Doc, createDoc, fromJSON, loadDoc } from "../src/core";
 import { validateDoc } from "../src/schema";
+import type { OpaqueBlock } from "../src/schema";
 
 /**
  * Pins for known data-integrity defects. Each test asserts the expected
@@ -26,7 +27,12 @@ import { validateDoc } from "../src/schema";
  * checked on the raw binary before conversion: a stored v: 2 (or a missing
  * / malformed v) is rejected with a clear error, and the JSON path's
  * validator stand (a v2 payload / a missing v) keeps the strict rejection
- * — a reader of major 1 never silently reads v2 data.
+ * — a reader of major 1 never silently reads v2 data. The cross-minor
+ * reader stand is a fixed behavior (plain `it()`): a reader of major
+ * 1 opening a newer minor's v1 data tolerates the additive unknowns (an
+ * unknown block type stands opaque, an unknown attr and an unknown mark are
+ * preserved as-is) and does not lose them on save; the strict validator
+ * (the writer's stand) keeps rejecting them.
  *
  * The two peers load the settled state (`loadDoc` of the first peer's bytes),
  * so they are independent Y.Docs of the same content, not a concurrent init.
@@ -156,20 +162,23 @@ describe("snapshot and serialization", () => {
     delete rest.v;
     let thrown: unknown;
     try {
-      fromJSON(rest as typeof json);
+      fromJSON(rest as unknown as typeof json);
     } catch (e) {
       thrown = e;
     }
     expect(Array.isArray(thrown) ? (thrown as Array<{ path: string }>).map((e) => e.path) : []).toContain("v");
   });
 
-  it.fails("an additive v1 attr survives loading", () => {
+  it("an additive v1 attr survives loading (the lenient load keeps it)", () => {
     const { a, id } = seedParagraph();
     const attrs = new Y.Map();
     attrs.set("futureFlag", "preserve-me");
     const entry = a.raw.getMap("blocks").get(id) as Y.Map<unknown>;
     entry.set("attrs", attrs);
-    expect(() => loadDoc(a.encode())).not.toThrow();
+    const restored = loadDoc(a.encode());
+    expect(restored.toJSON().blocks[id]).toMatchObject({ attrs: { futureFlag: "preserve-me" } });
+    // The re-save keeps the attr (the opaque stand round-trips, no data loss).
+    expect(loadDoc(restored.encode()).toJSON().blocks[id]).toMatchObject({ attrs: { futureFlag: "preserve-me" } });
   });
 
   it.fails("an opaque block id (__proto__) survives a JSON round trip", () => {
@@ -178,5 +187,59 @@ describe("snapshot and serialization", () => {
     d.insertText(id, 0, "keep");
     const restored = fromJSON(JSON.parse(JSON.stringify(d.toJSON())));
     expect(restored.getText(id)).toBe("keep");
+  });
+});
+
+describe("the cross-minor reader stand", () => {
+  // An unknown mark on the text: the load tolerates it and the run keeps it.
+  it("an additive v1 mark survives loading (the run keeps the unknown mark)", () => {
+    const { a, id } = seedParagraph();
+    const content = (a.raw.getMap("blocks").get(id) as Y.Map<unknown>).get("content") as Y.Text;
+    content.format(0, 3, { wavy: true });
+    const restored = loadDoc(a.encode());
+    // The run keeps the unknown mark (the export preserves it as-is).
+    const runs = (restored.toJSON().blocks[id] as OpaqueBlock).content;
+    expect(runs?.[0]?.marks).toMatchObject({ wavy: true });
+    // The text is intact and the re-save keeps the unknown mark.
+    expect(restored.getText(id)).toBe("abcdef");
+    const again = loadDoc(restored.encode());
+    expect((again.toJSON().blocks[id] as OpaqueBlock).content?.[0]?.marks).toMatchObject({ wavy: true });
+  });
+
+  // An unknown block type: the load tolerates it (opaque), the block and its
+  // fields survive the round trip, and its id stays in the root order.
+  it("an additive v1 type loads as opaque data and survives the round trip", () => {
+    const base = createDoc({ id: "pin" });
+    base.insertBlock("paragraph"); // a known child so the root order is non-empty
+    const json = base.toJSON();
+    const id = "future1";
+    const future: OpaqueBlock = { type: "future-block", attrs: { futureFlag: "preserve-me" } };
+    const root = json.blocks[json.id] as { children?: string[] };
+    root.children = [...(root.children ?? []), id];
+    const doc = fromJSON({ ...json, blocks: { ...json.blocks, [id]: future } });
+    // The opaque block stands in the export with its fields as-is.
+    expect(doc.toJSON().blocks[id]).toMatchObject({ type: "future-block", attrs: { futureFlag: "preserve-me" } });
+    // The re-save (encode -> load) keeps the opaque data (no loss on save).
+    const again = loadDoc(doc.encode());
+    expect(again.toJSON().blocks[id]).toMatchObject({ type: "future-block", attrs: { futureFlag: "preserve-me" } });
+    // The unknown type's id stays in the root order (not dropped as dangling).
+    expect(again.getChildren(again.meta.id)).toContain(id);
+  });
+
+  // fromJSON is a reader boundary like the snapshot load: the additive
+  // unknowns are tolerated (not rejected), the known data is still validated.
+  it("fromJSON accepts the cross-minor stand and the strict validator rejects it", () => {
+    const base = createDoc({ id: "pin" });
+    base.insertBlock("paragraph");
+    const json = base.toJSON();
+    const id = "future2";
+    const future: OpaqueBlock = { type: "future-block" };
+    const root = json.blocks[json.id] as { children?: string[] };
+    root.children = [...(root.children ?? []), id];
+    const extended = { ...json, blocks: { ...json.blocks, [id]: future } };
+    // The lenient reader boundary accepts it (the opaque block is preserved).
+    expect(fromJSON(extended).toJSON().blocks[id]).toMatchObject({ type: "future-block" });
+    // The strict validator (the writer's stand) rejects the unknown type.
+    expect(validateDoc(extended).some((e) => e.message.includes("Unknown block type"))).toBe(true);
   });
 });
