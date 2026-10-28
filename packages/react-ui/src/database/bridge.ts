@@ -126,8 +126,8 @@ interface DatabaseBridge {
    *  tables, created over `createTable` with the `system` flag, stand
    *  excluded; their schema / rows stay reachable by id). */
   listTables(): Promise<TableRef[]>;
-  /** Create a table by name → its id (created EMPTY — the schema is filled by the createColumn calls). The `system` flag marks the hidden table (absent from `listTables` — the enum's options' stand). */
-  createTable(name: string, options?: { system?: boolean }): Promise<string>;
+  /** Create a table by name → its id (created EMPTY — the schema is filled by the createColumn calls). The `system` flag marks the hidden table (absent from `listTables` — the enum's options' stand). The optional `id` fixes the table's identity independently of the name (the restore / import stand: a consumer that persists tables restores them under their original id, so the doc's `tableId` references survive a rename; absent, the id stands the name's deterministic slug). */
+  createTable(name: string, options?: { system?: boolean; id?: string }): Promise<string>;
   /** Rename the table (the name stands on the table, shared by every block
    *  that references it). */
   renameTable(tableId: string, name: string): Promise<void>;

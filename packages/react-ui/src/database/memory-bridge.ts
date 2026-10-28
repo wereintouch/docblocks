@@ -269,12 +269,16 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
         .map(([id, table]) => ({ id, name: table.name }));
     },
 
-    async createTable(name: string, options?: { system?: boolean }): Promise<string> {
-      // The id stands derived from the name (deterministic across the
-      // channel's instances: the two tabs' identically-named tables share
-      // one table — the demo-seed contract); an existing table of the name
-      // (the local seed or the peer's created echo) is adopted as-is.
-      const id = tableIdFor(name);
+    async createTable(name: string, options?: { system?: boolean; id?: string }): Promise<string> {
+      // The id stands the explicit `options.id` when given (the restore /
+      // import stand — the table's identity is fixed independently of the
+      // name, so a rename / a re-creation keeps the same id and the doc's
+      // `tableId` references survive); absent, the id stands derived from
+      // the name (deterministic across the channel's instances: the two
+      // tabs' identically-named tables share one table — the demo-seed
+      // contract). An existing table of the id (the local seed, the peer's
+      // created echo, or the explicit-id restore) is adopted as-is.
+      const id = options?.id ?? tableIdFor(name);
       if (tables.has(id)) return id;
       tables.set(id, {
         name,
