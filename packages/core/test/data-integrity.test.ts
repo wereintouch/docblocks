@@ -11,6 +11,10 @@ import { validateDoc } from "../src/schema";
  * suite stays green. Once a defect is corrected the assertion passes and this
  * test turns red — convert it to a plain `it()` in the same change.
  *
+ * The concurrent-formatting test is a fixed behavior (a plain `it()`): the
+ * text model is now a single Y.Text with mark attributes, so concurrent
+ * formatting and deletion keep the text intact.
+ *
  * The two peers load the settled state (`loadDoc` of the first peer's bytes),
  * so they are independent Y.Docs of the same content, not a concurrent init.
  */
@@ -35,7 +39,7 @@ const seedParagraph = (): { a: Doc; id: string } => {
 };
 
 describe("concurrent text and block edits keep the data valid", () => {
-  it.fails("concurrent formatting over a shared paragraph keeps the text intact", () => {
+  it("concurrent formatting over a shared paragraph keeps the text intact", () => {
     const { a, id } = seedParagraph();
     const b = fork(a);
     a.setMark(id, 1, 4, { type: "bold" });

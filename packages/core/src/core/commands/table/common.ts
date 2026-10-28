@@ -180,7 +180,7 @@ function clearBlockChildren(ydoc: Y.Doc, blockId: string): void {
   if (children instanceof Y.Array) (children as Y.Array<string>).delete(0, children.length);
   // The legacy cell content (pre the child-paragraph form) is dropped too.
   const content = cell.get("content");
-  if (content instanceof Y.Array) (content as Y.Array<unknown>).delete(0, content.length);
+  if (content instanceof Y.Text) content.delete(0, content.length);
 }
 
 /**

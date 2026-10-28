@@ -75,8 +75,8 @@ function requireTextPoint(ydoc: Y.Doc, point: RangePoint, label: string): ValidP
   const noText = new InvalidOperationError(`Block "${point.blockId}" (type "${type}") has no text content.`);
   if (!BLOCK_REGISTRY[type].content) throw noText;
   const content = block.get("content");
-  if (!(content instanceof Y.Array)) throw noText;
-  const length = contentTextLength(content as Y.Array<Y.Map<unknown>>);
+  if (!(content instanceof Y.Text)) throw noText;
+  const length = contentTextLength(content);
   if (!Number.isInteger(point.offset) || point.offset < 0 || point.offset > length) {
     throw new InvalidRangeError(
       `${label} offset ${point.offset} is outside [0, ${length}] of block "${point.blockId}".`
@@ -219,7 +219,7 @@ function setMarkRange(ydoc: Y.Doc, from: RangePoint, to: RangePoint, mark: MarkI
 function contentTextLengthOf(ydoc: Y.Doc, blockId: BlockId): number {
   const block = getBlockMap(ydoc, blockId);
   const content = block?.get("content");
-  return content instanceof Y.Array ? contentTextLength(content as Y.Array<Y.Map<unknown>>) : 0;
+  return content instanceof Y.Text ? contentTextLength(content) : 0;
 }
 
 export { deleteTextRange, setMarkRange };

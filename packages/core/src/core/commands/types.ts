@@ -167,9 +167,9 @@ function changeBlockType(ydoc: Y.Doc, id: string, type: BlockType, attrs: unknow
       block.delete("attrs");
     }
 
-    // The content array survives the transition (both types carry it) or
-    // is created empty for a contentless -> contentful step.
-    if (to.content && !from.content) block.set("content", new Y.Array<Y.Map<unknown>>());
+    // The content (the single Y.Text) survives the transition (both types
+    // carry it) or is created empty for a contentless -> contentful step.
+    if (to.content && !from.content) block.set("content", new Y.Text());
 
     // The children array is created for a leaf -> container step and
     // deleted for a container -> leaf step (rejected above when non-empty).

@@ -76,7 +76,7 @@ function writeNewBlock(blocks: Y.Map<unknown>, id: string, type: BlockType, attr
     }
   }
 
-  if (spec.content) yblock.set("content", new Y.Array<Y.Map<unknown>>());
+  if (spec.content) yblock.set("content", new Y.Text());
   if (spec.children) yblock.set("children", new Y.Array<string>());
   if (spec.rows) {
     yblock.set("rows", new Y.Map<unknown>());

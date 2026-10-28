@@ -7,13 +7,12 @@ import { getBlockMap } from "../commands/structure";
 /**
  * Per-block flattened text deltas.
  *
- * A block's text lives in runs (a Y.Array of Y.Maps, each holding a Y.Text);
- * the selection only cares about the flattened string. Every change is
- * therefore composed into the canonical minimal string edit between the
- * block's PREVIOUS flattened text and the current one: run mechanics
- * (splits, merges, mark-only changes) that leave the string unchanged
- * produce no delta at all, and the rebase result is independent of how the
- * runs happen to be structured.
+ * A block's text lives in a single `Y.Text` (its marks are the character
+ * attributes); the selection only cares about the flattened string. Every
+ * change is therefore composed into the canonical minimal string edit between
+ * the block's PREVIOUS flattened text and the current one: mark-only changes
+ * (which leave the string unchanged) produce no delta at all, and the rebase
+ * result is independent of how the marks happen to be structured.
  *
  * Deltas use old-string positions, sorted by `pos`, with a delete preceding
  * an insert at equal `pos` (the spec's convention). Cost is bounded: a
@@ -39,24 +38,17 @@ type BlockTextDelta = TextDelta[];
 /** LCS table cells per change region before the single-hunk fallback stands in. */
 const REGION_CELL_CAP = 1_000_000;
 
-/** The block's content array; null when the block is missing, corrupt, or non-text. */
-function getContent(ydoc: Y.Doc, blockId: BlockId): Y.Array<Y.Map<unknown>> | null {
+/** The block's content text; null when the block is missing, corrupt, or non-text. */
+function getContent(ydoc: Y.Doc, blockId: BlockId): Y.Text | null {
   const block = getBlockMap(ydoc, blockId);
   if (block === null) return null;
   const content = block.get("content");
-  return content instanceof Y.Array ? (content as Y.Array<Y.Map<unknown>>) : null;
+  return content instanceof Y.Text ? content : null;
 }
 
-/** The flattened string of a content array (non-text entries contribute nothing). */
-function flatten(content: Y.Array<Y.Map<unknown>>): string {
-  let out = "";
-  content.forEach((entry) => {
-    if (entry instanceof Y.Map) {
-      const text = entry.get("text");
-      if (text instanceof Y.Text) out += text.toString();
-    }
-  });
-  return out;
+/** The flattened string of a content text. */
+function flatten(content: Y.Text): string {
+  return content.toString();
 }
 
 /**
@@ -72,9 +64,9 @@ function trackBlockText(ydoc: Y.Doc, blockId: BlockId, fn: (deltas: BlockTextDel
 
   const handler = (events: Y.YEvent<Y.AbstractType<unknown>>[]): void => {
     // Any event under the block except its string-inert fields (attrs,
-    // children, type): a replaced content array or run text still changes
-    // the flattened string. The string comparison below stays the gate.
-    // Paths are relative to the blocks map: [blockId, field, ...].
+    // children, type): a text change still changes the flattened string.
+    // The string comparison below stays the gate. Paths are relative to the
+    // blocks map: [blockId, field, ...].
     let relevant = false;
     for (const event of events) {
       const path = event.path;

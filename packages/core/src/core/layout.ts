@@ -3,6 +3,8 @@ import * as Y from "yjs";
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
 import type { BlockType, DocJSON, TextRun } from "@docblocks-core/schema";
 
+import { markSetToAttrs } from "./text-model";
+
 /**
  * Yjs layout: the isomorphic image of the schema JSON.
  *
@@ -13,7 +15,8 @@ import type { BlockType, DocJSON, TextRun } from "@docblocks-core/schema";
  * │  └─ { "type": string }
  * │     "attrs":    Y.Map of primitives (only for types with attrs, when non-empty)
  * │     "geometry": Y.Map of numbers (only on blocks that carry the canvas geometry)
- * │     "content":  Y.Array of run Y.Maps { text: Y.Text, marks: Y.Map } (text types only)
+ * │     "content":  a single Y.Text (text types only) — the per-character
+ * │                 attributes are the marks (formatting is a pure attribute op)
  * │     "children": Y.Array<string> (container types only, except root)
  * │     "rows":     Y.Map<rowId, Y.Map<colId, value>> (database only — rows are data, not blocks)
  * │     "rowOrder": Y.Array<string> (database only — the row order)
@@ -124,26 +127,6 @@ function writeAttrValue(target: AnyMap, key: string, value: unknown): void {
   }
 }
 
-function writeRun(runs: Y.Array<AnyMap>, run: TextRun): void {
-  const runMap = new Y.Map<unknown>();
-  runMap.set("text", new Y.Text(run.text));
-  const marks = new Y.Map<unknown>();
-  for (const [name, value] of Object.entries(run.marks)) {
-    if (value === undefined) continue;
-    if (isPlainObject(value)) {
-      const attrs = new Y.Map<unknown>();
-      for (const [attrKey, attrValue] of Object.entries(value)) {
-        if (attrValue !== undefined) attrs.set(attrKey, attrValue);
-      }
-      marks.set(name, attrs);
-    } else {
-      marks.set(name, value);
-    }
-  }
-  runMap.set("marks", marks);
-  runs.push([runMap]);
-}
-
 /** Shape of a block as written into the layout (fields per the registry spec). */
 interface WritableBlock {
   type: BlockType;
@@ -194,10 +177,22 @@ function writeBlock(blocks: AnyMap, id: string, block: WritableBlock): void {
     }
   }
 
+  // The text content is a single Y.Text written via applyDelta: each run is an
+  // insert op carrying its marks as the character attributes. applyDelta (not a
+  // sequential insert) avoids Yjs's attribute inheritance — a plain run after a
+  // formatted one would otherwise inherit the format. Formatting never copies
+  // text, so concurrent formatting/deletion keep the text intact. Empty runs are
+  // skipped (a no-op insert); runs are written as given (no normalization).
   if (spec.content) {
-    const runs = new Y.Array<AnyMap>();
-    for (const run of block.content ?? []) writeRun(runs, run);
-    yblock.set("content", runs);
+    const text = new Y.Text();
+    const delta = (block.content ?? [])
+      .filter((run) => run.text !== "")
+      .map((run) => {
+        const attrs = markSetToAttrs(run.marks);
+        return Object.keys(attrs).length > 0 ? { insert: run.text, attributes: attrs } : { insert: run.text };
+      });
+    if (delta.length > 0) text.applyDelta(delta);
+    yblock.set("content", text);
   }
 
   // The root's order lives in the registered rootOrder array, so the root
