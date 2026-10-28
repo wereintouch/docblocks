@@ -177,18 +177,31 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const insertRow = useCallback(
     async (cells: Record<string, unknown> = {}) => {
       // The row id is bridge-assigned (the pk value), so the insert waits
-      // for the response (no optimistic row id to reconcile).
-      const rowId = await bridge.insertRow(tableId, cells);
+      // for the response (no optimistic row id to reconcile). The identity
+      // cell (the `let` the inverse reads) stands the row the inverse
+      // addresses: the redo re-inserts with a FRESH id (the backend that
+      // always assigns new ids) and updates the cell, so every inverse
+      // stands the row the last forward actually created (a stale id would
+      // make the next undo throw and leave the redo's row orphaned). The
+      // row-link cells of the other tables reference the id by value: a
+      // re-insert over a fresh id stands their dead-row stand (the
+      // display's empty stand) — the links are other tables' data, not
+      // this hook's to rewrite.
+      let liveRowId: string;
+      try {
+        liveRowId = await bridge.insertRow(tableId, cells);
+      } catch (operationError) {
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
       pushUndo({
-        label: `insert row ${rowId}`,
-        // The redo re-inserts with a fresh id (the bridge assigns the pk).
+        label: `insert row ${liveRowId}`,
         forward: async () => {
-          await bridge.insertRow(tableId, cells);
+          liveRowId = await bridge.insertRow(tableId, cells);
         },
-        inverse: async () => bridge.removeRow(tableId, rowId),
+        inverse: async () => bridge.removeRow(tableId, liveRowId),
       });
       refresh();
-      return rowId;
+      return liveRowId;
     },
     [bridge, tableId, pushUndo, refresh]
   );

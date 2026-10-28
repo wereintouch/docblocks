@@ -34,7 +34,7 @@ const rowIds = async (bridge: DatabaseBridge, tableId: string): Promise<string[]
   Object.keys((await bridge.queryRows(tableId, {})).rows);
 
 describe("the forward-only undo/redo over the bridge", () => {
-  it.fails("a second undo after a redo of an insert removes the redo-created row", async () => {
+  it("a second undo after a redo of an insert removes the redo-created row", async () => {
     const { bridge, id, result } = await setup();
     await act(async () => {
       await result.current.insertRow({ value: "new" });
@@ -49,6 +49,72 @@ describe("the forward-only undo/redo over the bridge", () => {
       await result.current.undo();
     });
     expect(await rowIds(bridge, id)).toEqual([]);
+  });
+
+  it("three undo/redo cycles of an insert stand the expected data (the fresh ids)", async () => {
+    const { bridge, id, result } = await setup();
+    const insertedId = await act(async () => result.current.insertRow({ value: "new" }));
+    expect(insertedId).toBeDefined();
+    // The memory bridge always assigns a fresh id on the re-insert (the
+    // backend-that-always-assigns-new-ids stand): every redo stands a NEW
+    // row id, and every undo stands that very row.
+    const seen = new Set<string>([insertedId!]);
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      await act(async () => {
+        await result.current.undo();
+      });
+      expect(await rowIds(bridge, id)).toEqual([]);
+      await act(async () => {
+        await result.current.redo();
+      });
+      const rows = (await bridge.queryRows(id, {})).rows;
+      const ids = Object.keys(rows);
+      expect(ids).toHaveLength(1);
+      expect(rows[ids[0]!]?.value).toBe("new");
+      seen.add(ids[0]!);
+    }
+    // The redo's re-inserts stood fresh ids (the identity cell followed
+    // them — the cycles never left an orphaned row).
+    expect(seen.size).toBe(4);
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect(await rowIds(bridge, id)).toEqual([]);
+  });
+
+  it("a row-link over the inserted row stands the dead stand after the redo's fresh id", async () => {
+    const bridge = createMemoryDatabaseBridge({ channelName: crypto.randomUUID() });
+    const id = await bridge.createTable("linked");
+    const links = await bridge.createTable("links");
+    await bridge.createColumn(id, { id: "value", name: "Value", type: "text" });
+    await bridge.createColumn(links, {
+      id: "link",
+      name: "Link",
+      type: "text",
+      refKind: "row",
+      refTableId: id,
+    });
+    const { result } = renderHook(() => useDatabaseTable(bridge, id));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const insertedId = await act(async () => result.current.insertRow({ value: "new" }));
+    await bridge.insertRow(links, { id: "l1", link: insertedId! });
+    await act(async () => {
+      await result.current.undo();
+    });
+    await act(async () => {
+      await result.current.redo(); // the fresh id
+    });
+    const rows = (await bridge.queryRows(id, {})).rows;
+    const freshId = Object.keys(rows)[0]!;
+    expect(freshId).not.toBe(insertedId);
+    // The link still references the ORIGINAL id (the other table's data):
+    // the dead row stands the empty display, the fresh row resolves.
+    // (The join is the grid's stand: the cell's value is the linked row
+    // id, resolved over the linked table.)
+    const dead = await bridge.resolveRowDisplay(id, [insertedId!], "value");
+    expect(dead[insertedId!]).toBe("");
+    const fresh = await bridge.resolveRowDisplay(id, [freshId], "value");
+    expect(fresh[freshId]).toBe("new");
   });
 
   it.fails("undo of a row move restores the original order", async () => {
