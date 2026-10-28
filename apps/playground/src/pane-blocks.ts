@@ -11,7 +11,7 @@ interface PaneBlock {
 function readBlocks(doc: Doc): PaneBlock[] {
   const json = doc.toJSON();
   const root = json.blocks[json.id];
-  const ids = root !== undefined && root.type === "root" ? root.children : [];
+  const ids = root !== undefined && root.type === "root" ? (root.children ?? []) : [];
   return ids.map((id) => {
     const block = json.blocks[id];
     return { id, type: block === undefined ? "missing" : block.type, text: doc.getText(id) };

@@ -45,10 +45,19 @@ interface MarkSet {
   color?: { value: string };
   /** Text highlight, hex `#RRGGBB` (alpha optional). */
   highlight?: { value?: string };
+  /**
+   * The cross-minor opaque stand: an unknown mark name (a future minor's
+   * data) is preserved as-is — the reader/renderer stand the text without
+   * it, the data is not lost on save. The strict validator rejects it.
+   */
+  [name: string]: unknown;
 }
 
-/** All mark names. */
-type MarkName = keyof MarkSet;
+/**
+ * All known mark names (the MARK_REGISTRY keys; the MarkSet index signature
+ * is the opaque stand for unknown names, not part of this union).
+ */
+type MarkName = "bold" | "italic" | "strike" | "underline" | "code" | "link" | "mention" | "color" | "highlight";
 
 /** An inline text run: a span of text with the marks applied to it. */
 interface TextRun {
@@ -76,10 +85,31 @@ interface DocMeta {
   createdAt: string;
 }
 
+/**
+ * An opaque block snapshot: a block of an unknown type (a future minor's
+ * data) preserved as-is. The reader/renderer stand a placeholder (and the
+ * text without the unknown marks); the data is not lost on save (the writer's
+ * opaque stand). The strict validator rejects it (the writer's contract — a
+ * v1 writer never emits it).
+ *
+ * The `type` is a plain string (a name outside the v1 registry): a
+ * `block.type === "<known>"` check narrows away the other known members but
+ * keeps this one (the type is unknown), so a specific known type is accessed
+ * through a narrowed cast after the check.
+ */
+interface OpaqueBlock {
+  /** The unknown block type (a name outside the v1 registry). */
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: TextRun[];
+  children?: BlockId[];
+  geometry?: Record<string, number>;
+}
+
 /** Document in the public JSON format. */
 interface DocJSON extends DocMeta {
-  /** Flat map: block id -> block. Order lives in `children`. */
-  blocks: Record<BlockId, Block>;
+  /** Flat map: block id -> block. Order lives in `children`. An unknown-type block (a future minor's data) stands as the opaque entry. */
+  blocks: Record<BlockId, Block | OpaqueBlock>;
 }
 
 /** The flat-page nesting depth of a page block relative to the preceding block of the same sequence (default 0). */
@@ -331,6 +361,7 @@ export type {
   MarkSet,
   MentionKind,
   MentionMark,
+  OpaqueBlock,
   PageIndent,
   ParagraphAttrs,
   ParagraphBlock,

@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
-import type { Block, BlockType, DocJSON, TextRun } from "@docblocks-core/schema";
+import type { Block, BlockType, DocJSON, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
 import { markSetToAttrs } from "./text-model";
 
@@ -302,8 +302,11 @@ function layoutDoc(id: string, title: string, createdAt: string): Y.Doc {
 function setParents(json: DocJSON, blocks: Y.Map<unknown>): void {
   // `children` stands only on the container variants; read it through a
   // structural view so the discriminated union does not reject the access.
-  const childIdsOf = (block: Block): readonly string[] => (block as { children?: readonly string[] }).children ?? [];
-  const setUnder = (parentId: string, block: Block): void => {
+  // The cross-minor stand: an unknown-type (opaque) block is threaded like a
+  // container (its children ids stand the owner field of its descendants).
+  const childIdsOf = (block: Block | OpaqueBlock): readonly string[] =>
+    (block as { children?: readonly string[] }).children ?? [];
+  const setUnder = (parentId: string, block: Block | OpaqueBlock): void => {
     for (const childId of childIdsOf(block)) {
       const child = json.blocks[childId];
       if (child === undefined) continue; // dangling id (the lenient read drops it)
@@ -328,7 +331,11 @@ function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
       if (writable.type === "root") {
         for (const childId of writable.children ?? []) rootOrder.push([childId]);
       }
-      writeBlock(blocks, id, writable);
+      // The cross-minor stand: a known type stands the registry writer; an
+      // unknown type (a future minor's data, the lenient load) is written as
+      // opaque data (the fields as-is), so a save keeps it intact.
+      if (writable.type in BLOCK_REGISTRY) writeBlock(blocks, id, writable);
+      else writeOpaqueBlock(blocks, id, block as OpaqueBlock);
     }
     setParents(json, blocks);
   }, loadOriginOf(ydoc));
@@ -344,5 +351,59 @@ export {
   writeAttrValue,
   writeBlock,
   writeDocument,
+  writeOpaqueBlock,
 };
 export type { WritableBlock };
+
+/**
+ * Write an unknown-type block as opaque data (the cross-minor stand): the
+ * fields present in the data (attrs, geometry, content, children) are
+ * written as-is, with no registry gating, so a save keeps the data the
+ * engine does not know. The read path (readOpaqueBlock) keeps it intact too.
+ * The type-specific fields (rows / rowOrder / columnOrder) belong to the
+ * known types and are never written here.
+ */
+function writeOpaqueBlock(blocks: AnyMap, id: string, block: OpaqueBlock): void {
+  const yblock = new Y.Map<unknown>();
+  yblock.set("type", block.type);
+
+  if (isPlainObject(block.attrs)) {
+    const attrEntries = Object.entries(block.attrs).filter(([, value]) => value !== undefined);
+    if (attrEntries.length > 0) {
+      const attrs = new Y.Map<unknown>();
+      for (const [key, value] of attrEntries) writeAttrValue(attrs, key, value);
+      yblock.set("attrs", attrs);
+    }
+  }
+
+  if (isPlainObject(block.geometry)) {
+    const entries = Object.entries(block.geometry).filter(
+      ([, value]) => typeof value === "number" && Number.isFinite(value)
+    );
+    if (entries.length > 0) {
+      const geometry = new Y.Map<unknown>();
+      for (const [key, value] of entries) geometry.set(key, value);
+      yblock.set("geometry", geometry);
+    }
+  }
+
+  if (Array.isArray(block.content)) {
+    const text = new Y.Text();
+    const delta = block.content
+      .filter((run) => isPlainObject(run) && typeof run.text === "string" && run.text !== "")
+      .map((run) => {
+        const attrs = markSetToAttrs((run as TextRun).marks ?? {});
+        return Object.keys(attrs).length > 0 ? { insert: run.text, attributes: attrs } : { insert: run.text };
+      });
+    if (delta.length > 0) text.applyDelta(delta);
+    yblock.set("content", text);
+  }
+
+  if (Array.isArray(block.children)) {
+    const children = new Y.Array<string>();
+    for (const childId of block.children) if (typeof childId === "string") children.push([childId]);
+    yblock.set("children", children);
+  }
+
+  blocks.set(id, yblock);
+}

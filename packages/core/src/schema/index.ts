@@ -61,6 +61,7 @@ export type {
   MarkSet,
   MentionKind,
   MentionMark,
+  OpaqueBlock,
   PageIndent,
   ParagraphAttrs,
   ParagraphBlock,

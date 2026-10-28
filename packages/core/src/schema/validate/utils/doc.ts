@@ -140,16 +140,74 @@ function validateSequences(blocks: Record<string, unknown>, errors: ValidationEr
 }
 
 /**
+ * The structural checks of an unknown-type block in the lenient (cross-minor)
+ * load: the entry is preserved as opaque data (its fields stand as-is), so
+ * only the invariants that keep the read path and the reachability sound are
+ * checked — the children id array (the structural order) and the geometry.
+ * The per-type rules (attrs, content, rows) are skipped: the engine does not
+ * know the type's contract.
+ */
+function validateOpaqueStructure(
+  id: string,
+  block: Record<string, unknown>,
+  blocks: Record<string, unknown>,
+  firstParent: Map<string, { parentId: string; path: string }>,
+  referenceCount: Map<string, number>,
+  errors: ValidationError[]
+): void {
+  if ("children" in block) {
+    if (!Array.isArray(block.children)) {
+      errors.push({
+        path: `blocks.${id}.children`,
+        message: `children must be an array of block ids (got ${show(block.children)}).`,
+      });
+      return;
+    }
+    block.children.forEach((childId, index) => {
+      const childPath = `blocks.${id}.children[${index}]`;
+      if (typeof childId !== "string") {
+        errors.push({ path: childPath, message: `A child id must be a string (got ${show(childId)}).` });
+        return;
+      }
+      if (childId === id) {
+        errors.push({ path: childPath, message: `Block "${id}" cannot be its own child.` });
+      }
+      if (!(childId in blocks)) {
+        errors.push({ path: childPath, message: `Dangling child id "${childId}" (no such block).` });
+        return;
+      }
+      const first = firstParent.get(childId);
+      referenceCount.set(childId, (referenceCount.get(childId) ?? 0) + 1);
+      if (first) {
+        errors.push({
+          path: childPath,
+          message: `Block "${childId}" is referenced more than once (already a child of "${first.parentId}" at ${first.path}).`,
+        });
+      } else {
+        firstParent.set(childId, { parentId: id, path: childPath });
+      }
+    });
+  }
+  if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors);
+}
+
+/**
  * Validates a plain JSON document against schema v1.
  *
- * Strict posture: unknown block types, marks, attributes, and fields are
- * rejected — the validator protects data written by this engine. Lenient
- * fallback behavior is a reader/renderer concern.
+ * Strict posture (the default): unknown block types, marks, attributes, and
+ * fields are rejected — the validator protects data written by this engine.
+ * Lenient posture (`lenient: true`, the cross-minor load): a reader of
+ * major 1 opening a newer minor's v1 data tolerates the additive unknowns —
+ * an unknown block type stands as opaque data (the structural invariants
+ * only), an unknown attribute and an unknown mark are preserved as-is (the
+ * known attrs/marks keep their value checks). The lenient fallback rendering
+ * (the placeholder for the unknown type, the text without the unknown mark)
+ * is a reader/renderer concern.
  *
  * Collects all violations (does not stop at the first) and reports them in
  * document order. An empty result means the document is valid.
  */
-function validateDoc(json: unknown): ValidationError[] {
+function validateDoc(json: unknown, lenient = false): ValidationError[] {
   const errors: ValidationError[] = [];
   if (!isPlainObject(json)) {
     return [{ path: "", message: `The document must be a plain object (got ${show(json)}).` }];
@@ -175,7 +233,15 @@ function validateDoc(json: unknown): ValidationError[] {
 
     const type = block.type;
     if (typeof type !== "string" || !(type in BLOCK_REGISTRY)) {
-      errors.push({ path: `blocks.${id}`, message: `Unknown block type ${show(type)}.` });
+      if (!lenient) {
+        errors.push({ path: `blocks.${id}`, message: `Unknown block type ${show(type)}.` });
+        continue;
+      }
+      // Lenient (cross-minor load): the unknown type stands as opaque data —
+      // the structural invariants only (the children id array, the
+      // geometry); the per-type rules are skipped (the engine does not know
+      // the type's contract).
+      validateOpaqueStructure(id, block, blocks, firstParent, referenceCount, errors);
       continue;
     }
     const blockType = type as BlockType;
@@ -205,7 +271,7 @@ function validateDoc(json: unknown): ValidationError[] {
     if (!spec.content && "content" in block) {
       errors.push({ path: `blocks.${id}.content`, message: `Block type "${blockType}" has no content.` });
     } else if ("content" in block && spec.content) {
-      validateContent(blockType, block.content, `blocks.${id}.content`, errors);
+      validateContent(blockType, block.content, `blocks.${id}.content`, errors, lenient);
     }
 
     // Writer contract vs legacy form: structural containers keep `children`
@@ -271,7 +337,7 @@ function validateDoc(json: unknown): ValidationError[] {
       validateCanvasBlock(blockType, block, `blocks.${id}`, errors);
     }
 
-    validateAttrs(blockType, spec, block.attrs, `blocks.${id}.attrs`, errors);
+    validateAttrs(blockType, spec, block.attrs, `blocks.${id}.attrs`, errors, lenient);
   }
 
   if (rootId === undefined) {

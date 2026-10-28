@@ -1,7 +1,7 @@
 import * as Y from "yjs";
 
 import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "@docblocks-core/schema";
-import type { Block, BlockId, BlockType, DocJSON, DocMeta, TextRun } from "@docblocks-core/schema";
+import type { Block, BlockId, BlockType, DocJSON, DocMeta, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
 import { derivedZIndex } from "./commands/z-order";
 import { rootBlockIdOf, rootOrderOf } from "./layout";
@@ -168,10 +168,58 @@ interface BlockDraft {
  * `rows` / `rowOrder` are always emitted for database blocks (possibly
  * empty).
  */
+/**
+ * The cross-minor opaque read of an unknown-type block (a future minor's
+ * data): the entry's fields as plain data, as-is. The reader/renderer stand
+ * a placeholder (and the text without the unknown marks); the data is not
+ * lost on save (the writer's opaque stand). The strict validator rejects it.
+ */
+function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
+  const block: OpaqueBlock = { type: typeof type === "string" ? type : "unknown" };
+
+  const attrs = yblock.get("attrs");
+  if (attrs instanceof Y.Map && attrs.size > 0) {
+    // Sorted keys: the Y.Map iteration order is process-dependent, so
+    // without normalization the toJSON() bytes would depend on the peer.
+    const entries: Array<[string, unknown]> = [];
+    attrs.forEach((value, key) => entries.push([key, readPlainValue(value)]));
+    entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const plain: Record<string, unknown> = {};
+    for (const [key, value] of entries) plain[key] = value;
+    block.attrs = plain;
+  }
+
+  const geometry = yblock.get("geometry");
+  if (geometry instanceof Y.Map && geometry.size > 0)
+    block.geometry = readPlainValue(geometry) as Record<string, number>;
+
+  const content = yblock.get("content");
+  if (content instanceof Y.Text) {
+    const raw: TextRun[] = [];
+    for (const op of content.toDelta() as TextDeltaOp[]) {
+      if (typeof op.insert !== "string") continue;
+      raw.push({ text: op.insert, marks: attrsToMarkSet(op.attributes) });
+    }
+    const runs = normalizeRuns(raw);
+    if (runs.length > 0) block.content = runs;
+  }
+
+  const children = yblock.get("children");
+  if (children instanceof Y.Array) {
+    const ids = children.toArray().filter((childId): childId is string => typeof childId === "string");
+    if (ids.length > 0) block.children = ids;
+  }
+
+  return block;
+}
+
 function readBlock(ydoc: Y.Doc, id: string): Block | null {
   const yblock = getBlockMap(ydoc, id);
   if (!yblock) return null;
   const type = yblock.get("type");
+  // The typed accessor: an unknown type (a future minor's data) is not a
+  // Block the reader can type, so it returns null (the full export —
+  // readBlockSnapshot — preserves it as opaque data; the cross-minor stand).
   if (!isKnownBlockType(type)) return null;
   const blockType = type;
   const spec = BLOCK_REGISTRY[blockType];
@@ -297,16 +345,31 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
   return block as Block;
 }
 
+/**
+ * The full snapshot read (the cross-minor stand): a known type yields its
+ * typed `Block`; an unknown type (a future minor's data) yields the opaque
+ * snapshot (the data preserved as-is). `toDocJSON` / the export path use this
+ * so an unknown block is never lost on save; the typed `getBlock` accessor
+ * uses `readBlock` (null for the unknown type).
+ */
+function readBlockSnapshot(ydoc: Y.Doc, id: string): Block | OpaqueBlock | null {
+  const yblock = getBlockMap(ydoc, id);
+  if (!yblock) return null;
+  const type = yblock.get("type");
+  if (!isKnownBlockType(type)) return readOpaqueBlock(yblock, type);
+  return readBlock(ydoc, id);
+}
+
 /** The whole document as plain schema JSON (all export normalization applied). */
 function toDocJSON(ydoc: Y.Doc): DocJSON {
   const meta = readMeta(ydoc);
-  const blocks: Record<string, Block> = {};
+  const blocks: Record<string, Block | OpaqueBlock> = {};
   const blocksMap = ydoc.getMap("blocks");
   blocksMap.forEach((_, id) => {
-    const block = readBlock(ydoc, id);
+    const block = readBlockSnapshot(ydoc, id);
     if (block) blocks[id] = block;
   });
   return { ...meta, blocks };
 }
 
-export { readBlock, readChildren, readMeta, readRuns, readText, toDocJSON };
+export { readBlock, readBlockSnapshot, readChildren, readMeta, readRuns, readText, toDocJSON };

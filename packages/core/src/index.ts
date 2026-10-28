@@ -108,6 +108,7 @@ export type {
   MarkSpec,
   MentionKind,
   MentionMark,
+  OpaqueBlock,
   ParagraphAttrs,
   ParagraphBlock,
   RootBlock,

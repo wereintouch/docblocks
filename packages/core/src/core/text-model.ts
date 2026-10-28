@@ -52,20 +52,26 @@ function markSetToAttrs(marks: MarkSet): Record<string, unknown> {
 
 /**
  * A Y.Text attribute object as a `MarkSet` (mirrors the snapshot reader:
- * `true` toggles kept, object values reduced to their string fields). Non-mark
- * attribute keys are dropped.
+ * `true` toggles kept, object values reduced to their string fields). The
+ * cross-minor stand: an unknown mark name is preserved (its fields pass
+ * through as-is, not only the string ones) — the data is not lost on save,
+ * the reader/renderer stand the text without it, the strict validator
+ * rejects it.
  */
 function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
   const marks = {} as MarkSet;
   if (attributes === null || attributes === undefined) return marks;
   for (const [name, value] of Object.entries(attributes)) {
-    if (!(name in MARK_REGISTRY)) continue;
     if (value === true) {
       (marks as Record<string, unknown>)[name] = true;
     } else if (typeof value === "object" && value !== null) {
-      const attrs: Record<string, string> = {};
+      const attrs: Record<string, unknown> = {};
       for (const [key, attrValue] of Object.entries(value)) {
-        if (typeof attrValue === "string") attrs[key] = attrValue;
+        if (attrValue === undefined) continue;
+        // Known marks are normalized to their string fields (the writer's
+        // contract); an unknown mark passes its fields through as-is.
+        if (name in MARK_REGISTRY && typeof attrValue !== "string") continue;
+        attrs[key] = attrValue;
       }
       (marks as Record<string, unknown>)[name] = attrs;
     }

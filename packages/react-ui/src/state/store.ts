@@ -1,10 +1,25 @@
 import { createStore } from "zustand/vanilla";
 import type { StoreApi } from "zustand/vanilla";
 
-import type { Block, BlockId, Change, Doc, DocMeta, PresenceState, Selection } from "docblocks-core";
+import { BLOCK_REGISTRY } from "docblocks-core";
+import type { Block, BlockId, Change, Doc, DocMeta, OpaqueBlock, PresenceState, Selection } from "docblocks-core";
 
 import { sequenceContainerOf, subtreeSegmentOf } from "../blocks/flat";
 import type { CanvasClipboard } from "../canvas/clipboard";
+
+/**
+ * The store's projection holds only known-type blocks: an unknown-type
+ * (opaque) block is preserved in the document and the export (the
+ * cross-minor stand), but the UI renders no renderer for it, so the
+ * projection filters it out (the row stands absent, not corrupt).
+ */
+function knownBlocks(blocks: Record<BlockId, Block | OpaqueBlock>): Record<BlockId, Block> {
+  const out: Record<BlockId, Block> = {};
+  for (const [id, block] of Object.entries(blocks)) {
+    if (block.type in BLOCK_REGISTRY) out[id] = block as Block;
+  }
+  return out;
+}
 
 /**
  * Per-instance editor state: a projection of one docblocks-core Doc.
@@ -104,7 +119,8 @@ function deepEqual(a: unknown, b: unknown): boolean {
  * block's derived segment (its deeper followers in the page sequence).
  */
 function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
-  const { blocks: initialBlocks, ...initialMeta } = doc.toJSON();
+  const { blocks: allBlocks, ...initialMeta } = doc.toJSON();
+  const initialBlocks = knownBlocks(allBlocks);
   const entryRootId = rootId ?? doc.meta.id;
   const isDocRoot = entryRootId === doc.meta.id;
   // The subtree entry's sequence container, resolved from the store's own

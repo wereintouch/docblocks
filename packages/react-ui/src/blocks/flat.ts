@@ -30,7 +30,7 @@
  * subscription — a change to a sibling's text never re-renders it.
  */
 import { BLOCK_REGISTRY } from "docblocks-core";
-import type { Block, BlockId, Doc, ListItemAttrs } from "docblocks-core";
+import type { Block, BlockId, BlockType, Doc, ListItemAttrs, OpaqueBlock } from "docblocks-core";
 
 type ListKind = ListItemAttrs["list"];
 
@@ -89,13 +89,14 @@ function indentOf(block: Block | undefined): number {
  * structural container (a table row, a surface — where the indent is not
  * the nesting), stands alone.
  */
-function sequenceContainerOf(blocks: Record<BlockId, Block>, entryRootId: BlockId): BlockId {
+function sequenceContainerOf(blocks: Record<BlockId, Block | OpaqueBlock>, entryRootId: BlockId): BlockId {
   const entry = blocks[entryRootId];
-  if (entry !== undefined && BLOCK_REGISTRY[entry.type]?.sequence) return entryRootId;
+  if (entry !== undefined && entry.type in BLOCK_REGISTRY && BLOCK_REGISTRY[entry.type as BlockType]?.sequence)
+    return entryRootId;
   for (const [parentId, candidate] of Object.entries(blocks)) {
     const children = "children" in candidate ? candidate.children : undefined;
     if (children !== undefined && children.includes(entryRootId)) {
-      const spec = BLOCK_REGISTRY[candidate.type];
+      const spec = candidate.type in BLOCK_REGISTRY ? BLOCK_REGISTRY[candidate.type as BlockType] : undefined;
       return spec !== undefined && spec.sequence ? parentId : entryRootId;
     }
   }

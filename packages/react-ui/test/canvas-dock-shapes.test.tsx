@@ -9,9 +9,12 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
+import type { Block, ShapeAttrs } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/EditorProvider";
+
+type ShapeWithGeometry = Extract<Block, { type: "shape" }>;
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -50,9 +53,9 @@ function placedShapes(
   doc: TestDoc
 ): { variant: string | undefined; geometry: { x: number; y: number; w: number; h: number } | undefined }[] {
   return Object.values(doc.toJSON().blocks)
-    .filter((block) => block.type === "shape")
+    .filter((block): block is ShapeWithGeometry => block.type === "shape")
     .map((block) => ({
-      variant: (block.attrs as { variant?: string } | undefined)?.variant,
+      variant: (block.attrs as ShapeAttrs | undefined)?.variant,
       geometry: block.geometry,
     }));
 }

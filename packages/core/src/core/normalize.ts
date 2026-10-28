@@ -1,4 +1,4 @@
-import type { MarkName, MarkSet, TextRun } from "@docblocks-core/schema";
+import type { MarkSet, TextRun } from "@docblocks-core/schema";
 
 /**
  * Run normalization (lazy, at read/export time; never affects correctness).
@@ -8,7 +8,8 @@ import type { MarkName, MarkSet, TextRun } from "@docblocks-core/schema";
  * Normalization never changes the flattened text, only run boundaries.
  */
 
-type MarkValue = MarkSet[MarkName];
+/** A run mark value: the known mark shapes, or the opaque value of an unknown mark (the cross-minor stand). */
+type MarkValue = unknown;
 
 /** Deep equality for a single mark value (`true` or an attribute object). */
 function markValueEqual(a: MarkValue, b: MarkValue): boolean {
@@ -26,7 +27,7 @@ function marksEqual(a: MarkSet, b: MarkSet): boolean {
   const bEntries = Object.entries(b);
   if (aEntries.length !== bEntries.length) return false;
   const bValues = new Map(bEntries);
-  return aEntries.every(([name, value]) => markValueEqual(value, bValues.get(name) as MarkValue));
+  return aEntries.every(([name, value]) => markValueEqual(value, bValues.get(name)));
 }
 
 function cloneMarks(marks: MarkSet): MarkSet {
