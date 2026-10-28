@@ -94,8 +94,8 @@ function indentJumpViolation(ydoc: Y.Doc, childIds: string[], index: number, ind
   return null;
 }
 
-/** The container whose children list holds `id`; null for orphans. */
-function findParent(ydoc: Y.Doc, id: string): BlockId | null {
+/** The array-search owner: the container whose children list holds `id`. */
+function findParentInArrays(ydoc: Y.Doc, id: string): BlockId | null {
   // Top level first (the root's order is the registered array, and the root
   // entry carries no children field), then each container entry's children
   // (the registry containers only — see childrenOf); the first match wins.
@@ -110,6 +110,22 @@ function findParent(ydoc: Y.Doc, id: string): BlockId | null {
     if (children instanceof Y.Array && (children as Y.Array<string>).toArray().includes(id)) parent = blockId;
   });
   return parent;
+}
+
+/**
+ * The block's owner parent: the single CRDT-resolved `parent` field (set by
+ * insert/move/load). A concurrent move can leave the id in two containers'
+ * children arrays; the field stands over the array membership as the one
+ * source of ownership. Falls back to the array search when the field is
+ * absent (legacy state). Returns null for the root and orphans.
+ */
+function findParent(ydoc: Y.Doc, id: string): BlockId | null {
+  if (id === rootBlockIdOf(ydoc)) return null;
+  const block = getBlockMap(ydoc, id);
+  if (block === null) return null;
+  const parent = block.get("parent");
+  if (typeof parent === "string" && parent !== "") return parent;
+  return findParentInArrays(ydoc, id);
 }
 
 /** True when `candidate` is inside the subtree rooted at `ancestor`. */

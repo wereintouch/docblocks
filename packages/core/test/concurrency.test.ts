@@ -468,3 +468,110 @@ describe("concurrent formatting and text edits keep the text valid", () => {
     expect(reloaded.toJSON()).toEqual(a.toJSON());
   });
 });
+
+/**
+ *acceptance: the block owner is a single CRDT-resolved `parent` field
+ * (set by insert/move/load), so any two concurrent moves of the same block
+ * resolve to exactly one owner — not a duplicate reference in two
+ * containers' children arrays. Deleting the losing container preserves the
+ * block and its text; the final state reloads as a valid snapshot.
+ */
+describe("concurrent moves keep a single owner", () => {
+  const seed = (id: string): { a: Doc; blockId: string } => {
+    const a = createDoc({ id });
+    const blockId = a.insertBlock("paragraph");
+    a.insertText(blockId, 0, "moved block");
+    return { a, blockId };
+  };
+  const fork = (d: Doc): Doc => loadDoc(d.encode());
+  const exchange = (a: Doc, b: Doc): void => {
+    const aBytes = a.encode();
+    const bBytes = b.encode();
+    a.applyUpdate(bBytes);
+    b.applyUpdate(aBytes);
+  };
+
+  /** The container ids (from the JSON children) that list `blockId`. */
+  const ownersOf = (json: DocJSON, blockId: string): string[] =>
+    Object.entries(json.blocks)
+      .filter(([, block]) => (block.children ?? []).includes(blockId))
+      .map(([parentId]) => parentId);
+
+  const twoFrames = (a: Doc, surface: string) => {
+    const frameA = a.insertBlock("frame", undefined, { parent: surface });
+    const frameB = a.insertBlock("frame", undefined, { parent: surface });
+    return { frameA, frameB };
+  };
+
+  it("a block has exactly one owner after two concurrent moves", () => {
+    const { a, blockId } = seed("f02-single");
+    const surface = a.insertBlock("surface");
+    const { frameA, frameB } = twoFrames(a, surface);
+    const b = fork(a);
+    a.moveBlock(blockId, frameA, 0);
+    b.moveBlock(blockId, frameB, 0);
+    exchange(a, b);
+    const owners = ownersOf(a.toJSON(), blockId);
+    expect(owners).toHaveLength(1);
+    expect([frameA, frameB]).toContain(owners[0]);
+    expect(validateDoc(a.toJSON())).toEqual([]);
+  });
+
+  it("deleting the losing container preserves the block and its text", () => {
+    const { a, blockId } = seed("f02-keep");
+    const surface = a.insertBlock("surface");
+    const { frameA, frameB } = twoFrames(a, surface);
+    const b = fork(a);
+    a.moveBlock(blockId, frameA, 0);
+    b.moveBlock(blockId, frameB, 0);
+    exchange(a, b);
+    const owner = ownersOf(a.toJSON(), blockId)[0];
+    const loser = owner === frameA ? frameB : frameA;
+    a.removeBlock(loser);
+    expect(a.getBlock(blockId)).not.toBeNull();
+    expect(a.getText(blockId)).toBe("moved block");
+    expect(validateDoc(a.toJSON())).toEqual([]);
+  });
+
+  it("deleting the winning container removes the block", () => {
+    const { a, blockId } = seed("f02-drop");
+    const surface = a.insertBlock("surface");
+    const { frameA, frameB } = twoFrames(a, surface);
+    const b = fork(a);
+    a.moveBlock(blockId, frameA, 0);
+    b.moveBlock(blockId, frameB, 0);
+    exchange(a, b);
+    const owner = ownersOf(a.toJSON(), blockId)[0];
+    a.removeBlock(owner);
+    expect(a.getBlock(blockId)).toBeNull();
+    expect(validateDoc(a.toJSON())).toEqual([]);
+  });
+
+  it("undo of a move restores the block to its original container", () => {
+    const { a, blockId } = seed("f02-undo");
+    const surface = a.insertBlock("surface");
+    const frameA = a.insertBlock("frame", undefined, { parent: surface });
+    a.moveBlock(blockId, frameA, 0);
+    expect(ownersOf(a.toJSON(), blockId)).toEqual([frameA]);
+    a.undo();
+    // Back at the top level: the root (id === the doc id) lists it.
+    expect(ownersOf(a.toJSON(), blockId)).toEqual([a.toJSON().id]);
+    expect(a.getText(blockId)).toBe("moved block");
+  });
+
+  it("the merged state reloads as a valid snapshot with one owner", () => {
+    const { a, blockId } = seed("f02-reload");
+    const surface = a.insertBlock("surface");
+    const { frameA, frameB } = twoFrames(a, surface);
+    const b = fork(a);
+    a.moveBlock(blockId, frameA, 0);
+    b.moveBlock(blockId, frameB, 0);
+    exchange(a, b);
+    const reloaded = loadDoc(a.encode());
+    const json = reloaded.toJSON();
+    expect(validateDoc(json)).toEqual([]);
+    expect(ownersOf(json, blockId)).toHaveLength(1);
+    expect(reloaded.getText(blockId)).toBe("moved block");
+    expect(json).toEqual(a.toJSON());
+  });
+});
