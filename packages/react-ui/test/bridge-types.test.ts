@@ -22,6 +22,36 @@ describe("the default bridge — the ref contract (the dict tables / the updateC
     expect(Object.keys(after.rows).sort()).toEqual(["doing", "todo"]);
   });
 
+  it("createTable's explicit id fixes the identity (the restore's stand) and adopts on re-create", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    // The explicit id (the restore/import stand): the table stands under the
+    // given id, independent of the name — a rename + re-create keeps it.
+    const id = await bridge.createTable("Stable", { id: "table-stable-identity" });
+    expect(id).toBe("table-stable-identity");
+    await bridge.renameTable(id, "Stable Renamed");
+    const list = await bridge.listTables();
+    expect(list.find((table) => table.id === "table-stable-identity")?.name).toBe("Stable Renamed");
+    // The idempotent re-seed (the reload's restore): the repeat createTable
+    // with the same explicit id adopts the existing table as-is (no fresh
+    // table, the rows survive).
+    await bridge.insertRow(id, { id: "r1" });
+    const reseed = await bridge.createTable("Stable Renamed", { id: "table-stable-identity" });
+    expect(reseed).toBe("table-stable-identity");
+    expect((await bridge.listTables()).length).toBe(1);
+    expect((await bridge.queryRows(id, {})).rows["r1"] !== undefined).toBe(true);
+  });
+
+  it("createTable's name-derived id stands the deterministic slug (the demo-seed adoption)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    // Absent the explicit id: the id stands the name's slug — the two
+    // identically-named tables (the demo-seed adoption) share one id.
+    const a = await bridge.createTable("Demo");
+    expect(a).toBe("table-demo");
+    const b = await bridge.createTable("Demo");
+    expect(b).toBe(a);
+    expect((await bridge.listTables()).length).toBe(1);
+  });
+
   it("the updateColumn's patch stands the attributes (the name keeps; the zero patch is a no-op)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const id = await bridge.createTable("T");

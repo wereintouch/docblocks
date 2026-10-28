@@ -4,12 +4,12 @@
  * tables / columns / rows survive the tab's reload (the package's default
  * stands memory-only; the consumer's own backend persists on its side).
  *
- * The snapshot keeps the table names (the id stands the name's
- * deterministic slug — the reload's re-creation re-derives the same id, so
- * the doc's `tableId` references survive), the column schema, and the rows
- * in the row order (the row ids stand the pk-value insertion, so the
- * row-link cells survive). The soft-delete trash stands no read API and is
- * not captured.
+ * The snapshot keeps the table's stable id (independent of the name — the
+ * reload's restore re-creates the table under its original id, so a rename
+ * and the doc's `tableId` references survive), the table names, the column
+ * schema, and the rows in the row order (the row ids stand the pk-value
+ * insertion, so the row-link cells survive). The soft-delete trash stands no
+ * read API and is not captured.
  */
 import { getDefaultDatabaseBridge } from "docblocks-react-ui";
 import type { BridgeColumn, DatabaseBridge } from "docblocks-react-ui";
@@ -22,6 +22,11 @@ const STORAGE_KEY = "docblocks-playground-bridge-v1";
 const SAVE_DEBOUNCE_MS = 150;
 
 interface SnapshotTable {
+  /** The table's stable id (the restore's identity — the doc's `tableId`
+   *  references depend on it surviving a rename + reload). Absent on the
+   *  legacy snapshots (the pre-id format — the seed falls back to the name's
+   *  deterministic slug there). */
+  id?: string;
   name: string;
   /** The system (hidden) table's stand (the enum's options — the
    *  `listTables` stands it out, so the snapshot names it explicitly). */
@@ -63,6 +68,7 @@ async function snapshotOf(bridge: DatabaseBridge): Promise<Snapshot> {
       cursor = page.nextCursor ?? undefined;
     } while (cursor !== undefined);
     tables.push({
+      id: ref.id,
       name: description.name,
       system: systemTableIds.has(ref.id) ? true : undefined,
       columns: description.columns,
@@ -79,7 +85,15 @@ async function snapshotOf(bridge: DatabaseBridge): Promise<Snapshot> {
 function seed(bridge: DatabaseBridge, snapshot: Snapshot): Promise<void> {
   return (async () => {
     for (const table of snapshot.tables) {
-      const id = await bridge.createTable(table.name, table.system === true ? { system: true } : undefined);
+      // The explicit id (the new snapshot format) restores the table under
+      // its original identity (a rename + reload keeps the doc's `tableId`
+      // references); the legacy snapshots (no id) stand the name's
+      // deterministic slug (the pre-id behavior).
+      const options = { system: table.system === true ? true : undefined, id: table.id };
+      const id = await bridge.createTable(
+        table.name,
+        table.id !== undefined || table.system === true ? options : undefined
+      );
       if (table.system === true) systemTableIds.add(id);
       for (const column of table.columns) {
         try {

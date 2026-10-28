@@ -3,11 +3,10 @@ import { type Page, expect, test } from "@playwright/test";
 // The persistent bridge's harness global (the wrapped default memory bridge
 // over the localStorage snapshot).
 //
-// Pinned with test.fail(): while the snapshot stores the table's name only (no
-// stable id), the reload's re-creation derives a fresh id and the original one
-// is lost, so the assertion fails and the fail-mark is met. Once a stable
-// tableId is persisted and restored, the test passes and must be converted to a
-// plain test().
+// The snapshot stores each table's stable id (independent of the name), so
+// the reload's restore re-creates the table under its original id: a rename
+// and the doc's `tableId` references survive. Pinned: create → rename →
+// save → reload keeps the original table id.
 const RELAY = "ws://localhost:5199";
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
@@ -25,7 +24,7 @@ const hasTableId = (page: Page, tableId: string) =>
     return tables.some((table) => table.id === id);
   }, tableId);
 
-test.fail("the persistent bridge keeps the table id across a rename and a reload", async ({ browser }) => {
+test("the persistent bridge keeps the table id across a rename and a reload", async ({ browser }) => {
   const context = await browser.newContext();
   const a = await context.newPage();
   const room = `persist-${Math.random().toString(36).slice(2, 8)}`;
