@@ -12,14 +12,17 @@ import { validateDoc } from "../src/schema";
  * test turns red — convert it to a plain `it()` in the same change.
  *
  * The concurrent-formatting, concurrent-moves,
- * concurrent-shape-insert, and concurrent-table-column-insert
- * tests are fixed behaviors (plain `it()`): the text model is a single
- * Y.Text with mark attributes; the block owner is a single CRDT-resolved
- * `parent` field; the canvas z-order is derived from the children order
- * (the stored `zIndex` is a dense mirror re-derived at read time and on
- * load); the table's column set is the shared `columnOrder` array (the
- * `columnWidths` mirror it as element-level ops, materialized at table
- * creation).
+ * concurrent-shape-insert, concurrent-table-column-insert,
+ * and concurrent-row-move tests are fixed behaviors (plain `it()`):
+ * the text model is a single Y.Text with mark attributes; the block owner
+ * is a single CRDT-resolved `parent` field; the canvas z-order is derived
+ * from the children order (the stored `zIndex` is a dense mirror re-derived
+ * at read time and on load); the table's column set is the shared
+ * `columnOrder` array (the `columnWidths` mirror it as element-level ops,
+ * materialized at table creation); the database rowOrder is read with the
+ * first-occurrence deduplication (a concurrent moveRow pair leaves both
+ * re-inserts in the raw array — the deterministic CRDT order picks the
+ * single position on every peer).
  *
  * The two peers load the settled state (`loadDoc` of the first peer's bytes),
  * so they are independent Y.Docs of the same content, not a concurrent init.
@@ -88,7 +91,7 @@ describe("concurrent text and block edits keep the data valid", () => {
     expect(validateDoc(a.toJSON())).toEqual([]);
   });
 
-  it.fails("concurrent inline database row moves keep the order unique", () => {
+  it("concurrent inline database row moves keep the order unique", () => {
     const a = createDoc({ id: "pin" });
     const database = a.insertBlock("database", {
       columns: [{ id: "value", name: "Value", type: "text" }],
