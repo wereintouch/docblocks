@@ -2239,12 +2239,12 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
     // A fresh table over the shared bridge: the multi-enum (the demo's
     // statuses' dict), the multi row-links (the linked's people), the
     // single-enum + the single row-link (the regression's stand).
-    const tableId = await a.evaluate(async () => {
+    const { tableId, linkPeopleIds } = await a.evaluate(async () => {
       const bridge = window.__bridge!;
       const id = await bridge.createTable("MultiSelect");
       await bridge.createTable("LinkPeople");
       await bridge.createColumn("table-linkpeople", { id: "name", name: "Name", type: "text" });
-      await bridge.insertRows("table-linkpeople", [{ name: "Ann" }, { name: "Bob" }]);
+      const linkPeopleIds = await bridge.insertRows("table-linkpeople", [{ name: "Ann" }, { name: "Bob" }]);
       await bridge.createColumn(id, {
         id: "tags",
         name: "Tags",
@@ -2276,7 +2276,7 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
         refTableId: "table-linkpeople",
       });
       await bridge.insertRows(id, [{}]);
-      return id;
+      return { tableId: id, linkPeopleIds };
     });
     // The block's id scopes the grid (the doc's seed blocks stand the
     // other grids — the `first`'s stand is out).
@@ -2359,15 +2359,15 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
     await cell("owners").dblclick();
     const ownerOption = (rowId: string) =>
       a.locator(`[data-slot='docblocks/database-ref-multi-option'][data-option-value='${rowId}']`);
-    await expect(ownerOption("r-table-linkpeople-1")).toBeVisible(SETTLE);
-    await ownerOption("r-table-linkpeople-1").click();
+    await expect(ownerOption(linkPeopleIds[0]!)).toBeVisible(SETTLE);
+    await ownerOption(linkPeopleIds[0]!).click();
     await a.waitForTimeout(50);
-    await ownerOption("r-table-linkpeople-2").click();
+    await ownerOption(linkPeopleIds[1]!).click();
     await a.waitForTimeout(50);
     await expect(async () => {
       expect(await chipsOf("owners")).toEqual(["Ann", "Bob"]);
     }).toPass({ timeout: 5_000 });
-    expect((await bridgeCells(a)).owners).toEqual(["r-table-linkpeople-1", "r-table-linkpeople-2"]);
+    expect((await bridgeCells(a)).owners).toEqual([linkPeopleIds[0]!, linkPeopleIds[1]!]);
 
     // ---- The single's pick stands the SCALAR (the regression): the
     // single-enum's cell opens the picker (the multi's stand is out), the
@@ -2394,7 +2394,7 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
     await rowPick.first().click();
     await a.waitForTimeout(50);
     const singleLink = (await bridgeCells(a)).owner;
-    expect(singleLink).toBe("r-table-linkpeople-1");
+    expect(singleLink).toBe(linkPeopleIds[0]!);
   } finally {
     await close();
   }

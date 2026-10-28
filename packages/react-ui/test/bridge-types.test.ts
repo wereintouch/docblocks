@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { columnAnnotation, conditionMatches, parseCellValue } from "../src/database/bridge";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
@@ -50,6 +50,38 @@ describe("the default bridge — the ref contract (the dict tables / the updateC
     const b = await bridge.createTable("Demo");
     expect(b).toBe(a);
     expect((await bridge.listTables()).length).toBe(1);
+  });
+
+  it("parallel user inserts across two bridges keep both rows and converge", async () => {
+    // Two bridges over one channel (the two tabs' stand): both insert a
+    // pk-less row into the shared table. The ids stand globally unique (no
+    // shared counter), so the collision never drops a row — both rows are
+    // kept and the bridges converge to the same two rows (the same id set,
+    // each row's data intact on both sides).
+    const channelName = crypto.randomUUID();
+    const a = createMemoryDatabaseBridge({ channelName });
+    const b = createMemoryDatabaseBridge({ channelName });
+    const tableId = await a.createTable("Concurrent");
+    // The table's created echo reaches B before the inserts land there.
+    await vi.waitFor(async () => {
+      expect((await b.listTables()).some((table) => table.id === tableId)).toBe(true);
+    });
+    const [idA] = await a.insertRows(tableId, [{ title: "from-A" }]);
+    const [idB] = await b.insertRows(tableId, [{ title: "from-B" }]);
+    if (idA === undefined || idB === undefined) throw new Error("the insert stands the row ids");
+    expect(idA).not.toBe(idB);
+    await vi.waitFor(async () => {
+      const pageA = await a.queryRows(tableId, {});
+      const pageB = await b.queryRows(tableId, {});
+      // Both bridges hold both rows (no collision dropped a row) — the same
+      // id set, each row's data intact on both sides.
+      expect(Object.keys(pageA.rows).sort()).toHaveLength(2);
+      expect(Object.keys(pageA.rows).sort()).toEqual(Object.keys(pageB.rows).sort());
+      expect(pageA.rows[idA]?.["title"]).toBe("from-A");
+      expect(pageA.rows[idB]?.["title"]).toBe("from-B");
+      expect(pageB.rows[idA]?.["title"]).toBe("from-A");
+      expect(pageB.rows[idB]?.["title"]).toBe("from-B");
+    });
   });
 
   it("the updateColumn's patch stands the attributes (the name keeps; the zero patch is a no-op)", async () => {

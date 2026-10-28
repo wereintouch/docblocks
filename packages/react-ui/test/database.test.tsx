@@ -495,10 +495,11 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await bridge.createTable("People");
     await bridge.createColumn("table-people", { id: "code", name: "Code", type: "text" });
     await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
-    await bridge.insertRows("table-people", [
+    const peopleIds = await bridge.insertRows("table-people", [
       { code: "P-1", name: "Ann" },
       { code: "P-2", name: "Bob" },
     ]);
+    const annId = peopleIds[0]!;
     await bridge.createColumn(tableId, {
       id: "owner",
       name: "Owner",
@@ -509,7 +510,7 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     });
     const page = await bridge.queryRows(tableId, {});
     const rowId = Object.keys(page.rows)[0]!;
-    await bridge.updateRow(tableId, rowId, { owner: "r-table-people-1" });
+    await bridge.updateRow(tableId, rowId, { owner: annId });
     const cell = () =>
       document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owner']");
     await until(() => cell() !== null, "the cell");
@@ -526,7 +527,9 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     const { bridge, tableId } = await renderGrid();
     await bridge.createTable("People");
     await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
-    await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
+    const peopleIds = await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
+    const annId = peopleIds[0]!;
+    const bobId = peopleIds[1]!;
     await bridge.createColumn(tableId, {
       id: "owner",
       name: "Owner",
@@ -545,9 +548,8 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     fireEvent.doubleClick(cell()!);
     await until(() => document.querySelector("[data-slot='docblocks/database-row-picker']") !== null, "the picker");
     expect(
-      document.querySelector<HTMLElement>(
-        "[data-slot='docblocks/database-row-picker-row'][data-row-id='r-table-people-1']"
-      )?.textContent
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-row-picker-row'][data-row-id='${annId}']`)
+        ?.textContent
     ).toBe("Ann");
     // The search filters the list (the client-side stand over the loaded
     // page).
@@ -556,16 +558,16 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     });
     await settleGrid();
     expect(
-      document.querySelector("[data-slot='docblocks/database-row-picker-row'][data-row-id='r-table-people-1']")
+      document.querySelector(`[data-slot='docblocks/database-row-picker-row'][data-row-id='${annId}']`)
     ).toBeNull();
     const bobRow = document.querySelector<HTMLElement>(
-      "[data-slot='docblocks/database-row-picker-row'][data-row-id='r-table-people-2']"
+      `[data-slot='docblocks/database-row-picker-row'][data-row-id='${bobId}']`
     )!;
     expect(bobRow.textContent).toBe("Bob");
     fireEvent.click(bobRow);
     await settleGrid();
     const after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.owner).toBe("r-table-people-2");
+    expect(after.rows[rowId]!.owner).toBe(bobId);
     await until(() => (cell()!.textContent ?? "").includes("Bob"), "the new display");
 
     // The clear entry stands the null.
@@ -703,7 +705,9 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     const { bridge, tableId } = await renderGrid();
     await bridge.createTable("People");
     await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
-    await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
+    const peopleIds = await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
+    const annId = peopleIds[0]!;
+    const bobId = peopleIds[1]!;
     await bridge.createColumn(tableId, {
       id: "owners",
       name: "Owners",
@@ -733,17 +737,17 @@ describe("the grid's header (the table's name, the column menu, the column drag)
         `[data-slot='docblocks/database-ref-multi-option'][data-option-value='${rowId}']`
       );
     // The options stand the linked table's rows (the displays' labels).
-    expect(option("r-table-people-1")!).not.toBeNull();
-    fireEvent.click(option("r-table-people-1")!);
+    expect(option(annId)!).not.toBeNull();
+    fireEvent.click(option(annId)!);
     await settleGrid();
     let after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.owners).toEqual(["r-table-people-1"]);
+    expect(after.rows[rowId]!.owners).toEqual([annId]);
     await until(() => chips().length === 1, "the chip");
     expect(chips()).toEqual(["Ann"]);
-    fireEvent.click(option("r-table-people-2")!);
+    fireEvent.click(option(bobId)!);
     await settleGrid();
     after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.owners).toEqual(["r-table-people-1", "r-table-people-2"]);
+    expect(after.rows[rowId]!.owners).toEqual([annId, bobId]);
     await until(() => chips().length === 2, "the chips");
     expect(chips()).toEqual(["Ann", "Bob"]);
   });

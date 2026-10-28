@@ -6,11 +6,13 @@
  * own copy of the state and applies the remote events idempotently); a
  * production consumer replaces the whole bridge with its backend
  * implementation. The bridge speaks the standard fractional row order
- * (the `rowOrder` column value) and the table-derived row ids (the
- * `r-{tableId}-{n}` `id` pk value — the dict-table rows stand the pk
- * value itself (the option label as the row id)); the table id stands derived from the
- * table name, so the channel's instances converge on the same tables
- * (the two tabs' identically-named demo tables share one table).
+ * (the `rowOrder` column value) and the table-derived row ids (the pk-value
+ * rows — the dict-table rows — stand the pk value itself as the row id; the
+ * user row without a pk stands a globally unique id, so two authors
+ * inserting concurrently never collide on a shared counter); the table id
+ * stands derived from the table name, so the channel's instances converge
+ * on the same tables (the two tabs' identically-named demo tables share one
+ * table).
  */
 import type { DatabaseFilterPayload } from "docblocks-core";
 
@@ -57,8 +59,6 @@ interface MemoryTable {
    *  values are already in place. `createColumn` of the same id DROPS
    *  the entry (the fresh column stands empty — the old data is gone). */
   detachedColumns: Map<string, { column: BridgeColumn; prevColumnId: string | null }>;
-  /** The row-id counter (the pk values are `r-{tableId}-1`, `r-{tableId}-2`, ...). */
-  rowCounter: number;
 }
 
 interface MemoryBridgeOptions {
@@ -111,7 +111,6 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
           orderValues: new Map(),
           trash: new Map(),
           detachedColumns: new Map(),
-          rowCounter: 0,
         });
       }
     }
@@ -152,8 +151,18 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
     return keysA.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
   }
 
+  /** The row's order: the fractional value, then the row id — the equal
+   *  fractional positions stand a deterministic total order (two tabs with
+   *  the same (order, id) set sort identically). */
+  function rowOrderCompare(table: MemoryTable, a: string, b: string): number {
+    const aOrder = table.orderValues.get(a) ?? 0;
+    const bOrder = table.orderValues.get(b) ?? 0;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+
   function orderedRowIds(table: MemoryTable): string[] {
-    return [...table.rows.keys()].sort((a, b) => (table.orderValues.get(a) ?? 0) - (table.orderValues.get(b) ?? 0));
+    return [...table.rows.keys()].sort((a, b) => rowOrderCompare(table, a, b));
   }
 
   function nextOrder(table: MemoryTable): number {
@@ -175,9 +184,6 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
             table.rows.set(event.rowId, clone(event.cells));
             if (!table.orderValues.has(event.rowId)) table.orderValues.set(event.rowId, nextOrder(table));
           }
-          // The peer's row id stands the shared per-table counter: advance
-          // the local one so the next local insert never reuses a taken id.
-          table.rowCounter = Math.max(table.rowCounter, rowCounterOf(tableId, event.rowId));
           break;
         }
         case "row.updated": {
@@ -288,7 +294,6 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
         orderValues: new Map(),
         trash: new Map(),
         detachedColumns: new Map(),
-        rowCounter: 0,
       });
       emit(id, [
         { type: "table.created", tableId: id, name, columns: [], system: options?.system === true ? true : undefined },
@@ -444,7 +449,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       if (query.orderBy !== undefined && query.orderBy.length > 0) {
         ids = [...ids].sort((a, b) => {
           const compared = compareRows(table, a, b, query.orderBy!);
-          return compared !== 0 ? compared : (table.orderValues.get(a) ?? 0) - (table.orderValues.get(b) ?? 0);
+          return compared !== 0 ? compared : rowOrderCompare(table, a, b);
         });
       }
       const start = query.cursor !== undefined ? decodeCursor(query.cursor) : 0;
@@ -458,14 +463,13 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
 
     async insertRow(tableId: string, row: Record<string, unknown>): Promise<string> {
       const table = tableOf(tableId);
-      // The row id stands derived from the table + the per-table counter
-      // (deterministic over the channel's instances: the seeded demo rows
-      // stand the same ids on both sides; the counter syncs over the
-      // echoes). A pk value IN the row stands the dict-table stand (the
-      // pk IS the value — the option label): the row id = the pk value
-      // (the deterministic stand across the channel's instances).
+      // The row id stands the pk value when the row carries one (the
+      // dict-table stand — the pk IS the value, the option label; the
+      // deterministic stand across the channel's instances); the user row
+      // without a pk stands a globally unique id (the two authors inserting
+      // concurrently never collide on a shared counter).
       const pkValue = row[PK_COLUMN];
-      const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : `r-${tableId}-${++table.rowCounter}`;
+      const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : crypto.randomUUID();
       if (table.rows.has(rowId)) return rowId; // the idempotent re-seed
       table.rows.set(rowId, clone(stripManaged(row)));
       table.orderValues.set(rowId, nextOrder(table));
@@ -508,9 +512,9 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       const ids: string[] = [];
       for (const row of rows) {
         // The pk-value row stand (the dict table's label rows) — the same
-        // stand as the single insertRow.
+        // stand as the single insertRow (the global id over the pk-less row).
         const pkValue = row[PK_COLUMN];
-        const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : `r-${tableId}-${++table.rowCounter}`;
+        const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : crypto.randomUUID();
         if (table.rows.has(rowId)) {
           ids.push(rowId);
           continue;
@@ -620,14 +624,6 @@ function tableIdFor(name: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return `table-${slug || Math.random().toString(36).slice(2, 8)}`;
-}
-
-/** The counter carried by the row id (`r-{tableId}-{n}`). */
-function rowCounterOf(tableId: string, rowId: string): number {
-  const prefix = `r-${tableId}-`;
-  if (!rowId.startsWith(prefix)) return 0;
-  const n = Number(rowId.slice(prefix.length));
-  return Number.isInteger(n) && n > 0 ? n : 0;
 }
 
 function encodeCursor(index: number): string {
