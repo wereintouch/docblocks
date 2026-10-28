@@ -8,7 +8,7 @@ import { createDoc } from "docblocks-core";
 import type { Block } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider, useEditorContext } from "../src/EditorProvider";
+import { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "../src/EditorProvider";
 import type { BlockRendererMap } from "../src/blocks/renderers";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
@@ -24,12 +24,21 @@ function ContextCapture() {
 /** Seed the doc, then render provider + editor (+ context capture). */
 function renderDoc(
   prepare: (doc: TestDoc) => void,
-  options?: { blobResolver?: (key: string) => string; blockRenderers?: BlockRendererMap }
+  options?: {
+    blobResolver?: (key: string) => string;
+    blockRenderers?: BlockRendererMap;
+    embedSandbox?: (src: string) => string | null;
+  }
 ) {
   const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
   prepare(doc);
   render(
-    <EditorProvider doc={doc} blobResolver={options?.blobResolver} blockRenderers={options?.blockRenderers}>
+    <EditorProvider
+      doc={doc}
+      blobResolver={options?.blobResolver}
+      blockRenderers={options?.blockRenderers}
+      embedSandbox={options?.embedSandbox}
+    >
       <Editor />
       <ContextCapture />
     </EditorProvider>
@@ -78,6 +87,35 @@ describe("built-in renderer: embed", () => {
 
     const iframe = document.querySelector<HTMLIFrameElement>('[data-block-type="embed"] iframe');
     expect(iframe?.getAttribute("src")).toBe("https://example.com/page");
+  });
+
+  it("stands the safe default sandbox over the iframe (no same-origin access)", () => {
+    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://example.com/page" }));
+    const iframe = document.querySelector<HTMLIFrameElement>('[data-block-type="embed"] iframe');
+    // The safe default: scripts / forms / popups run, but NO allow-same-origin
+    // — the embedded content is an opaque origin and cannot read the parent's
+    // DOM / state.
+    expect(iframe?.getAttribute("sandbox")).toBe(DEFAULT_EMBED_SANDBOX);
+    expect(iframe?.getAttribute("sandbox")).not.toContain("allow-same-origin");
+  });
+
+  it("applies the consumer's embedSandbox policy (a trusted origin stands same-origin)", () => {
+    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://trusted.example/page" }), {
+      embedSandbox: (src) =>
+        src.startsWith("https://trusted.example") ? "allow-scripts allow-same-origin" : "allow-scripts",
+    });
+    const iframe = document.querySelector<HTMLIFrameElement>('[data-block-type="embed"] iframe');
+    // The trusted origin's policy stands (the consumer consciously grants
+    // same-origin for it).
+    expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts allow-same-origin");
+  });
+
+  it("stands no sandbox when the policy returns null (a fully trusted embed)", () => {
+    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://trusted.example/page" }), {
+      embedSandbox: () => null,
+    });
+    const iframe = document.querySelector<HTMLIFrameElement>('[data-block-type="embed"] iframe');
+    expect(iframe?.getAttribute("sandbox")).toBeNull();
   });
 
   it("an unknown kind (newer data) still renders the same iframe", () => {

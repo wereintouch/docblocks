@@ -28,6 +28,23 @@ import type { EditorStore } from "./state/store";
  */
 type SyncEmbedResolver = (ref: SyncEmbedRef) => Doc | null;
 
+/**
+ * The safe embed sandbox (the default when no `embedSandbox` policy is
+ * supplied): the embedded content stands an opaque origin (no
+ * `allow-same-origin`), so it cannot read the parent's DOM, cookies, or state;
+ * scripts, forms, and popups still run, so interactive embeds keep working.
+ * Grant `allow-same-origin` — and `allow-scripts` together with it — only for
+ * trusted origins via the `embedSandbox` policy: that combination lets the
+ * frame lift its own sandbox.
+ */
+const DEFAULT_EMBED_SANDBOX = "allow-scripts allow-forms allow-popups";
+
+/** The embed sandbox policy: the iframe's `sandbox` value for a given embed
+ *  src; `null` stands no sandbox (a fully trusted embed, the old behavior). */
+type EmbedSandboxPolicy = (src: string) => string | null;
+
+const defaultEmbedSandbox: EmbedSandboxPolicy = () => DEFAULT_EMBED_SANDBOX;
+
 /** The props a PDF first-page preview renderer receives (the `pdfPreview` provider prop). */
 interface PdfPreviewProps {
   /** The block's id — the renderer stamps it on its root, like the other block renderers. */
@@ -84,6 +101,8 @@ interface EditorContextValue {
   pdfPreview: PdfPreview | null;
   /** The consumer's mention search provider; null when none was supplied (`@` stays plain text). */
   mentionProvider: MentionProvider | null;
+  /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
+  embedSandbox: EmbedSandboxPolicy;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
   rootBlockId: BlockId;
   /** The enclosing providers' doc ids, outermost first (the sync-embed cycle visited-set). */
@@ -189,6 +208,18 @@ interface EditorProviderProps {
    */
   mentionProvider?: MentionProvider;
   /**
+   * Optional embed sandbox policy: the iframe's `sandbox` value for a given
+   * embed src; `null` stands no sandbox (a fully trusted embed). Without it
+   * the safe default applies (`DEFAULT_EMBED_SANDBOX` — interactive but no
+   * `allow-same-origin`, so the embedded content cannot read the parent's DOM
+   * / state). Grant `allow-same-origin` only for trusted origins.
+   *
+   * Like `pdfPreview`, the value is read per render into the provider
+   * context: pass a stable reference. A nested provider that supplies none
+   * inherits the enclosing policy.
+   */
+  embedSandbox?: EmbedSandboxPolicy;
+  /**
    * Optional entry-list root: render the entry list of this block instead
    * of the document root (the subtree view — the block itself plus its own
    * subtree). Defaults to the document root: behavior unchanged.
@@ -227,6 +258,7 @@ function EditorProvider({
   syncEmbedResolver,
   pdfPreview,
   mentionProvider,
+  embedSandbox,
   rootBlockId,
   commandPalettePlaceholder,
   children,
@@ -414,6 +446,7 @@ function EditorProvider({
       syncEmbedResolver: syncEmbedResolver ?? parent?.syncEmbedResolver ?? null,
       pdfPreview: pdfPreview ?? parent?.pdfPreview ?? null,
       mentionProvider: mentionProvider ?? parent?.mentionProvider ?? null,
+      embedSandbox: embedSandbox ?? parent?.embedSandbox ?? defaultEmbedSandbox,
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
       embedDepth: parent === null ? 0 : parent.embedDepth + 1,
@@ -432,15 +465,17 @@ function EditorProvider({
     commandPalettePlaceholder,
     pdfPreview,
     mentionProvider,
+    embedSandbox,
   ]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 }
 
-export { EditorProvider, useEditorContext };
+export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext };
 export type {
   EditorContextValue,
   EditorProviderProps,
+  EmbedSandboxPolicy,
   MentionEntry,
   MentionProvider,
   PdfPreview,

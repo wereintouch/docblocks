@@ -8,10 +8,11 @@
 export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./blocks/renderers";
 export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
-export { EditorProvider, useEditorContext } from "./EditorProvider";
+export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./EditorProvider";
 export type {
   EditorContextValue,
   EditorProviderProps,
+  EmbedSandboxPolicy,
   MentionEntry,
   MentionProvider,
   PdfPreview,

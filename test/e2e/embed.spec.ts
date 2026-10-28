@@ -280,3 +280,43 @@ test("the embed's modifier drag-pan: an Alt-held drag pans the overflow (view st
 
   await close();
 });
+
+test("a same-origin embed cannot reach the parent's state (the sandbox stands)", async ({ page }) => {
+  await page.goto(`/?client=a&syncUrl=${RELAY}/sandbox-embed-${Math.random().toString(36).slice(2, 8)}`);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
+
+  // Listen for the fixture's postMessage (postMessage works across origins,
+  // so it proves the embedded script ran even though the frame is an opaque
+  // origin — a 404 would never post).
+  await page.evaluate(() => {
+    (window as { __sandboxran?: boolean }).__sandboxran = false;
+    window.addEventListener("message", (event) => {
+      if (event.data && event.data.sandbox === "ran") (window as { __sandboxran?: boolean }).__sandboxran = true;
+    });
+  });
+
+  // Insert an embed pointing at the playground-served same-origin fixture
+  // (Vite's public dir): the embedded content is on the parent's own origin
+  // and attempts to write a marker to the parent's state (the same-origin
+  // attackguards against).
+  const embedId = await page.evaluate(() =>
+    window.__paneDocs!.a!.insertBlock("embed", { kind: "iframe", src: "/sandbox-test-embed.html" })
+  );
+
+  const iframe = page.locator(`[data-block-id="${embedId}"] iframe[data-slot="docblocks/embed"]`);
+  await expect(iframe).toHaveCount(1, SETTLE);
+  await expect(iframe).toHaveAttribute("src", "/sandbox-test-embed.html", SETTLE);
+
+  // The safe default sandbox stands on the iframe: no allow-same-origin, so
+  // the embedded content is an opaque origin.
+  const sandbox = (await iframe.getAttribute("sandbox")) ?? "";
+  expect(sandbox).not.toContain("allow-same-origin");
+
+  // The fixture's script ran (the postMessage landed)...
+  await expect.poll(() => page.evaluate(() => (window as { __sandboxran?: boolean }).__sandboxran), SETTLE).toBe(true);
+
+  // ...and its same-origin parent access was blocked (the marker never
+  // landed). Without the sandbox the marker would be set.
+  const marker = await page.evaluate(() => (window as { __sandboxmarker?: string }).__sandboxmarker);
+  expect(marker).toBeUndefined();
+});
