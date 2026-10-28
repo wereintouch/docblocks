@@ -45,11 +45,15 @@ interface WsSyncOptions {
  * (the attach glue applies them).
  *
  * `connect()` resolves when the socket is open and the step1 handshake is
- * sent; the initial state (step2) arrives through `onUpdate`. Updates sent
- * while the socket is not open (before `connect()`, or during the
- * CONNECTING window) are buffered and flushed on the next open. There is no
- * auto-reconnect: after an unexpected close the application calls
- * `connect()` again and the step1/step2 exchange resyncs.
+ * sent; the initial state (step2) arrives through `onUpdate`. The promise
+ * stands the CURRENT connection attempt: concurrent calls over the
+ * CONNECTING window await the same attempt (they settle together on the
+ * open), a cancel (`disconnect`) or a close before the open rejects it,
+ * and a connect after that starts a fresh attempt. Updates sent while the
+ * socket is not open (before `connect()`, or during the CONNECTING window)
+ * are buffered and flushed on the next open. There is no auto-reconnect:
+ * after an unexpected close the application calls `connect()` again and the
+ * step1/step2 exchange resyncs.
  *
  * Safe attach order: `attach` registers its remote subscription before the
  * bootstrap send, so it stands correct pre-connect (the bootstrap buffered
@@ -77,6 +81,14 @@ class WsSyncProvider implements SyncProvider {
    * remote update.
    */
   #receivedSync = false;
+  /**
+   * The current connection attempt (a shared Promise + its reject, while
+   * the socket stands CONNECTING): concurrent connect() calls await the
+   * same attempt, and a cancel/close before open settles it (reject) so
+   * no caller stands pending past the attempt's end.
+   */
+  #connectPromise: Promise<void> | null = null;
+  #connectReject: ((reason?: unknown) => void) | null = null;
   #updateListeners = new Set<(bytes: Uint8Array) => void>();
   #awarenessListeners = new Set<(peers: PresenceState[]) => void>();
 
@@ -89,13 +101,20 @@ class WsSyncProvider implements SyncProvider {
     this.#awareness.on("update", this.#onAwarenessUpdate);
   }
 
-  /** Open the socket and start the sync handshake. Idempotent. */
+  /**
+   * Open the socket and start the sync handshake. Idempotent over an open
+   * socket; concurrent calls over the CONNECTING window share one attempt
+   * (the same Promise), so they settle together on the open. A cancel or
+   * a close before the open rejects the shared attempt; a connect after
+   * that starts a fresh one.
+   */
   connect(): Promise<void> {
+    if (this.#connectPromise !== null) return this.#connectPromise;
     if (this.#socket !== null) return Promise.resolve();
     const socket = this.#webSocketImpl(this.#socketUrl());
     this.#socket = socket;
     let opened = false;
-    return new Promise<void>((resolve, reject) => {
+    const attempt = new Promise<void>((resolve, reject) => {
       socket.onopen = () => {
         if (this.#socket !== socket) return;
         opened = true;
@@ -107,6 +126,9 @@ class WsSyncProvider implements SyncProvider {
         const pending = this.#pending;
         this.#pending = [];
         for (const update of pending) socket.send(buildSyncUpdateFrame(update));
+        // The attempt is settled: a later connect stands over the open socket.
+        this.#connectPromise = null;
+        this.#connectReject = null;
         resolve();
       };
       socket.onmessage = (ev) => {
@@ -116,10 +138,24 @@ class WsSyncProvider implements SyncProvider {
       socket.onclose = () => {
         if (this.#socket !== socket) return; // stale event from a superseded socket
         this.#onClose();
-        if (!opened) reject(new Error("sync connection closed before open"));
+        if (!opened) {
+          // An unexpected close before the open: settle the shared attempt
+          // (disconnect's cancel stands the same reject; a second settle is
+          // a no-op).
+          this.#connectPromise = null;
+          const rejectAttempt = this.#connectReject;
+          this.#connectReject = null;
+          if (rejectAttempt !== null) rejectAttempt(new Error("sync connection closed before open"));
+        }
       };
       socket.onerror = () => undefined; // transport failures surface via onclose
+      // The raw reject, stored for the attempt's cancel paths (a promise
+      // settles once: a second settle is a no-op). The callers clear the
+      // attempt's fields before they settle it.
+      this.#connectReject = reject;
     });
+    this.#connectPromise = attempt;
+    return attempt;
   }
 
   /** Close the socket. Idempotent. */
@@ -130,6 +166,12 @@ class WsSyncProvider implements SyncProvider {
     this.#open = false;
     this.#teardown();
     socket.close();
+    // A cancel before the open stands the shared attempt's reject (the
+    // socket's onclose guard — the cleared #socket — does not reach it).
+    const cancel = this.#connectReject;
+    this.#connectPromise = null;
+    this.#connectReject = null;
+    if (cancel !== null) cancel(new Error("sync connection cancelled before open"));
   }
 
   /**
