@@ -40,11 +40,16 @@ const fixture: DocJSON = {
 
     b04: { type: "code", attrs: { language: "ts" }, content: [{ text: "const a = 1\nconst b = 2", marks: {} }] },
 
-    b06: { type: "table", attrs: { cols: 3 }, children: ["r1"] },
+    b06: {
+      type: "table",
+      columnOrder: ["col1", "col2", "col3"],
+      attrs: { columnWidths: [100, 100, 100] },
+      children: ["r1"],
+    },
     r1: { type: "table-row", children: ["c1", "c2", "c3"] },
-    c1: { type: "table-cell", content: [{ text: "cell", marks: { bold: true } }] },
-    c2: { type: "table-cell", content: [] },
-    c3: { type: "table-cell", content: [] },
+    c1: { type: "table-cell", attrs: { columnId: "col1" }, content: [{ text: "cell", marks: { bold: true } }] },
+    c2: { type: "table-cell", attrs: { columnId: "col2" }, content: [] },
+    c3: { type: "table-cell", attrs: { columnId: "col3" }, content: [] },
 
     b07: { type: "image", attrs: { src: "blobs/ab12.png", width: null, align: "center" } },
 

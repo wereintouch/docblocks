@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "@docblocks-core/schema";
 import type { Block, BlockId, BlockType, DocJSON, DocMeta, TextRun } from "@docblocks-core/schema";
 
 import { derivedZIndex } from "./commands/z-order";
@@ -155,6 +155,8 @@ interface BlockDraft {
   children?: BlockId[];
   rows?: Record<string, Record<string, unknown>>;
   rowOrder?: string[];
+  /** The column identities + order (table only): the single source of the column set. */
+  columnOrder?: string[];
 }
 
 /**
@@ -178,10 +180,20 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
   if (spec.attrs) {
     const attrs = yblock.get("attrs");
     if (attrs instanceof Y.Map && attrs.size > 0) {
-      const plain: Record<string, unknown> = {};
+      // Sorted keys: the Y.Map iteration order is process-dependent (the
+      // order in which updates were applied), so without normalization the
+      // toJSON() bytes would depend on the peer.
+      const entries: Array<[string, unknown]> = [];
       attrs.forEach((value, key) => {
-        plain[key] = readPlainValue(value);
+        // The table's columnWidths are stored identity-keyed (columnId →
+        // width); the positional array is derived from the columnOrder
+        // below, not read positionally.
+        if (key === "columnWidths" && value instanceof Y.Map) return;
+        entries.push([key, readPlainValue(value)]);
       });
+      entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+      const plain: Record<string, unknown> = {};
+      for (const [key, value] of entries) plain[key] = value;
       block.attrs = plain;
     }
   }
@@ -250,6 +262,32 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
       rowOrder instanceof Y.Array
         ? rowOrder.toArray().filter((rowId): rowId is string => typeof rowId === "string" && hasCells(rowId))
         : [];
+  }
+
+  // Table: the column identities + order (the single source of the column set,
+  // like the database's rowOrder). Always emitted for table blocks (possibly
+  // empty). The tokens are the column ids (stable); a dangling id (no cells)
+  // is kept (the column exists even if a race dropped its cells — the strict
+  // validator flags it, the lenient reader stands the set).
+  if (spec.columnOrder) {
+    const columnOrder = yblock.get("columnOrder");
+    block.columnOrder =
+      columnOrder instanceof Y.Array
+        ? columnOrder.toArray().filter((columnId): columnId is string => typeof columnId === "string")
+        : [];
+
+    // The columnWidths stand positional in the JSON, derived from the
+    // identity-keyed storage (a Y.Map of columnId → width) in the
+    // columnOrder order; an absent key stands the default width. The
+    // derivation makes the read always the full array (the validator's
+    // length rule stands).
+    const storedWidths = yblock.get("attrs");
+    const widthsMap = storedWidths instanceof Y.Map ? storedWidths.get("columnWidths") : undefined;
+    const derived = block.columnOrder.map((columnId) => {
+      const value = widthsMap instanceof Y.Map ? widthsMap.get(columnId) : undefined;
+      return typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_TABLE_COLUMN_WIDTH;
+    });
+    block.attrs = { ...(block.attrs ?? {}), columnWidths: derived };
   }
 
   return block as Block;

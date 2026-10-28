@@ -51,15 +51,15 @@ describe("valid documents", () => {
           l2: { type: "list-item", attrs: { list: "task", checked: true }, content: [run("task")] },
           c1: { type: "callout", attrs: { variant: "warning" }, content: [run("note")] },
           co1: { type: "code", attrs: { language: "js" }, content: [run("const x = 1;")] },
-          t1: { type: "table", attrs: { cols: 2 }, children: ["row1", "row2"] },
+          t1: { type: "table", columnOrder: ["col0", "col1"], children: ["row1", "row2"] },
           row1: { type: "table-row", children: ["c11", "c12"] },
           row2: { type: "table-row", children: ["c21", "c22"] },
-          c11: { type: "table-cell", content: [run("a")], children: ["pc"] },
+          c11: { type: "table-cell", attrs: { columnId: "col0" }, content: [run("a")], children: ["pc"] },
           pc: { type: "paragraph", content: [run("nested leaf")] },
-          c12: { type: "table-cell", content: [] },
-          c21: { type: "table-cell", children: ["d2"] },
+          c12: { type: "table-cell", attrs: { columnId: "col1" }, content: [] },
+          c21: { type: "table-cell", attrs: { columnId: "col0" }, children: ["d2"] },
           d2: { type: "divider" },
-          c22: { type: "table-cell", content: [run("b")] },
+          c22: { type: "table-cell", attrs: { columnId: "col1" }, content: [run("b")] },
           img1: { type: "image", attrs: { src: "blob:123", width: null, align: "center" } },
           d1: { type: "divider" },
         },
@@ -91,7 +91,7 @@ describe("valid documents", () => {
 
   it("accepts a table without rows", () => {
     expectValid(
-      makeDoc({ blocks: { r: { type: "root", children: ["t"] }, t: { type: "table", attrs: { cols: 2 } } } })
+      makeDoc({ blocks: { r: { type: "root", children: ["t"] }, t: { type: "table", columnOrder: ["col0", "col1"] } } })
     );
   });
 
@@ -319,10 +319,10 @@ describe("block structure", () => {
       ...makeDoc(),
       blocks: {
         r: { type: "root", children: ["t"] },
-        t: { type: "table", attrs: { cols: 1 }, children: ["row"] },
+        t: { type: "table", columnOrder: ["col0"], children: ["row"] },
         row: { type: "table-row", children: ["cell"] },
-        cell: { type: "table-cell", children: ["t2"] },
-        t2: { type: "table", attrs: { cols: 1 }, children: [] },
+        cell: { type: "table-cell", attrs: { columnId: "col0" }, children: ["t2"] },
+        t2: { type: "table", columnOrder: ["col0"], children: [] },
       },
     };
     expectError(tableInCell, "blocks.cell.children[0]", 'not allowed as a child of "table-cell"');
@@ -339,7 +339,7 @@ describe("attributes", () => {
     expectError(withBlock("h", { type: "heading", attrs: { level: 7 } }), "blocks.h.attrs.level", "one of");
     expectError(withBlock("h", { type: "heading" }), "blocks.h.attrs.level", "required");
     expectError(withBlock("e", { type: "embed" }), "blocks.e.attrs.kind", "required");
-    expectError(withBlock("t", { type: "table" }), "blocks.t.attrs.cols", "required");
+    expectError(withBlock("t", { type: "table" }), "blocks.t.columnOrder", "columnOrder");
     expectError(withBlock("i", { type: "image", attrs: {} }), "blocks.i.attrs.src", "required");
   });
 
@@ -354,9 +354,9 @@ describe("attributes", () => {
         ...makeDoc(),
         blocks: {
           r: { type: "root", children: ["t"] },
-          t: { type: "table", attrs: { cols: 1 }, children: ["row"] },
+          t: { type: "table", columnOrder: ["col0"], children: ["row"] },
           row: { type: "table-row", children: ["c"], attrs: {} },
-          c: { type: "table-cell" },
+          c: { type: "table-cell", attrs: { columnId: "col0" } },
         },
       },
       "blocks.row.attrs",
@@ -372,11 +372,13 @@ describe("attributes", () => {
   });
 
   it("validates attribute value kinds", () => {
-    expectError(withBlock("t", { type: "table", attrs: { cols: 0 } }), "blocks.t.attrs.cols", "must be >= 1");
-    expectError(withBlock("t", { type: "table", attrs: { cols: 1.5 } }), "blocks.t.attrs.cols", "integer");
-    expectError(withBlock("t", { type: "table", attrs: { cols: Infinity } }), "blocks.t.attrs.cols", "integer");
+    expectError(
+      withBlock("t", { type: "table", columnOrder: ["c1"], attrs: { columnWidths: [40] } }),
+      "blocks.t.attrs.columnWidths[0]",
+      "must be >= 50"
+    );
     expectError(withBlock("i", { type: "image", attrs: { src: "k", width: 0 } }), "blocks.i.attrs.width", "positive");
-    expectError(withBlock("t", { type: "table", attrs: { cols: "2" } }), "blocks.t.attrs.cols", "must be a number");
+    expectError(withBlock("t", { type: "table", columnOrder: ["c1", "c1"] }), "blocks.t.columnOrder", "unique");
     expectError(withBlock("i", { type: "image", attrs: { src: "" } }), "blocks.i.attrs.src", "non-empty");
     expectError(withBlock("i", { type: "image", attrs: { src: "k", width: -5 } }), "blocks.i.attrs.width", "positive");
     expectError(
@@ -603,7 +605,7 @@ describe("the flat page model (indent)", () => {
     expectValid(
       withSequence(["a", "t", "img", "d"], {
         a: { type: "paragraph" },
-        t: { type: "table", attrs: { cols: 1, indent: 1 } },
+        t: { type: "table", columnOrder: ["col0"], attrs: { indent: 1 } },
         img: { type: "image", attrs: { src: "k", indent: 1 } },
         d: { type: "divider", attrs: { indent: 2 } },
       })
@@ -657,9 +659,9 @@ describe("the flat page model (indent)", () => {
       ...makeDoc(),
       blocks: {
         r: { type: "root", children: ["t"] },
-        t: { type: "table", attrs: { cols: 1 }, children: ["row"] },
+        t: { type: "table", columnOrder: ["col0"], children: ["row"] },
         row: { type: "table-row", children: ["cell"] },
-        cell: { type: "table-cell", children: ["c1", "c2"] },
+        cell: { type: "table-cell", attrs: { columnId: "col0" }, children: ["c1", "c2"] },
         c1: { type: "paragraph" },
         c2: { type: "paragraph", attrs: { indent: 2 } },
       },
@@ -693,10 +695,10 @@ describe("the flat page model (indent)", () => {
       ...makeDoc(),
       blocks: {
         r: { type: "root", children: ["t"] },
-        t: { type: "table", attrs: { cols: 2 }, children: ["row"] },
+        t: { type: "table", columnOrder: ["col0", "col1"], children: ["row"] },
         row: { type: "table-row", children: ["ra", "rb"] },
-        ra: { type: "table-cell" },
-        rb: { type: "table-cell", attrs: { indent: 3 } },
+        ra: { type: "table-cell", attrs: { columnId: "col0" } },
+        rb: { type: "table-cell", attrs: { columnId: "col1", indent: 3 } },
       },
     };
     expectError(rowJump, "blocks.rb.attrs.indent", "Unknown attribute");
@@ -719,18 +721,27 @@ describe("table rows", () => {
     ...makeDoc(),
     blocks: {
       r: { type: "root", children: ["t"] },
-      t: { type: "table", attrs: { cols }, children: ["row"] },
+      t: {
+        type: "table",
+        columnOrder: Array.from({ length: cols }, (_, i) => `col${i}`),
+        children: ["row"],
+      },
       row: { type: "table-row", children: Array.from({ length: cells }, (_, i) => `c${i}`) },
       ...Object.fromEntries(
-        Array.from({ length: Math.max(cells, 0) }, (_, i) => [`c${i}`, { type: "table-cell" as const }])
+        Array.from({ length: Math.max(cells, 0) }, (_, i) => [
+          `c${i}`,
+          { type: "table-cell" as const, attrs: { columnId: `col${i}` } },
+        ])
       ),
     },
   });
 
-  it("requires exactly `cols` cells per row", () => {
-    expectError(tableWithRowCells(2, 1), "blocks.row.children", "exactly 2 cell(s)");
-    expectError(tableWithRowCells(2, 0), "blocks.row.children", "exactly 2 cell(s)");
-    expectError(tableWithRowCells(2, 3), "blocks.row.children", "exactly 2 cell(s)");
+  it("rejects an overfull row; a short row stands the concurrent column-insert residue", () => {
+    expectError(tableWithRowCells(2, 3), "blocks.row.children", "must not hold more than 2 cell(s)");
+    // A row with fewer cells than columns is a valid race residue (a row
+    // created before a concurrent column insert): the read stands the
+    // missing cells as placeholders.
+    expectValid(tableWithRowCells(2, 1));
     expectValid(tableWithRowCells(2, 2));
   });
 });

@@ -83,7 +83,7 @@ describe("applyMdPaste: the block materialization", () => {
     expect(blocks.map((b) => b.text)).toEqual(["a b c  d e  f\ng"]);
   });
 
-  it("the GFM table lands with the required cols attr (the separator row omitted)", () => {
+  it("the GFM table lands with its column set (the separator row omitted)", () => {
     const { doc, seat } = docWithParagraph("");
     const landing = applyMdPaste(doc, seat, 0, 0, "| a | **b** |\n| --- | --- |\n| 1 | 2 |");
     const blocks = rootBlocks(doc);
@@ -94,9 +94,9 @@ describe("applyMdPaste: the block materialization", () => {
     expect(landing).toEqual({ blockId: doc.getChildren(doc.meta.id)[1], offset: 0 });
     const table = blocks[0]!;
     expect(table.type).toBe("table");
-    expect(table.attrs.cols).toBe(2);
     const rows = doc.getChildren(doc.meta.id);
     const tableId = rows[0]!;
+    expect((doc.getBlock(tableId) as { columnOrder?: string[] }).columnOrder).toHaveLength(2);
     const rowIds = doc.getChildren(tableId);
     expect(rowIds).toHaveLength(2);
     // A cell is a mini-doc: its text stands in a child paragraph (not the

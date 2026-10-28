@@ -10,15 +10,16 @@
  */
 import * as Y from "yjs";
 
-import { DetachedBlockError, InvalidOperationError, InvalidRangeError } from "../../errors";
+import { DetachedBlockError, InvalidRangeError } from "../../errors";
 import { localTransact, writeBlock } from "../../layout";
 import { removeBlock } from "../blocks";
-import { getBlockMap, getBlocks, readCols } from "../structure";
+import { getBlockMap, getBlocks } from "../structure";
 import {
   assertCellColor,
   assertInsertIndex,
   cellsOf,
   clearBlockChildren,
+  columnOrderOf,
   convertToParagraph,
   readCellColor,
   rowOf,
@@ -40,10 +41,8 @@ import {
 function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, at?: number): string {
   const table = tableOf(ydoc, tableId);
   const rows = rowsOf(table, tableId);
-  const cols = readCols(ydoc, tableId);
-  if (cols === null) {
-    throw new InvalidOperationError(`Table "${tableId}" has no valid "cols" attribute.`);
-  }
+  const columnIds = columnOrderOf(table, tableId).toArray();
+  const cols = columnIds.length;
   const rowCount = rows.length;
   if (at !== undefined) assertInsertIndex(at, rowCount, "Row");
   const index = at ?? rowCount;
@@ -66,7 +65,7 @@ function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, 
       columnColors.push(color);
     }
     cellIds.forEach((cellId, ci) => {
-      writeBlock(blocks, cellId, { type: "table-cell" });
+      writeBlock(blocks, cellId, { type: "table-cell", attrs: { columnId: columnIds[ci]! } });
       const color = columnColors[ci]!;
       if (color !== null) setCellColor(ydoc, cellId, "columnColor", color);
     });

@@ -212,7 +212,7 @@ test("the rich table paste stands the native table (the cells' marks; the traili
     const doc = window.__paneDocs?.a;
     if (doc === undefined || doc === null) return null;
     const block = doc.getBlock(id);
-    return block === null ? null : ((block as { attrs?: { cols?: number } }).attrs?.cols ?? null);
+    return block === null ? null : ((block as { columnOrder?: string[] }).columnOrder?.length ?? null);
   }, tableId);
   expect(cols).toBe(2);
   const rows = (await a.evaluate((id) => {

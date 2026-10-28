@@ -41,11 +41,10 @@ describe("setGeometry", () => {
     doc.setGeometry(table, { x: 0, y: 0, w: 300, h: 200 });
 
     expect(doc.getBlock(p)).toEqual({ type: "paragraph", geometry: GEOMETRY });
-    expect(doc.getBlock(table)).toEqual({
-      type: "table",
-      attrs: { cols: 2 },
-      geometry: { x: 0, y: 0, w: 300, h: 200 },
-    });
+    const tableBlock = doc.getBlock(table) as { type: "table"; columnOrder: string[]; geometry: unknown };
+    expect(tableBlock.type).toBe("table");
+    expect(tableBlock.columnOrder).toHaveLength(2);
+    expect(tableBlock.geometry).toEqual({ x: 0, y: 0, w: 300, h: 200 });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 

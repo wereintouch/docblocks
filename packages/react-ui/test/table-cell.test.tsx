@@ -419,9 +419,9 @@ describe("the slash Table command", () => {
     const tableBlockId = Object.keys(doc.toJSON().blocks).find((key) => doc.getBlock(key)?.type === "table");
     expect(tableBlockId, "the table should be inserted").toBeDefined();
     const tableBlock = doc.getBlock(tableBlockId!);
-    const tableAttrs = (tableBlock as { attrs?: { cols?: number; columnWidths?: number[] } }).attrs;
-    expect(tableAttrs?.cols).toBe(2);
-    expect(tableAttrs?.columnWidths).toEqual([100, 100]);
+    const tableTable = tableBlock as { columnOrder?: string[]; attrs?: { columnWidths?: number[] } };
+    expect(tableTable.columnOrder).toHaveLength(2);
+    expect(tableTable.attrs?.columnWidths).toEqual([100, 100]);
     const rows = doc.getChildren(tableBlockId!);
     expect(rows).toHaveLength(2);
     for (const rowId of rows) {

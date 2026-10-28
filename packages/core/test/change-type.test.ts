@@ -109,7 +109,7 @@ describe("changeBlockType", () => {
     const doc = newDoc();
     const p = doc.insertBlock("paragraph");
     doc.insertText(p, 0, "kept");
-    expectThrows(() => doc.changeBlockType(p, "table", { cols: 2 }), InvalidOperationError);
+    expectThrows(() => doc.changeBlockType(p, "table", undefined), InvalidOperationError);
     expect(doc.getText(p)).toBe("kept");
   });
 

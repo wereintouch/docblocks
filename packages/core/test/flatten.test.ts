@@ -47,9 +47,9 @@ describe("flattenDoc — the page sequences", () => {
       p: { type: "paragraph", content: text("outer"), children: ["q", "t", "li"] },
       q: { type: "paragraph", content: text("mid"), children: ["deep"] },
       deep: { type: "heading", attrs: { level: 2 }, content: text("deep") },
-      t: { type: "table", attrs: { cols: 1 }, children: ["row"] },
+      t: { type: "table", columnOrder: ["col0"], children: ["row"] },
       row: { type: "table-row", children: ["cell"] },
-      cell: { type: "table-cell", content: text("cell") },
+      cell: { type: "table-cell", attrs: { columnId: "col0" }, content: text("cell") },
       li: { type: "list-item", attrs: list(), content: text("li") },
       after: { type: "paragraph", content: text("after") },
     });
@@ -61,7 +61,7 @@ describe("flattenDoc — the page sequences", () => {
     // The structural container is NOT expanded: the table stays one entry,
     // its internals untouched; like any inlined child it derives the indent
     // from the depth (the legacy form nested it under p).
-    expect(flat.blocks.t).toEqual({ type: "table", attrs: { cols: 1, indent: 1 }, children: ["row"] });
+    expect(flat.blocks.t).toEqual({ type: "table", columnOrder: ["col0"], attrs: { indent: 1 }, children: ["row"] });
     expect(flat.blocks.row).toEqual({ type: "table-row", children: ["cell"] });
     // A list item among the inlined content derives its indent too.
     expect((flat.blocks.li as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
@@ -72,13 +72,13 @@ describe("flattenDoc — the page sequences", () => {
   it("the cell mini-doc and the frame nested page flatten within their own sequences", () => {
     const input = doc({
       r: { type: "root", children: ["t", "s"] },
-      t: { type: "table", attrs: { cols: 2 }, children: ["row"] },
+      t: { type: "table", columnOrder: ["col0", "col1"], children: ["row"] },
       row: { type: "table-row", children: ["c1", "c2"] },
-      c1: { type: "table-cell", children: ["a", "b"] },
+      c1: { type: "table-cell", attrs: { columnId: "col0" }, children: ["a", "b"] },
       a: { type: "paragraph", content: text("a"), children: ["a1"] },
       a1: { type: "paragraph", content: text("a1") },
       b: { type: "paragraph", content: text("b") },
-      c2: { type: "table-cell", content: [] },
+      c2: { type: "table-cell", attrs: { columnId: "col1" }, content: [] },
       s: { type: "surface", children: ["f", "sh"] },
       f: { type: "frame", children: ["f1", "f2"] },
       f1: { type: "paragraph", content: text("f1") },
@@ -88,7 +88,7 @@ describe("flattenDoc — the page sequences", () => {
     });
     const flat = flattenDoc(input);
     // The cell sequence: a, its child, then b — within the cell.
-    expect(flat.blocks.c1).toEqual({ type: "table-cell", children: ["a", "a1", "b"] });
+    expect(flat.blocks.c1).toEqual({ type: "table-cell", attrs: { columnId: "col0" }, children: ["a", "a1", "b"] });
     expect((flat.blocks.a1 as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
     // The frame's nested page: f1, f2, its child — within the frame.
     expect(flat.blocks.f).toEqual({ type: "frame", children: ["f1", "f2", "f3"] });

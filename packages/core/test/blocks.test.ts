@@ -13,7 +13,7 @@ import {
   fromJSON,
 } from "../src/core";
 import type { Doc } from "../src/core";
-import type { BlockAttrsPatch, BlockType, CanvasRef, HeadingAttrs, ShapeAttrs } from "../src/schema";
+import type { BlockAttrsPatch, CanvasRef, HeadingAttrs, ShapeAttrs } from "../src/schema";
 import { validateDoc } from "../src/schema";
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -171,7 +171,7 @@ describe("insertBlock", () => {
 
   it("unknown type -> UnknownBlockTypeError", () => {
     const doc = newDoc();
-    const error = expectThrows(() => doc.insertBlock("bogus" as BlockType), UnknownBlockTypeError);
+    const error = expectThrows(() => (doc.insertBlock as (type: string) => string)("bogus"), UnknownBlockTypeError);
     expect(error.message).toContain("bogus");
   });
 

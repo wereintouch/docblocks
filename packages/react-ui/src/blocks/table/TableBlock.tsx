@@ -92,8 +92,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // preview overrides the dragged column locally — no wire traffic until
   // the release commits the width).
   const docWidths = Array.from(
-    { length: block.attrs.cols },
-    (_, index) => block.attrs.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH
+    { length: block.columnOrder.length },
+    (_, index) => block.attrs?.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH
   );
   const [resizePreview, setResizePreview] = useState<{ col: number; width: number } | null>(null);
   const widths =
@@ -191,14 +191,14 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     const table = tableEl();
     const startSize =
       kind === "column"
-        ? (block.attrs.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH)
+        ? (block.attrs?.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH)
         : (table?.querySelectorAll<HTMLTableRowElement>("tbody > tr")[index]?.offsetHeight ?? 0);
     sessionRef.current = {
       kind,
       index,
       rowId: kind === "row" ? (rows[index] ?? "") : "",
-      cols: block.attrs.cols,
-      widths: block.attrs.columnWidths ?? null,
+      cols: block.columnOrder.length,
+      widths: block.attrs?.columnWidths ?? null,
       rowIds: [...rows],
       startX: event.clientX,
       startY: event.clientY,
@@ -221,7 +221,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     if (live === null || live.type !== "table") return null;
     const rect = table.getBoundingClientRect();
     const resolved =
-      live.attrs.columnWidths ?? Array.from({ length: live.attrs.cols }, () => DEFAULT_TABLE_COLUMN_WIDTH);
+      live.attrs?.columnWidths ?? Array.from({ length: live.columnOrder.length }, () => DEFAULT_TABLE_COLUMN_WIDTH);
     const stationary = resolved.filter((_, i) => i !== excludeIndex);
     const position = columnDropPosition(stationary, clientX - rect.left);
     return position;
@@ -350,8 +350,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
       startY: event.clientY,
       dragging: false,
       rows: [...rows],
-      cols: block.attrs.cols,
-      widths: block.attrs.columnWidths ?? null,
+      cols: block.columnOrder.length,
+      widths: block.attrs?.columnWidths ?? null,
     };
   };
 
@@ -402,8 +402,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     const live = doc.getBlock(id);
     if (live === null || live.type !== "table") return;
     if (!sameSequence(doc.getChildren(id), session.rows)) return;
-    if (live.attrs.cols !== session.cols) return;
-    if (session.kind === "column" && !sameSequence(live.attrs.columnWidths ?? [], session.widths ?? [])) return;
+    if (live.columnOrder.length !== session.cols) return;
+    if (session.kind === "column" && !sameSequence(live.attrs?.columnWidths ?? [], session.widths ?? [])) return;
     try {
       doc.transact(() => {
         const current = doc.getBlock(id);
@@ -505,8 +505,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         // A concurrent structural change (the cols count or the width
         // sequence) invalidates the drop: the column identity stands on the
         // position + its width, and a peer restructure breaks both.
-        const liveWidths = live.attrs.columnWidths ?? null;
-        if (live.attrs.cols !== session.cols || !sameSequence(liveWidths ?? [], session.widths ?? [])) return;
+        const liveWidths = live.attrs?.columnWidths ?? null;
+        if (live.columnOrder.length !== session.cols || !sameSequence(liveWidths ?? [], session.widths ?? [])) return;
         const toIndex = columnToIndexAt(clientX, session.index);
         if (toIndex !== null && toIndex !== session.index) {
           // The visible landing slot S → the doc's pre-move target index
@@ -646,7 +646,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // at the index re-anchored onto a different row/column would act on the
   // wrong target). Local menu actions close the menu through the selection
   // before the doc changes, so this fires on concurrent changes only.
-  const structureKey = `${block.attrs.cols}:${rows.join(",")}`;
+  const structureKey = `${block.columnOrder.length}:${rows.join(",")}`;
   const prevStructureKey = useRef(structureKey);
   useLayoutEffect(() => {
     if (menu !== null && prevStructureKey.current !== structureKey) setMenu(null);
@@ -701,7 +701,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                   ? Array.from({ length: addPreview.count }, (_, i) => (
                       <tr key={`ghost-row-${i}`} aria-hidden data-slot="docblocks/table-ghost-row">
                         <td
-                          colSpan={block.attrs.cols}
+                          colSpan={block.columnOrder.length}
                           className="
                             border-(length:--docblocks-table-border-width) border-dashed
                             border-(--docblocks-table-border-color) bg-muted/40
@@ -922,7 +922,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
           className="pointer-events-none absolute top-0.5 left-1.5 text-xs text-(--muted-foreground) select-none"
         >
           {`${
-            addPreview.kind === "column" ? block.attrs.cols + addPreview.count : block.attrs.cols
+            addPreview.kind === "column" ? block.columnOrder.length + addPreview.count : block.columnOrder.length
           } × ${addPreview.kind === "row" ? rows.length + addPreview.count : rows.length}`}
         </div>
       ) : null}

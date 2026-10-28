@@ -186,7 +186,7 @@ describe("deleteText", () => {
     const cell = doc2.insertBlock("table-cell", undefined, { parent: row });
     doc2.insertText(cell, 0, "x");
     doc2.deleteText(cell, 0, 1);
-    expect(doc2.toJSON().blocks[cell]).toEqual({ type: "table-cell", content: [] });
+    expect(doc2.toJSON().blocks[cell]).toMatchObject({ type: "table-cell", content: [] });
   });
 
   it("from === to is a no-op; invalid ranges throw typed errors", () => {

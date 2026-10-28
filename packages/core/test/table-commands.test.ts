@@ -81,12 +81,13 @@ describe("the table schema extensions", () => {
         x: { type: "root", children: [table] },
         [table]: {
           type: "table",
-          attrs: { cols: 2, columnWidths: [50] },
+          columnOrder: ["col0", "col1"],
+          attrs: { columnWidths: [50] },
           children: [rowIds[0]!],
         },
         [rowIds[0]!]: { type: "table-row", children: ["c1", "c2"] },
-        c1: { type: "table-cell", attrs: { rowColor: "nope" }, content: [], children: [] },
-        c2: { type: "table-cell", content: [], children: [] },
+        c1: { type: "table-cell", attrs: { columnId: "col0", rowColor: "nope" }, content: [], children: [] },
+        c2: { type: "table-cell", attrs: { columnId: "col1" }, content: [], children: [] },
       },
     } as DocJSON;
     const paths = validateDoc(json).map((error) => error.path);
@@ -98,7 +99,7 @@ describe("the table schema extensions", () => {
 /** A cell's attrs (undefined when the cell carries none). */
 const cellAttrs = (doc: Doc, cellId: string) => {
   const block = doc.getBlock(cellId)!;
-  return "attrs" in block ? block.attrs : undefined;
+  return block.type === "table-cell" ? block.attrs : undefined;
 };
 
 /** The table attrs of a (still-table) block id. */
@@ -110,7 +111,7 @@ const tableAttrs = (doc: Doc, tableId: string) => {
 /** The table's columnWidths (undefined for a non-table or an absent attr). */
 const tableColumnWidths = (doc: Doc, tableId: string): number[] | undefined => {
   const block = doc.getBlock(tableId)!;
-  return block.type === "table" ? block.attrs.columnWidths : undefined;
+  return block.type === "table" ? block.attrs?.columnWidths : undefined;
 };
 
 describe("the table row commands", () => {
@@ -152,13 +153,13 @@ describe("the table row commands", () => {
     const row = doc.insertTableRow(table, 1);
     const cells = cellsOf(doc, row);
     expect(cellAttrs(doc, cells[0]!)).toMatchObject({ columnColor: "#112233" });
-    // A column without a color writes no attr (the second column stands plain).
-    expect(cellAttrs(doc, cells[1]!)).toBeUndefined();
+    // A column without a color writes no color attr (the second column stands plain).
+    expect(cellAttrs(doc, cells[1]!)?.columnColor).toBeUndefined();
     expect(cellAttrs(doc, cells[2]!)).toMatchObject({ columnColor: "#445566" });
-    // A table without column colors inherits none (no attr is written).
+    // A table without column colors inherits none (no color attr is written).
     const { table: plainTable } = buildTable(doc, 2, 1);
     const plain = doc.insertTableRow(plainTable);
-    for (const cell of cellsOf(doc, plain)) expect(cellAttrs(doc, cell)).toBeUndefined();
+    for (const cell of cellsOf(doc, plain)) expect(cellAttrs(doc, cell)?.columnColor).toBeUndefined();
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
@@ -245,9 +246,9 @@ describe("the table row commands", () => {
     const cells = cellsOf(doc, rowIds[0]!);
     expect(cellAttrs(doc, cells[0]!)).toMatchObject({ rowColor: "#123456" });
     expect(cellAttrs(doc, cells[1]!)).toMatchObject({ rowColor: "#123456" });
-    expect(cellAttrs(doc, cellsOf(doc, rowIds[1]!)[0]!)).toBeUndefined();
+    expect(cellAttrs(doc, cellsOf(doc, rowIds[1]!)[0]!)?.rowColor).toBeUndefined();
     doc.setTableRowColor(table, rowIds[0]!, null);
-    expect(cellAttrs(doc, cells[0]!)).toBeUndefined();
+    expect(cellAttrs(doc, cells[0]!)?.rowColor).toBeUndefined();
   });
 
   it("every row command is one undo step", () => {
@@ -274,7 +275,7 @@ describe("the table column commands", () => {
     const { table, rowIds } = buildTable(doc, 2, 2);
     doc.setTableColumnWidth(table, 0, 150);
     doc.insertTableColumn(table, 1);
-    expect(tableAttrs(doc, table)).toMatchObject({ cols: 3, columnWidths: [150, 100, 100] });
+    expect(tableAttrs(doc, table)).toMatchObject({ columnWidths: [150, 100, 100] });
     for (const row of rowIds) expect(cellsOf(doc, row)).toHaveLength(3);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
@@ -284,7 +285,7 @@ describe("the table column commands", () => {
     const { table } = buildTable(doc, 2, 2);
     doc.setTableColumnWidth(table, 0, 150);
     doc.insertTableColumn(table, 0);
-    expect(tableAttrs(doc, table)).toMatchObject({ cols: 3, columnWidths: [100, 150, 100] });
+    expect(tableAttrs(doc, table)).toMatchObject({ columnWidths: [100, 150, 100] });
   });
 
   it("insertTableColumn rejects an out-of-range position", () => {
@@ -298,7 +299,7 @@ describe("the table column commands", () => {
     const doc = newDoc();
     const { table, rowIds } = buildTable(doc, 2, 2);
     doc.insertTableColumn(table);
-    expect(tableAttrs(doc, table)).toMatchObject({ cols: 3, columnWidths: [100, 100, 100] });
+    expect(tableAttrs(doc, table)).toMatchObject({ columnWidths: [100, 100, 100] });
     expect(cellsOf(doc, rowIds[0]!)).toHaveLength(3);
   });
 
@@ -310,7 +311,7 @@ describe("the table column commands", () => {
     doc.insertTableColumn(table, 1);
     const rowCells = rowIds.map((row) => cellsOf(doc, row));
     expect(cellAttrs(doc, rowCells[0]![1]!)).toMatchObject({ rowColor: "#778899" });
-    expect(cellAttrs(doc, rowCells[1]![1]!)).toBeUndefined();
+    expect(cellAttrs(doc, rowCells[1]![1]!)?.rowColor).toBeUndefined();
     expect(cellAttrs(doc, rowCells[2]![1]!)).toMatchObject({ rowColor: "#aabbcc" });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
@@ -324,7 +325,7 @@ describe("the table column commands", () => {
     const removedCells = rowIds.map((row) => cellsOf(doc, row)[1]!);
     seedCell(doc, removedCells[0]!, "gone");
     doc.removeTableColumn(table, 1);
-    expect(tableAttrs(doc, table)).toMatchObject({ cols: 2, columnWidths: [120, 160] });
+    expect(tableAttrs(doc, table)).toMatchObject({ columnWidths: [120, 160] });
     for (const row of rowIds) expect(cellsOf(doc, row)).toHaveLength(2);
     for (const cell of removedCells) expect(doc.getBlock(cell)).toBeNull();
   });
@@ -358,12 +359,13 @@ describe("the table column commands", () => {
     expectThrows(() => doc.moveTableColumn(table, 0, 4), InvalidRangeError);
   });
 
-  it("moveTableColumn over an absent columnWidths moves only the cells", () => {
+  it("moveTableColumn moves the width entry with the column", () => {
     const doc = newDoc();
     const { table, rowIds } = buildTable(doc, 3, 2);
+    doc.setTableColumnWidth(table, 0, 150);
+    doc.setTableColumnWidth(table, 2, 160);
     doc.moveTableColumn(table, 2, 0);
-    expect(tableAttrs(doc, table)).toMatchObject({ cols: 3 });
-    expect(tableColumnWidths(doc, table)).toBeUndefined();
+    expect(tableColumnWidths(doc, table)).toEqual([160, 150, 100]);
     for (const row of rowIds) expect(cellsOf(doc, row)).toHaveLength(3);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
@@ -376,7 +378,7 @@ describe("the table column commands", () => {
     doc.setTableColumnColor(table, 0, "#111111");
     for (const cell of sourceCells) seedCell(doc, cell, "copy me");
     doc.duplicateTableColumn(table, 0);
-    expect(tableAttrs(doc, table)).toMatchObject({ cols: 3, columnWidths: [130, 130, 100] });
+    expect(tableAttrs(doc, table)).toMatchObject({ columnWidths: [130, 130, 100] });
     for (const row of rowIds) {
       const cells = cellsOf(doc, row);
       expect(doc.getText(doc.getChildren(cells[1]!)[0]!)).toBe("copy me");
@@ -409,11 +411,11 @@ describe("the table column commands", () => {
     for (const row of rowIds) {
       const cells = cellsOf(doc, row);
       expect(cellAttrs(doc, cells[1]!)).toMatchObject({ columnColor: "#222222" });
-      expect(cellAttrs(doc, cells[0]!)).toBeUndefined();
+      expect(cellAttrs(doc, cells[0]!)?.columnColor).toBeUndefined();
     }
     doc.setTableColumnColor(table, 1, null);
     for (const row of rowIds) {
-      expect(cellAttrs(doc, cellsOf(doc, row)[1]!)).toBeUndefined();
+      expect(cellAttrs(doc, cellsOf(doc, row)[1]!)?.columnColor).toBeUndefined();
     }
     expectThrows(() => doc.setTableColumnColor(table, 5, "#123456"), InvalidRangeError);
   });
@@ -429,13 +431,13 @@ describe("the table column commands", () => {
     expectThrows(() => doc.setTableColumnWidth(table, 0, Number.NaN), InvalidAttrsError);
   });
 
-  it("setTableColumnWidth to the default value does not materialize the array (zero-byte no-op)", () => {
+  it("setTableColumnWidth to the standing value is a zero-byte no-op", () => {
     const doc = newDoc();
     const { table } = buildTable(doc, 2, 1);
     const bytes = doc.encode().byteLength;
     doc.setTableColumnWidth(table, 0, 100);
     expect(doc.encode().byteLength).toBe(bytes);
-    expect(tableColumnWidths(doc, table)).toBeUndefined();
+    expect(tableColumnWidths(doc, table)).toEqual([100, 100]);
   });
 
   it("every column command is one undo step", () => {

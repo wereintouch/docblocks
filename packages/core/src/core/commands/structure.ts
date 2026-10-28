@@ -49,14 +49,13 @@ function childrenOf(ydoc: Y.Doc, id: string): Y.Array<string> | null {
   return children instanceof Y.Array ? (children as Y.Array<string>) : null;
 }
 
-/** The table's `cols` attr; null when the block or the attr is missing/corrupt. */
+/** The table's column count: the `columnOrder` length (the single source of the column set); null when the block or the order is missing/corrupt. */
 function readCols(ydoc: Y.Doc, id: string): number | null {
   const block = getBlockMap(ydoc, id);
   if (!block) return null;
-  const attrs = block.get("attrs");
-  if (!(attrs instanceof Y.Map)) return null;
-  const cols = attrs.get("cols");
-  return typeof cols === "number" && Number.isInteger(cols) ? cols : null;
+  const columnOrder = block.get("columnOrder");
+  if (!(columnOrder instanceof Y.Array)) return null;
+  return columnOrder.length;
 }
 
 /** The block's effective `indent` (absent or corrupt is 0). */

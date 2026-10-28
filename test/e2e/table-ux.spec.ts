@@ -82,7 +82,7 @@ async function tableSnapshot(page: Page, client: "a" | "b", tableId: string): Pr
         });
       });
       return {
-        cols: table.attrs?.cols as number | undefined,
+        cols: table.columnOrder?.length,
         widths: table.attrs?.columnWidths as number[] | undefined,
         rows,
       };

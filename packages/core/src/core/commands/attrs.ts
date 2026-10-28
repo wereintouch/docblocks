@@ -43,21 +43,6 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
     throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);
   }
 
-  // A table's `cols` must stay equal to every existing row's cell count; a
-  // table with no rows accepts any valid value.
-  if (type === "table" && patch.cols !== undefined) {
-    const rows = childrenOf(ydoc, id);
-    for (const rowId of rows !== null ? rows.toArray() : []) {
-      const cells = childrenOf(ydoc, rowId);
-      const count = cells !== null ? cells.toArray().length : 0;
-      if (count !== patch.cols) {
-        throw new InvalidOperationError(
-          `New cols ${patch.cols} does not match row "${rowId}" (it has ${count} cells).`
-        );
-      }
-    }
-  }
-
   // A database's post-patch columns must keep the strict invariants against
   // the existing rows (like a table's cols against its row cell counts);
   // a post-patch `tableId` (the external form) must keep them too — the

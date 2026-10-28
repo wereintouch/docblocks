@@ -43,7 +43,13 @@ type ChangeBlockTypeArgs<T extends BlockType> =
  * carried over, the patch overrides them, and type-specific attrs are
  * dropped.
  */
-function changeBlockType(ydoc: Y.Doc, id: string, type: BlockType, attrs: unknown): void {
+function changeBlockType(
+  ydoc: Y.Doc,
+  generateId: (() => string) | undefined,
+  id: string,
+  type: BlockType,
+  attrs: unknown
+): void {
   const currentType = blockTypeOf(ydoc, id);
   if (currentType === null) throw new UnknownBlockError(`Unknown block "${id}".`);
   if (currentType === "root") throw new InvalidOperationError("The root block's type cannot be changed.");
@@ -185,6 +191,52 @@ function changeBlockType(ydoc: Y.Doc, id: string, type: BlockType, attrs: unknow
     if (!to.rows && from.rows) {
       block.delete("rows");
       block.delete("rowOrder");
+    }
+
+    // The columnOrder is created fresh for a columnOrder-less -> columnOrder
+    // step and deleted for a columnOrder -> columnOrder-less step (the table
+    // -> paragraph conversion drops the column set), like rows/rowOrder. The
+    // patch's columnWidths, if any, stand identity-keyed alongside it (the
+    // initial column count is merged.columnWidths' length when the patch
+    // carries it, one column otherwise; an absent key stands the default
+    // width at read time).
+    if (to.columnOrder && !from.columnOrder) {
+      if (generateId === undefined) {
+        throw new InvalidOperationError(
+          `Cannot change the block type to "table": creating the column set requires the document's id generator.`
+        );
+      }
+      const patchWidths = Array.isArray(merged.columnWidths) ? merged.columnWidths : [];
+      const columnOrder = new Y.Array<string>();
+      const columnIds: string[] = [];
+      for (let i = 0; i < Math.max(1, patchWidths.length); i++) {
+        const columnId = generateId();
+        columnOrder.push([columnId]);
+        columnIds.push(columnId);
+      }
+      block.set("columnOrder", columnOrder);
+      // The patch's widths stand identity-keyed (columnId → width). Count
+      // the plain entries, not the map's size: an unattached Y.Map reports
+      // size 0 until it is integrated into the doc.
+      const widthEntries: Array<[string, number]> = [];
+      columnIds.forEach((columnId, i) => {
+        const value = patchWidths[i];
+        if (typeof value === "number" && Number.isFinite(value)) widthEntries.push([columnId, value]);
+      });
+      if (widthEntries.length > 0) {
+        const widths = new Y.Map<unknown>();
+        for (const [columnId, value] of widthEntries) widths.set(columnId, value);
+        const attrs = block.get("attrs");
+        if (attrs instanceof Y.Map) attrs.set("columnWidths", widths);
+        else {
+          const fresh = new Y.Map<unknown>();
+          fresh.set("columnWidths", widths);
+          block.set("attrs", fresh);
+        }
+      }
+    }
+    if (!to.columnOrder && from.columnOrder) {
+      block.delete("columnOrder");
     }
 
     // The surface's z-order (the dense zIndex over the canvas elements) must

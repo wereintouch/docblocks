@@ -62,15 +62,15 @@ describe("fromJSON / toJSON round-trip", () => {
       makeDocJSON({
         r: { type: "root", children: ["p", "t"] },
         p: { type: "paragraph", content: [{ text: "", marks: {} }] },
-        t: { type: "table", attrs: { cols: 2 }, children: ["row"] },
+        t: { type: "table", columnOrder: ["col1", "col2"], children: ["row"] },
         row: { type: "table-row", children: ["c1", "c2"] },
-        c1: { type: "table-cell", content: [] },
-        c2: { type: "table-cell" },
+        c1: { type: "table-cell", attrs: { columnId: "col1" }, content: [] },
+        c2: { type: "table-cell", attrs: { columnId: "col2" } },
       })
     );
     expect(doc.toJSON().blocks.p).toEqual({ type: "paragraph" });
-    expect(doc.toJSON().blocks.c1).toEqual({ type: "table-cell", content: [] });
-    expect(doc.toJSON().blocks.c2).toEqual({ type: "table-cell", content: [] });
+    expect(doc.toJSON().blocks.c1).toEqual({ type: "table-cell", attrs: { columnId: "col1" }, content: [] });
+    expect(doc.toJSON().blocks.c2).toEqual({ type: "table-cell", attrs: { columnId: "col2" }, content: [] });
   });
 
   it("throws the validateDoc errors as-is on invalid input", () => {

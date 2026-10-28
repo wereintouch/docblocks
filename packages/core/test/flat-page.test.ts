@@ -263,11 +263,14 @@ describe("the flat page model (commands)", () => {
   it("structural contexts keep their moves (the jump rule is page-sequence only)", () => {
     const doc = newDoc();
     const table = doc.insertBlock("table", { cols: 2 });
-    const row = doc.insertBlock("table-row", undefined, { parent: table });
-    const c1 = doc.insertBlock("table-cell", undefined, { parent: row });
-    const c2 = doc.insertBlock("table-cell", undefined, { parent: row });
-    doc.moveBlock(c2, row, 0); // a cell move: no jump check (structural order)
-    expect(doc.getChildren(row)).toEqual([c2, c1]);
+    const r1 = doc.insertBlock("table-row", undefined, { parent: table });
+    doc.insertBlock("table-cell", undefined, { parent: r1 });
+    doc.insertBlock("table-cell", undefined, { parent: r1 });
+    const r2 = doc.insertBlock("table-row", undefined, { parent: table });
+    doc.insertBlock("table-cell", undefined, { parent: r2 });
+    doc.insertBlock("table-cell", undefined, { parent: r2 });
+    doc.moveBlock(r2, table, 0); // a row move: no jump check (structural order)
+    expect(doc.getChildren(table)).toEqual([r2, r1]);
   });
 
   it("changeBlockType keeps the indent-jump rule for the post-change attrs", () => {
@@ -374,9 +377,9 @@ describe("the legacy shape (eager normalization at load)", () => {
       q: { type: "paragraph", content: [{ text: "n", marks: {} }] },
       li: { type: "list-item", attrs: { list: "bullet" }, children: ["li2"] },
       li2: { type: "list-item", attrs: { list: "bullet", indent: 0 } },
-      t: { type: "table", attrs: { cols: 1 }, children: ["row"] },
+      t: { type: "table", columnOrder: ["col0"], children: ["row"] },
       row: { type: "table-row", children: ["cell"] },
-      cell: { type: "table-cell", children: ["cp", "cq"] },
+      cell: { type: "table-cell", attrs: { columnId: "col0" }, children: ["cp", "cq"] },
       cp: { type: "paragraph", content: [{ text: "cell p", marks: {} }], children: ["cr"] },
       cr: { type: "paragraph", content: [{ text: "cell n", marks: {} }] },
       cq: { type: "callout", content: [{ text: "cell q", marks: {} }] },
@@ -395,9 +398,9 @@ describe("the legacy shape (eager normalization at load)", () => {
       q: { type: "paragraph", content: [{ text: "n", marks: {} }], attrs: { indent: 1 } },
       li: { type: "list-item", attrs: { list: "bullet" } },
       li2: { type: "list-item", attrs: { list: "bullet", indent: 1 } },
-      t: { type: "table", attrs: { cols: 1 }, children: ["row"] },
+      t: { type: "table", columnOrder: ["col0"], children: ["row"] },
       row: { type: "table-row", children: ["cell"] },
-      cell: { type: "table-cell", children: ["cp", "cr", "cq"] },
+      cell: { type: "table-cell", attrs: { columnId: "col0" }, children: ["cp", "cr", "cq"] },
       cp: { type: "paragraph", content: [{ text: "cell p", marks: {} }] },
       cr: { type: "paragraph", content: [{ text: "cell n", marks: {} }], attrs: { indent: 1 } },
       cq: { type: "callout", content: [{ text: "cell q", marks: {} }] },

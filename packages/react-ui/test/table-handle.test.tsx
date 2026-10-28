@@ -183,12 +183,12 @@ describe("the handle menu (the press without a drag)", () => {
     const after = doc.getBlock(tableId);
     expect(after !== null && after.type === "table").toBe(true);
     if (after !== null && after.type === "table") {
-      expect(after.attrs.cols).toBe(3);
-      expect(after.attrs.columnWidths).toEqual([120, 100, 80]);
+      expect(after.columnOrder.length).toBe(3);
+      expect(after.attrs?.columnWidths).toEqual([120, 100, 80]);
     }
     doc.undo();
     const restored = doc.getBlock(tableId);
-    expect(restored !== null && restored.type === "table" && restored.attrs.cols === 2).toBe(true);
+    expect(restored !== null && restored.type === "table" && restored.columnOrder.length === 2).toBe(true);
   });
 
   it("the swatch sets the column color (one undo step) and the remove item appears", () => {
@@ -312,11 +312,11 @@ describe("the handle drag (the press-drag-release commits the move)", () => {
     expect(after !== null && after.type === "table").toBe(true);
     if (after !== null && after.type === "table") {
       // The dragged column (111 px) stands last.
-      expect(after.attrs.columnWidths).toEqual([100, 100, 111]);
+      expect(after.attrs?.columnWidths).toEqual([100, 100, 111]);
     }
     doc.undo();
     const restored = doc.getBlock(tableId);
-    expect(restored !== null && restored.type === "table" && restored.attrs.columnWidths).toEqual([111, 100, 100]);
+    expect(restored !== null && restored.type === "table" && restored.attrs?.columnWidths).toEqual([111, 100, 100]);
   });
 
   it("the dragged chip follows the pointer on its own axis (column: left, row: top)", () => {
@@ -349,7 +349,7 @@ describe("the handle drag (the press-drag-release commits the move)", () => {
     const { doc, tableId } = renderTableDoc(3, 2, [111, 100, 100]);
     press(colHandle(0), { x: 10, y: 0 });
     const after = doc.getBlock(tableId);
-    expect(after !== null && after.type === "table" && after.attrs.columnWidths).toEqual([111, 100, 100]);
+    expect(after !== null && after.type === "table" && after.attrs?.columnWidths).toEqual([111, 100, 100]);
   });
 
   it("a stale drop (a concurrent structural change) issues no command", () => {
@@ -364,7 +364,7 @@ describe("the handle drag (the press-drag-release commits the move)", () => {
     if (after !== null && after.type === "table") {
       // The insertion stands; the move was dropped (the widths are the
       // insert-appended sequence, the dragged column in its place).
-      expect(after.attrs.columnWidths).toEqual([111, 100, 100, 100]);
+      expect(after.attrs?.columnWidths).toEqual([111, 100, 100, 100]);
     }
   });
 
