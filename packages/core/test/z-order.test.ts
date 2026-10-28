@@ -144,28 +144,27 @@ describe("the dense zIndex invariant (the strict validator)", () => {
   it("rejects a non-dense zIndex (a gap)", () => {
     const doc = newDoc();
     const { ids } = surfaceWith(doc, ["rect", "ellipse", "rect"]);
-    // A raw write that breaks the dense invariant (a gap).
     const targetId = ids[1] as string;
-    doc.raw.transact(() => {
-      const block = doc.raw.getMap("blocks").get(targetId) as Y.Map<unknown>;
-      (block.get("attrs") as Y.Map<unknown>).set("zIndex", 9);
-    });
-    const error = validateDoc(doc.toJSON()).find((e) => e.path === `blocks.${targetId}.attrs.zIndex`);
+    // The read path derives the dense index, so the stored value is always
+    // dense in a snapshot. The validator's dense check stands on a raw JSON
+    // (a gap) — corrupt the snapshot directly and validate it.
+    const json = doc.toJSON();
+    const block = json.blocks[targetId] as unknown as { attrs: Record<string, unknown> };
+    block.attrs.zIndex = 9;
+    const error = validateDoc(json).find((e) => e.path === `blocks.${targetId}.attrs.zIndex`);
     expect(error?.message).toContain("dense");
   });
 
   it("rejects a mixed set (some with a zIndex, some without)", () => {
     const doc = newDoc();
-    const { surface, ids } = surfaceWith(doc, ["rect", "ellipse"]);
+    const { ids } = surfaceWith(doc, ["rect", "ellipse"]);
     const a = ids[0] as string;
-    // Drop the first element's zIndex (a mixed set).
-    doc.raw.transact(() => {
-      const block = doc.raw.getMap("blocks").get(a) as Y.Map<unknown>;
-      (block.get("attrs") as Y.Map<unknown>).delete("zIndex");
-    });
-    const error = validateDoc(doc.toJSON()).find((e) => e.path === `blocks.${a}.attrs.zIndex`);
+    // Drop the first element's zIndex in the snapshot (a mixed set).
+    const json = doc.toJSON();
+    const block = json.blocks[a] as unknown as { attrs: Record<string, unknown> };
+    delete block.attrs.zIndex;
+    const error = validateDoc(json).find((e) => e.path === `blocks.${a}.attrs.zIndex`);
     expect(error?.message).toContain("all carry a zIndex");
-    expect(surface).toBeDefined();
   });
 
   it("a surface with no zIndex at all is the legacy form (valid)", () => {

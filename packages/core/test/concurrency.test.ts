@@ -494,7 +494,7 @@ describe("concurrent moves keep a single owner", () => {
   /** The container ids (from the JSON children) that list `blockId`. */
   const ownersOf = (json: DocJSON, blockId: string): string[] =>
     Object.entries(json.blocks)
-      .filter(([, block]) => (block.children ?? []).includes(blockId))
+      .filter(([, block]) => ((block as { children?: readonly string[] }).children ?? []).includes(blockId))
       .map(([parentId]) => parentId);
 
   const twoFrames = (a: Doc, surface: string) => {
@@ -513,7 +513,7 @@ describe("concurrent moves keep a single owner", () => {
     exchange(a, b);
     const owners = ownersOf(a.toJSON(), blockId);
     expect(owners).toHaveLength(1);
-    expect([frameA, frameB]).toContain(owners[0]);
+    expect([frameA, frameB]).toContain(owners[0]!);
     expect(validateDoc(a.toJSON())).toEqual([]);
   });
 
@@ -525,7 +525,7 @@ describe("concurrent moves keep a single owner", () => {
     a.moveBlock(blockId, frameA, 0);
     b.moveBlock(blockId, frameB, 0);
     exchange(a, b);
-    const owner = ownersOf(a.toJSON(), blockId)[0];
+    const owner = ownersOf(a.toJSON(), blockId)[0]!;
     const loser = owner === frameA ? frameB : frameA;
     a.removeBlock(loser);
     expect(a.getBlock(blockId)).not.toBeNull();
@@ -541,7 +541,7 @@ describe("concurrent moves keep a single owner", () => {
     a.moveBlock(blockId, frameA, 0);
     b.moveBlock(blockId, frameB, 0);
     exchange(a, b);
-    const owner = ownersOf(a.toJSON(), blockId)[0];
+    const owner = ownersOf(a.toJSON(), blockId)[0]!;
     a.removeBlock(owner);
     expect(a.getBlock(blockId)).toBeNull();
     expect(validateDoc(a.toJSON())).toEqual([]);
@@ -572,6 +572,90 @@ describe("concurrent moves keep a single owner", () => {
     expect(validateDoc(json)).toEqual([]);
     expect(ownersOf(json, blockId)).toHaveLength(1);
     expect(reloaded.getText(blockId)).toBe("moved block");
+    expect(json).toEqual(a.toJSON());
+  });
+});
+
+/**
+ *acceptance: the surface's children order is the single source of the
+ * z-order, and the dense `zIndex` is derived from it at read time (and on
+ * load). Concurrent inserts / removes / reorders of canvas elements keep a
+ * valid order; the snapshot after each merge passes validateDoc and loadDoc.
+ */
+describe("concurrent canvas z-order keeps a valid order", () => {
+  const seedSurface = (id: string): { a: Doc; surface: string } => {
+    const a = createDoc({ id });
+    const surface = a.insertBlock("surface");
+    return { a, surface };
+  };
+  const fork = (d: Doc): Doc => loadDoc(d.encode());
+  const exchange = (a: Doc, b: Doc): void => {
+    const aBytes = a.encode();
+    const bBytes = b.encode();
+    a.applyUpdate(bBytes);
+    b.applyUpdate(aBytes);
+  };
+  const zIndexOf = (json: DocJSON, blockId: string): number | undefined =>
+    (json.blocks[blockId] as { attrs?: { zIndex?: number } })?.attrs?.zIndex;
+  const canvasChildrenOf = (json: DocJSON, surfaceId: string): string[] =>
+    ((json.blocks[surfaceId] as { children?: string[] }).children ?? []).filter((childId) => {
+      const type = (json.blocks[childId] as { type?: string }).type;
+      return type === "shape" || type === "connector" || type === "canvas-text" || type === "group";
+    });
+
+  it("two concurrent inserts yield a dense zIndex and a reloadable snapshot", () => {
+    const { a, surface } = seedSurface("f03-insert");
+    const b = fork(a);
+    const shapeA = a.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const shapeB = b.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    exchange(a, b);
+    const json = a.toJSON();
+    expect(validateDoc(json)).toEqual([]);
+    expect(() => loadDoc(a.encode())).not.toThrow();
+    // Dense 1..N over the two shapes (derived from the merged children order).
+    const zIndexes = [shapeA, shapeB].map((id) => zIndexOf(json, id)).sort();
+    expect(zIndexes).toEqual([1, 2]);
+  });
+
+  it("a concurrent insert and remove keep a valid order", () => {
+    const { a, surface } = seedSurface("f03-rm");
+    const first = a.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const b = fork(a);
+    a.removeBlock(first);
+    b.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    exchange(a, b);
+    expect(validateDoc(a.toJSON())).toEqual([]);
+    expect(() => loadDoc(a.encode())).not.toThrow();
+  });
+
+  it("a concurrent reorder keeps a dense order and a valid snapshot", () => {
+    const { a, surface } = seedSurface("f03-reorder");
+    const s1 = a.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    a.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const s3 = a.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    const b = fork(a);
+    a.setZOrder(s1, "toFront");
+    b.setZOrder(s3, "toBack");
+    exchange(a, b);
+    const json = a.toJSON();
+    expect(validateDoc(json)).toEqual([]);
+    expect(() => loadDoc(a.encode())).not.toThrow();
+    const ids = canvasChildrenOf(json, surface);
+    const zIndexes = ids.map((id) => zIndexOf(json, id));
+    expect(zIndexes).toEqual([1, 2, 3]);
+  });
+
+  it("the merged state reloads with the same dense zIndex", () => {
+    const { a, surface } = seedSurface("f03-reload");
+    const b = fork(a);
+    const shapeA = a.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const shapeB = b.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    exchange(a, b);
+    const before = [shapeA, shapeB].map((id) => zIndexOf(a.toJSON(), id)).sort();
+    const reloaded = loadDoc(a.encode());
+    const json = reloaded.toJSON();
+    expect(validateDoc(json)).toEqual([]);
+    expect([shapeA, shapeB].map((id) => zIndexOf(json, id)).sort()).toEqual(before);
     expect(json).toEqual(a.toJSON());
   });
 });

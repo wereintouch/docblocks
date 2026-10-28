@@ -11,11 +11,12 @@ import { validateDoc } from "../src/schema";
  * suite stays green. Once a defect is corrected the assertion passes and this
  * test turns red — convert it to a plain `it()` in the same change.
  *
- * The concurrent-formatting and concurrent-moves tests are fixed
- * behaviors (plain `it()`): the text model is a single Y.Text with mark
- * attributes (concurrent formatting keeps the text intact), and the block
- * owner is a single CRDT-resolved `parent` field (concurrent moves keep one
- * owner).
+ * The concurrent-formatting, concurrent-moves, and
+ * concurrent-shape-insert tests are fixed behaviors (plain `it()`): the
+ * text model is a single Y.Text with mark attributes; the block owner is a
+ * single CRDT-resolved `parent` field; the canvas z-order is derived from the
+ * children order (the stored `zIndex` is a dense mirror re-derived at read
+ * time and on load).
  *
  * The two peers load the settled state (`loadDoc` of the first peer's bytes),
  * so they are independent Y.Docs of the same content, not a concurrent init.
@@ -63,7 +64,7 @@ describe("concurrent text and block edits keep the data valid", () => {
     expect(validateDoc(a.toJSON())).toEqual([]);
   });
 
-  it.fails("concurrent shape inserts into an empty surface yield a reloadable snapshot", () => {
+  it("concurrent shape inserts into an empty surface yield a reloadable snapshot", () => {
     const a = createDoc({ id: "pin" });
     const surface = a.insertBlock("surface");
     const b = fork(a);
