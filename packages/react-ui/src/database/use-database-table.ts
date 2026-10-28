@@ -364,9 +364,10 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       const original = rowsRef.current;
       const from = original.findIndex((row) => row.rowId === rowId);
       if (from === -1) return;
-      // The inverse (the forward-only undo): move back to the original
-      // seat — before the row that stood before it in the pre-move order.
-      const backBefore = from > 0 ? original[from - 1]!.rowId : null;
+      // The original seat's successors: the rows that stood AFTER the
+      // moved row in the pre-move order (the inverse's anchor stand —
+      // see below).
+      const successors = original.slice(from + 1).map((row) => row.rowId);
       const ordered = [...original];
       const moved = ordered.splice(from, 1)[0]!;
       const at = beforeRowId === null ? -1 : ordered.findIndex((row) => row.rowId === beforeRowId);
@@ -377,7 +378,18 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         pushUndo({
           label: `move row ${rowId}`,
           forward: async () => bridge.moveRow(tableId, rowId, beforeRowId),
-          inverse: async () => bridge.moveRow(tableId, rowId, backBefore),
+          inverse: async () => {
+            // The inverse stands the ORIGINAL SEAT: the bridge's moveRow
+            // inserts the row BEFORE the given row (null = the end), so
+            // the anchor is the row's pre-move SUCCESSOR, not its
+            // predecessor. The anchor stands resolved at the undo's time
+            // over the refetched state: a successor a peer removed in the
+            // meantime slides to the next survivor (null = the end when
+            // none survive).
+            const current = rowsRef.current;
+            const seat = successors.find((id) => current.some((row) => row.rowId === id)) ?? null;
+            await bridge.moveRow(tableId, rowId, seat);
+          },
         });
         refresh();
       } catch (operationError) {

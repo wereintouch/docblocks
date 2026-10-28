@@ -117,7 +117,7 @@ describe("the forward-only undo/redo over the bridge", () => {
     expect(fresh[freshId]).toBe("new");
   });
 
-  it.fails("undo of a row move restores the original order", async () => {
+  it("undo of a row move restores the original order", async () => {
     const { bridge, id, result } = await setup([
       { id: "a", value: "A" },
       { id: "b", value: "B" },
@@ -126,10 +126,71 @@ describe("the forward-only undo/redo over the bridge", () => {
     await act(async () => {
       await result.current.moveRow("b", null);
     });
+    expect(await rowIds(bridge, id)).toEqual(["a", "c", "b"]);
     await act(async () => {
       await result.current.undo();
     });
     expect(await rowIds(bridge, id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("undo of a move restores the first position (the anchor's null stands the end, not the head)", async () => {
+    const { bridge, id, result } = await setup([
+      { id: "a", value: "A" },
+      { id: "b", value: "B" },
+      { id: "c", value: "C" },
+    ]);
+    // Move the first row to the end: the original seat's successor is
+    // "b" — the undo stands the row BEFORE it (the head).
+    await act(async () => {
+      await result.current.moveRow("a", null);
+    });
+    expect(await rowIds(bridge, id)).toEqual(["b", "c", "a"]);
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect(await rowIds(bridge, id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("undo of a move restores the last position (the null anchor)", async () => {
+    const { bridge, id, result } = await setup([
+      { id: "a", value: "A" },
+      { id: "b", value: "B" },
+      { id: "c", value: "C" },
+    ]);
+    // Move the last row to the head: its successor list is empty — the
+    // undo's anchor stands null (the end).
+    await act(async () => {
+      await result.current.moveRow("c", "a");
+    });
+    expect(await rowIds(bridge, id)).toEqual(["c", "a", "b"]);
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect(await rowIds(bridge, id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("undo of a move over a removed neighbor slides to the next survivor (or the end)", async () => {
+    const { bridge, id, result } = await setup([
+      { id: "a", value: "A" },
+      { id: "b", value: "B" },
+      { id: "c", value: "C" },
+      { id: "d", value: "D" },
+    ]);
+    // Move b to the end; a peer removes c (b's original first successor)
+    // in the meantime: the anchor slides to the next survivor (d), so the
+    // undo stands b BEFORE d (not at the end).
+    await act(async () => {
+      await result.current.moveRow("b", null);
+    });
+    expect(await rowIds(bridge, id)).toEqual(["a", "c", "d", "b"]);
+    await act(async () => {
+      await bridge.removeRow(id, "c");
+    });
+    await waitFor(() => expect(result.current.rows.map((row) => row.rowId)).toEqual(["a", "d", "b"]));
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect(await rowIds(bridge, id)).toEqual(["a", "b", "d"]);
   });
 
   it("undo of a column delete restores the values and the column position", async () => {
