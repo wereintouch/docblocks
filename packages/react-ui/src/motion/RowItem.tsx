@@ -8,10 +8,7 @@ import { memo, useCallback, useRef } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import { useEditorContext } from "../EditorProvider";
-import { BlockNodeView } from "../blocks/BlockView";
-import { useBlockContext } from "../blocks/block-context";
-import { indentOf } from "../blocks/flat";
-import { insertParagraphAfter } from "../blocks/gutter-plus";
+import { BlockNodeView, indentOf, insertParagraphAfter, useBlockContext } from "../blocks";
 import { editorRootOf } from "../editing/dom-offset";
 import { useBlock } from "../hooks";
 import { Button } from "../shared/ui/Button";

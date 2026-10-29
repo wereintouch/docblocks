@@ -17,11 +17,15 @@ import type { BlockId } from "docblocks-core";
 
 import type { EditorView } from "../Editor";
 import { useEditorContext } from "../EditorProvider";
-import { BlockContext } from "../blocks/block-context";
-import { CanvasView } from "../blocks/canvas-view";
-import { deriveFlat, entrySequenceParent, visibleRows } from "../blocks/flat";
-import type { FlatNode } from "../blocks/flat";
-import { FormatPaletteContext } from "../blocks/format-palette-context";
+import {
+  BlockContext,
+  CanvasView,
+  FormatPaletteContext,
+  deriveFlat,
+  entrySequenceParent,
+  visibleRows,
+} from "../blocks";
+import type { FlatNode } from "../blocks";
 import { EnumOptionsMotionSlot } from "../database";
 import { segmentRange } from "../editing/block-commands";
 import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";

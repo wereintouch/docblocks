@@ -5,7 +5,7 @@ import { BLOCK_REGISTRY } from "docblocks-core";
 import type { BlockId, BlockType, Doc } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
-import type { BlockContextValue } from "../blocks/block-context";
+import type { BlockContextValue } from "../blocks";
 import { extendSelectionTo, focusCaretIn, moveSegmentInSequence, segmentRange } from "./block-commands";
 import { caretOffsetIn, editorRootOf, textBlockOfNode } from "./dom-offset";
 import { syncDomSelection } from "./selection-mapping";

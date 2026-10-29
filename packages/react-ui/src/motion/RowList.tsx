@@ -12,7 +12,7 @@ import { memo } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import type { FlatNode } from "../blocks/flat";
+import type { FlatNode } from "../blocks";
 import { RowItem } from "./RowItem";
 
 interface RowListProps {

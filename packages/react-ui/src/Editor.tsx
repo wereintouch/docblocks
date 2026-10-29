@@ -3,11 +3,7 @@ import { useStore } from "zustand";
 import { useMemo } from "react";
 
 import { useEditorContext } from "./EditorProvider";
-import { BlockGroups } from "./blocks/BlockView";
-import { BlockContext } from "./blocks/block-context";
-import { CanvasView } from "./blocks/canvas-view";
-import { entrySequenceParent } from "./blocks/flat";
-import { FormatPaletteContext } from "./blocks/format-palette-context";
+import { BlockContext, BlockGroups, CanvasView, FormatPaletteContext, entrySequenceParent } from "./blocks";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "./editing/mention";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";

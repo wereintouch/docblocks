@@ -5,7 +5,7 @@ import type { BlockId, BlockType, TextPoint } from "docblocks-core";
 import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
-import type { BlockContextValue } from "../blocks/block-context";
+import type { BlockContextValue } from "../blocks";
 import {
   ensureTrailingParagraph,
   findParentId,

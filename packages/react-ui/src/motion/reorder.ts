@@ -40,7 +40,7 @@
 import type { BlockId, Doc } from "docblocks-core";
 import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
-import { entrySequenceParent } from "../blocks/flat";
+import { entrySequenceParent } from "../blocks";
 import { ensureTrailingParagraph, moveSegmentInSequence, segmentRange } from "../editing/block-commands";
 
 /** Same ids in the same order (order matters). */

@@ -4,7 +4,7 @@ import type { StoreApi } from "zustand/vanilla";
 import { BLOCK_REGISTRY } from "docblocks-core";
 import type { Block, BlockId, Change, Doc, DocMeta, OpaqueBlock, PresenceState, Selection } from "docblocks-core";
 
-import { sequenceContainerOf, subtreeSegmentOf } from "../blocks/flat";
+import { sequenceContainerOf, subtreeSegmentOf } from "../blocks";
 import type { CanvasClipboard } from "../canvas";
 
 /**

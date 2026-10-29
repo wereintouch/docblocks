@@ -1,7 +1,7 @@
 /** The motion editor's constants (the enter/exit geometry, the
  *  transition, the slide settle window, the drag affordance style, the
  *  text-row gutter types) and the row's props. */
-import type { FlatNode } from "../blocks/flat";
+import type { FlatNode } from "../blocks";
 
 /**
  * The enter/exit geometry of a row. The spacing margin collapses on exit
