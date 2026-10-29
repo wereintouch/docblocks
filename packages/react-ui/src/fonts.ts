@@ -45,4 +45,4 @@ const UI_FONT_STACK = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif
 const MONO_FONT_STACK = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 
 export { MONO_FONT_STACK, UI_FONT_ID, UI_FONT_STACK };
-export { SHAPE_FONT_OPTIONS, SHAPE_FONT_STACKS } from "./canvas/text-fonts";
+export { SHAPE_FONT_OPTIONS, SHAPE_FONT_STACKS } from "./canvas";

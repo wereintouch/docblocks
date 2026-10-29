@@ -5,7 +5,7 @@ import { BLOCK_REGISTRY } from "docblocks-core";
 import type { Block, BlockId, Change, Doc, DocMeta, OpaqueBlock, PresenceState, Selection } from "docblocks-core";
 
 import { sequenceContainerOf, subtreeSegmentOf } from "../blocks/flat";
-import type { CanvasClipboard } from "../canvas/clipboard";
+import type { CanvasClipboard } from "../canvas";
 
 /**
  * The store's projection holds only known-type blocks: an unknown-type

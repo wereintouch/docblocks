@@ -3,7 +3,7 @@
  *  scrollbar guard) and the session types. */
 import type { CSSProperties } from "react";
 
-import type { CanvasMode, CanvasPoint, CanvasTool, ResizeHandle } from "../../canvas/viewport";
+import type { CanvasMode, CanvasPoint, CanvasTool, ResizeHandle } from "../../canvas";
 
 /** The connector's port-proximity pick radius (canvas px, the zoom-blind
  * space — a press / release within it of a port stands the port's shape). */

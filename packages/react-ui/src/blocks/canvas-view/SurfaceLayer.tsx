@@ -17,8 +17,7 @@ import { type ReactNode, useMemo } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../EditorProvider";
-import type { Box } from "../../canvas/viewport";
-import type { MovePreview } from "../../canvas/viewport";
+import type { Box, MovePreview } from "../../canvas";
 import { useBlock } from "../../hooks";
 import { CanvasItem } from "../CanvasItem";
 import { CanvasSessionContext, ConnectorArrowDefs } from "../ConnectorLayer";

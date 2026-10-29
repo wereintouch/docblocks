@@ -5,8 +5,7 @@ import { type CSSProperties, type ReactNode, createContext, useContext } from "r
 import type { Block, BlockId, ConnectorBlock } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
-import type { Box } from "../canvas/viewport";
-import type { MovePreview } from "../canvas/viewport";
+import type { Box, MovePreview } from "../canvas";
 import { useBlock } from "../hooks";
 import { Link } from "../shared/ui/icons";
 import { useBlockContext } from "./block-context";

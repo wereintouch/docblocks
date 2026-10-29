@@ -33,31 +33,38 @@ import type {
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../EditorProvider";
-import { CanvasDock } from "../../canvas/CanvasDock";
-import { ConnectorToolbar } from "../../canvas/ConnectorToolbar";
-import { copyCanvasItems, pasteCanvasItems } from "../../canvas/clipboard";
-import { canvasContentBox, fitView } from "../../canvas/fit";
-import { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "../../canvas/insert";
-import { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "../../canvas/nudge";
-import { ShapeToolbar } from "../../canvas/shape-toolbar";
 import {
+  CanvasDock,
+  ConnectorToolbar,
   MOVE_THRESHOLD_PX,
+  NUDGE_KEYS,
+  ShapeToolbar,
+  canvasContentBox,
   canvasToScreen,
-  marqueeRect,
-  penStroke,
-  rectsIntersect,
-  screenToCanvas,
-} from "../../canvas/viewport";
-import type { ResizeHandle } from "../../canvas/viewport";
-import { readCanvasViewport, useCanvasViewport } from "../../canvas/viewport";
-import {
   connectorPressStand,
   connectorPreviewFrom,
   connectorPreviewPoint,
+  copyCanvasItems,
+  dissolveGroup,
+  findParentSurface,
+  firstSurface,
+  fitView,
+  makeGroup,
+  marqueeRect,
+  nudgeDelta,
+  nudgeGate,
+  nudgeSelection,
+  pasteCanvasItems,
+  penStroke,
   placeDragBox,
+  readCanvasViewport,
+  rectsIntersect,
+  screenToCanvas,
   snapAnySurfaceEdge,
-} from "../../canvas/viewport/utils";
-import { zPositionOf } from "../../canvas/z-order-menu";
+  useCanvasViewport,
+  zPositionOf,
+} from "../../canvas";
+import type { ResizeHandle } from "../../canvas";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
