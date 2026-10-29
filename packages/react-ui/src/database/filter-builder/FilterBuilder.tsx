@@ -1,54 +1,17 @@
 /**
- * The filter builder: the recursive and/or payload editor (the package's
- * component, the `FilterBlock` reference). Annotation-driven — the
- * operator catalog and the value input kind come from the
- * `BridgeColumn` (the consumer's `operators` override or the package's
- * default per Postgres type). The result is written to the block's
- * `filter` attr via `updateBlock` (CRDT data, undo-able). An empty value
- * makes the condition inapplicable (the `filterIsComplete` guard — the
- * UI must not apply an incomplete payload).
+ * The recursive and/or filter editor: the top-level FilterBuilder renders a
+ * FilterGroup (the group card), which renders the condition rows
+ * (FilterConditionRow) + the nested groups; each condition's value is a
+ * ValueInput over the column's annotation.
  */
 import type { DatabaseFilterPayload } from "docblocks-core";
 
-import { columnAnnotation } from "./bridge";
-import type { BridgeColumn } from "./bridge";
-import { refEntryKey } from "./grid/use-ref-tables";
-import type { RefTableDataMap } from "./grid/use-ref-tables";
-
-/** The filter recursion depth cap (the package's UI constant; a backend
- *  validates the depth on its own). */
-const FILTER_MAX_DEPTH = 4;
-
-/** The empty filter payload (the "no filter" shape the Clear writes). */
-function emptyFilter(): DatabaseFilterPayload {
-  return { logic: "and", conditions: [] };
-}
-
-/** Whether the payload is applicable: every condition that needs a value
- *  has one (an empty value = the condition is inapplicable). */
-function filterIsComplete(payload: DatabaseFilterPayload | null, columns: BridgeColumn[]): boolean {
-  if (payload === null) return true;
-  for (const condition of payload.conditions) {
-    const column = columns.find((entry) => entry.id === condition.columnId);
-    if (column === undefined) return false;
-    if (columnAnnotation(column).valueless.has(condition.op)) continue;
-    const value = condition.value;
-    if (value === undefined || value === null || value === "") return false;
-    if (Array.isArray(value) && value.length === 0) return false;
-  }
-  for (const group of payload.groups ?? []) {
-    if (!filterIsComplete(group, columns)) return false;
-  }
-  return true;
-}
-
-/** The control look (the shared input / select styling). The standard
- *  tokens stand — the builder renders inside the portaled popover
- *  (the `--docblocks-*` editor-root tokens do not reach the body). */
-const CONTROL_CLASS = `h-8 rounded-md border border-border bg-transparent px-2 text-sm text-foreground outline-none`;
-
-/** The ghost button look (the add / the remove affordances). */
-const GHOST_BUTTON_CLASS = `cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-sm text-foreground outline-none hover:opacity-70`;
+import { columnAnnotation } from "../bridge";
+import type { BridgeColumn } from "../bridge";
+import { refEntryKey } from "../grid/use-ref-tables";
+import type { RefTableDataMap } from "../grid/use-ref-tables";
+import { CONTROL_CLASS, GHOST_BUTTON_CLASS } from "./constants";
+import { FILTER_MAX_DEPTH, emptyFilter } from "./utils";
 
 interface FilterBuilderProps {
   /** The payload being edited; null = the empty filter. */
@@ -386,4 +349,4 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
   }
 }
 
-export { FILTER_MAX_DEPTH, emptyFilter, filterIsComplete, FilterBuilder };
+export { FilterBuilder };
