@@ -7,5 +7,23 @@
  * avoidance).
  */
 export { DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "./models";
-export * from "./utils";
+export {
+  boxContains,
+  canvasItemStyle,
+  connectorHandlePoints,
+  connectorMidpoint,
+  connectorPath,
+  connectorPathPoints,
+  edgeAnchor,
+  edgePointOf,
+  effectiveGeometry,
+  endpointBoxOf,
+  endpointOf,
+  endpointPointOf,
+  isCanvasSubType,
+  pageCardStyle,
+  portOfNormal,
+  portsOf,
+} from "./utils";
 export type { Box, CanvasPort, ConnectorPath, ConnectorVariant, EndpointPoint, Ports } from "./models";
+export type { ConnectorPreviews } from "./utils";
