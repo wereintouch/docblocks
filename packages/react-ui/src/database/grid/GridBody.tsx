@@ -24,7 +24,6 @@ import { useDatabaseTable } from "../use-database-table";
 import { DatabaseCell, RowMenuCell } from "./Cells";
 import { HeaderCell } from "./HeaderCell";
 import { columnTypeIcon } from "./column-type-icon";
-import { useEnumOptionsMotion } from "./enum-options-motion";
 import {
   ADD_COLUMN_TYPES,
   DEFAULT_DATABASE_COLUMN_WIDTH_PX,
@@ -32,11 +31,12 @@ import {
   MIN_DATABASE_COLUMN_WIDTH_PX,
   NEW_TABLE_PICK,
   REF_NONE_PICK,
-  emptyColumnForm,
-} from "./models";
+} from "./constants";
+import { useEnumOptionsMotion } from "./enum-options-motion";
 import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession, EnumOptionDraft } from "./models";
 import { refEntryKey, useBridgeTables, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
+import { emptyColumnForm } from "./utils";
 import { cellKeyOf, visibleColumns } from "./utils";
 
 /**

@@ -5,6 +5,7 @@ import { format, parse } from "date-fns";
 
 import type { BridgeColumn } from "../bridge";
 import type { NumberFormatAttrs } from "../number-format";
+import type { AddColumnFormDraft, AddColumnTypeEntry } from "./models";
 
 /** The block's visible columns: the `columnOrder` attr first (the
  *  additive columns not listed keep the schema order), the hidden
@@ -97,10 +98,31 @@ function dateTimeLabel(value: Date): string {
   return value.getSeconds() !== 0 ? `${base} ${label}:${format(value, "ss")}` : `${base} ${label}`;
 }
 
+/** The form draft over a catalog entry (the name prefills the type's
+ *  label — the create's commit takes the input's name). */
+function emptyColumnForm(entry: AddColumnTypeEntry): AddColumnFormDraft {
+  return {
+    key: entry.key,
+    type: entry.type,
+    name: entry.label,
+    numberKind: entry.numberKind,
+    decimals: entry.numberKind === "decimal" ? 2 : 0,
+    thousands: false,
+    prefix: "",
+    suffix: "",
+    allowNegative: true,
+    refKind: entry.refKind,
+    refMany: entry.refMany,
+    refPick: "",
+    newTableName: "",
+  };
+}
+
 export {
   cellKeyOf,
   dateOnly,
   dateTimeLabel,
+  emptyColumnForm,
   hasTime,
   numberDisplayAttrs,
   numberStepFor,

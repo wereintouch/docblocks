@@ -17,7 +17,7 @@ import type { BridgeColumn, BridgeColumnAnnotation } from "../bridge";
 import { columnAnnotation, parseCellValue } from "../bridge";
 import { formatNumberValue } from "../number-format";
 import type { DatabaseTableRow } from "../use-database-table";
-import { CELL_INPUT, CELL_SELECTED, CELL_SELECTED_MULTI, CELL_WRAP, CHECKBOX_TOGGLE_GUARD_MS } from "./models";
+import { CELL_INPUT, CELL_SELECTED, CELL_SELECTED_MULTI, CELL_WRAP, CHECKBOX_TOGGLE_GUARD_MS } from "./constants";
 import type { RefTableData } from "./use-ref-tables";
 import {
   cellKeyOf,
