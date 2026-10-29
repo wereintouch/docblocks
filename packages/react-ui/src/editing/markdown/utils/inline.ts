@@ -7,6 +7,7 @@
  */
 import type { MarkSet, TextRun } from "docblocks-core";
 
+import { marksEqual } from "../../mark-utils";
 import { ENTITY, MARK_HIGHLIGHT, NAMED_ENTITIES, OPEN_TAG, STRAY_CLOSE_TAG, TAG_HREF } from "../models";
 
 /**
@@ -69,13 +70,6 @@ function inlineTagMarks(tag: { name: string; attrs: string }): MarkSet | null {
     default:
       return null;
   }
-}
-
-/** The emphasis/strike/caret-safe mark equality (the run merge). */
-function marksEqual(a: MarkSet, b: MarkSet): boolean {
-  const keysA = Object.keys(a);
-  if (keysA.length !== Object.keys(b).length) return false;
-  return (keysA as (keyof MarkSet)[]).every((key) => key in b && JSON.stringify(a[key]) === JSON.stringify(b[key]));
 }
 
 /**
@@ -284,4 +278,4 @@ function parseInline(source: string): TextRun[] {
   return runs;
 }
 
-export { decodeEntities, inlineTagAt, inlineTagMarks, marksEqual, parseInline };
+export { decodeEntities, inlineTagAt, inlineTagMarks, parseInline };

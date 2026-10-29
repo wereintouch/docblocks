@@ -6,9 +6,10 @@
  */
 import type { MarkSet, TextRun } from "docblocks-core";
 
+import { marksEqual } from "../../mark-utils";
 import { IMAGE_LINE, STRUCTURAL_TAG_LINE } from "../models";
 import type { MdParagraphLine, MdPasteBlock } from "../models";
-import { decodeEntities, marksEqual, parseInline } from "./inline";
+import { decodeEntities, parseInline } from "./inline";
 
 /** Whether a line is a GFM table separator row (`| --- | :---: |` shapes). */
 function isTableSeparator(line: string): boolean {

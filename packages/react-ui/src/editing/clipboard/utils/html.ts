@@ -22,6 +22,7 @@
 import type { BlockId, Doc, MarkSet, TextRun } from "docblocks-core";
 
 import { LINE_ANCHOR_SLOT } from "../../../text/runs-dom";
+import { marksEqual } from "../../mark-utils";
 import type { MaterializedBlock } from "../models";
 import { materializePaste } from "./materialize";
 
@@ -91,13 +92,6 @@ function elementMarks(element: Element): MarkSet | null {
 /** Whether a pasted element is the editor's line-break anchor (never content). */
 function isLineAnchor(element: Element): boolean {
   return element.getAttribute("data-slot") === LINE_ANCHOR_SLOT;
-}
-
-/** Whether two mark sets are structurally equal (for run merging). */
-function marksEqual(a: MarkSet, b: MarkSet): boolean {
-  const keysA = Object.keys(a);
-  if (keysA.length !== Object.keys(b).length) return false;
-  return (keysA as (keyof MarkSet)[]).every((key) => key in b && JSON.stringify(a[key]) === JSON.stringify(b[key]));
 }
 
 /** Appends a run to the list, merging it into the neighbor when the marks are equal. */
