@@ -4,6 +4,7 @@ import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import { Minus, Plus, RotateCcw } from "../shared/ui/icons";
+import { clamp } from "../shared/utils";
 
 /**
  * An embed (v1): a plain iframe for every kind — the kind is a renderer hint
@@ -53,10 +54,6 @@ interface EmbedView {
 
 /** The identity view: the iframe at its natural size, filling the wrapper. */
 const EMBED_VIEW_IDENTITY: EmbedView = { scale: 1, x: 0, y: 0 };
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
 
 /**
  * Clamp the pan against the scaled embed's overflow. The embed cannot be

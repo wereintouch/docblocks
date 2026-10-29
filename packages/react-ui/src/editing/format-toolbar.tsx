@@ -36,6 +36,7 @@ import {
   TextAlignStart,
   Underline,
 } from "../shared/ui/icons";
+import { clamp } from "../shared/utils";
 import { restoreSelectionIn } from "./block-commands";
 import {
   TOOLBAR_BLOCK_TYPES,
@@ -147,11 +148,6 @@ type PaletteTarget = "color" | "highlight";
 /** The toolbar's target range: a same-block range or a cross-block range over the engine's chain. */
 type ToolbarRange =
   { kind: "single"; blockId: BlockId; from: number; to: number } | { kind: "cross"; cross: CrossRange };
-
-/** Clamp a number into [min, max]. */
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
 
 interface FormatToolbarProps {
   rootRef: RefObject<HTMLElement | null>;
