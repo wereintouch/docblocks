@@ -22,7 +22,7 @@
     "@types/ws": "^8.18.2",
     "@vitejs/plugin-react": "^6.1.2",
     "lib0": "^0.2.99",
-    "mermaid": "12.1.0",
+    "mermaid": "12.2.0",
     "pdfjs-dist": "6.4.299",
     "react-devtools-cdt-mcp": "^0.1.0",
     "vite": "^8.3.4",

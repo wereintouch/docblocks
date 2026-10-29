@@ -79,7 +79,7 @@
     "docblocks-core": "*",
     "framer-motion": "^14.1.0",
     "jsdom": "^30.1.2",
-    "mermaid": "12.1.0",
+    "mermaid": "12.2.0",
     "pdfjs-dist": "6.4.299",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
