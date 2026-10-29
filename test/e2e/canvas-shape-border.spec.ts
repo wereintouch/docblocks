@@ -8,6 +8,7 @@ import { switchPaneView } from "./helpers";
 // menu (the solid / the dashed / the no-border — the stroke's "none"
 // idiom). A/B sync over the relay.
 const RELAY = "ws://localhost:5199";
+const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
@@ -94,7 +95,9 @@ test.describe("the border's controls (the owner request 2026-10-19)", () => {
     await a.mouse.move(box.x + box.width * 0.95, y, { steps: 3 });
     await a.mouse.up();
     expect(await shapeAttrs(a, "a", id)).toMatchObject({ strokeWidth: 4 });
-    expect(await shapeAttrs(b, "b", id)).toMatchObject({ strokeWidth: 4 });
+    // B converges over the wire — wait for the stand (a one-shot read can
+    // catch B mid-convergence under full-suite load).
+    await expect.poll(() => shapeAttrs(b, "b", id), SETTLE).toMatchObject({ strokeWidth: 4 });
 
     // The drag back to the left edge's dot = the 1 px.
     await a.mouse.move(box.x + box.width * 0.95, y);
@@ -103,7 +106,7 @@ test.describe("the border's controls (the owner request 2026-10-19)", () => {
     await a.mouse.move(box.x + box.width * 0.02, y, { steps: 3 });
     await a.mouse.up();
     expect(await shapeAttrs(a, "a", id)).toMatchObject({ strokeWidth: 1 });
-    expect(await shapeAttrs(b, "b", id)).toMatchObject({ strokeWidth: 1 });
+    await expect.poll(() => shapeAttrs(b, "b", id), SETTLE).toMatchObject({ strokeWidth: 1 });
 
     // The live snap writes one updateBlock per snapped stand (the write
     // fires only on the index change), so the undo chain steps the stands

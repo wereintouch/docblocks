@@ -18,6 +18,28 @@ async function insertType(page: Page, client: "a" | "b", type: string): Promise<
   await insertBlockType(page, client, type);
 }
 
+/**
+ * Wait for the doc's guaranteed trailing paragraph (the tail contract: the
+ * reserved `${docId}-tail` block) to stand in the pane. The pane's peer stands
+ * it over the wire (the remote feed's guard — a pane's own harness insert is a
+ * local write, so the pane's own guard does not fire for it), so the stand
+ * lands over the wire round-trip; a one-shot read can catch the pane before it
+ * converges, so a reference snapshot must wait for it.
+ */
+async function waitTrailingParagraph(page: Page, client: "a" | "b"): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate((which: "a" | "b") => {
+          const doc = (which === "a" ? window.__paneDocs?.a : window.__paneDocs?.b) ?? null;
+          if (doc === null) return false;
+          return doc.getBlock(`${doc.toJSON().id}-tail`) !== null;
+        }, client),
+      SETTLE
+    )
+    .toBe(true);
+}
+
 async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
@@ -172,6 +194,10 @@ test("the embed's hover toolbar zooms and resets (view state, the doc stands inv
   await expect(iframe).toHaveAttribute("style", /scale\(1\)/);
 
   // The doc's state before any pan/zoom (the view state must not reach it).
+  // Wait for the doc's guaranteed trailing paragraph (the tail contract) to
+  // stand first — the pane's peer stands it over the wire round-trip after the
+  // non-text embed, so before/after must stand the same baseline.
+  await waitTrailingParagraph(a, "a");
   const before = await a.evaluate(() => JSON.stringify(window.__paneDocs!.a!.toJSON()));
 
   // Hover reveals the toolbar.

@@ -296,12 +296,13 @@ test("a divider inside the composed chain is skipped by the extension and remove
   await insertBlockType(a, "a", "paragraph");
   await inners(a, "a").last().click();
   await a.keyboard.type("three four");
-  const blocks = await blocksOf(a, "a");
   // The harness inserts land at the sequence's end: the non-text tail
   // stands its guaranteed trailing paragraph (the remote peer's guard
-  // writes it over the wire), so the sequence is p1, p2, the divider,
-  // the tail paragraph, and p3.
-  expect(blocks).toHaveLength(5);
+  // writes it over the wire). Wait for it to land (a one-shot read can
+  // catch A before the guard's write converges under full-suite load),
+  // then capture the blocks: p1, p2, the divider, the tail paragraph, p3.
+  await expect.poll(async () => (await blocksOf(a, "a")).length, SETTLE).toBe(5);
+  const blocks = await blocksOf(a, "a");
   const p1 = blocks[0]!;
   const p3 = blocks[4]!;
 

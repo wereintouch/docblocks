@@ -9,6 +9,7 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // previous block (the characters, line breaks included, delete in place
 // until the quote is empty, then it resets to a paragraph).
 const RELAY = "ws://localhost:5199";
+const SETTLE = { timeout: 15_000 };
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -142,8 +143,9 @@ test("the list-type menu's Quote option converts a paragraph; Text converts it b
   await expect(
     pane(a, "a").locator(`[data-block-id="${id}"]:not([data-slot="docblocks/block-content"])`)
   ).toContainText("hello world");
-  // The other pane stands the quote over the wire (the rule included).
-  expect((await blockOf(b, "b", id))?.type).toBe("quote");
+  // The other pane stands the quote over the wire (the rule included) — wait
+  // for B to converge (a one-shot read can catch B mid-convergence).
+  await expect.poll(async () => (await blockOf(b, "b", id))?.type, SETTLE).toBe("quote");
   await expect(b.locator('[data-slot="docblocks/quote-rule"]')).toHaveCount(1);
 
   // Back to text: the toolbar stands over a quote range (the Quote radio is
@@ -199,10 +201,10 @@ test("Enter: a non-empty line is a break; the empty last line exits; the empty m
   // The caret stands in the new paragraph (the gesture's focus move).
   const paragraph = a.locator(`[data-block-id="${ids[2]}"] [data-slot="docblocks/block-content"]`);
   await expect(paragraph).toBeFocused();
-  // The exit is one composed command: the other pane stands the same two
-  // blocks over the wire.
-  expect((await blockOf(b, "b", ids[2]!))?.type).toBe("paragraph");
-  expect((await blockOf(b, "b", quoteId))?.type).toBe("quote");
+  // The exit is one composed command — wait for B to stand the same two
+  // blocks over the wire (a one-shot read can catch B mid-convergence).
+  await expect.poll(async () => (await blockOf(b, "b", ids[2]!))?.type, SETTLE).toBe("paragraph");
+  await expect.poll(async () => (await blockOf(b, "b", quoteId))?.type, SETTLE).toBe("quote");
 
   // The empty MIDDLE line takes a plain break (not the exit): a line stands
   // after it.
@@ -281,8 +283,9 @@ test("Backspace at the start of a non-empty quote never merges; the empty quote 
   await a.keyboard.press("Backspace");
   expect((await blockOf(a, "a", ids.q))?.type).toBe("paragraph");
   expect(await rootIds(a, "a")).toHaveLength(3); // the starter + prev + the converted paragraph
-  // The reset traveled the wire: the other pane stands the paragraph.
-  expect((await blockOf(b, "b", ids.q))?.type).toBe("paragraph");
+  // The reset traveled the wire — wait for B to stand the paragraph (one-shot
+  // reads can catch B mid-convergence under full-suite load).
+  await expect.poll(async () => (await blockOf(b, "b", ids.q))?.type, SETTLE).toBe("paragraph");
   await close();
 });
 
@@ -323,9 +326,12 @@ test("the callout shares the quote interactivity", async ({ browser }) => {
   expect((await blockOf(a, "a", ids[2]!))?.type).toBe("paragraph");
   // The caret stands in the new paragraph (the gesture's focus move).
   await expect(a.locator(`[data-block-id="${ids[2]!}"] [data-slot="docblocks/block-content"]`)).toBeFocused();
-  // The exit traveled the wire: the other pane stands the callout + paragraph.
-  expect((await blockOf(b, "b", calloutId))?.type).toBe("callout");
-  expect(await b.evaluate((c) => window.__paneDocs?.b?.getText(c) ?? null, calloutId)).toBe("one\ntwo");
+  // The exit traveled the wire — wait for B to stand the callout + text
+  // (one-shot reads can catch B mid-convergence).
+  await expect.poll(async () => (await blockOf(b, "b", calloutId))?.type, SETTLE).toBe("callout");
+  await expect
+    .poll(async () => await b.evaluate((c) => window.__paneDocs?.b?.getText(c) ?? null, calloutId), SETTLE)
+    .toBe("one\ntwo");
   await close();
 });
 

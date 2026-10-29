@@ -9,6 +9,7 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // (the paint, the edit/language-change re-paint over the wire, and the
 // wrap-off alignment).
 const RELAY = "ws://localhost:5199";
+const SETTLE = { timeout: 15_000 };
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -127,7 +128,7 @@ test("a language pick in A writes the attr — the label stands in B over the wi
   // The attr traveled the wire: B's label and the block attr stand.
   const blockB = blockWrapper(b, "b", id);
   await expect(blockB.locator('[data-slot="docblocks/code-language"]')).toContainText("Rust");
-  expect(await blockOf(b, "b", id)).toMatchObject({ attrs: { language: "rust" } });
+  await expect.poll(async () => blockOf(b, "b", id), SETTLE).toMatchObject({ attrs: { language: "rust" } });
   await close();
 });
 
@@ -170,7 +171,7 @@ test("collapse toggles over the wire (the clamp stands in B); a short block's bu
   await longBlock.locator('[data-slot="docblocks/code-collapse"]').click();
   const bodyB = pane(b, "b").locator(`[data-block-id="${longId}"] [data-slot="docblocks/code-body"]`);
   await expect(bodyB).toHaveCSS("overflow", "hidden");
-  expect(await blockOf(b, "b", longId)).toMatchObject({ attrs: { collapsed: true } });
+  await expect.poll(async () => blockOf(b, "b", longId), SETTLE).toMatchObject({ attrs: { collapsed: true } });
   // A collapsed block is always expandable.
   expect(await longBlock.locator('[data-slot="docblocks/code-collapse"]').isDisabled()).toBe(false);
   await close();
@@ -195,7 +196,7 @@ test("the caption types in A and stands in B; erase + blur drops the line in bot
   const captionB = pane(b, "b").locator('[data-slot="docblocks/code-caption"]');
   await expect(captionB).toBeVisible();
   await expect(captionB).toHaveValue("Figure one");
-  expect(await blockOf(b, "b", id)).toMatchObject({ attrs: { caption: "Figure one" } });
+  await expect.poll(async () => blockOf(b, "b", id), SETTLE).toMatchObject({ attrs: { caption: "Figure one" } });
 
   // Erase + blur in A: the attr writes the empty string (the removed
   // state), the line unmounts in both panes.
@@ -203,7 +204,7 @@ test("the caption types in A and stands in B; erase + blur drops the line in bot
   await innerOf(a, "a", id).click(); // the blur
   await expect(captionA).toBeHidden();
   await expect(captionB).toBeHidden();
-  expect(await blockOf(b, "b", id)).toMatchObject({ attrs: { caption: "" } });
+  await expect.poll(async () => blockOf(b, "b", id), SETTLE).toMatchObject({ attrs: { caption: "" } });
   await close();
 });
 
@@ -235,8 +236,10 @@ test("the more menu's toggles flip over the wire (defaults ON); off removes the 
   // wrap-off classes.
   await expect(await block.locator('[data-slot="docblocks/code-line-numbers"]').count()).toBe(0);
   const blockB = blockWrapper(b, "b", id);
-  expect(await blockOf(b, "b", id)).toMatchObject({ attrs: { lineNumbers: false, wrap: false } });
-  await expect(await blockB.locator('[data-slot="docblocks/code-line-numbers"]').count()).toBe(0);
+  // B converges over the wire — wait for the stand (a one-shot read can
+  // catch B mid-convergence under full-suite load).
+  await expect.poll(() => blockOf(b, "b", id), SETTLE).toMatchObject({ attrs: { lineNumbers: false, wrap: false } });
+  await expect(blockB.locator('[data-slot="docblocks/code-line-numbers"]')).toHaveCount(0, SETTLE);
   await expect(blockB.locator('[data-slot="docblocks/code-scroll"]')).toHaveClass(/overflow-x-auto/);
   await close();
 });
@@ -267,7 +270,9 @@ test("picking mermaid through the language menu reveals the mode segment in both
   await expect(segmentB).toHaveCount(1);
   // The default mode is code (the attr may be absent; the JSON shows the
   // language).
-  expect(await blockOf(b, "b", id)).toMatchObject({ type: "code", attrs: { language: "mermaid" } });
+  await expect
+    .poll(async () => blockOf(b, "b", id), SETTLE)
+    .toMatchObject({ type: "code", attrs: { language: "mermaid" } });
   await close();
 });
 
@@ -298,9 +303,10 @@ test("Enter on a non-empty code line is a line break; the empty last line exits"
   expect((await blockOf(a, "a", ids[2]!))?.type).toBe("paragraph");
   const paragraph = pane(a, "a").locator(`[data-block-id="${ids[2]}"] [data-slot="docblocks/block-content"]`);
   await expect(paragraph).toBeFocused();
-  // The exit traveled the wire.
-  expect((await blockOf(b, "b", ids[2]!))?.type).toBe("paragraph");
-  expect((await blockOf(b, "b", id))?.type).toBe("code");
+  // The exit traveled the wire — wait for B to stand it (one-shot reads
+  // can catch B mid-convergence).
+  await expect.poll(async () => (await blockOf(b, "b", ids[2]!))?.type, SETTLE).toBe("paragraph");
+  await expect.poll(async () => (await blockOf(b, "b", id))?.type, SETTLE).toBe("code");
   await close();
 });
 
@@ -354,7 +360,7 @@ test("Backspace at the start of a non-empty code never merges; the empty one res
   await a.keyboard.press("Backspace");
   expect((await blockOf(a, "a", ids.code))?.type).toBe("paragraph");
   expect(await rootIds(a, "a")).toHaveLength(3); // the starter + prev + the converted paragraph
-  expect((await blockOf(b, "b", ids.code))?.type).toBe("paragraph");
+  await expect.poll(async () => (await blockOf(b, "b", ids.code))?.type, SETTLE).toBe("paragraph");
   await close();
 });
 

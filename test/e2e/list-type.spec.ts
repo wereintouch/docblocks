@@ -4,6 +4,7 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // the dev server's lifetime, so a shared room would be polluted by other
 // spec files (and by manually opened tabs).
 const RELAY = "ws://localhost:5199";
+const SETTLE = { timeout: 15_000 };
 
 async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
   await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
@@ -185,7 +186,9 @@ test("the text option stands for a list item with a derived segment (the segment
   expect((await blockOf(a, "a", ids.child))?.attrs).toMatchObject({ indent: 1 });
   await expect(pane(a, "a").locator(`[data-block-id="${ids.child}"]`).first()).toBeVisible();
   await expect(pane(b, "b").locator(`[data-block-id="${ids.parent}"]`).first()).toContainText("parent");
-  expect((await blockOf(b, "b", ids.parent))?.type).toBe("paragraph");
+  // B converges over the wire — wait for the stand (a one-shot read can
+  // catch B mid-convergence under full-suite load).
+  await expect.poll(async () => (await blockOf(b, "b", ids.parent))?.type, SETTLE).toBe("paragraph");
 
   await close();
 });

@@ -843,8 +843,9 @@ test("a page drag over a table crosses the row in the root sequence; the cell's 
     await expect.poll(async () => (await rootState(b, "b")).order, SETTLE).toEqual(expected);
 
     // The cell's children stand invariant (nothing moved into / out of a
-    // cell's children over the drag).
-    expect(await tableCells(a, "a", tableId)).toEqual(cellsBefore);
+    // cell's children over the drag) — wait for the stand to settle (a
+    // one-shot read can catch the doc mid-move-commit under full-suite load).
+    await expect.poll(async () => tableCells(a, "a", tableId), SETTLE).toEqual(cellsBefore);
   } finally {
     await close();
   }
