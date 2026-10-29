@@ -16,7 +16,7 @@
 import { useEffect, useState } from "react";
 
 import { ENUM_OPTION_COLOR_COLUMN } from "../bridge";
-import type { DatabaseBridge, TableRef } from "../bridge";
+import type { DatabaseBridge } from "../bridge";
 
 /** The page size the ref table loads (the dict options / the picker's
  *  rows — one page, no cursor continuation). */
@@ -110,23 +110,5 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
   return data;
 }
 
-/**
- * Loads the table catalog (the ref form's pick list — the form's
- * new-table creation stands the fresh catalog over the refresh bump).
- */
-function useBridgeTables(bridge: DatabaseBridge, refreshKey: number): TableRef[] {
-  const [tables, setTables] = useState<TableRef[]>([]);
-  useEffect(() => {
-    let live = true;
-    void bridge.listTables().then((list) => {
-      if (live) setTables([...list].sort((a, b) => a.name.localeCompare(b.name)));
-    });
-    return () => {
-      live = false;
-    };
-  }, [bridge, refreshKey]);
-  return tables;
-}
-
-export { REF_PAGE_SIZE, refEntryKey, useRefTables, useBridgeTables };
+export { REF_PAGE_SIZE, refEntryKey, useRefTables };
 export type { RefTableData, RefTableDataMap, RefTableEntry };

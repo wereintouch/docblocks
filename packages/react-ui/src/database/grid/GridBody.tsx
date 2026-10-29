@@ -34,7 +34,8 @@ import {
 } from "./constants";
 import { useEnumOptionsMotion } from "./enum-options-motion";
 import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession, EnumOptionDraft } from "./models";
-import { refEntryKey, useBridgeTables, useRefTables } from "./use-ref-tables";
+import { useBridgeTables } from "./use-bridge-tables";
+import { refEntryKey, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
 import { emptyColumnForm } from "./utils";
 import { cellKeyOf, visibleColumns } from "./utils";
