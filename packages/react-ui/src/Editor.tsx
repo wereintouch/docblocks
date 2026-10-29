@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import { useEditorContext } from "./EditorProvider";
 import { BlockGroups } from "./blocks/BlockView";
-import { CanvasView } from "./blocks/CanvasView";
+import { CanvasView } from "./blocks/canvas-view";
 import { BlockContext } from "./blocks/block-context";
 import { entrySequenceParent } from "./blocks/flat";
 import { FormatPaletteContext } from "./blocks/format-palette-context";
