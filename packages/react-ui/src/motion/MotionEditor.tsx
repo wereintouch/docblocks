@@ -17,8 +17,8 @@ import type { BlockId } from "docblocks-core";
 
 import type { EditorView } from "../Editor";
 import { useEditorContext } from "../EditorProvider";
-import { CanvasView } from "../blocks/canvas-view";
 import { BlockContext } from "../blocks/block-context";
+import { CanvasView } from "../blocks/canvas-view";
 import { deriveFlat, entrySequenceParent, visibleRows } from "../blocks/flat";
 import type { FlatNode } from "../blocks/flat";
 import { FormatPaletteContext } from "../blocks/format-palette-context";

@@ -6,7 +6,7 @@ import type { Block, BlockId, ConnectorBlock } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import type { Box } from "../canvas/viewport";
-import type { MovePreview } from "../canvas/viewport-state";
+import type { MovePreview } from "../canvas/viewport";
 import { useBlock } from "../hooks";
 import { Link } from "../shared/ui/icons";
 import { useBlockContext } from "./block-context";

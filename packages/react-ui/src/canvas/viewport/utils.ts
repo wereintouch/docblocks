@@ -10,7 +10,7 @@ import type { Doc } from "docblocks-core";
 
 import { edgeAnchor, edgePointOf, effectiveGeometry } from "../../blocks/canvas-geometry";
 import type { Box, CanvasPort } from "../../blocks/canvas-geometry";
-import type { CanvasPoint } from "../viewport";
+import type { CanvasPoint } from "./models";
 import { ENDPOINT_SNAP_RADIUS } from "./models";
 import type { EndpointSnap } from "./models";
 

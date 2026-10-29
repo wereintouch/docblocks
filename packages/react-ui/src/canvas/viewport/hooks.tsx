@@ -18,17 +18,9 @@ import {
   placePenStroke,
   placeShape,
 } from "../insert";
-import {
-  TOOL_SIZES,
-  marqueeRect,
-  pinchZoom,
-  resizeBox,
-  screenDeltaToCanvas,
-  screenToCanvas,
-  stepZoom,
-  unionBox,
-} from "../viewport";
-import type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle, ScreenPoint } from "../viewport";
+import { TOOL_SIZES } from "./constants";
+import { marqueeRect, resizeBox, screenDeltaToCanvas, screenToCanvas, unionBox } from "./geometry";
+import type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle, ScreenPoint } from "./models";
 import { ENDPOINT_RELEASE_THRESHOLD_PX } from "./models";
 import type {
   CanvasViewportState,
@@ -46,6 +38,7 @@ import type {
 import { WRITE_DEBOUNCE_MS, writeCanvasViewport } from "./persistence";
 import type { PersistedViewport } from "./persistence";
 import { snapEdgePoint, snapEndpointEdge } from "./utils";
+import { pinchZoom, stepZoom } from "./zoom";
 
 // The portT's commit rounding: the edge's fractional position stands at
 // the 4-digit stand (0.0001 — sub-pixel on any sane edge at any zoom).

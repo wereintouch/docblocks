@@ -26,7 +26,7 @@ import {
   Type,
 } from "../shared/ui/icons";
 import type { CanvasTool } from "./viewport";
-import type { CanvasViewportState } from "./viewport-state";
+import type { CanvasViewportState } from "./viewport";
 
 /** A 24px-stroke icon component (the package icon set). */
 type DockIcon = ComponentType<SVGProps<SVGSVGElement>>;

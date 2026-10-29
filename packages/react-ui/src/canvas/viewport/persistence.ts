@@ -2,8 +2,8 @@
  *  docId -> { zoom, pan }. A non-browser / unavailable / corrupted
  *  storage stands the read's null (the fit's fallback) and the write's
  *  no-op. Pure view state — the doc's own data stands untouched. */
-import { MAX_ZOOM, MIN_ZOOM } from "../viewport";
-import type { ScreenPoint } from "../viewport";
+import { MAX_ZOOM, MIN_ZOOM } from "./constants";
+import type { ScreenPoint } from "./models";
 
 // The storage's key (the versioned map's name).
 const STORAGE_KEY = "docblocks.canvas-viewport.v1";

@@ -7,7 +7,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../EditorProvider";
 import type { Box } from "../canvas/viewport";
-import type { MovePreview } from "../canvas/viewport-state";
+import type { MovePreview } from "../canvas/viewport";
 import { useBlock } from "../hooks";
 import { BlockView } from "./BlockView";
 import { ConnectorLine } from "./ConnectorLayer";

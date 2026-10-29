@@ -35,11 +35,11 @@ import type { BlockId } from "docblocks-core";
 import { useEditorContext } from "../../EditorProvider";
 import { CanvasDock } from "../../canvas/CanvasDock";
 import { ConnectorToolbar } from "../../canvas/ConnectorToolbar";
-import { ShapeToolbar } from "../../canvas/shape-toolbar";
 import { copyCanvasItems, pasteCanvasItems } from "../../canvas/clipboard";
 import { canvasContentBox, fitView } from "../../canvas/fit";
 import { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "../../canvas/insert";
 import { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "../../canvas/nudge";
+import { ShapeToolbar } from "../../canvas/shape-toolbar";
 import {
   MOVE_THRESHOLD_PX,
   canvasToScreen,
@@ -49,7 +49,7 @@ import {
   screenToCanvas,
 } from "../../canvas/viewport";
 import type { ResizeHandle } from "../../canvas/viewport";
-import { readCanvasViewport, useCanvasViewport } from "../../canvas/viewport-state";
+import { readCanvasViewport, useCanvasViewport } from "../../canvas/viewport";
 import {
   connectorPressStand,
   connectorPreviewFrom,

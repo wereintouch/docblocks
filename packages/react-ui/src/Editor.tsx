@@ -4,8 +4,8 @@ import { useMemo } from "react";
 
 import { useEditorContext } from "./EditorProvider";
 import { BlockGroups } from "./blocks/BlockView";
-import { CanvasView } from "./blocks/canvas-view";
 import { BlockContext } from "./blocks/block-context";
+import { CanvasView } from "./blocks/canvas-view";
 import { entrySequenceParent } from "./blocks/flat";
 import { FormatPaletteContext } from "./blocks/format-palette-context";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";

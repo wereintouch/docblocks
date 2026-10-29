@@ -1,132 +1,13 @@
 /**
- * The canvas viewport geometry (pure): the screen ↔ canvas mapping under
- * the zoom/pan transform, the marquee rectangle, and the pen stroke
- * bounding box.
- *
- * The canvas content wrapper carries
- * `transform: translate(pan) scale(zoom)` with the transform origin at
- * the canvas container's CENTER, and every element stands at
- * (center + x, center + y) in the canvas space (the center-anchor
- * geometry model). The mapping is the single affine
- * `screen = zoom * canvas + pan` (screen in the container space,
- * center-relative), so `canvas = (screen - pan) / zoom`.
+ * The canvas viewport's geometry math (pure): the screen ↔ canvas mapping
+ * under the zoom/pan transform (the center-anchor affine — the canvas
+ * content wrapper carries `transform: translate(pan) scale(zoom)` with the
+ * origin at the container's center, so `screen = zoom * canvas + pan`), the
+ * marquee rectangle, the rect intersection, the resize's center-anchor math
+ * (the Miro edge model), and the pen stroke's bounding box.
  */
-
-/** The zoom bounds (25%–400%). */
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 4;
-/** The zoom step (10%). */
-const ZOOM_STEP = 0.1;
-
-/** The pinch (the ctrl/cmd wheel) zoom's coefficient : the wheel's delta stands the exponential factor — the
- * continuous zoom (the trackpad's smooth stand), no step threshold. */
-const PINCH_ZOOM_COEFF = 0.005;
-
-/**
- * The zoom stops: the 10% grid (0.3, 0.4, …, 4.0) + the 25% floor. The
- * step moves one stop at a time (the grid stands path-independent — the
- * float drift is dropped by the two-decimal round).
- */
-const ZOOM_STOPS: number[] = (() => {
-  const stops = [MIN_ZOOM];
-  for (let stop = Math.ceil(MIN_ZOOM / ZOOM_STEP) * ZOOM_STEP; stop <= MAX_ZOOM + 1e-9; stop += ZOOM_STEP) {
-    stops.push(Number(stop.toFixed(2)));
-  }
-  return stops;
-})();
-
-/** The zoom's stop index (the nearest stop; the float drift stands the epsilon). */
-function zoomStopIndex(zoom: number): number {
-  let index = 0;
-  let delta = Infinity;
-  ZOOM_STOPS.forEach((stop, stopIndex) => {
-    const candidate = Math.abs(zoom - stop);
-    if (candidate < delta) {
-      delta = candidate;
-      index = stopIndex;
-    }
-  });
-  return index;
-}
-/** The move session's drag threshold (screen px): below it, the press is a click. */
-const MOVE_THRESHOLD_PX = 3;
-
-/** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
-type CanvasTool =
-  | "rect"
-  | "rounded"
-  | "ellipse"
-  | "diamond"
-  | "cylinder"
-  | "cloud"
-  | "container"
-  | "text"
-  | "frame"
-  | "connector"
-  | "pen";
-
-/** The pointer mode (the dock's hand toggle). */
-type CanvasMode = "default" | "pan";
-
-/** A point in the container space, center-relative (px). */
-interface ScreenPoint {
-  x: number;
-  y: number;
-}
-
-/** A point in the canvas space (the center-anchor coordinates, px). */
-interface CanvasPoint {
-  x: number;
-  y: number;
-}
-
-/** A rectangle in the container space, center-relative (px). */
-interface ScreenRect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-/** The default size of a placed tool block (the center anchor is the click point). */
-const TOOL_SIZES: Record<CanvasTool, { w: number; h: number }> = {
-  rect: { w: 160, h: 80 },
-  rounded: { w: 160, h: 80 },
-  ellipse: { w: 100, h: 80 },
-  diamond: { w: 90, h: 90 },
-  cylinder: { w: 100, h: 120 },
-  cloud: { w: 130, h: 95 },
-  container: { w: 240, h: 160 },
-  text: { w: 200, h: 40 },
-  frame: { w: 320, h: 240 },
-  connector: { w: 0, h: 0 }, // the connector carries no own geometry
-  pen: { w: 0, h: 0 }, // the pen's geometry is the stroke's bounding box
-};
-
-/** Clamps and snaps a zoom value to the nearest stop (the 25%–400% bounds). */
-function clampZoom(zoom: number): number {
-  return ZOOM_STOPS[zoomStopIndex(zoom)]!;
-}
-
-/** The zoom step (direction ±1): one stop, clamped at the stops' bounds. */
-function stepZoom(zoom: number, direction: 1 | -1): number {
-  const index = zoomStopIndex(zoom);
-  const next = index + direction;
-  if (next < 0 || next >= ZOOM_STOPS.length) return ZOOM_STOPS[index]!;
-  return ZOOM_STOPS[next]!;
-}
-
-/**
-
-
- * delta (the small delta stands the proportional step — the pinch reacts
- * without the threshold's lag) and clamps at the 25%–400% bounds (a
- * delta past the bound stands the no-op, like the step's bound).
- */
-function pinchZoom(zoom: number, deltaY: number): number {
-  const next = zoom * Math.exp(-deltaY * PINCH_ZOOM_COEFF);
-  return Number(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, next)).toFixed(4));
-}
+import { MOVE_THRESHOLD_PX, RESIZE_FLOOR_PX } from "./constants";
+import type { Box, CanvasPoint, PenStroke, ResizeHandle, ScreenPoint, ScreenRect } from "./models";
 
 /** The screen point (center-relative) → the canvas point. */
 function screenToCanvas(point: ScreenPoint, zoom: number, pan: ScreenPoint): CanvasPoint {
@@ -148,30 +29,16 @@ function screenDeltaToCanvas(dx: number, dy: number, zoom: number): CanvasPoint 
   return { x: dx / zoom, y: dy / zoom };
 }
 
-/** The resize handle ids (the eight box handles). */
-type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
-
-/** The box floor of a resize (canvas px, per axis). */
-const RESIZE_FLOOR_PX = 20;
-
-/** A complete box (the center-anchor geometry shape). */
-interface Box {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
 /**
  * The resize math (center-anchor semantics, the Miro edge model): the
- * handle's edge(s) move by the delta, the opposite edge(s) stand, and
- * the center re-derives. Shift on a corner keeps the aspect (the
- * dominant axis decides the scale; the opposite corner stays anchored).
- * The size floors at RESIZE_FLOOR_PX per axis. A container's resize
- * additionally clamps each edge at the members' union box (the absent
- * `memberUnion` — the shape's resize — keeps the plain floor-only box).
- * No-op (a sub-floor / zero delta) results in an equal-value box — the
- * commit's no-op guard drops it.
+ * handle's edge(s) move by the delta, the opposite edge(s) stand, and the
+ * center re-derives. Shift on a corner keeps the aspect (the dominant axis
+ * decides the scale; the opposite corner stays anchored). The size floors
+ * at RESIZE_FLOOR_PX per axis. A container's resize additionally clamps
+ * each edge at the members' union box (the absent `memberUnion` — the
+ * shape's resize — keeps the plain floor-only box). No-op (a sub-floor /
+ * zero delta) results in an equal-value box — the commit's no-op guard
+ * drops it.
  */
 function resizeBox(box: Box, handle: ResizeHandle, dx: number, dy: number, shift: boolean, memberUnion?: Box): Box {
   const left = box.x - box.w / 2;
@@ -288,12 +155,6 @@ function rectsIntersect(a: ScreenRect, b: ScreenRect): boolean {
   return a.left < b.left + b.width && a.left + a.width > b.left && a.top < b.top + b.height && a.top + a.height > b.top;
 }
 
-/** The pen stroke's bbox geometry + the block-local points. */
-interface PenStroke {
-  geometry: { x: number; y: number; w: number; h: number };
-  points: [number, number][];
-}
-
 /**
  * The pen stroke → the shape's geometry (the bbox, the center anchor) +
  * the block-local points (0..w, 0..h). Null when the stroke has no area
@@ -321,23 +182,13 @@ function penStroke(points: CanvasPoint[]): PenStroke | null {
 }
 
 export {
-  MAX_ZOOM,
-  MIN_ZOOM,
-  MOVE_THRESHOLD_PX,
-  RESIZE_FLOOR_PX,
-  TOOL_SIZES,
-  ZOOM_STEP,
   canvasToScreen,
   clampResizeBoxToUnion,
-  clampZoom,
   marqueeRect,
   penStroke,
-  pinchZoom,
   rectsIntersect,
   resizeBox,
   unionBox,
   screenDeltaToCanvas,
   screenToCanvas,
-  stepZoom,
 };
-export type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle, ScreenPoint, ScreenRect };

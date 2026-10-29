@@ -16,10 +16,10 @@ import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
 import { SurfaceBlock } from "./SurfaceBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
-import { TableBlock } from "./table";
 import { TextBlock } from "./TextBlock";
 import { deriveFlat, markerCycle } from "./flat";
 import type { FlatNode } from "./flat";
+import { TableBlock } from "./table";
 
 const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;
 

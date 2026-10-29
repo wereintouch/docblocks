@@ -1,17 +1,62 @@
-/** The canvas viewport's models: the session shapes (the move / resize /
- *  the connector endpoint drag), the rendered previews, and the
- *  `CanvasViewportState` the hook returns. */
+/** The canvas viewport's models: the geometry types (the points, the box,
+ *  the tool / mode sets, the resize handles, the pen stroke) + the session
+ *  shapes (the move / resize / the connector endpoint drag), the rendered
+ *  previews, and the `CanvasViewportState` the hook returns. */
 import type { CanvasPort } from "../../blocks/canvas-geometry";
-import type {
-  Box,
-  CanvasMode,
-  CanvasPoint,
-  CanvasTool,
-  PenStroke,
-  ResizeHandle,
-  ScreenPoint,
-  ScreenRect,
-} from "../viewport";
+
+/** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
+type CanvasTool =
+  | "rect"
+  | "rounded"
+  | "ellipse"
+  | "diamond"
+  | "cylinder"
+  | "cloud"
+  | "container"
+  | "text"
+  | "frame"
+  | "connector"
+  | "pen";
+
+/** The pointer mode (the dock's hand toggle). */
+type CanvasMode = "default" | "pan";
+
+/** A point in the container space, center-relative (px). */
+interface ScreenPoint {
+  x: number;
+  y: number;
+}
+
+/** A point in the canvas space (the center-anchor coordinates, px). */
+interface CanvasPoint {
+  x: number;
+  y: number;
+}
+
+/** A rectangle in the container space, center-relative (px). */
+interface ScreenRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** The resize handle ids (the eight box handles). */
+type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
+
+/** A complete box (the center-anchor geometry shape). */
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The pen stroke's bbox geometry + the block-local points. */
+interface PenStroke {
+  geometry: { x: number; y: number; w: number; h: number };
+  points: [number, number][];
+}
 
 /** The in-flight placement's preview (the center anchor, canvas coords).
  * `kind` stands the preview's figure: a shape (the variant's silhouette)
@@ -308,15 +353,23 @@ const NUDGE_SHIFT_MULTIPLIER = 5;
 
 export { ENDPOINT_RELEASE_THRESHOLD_PX, ENDPOINT_SNAP_RADIUS, NUDGE_SHIFT_MULTIPLIER, NUDGE_STEP_PX };
 export type {
+  Box,
+  CanvasMode,
+  CanvasPoint,
+  CanvasTool,
   CanvasViewportState,
+  DropIndicator,
   EndpointDrag,
   EndpointPreview,
   EndpointSession,
   EndpointSnap,
-  DropIndicator,
   MarqueeState,
   MovePreview,
   MoveSession,
+  PenStroke,
   PlacePreview,
+  ResizeHandle,
   ResizeSession,
+  ScreenPoint,
+  ScreenRect,
 };
