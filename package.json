@@ -18,9 +18,10 @@
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present && tsc -p test/e2e/tsconfig.json",
     "test": "npm run test --workspaces --if-present",
+    "test:packaging": "node test/packaging/packaging.test.mjs",
     "test:e2e": "playwright test",
     "build": "npm run build -w packages/core && npm run build -w packages/react-ui",
-    "check": "npm run lint && npm run format:check && npm run build && npm run typecheck && npm run test && npm run test:e2e",
+    "check": "npm run lint && npm run format:check && npm run build && npm run typecheck && npm run test && npm run test:packaging && npm run test:e2e",
     "changeset": "changeset"
   },
   "devDependencies": {
