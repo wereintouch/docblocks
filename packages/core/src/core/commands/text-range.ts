@@ -39,6 +39,7 @@ import {
 } from "../errors";
 import { localTransact, rootBlockIdOf } from "../layout";
 import { readText } from "../read";
+import type { TextPoint } from "../selection";
 import { linearize } from "../selection/rebase";
 import type { Linearizable } from "../selection/rebase";
 import { getBlockMap } from "./blocks";
@@ -47,9 +48,6 @@ import { markInputToMark, setMark } from "./marks";
 import type { MarkInput } from "./marks";
 import { blockTypeOf, childrenOf } from "./structure";
 import { contentTextLength, deleteText } from "./text";
-
-/** A structural point in a block's flattened text (the selection's point shape). */
-type RangePoint = { blockId: BlockId; offset: number };
 
 /** A validated point: the block's text length is the offset boundary. */
 interface ValidPoint {
@@ -67,7 +65,7 @@ function surfaceOf(ydoc: Y.Doc): Linearizable {
 }
 
 /** The point's block must exist and carry text; the offset must be in range. */
-function requireTextPoint(ydoc: Y.Doc, point: RangePoint, label: string): ValidPoint {
+function requireTextPoint(ydoc: Y.Doc, point: TextPoint, label: string): ValidPoint {
   const block = getBlockMap(ydoc, point.blockId);
   if (block === null) throw new UnknownBlockError(`Unknown block "${point.blockId}".`);
   const type = blockTypeOf(ydoc, point.blockId);
@@ -113,7 +111,7 @@ function chainSpan(ydoc: Y.Doc, fromId: BlockId, toId: BlockId): { chain: BlockI
  * with them, v1). Returns the caret seam (see the module header); a block
  * that a previous cascade in the same batch already removed is skipped.
  */
-function deleteTextRange(ydoc: Y.Doc, from: RangePoint, to: RangePoint): RangePoint | null {
+function deleteTextRange(ydoc: Y.Doc, from: TextPoint, to: TextPoint): TextPoint | null {
   const fromPoint = requireTextPoint(ydoc, from, "from");
   const toPoint = requireTextPoint(ydoc, to, "to");
   if (fromPoint.blockId === toPoint.blockId) {
@@ -159,7 +157,7 @@ function deleteTextRange(ydoc: Y.Doc, from: RangePoint, to: RangePoint): RangePo
  * or after the deleted interval (pre-change DFS order); null when no text
  * remains at or after it.
  */
-function seamAfterInterval(ydoc: Y.Doc, preLinearization: readonly BlockId[], toIndex: number): RangePoint | null {
+function seamAfterInterval(ydoc: Y.Doc, preLinearization: readonly BlockId[], toIndex: number): TextPoint | null {
   for (const id of linearize(surfaceOf(ydoc))) {
     if (preLinearization.indexOf(id) <= toIndex) continue; // before the interval
     const type = blockTypeOf(ydoc, id);
@@ -179,7 +177,7 @@ function seamAfterInterval(ydoc: Y.Doc, preLinearization: readonly BlockId[], to
  * the batch cannot throw (a failed batch would commit partially): a code
  * block in the range rejects the whole range (the per-block posture).
  */
-function setMarkRange(ydoc: Y.Doc, from: RangePoint, to: RangePoint, mark: MarkInput): void {
+function setMarkRange(ydoc: Y.Doc, from: TextPoint, to: TextPoint, mark: MarkInput): void {
   const { markSet } = markInputToMark(mark);
   const markErrors = validateMarkSet("paragraph", markSet);
   if (markErrors.length > 0) {
@@ -223,4 +221,3 @@ function contentTextLengthOf(ydoc: Y.Doc, blockId: BlockId): number {
 }
 
 export { deleteTextRange, setMarkRange };
-export type { RangePoint };
