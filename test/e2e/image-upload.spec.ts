@@ -1,6 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
 const RELAY = "ws://localhost:5199";
+const SETTLE = { timeout: 15_000 };
 const FIXTURE = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
 
 /**
@@ -110,8 +111,9 @@ test("the key syncs over the wire; the other pane's store renders the placeholde
 
   // The key travels as plain doc data; pane B's own default store does not
   // hold the bytes (the per-page consumer boundary), so it renders the
-  // placeholder for the same key.
-  await expect(await imageSrcInDoc(b, "b")).toBe(keyInDoc);
+  // placeholder for the same key. B converges over the wire — wait for the
+  // key to stand (a one-shot read can catch B mid-convergence).
+  await expect.poll(async () => imageSrcInDoc(b, "b"), SETTLE).toBe(keyInDoc);
   await expect(b.locator("img[data-slot='docblocks/image']")).toHaveCount(0);
   await expect(b.locator('[data-slot="docblocks/image-placeholder"]')).toBeVisible();
   await close();
