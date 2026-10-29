@@ -17,5 +17,20 @@
  * stands).
  */
 export { DEFAULT_TABLE_COLUMN_WIDTH } from "./common";
-export * from "./columns";
-export * from "./rows";
+export {
+  clearTableColumn,
+  duplicateTableColumn,
+  insertTableColumn,
+  moveTableColumn,
+  removeTableColumn,
+  setTableColumnColor,
+  setTableColumnWidth,
+} from "./columns";
+export {
+  clearTableRow,
+  duplicateTableRow,
+  insertTableRow,
+  moveTableRow,
+  removeTableRow,
+  setTableRowColor,
+} from "./rows";
