@@ -339,6 +339,10 @@ system mono and reads `--font-mono` first. The package's self-hosted font set
 the `fonts` registry (`UI_FONT_ID` / `UI_FONT_STACK`, `MONO_FONT_STACK`,
 `SHAPE_FONT_OPTIONS`).
 
+The self-hosted font set (Inter, JetBrains Mono, Lora, Open Sans, PT Sans,
+PT Serif) is licensed under the SIL Open Font License 1.1; the license text
+ships with the fonts in `dist/fonts/OFL.txt`.
+
 ### Design system primitives
 
 The package's design system primitives (Button, Checkbox, Card, Alert, … —
