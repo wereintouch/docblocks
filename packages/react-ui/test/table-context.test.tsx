@@ -12,7 +12,7 @@ import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/EditorProvider";
-import { cellPlainText, clampColumnWidth, pasteCellText, readClipboardText } from "../src/blocks/TableBlock";
+import { cellPlainText, clampColumnWidth, pasteCellText, readClipboardText } from "../src/blocks/table";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;

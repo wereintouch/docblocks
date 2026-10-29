@@ -16,7 +16,7 @@ import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
 import { SurfaceBlock } from "./SurfaceBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
-import { TableBlock } from "./TableBlock";
+import { TableBlock } from "./table";
 import { TextBlock } from "./TextBlock";
 import { deriveFlat, markerCycle } from "./flat";
 import type { FlatNode } from "./flat";
