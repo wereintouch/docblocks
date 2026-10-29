@@ -3,7 +3,7 @@ import * as Y from "yjs";
 import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "@docblocks-core/schema";
 import type { Block, BlockId, BlockType, DocJSON, DocMeta, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
-import { derivedZIndex } from "./commands/z-order";
+import { derivedZIndex } from "./commands";
 import { rootBlockIdOf, rootOrderOf } from "./layout";
 import { normalizeRuns } from "./normalize";
 import { attrsToMarkSet } from "./text-model";

@@ -21,11 +21,8 @@ export {
   UnknownColumnError,
   UnknownRowError,
 } from "./errors";
-export { DEFAULT_TABLE_COLUMN_WIDTH } from "./commands/table";
-export type { InsertBlockArgs, InsertBlockPosition } from "./commands/blocks";
-export type { ChangeBlockTypeArgs } from "./commands/types";
-export type { MarkInput } from "./commands/marks";
-export type { ZOrderAction } from "./commands/z-order";
+export { DEFAULT_TABLE_COLUMN_WIDTH } from "./commands";
+export type { ChangeBlockTypeArgs, InsertBlockArgs, InsertBlockPosition, MarkInput, ZOrderAction } from "./commands";
 export type { Change } from "./events";
 export { localOriginOf } from "./layout";
 export { undoManagerOf } from "./history";

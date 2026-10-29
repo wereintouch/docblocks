@@ -16,46 +16,41 @@ import type {
 } from "@docblocks-core/schema";
 
 import {
-  setAvatar as setAvatarCommand,
-  setTitle as setTitleCommand,
-  updateBlock as updateBlockCommand,
-} from "./commands/attrs";
-import {
-  insertBlock as insertBlockCommand,
-  moveBlock as moveBlockCommand,
-  removeBlock as removeBlockCommand,
-} from "./commands/blocks";
-import type { InsertBlockArgs } from "./commands/blocks";
-import {
-  insertRow as insertRowCommand,
-  moveRow as moveRowCommand,
-  removeRow as removeRowCommand,
-  setCell as setCellCommand,
-  setDatabaseTable as setDatabaseTableCommand,
-} from "./commands/database";
-import { setGeometry as setGeometryCommand } from "./commands/geometry";
-import { setMark as setMarkCommand, unsetMark as unsetMarkCommand } from "./commands/marks";
-import type { MarkInput } from "./commands/marks";
-import {
+  changeBlockType as changeBlockTypeCommand,
   clearTableColumn as clearTableColumnCommand,
   clearTableRow as clearTableRowCommand,
+  deleteText as deleteTextCommand,
+  deleteTextRange as deleteTextRangeCommand,
   duplicateTableColumn as duplicateTableColumnCommand,
   duplicateTableRow as duplicateTableRowCommand,
+  insertBlock as insertBlockCommand,
+  insertRow as insertRowCommand,
   insertTableColumn as insertTableColumnCommand,
   insertTableRow as insertTableRowCommand,
+  insertText as insertTextCommand,
+  moveBlock as moveBlockCommand,
+  moveRow as moveRowCommand,
   moveTableColumn as moveTableColumnCommand,
   moveTableRow as moveTableRowCommand,
+  removeBlock as removeBlockCommand,
+  removeRow as removeRowCommand,
   removeTableColumn as removeTableColumnCommand,
   removeTableRow as removeTableRowCommand,
+  setAvatar as setAvatarCommand,
+  setCell as setCellCommand,
+  setDatabaseTable as setDatabaseTableCommand,
+  setGeometry as setGeometryCommand,
+  setMark as setMarkCommand,
+  setMarkRange as setMarkRangeCommand,
   setTableColumnColor as setTableColumnColorCommand,
   setTableColumnWidth as setTableColumnWidthCommand,
   setTableRowColor as setTableRowColorCommand,
-} from "./commands/table";
-import { deleteText as deleteTextCommand, insertText as insertTextCommand } from "./commands/text";
-import { deleteTextRange as deleteTextRangeCommand, setMarkRange as setMarkRangeCommand } from "./commands/text-range";
-import { changeBlockType as changeBlockTypeCommand } from "./commands/types";
-import type { ChangeBlockTypeArgs } from "./commands/types";
-import { type ZOrderAction, setZOrder as setZOrderCommand } from "./commands/z-order";
+  setTitle as setTitleCommand,
+  setZOrder as setZOrderCommand,
+  unsetMark as unsetMarkCommand,
+  updateBlock as updateBlockCommand,
+} from "./commands";
+import type { ChangeBlockTypeArgs, InsertBlockArgs, MarkInput, ZOrderAction } from "./commands";
 import { InvalidOperationError, InvalidSnapshotError, formatValidationErrors } from "./errors";
 import {
   observeText as observeDocText,

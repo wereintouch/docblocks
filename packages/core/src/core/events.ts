@@ -2,7 +2,7 @@ import * as Y from "yjs";
 
 import type { Block, BlockId } from "@docblocks-core/schema";
 
-import { findParent } from "./commands/blocks";
+import { findParent } from "./commands";
 import { rootBlockIdOf } from "./layout";
 import { readBlock, readText } from "./read";
 

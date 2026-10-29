@@ -2,7 +2,7 @@ import * as Y from "yjs";
 
 import type { BlockId } from "@docblocks-core/schema";
 
-import { getBlockMap } from "../commands/structure";
+import { getBlockMap } from "../commands";
 
 /**
  * Per-block flattened text deltas.
