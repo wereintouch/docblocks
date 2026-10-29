@@ -35,7 +35,7 @@ import type { BlockId } from "docblocks-core";
 import { useEditorContext } from "../../EditorProvider";
 import { CanvasDock } from "../../canvas/CanvasDock";
 import { ConnectorToolbar } from "../../canvas/ConnectorToolbar";
-import { ShapeToolbar } from "../../canvas/ShapeToolbar";
+import { ShapeToolbar } from "../../canvas/shape-toolbar";
 import { copyCanvasItems, pasteCanvasItems } from "../../canvas/clipboard";
 import { canvasContentBox, fitView } from "../../canvas/fit";
 import { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "../../canvas/insert";
