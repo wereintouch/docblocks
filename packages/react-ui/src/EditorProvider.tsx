@@ -15,8 +15,8 @@ import type { BlockId, Doc, Selection, SelectionView, SyncEmbedRef, SyncProvider
 import type { BlobStore } from "./blob-store";
 import { getDefaultBlobStore, legacyBlobStore } from "./blob-store";
 import type { BlockRendererMap } from "./blocks/renderers";
-import type { DatabaseBridge } from "./database/bridge";
-import { getDefaultDatabaseBridge } from "./database/memory-bridge";
+import { getDefaultDatabaseBridge } from "./database";
+import type { DatabaseBridge } from "./database";
 import { ensureTrailingParagraph } from "./editing/block-commands";
 import { COMMAND_PALETTE_PLACEHOLDER } from "./editing/slash";
 import { createEditorStore } from "./state/store";

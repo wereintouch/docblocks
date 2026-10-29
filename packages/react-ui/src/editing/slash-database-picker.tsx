@@ -12,7 +12,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useEditorContext } from "../EditorProvider";
-import type { TableRef } from "../database/bridge";
+import type { TableRef } from "../database";
 import { Check, Plus } from "../shared/ui/icons";
 
 /** The table picker panel (the slash menu's database state). */

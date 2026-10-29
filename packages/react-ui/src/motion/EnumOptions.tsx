@@ -10,8 +10,8 @@ import { Reorder, useDragControls } from "framer-motion";
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
-import { ENUM_OPTION_PALETTE } from "../database/bridge";
-import type { EnumOptionDraft } from "../database/grid/models";
+import { ENUM_OPTION_PALETTE } from "../database";
+import type { EnumOptionDraft } from "../database";
 import { ColorSwatches } from "../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { GripVertical, X } from "../shared/ui/icons";

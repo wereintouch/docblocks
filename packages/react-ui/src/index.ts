@@ -22,11 +22,17 @@ export type {
 export { DocHeader } from "./DocHeader";
 export { blobSubtypeOf, createMemoryBlobStore } from "./blob-store";
 export type { BlobMeta, BlobRef, BlobSubtype, BlobStore } from "./blob-store";
-export { columnAnnotation, conditionMatches, parseCellValue } from "./database/bridge";
-export { createMemoryDatabaseBridge, getDefaultDatabaseBridge } from "./database/memory-bridge";
-export { emptyFilter, filterIsComplete, FilterBuilder } from "./database/filter-builder";
-export { useDatabaseTable } from "./database/use-database-table";
-export type { DatabaseTableRow, DatabaseTablePhase } from "./database/use-database-table";
+export {
+  columnAnnotation,
+  conditionMatches,
+  createMemoryDatabaseBridge,
+  emptyFilter,
+  filterIsComplete,
+  FilterBuilder,
+  getDefaultDatabaseBridge,
+  parseCellValue,
+  useDatabaseTable,
+} from "./database";
 export type {
   BridgeColumn,
   BridgeColumnAnnotation,
@@ -34,11 +40,13 @@ export type {
   BridgeValueInput,
   CellValueParse,
   DatabaseBridge,
+  DatabaseTablePhase,
+  DatabaseTableRow,
   RowPage,
   RowQuery,
   TableEvent,
   TableRef,
-} from "./database/bridge";
+} from "./database";
 export type { SyncEmbedRef } from "docblocks-core";
 export { useBlock, useDoc, useMeta, usePresence, useSelection, useSelectionView, useText } from "./hooks";
 export { FORMAT_PALETTE } from "./editing/format-toolbar";

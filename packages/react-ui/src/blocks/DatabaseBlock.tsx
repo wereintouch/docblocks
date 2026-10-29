@@ -1,6 +1,6 @@
 import type { BlockId, DatabaseBlock as DatabaseBlockType } from "docblocks-core";
 
-import { DatabaseGrid } from "../database/DatabaseGrid";
+import { DatabaseGrid } from "../database";
 import { Badge } from "../shared/ui/Badge";
 import { Card, CardContent } from "../shared/ui/Card";
 

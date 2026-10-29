@@ -22,7 +22,7 @@ import { BlockContext } from "../blocks/block-context";
 import { deriveFlat, entrySequenceParent, visibleRows } from "../blocks/flat";
 import type { FlatNode } from "../blocks/flat";
 import { FormatPaletteContext } from "../blocks/format-palette-context";
-import { EnumOptionsMotionSlot } from "../database/grid/enum-options-motion";
+import { EnumOptionsMotionSlot } from "../database";
 import { segmentRange } from "../editing/block-commands";
 import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "../editing/mention";
