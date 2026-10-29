@@ -21,8 +21,8 @@ import type { BridgeColumn } from "../bridge";
 import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN, ENUM_OPTION_PALETTE } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
 import { useDatabaseTable } from "../use-database-table";
-import { DatabaseCell, RowMenuCell } from "./Cells";
 import { HeaderCell } from "./HeaderCell";
+import { DatabaseCell, RowMenuCell } from "./cells";
 import { columnTypeIcon } from "./column-type-icon";
 import {
   ADD_COLUMN_TYPES,
