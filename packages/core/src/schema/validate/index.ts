@@ -4,5 +4,12 @@
  * in `./utils/` (doc / blocks / content / common) over the shared
  * `./models` types and constants.
  */
-export * from "./utils";
+export {
+  checkDatabaseCellValue,
+  validateBlockAttrs,
+  validateCanvasBlock,
+  validateDatabaseBlock,
+  validateDoc,
+  validateMarkSet,
+} from "./utils";
 export type { ValidationError } from "./models";
