@@ -16,7 +16,7 @@
  */
 import type { DatabaseFilterPayload } from "docblocks-core";
 
-import { TEXT_TYPES, conditionMatches } from "./bridge";
+import { TEXT_TYPES, conditionMatches } from "../bridge";
 import type {
   BridgeColumn,
   BridgeTableDescription,
@@ -25,47 +25,10 @@ import type {
   RowQuery,
   TableEvent,
   TableRef,
-} from "./bridge";
-
-/** The fractional order step (the value between two rows is their mean). */
-const ORDER_STEP = 1024;
-
-/** The default page size. */
-const DEFAULT_LIMIT = 200;
-
-/** The package's pk / order column names (the describeTable defaults). */
-const PK_COLUMN = "id";
-const ROW_ORDER_COLUMN = "rowOrder";
-
-interface MemoryTable {
-  name: string;
-  /** The system (hidden) table — absent from `listTables` (the enum's
-   *  options' stand). */
-  system?: boolean;
-  columns: BridgeColumn[];
-  /** row id (the pk value) → the cells. */
-  rows: Map<string, Record<string, unknown>>;
-  /** row id → the fractional order value. */
-  orderValues: Map<string, number>;
-  /** The removed rows (the soft-delete trash): row id → the saved state.
-   *  The trash keeps every cell the row had — the detached column's
-   *  values stand, so a column's restore covers the removed rows too. */
-  trash: Map<string, { cells: Record<string, unknown>; orderValue: number }>;
-  /** The soft-deleted columns (the `deleteColumn`'s preserved state):
-   *  column id → the definition + the anchor position (the id of the
-   *  column that stood BEFORE it, null = the first). The cell values are
-   *  NOT cleared (they stay in the rows' / trash's objects, invisible
-   *  without the schema), so the restore re-inserts the schema and the
-   *  values are already in place. `createColumn` of the same id DROPS
-   *  the entry (the fresh column stands empty — the old data is gone). */
-  detachedColumns: Map<string, { column: BridgeColumn; prevColumnId: string | null }>;
-}
-
-interface MemoryBridgeOptions {
-  /** The BroadcastChannel name (the default `"docblocks-database-bridge"`); pass a
-   *  distinct name per test to isolate the event echo. */
-  channelName?: string;
-}
+} from "../bridge";
+import { DEFAULT_LIMIT, ORDER_STEP, PK_COLUMN, ROW_ORDER_COLUMN } from "./constants";
+import type { MemoryBridgeOptions, MemoryTable } from "./models";
+import { decodeCursor, encodeCursor, stripManaged, tableIdFor } from "./utils";
 
 /**
  * Creates the in-memory bridge. Two bridges on the same page with the
@@ -623,34 +586,6 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): Database
       }
     }
   }
-}
-
-/** The pk / the order column are bridge-managed: they are not cell data. */
-function stripManaged(row: Record<string, unknown>): Record<string, unknown> {
-  const cells: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(row)) {
-    if (key === PK_COLUMN || key === ROW_ORDER_COLUMN) continue;
-    cells[key] = value;
-  }
-  return cells;
-}
-
-/** The table id derived from the name (deterministic across the channel's instances). */
-function tableIdFor(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `table-${slug || Math.random().toString(36).slice(2, 8)}`;
-}
-
-function encodeCursor(index: number): string {
-  return `i${index}`;
-}
-
-function decodeCursor(cursor: string): number {
-  const parsed = Number(cursor.slice(1));
-  return Number.isInteger(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 /** The shared per-page default bridge (the `databaseBridge` prop fallback). */
