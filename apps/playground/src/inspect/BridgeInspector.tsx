@@ -1,5 +1,5 @@
 import { type BridgeColumn, type BridgeTableDescription, type TableEvent, type TableRef } from "docblocks-react-ui";
-import { BareSelect, Button, Checkbox, Input, cn } from "docblocks-react-ui";
+import { BareSelect, Button, Checkbox, Input, Label, cn } from "docblocks-react-ui";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -470,10 +470,10 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                   </option>
                 ))}
               </BareSelect>
-              <label className="flex items-center gap-1 text-[11px]">
+              <Label className="gap-1 text-[11px]">
                 <Checkbox checked={colRefMany} onCheckedChange={onRefManyChange} className="size-3" />
                 many
-              </label>
+              </Label>
               <Button type="button" variant="outline" size="sm" className={BTN_ACTIVE} onClick={addColumn}>
                 + column
               </Button>

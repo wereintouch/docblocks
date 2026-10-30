@@ -12,6 +12,7 @@ export type { AvatarEmoji } from "./emoji-catalog";
 export { DatePicker } from "./DatePicker";
 export { DateTimePicker } from "./DateTimePicker";
 export { EmojiPicker } from "./EmojiPicker";
+export { Datalist } from "./Datalist";
 export { FigureBorderSelector } from "./FigureBorderSelector";
 export { FloatingLabel } from "./FloatingLabel";
 export {

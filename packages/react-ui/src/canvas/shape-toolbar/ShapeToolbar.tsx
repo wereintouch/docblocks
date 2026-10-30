@@ -26,6 +26,7 @@ import {
   FigureBorderSelector,
   Input,
 } from "../../shared/ui";
+import { Datalist } from "../../shared/ui/Datalist";
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
 import {
@@ -267,11 +268,11 @@ function ShapeToolbar({
             {/* The font size (the numeric field: any 8–512 stand, the
                 list the hints). */}
             <div className="relative" data-slot="docblocks/shape-toolbar-font-size-wrap">
-              <datalist id={sizeListId}>
+              <Datalist id={sizeListId}>
                 {SHAPE_FONT_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size} />
                 ))}
-              </datalist>
+              </Datalist>
               <Input
                 size="sm"
                 type="number"

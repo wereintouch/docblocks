@@ -90,6 +90,7 @@ export {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
   Input,
+  Label,
   Popover,
   PopoverAnchor,
   PopoverContent,
