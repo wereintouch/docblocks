@@ -11,9 +11,10 @@ import type { Block, BlockId, Selection } from "docblocks-core";
 
 import { connectorPreviewFrom, connectorPreviewPoint, zPositionOf } from "../../canvas";
 import type { CanvasViewportState } from "../../canvas";
-import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE, connectorStrokeWidthOf } from "../ConnectorLayer";
 import { useBlockContextValue } from "../block-context";
 import { connectorHandlePoints, connectorMidpoint, edgePointOf, effectiveGeometry } from "../canvas-geometry";
+import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../connector-constants";
+import { connectorStrokeWidthOf } from "../connector-utils";
 
 interface CanvasTargetsDeps {
   rootChildren: BlockId[];

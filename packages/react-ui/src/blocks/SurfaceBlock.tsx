@@ -1,7 +1,7 @@
 import type { BlockId, SurfaceBlock as SurfaceBlockType } from "docblocks-core";
 
 import { CanvasItem } from "./CanvasItem";
-import { ConnectorArrowDefs } from "./ConnectorLayer";
+import { ConnectorArrowDefs } from "./ConnectorArrowDefs";
 import { BlockContext, useBlockContextValue } from "./block-context";
 import { ConnectorLabelChips } from "./canvas-view/ConnectorLabelChips";
 

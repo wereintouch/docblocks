@@ -20,10 +20,11 @@ import type { Box, MovePreview } from "../../canvas";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { CanvasItem } from "../CanvasItem";
-import { CanvasSessionContext, ConnectorArrowDefs } from "../ConnectorLayer";
-import type { CanvasSession } from "../ConnectorLayer";
+import { ConnectorArrowDefs } from "../ConnectorArrowDefs";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import { effectiveGeometry, portsOf } from "../canvas-geometry";
+import type { CanvasSession } from "../connector-session-context";
+import { CanvasSessionContext } from "../connector-session-context";
 
 function SurfaceLayer({
   id,

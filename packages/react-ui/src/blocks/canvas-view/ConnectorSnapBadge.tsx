@@ -5,8 +5,8 @@
  *  badge's parity). A world-space overlay (the 1x1 overflow-visible svg —
  *  the ConnectorLayer's parity), so it scales with the zoom. */
 import { Link } from "../../shared/ui/icons";
-import { CONNECT_COLOR, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "../ConnectorLayer";
 import { PORT_NORMAL } from "../canvas-geometry";
+import { CONNECT_COLOR, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "../connector-constants";
 
 function ConnectorSnapBadge({
   slot,

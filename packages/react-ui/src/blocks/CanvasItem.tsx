@@ -9,7 +9,7 @@ import type { Box, MovePreview } from "../canvas";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { BlockView } from "./BlockView";
-import { ConnectorLine } from "./ConnectorLayer";
+import { ConnectorLine } from "./ConnectorLine";
 import { FrameBlock } from "./FrameBlock";
 import { GroupBlock } from "./GroupBlock";
 import { ShapeSvg } from "./ShapeSvg";

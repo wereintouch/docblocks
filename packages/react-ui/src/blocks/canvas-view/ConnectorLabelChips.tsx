@@ -10,9 +10,10 @@ import { useStore } from "zustand";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
-import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE, connectorStrokeWidthOf } from "../ConnectorLayer";
 import type { ConnectorPreviews } from "../canvas-geometry";
 import { connectorMidpoint } from "../canvas-geometry";
+import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../connector-constants";
+import { connectorStrokeWidthOf } from "../connector-utils";
 import { ConnectorLabelChip } from "./ConnectorLabelChip";
 
 const EMPTY_SELECTED: BlockId[] = [];
