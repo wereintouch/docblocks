@@ -15,7 +15,7 @@ import type { BlockId } from "docblocks-core";
 import { Alert, AlertDescription, AlertTitle } from "../shared/ui/Alert";
 import { Skeleton } from "../shared/ui/Skeleton";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
-import { INLINE_CODE_CLASS } from "../text/runs";
+import { INLINE_CODE_CLASS } from "../text";
 import { configureMermaidTheme, safeId } from "./mermaid-config";
 import { useContainerTheme } from "./useContainerTheme";
 

@@ -1,4 +1,4 @@
-import { LINE_ANCHOR_SLOT } from "../text/runs-dom";
+import { LINE_ANCHOR_SLOT } from "../text";
 
 /**
  * Map DOM positions to flat character offsets over a block's inline text

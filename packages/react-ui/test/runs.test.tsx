@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import type { TextRun } from "docblocks-core";
 
-import { renderRuns } from "../src/text/runs";
+import { renderRuns } from "../src/text";
 
 afterEach(cleanup);
 
