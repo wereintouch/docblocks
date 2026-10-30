@@ -3,7 +3,7 @@ import type { BlockId, SurfaceBlock as SurfaceBlockType } from "docblocks-core";
 import { CanvasItem } from "./CanvasItem";
 import { ConnectorArrowDefs } from "./ConnectorLayer";
 import { BlockContext, useBlockContextValue } from "./block-context";
-import { ConnectorLabelChips } from "./canvas-view/ConnectorLabelChip";
+import { ConnectorLabelChips } from "./canvas-view/ConnectorLabelChips";
 
 const EMPTY_IDS: BlockId[] = [];
 

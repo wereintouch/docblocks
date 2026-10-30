@@ -45,7 +45,7 @@ import { ShapeSvg } from "../ShapeSvg";
 import { BlockContext } from "../block-context";
 import { effectiveGeometry, pageCardStyle } from "../canvas-geometry";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
-import { ConnectorLabelChips } from "./ConnectorLabelChip";
+import { ConnectorLabelChips } from "./ConnectorLabelChips";
 import { ConnectorLabelEdit } from "./ConnectorLabelEdit";
 import { ConnectorPreviewLine } from "./ConnectorPreviewLine";
 import { ConnectorSnapBadge } from "./ConnectorSnapBadge";
