@@ -24,7 +24,7 @@ import {
 } from "../../canvas";
 import type { CanvasViewportState } from "../../canvas";
 import type { SelectionRef } from "../../editor-provider";
-import type { EditorStore } from "../../state/store";
+import type { EditorStore } from "../../state";
 import type { CanvasPointerSession } from "./models";
 
 interface CanvasKeysDeps {

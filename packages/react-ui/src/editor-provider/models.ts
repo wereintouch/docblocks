@@ -8,7 +8,7 @@ import type { BlockId, Doc, SelectionView, SyncEmbedRef, SyncProvider } from "do
 import type { BlobStore } from "../blob-store";
 import type { BlockRendererMap } from "../blocks";
 import type { DatabaseBridge } from "../database";
-import type { EditorStore } from "../state/store";
+import type { EditorStore } from "../state";
 
 /**
  * Resolves a sync-embed ref to the master doc the consumer holds; null when

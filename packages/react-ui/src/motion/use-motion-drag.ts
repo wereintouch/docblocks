@@ -19,7 +19,7 @@ import type { Doc } from "docblocks-core";
 import { entrySequenceParent } from "../blocks";
 import type { FlatNode } from "../blocks";
 import { segmentRange } from "../editing/block-commands";
-import type { EditorStore } from "../state/store";
+import type { EditorStore } from "../state";
 import { SLIDE_SETTLE_MS } from "./models";
 import { type DropRow, clampTailSeatCrossing, commitFlatDrag, dropCandidateIndent, sameIds } from "./reorder";
 import { pointerYOf, tailSeatId } from "./utils";

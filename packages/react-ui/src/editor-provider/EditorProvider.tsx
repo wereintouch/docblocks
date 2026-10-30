@@ -11,7 +11,7 @@ import { getDefaultDatabaseBridge } from "../database";
 import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
 import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
-import { createEditorStore } from "../state/store";
+import { createEditorStore } from "../state";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
 import type { EditorProviderProps, SelectionRef } from "./models";
