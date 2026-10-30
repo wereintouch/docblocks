@@ -11,15 +11,14 @@
  */
 import * as Y from "yjs";
 
+import { CANVAS_ZORDER_TYPES } from "@docblocks-core/schema";
+
 import { InvalidOperationError, UnknownBlockError } from "../errors";
 import { localTransact } from "../layout";
 import { blockTypeOf, childrenOf, findParent, getBlockMap } from "./structure";
 
 /** The z-order action: a step up / down, or to the top / bottom. */
 type ZOrderAction = "forward" | "back" | "toFront" | "toBack";
-
-/** The canvas element types that carry the explicit z-order `zIndex`. */
-export const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
 
 /**
  * The dense z-order position (1..N, 1 = bottom) of a canvas element among
@@ -178,5 +177,5 @@ function refreshSurfaceZIndex(ydoc: Y.Doc, surfaceId: string): void {
   }
 }
 
-export { derivedZIndex, refreshSurfaceZIndex, setZOrder, writeZIndexAttr };
+export { CANVAS_ZORDER_TYPES, derivedZIndex, refreshSurfaceZIndex, setZOrder, writeZIndexAttr };
 export type { ZOrderAction };

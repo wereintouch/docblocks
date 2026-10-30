@@ -23,7 +23,7 @@ const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /** The canvas element types that carry the explicit z-order `zIndex`. */
-const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
+export const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
 
 function normalizeZOrder(json: DocJSON): DocJSON {
   const source = json.blocks as unknown as Record<string, Record<string, unknown>>;

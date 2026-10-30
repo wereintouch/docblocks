@@ -7,6 +7,7 @@
 import type { BlockType } from "../../block-union";
 import { isReservedId } from "../../id-safety";
 import { BLOCK_REGISTRY } from "../../registry";
+import { CANVAS_ZORDER_TYPES } from "../../z-order";
 import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../models";
 import type { ValidationError } from "../models";
 import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
@@ -49,9 +50,6 @@ function indentOf(block: Record<string, unknown>): number {
   const indent = attrs?.indent;
   return typeof indent === "number" && Number.isInteger(indent) ? indent : 0;
 }
-
-/** The canvas element types that carry the explicit z-order `zIndex`. */
-const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
 
 /**
 

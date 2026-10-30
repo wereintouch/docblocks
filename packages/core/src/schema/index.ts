@@ -13,7 +13,7 @@ export {
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
 export { flattenDoc } from "./flatten";
 export { isReservedId, RESERVED_ID_KEYS } from "./id-safety";
-export { normalizeZOrder } from "./z-order";
+export { CANVAS_ZORDER_TYPES, normalizeZOrder } from "./z-order";
 export {
   checkDatabaseCellValue,
   validateBlockAttrs,
