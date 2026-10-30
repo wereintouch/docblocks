@@ -90,7 +90,7 @@ function ChaosBar({ syncUrl }: { syncUrl: string }) {
         fontFamily: "system-ui, sans-serif",
       }}
     >
-      <span style={{ fontSize: 12 }}>chaos:</span>
+      <span className="text-xs">chaos:</span>
       {MODES.map(({ mode, label, testid }) => {
         const active = state !== null && labelOf(state) === label;
         return (

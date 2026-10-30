@@ -49,18 +49,10 @@ const label: CSSProperties = { width: 110, fontSize: 12, color: "var(--muted-for
 function DsPanel() {
   const [checked, setChecked] = useState(true);
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: 16,
-        display: "grid",
-        gap: 14,
-        maxWidth: 780,
-      }}
-    >
+    <main className="grid gap-[14px] p-4 font-[family-name:system-ui,sans-serif] max-w-[780px]">
       <header>
-        <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — design system preview</h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--muted-foreground)" }}>
+        <h1 className="m-0 text-lg">docblocks — design system preview</h1>
+        <p className="m-0 mt-1 text-[13px] text-(--muted-foreground)">
           The shared/ui primitives over the compiled utility CSS (the utility layer of docblocks-react-ui/styles.css).
           The dark set flips under the <code>.dark</code> class on <code>&lt;html&gt;</code> (no media query).
         </p>
@@ -91,7 +83,7 @@ function DsPanel() {
       <div style={row}>
         <span style={label}>Checkbox</span>
         <Checkbox checked={checked} onCheckedChange={(v) => setChecked(v === true)} data-testid="ds-checkbox" />
-        <span style={{ fontSize: 13 }}>checked: {String(checked)}</span>
+        <span className="text-[13px]">checked: {String(checked)}</span>
       </div>
 
       <div style={row}>
@@ -120,7 +112,7 @@ function DsPanel() {
           </PopoverContent>
         </Popover>
         <Select>
-          <SelectTrigger size="sm" data-testid="ds-select-trigger" style={{ width: 140 }}>
+          <SelectTrigger size="sm" data-testid="ds-select-trigger" className="w-[140px]">
             <SelectValue placeholder="Pick" />
           </SelectTrigger>
           <SelectContent>
@@ -149,23 +141,23 @@ function DsPanel() {
       <div style={{ display: "grid", gap: 12 }}>
         <div style={row}>
           <span style={label}>Card</span>
-          <Card style={{ width: 340 }} data-testid="ds-card">
+          <Card className="w-[340px]" data-testid="ds-card">
             <CardHeader>
               <CardTitle>Card title</CardTitle>
               <CardDescription>The card description</CardDescription>
             </CardHeader>
-            <CardContent style={{ fontSize: 13 }}>The card content.</CardContent>
-            <CardFooter style={{ fontSize: 13 }}>The card footer.</CardFooter>
+            <CardContent className="text-[13px]">The card content.</CardContent>
+            <CardFooter className="text-[13px]">The card footer.</CardFooter>
           </Card>
         </div>
 
         <div style={row}>
           <span style={label}>Alert</span>
-          <Alert style={{ width: 340 }}>
+          <Alert className="w-[340px]">
             <AlertTitle>The alert title</AlertTitle>
             <AlertDescription>The alert description.</AlertDescription>
           </Alert>
-          <Alert variant="destructive" style={{ width: 340 }} data-testid="ds-alert-destructive">
+          <Alert variant="destructive" className="w-[340px]" data-testid="ds-alert-destructive">
             <AlertTitle>Destructive title</AlertTitle>
             <AlertDescription>The destructive alert description.</AlertDescription>
           </Alert>
@@ -173,14 +165,14 @@ function DsPanel() {
 
         <div style={row}>
           <span style={label}>Separators</span>
-          <Separator style={{ width: 120 }} />
-          <Separator orientation="vertical" style={{ height: 24 }} />
-          <span style={{ fontSize: 13 }}>between rows</span>
+          <Separator className="w-[120px]" />
+          <Separator orientation="vertical" className="h-6" />
+          <span className="text-[13px]">between rows</span>
         </div>
 
         <div style={row}>
           <span style={label}>Skeleton</span>
-          <Skeleton style={{ width: 160, height: 16 }} data-testid="ds-skeleton" />
+          <Skeleton className="h-4 w-40" data-testid="ds-skeleton" />
         </div>
       </div>
     </main>

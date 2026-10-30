@@ -266,7 +266,7 @@ function connectorLineOf(
           strokeWidth={HIT_STROKE_WIDTH}
           fill="none"
           pointerEvents="stroke"
-          style={{ cursor: "pointer" }}
+          className="cursor-pointer"
         />
       )}
       {snapBadge}

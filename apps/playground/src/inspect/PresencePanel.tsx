@@ -41,7 +41,7 @@ function PresencePanel({
   return (
     <div data-testid={`presence-${client}`} style={{ border: "1px solid var(--border)", marginTop: 8 }}>
       <div style={{ padding: 8, fontFamily: "monospace", fontSize: 11, overflow: "auto", maxHeight: 220 }}>
-        {peers.length === 0 && <div style={{ color: "var(--muted-foreground)" }}>no peers</div>}
+        {peers.length === 0 && <div className="text-(--muted-foreground)">no peers</div>}
         {peers.map((peer) => {
           const anchor = anchorLine(peerLabel, peer.selection);
           const detail = detailLine(mountAt, peer);

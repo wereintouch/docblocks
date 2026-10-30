@@ -46,7 +46,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
       aria-hidden="true"
       width={0}
       height={0}
-      style={{ position: "absolute" }}
+      className="absolute"
     >
       <defs>
         {/* The marker's coordinate space is the canvas px; the fill follows

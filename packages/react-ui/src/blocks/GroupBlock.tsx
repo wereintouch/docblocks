@@ -83,7 +83,7 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
   const HIT_HALF = BORDER_HIT_PX / 2;
 
   return (
-    <div className="h-full w-full" style={{ pointerEvents: "none" }}>
+    <div className="pointer-events-none h-full w-full">
       {/* The visual border (the 1px ring + the selected outline):
           pointer-TRANSPARENT — the interior stands the members' press (a
           full-box hit band would shield the members under the container). */}

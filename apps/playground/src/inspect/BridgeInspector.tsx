@@ -350,7 +350,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                 background: selected === table.id ? "var(--accent)" : "var(--muted)",
               }}
             >
-              {table.name} <span style={{ opacity: 0.6 }}>{table.id}</span>
+              {table.name} <span className="opacity-60">{table.id}</span>
             </button>
           ))}
           {tables.length === 0 && <span style={label}>no tables yet</span>}
@@ -393,7 +393,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
             <div style={{ marginTop: 4, fontFamily: "monospace", fontSize: 11 }}>
               {desc.columns.map((column) => (
                 <div key={column.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "1px 0" }}>
-                  <span style={{ flex: 1 }}>
+                  <span className="flex-1">
                     {column.id}: {column.type}
                     {column.refKind !== undefined
                       ? ` [${column.refKind}${column.refMany ? ":many" : ""} → ${column.refTableId ?? "?"}]`
@@ -463,7 +463,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
           <div style={box}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span style={label}>rows (queryRows) — {rows.length}</span>
-              <span style={{ flex: 1 }} />
+              <span className="flex-1" />
               <button type="button" style={btn} onClick={addRow}>
                 + row
               </button>

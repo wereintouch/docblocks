@@ -382,10 +382,7 @@ function CanvasView() {
               }}
             >
               {viewport.placePreview.kind === "container" ? (
-                <div
-                  className="h-full w-full rounded-(--docblocks-radius) border-2 border-dashed"
-                  style={{ borderColor: "currentColor" }}
-                />
+                <div className="h-full w-full rounded-(--docblocks-radius) border-2 border-dashed border-current" />
               ) : (
                 <ShapeSvg
                   id="docblocks-place-preview"
@@ -600,7 +597,7 @@ function CanvasView() {
                     r={CONNECTOR_HANDLE_HIT_RADIUS_PX}
                     fill="transparent"
                     pointerEvents="all"
-                    style={{ cursor: "grab" }}
+                    className="cursor-grab"
                     onPointerDown={onEndpointPointerDown(which)}
                   />
                   <circle
@@ -610,7 +607,7 @@ function CanvasView() {
                     fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
                     strokeWidth={1.5}
                     pointerEvents="none"
-                    style={{ stroke: "var(--docblocks-canvas-selected-stroke)" }}
+                    className="stroke-(--docblocks-canvas-selected-stroke)"
                   />
                 </svg>
               );
