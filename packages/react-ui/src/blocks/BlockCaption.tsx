@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
+import { Input } from "../shared/ui/Input";
 
 /**
  * The block caption line: a centered single-line field BELOW the block
@@ -116,7 +117,7 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
   const blurLocal = () => setLocal(false);
 
   return (
-    <input
+    <Input
       ref={inputRef}
       data-slot={slot}
       type="text"
@@ -127,8 +128,11 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
       onFocus={focusLocal}
       onBlur={blurLocal}
       className="
-        mx-auto my-1 block w-[90%] bg-transparent text-center text-[0.8125em] text-muted-foreground outline-none
+        mx-auto my-1 block w-[90%] border-0 bg-transparent p-0 text-center text-[0.8125em] text-muted-foreground
+        shadow-none
         placeholder:text-muted-foreground/60
+        focus-visible:ring-0
+        dark:bg-transparent
       "
     />
   );

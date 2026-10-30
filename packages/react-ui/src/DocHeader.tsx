@@ -22,7 +22,9 @@ import { useEffect, useRef, useState } from "react";
 import type { Doc } from "docblocks-core";
 
 import type { EditorView } from "./Editor";
+import { Button } from "./shared/ui/Button";
 import { EmojiPicker } from "./shared/ui/EmojiPicker";
+import { Input } from "./shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "./shared/ui/Popover";
 import { SegmentSelector } from "./shared/ui/SegmentSelector";
 import { cn } from "./shared/ui/cn";
@@ -76,9 +78,8 @@ function InlineEditInput({
   };
 
   return (
-    <input
+    <Input
       ref={inputRef}
-      type="text"
       data-slot={slot}
       aria-label={ariaLabel}
       defaultValue={initial}
@@ -149,23 +150,20 @@ function DocHeader({
       />
       <Popover open={avatarOpen} onOpenChange={setAvatarOpen}>
         <PopoverTrigger asChild>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             data-slot="docblocks/doc-header-avatar"
             aria-label="Edit the document avatar"
             title="Edit the avatar"
             className={cn(
-              `
-                flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-base
-                transition-colors
-                focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
-                focus-visible:outline-ring
-              `,
+              "size-8 shrink-0 overflow-hidden rounded-full text-base font-normal",
               meta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
             )}
           >
             {meta.avatar ? meta.avatar : "+"}
-          </button>
+          </Button>
         </PopoverTrigger>
         <PopoverContent align="start" sideOffset={6} onOpenAutoFocus={preventDefault} className="w-auto p-2.5">
           <EmojiPicker selected={meta.avatar ?? null} onPick={pickAvatar} onClear={clearAvatar} />
@@ -177,29 +175,25 @@ function DocHeader({
           ariaLabel="Document title"
           slot="docblocks/doc-header-title-edit"
           className="
-            min-w-0 flex-1 rounded-md border border-input bg-background px-2 py-1 text-lg font-semibold
-            focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
-            focus-visible:outline-ring
+            h-auto min-w-0 flex-1 border-0 bg-background p-0 text-lg font-semibold shadow-none
+            focus-visible:ring-0
+            dark:bg-transparent
           "
           onCommit={commitTitleEdit}
           onCancel={cancelTitleEdit}
         />
       ) : (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           data-slot="docblocks/doc-header-title"
           aria-label="Edit the document title"
           title="Edit the title"
           onClick={beginTitleEdit}
-          className="
-            min-w-0 flex-1 truncate rounded-md px-2 py-1 text-left text-lg font-semibold transition-colors
-            hover:bg-accent
-            focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
-            focus-visible:outline-ring
-          "
+          className="h-auto min-w-0 flex-1 truncate text-left text-lg font-semibold"
         >
           {meta.title || <span className="text-muted-foreground">Untitled</span>}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -5,6 +5,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useBlock } from "../../hooks";
+import { Input } from "../../shared/ui/Input";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { preventDefault } from "../../shared/utils";
@@ -147,12 +148,16 @@ function SlashMenu({
             }
       }
     >
-      <input
+      <Input
         ref={fileInputRef}
         type="file"
         accept="image/*,application/pdf"
         data-slot="docblocks/slash-file-input"
-        className="pointer-events-none absolute h-0 w-0 opacity-0"
+        className="
+          pointer-events-none absolute h-0 w-0 border-0 bg-transparent p-0 opacity-0 shadow-none
+          file:h-0
+          dark:bg-transparent
+        "
         onChange={onFileChange}
       />
       {embedForm ? (
