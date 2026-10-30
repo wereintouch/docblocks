@@ -1,7 +1,7 @@
 import type { BlockId } from "@docblocks-core/schema";
 
 import type { TextDelta } from "./deltas";
-import type { Selection, TextPoint } from "./selection";
+import type { Selection, TextPoint } from "./models";
 
 /**
  * Pure selection rebase: map a selection over the document changes of one

@@ -39,9 +39,8 @@ import {
 } from "../errors";
 import { localTransact, rootBlockIdOf } from "../layout";
 import { readText } from "../read";
-import type { TextPoint } from "../selection";
-import { linearize } from "../selection/rebase";
-import type { Linearizable } from "../selection/rebase";
+import { linearize } from "../selection";
+import type { Linearizable, TextPoint } from "../selection";
 import { getBlockMap } from "./blocks";
 import { removeBlock } from "./blocks";
 import { markInputToMark, setMark } from "./marks";
