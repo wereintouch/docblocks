@@ -121,7 +121,7 @@ function HeaderCell({
               variant="ghost"
               size="icon"
               className="
-                cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
+                size-5 cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
                 hover:bg-transparent hover:text-(--docblocks-text-color)
                 dark:hover:bg-transparent
               "

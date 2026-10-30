@@ -389,7 +389,9 @@ function GridBody({
             variant="outline"
             size="sm"
             className={
-              GRID_CHROME_FRAME + GRID_BUTTON_HOVER + " px-2 py-1 text-(length:--docblocks-font-size) shadow-none"
+              GRID_CHROME_FRAME +
+              GRID_BUTTON_HOVER +
+              " h-auto px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none"
             }
             onClick={() => data.retry()}
           >
@@ -438,7 +440,7 @@ function GridBody({
               data-slot="docblocks/database-name-input"
               className={
                 GRID_CHROME_FRAME +
-                " min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
+                " h-auto min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
               }
               value={nameDraft}
               autoFocus
@@ -456,9 +458,11 @@ function GridBody({
               size="sm"
               title="Rename"
               className={
-                GRID_CHROME_FRAME +
-                GRID_BUTTON_HOVER +
-                " cursor-text px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
+                // The frame-less stand (the look's own: no border) — the
+                // primitive's chrome frame stands off.
+                " h-auto cursor-text border-0 bg-transparent px-1 text-(length:--docblocks-font-size) " +
+                "font-(--docblocks-heading-font-weight) hover:bg-transparent hover:opacity-70 " +
+                "hover:text-inherit dark:bg-transparent dark:hover:bg-transparent"
               }
               onClick={() => setNameDraft(displayName)}
             >
@@ -477,7 +481,7 @@ function GridBody({
               className={
                 GRID_CHROME_FRAME +
                 GRID_BUTTON_HOVER +
-                " px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
+                " h-auto px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
               }
               disabled={!data.canUndo}
               onClick={() => void data.undo()}
@@ -492,7 +496,7 @@ function GridBody({
               className={
                 GRID_CHROME_FRAME +
                 GRID_BUTTON_HOVER +
-                " px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
+                " h-auto px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
               }
               disabled={!data.canRedo}
               onClick={() => void data.redo()}
@@ -512,7 +516,9 @@ function GridBody({
                   variant="outline"
                   size="sm"
                   data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
-                  className={GRID_CHROME_FRAME + GRID_BUTTON_HOVER + " px-2 py-0.5 text-xs font-normal shadow-none"}
+                  className={
+                    GRID_CHROME_FRAME + GRID_BUTTON_HOVER + " h-auto px-2 py-0.5 text-xs font-normal shadow-none"
+                  }
                 >
                   Filter{filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
                 </Button>
@@ -962,9 +968,10 @@ function GridBody({
           size="sm"
           className={
             GRID_CHROME_FRAME +
-            " cursor-pointer px-2 py-1 text-(length:--docblocks-font-size) shadow-none select-none " +
-            "text-(--docblocks-placeholder-color) hover:bg-transparent hover:text-(--docblocks-text-color) " +
-            "dark:hover:bg-transparent"
+            " h-auto cursor-pointer self-start px-2 py-1 font-normal " +
+            "text-(length:--docblocks-font-size) shadow-none select-none " +
+            "text-(--docblocks-placeholder-color) hover:bg-transparent " +
+            "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
           }
           onClick={() => void data.insertRow({})}
         >
