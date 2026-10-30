@@ -443,7 +443,10 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                       <tr key={`ghost-row-${i}`} aria-hidden data-slot="docblocks/table-ghost-row">
                         <td
                           colSpan={block.columnOrder.length}
-                          className="border-(length:--docblocks-table-border-width) border-dashed border-(--docblocks-table-border-color) bg-muted/40"
+                          className="
+                            border-(length:--docblocks-table-border-width) border-dashed
+                            border-(--docblocks-table-border-color) bg-muted/40
+                          "
                           style={{ height: GHOST_ROW_HEIGHT }}
                         />
                       </tr>

@@ -444,7 +444,10 @@ function TextBlock({
         <div
           data-slot="docblocks/code-line-numbers"
           aria-hidden
-          className="relative w-10 shrink-0 pr-2 text-right font-(family-name:--docblocks-mono-font-family) text-muted-foreground select-none"
+          className="
+            relative w-10 shrink-0 pr-2 text-right font-(family-name:--docblocks-mono-font-family) text-muted-foreground
+            select-none
+          "
         >
           {lineMetrics === null
             ? Array.from({ length: codeLines }, (_, i) => <div key={i}>{i + 1}</div>)
@@ -607,7 +610,10 @@ function TextBlock({
           <div
             data-slot="docblocks/quote-rule"
             aria-hidden
-            className="pointer-events-none absolute top-0 bottom-0 left-0 w-(--docblocks-quote-border-width) bg-(--docblocks-quote-border-color)"
+            className="
+              pointer-events-none absolute top-0 bottom-0 left-0 w-(--docblocks-quote-border-width)
+              bg-(--docblocks-quote-border-color)
+            "
           />
         )}
         {block.type === "callout" && CalloutIcon !== undefined && (

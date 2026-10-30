@@ -55,7 +55,11 @@ function EmojiPicker({
       <button
         type="button"
         data-slot="docblocks/emoji-picker-clear"
-        className="-mx-1 rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-1 focus-visible:outline-ring"
+        className="
+          -mx-1 rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors
+          hover:bg-accent hover:text-foreground
+          focus-visible:outline-1 focus-visible:outline-ring
+        "
         onClick={onClear}
       >
         Remove avatar

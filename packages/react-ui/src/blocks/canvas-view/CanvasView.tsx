@@ -460,7 +460,10 @@ function CanvasView() {
           // it — the px stand no literal here).
           <div
             data-slot="docblocks/canvas-multi-selection"
-            className="pointer-events-none absolute z-30 border-(length:--docblocks-canvas-selection-border-width) border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)"
+            className="
+              pointer-events-none absolute z-30 border-(length:--docblocks-canvas-selection-border-width)
+              border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
+            "
             style={{
               left: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).x}px - var(--docblocks-canvas-selection-box-offset))`,
               top: `calc(50% + ${canvasToScreen({ x: multiSelectionBox.left, y: multiSelectionBox.top }, viewport.zoom, viewport.pan).y}px - var(--docblocks-canvas-selection-box-offset))`,
@@ -472,7 +475,10 @@ function CanvasView() {
         {viewport.marqueeRect !== null && (
           <div
             data-slot="docblocks/canvas-marquee"
-            className="pointer-events-none absolute z-40 border-(length:--docblocks-canvas-selection-border-width) border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)"
+            className="
+              pointer-events-none absolute z-40 border-(length:--docblocks-canvas-selection-border-width)
+              border-(--docblocks-canvas-selection-border-color) bg-(--docblocks-canvas-selection-fill)
+            "
             style={{
               left: `calc(50% + ${viewport.marqueeRect.left}px)`,
               top: `calc(50% + ${viewport.marqueeRect.top}px)`,
@@ -501,7 +507,10 @@ function CanvasView() {
                 key={`${indicator.id}-${indicator.containerId}`}
                 data-slot="docblocks/canvas-drop-indicator"
                 data-drop={indicator.kind}
-                className="pointer-events-none absolute z-40 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full"
+                className="
+                  pointer-events-none absolute z-40 flex size-6 -translate-x-1/2 -translate-y-1/2 items-center
+                  justify-center rounded-full
+                "
                 style={{
                   left: `calc(50% + ${screen.x}px)`,
                   top: `calc(50% + ${screen.y}px)`,

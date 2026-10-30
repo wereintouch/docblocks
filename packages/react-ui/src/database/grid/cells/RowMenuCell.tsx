@@ -53,7 +53,11 @@ function RowMenuCell({
             data-slot="docblocks/database-row-menu-trigger"
             variant="ghost"
             size="icon"
-            className="size-5 cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color) hover:bg-transparent hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
+            className="
+              size-5 cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
+              hover:bg-transparent hover:text-(--docblocks-text-color)
+              dark:hover:bg-transparent
+            "
           >
             <Ellipsis className="size-4" />
           </Button>

@@ -127,7 +127,11 @@ function TimeSegments({ id, value, onChange, disabled, clearable, className }: T
           tabIndex={-1}
           aria-label="Clear the time"
           onClick={handleClear}
-          className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors duration-300 hover:text-foreground"
+          className="
+            absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors
+            duration-300
+            hover:text-foreground
+          "
         >
           <X className="size-3.5" />
         </button>

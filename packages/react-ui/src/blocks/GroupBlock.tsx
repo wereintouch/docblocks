@@ -150,7 +150,10 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
       {hasTitle && !editing && (
         <div
           data-slot="docblocks/group-title"
-          className="absolute cursor-default truncate rounded-(--docblocks-radius) px-2 py-0.5 text-(length:--docblocks-font-size) leading-5"
+          className="
+            absolute cursor-default truncate rounded-(--docblocks-radius) px-2 py-0.5
+            text-(length:--docblocks-font-size) leading-5
+          "
           style={{
             pointerEvents: "auto",
             left: TITLE_LEFT_PX,
@@ -175,7 +178,12 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
           // The chip stand lives in the inline style (the look set);
           // the className drops the field base props the chip owns
           // (height fit, no frame, no shadow, no focus ring).
-          className="absolute h-auto rounded-(--docblocks-radius) border-0 px-2 py-0.5 text-(length:--docblocks-font-size) leading-5 shadow-none focus-visible:ring-0 md:text-(length:--docblocks-font-size)"
+          className="
+            absolute h-auto rounded-(--docblocks-radius) border-0 px-2 py-0.5 text-(length:--docblocks-font-size)
+            leading-5 shadow-none
+            focus-visible:ring-0
+            md:text-(length:--docblocks-font-size)
+          "
           style={{
             pointerEvents: "auto",
             left: TITLE_LEFT_PX,
@@ -247,7 +255,13 @@ function GroupTitleMenu({
         size="sm"
         aria-label="Set container title"
         aria-expanded={open}
-        className="h-auto rounded-(--docblocks-radius) border border-(--docblocks-table-border-color) bg-(--docblocks-page-card-background) px-2 py-0.5 text-(length:--docblocks-font-size) leading-5 text-(--docblocks-text-color) shadow-none hover:bg-(--docblocks-page-card-background) hover:text-(--docblocks-text-color) focus-visible:ring-0"
+        className="
+          h-auto rounded-(--docblocks-radius) border border-(--docblocks-table-border-color)
+          bg-(--docblocks-page-card-background) px-2 py-0.5 text-(length:--docblocks-font-size) leading-5
+          text-(--docblocks-text-color) shadow-none
+          hover:bg-(--docblocks-page-card-background) hover:text-(--docblocks-text-color)
+          focus-visible:ring-0
+        "
         onClick={toggleOpen}
       >
         Title
@@ -259,7 +273,13 @@ function GroupTitleMenu({
           data-slot="docblocks/group-title-menu-input"
           aria-label="Container title"
           autoFocus
-          className="mt-1 h-auto w-40 rounded-(--docblocks-radius) border-(--docblocks-table-border-color) bg-(--docblocks-page-card-background) px-1.5 py-0.5 text-(length:--docblocks-font-size) text-(--docblocks-text-color) md:text-(length:--docblocks-font-size) dark:bg-(--docblocks-page-card-background)"
+          className="
+            mt-1 h-auto w-40 rounded-(--docblocks-radius) border-(--docblocks-table-border-color)
+            bg-(--docblocks-page-card-background) px-1.5 py-0.5 text-(length:--docblocks-font-size)
+            text-(--docblocks-text-color)
+            md:text-(length:--docblocks-font-size)
+            dark:bg-(--docblocks-page-card-background)
+          "
           value={draft}
           placeholder="Container title"
           onChange={onTitleChange}

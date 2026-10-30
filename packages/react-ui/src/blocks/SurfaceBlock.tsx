@@ -31,7 +31,11 @@ function SurfaceBlock({ id, block }: { id: BlockId; block: SurfaceBlockType }) {
     >
       <div
         data-slot="docblocks/canvas"
-        className="relative h-(--docblocks-canvas-height) overflow-hidden rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) bg-(--docblocks-canvas-background)"
+        className="
+          relative h-(--docblocks-canvas-height) overflow-hidden rounded-(--docblocks-radius)
+          border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
+          bg-(--docblocks-canvas-background)
+        "
       >
         <BlockContext.Provider value={contextValue}>
           <ConnectorArrowDefs id={id} />

@@ -57,7 +57,9 @@ function RowLinkPickerList({
           data-slot="docblocks/database-row-picker-clear"
           variant="ghost"
           size="sm"
-          className="w-full cursor-pointer justify-start rounded-sm px-2 py-1.5 text-sm font-normal text-muted-foreground"
+          className="
+            w-full cursor-pointer justify-start rounded-sm px-2 py-1.5 text-sm font-normal text-muted-foreground
+          "
           onClick={() => {
             onClear();
             onEditEnd();
@@ -72,7 +74,9 @@ function RowLinkPickerList({
             data-row-id={rowId}
             variant="ghost"
             size="sm"
-            className="w-full cursor-pointer justify-start truncate rounded-sm px-2 py-1.5 text-sm font-normal text-foreground"
+            className="
+              w-full cursor-pointer justify-start truncate rounded-sm px-2 py-1.5 text-sm font-normal text-foreground
+            "
             onClick={() => {
               onPick(rowId);
               onEditEnd();

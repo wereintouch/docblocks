@@ -208,7 +208,11 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
       data-block-type="embed"
       data-block-id={id}
       data-kind={kind}
-      className="group relative my-(--docblocks-block-spacing) h-(--docblocks-embed-height) overflow-hidden rounded-(--docblocks-radius) border-(length:--docblocks-divider-border-width) border-(--docblocks-divider-border-color) outline-none"
+      className="
+        group relative my-(--docblocks-block-spacing) h-(--docblocks-embed-height) overflow-hidden
+        rounded-(--docblocks-radius) border-(length:--docblocks-divider-border-width)
+        border-(--docblocks-divider-border-color) outline-none
+      "
       style={{ cursor: panModifier ? (panSession.current !== null ? "grabbing" : "grab") : undefined }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -230,14 +234,24 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
       />
       <div
         data-slot="docblocks/embed-toolbar"
-        className="absolute top-1.5 right-1.5 z-10 hidden items-center gap-0.5 rounded-(--docblocks-radius) border-(length:--docblocks-divider-border-width) border-(--docblocks-divider-border-color) bg-(--docblocks-page-card-background) p-0.5 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow) group-hover:flex"
+        className="
+          absolute top-1.5 right-1.5 z-10 hidden items-center gap-0.5 rounded-(--docblocks-radius)
+          border-(length:--docblocks-divider-border-width) border-(--docblocks-divider-border-color)
+          bg-(--docblocks-page-card-background) p-0.5 text-(--docblocks-text-color)
+          shadow-(--docblocks-formatbar-shadow)
+          group-hover:flex
+        "
       >
         <Button
           data-slot="docblocks/embed-zoom-out"
           variant="ghost"
           size="icon"
           aria-label="Zoom out"
-          className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) focus-visible:ring-0 disabled:opacity-50"
+          className="
+            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
+            focus-visible:ring-0
+            disabled:opacity-50
+          "
           disabled={view.scale <= EMBED_MIN_SCALE}
           onMouseDown={preventDefault}
           onClick={zoomOut}
@@ -255,7 +269,11 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           variant="ghost"
           size="icon"
           aria-label="Zoom in"
-          className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) focus-visible:ring-0 disabled:opacity-50"
+          className="
+            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
+            focus-visible:ring-0
+            disabled:opacity-50
+          "
           disabled={view.scale >= EMBED_MAX_SCALE}
           onMouseDown={preventDefault}
           onClick={zoomIn}
@@ -267,7 +285,11 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           variant="ghost"
           size="icon"
           aria-label="Reset zoom"
-          className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) focus-visible:ring-0 disabled:opacity-50"
+          className="
+            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
+            focus-visible:ring-0
+            disabled:opacity-50
+          "
           disabled={atIdentity}
           onMouseDown={preventDefault}
           onClick={resetView}

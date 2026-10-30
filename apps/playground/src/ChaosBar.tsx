@@ -1,3 +1,5 @@
+import { Button, cn } from "docblocks-react-ui";
+
 import { useEffect, useState } from "react";
 
 /**
@@ -93,22 +95,23 @@ function ChaosBar({ syncUrl }: { syncUrl: string }) {
       <span className="text-xs">chaos:</span>
       {MODES.map(({ mode, label, testid }) => {
         const active = state !== null && labelOf(state) === label;
+        const modeAt = (mode: Parameters<typeof onMode>[0]) => () => onMode(mode);
         return (
-          <button
+          <Button
             key={mode}
             type="button"
+            variant="outline"
+            size="sm"
             data-testid={testid}
             aria-pressed={active}
-            onClick={() => onMode(mode)}
-            style={{
-              padding: "2px 8px",
-              fontSize: 12,
-              border: "1px solid var(--border)",
-              background: active ? "var(--accent)" : "var(--muted)",
-            }}
+            className={cn(
+              "h-auto gap-0 rounded px-2 py-0.5 text-xs font-normal shadow-none",
+              active ? "bg-accent" : "bg-muted"
+            )}
+            onClick={modeAt(mode)}
           >
             {label}
-          </button>
+          </Button>
         );
       })}
       <span data-testid="chaos-state" style={{ fontFamily: "monospace", fontSize: 12 }}>

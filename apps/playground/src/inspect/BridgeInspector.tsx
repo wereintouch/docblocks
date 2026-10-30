@@ -1,4 +1,5 @@
 import { type BridgeColumn, type BridgeTableDescription, type TableEvent, type TableRef } from "docblocks-react-ui";
+import { BareSelect, Button, Checkbox, Input, cn } from "docblocks-react-ui";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -22,6 +23,10 @@ const COLUMN_TYPES = [
 
 /** The event / row log caps (the harness keeps a bounded tail). */
 const LOG_CAP = 50;
+const LABEL = "text-[11px] text-(--muted-foreground)";
+const BOX = "mt-2 rounded border border-border p-2";
+const BTN = "h-auto gap-0 rounded px-2 py-0.5 text-[11px] font-normal shadow-none";
+const FIELD = "h-auto text-[11px] shadow-none";
 
 /** A stamped bridge event (the relative ms is for the log line). */
 type StampedEvent = TableEvent & { at: number; seq: number };
@@ -85,6 +90,32 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const mountedAt = useRef(Date.now());
   const eventSeq = useRef(0);
   const logRef = useRef<HTMLUListElement | null>(null);
+
+  // The busy stand: every action button stands the wait cursor while the
+  // bridge's round-trip is in flight (the harness's own busy state).
+  const BTN_ACTIVE = cn(BTN, "bg-muted", busy && "cursor-wait");
+
+  const onNewTableChange = (event: React.ChangeEvent<HTMLInputElement>) => setNewTable(event.target.value);
+  const onNewTableKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") createTable();
+  };
+  const onRenameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (selected === null) return;
+    setTableRenames((prev) => ({ ...prev, [selected]: event.target.value }));
+  };
+  const onRenameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") renameTable();
+  };
+  const onColumnRenameChange = (columnId: string) => (event: React.ChangeEvent<HTMLInputElement>) =>
+    setRenames((prev) => ({ ...prev, [columnId]: event.target.value }));
+  const onColNameChange = (event: React.ChangeEvent<HTMLInputElement>) => setColName(event.target.value);
+  const onRefKindChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    setColRefKind(event.target.value);
+    setColRefTable("");
+  };
+  const onRefManyChange = (checkedValue: boolean) => setColRefMany(checkedValue);
+  const onColTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => setColType(event.target.value);
+  const onColRefTableChange = (event: React.ChangeEvent<HTMLSelectElement>) => setColRefTable(event.target.value);
 
   const stamp = (list: StampedEvent[]): void => {
     for (const event of list) {
@@ -297,29 +328,9 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
     });
   };
 
-  const label: React.CSSProperties = { fontSize: 11, color: "var(--muted-foreground)" };
-  const box: React.CSSProperties = { border: "1px solid var(--border)", marginTop: 8, padding: 8 };
-  const btn: React.CSSProperties = {
-    fontSize: 11,
-    padding: "2px 8px",
-    border: "1px solid var(--border)",
-    borderRadius: 4,
-    background: "var(--muted)",
-    cursor: busy ? "wait" : "pointer",
-    margin: "2px 2px 2px 0",
-  };
-  const input: React.CSSProperties = {
-    fontSize: 11,
-    padding: "2px 6px",
-    border: "1px solid var(--border)",
-    borderRadius: 4,
-    background: "var(--background)",
-    color: "var(--foreground)",
-  };
-
   return (
-    <div data-testid={`bridge-${client}`} style={{ border: "1px solid var(--border)", marginTop: 8 }}>
-      <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
+    <div data-testid={`bridge-${client}`} className="mt-2 rounded border border-border">
+      <div className="border-b border-border px-2 py-1 text-xs">
         bridge — {tables.length} tables {selected !== null ? `· ${desc?.name ?? selected}` : ""}
       </div>
       {error !== "" && (
@@ -336,49 +347,50 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
       )}
 
       {/* Tables: the catalog (listTables) + create. */}
-      <div style={box}>
-        <div style={label}>tables (listTables / createTable)</div>
+      <div className={BOX}>
+        <div className={LABEL}>tables (listTables / createTable)</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
           {tables.map((table) => (
-            <button
+            <Button
               key={table.id}
               type="button"
+              variant="outline"
+              size="sm"
               data-testid={`bridge-table-${client}`}
               onClick={() => select(table.id)}
-              style={{
-                ...btn,
-                background: selected === table.id ? "var(--accent)" : "var(--muted)",
-              }}
+              className={cn(BTN, selected === table.id ? "bg-accent" : "bg-muted")}
             >
               {table.name} <span className="opacity-60">{table.id}</span>
-            </button>
+            </Button>
           ))}
-          {tables.length === 0 && <span style={label}>no tables yet</span>}
+          {tables.length === 0 && <span className={LABEL}>no tables yet</span>}
         </div>
         <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-          <input
-            style={{ ...input, flex: 1 }}
+          <Input
+            size="sm"
+            className={cn(FIELD, "flex-1")}
             placeholder="new table name"
             value={newTable}
-            onChange={(event) => setNewTable(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && createTable()}
+            onChange={onNewTableChange}
+            onKeyDown={onNewTableKeyDown}
           />
-          <button type="button" style={btn} onClick={createTable}>
+          <Button type="button" variant="outline" size="sm" className={BTN_ACTIVE} onClick={createTable}>
             + create
-          </button>
+          </Button>
         </div>
         {selected !== null && (
           <div style={{ display: "flex", gap: 4, marginTop: 6 }}>
-            <input
-              style={{ ...input, flex: 1 }}
+            <Input
+              size="sm"
+              className={cn(FIELD, "flex-1")}
               placeholder="rename selected table"
               value={tableRenames[selected] ?? ""}
-              onChange={(event) => setTableRenames((prev) => ({ ...prev, [selected]: event.target.value }))}
-              onKeyDown={(event) => event.key === "Enter" && renameTable()}
+              onChange={onRenameChange}
+              onKeyDown={onRenameKeyDown}
             />
-            <button type="button" style={btn} onClick={renameTable}>
+            <Button type="button" variant="outline" size="sm" className={BTN_ACTIVE} onClick={renameTable}>
               rename table
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -386,8 +398,8 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
       {selected !== null && desc !== null && (
         <>
           {/* Schema: describeTable + createColumn / renameColumn / deleteColumn. */}
-          <div style={box}>
-            <div style={label}>
+          <div className={BOX}>
+            <div className={LABEL}>
               schema (describeTable · pk={desc.pkId ?? "id"} · order={desc.rowOrderId ?? "rowOrder"})
             </div>
             <div style={{ marginTop: 4, fontFamily: "monospace", fontSize: 11 }}>
@@ -399,141 +411,171 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                       ? ` [${column.refKind}${column.refMany ? ":many" : ""} → ${column.refTableId ?? "?"}]`
                       : ""}
                   </span>
-                  <input
-                    style={{ ...input, width: 90 }}
+                  <Input
+                    size="sm"
+                    className={cn(FIELD, "w-[90px]")}
                     defaultValue={column.name}
                     placeholder={column.name}
-                    onChange={(event) => setRenames((prev) => ({ ...prev, [column.id]: event.target.value }))}
+                    onChange={onColumnRenameChange(column.id)}
                   />
-                  <button type="button" style={btn} title="rename" onClick={() => renameColumn(column.id)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    title="rename"
+                    className={BTN_ACTIVE}
+                    onClick={() => renameColumn(column.id)}
+                  >
                     ↻
-                  </button>
-                  <button type="button" style={btn} title="delete" onClick={() => deleteColumn(column.id)}>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    title="delete"
+                    className={BTN_ACTIVE}
+                    onClick={() => deleteColumn(column.id)}
+                  >
                     ×
-                  </button>
+                  </Button>
                 </div>
               ))}
-              {desc.columns.length === 0 && <span style={label}>no columns</span>}
+              {desc.columns.length === 0 && <span className={LABEL}>no columns</span>}
             </div>
             <div style={{ display: "flex", gap: 4, marginTop: 6, flexWrap: "wrap" }}>
-              <input
-                style={{ ...input, width: 110 }}
+              <Input
+                size="sm"
+                className={cn(FIELD, "w-[110px]")}
                 placeholder="column name"
                 value={colName}
-                onChange={(event) => setColName(event.target.value)}
+                onChange={onColNameChange}
               />
-              <select style={input} value={colType} onChange={(event) => setColType(event.target.value)}>
+              <BareSelect className={cn(FIELD, "w-[130px]")} value={colType} onChange={onColTypeChange}>
                 {COLUMN_TYPES.map((type) => (
                   <option key={type} value={type}>
                     {type}
                   </option>
                 ))}
-              </select>
-              <select
-                style={input}
-                value={colRefKind}
-                onChange={(event) => {
-                  setColRefKind(event.target.value);
-                  setColRefTable("");
-                }}
-              >
+              </BareSelect>
+              <BareSelect className={cn(FIELD, "w-[110px]")} value={colRefKind} onChange={onRefKindChange}>
                 <option value="">ref: none</option>
                 <option value="enum">ref: enum</option>
                 <option value="row">ref: row</option>
-              </select>
-              <select style={input} value={colRefTable} onChange={(event) => setColRefTable(event.target.value)}>
+              </BareSelect>
+              <BareSelect className={cn(FIELD, "w-[130px]")} value={colRefTable} onChange={onColRefTableChange}>
                 <option value="">ref table</option>
                 {tables.map((table) => (
                   <option key={table.id} value={table.id}>
                     {table.name}
                   </option>
                 ))}
-              </select>
-              <label style={{ ...label, display: "flex", gap: 4, alignItems: "center" }}>
-                <input type="checkbox" checked={colRefMany} onChange={(event) => setColRefMany(event.target.checked)} />
+              </BareSelect>
+              <label className="flex items-center gap-1 text-[11px]">
+                <Checkbox checked={colRefMany} onCheckedChange={onRefManyChange} className="size-3" />
                 many
               </label>
-              <button type="button" style={btn} onClick={addColumn}>
+              <Button type="button" variant="outline" size="sm" className={BTN_ACTIVE} onClick={addColumn}>
                 + column
-              </button>
+              </Button>
             </div>
           </div>
 
           {/* Rows: queryRows + insertRow / moveRow / removeRow(s) / undeleteRows. */}
-          <div style={box}>
+          <div className={BOX}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={label}>rows (queryRows) — {rows.length}</span>
+              <span className={LABEL}>rows (queryRows) — {rows.length}</span>
               <span className="flex-1" />
-              <button type="button" style={btn} onClick={addRow}>
+              <Button type="button" variant="outline" size="sm" className={BTN_ACTIVE} onClick={addRow}>
                 + row
-              </button>
-              <button type="button" style={btn} title="batch insert 3" onClick={() => addRows(3)}>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                title="batch insert 3"
+                className={BTN_ACTIVE}
+                onClick={() => addRows(3)}
+              >
                 +3
-              </button>
-              <button type="button" style={btn} onClick={removeChecked} disabled={checked.size === 0}>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className={BTN_ACTIVE}
+                onClick={removeChecked}
+                disabled={checked.size === 0}
+              >
                 delete ✓ ({checked.size})
-              </button>
+              </Button>
             </div>
             <div style={{ marginTop: 4, fontFamily: "monospace", fontSize: 11, maxHeight: 180, overflow: "auto" }}>
               {rows.map((row, index) => (
                 <div key={row.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "1px 0" }}>
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={checked.has(row.id)}
-                    onChange={() => toggleCheck(row.id)}
-                    style={{ width: 12, height: 12 }}
+                    onCheckedChange={() => toggleCheck(row.id)}
+                    className="size-3"
                   />
-                  <span title={row.id} style={{ opacity: 0.6, width: 24 }}>
+                  <span title={row.id} className="w-6 opacity-60">
                     #{index + 1}
                   </span>
-                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span className="flex-1 truncate">
                     {desc.columns.map((column) => `${column.id}=${cellText(row.cells[column.id])}`).join("  ")}
                   </span>
-                  <button
+                  <Button
                     type="button"
-                    style={btn}
+                    variant="outline"
+                    size="sm"
                     title="move up (moveRow before the previous)"
                     disabled={index === 0}
+                    className={BTN_ACTIVE}
                     onClick={() => moveRow(row.id, rows[index - 1]?.id ?? null)}
                   >
                     ↑
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    style={btn}
+                    variant="outline"
+                    size="sm"
                     title="move down (moveRow before the next)"
                     disabled={index === rows.length - 1}
+                    className={BTN_ACTIVE}
                     onClick={() => moveRow(row.id, rows[index + 1]?.id ?? null)}
                   >
                     ↓
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    style={btn}
+                    variant="outline"
+                    size="sm"
                     title="move to the end (moveRow null)"
                     disabled={index === rows.length - 1}
+                    className={BTN_ACTIVE}
                     onClick={() => moveRow(row.id, null)}
                   >
                     ⤓
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    style={btn}
+                    variant="outline"
+                    size="sm"
                     title="remove (removeRow → trash)"
+                    className={BTN_ACTIVE}
                     onClick={() => removeRow(row.id)}
                   >
                     ×
-                  </button>
+                  </Button>
                 </div>
               ))}
-              {rows.length === 0 && <span style={label}>no rows</span>}
+              {rows.length === 0 && <span className={LABEL}>no rows</span>}
             </div>
             {removed.length > 0 && (
               <div style={{ display: "flex", gap: 6, marginTop: 4, alignItems: "center" }}>
-                <span style={label}>trash: {removed.length} row(s)</span>
-                <button type="button" style={btn} onClick={restore}>
+                <span className={LABEL}>trash: {removed.length} row(s)</span>
+                <Button type="button" variant="outline" size="sm" className={BTN_ACTIVE} onClick={restore}>
                   restore (undeleteRows)
-                </button>
+                </Button>
               </div>
             )}
           </div>
@@ -542,8 +584,8 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
 
       {/* Events: subscribeTable (the live feed for the selected table). */}
       {selected !== null && (
-        <div style={box}>
-          <div style={label}>events (subscribeTable) — {events.length}</div>
+        <div className={BOX}>
+          <div className={LABEL}>events (subscribeTable) — {events.length}</div>
           <ul
             ref={logRef}
             style={{

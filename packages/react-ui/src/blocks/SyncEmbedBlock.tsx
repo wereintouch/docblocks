@@ -85,7 +85,10 @@ function SyncEmbedBlock({ id, block }: { id: BlockId; block: SyncEmbedBlockType 
       data-block-id={id}
       data-state={state}
       data-doc-id={ref.docId}
-      className="my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none"
+      className="
+        my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
+        border-(--docblocks-table-border-color) outline-none
+      "
     >
       {state === "resolved" && master !== null && (
         <SyncEmbedContent key={`${ref.docId}:${ref.blockId ?? ""}`} master={master} blockId={ref.blockId} />

@@ -88,7 +88,10 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
       >
         <div
           data-slot="docblocks/image-pdf-error"
-          className="mb-2 flex items-center gap-2 rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) bg-(--muted) px-3 py-2 text-sm text-(--muted-foreground)"
+          className="
+            mb-2 flex items-center gap-2 rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
+            border-(--docblocks-table-border-color) bg-(--muted) px-3 py-2 text-sm text-(--muted-foreground)
+          "
         >
           <TriangleAlert className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate">
@@ -100,7 +103,10 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
           data-subtype="pdf"
           src={url}
           title={name ?? "document"}
-          className="block aspect-video w-full rounded-(--docblocks-image-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none"
+          className="
+            block aspect-video w-full rounded-(--docblocks-image-radius) border-(length:--docblocks-table-border-width)
+            border-(--docblocks-table-border-color) outline-none
+          "
         />
       </div>
     );
@@ -118,7 +124,10 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
         ref={canvasRef}
         data-slot="docblocks/image-pdf-canvas"
         className={cn(
-          "block max-w-full rounded-(--docblocks-image-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) bg-(--background)",
+          `
+            block max-w-full rounded-(--docblocks-image-radius) border-(length:--docblocks-table-border-width)
+            border-(--docblocks-table-border-color) bg-(--background)
+          `,
           phase === "ready" ? "h-auto" : "hidden"
         )}
       />

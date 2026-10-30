@@ -1,4 +1,4 @@
-import { type BlockRendererMap, DocHeader, EditorProvider, type EditorView } from "docblocks-react-ui";
+import { type BlockRendererMap, Button, DocHeader, EditorProvider, type EditorView, cn } from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
@@ -303,15 +303,12 @@ function SyncPane({
   // The harness runs exactly two clients, so a remote peer is the other one.
   const peerLetter = client === "a" ? "b" : "a";
 
-  const toggleStyle = (active: boolean): CSSProperties => ({
-    padding: "2px 10px",
-    fontSize: 13,
-    border: "1px solid var(--border)",
-    borderRadius: 6,
-    background: active ? "var(--primary)" : "var(--muted)",
-    color: active ? "var(--primary-foreground)" : "var(--foreground)",
-    cursor: "pointer",
-  });
+  const TOGGLE_BTN = "h-auto gap-0 rounded-md px-2.5 py-0.5 text-[13px] font-normal shadow-none";
+  const TAB_BTN = "h-auto gap-0 rounded px-2 py-0.5 text-xs font-normal shadow-none";
+  const setDarkTrue = () => setDark(true);
+  const setDarkFalse = () => setDark(false);
+  const tabAt = (name: Parameters<typeof setTab>[0]) => () => setTab(name);
+
   const docAreaStyle: CSSProperties =
     view === "canvas"
       ? {
@@ -401,51 +398,59 @@ function SyncPane({
       >
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
           theme
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-testid={`theme-${client}-dark`}
             aria-pressed={dark}
-            onClick={() => setDark(true)}
-            style={toggleStyle(dark)}
+            className={cn(TOGGLE_BTN, dark ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}
+            onClick={setDarkTrue}
           >
             dark
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-testid={`theme-${client}-light`}
             aria-pressed={!dark}
-            onClick={() => setDark(false)}
-            style={toggleStyle(!dark)}
+            className={cn(TOGGLE_BTN, !dark ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}
+            onClick={setDarkFalse}
           >
             light
-          </button>
+          </Button>
         </div>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
           <span data-testid={`status-${client}`}>{connected ? "connected" : "disconnected"}</span>
-          <button data-testid={`reconnect-${client}`} onClick={onReconnect}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            data-testid={`reconnect-${client}`}
+            className="h-auto gap-0 px-2.5 py-0.5 text-[13px] font-normal"
+            onClick={onReconnect}
+          >
             reconnect
-          </button>
+          </Button>
         </div>
         <ChaosBar syncUrl={syncUrl} />
         {runtime !== null && (
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", gap: 4 }}>
               {TABS.map((name) => (
-                <button
+                <Button
                   key={name}
                   type="button"
+                  variant="outline"
+                  size="sm"
                   data-testid={`inspecttab-${client}-${name}`}
                   aria-pressed={tab === name}
-                  onClick={() => setTab(name)}
-                  style={{
-                    padding: "2px 8px",
-                    fontSize: 12,
-                    border: "1px solid var(--border)",
-                    background: tab === name ? "var(--accent)" : "var(--muted)",
-                  }}
+                  className={cn(TAB_BTN, tab === name ? "bg-accent" : "bg-muted")}
+                  onClick={tabAt(name)}
                 >
                   {name}
-                </button>
+                </Button>
               ))}
             </div>
             <div style={{ overflowY: "auto", maxHeight: "60vh", marginTop: 8 }}>

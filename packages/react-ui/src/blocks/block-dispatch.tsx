@@ -110,7 +110,10 @@ function dispatchBuiltIn(
           data-slot="docblocks/divider"
           data-block-type="divider"
           data-block-id={id}
-          className="m-(--docblocks-divider-margin) border-0 border-t-(length:--docblocks-divider-border-width) border-t-(--docblocks-divider-border-color)"
+          className="
+            m-(--docblocks-divider-margin) border-0 border-t-(length:--docblocks-divider-border-width)
+            border-t-(--docblocks-divider-border-color)
+          "
         />
       );
     case "image":
