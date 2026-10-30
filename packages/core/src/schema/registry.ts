@@ -1,119 +1,13 @@
+/** The block + mark registries: the BLOCK_REGISTRY (per the registry spec) and
+ *  the MARK_REGISTRY. The specs stand in registry-specs; the constants (the
+ *  alignment / indent / cell-type / width / icon) stand in constants. */
 import { LEAF_BLOCK_TYPES, PAGE_BLOCK_TYPES } from "./block-type-lists";
 import type { BlockType } from "./block-union";
 import { CANVAS_BLOCK_SPECS } from "./canvas-registry";
+import { ALIGN, CALLOUT_ICONS, DATABASE_CELL_TYPES, DEFAULT_TABLE_COLUMN_WIDTH, INDENT } from "./constants";
+import type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry-specs";
 import type { MarkName } from "./types";
 
-/**
- * Block and marks registries v1.
- *
- * Single source of structural truth for the schema: everything that needs
- * block or mark structure reads these tables instead of switch-casing on
- * type names. Adding a type or a mark is an additive change (minor
- * version).
- */
-
-/** The database cell value contracts (the column `type` values). */
-const DATABASE_CELL_TYPES = ["text", "number", "checkbox", "select", "multi-select", "date"] as const;
-
-/** The horizontal text alignment, shared by the text block types. */
-const ALIGN = { kind: "enum", values: ["left", "center", "right"] } as const;
-
-/**
- * The flat-page nesting depth: a non-negative integer, default
- * 0, relative to the preceding block of the same page sequence. Carried by
- * every page-sequence type only.
- */
-const INDENT = { kind: "number", integer: true, min: 0 } as const;
-
-/** The default table column width (px) — the stand for an absent `columnWidths` entry. */
-const DEFAULT_TABLE_COLUMN_WIDTH = 100;
-
-/** Structural description of a block attribute. */
-interface AttrSpec {
-  kind: "boolean" | "string" | "number" | "nullable-number" | "enum" | "object" | "array";
-  /** Allowed values for `enum`. */
-  values?: readonly (string | number)[];
-  /** `object`: the nested field specs, each validated as its own AttrSpec. */
-  fields?: Record<string, AttrSpec>;
-  /** `array`: the item spec, each array element validated against it. */
-  items?: AttrSpec;
-  /** Must be present in `attrs`. */
-  required?: boolean;
-  /** `number`: must be an integer. */
-  integer?: boolean;
-  /** `number`: inclusive lower bound. */
-  min?: number;
-  /** `number`: inclusive upper bound. */
-  max?: number;
-  /** `number`: must be > 0. */
-  positive?: boolean;
-  /** `string`: must be non-empty. */
-  nonEmpty?: boolean;
-  /** `string`: must be a hex color #RRGGBB(AA). */
-  hexColor?: boolean;
-  /** `string` / `enum`: `null` is a valid value (the "override cleared" idiom). */
-  nullable?: boolean;
-}
-
-/** Structural description of a block type. */
-interface BlockSpec {
-  /** The block carries inline text content (runs). */
-  content: boolean;
-  /** The block carries child blocks in the WRITER contract (the field is read and written). */
-  children: boolean;
-  /** The block carries row data (the `rows` map + the `rowOrder` order). */
-  rows: boolean;
-  /** The block carries the column identities + order (`columnOrder` array, table only). */
-  columnOrder?: boolean;
-  /** Allowed child block types (present whenever `children` is true). */
-  childrenTypes?: readonly BlockType[];
-  /**
-   * The LEGACY child types: the `children` field of these remodeled page
-   * types stays VALID v1 data (the nesting form that predates the flat
-   * page model), with this child-type rule; `flattenDoc` normalizes it to
-   * `indent`, and the writer never emits it. Absent — `children` is
-   * rejected on the type.
-   */
-  legacyChildrenTypes?: readonly BlockType[];
-  /**
-   * The children array is a FLAT PAGE SEQUENCE: `indent`
-   * applies and the indent-jump rule is checked over it. Structural order
-   * without this flag: `table-row` (grid positions), `surface` (z-order).
-   */
-  sequence?: boolean;
-  /** Attribute schema; absent — the type has no attributes. */
-  attrs?: Record<string, AttrSpec>;
-}
-
-/**
- * The callout's icon catalog: the fixed set of icon names a callout's
- * `icon` attr may stand (a kebab-case lucide name). The preset icon per
- * variant (info → info, warning → triangle-alert, danger → circle-x) and
- * any override name come from this set; the reader is lenient (an unknown
- * name renders the preset) and the strict validator rejects it.
- */
-const CALLOUT_ICONS: readonly string[] = [
-  "info",
-  "triangle-alert",
-  "circle-x",
-  "circle-check",
-  "circle-help",
-  "lightbulb",
-  "message-square",
-  "star",
-  "heart",
-  "zap",
-  "flag",
-  "lock",
-  "shield",
-  "book-open",
-  "ban",
-  "eye",
-  "sparkles",
-  "check",
-];
-
-/** The v1 block registry. */
 const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   root: { content: false, children: true, rows: false, childrenTypes: PAGE_BLOCK_TYPES, sequence: true },
   paragraph: {
@@ -312,30 +206,7 @@ for (const type of PAGE_BLOCK_TYPES) {
 }
 
 /** A multi-field attribute of an `attrs` mark (e.g. `mention`). */
-interface MarkFieldSpec {
-  /** The field must be present. */
-  required: boolean;
-  /** The value must be a non-empty string. */
-  nonEmptyString?: boolean;
-  /** The value must be one of the given names (an enum). */
-  enum?: readonly string[];
-}
 
-/** Structural description of a mark. */
-interface MarkSpec {
-  /** `toggle`: the mark value is `true`; `attrs`: the value is an object. */
-  kind: "toggle" | "attrs";
-  /** Exclusive marks never coexist with other marks on a run. */
-  exclusive: boolean;
-  /** Attribute name for `attrs` marks. */
-  attr?: "href" | "value";
-  /** Whether the attribute may be absent (highlight). */
-  attrOptional?: boolean;
-  /** The known fields for a multi-field `attrs` mark (e.g. `mention`). */
-  fields?: Record<string, MarkFieldSpec>;
-}
-
-/** The v1 marks registry. */
 const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
   bold: { kind: "toggle", exclusive: false },
   italic: { kind: "toggle", exclusive: false },
