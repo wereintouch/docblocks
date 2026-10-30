@@ -1,6 +1,6 @@
 import type { Selection } from "@docblocks-core/core";
 
-import type { PresenceSelection } from "./provider";
+import type { PresenceSelection } from "./models";
 
 /**
  * The wire form of a view selection for the presence payload: a caret, a

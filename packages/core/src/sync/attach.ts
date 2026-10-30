@@ -1,7 +1,7 @@
 import type { Doc } from "@docblocks-core/core";
 import { localOriginOf, undoManagerOf } from "@docblocks-core/core";
 
-import type { SyncProvider } from "./provider";
+import type { SyncProvider } from "./models";
 
 /**
  * A sync session: routes one document to one provider.

@@ -6,7 +6,7 @@ import * as Y from "yjs";
 import { createDoc } from "../src/core";
 import type { Doc } from "../src/core";
 import { attach } from "../src/sync";
-import type { PresenceState } from "../src/sync/provider";
+import type { PresenceState } from "../src/sync";
 import { WsSyncProvider } from "../src/sync/ws-provider";
 import { WsRelay } from "./ws-relay";
 import type { FakeSocket } from "./ws-relay";
