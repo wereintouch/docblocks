@@ -54,19 +54,12 @@ import { BlockContext, useBlockContextValue } from "../block-context";
 import { useFormatPalette } from "../format-palette-context";
 import { TableRow } from "./TableCells";
 import { HandleMenu, HandleMenuItems } from "./TableHandleMenu";
-import {
-  ADD_BUTTON_CLASSES,
-  ADD_BUTTON_SIZE,
-  DRAG_THRESHOLD,
-  EMPTY_IDS,
-  GHOST_ROW_HEIGHT,
-  HANDLE_SIZE,
-  HANDLE_ZONE,
-} from "./models";
+import { ADD_BUTTON_CLASSES, ADD_BUTTON_SIZE, EMPTY_IDS, GHOST_ROW_HEIGHT, HANDLE_SIZE, HANDLE_ZONE } from "./models";
 import type { AddChipSession, ColumnResizeSession, HandleAction, HandleKind, TableHandleSession } from "./models";
+import { useTableAddChips } from "./use-table-add-chips";
 import { useTableHandleDrag } from "./use-table-handle-drag";
 import { useTableSeamResize } from "./use-table-seam-resize";
-import { addDragCount, cellPlainText, pasteCellText, readClipboardText, sameSequence } from "./utils";
+import { cellPlainText, pasteCellText, readClipboardText } from "./utils";
 
 function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const { doc } = useEditorContext();
@@ -110,6 +103,18 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // the drag's outcome — the multi-commit or the no-op — either way the
   // click must not insert a stray one).
   const addDragClickRef = useRef(false);
+
+  const { onAddChipPointerDown, onAddChipPointerMove, onAddChipPointerUp, onAddChipPointerCancel } = useTableAddChips({
+    addSessionRef,
+    sessionRef,
+    resizeSessionRef,
+    addDragClickRef,
+    setAddPreview,
+    doc,
+    rows,
+    block,
+    id,
+  });
 
   // The add-row chip's left offset: the center of the visible part of the
   // table (no scroll listeners — the chip is pinned to the frame, not the
@@ -168,107 +173,6 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     if (row === null) return;
     const next = { row: row.rowIndex, col: cell.cellIndex };
     setHover((prev) => (prev !== null && prev.row === next.row && prev.col === next.col ? prev : next));
-  };
-
-  /**
-   * The add chip's press: starts the drag session (the capture keeps the
-   * moves / the release on the chip). No preventDefault — the press's
-   * click must stand (the no-drag release's single insert is the click
-   * path; the pointerdown's preventDefault would suppress it).
-   */
-  const onAddChipPointerDown = (kind: HandleKind) => (event: ReactPointerEvent<HTMLButtonElement>) => {
-    if (
-      event.button !== 0 ||
-      addSessionRef.current !== null ||
-      sessionRef.current !== null ||
-      resizeSessionRef.current !== null
-    )
-      return;
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    addSessionRef.current = {
-      kind,
-      startX: event.clientX,
-      startY: event.clientY,
-      dragging: false,
-      rows: [...rows],
-      cols: block.columnOrder.length,
-      widths: block.attrs?.columnWidths ?? null,
-    };
-  };
-
-  const onAddChipPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const session = addSessionRef.current;
-    if (session === null) return;
-    const dx = event.clientX - session.startX;
-    const dy = event.clientY - session.startY;
-    if (!session.dragging && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
-      session.dragging = true;
-    }
-    if (!session.dragging) return;
-    const total = session.kind === "row" ? session.rows.length : session.cols;
-    const delta = session.kind === "row" ? dy : dx;
-    setAddPreview({ kind: session.kind, count: addDragCount(session.kind, total, delta) });
-  };
-
-  const onAddChipPointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
-    const session = addSessionRef.current;
-    addSessionRef.current = null;
-    setAddPreview(null);
-    if (session === null) return;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    if (!session.dragging) return; // the click path (the chip's onClick) adds one
-    // The drag's release: whatever the commit's outcome (the count's
-    // commit, the zero-count no-op, the stale guard's rejection), the
-    // capture's click stands the drag, not a new press — suppress it.
-    addDragClickRef.current = true;
-    commitAddDrag(session, event.clientX, event.clientY);
-  };
-
-  const onAddChipPointerCancel = () => {
-    addSessionRef.current = null;
-    setAddPreview(null);
-  };
-
-  /**
-   * The chip drag's release commit: the count's appends (at the end) or
-   * the last-count removals in one transact (one undo step, one wire
-   * update); a concurrent structural change invalidates the drop (the
-   * stale guard, the handle's contract) — no command, the rows resync.
-   */
-  const commitAddDrag = (session: AddChipSession, clientX: number, clientY: number) => {
-    const total = session.kind === "row" ? session.rows.length : session.cols;
-    const delta = session.kind === "row" ? clientY - session.startY : clientX - session.startX;
-    const count = addDragCount(session.kind, total, delta);
-    if (count === 0) return;
-    const live = doc.getBlock(id);
-    if (live === null || live.type !== "table") return;
-    if (!sameSequence(doc.getChildren(id), session.rows)) return;
-    if (live.columnOrder.length !== session.cols) return;
-    if (session.kind === "column" && !sameSequence(live.attrs?.columnWidths ?? [], session.widths ?? [])) return;
-    try {
-      doc.transact(() => {
-        const current = doc.getBlock(id);
-        if (current === null || current.type !== "table") return;
-        if (count > 0) {
-          for (let i = 0; i < count; i++) {
-            if (session.kind === "row") doc.insertTableRow(id);
-            else doc.insertTableColumn(id);
-          }
-        } else {
-          for (let i = 0; i < -count; i++) {
-            if (session.kind === "row") {
-              const rowId = session.rows[session.rows.length - 1 - i];
-              if (rowId !== undefined) doc.removeTableRow(id, rowId);
-            } else {
-              doc.removeTableColumn(id, session.cols - 1 - i);
-            }
-          }
-        }
-      });
-    } catch {
-      // A rejected command (a concurrent structural change won the race):
-      // the doc stands as-is, the preview stands the doc's structure.
-    }
   };
 
   /**
