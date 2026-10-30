@@ -207,6 +207,8 @@ function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionM
   }, [openFlag, rootRef]);
 
   const api = useMemo(() => ({ onKeyDown, onMentionKey }), [onKeyDown, onMentionKey]);
+  const hoverItem = (index: number) => setState((s) => (s === null ? s : { ...s, active: index }));
+
   const menuNode =
     state !== null ? (
       <MentionPicker
@@ -217,7 +219,7 @@ function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionM
         onItemsChange={(items) => {
           itemsRef.current = items;
         }}
-        onHover={(index) => setState((s) => (s === null ? s : { ...s, active: index }))}
+        onHover={hoverItem}
         onPick={pick}
         onClose={close}
       />

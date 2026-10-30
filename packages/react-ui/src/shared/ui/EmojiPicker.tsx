@@ -21,6 +21,8 @@ function EmojiPicker({
   /** Report the clear (remove the avatar). */
   onClear: () => void;
 }) {
+  const pickEmoji = (emoji: string) => () => onPick(emoji);
+
   return (
     <div data-slot="docblocks/emoji-picker" className="flex w-52 flex-col gap-2">
       <div role="group" aria-label="Avatar emoji" className="grid grid-cols-6 gap-1">
@@ -43,7 +45,7 @@ function EmojiPicker({
                 `,
                 isSelected && "bg-accent"
               )}
-              onClick={() => onPick(emoji)}
+              onClick={pickEmoji(emoji)}
             >
               {emoji}
             </button>

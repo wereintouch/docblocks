@@ -40,14 +40,13 @@ const RowList = memo(function RowList({
   onDragMove,
   onDragEnd,
 }: RowListProps) {
+  const handleReorder = (next: unknown) => onReorder(next as BlockId[]);
+  const rowDragStart = (id: BlockId) => () => onDragStart(id);
+  const rowDragEnd = (id: BlockId) => (event: Parameters<RowListProps["onDragEnd"]>[1]) => onDragEnd(id, event);
+  const rowDragMove = (id: BlockId) => (event: Parameters<RowListProps["onDragMove"]>[1]) => onDragMove(id, event);
+
   return (
-    <Reorder.Group
-      as="div"
-      data-slot="docblocks/rows"
-      axis="y"
-      values={order}
-      onReorder={(next) => onReorder(next as BlockId[])}
-    >
+    <Reorder.Group as="div" data-slot="docblocks/rows" axis="y" values={order} onReorder={handleReorder}>
       <AnimatePresence initial={false} mode="sync">
         {order.map((id) => {
           const node = nodesById.get(id);
@@ -60,9 +59,9 @@ const RowList = memo(function RowList({
               isDragged={draggingKey === id}
               animated={animated}
               previewIndent={draggingKey === id ? previewIndent : null}
-              onDragStart={() => onDragStart(id)}
-              onDragEnd={(event) => onDragEnd(id, event)}
-              onDragMove={(event) => onDragMove(id, event)}
+              onDragStart={rowDragStart(id)}
+              onDragEnd={rowDragEnd(id)}
+              onDragMove={rowDragMove(id)}
             />
           );
         })}

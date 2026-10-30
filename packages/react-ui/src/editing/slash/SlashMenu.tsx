@@ -7,6 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
+import { preventDefault } from "../../shared/utils";
 import { locatePosition } from "../dom-offset";
 import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
 import { DatabaseSlashPicker } from "./DatabaseSlashPicker";
@@ -118,6 +119,15 @@ function SlashMenu({
   }, [active, visible, position]);
 
   if (!visible) return null;
+  const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    const file = files !== null && files.length > 0 ? (files[0] ?? null) : null;
+    event.target.value = "";
+    onImageFile(file);
+  };
+  const hoverAt = (index: number) => () => onHover(index);
+  const pickAt = (index: number) => () => onPick(index);
+
   return (
     <ScrollArea
       ref={menuRef}
@@ -143,12 +153,7 @@ function SlashMenu({
         accept="image/*,application/pdf"
         data-slot="docblocks/slash-file-input"
         className="pointer-events-none absolute h-0 w-0 opacity-0"
-        onChange={(event) => {
-          const files = event.target.files;
-          const file = files !== null && files.length > 0 ? (files[0] ?? null) : null;
-          event.target.value = "";
-          onImageFile(file);
-        }}
+        onChange={onFileChange}
       />
       {embedForm ? (
         <SlashEmbedForm onCommit={onEmbedCommit} onCancel={onEmbedCancel} />
@@ -167,9 +172,9 @@ function SlashMenu({
                 "[&_svg]:pointer-events-none [&_svg]:shrink-0",
                 index === active && "bg-accent text-accent-foreground"
               )}
-              onMouseEnter={() => onHover(index)}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => onPick(index)}
+              onMouseEnter={hoverAt(index)}
+              onMouseDown={preventDefault}
+              onClick={pickAt(index)}
             >
               <command.icon className="size-4" />
               {command.label}

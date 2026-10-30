@@ -8,6 +8,7 @@ import type { MentionEntry } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
+import { preventDefault } from "../../shared/utils";
 import { locatePosition } from "../dom-offset";
 import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
 import type { MentionDerivation, MentionMenuProps, MentionPick } from "./models";
@@ -123,6 +124,9 @@ function MentionPicker(props: MentionMenuProps) {
 
   if (!visible) return null;
 
+  const hoverItem = (index: number) => () => onHover(index);
+  const pickItem = (item: MentionPick) => () => onPick(item);
+
   const renderItem = (item: MentionPick, index: number) => (
     <div
       key={`${item.kind}-${item.id}`}
@@ -133,9 +137,9 @@ function MentionPicker(props: MentionMenuProps) {
         "flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none",
         index === activeIndex && "bg-accent text-accent-foreground"
       )}
-      onMouseEnter={() => onHover(index)}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => onPick(item)}
+      onMouseEnter={hoverItem(index)}
+      onMouseDown={preventDefault}
+      onClick={pickItem(item)}
     >
       <span
         className={cn(

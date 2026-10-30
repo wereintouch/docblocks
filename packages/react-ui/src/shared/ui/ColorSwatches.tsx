@@ -69,6 +69,13 @@ function ColorSwatches({
     return entryHex === currentHex;
   };
 
+  const selectSwatch = (entry: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    const hex = resolveColorToHex(entry, event.currentTarget);
+    if (hex !== null) onSelect(hex);
+    // An entry that did not resolve (a token with no theme value) is
+    // ignored (no write) — the palette is purely a selector.
+  };
+
   return (
     <div role="group" aria-label={label} className="flex items-center gap-1.5">
       {colors.map((entry, index) => {
@@ -87,12 +94,7 @@ function ColorSwatches({
               selected ? "border-2 border-(--primary)" : "border-(--border)"
             )}
             style={{ background: entry }}
-            onClick={(event) => {
-              const hex = resolveColorToHex(entry, event.currentTarget);
-              if (hex !== null) onSelect(hex);
-              // An entry that did not resolve (a token with no theme value)
-              // is ignored (no write) — the palette is purely a selector.
-            }}
+            onClick={selectSwatch(entry)}
           />
         );
       })}

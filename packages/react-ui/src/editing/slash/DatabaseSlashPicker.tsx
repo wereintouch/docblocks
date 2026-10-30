@@ -16,6 +16,7 @@ import { useEditorContext } from "../../editor-provider";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
 import { Check, Plus } from "../../shared/ui/icons";
+import { preventDefault } from "../../shared/utils";
 
 /** The table picker panel (the slash menu's database state). */
 function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: string) => void; onCancel: () => void }) {
@@ -80,6 +81,18 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
     if (event.key === "Escape") onCancel();
   };
 
+  const onNameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    stopPickerKey(event);
+    if (event.key === "Enter") {
+      event.preventDefault();
+      create();
+    }
+  };
+  const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => setName(event.target.value);
+  const openCreate = () => setCreateOpen(true);
+  const onQueryChange = (event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value);
+  const commitRefAt = (ref: TableRef) => () => onCommit(ref.id);
+
   return (
     <div data-slot="docblocks/slash-database-picker" className="flex w-56 flex-col gap-2 p-1">
       {createOpen ? (
@@ -92,14 +105,8 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
             className="rounded-sm"
             placeholder="New table name"
             value={name}
-            onKeyDown={(event) => {
-              stopPickerKey(event);
-              if (event.key === "Enter") {
-                event.preventDefault();
-                create();
-              }
-            }}
-            onChange={(event) => setName(event.target.value)}
+            onKeyDown={onNameKeyDown}
+            onChange={onNameChange}
           />
           <Button
             data-slot="docblocks/slash-database-create"
@@ -107,7 +114,7 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
             size="icon"
             className="size-8 cursor-default rounded-sm bg-transparent disabled:cursor-default dark:bg-transparent"
             disabled={name.trim().length === 0 || creating}
-            onMouseDown={(event) => event.preventDefault()}
+            onMouseDown={preventDefault}
             onClick={create}
           >
             <Check className="size-4" />
@@ -119,8 +126,8 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
           variant="ghost"
           size="sm"
           className="h-auto cursor-default rounded-sm px-2 py-1.5 text-sm font-normal"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => setCreateOpen(true)}
+          onMouseDown={preventDefault}
+          onClick={openCreate}
         >
           <Plus className="size-4" />
           New table
@@ -139,7 +146,7 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
         placeholder="Search tables…"
         value={query}
         onKeyDown={stopPickerKey}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={onQueryChange}
       />
       {tables === null ? (
         <div data-slot="docblocks/slash-database-loading" className="px-2 py-1 text-sm text-muted-foreground">
@@ -163,8 +170,8 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
               className="h-auto w-full cursor-default justify-start rounded-sm px-2 py-1.5 text-sm font-normal"
               // The mousedown suppression keeps the caret's selection alive
               // across the click (the menu panel idiom).
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => onCommit(ref.id)}
+              onMouseDown={preventDefault}
+              onClick={commitRefAt(ref)}
             >
               {ref.name}
             </Button>

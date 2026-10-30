@@ -31,6 +31,14 @@ interface MotionEnumOptionRowProps {
  *  drag trigger, the row's own drag is disarmed). */
 function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }: MotionEnumOptionRowProps) {
   const dragControls = useDragControls();
+  const onGripPointerDown = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    dragControls.start(event);
+  };
+  const onSelectColor = (hex: string) => onSet({ color: hex });
+  const onSelectNone = () => onSet({ color: null });
+  const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => onSet({ name: event.target.value });
   return (
     <Reorder.Item
       as="div"
@@ -45,11 +53,7 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
     >
       <span
         data-slot="docblocks/database-enum-option-grip"
-        onPointerDown={(event: ReactPointerEvent<HTMLSpanElement>) => {
-          if (event.button !== 0) return;
-          event.preventDefault();
-          dragControls.start(event);
-        }}
+        onPointerDown={onGripPointerDown}
         className="
           flex size-5 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground
           active:cursor-grabbing
@@ -75,8 +79,8 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
             label="option color"
             allowNone
             noneActive={option.color === null}
-            onSelect={(hex) => onSet({ color: hex })}
-            onSelectNone={() => onSet({ color: null })}
+            onSelect={onSelectColor}
+            onSelectNone={onSelectNone}
           />
         </PopoverContent>
       </Popover>
@@ -87,7 +91,7 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
         placeholder="Option"
         className="min-w-0 flex-1 cursor-text text-foreground focus:bg-muted/60"
         value={option.name}
-        onChange={(event) => onSet({ name: event.target.value })}
+        onChange={onNameChange}
       />
       <Button
         data-slot="docblocks/database-enum-option-delete"
@@ -123,6 +127,11 @@ function MotionEnumOptionsEditor({
     onChange(options.map((option, i) => (i === index ? { ...option, ...patch } : option)));
   };
 
+  const colorOpenChange = (index: number) => (open: boolean) => setColorOpen(open ? index : null);
+  const setOptionAt = (index: number) => (patch: Partial<EnumOptionDraft>) => setOption(index, patch);
+  const optionRemove = (index: number) => () => onChange(options.filter((_, i) => i !== index));
+  const addOption = () => onChange([...options, { name: "", color: null, uid: Math.random().toString(36).slice(2) }]);
+
   return (
     <div data-slot="docblocks/database-enum-options" className="flex flex-col gap-1">
       <div className="text-sm text-foreground">Options</div>
@@ -132,9 +141,9 @@ function MotionEnumOptionsEditor({
             key={option.rowId ?? option.uid ?? `draft-${index}`}
             option={option}
             colorOpen={colorOpen === index}
-            onColorOpen={(open) => setColorOpen(open ? index : null)}
-            onSet={(patch) => setOption(index, patch)}
-            onRemove={() => onChange(options.filter((_, i) => i !== index))}
+            onColorOpen={colorOpenChange(index)}
+            onSet={setOptionAt(index)}
+            onRemove={optionRemove(index)}
           />
         ))}
       </Reorder.Group>
@@ -143,7 +152,7 @@ function MotionEnumOptionsEditor({
         variant="ghost"
         size="sm"
         className="h-auto cursor-pointer self-start rounded-sm px-1 py-0.5 font-normal text-muted-foreground"
-        onClick={() => onChange([...options, { name: "", color: null, uid: Math.random().toString(36).slice(2) }])}
+        onClick={addOption}
       >
         + Add option
       </Button>

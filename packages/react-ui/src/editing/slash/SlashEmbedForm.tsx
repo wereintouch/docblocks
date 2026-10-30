@@ -13,6 +13,7 @@ import { BareSelect } from "../../shared/ui/BareSelect";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
 import { Check } from "../../shared/ui/icons";
+import { preventDefault } from "../../shared/utils";
 import type { EmbedKind } from "./models";
 
 /** The embed's kind catalog (the core `EmbedAttrs.kind` enum). */
@@ -53,6 +54,16 @@ function SlashEmbedForm({
 
   const canCommit = url.trim().length > 0;
 
+  const onUrlKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    stopFormKey(event);
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit();
+    }
+  };
+  const onUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => setUrl(event.target.value);
+  const onKindChange = (event: React.ChangeEvent<HTMLSelectElement>) => setKind(event.target.value as EmbedKind);
+
   return (
     <div data-slot="docblocks/slash-embed-form" className="flex w-56 flex-col gap-2 p-1">
       <Input
@@ -63,14 +74,8 @@ function SlashEmbedForm({
         className="rounded-sm"
         placeholder="Embed URL (https://…)"
         value={url}
-        onKeyDown={(event) => {
-          stopFormKey(event);
-          if (event.key === "Enter") {
-            event.preventDefault();
-            commit();
-          }
-        }}
-        onChange={(event) => setUrl(event.target.value)}
+        onKeyDown={onUrlKeyDown}
+        onChange={onUrlChange}
       />
       <div className="flex items-center gap-1">
         <BareSelect
@@ -78,7 +83,7 @@ function SlashEmbedForm({
           className="h-7 min-w-0 flex-1 cursor-default rounded-sm px-1"
           value={kind}
           onKeyDown={stopFormKey}
-          onChange={(event) => setKind(event.target.value as EmbedKind)}
+          onChange={onKindChange}
         >
           {EMBED_KINDS.map((value) => (
             <option key={value} value={value}>
@@ -92,7 +97,7 @@ function SlashEmbedForm({
           size="icon"
           className="size-7 cursor-default rounded-sm bg-transparent disabled:cursor-default dark:bg-transparent"
           disabled={!canCommit}
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={preventDefault}
           onClick={commit}
         >
           <Check className="size-4" />

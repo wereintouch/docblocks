@@ -57,7 +57,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
 import { Baseline, Menu as MenuIcon } from "../../shared/ui/icons";
-import { clamp } from "../../shared/utils";
+import { clamp, preventDefault } from "../../shared/utils";
 import { restoreSelectionIn } from "../block-commands";
 import {
   TOOLBAR_BLOCK_TYPES,
@@ -308,6 +308,16 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           ? "quote"
           : "";
 
+  const toggleMarkAt = (mark: Parameters<typeof onToggleMark>[0]) => () => onToggleMark(mark);
+  const alignAt = (align: Parameters<typeof onAlign>[0]) => () => onAlign(align);
+  const listOptionAt = (option: Parameters<typeof onListOption>[0]) => () => onListOption(option);
+  const calloutPresetAt = (variant: Parameters<typeof onCalloutPreset>[0]) => () => onCalloutPreset(variant);
+  const noneCalloutColor = () => onCalloutColor(null);
+  const calloutIconAt = (name: Parameters<typeof onCalloutIcon>[0]) => () => onCalloutIcon(name);
+  const clearCalloutIcon = () => onCalloutIcon(null);
+  const selectTarget = (target: Parameters<typeof setTarget>[0]) => () => setTarget(target);
+  const nonePaletteValue = () => onPaletteValue(null);
+
   return (
     <div
       data-slot="docblocks/format-toolbar"
@@ -321,7 +331,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       "
       // Keep the text selection: a default mousedown would move the caret
       // into the bar and dismiss the toolbar (the selection maps to none).
-      onMouseDown={(event) => event.preventDefault()}
+      onMouseDown={preventDefault}
     >
       {TOOLBAR_MARKS.map(({ mark, title, icon: Icon }) => (
         <Button
@@ -333,7 +343,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           aria-label={title}
           aria-pressed={markActive(mark)}
           className={cn(markActive(mark) && "bg-accent text-accent-foreground")}
-          onClick={() => onToggleMark(mark)}
+          onClick={toggleMarkAt(mark)}
         >
           <Icon className="size-4" />
         </Button>
@@ -349,7 +359,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           aria-label={title}
           aria-pressed={alignActive(align)}
           className={cn(alignActive(align) && "bg-accent text-accent-foreground")}
-          onClick={() => onAlign(align)}
+          onClick={alignAt(align)}
         >
           <Icon className="size-4" />
         </Button>
@@ -382,9 +392,9 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                 align="start"
                 sideOffset={6}
                 data-slot="docblocks/format-list-menu"
-                onMouseDown={(event) => event.preventDefault()}
-                onPointerDownOutside={(event) => event.preventDefault()}
-                onFocusOutside={(event) => event.preventDefault()}
+                onMouseDown={preventDefault}
+                onPointerDownOutside={preventDefault}
+                onFocusOutside={preventDefault}
               >
                 <DropdownMenuRadioGroup value={listValue}>
                   {LIST_MENU_OPTIONS.map(({ option, label, icon: Icon }) => {
@@ -396,7 +406,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                         data-list-option={option}
                         disabled={disabled}
                         title={label}
-                        onSelect={() => onListOption(option)}
+                        onSelect={listOptionAt(option)}
                       >
                         <Icon className="size-4" />
                         {label}
@@ -433,9 +443,9 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
               sideOffset={6}
               data-slot="docblocks/format-callout-menu"
               className="w-auto p-2"
-              onMouseDown={(event) => event.preventDefault()}
-              onPointerDownOutside={(event) => event.preventDefault()}
-              onFocusOutside={(event) => event.preventDefault()}
+              onMouseDown={preventDefault}
+              onPointerDownOutside={preventDefault}
+              onFocusOutside={preventDefault}
             >
               {/* Type (the preset: the variant + the overrides reset to the
                 preset — one transact). */}
@@ -453,7 +463,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                       aria-label={`${variant} callout`}
                       title={`${variant} callout`}
                       className={cn("h-7", active && "bg-accent text-accent-foreground")}
-                      onClick={() => onCalloutPreset(variant)}
+                      onClick={calloutPresetAt(variant)}
                     >
                       {PresetIcon !== undefined && <PresetIcon className="size-4" />}
                     </Button>
@@ -465,11 +475,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                 <ColorSwatches
                   colors={palette}
                   current={single.attrs?.color ?? null}
-                  onSelect={(hex) => onCalloutColor(hex)}
+                  onSelect={onCalloutColor}
                   label="callout"
                   allowNone
                   noneActive={(single.attrs?.color ?? null) === null}
-                  onSelectNone={() => onCalloutColor(null)}
+                  onSelectNone={noneCalloutColor}
                 />
               </div>
               {/* Icon (the catalog grid; "Preset" = the variant's icon). */}
@@ -489,7 +499,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                         aria-label={`${name} icon`}
                         title={name}
                         className={cn("size-7", active && "bg-accent text-accent-foreground")}
-                        onClick={() => onCalloutIcon(name)}
+                        onClick={calloutIconAt(name)}
                       >
                         <Icon className="size-4" />
                       </Button>
@@ -505,7 +515,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                       "col-span-6 h-7 text-xs",
                       (single.attrs?.icon ?? null) === null && "bg-accent text-accent-foreground"
                     )}
-                    onClick={() => onCalloutIcon(null)}
+                    onClick={clearCalloutIcon}
                   >
                     Preset
                   </Button>
@@ -535,9 +545,9 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           data-slot="docblocks/format-palette"
           aria-label="Text and background color"
           className="w-auto p-2"
-          onMouseDown={(event) => event.preventDefault()}
-          onPointerDownOutside={(event) => event.preventDefault()}
-          onFocusOutside={(event) => event.preventDefault()}
+          onMouseDown={preventDefault}
+          onPointerDownOutside={preventDefault}
+          onFocusOutside={preventDefault}
         >
           <div role="group" aria-label="Color target" className="flex gap-1">
             {(["highlight", "color"] as const).map((t) => (
@@ -550,7 +560,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                 aria-label={t === "highlight" ? "Highlight the background" : "Color the text"}
                 title={t === "highlight" ? "Highlight the background" : "Color the text"}
                 className={cn("h-7 flex-1 text-xs", target === t && "bg-accent text-accent-foreground")}
-                onClick={() => setTarget(t)}
+                onClick={selectTarget(t)}
               >
                 {t === "highlight" ? "bg" : "text"}
               </Button>
@@ -559,11 +569,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           <ColorSwatches
             colors={palette}
             current={currentMarkValue}
-            onSelect={(hex) => onPaletteValue(hex)}
+            onSelect={onPaletteValue}
             label={target === "highlight" ? "highlight" : "text"}
             allowNone
             noneActive={paletteActive(null)}
-            onSelectNone={() => onPaletteValue(null)}
+            onSelectNone={nonePaletteValue}
           />
         </PopoverContent>
       </Popover>

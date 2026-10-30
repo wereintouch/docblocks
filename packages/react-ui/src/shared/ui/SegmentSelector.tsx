@@ -86,6 +86,8 @@ function SegmentSelector<T extends string>({
     return () => observer.disconnect();
   }, [value, buttonAttrName]);
 
+  const selectOption = (value: (typeof options)[number]["value"]) => () => onChange(value);
+
   return (
     <div
       ref={listRef}
@@ -134,7 +136,7 @@ function SegmentSelector<T extends string>({
             `,
             value === option.value ? "text-foreground" : "hover:text-foreground"
           )}
-          onClick={() => onChange(option.value)}
+          onClick={selectOption(option.value)}
         >
           {option.icon}
         </button>

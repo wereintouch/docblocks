@@ -27,6 +27,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./shared/ui/Popover";
 import { SegmentSelector } from "./shared/ui/SegmentSelector";
 import { cn } from "./shared/ui/cn";
 import { Network, SquareText } from "./shared/ui/icons";
+import { preventDefault } from "./shared/utils";
 
 /** The inline edit's input: the focus with the caret seated at the end (no select-all) on mount, the commit on the blur / the Enter (one write), the Escape cancels without a write. */
 function InlineEditInput({
@@ -62,6 +63,18 @@ function InlineEditInput({
     onCommit(value);
   };
 
+  const onInputBlur = (event: React.FocusEvent<HTMLInputElement>) => commit(event.target.value);
+  const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commit(event.currentTarget.value);
+    } else if (event.key === "Escape") {
+      // The guard stops the blur's commit (the unmount's blur).
+      committedRef.current = true;
+      onCancel();
+    }
+  };
+
   return (
     <input
       ref={inputRef}
@@ -70,17 +83,8 @@ function InlineEditInput({
       aria-label={ariaLabel}
       defaultValue={initial}
       className={className}
-      onBlur={(event) => commit(event.target.value)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          commit(event.currentTarget.value);
-        } else if (event.key === "Escape") {
-          // The guard stops the blur's commit (the unmount's blur).
-          committedRef.current = true;
-          onCancel();
-        }
-      }}
+      onBlur={onInputBlur}
+      onKeyDown={onInputKeyDown}
     />
   );
 }
@@ -107,6 +111,28 @@ function DocHeader({
     return off;
   }, [doc]);
 
+  // The core's setAvatar no-ops on the standing value (no write, no undo
+  // step) — the pick commits one command otherwise.
+  const pickAvatar = (emoji: string) => {
+    doc.setAvatar(emoji);
+    setAvatarOpen(false);
+  };
+  const clearAvatar = () => {
+    doc.setAvatar(null);
+    setAvatarOpen(false);
+  };
+  const commitTitleEdit = (value: string) => {
+    setTitleEditing(false);
+    if (value === doc.meta.title) return; // the no-op stand (the doc's own read)
+    doc.setTitle(value);
+  };
+  const cancelTitleEdit = () => setTitleEditing(false);
+  const beginTitleEdit = () => setTitleEditing(true);
+
+  const switchView = (next: "page" | "canvas") => {
+    if (next !== view) onViewChange(next);
+  };
+
   return (
     <div data-slot="docblocks/doc-header" className="flex items-center gap-3">
       <SegmentSelector
@@ -115,9 +141,7 @@ function DocHeader({
           { value: "canvas", label: "Canvas view", icon: <Network className="size-4" /> },
         ]}
         value={view}
-        onChange={(next) => {
-          if (next !== view) onViewChange(next);
-        }}
+        onChange={switchView}
         ariaLabel="Document view"
         slot="docblocks/doc-header-view"
         pillSlot="docblocks/doc-header-view-pill"
@@ -143,25 +167,8 @@ function DocHeader({
             {meta.avatar ? meta.avatar : "+"}
           </button>
         </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          sideOffset={6}
-          onOpenAutoFocus={(event) => event.preventDefault()}
-          className="w-auto p-2.5"
-        >
-          <EmojiPicker
-            selected={meta.avatar ?? null}
-            onPick={(emoji) => {
-              // The core's setAvatar no-ops on the standing value (no write,
-              // no undo step) — the pick commits one command otherwise.
-              doc.setAvatar(emoji);
-              setAvatarOpen(false);
-            }}
-            onClear={() => {
-              doc.setAvatar(null);
-              setAvatarOpen(false);
-            }}
-          />
+        <PopoverContent align="start" sideOffset={6} onOpenAutoFocus={preventDefault} className="w-auto p-2.5">
+          <EmojiPicker selected={meta.avatar ?? null} onPick={pickAvatar} onClear={clearAvatar} />
         </PopoverContent>
       </Popover>
       {titleEditing ? (
@@ -174,12 +181,8 @@ function DocHeader({
             focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
             focus-visible:outline-ring
           `}
-          onCommit={(value) => {
-            setTitleEditing(false);
-            if (value === doc.meta.title) return; // the no-op stand (the doc's own read)
-            doc.setTitle(value);
-          }}
-          onCancel={() => setTitleEditing(false)}
+          onCommit={commitTitleEdit}
+          onCancel={cancelTitleEdit}
         />
       ) : (
         <button
@@ -187,7 +190,7 @@ function DocHeader({
           data-slot="docblocks/doc-header-title"
           aria-label="Edit the document title"
           title="Edit the title"
-          onClick={() => setTitleEditing(true)}
+          onClick={beginTitleEdit}
           className={`
             min-w-0 flex-1 truncate rounded-md px-2 py-1 text-left text-lg font-semibold transition-colors
             hover:bg-accent
