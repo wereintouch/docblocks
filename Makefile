@@ -7,7 +7,7 @@ CORE := -w packages/core
 UI := -w packages/react-ui
 PG := -w apps/playground
 
-.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground build build-core test test-core test-ui unit unit-f e2e e2e-file dev-gate check full dev clean
+.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations build build-core test test-core test-ui unit unit-f e2e e2e-file dev-gate check full dev clean
 
 help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -37,6 +37,9 @@ typecheck-ui: ## tsc --noEmit: docblocks-react-ui (resolves core from dist: run 
 
 typecheck-playground: ## tsc --noEmit: playground app
 	npm run typecheck $(PG)
+
+deprecations: ## Deprecated API usage over the typecheck's tsconfigs (fails; inline deprecation-allow markers)
+	npm run check:deprecations
 
 ## Build and tests
 
@@ -78,7 +81,7 @@ dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
 
 ## Gates
 
-check: lint typecheck ## Quick gate: lint + typecheck
+check: lint typecheck deprecations ## Quick gate: lint + typecheck + deprecations
 
 full: ## Full local gate: lint -> format -> build -> typecheck -> test -> e2e
 	npm run check
