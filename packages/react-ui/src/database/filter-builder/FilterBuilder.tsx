@@ -6,11 +6,11 @@
  */
 import type { DatabaseFilterPayload } from "docblocks-core";
 
+import { BareSelect, Button, Input } from "../../shared/ui";
 import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
 import { refEntryKey } from "../grid/use-ref-tables";
 import type { RefTableDataMap } from "../grid/use-ref-tables";
-import { CONTROL_CLASS, GHOST_BUTTON_CLASS } from "./constants";
 import { FILTER_MAX_DEPTH, emptyFilter } from "./utils";
 
 interface FilterBuilderProps {
@@ -67,6 +67,9 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
       className="flex flex-col gap-2 rounded-md border border-border p-2"
     >
       <div className="flex items-center gap-2">
+        {/* The segmented text toggle stands raw: the SegmentSelector's
+            buttons are icon-sized (size-6), the text labels need its
+            text variant (the design-system gap). */}
         <div data-slot="docblocks/filter-logic" className="flex items-center rounded-md border border-border">
           <button
             type="button"
@@ -109,14 +112,15 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
         <div key={index} className="flex flex-col gap-1" data-slot="docblocks/filter-nested">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <span data-slot="docblocks/filter-connector">{payload.logic === "and" ? "AND" : "OR"} nested group</span>
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               data-slot="docblocks/filter-remove-group"
-              className={GHOST_BUTTON_CLASS}
               onClick={() => removeGroup(index)}
             >
               Remove group
-            </button>
+            </Button>
           </div>
           <FilterGroup
             payload={group}
@@ -129,10 +133,11 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
       ))}
 
       <div className="flex gap-2">
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           data-slot="docblocks/filter-add-condition"
-          className={GHOST_BUTTON_CLASS}
           onClick={() => {
             const column = columns[0];
             if (column === undefined) return;
@@ -141,16 +146,17 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           }}
         >
           + Condition
-        </button>
+        </Button>
         {depth < FILTER_MAX_DEPTH && (
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="sm"
             data-slot="docblocks/filter-add-group"
-            className={GHOST_BUTTON_CLASS}
             onClick={() => onChange({ ...payload, groups: [...(payload.groups ?? []), emptyFilter()] })}
           >
             + Group
-          </button>
+          </Button>
         )}
       </div>
     </div>
@@ -180,9 +186,8 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
       data-op={operator}
       className="flex flex-wrap items-center gap-2"
     >
-      <select
+      <BareSelect
         data-slot="docblocks/filter-column"
-        className={CONTROL_CLASS}
         value={column.id}
         onChange={(event) => {
           const nextColumn = columns.find((entry) => entry.id === event.target.value);
@@ -199,10 +204,9 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
             {entry.name}
           </option>
         ))}
-      </select>
-      <select
+      </BareSelect>
+      <BareSelect
         data-slot="docblocks/filter-operator"
-        className={CONTROL_CLASS}
         value={operator}
         onChange={(event) => onChange({ ...condition, op: event.target.value, value: undefined })}
       >
@@ -211,7 +215,7 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
             {entry}
           </option>
         ))}
-      </select>
+      </BareSelect>
       {needsValue && (
         <ValueInput
           column={column}
@@ -221,14 +225,15 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
           refTableData={refTableData}
         />
       )}
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="sm"
         data-slot="docblocks/filter-remove-condition"
-        className={GHOST_BUTTON_CLASS}
         onClick={onRemove}
       >
         ×
-      </button>
+      </Button>
     </div>
   );
 }
@@ -248,10 +253,11 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
   if (multiValue) {
     const text = Array.isArray(value) ? value.join(", ") : value === undefined || value === null ? "" : String(value);
     return (
-      <input
+      <Input
         type="text"
+        size="sm"
         data-slot="docblocks/filter-value"
-        className={CONTROL_CLASS}
+        className="w-auto"
         placeholder="value, value"
         value={text}
         onChange={(event) => {
@@ -267,43 +273,45 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
   switch (annotation.valueInput) {
     case "number":
       return (
-        <input
+        <Input
           type="number"
+          size="sm"
           data-slot="docblocks/filter-value"
-          className={CONTROL_CLASS}
+          className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(event) => onChange(event.target.value === "" ? undefined : Number(event.target.value))}
         />
       );
     case "boolean":
       return (
-        <select
+        <BareSelect
           data-slot="docblocks/filter-value"
-          className={CONTROL_CLASS}
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value === "true")}
         >
           <option value="">—</option>
           <option value="true">true</option>
           <option value="false">false</option>
-        </select>
+        </BareSelect>
       );
     case "date":
       return (
-        <input
+        <Input
           type="date"
+          size="sm"
           data-slot="docblocks/filter-value"
-          className={CONTROL_CLASS}
+          className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
         />
       );
     case "datetime":
       return (
-        <input
+        <Input
           type="datetime-local"
+          size="sm"
           data-slot="docblocks/filter-value"
-          className={CONTROL_CLASS}
+          className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
         />
@@ -319,9 +327,8 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
           : undefined;
       const entries = refTable?.rowIds ?? [];
       return (
-        <select
+        <BareSelect
           data-slot="docblocks/filter-value"
-          className={CONTROL_CLASS}
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
         >
@@ -333,15 +340,16 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
                 : entry}
             </option>
           ))}
-        </select>
+        </BareSelect>
       );
     }
     default:
       return (
-        <input
+        <Input
           type="text"
+          size="sm"
           data-slot="docblocks/filter-value"
-          className={CONTROL_CLASS}
+          className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
           onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
         />

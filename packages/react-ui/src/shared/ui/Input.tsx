@@ -39,12 +39,15 @@ const inputVariants = cva(
   }
 );
 
-function Input({
-  className,
-  size,
-  type,
-  ...props
-}: React.ComponentProps<"input"> & VariantProps<typeof inputVariants>) {
+/**
+ * The input's props: the native input props minus the native `size`
+ * attribute (the number) — it would collide with the size variant
+ * (`number & "sm" | "default"` collapses to `undefined`); the variant
+ * takes the name.
+ */
+type InputProps = Omit<React.ComponentProps<"input">, "size"> & VariantProps<typeof inputVariants>;
+
+function Input({ className, size, type, ...props }: InputProps) {
   return <input type={type} data-slot="input" className={cn(inputVariants({ size, className }))} {...props} />;
 }
 
