@@ -1,28 +1,25 @@
-import * as Y from "yjs";
-
-import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "@docblocks-core/schema";
-import type { Block, BlockId, BlockType, DocJSON, DocMeta, OpaqueBlock, TextRun } from "@docblocks-core/schema";
-
-import { derivedZIndex } from "./commands";
-import { rootBlockIdOf, rootOrderOf } from "./layout";
-import { normalizeRuns } from "./normalize";
-import { attrsToMarkSet } from "./text-model";
-import type { TextDeltaOp } from "./text-model";
-
 /**
  * Snapshot readers: plain objects per the schema, never live Yjs types.
  * Mutating a returned snapshot does nothing. Runs are normalized lazily
  * (merge adjacent equal-mark runs, drop empty-text runs).
  */
+import * as Y from "yjs";
+
+import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "@docblocks-core/schema";
+import type { Block, BlockId, DocJSON, DocMeta, OpaqueBlock, TextRun } from "@docblocks-core/schema";
+
+import { derivedZIndex } from "../commands";
+import { rootBlockIdOf, rootOrderOf } from "../layout";
+import { normalizeRuns } from "../normalize";
+import { attrsToMarkSet } from "../text-model";
+import type { TextDeltaOp } from "../text-model";
+import type { BlockDraft } from "./models";
+import { dedupeOrder, isKnownBlockType, readPlainValue } from "./values";
 
 function getBlockMap(ydoc: Y.Doc, id: string): Y.Map<unknown> | null {
   const blocks = ydoc.getMap("blocks");
   const block = blocks.get(id);
   return block instanceof Y.Map ? block : null;
-}
-
-function isKnownBlockType(value: unknown): value is BlockType {
-  return typeof value === "string" && value in BLOCK_REGISTRY;
 }
 
 function readMeta(ydoc: Y.Doc): DocMeta {
@@ -61,23 +58,6 @@ function readRuns(ydoc: Y.Doc, blockId: string): TextRun[] {
 }
 
 /** Ordered child ids; [] for non-containers or missing blocks. */
-/**
- * Read-side dedupe of an order array: duplicate entries can only arise from
- * merging the same deterministic insert (re-seeding a persistent sync room
- * with the same id generator); a well-formed writer never writes them.
- * The first occurrence wins, so every read sees a well-formed order.
- */
-function dedupeOrder(ids: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const id of ids) {
-    if (seen.has(id)) continue;
-    seen.add(id);
-    out.push(id);
-  }
-  return out;
-}
-
 function readChildren(ydoc: Y.Doc, id: string): BlockId[] {
   const yblock = getBlockMap(ydoc, id);
   if (!yblock) return [];
@@ -126,49 +106,6 @@ function readText(ydoc: Y.Doc, blockId: string): string {
 }
 
 /**
- * Plain copy of a layout value: nested Y.Map → object, Y.Array → array,
- * primitives as-is. Layout contract: attr values are primitives or nested
- * Y.Maps only (Y.Text lives in meta.title and run text), so this cannot
- * return a live Yjs type.
- */
-function readPlainValue(value: unknown): unknown {
-  if (value instanceof Y.Map) {
-    const plain: Record<string, unknown> = {};
-    value.forEach((entry, key) => {
-      plain[key] = readPlainValue(entry);
-    });
-    return plain;
-  }
-  if (value instanceof Y.Array) {
-    return value.toArray().map(readPlainValue);
-  }
-  return value;
-}
-
-/** Intermediate shape while a block snapshot is being assembled. */
-interface BlockDraft {
-  type: BlockType;
-  attrs?: unknown;
-  /** The canvas geometry as a plain object of numbers (any block type). */
-  geometry?: unknown;
-  content?: TextRun[];
-  children?: BlockId[];
-  rows?: Record<string, Record<string, unknown>>;
-  rowOrder?: string[];
-  /** The column identities + order (table only): the single source of the column set. */
-  columnOrder?: string[];
-}
-
-/**
- * Snapshot of one block, or null when missing. Export normalization:
- * `attrs` is omitted when empty; `geometry` is omitted when absent (or
- * holds no numeric fields); `content` is omitted when runs normalize to
- * empty, except `table-cell` (always emits content: an empty cell);
- * `children` is omitted when empty, except `root` (always emits children);
- * `rows` / `rowOrder` are always emitted for database blocks (possibly
- * empty).
- */
-/**
  * The cross-minor opaque read of an unknown-type block (a future minor's
  * data): the entry's fields as plain data, as-is. The reader/renderer stand
  * a placeholder (and the text without the unknown marks); the data is not
@@ -213,6 +150,15 @@ function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
   return block;
 }
 
+/**
+ * Snapshot of one block, or null when missing. Export normalization:
+ * `attrs` is omitted when empty; `geometry` is omitted when absent (or
+ * holds no numeric fields); `content` is omitted when runs normalize to
+ * empty, except `table-cell` (always emits content: an empty cell);
+ * `children` is omitted when empty, except `root` (always emits children);
+ * `rows` / `rowOrder` are always emitted for database blocks (possibly
+ * empty).
+ */
 function readBlock(ydoc: Y.Doc, id: string): Block | null {
   const yblock = getBlockMap(ydoc, id);
   if (!yblock) return null;
