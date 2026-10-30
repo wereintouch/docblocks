@@ -29,8 +29,8 @@ vi.mock("../src/motion/RowList", async (importOriginal) => {
   };
 });
 
-vi.mock("../src/presence/presence-caret", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../src/presence/presence-caret")>();
+vi.mock("../src/presence", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/presence")>();
   const Real = actual.PresenceCaretOverlay;
   return {
     PresenceCaretOverlay: (props: Parameters<typeof Real>[0]) => {

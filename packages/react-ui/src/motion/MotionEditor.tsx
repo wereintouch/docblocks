@@ -29,7 +29,7 @@ import { MentionMenuContext, useMentionMenu } from "../editing/mention";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
 import { useEditorContext } from "../editor-provider";
-import { PresenceCaretOverlay } from "../presence/presence-caret";
+import { PresenceCaretOverlay } from "../presence";
 import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
 import { MotionEnumOptionsEditor } from "./EnumOptions";
