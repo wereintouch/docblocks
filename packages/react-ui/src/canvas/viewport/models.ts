@@ -2,7 +2,7 @@
  *  the tool / mode sets, the resize handles, the pen stroke) + the session
  *  shapes (the move / resize / the connector endpoint drag), the rendered
  *  previews, and the `CanvasViewportState` the hook returns. */
-import type { CanvasPort } from "../../blocks/canvas-geometry";
+import type { Box, CanvasPort } from "../../blocks/canvas-geometry";
 
 /** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
 type CanvasTool =
@@ -45,12 +45,6 @@ interface ScreenRect {
 type ResizeHandle = "nw" | "n" | "ne" | "e" | "se" | "s" | "sw" | "w";
 
 /** A complete box (the center-anchor geometry shape). */
-interface Box {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
 
 /** The pen stroke's bbox geometry + the block-local points. */
 interface PenStroke {

@@ -25,5 +25,5 @@ export {
   portOfNormal,
   portsOf,
 } from "./utils";
-export type { Box, CanvasPort, ConnectorPath, ConnectorVariant, EndpointPoint, Ports } from "./models";
+export type { Box, CanvasPort, ConnectorPath, ConnectorVariant, EndpointPoint, Ports, ShapeBlockView } from "./models";
 export type { ConnectorPreviews } from "./utils";

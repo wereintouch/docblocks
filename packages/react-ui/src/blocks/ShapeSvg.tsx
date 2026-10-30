@@ -1,12 +1,11 @@
 import type { ReactElement } from "react";
 
-import type { Block, BlockId } from "docblocks-core";
+import type { BlockId } from "docblocks-core";
 
+import type { ShapeBlockView } from "./canvas-geometry";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./canvas-geometry";
 
 /** The shape block as seen by the renderer (the geometry-carrying union member). */
-type ShapeBlockView = Extract<Block, { type: "shape" }>;
-
 /** The v1 shape defaults (the theme token + sane numbers; the block attrs override). */
 const DEFAULT_STROKE = "var(--docblocks-canvas-shape-stroke, currentColor)";
 const DEFAULT_STROKE_WIDTH = 2;

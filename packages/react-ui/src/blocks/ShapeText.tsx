@@ -2,16 +2,14 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useRef } from "react";
 
 import type { BlockId } from "docblocks-core";
-import type { Block } from "docblocks-core";
 
 import { SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, SHAPE_TEXT_WEIGHTS } from "../canvas";
 import { useEditorContext } from "../editor-provider";
+import type { ShapeBlockView } from "./canvas-geometry";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./canvas-geometry";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
 
 /** The shape's narrowed block view (the attrs stand). */
-type ShapeBlockView = Extract<Block, { type: "shape" }>;
-
 /** The shape's text padding (the figure's edge inset): the text wraps at
  * the figure's edges, so the box stands clear of them — the larger inset
  * for the non-rect figures (the text must stay inside the ellipse / the

@@ -77,7 +77,7 @@ interface ColumnDragSession {
  *  at the right edge of) and the press-time width the delta applies to;
  *  `width` is the live (clamped) width the preview renders and the release
  *  commits. */
-interface ColumnResizeSession {
+interface GridColumnResizeSession {
   col: number;
   startX: number;
   startWidth: number;
@@ -85,4 +85,4 @@ interface ColumnResizeSession {
   visible: string[];
 }
 
-export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, ColumnResizeSession, EnumOptionDraft };
+export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, GridColumnResizeSession, EnumOptionDraft };

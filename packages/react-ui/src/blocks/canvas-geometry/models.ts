@@ -1,6 +1,10 @@
 /** The canvas geometry's shared types (the box / ports / endpoint /
  * connector-path shapes). The constants stand in `constants.ts`.
  */
+import type { Block } from "docblocks-core";
+
+/** The shape block's view (the schema's `shape` member of the block union). */
+type ShapeBlockView = Extract<Block, { type: "shape" }>;
 
 /** The connector's box (the center-anchor geometry shape). */
 interface Box {
@@ -73,4 +77,14 @@ interface RoutePoint {
   y: number;
 }
 
-export type { Box, CanvasPort, ConnectorPath, ConnectorVariant, EdgeAnchor, EndpointPoint, Ports, RoutePoint };
+export type {
+  Box,
+  CanvasPort,
+  ConnectorPath,
+  ConnectorVariant,
+  EdgeAnchor,
+  EndpointPoint,
+  Ports,
+  RoutePoint,
+  ShapeBlockView,
+};

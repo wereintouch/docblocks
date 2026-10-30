@@ -12,7 +12,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import type { BridgeColumn } from "../bridge";
 import { DEFAULT_DATABASE_COLUMN_WIDTH_PX, MIN_DATABASE_COLUMN_WIDTH_PX } from "./constants";
-import type { ColumnResizeSession } from "./models";
+import type { GridColumnResizeSession } from "./models";
 
 interface GridSeamResizeDeps {
   /** The visible columns (the measured widths' source). */
@@ -26,7 +26,7 @@ interface GridSeamResizeDeps {
 function useGridSeamResize({ columns, columnWidths, updateView }: GridSeamResizeDeps) {
   // The column resize session (the header cell's right-edge seam).
   const [resizePreview, setResizePreview] = useState<{ col: number; width: number } | null>(null);
-  const resizeSession = useRef<ColumnResizeSession | null>(null);
+  const resizeSession = useRef<GridColumnResizeSession | null>(null);
 
   /** The seam press: starts the resize session (the native click / the
    *  column-drag gesture is suppressed — the seam's press stands its own
