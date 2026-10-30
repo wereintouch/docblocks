@@ -19,7 +19,7 @@
  */
 import type { BlockId, DatabaseBlock as DatabaseBlockType } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
+import { useEditorContext } from "../../editor-provider";
 import { GridBody } from "./GridBody";
 
 function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) {

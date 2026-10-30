@@ -15,8 +15,8 @@ import { useState } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
 import { useCanvasTextEdit } from "../../blocks/canvas-text-edit-context";
+import { useEditorContext } from "../../editor-provider";
 import {
   Button,
   DropdownMenu,

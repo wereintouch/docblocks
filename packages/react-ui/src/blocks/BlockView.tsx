@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 
 import type { Block, BlockId, ListItemAttrs } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
+import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { cn } from "../shared/ui/cn";
 import { CodeHeader } from "./CodeHeader";

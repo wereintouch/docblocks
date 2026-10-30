@@ -8,8 +8,8 @@ import { DestroyedViewError, createDoc, loadDoc } from "docblocks-core";
 import type { BlockId, PresenceState, SyncProvider } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider, useEditorContext } from "../src/EditorProvider";
-import type { EditorContextValue } from "../src/EditorProvider";
+import { EditorProvider, useEditorContext } from "../src/editor-provider";
+import type { EditorContextValue } from "../src/editor-provider";
 import { usePresence, useSelection, useText } from "../src/hooks";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";

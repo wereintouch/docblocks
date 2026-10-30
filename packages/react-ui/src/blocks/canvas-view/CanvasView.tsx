@@ -32,7 +32,6 @@ import type {
 
 import type { BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
 import {
   CanvasDock,
   ConnectorToolbar,
@@ -65,6 +64,7 @@ import {
   zPositionOf,
 } from "../../canvas";
 import type { ResizeHandle } from "../../canvas";
+import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";

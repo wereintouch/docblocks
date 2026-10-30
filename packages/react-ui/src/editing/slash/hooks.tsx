@@ -7,7 +7,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { BlockId } from "docblocks-core";
 import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
+import { useEditorContext } from "../../editor-provider";
 import { focusCaretIn, segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
 import { SlashMenu } from "./SlashMenu";

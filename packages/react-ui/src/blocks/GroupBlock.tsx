@@ -17,7 +17,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { Block, BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
+import { useEditorContext } from "../editor-provider";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
 
 type GROUP_BLOCK_VIEW = Extract<Block, { type: "group" }>;

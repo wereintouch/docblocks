@@ -5,8 +5,8 @@ import type { CSSProperties, RefObject } from "react";
 
 import type { Block, BlockId, Doc, PresenceSelection } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import { locatePosition } from "../editing/dom-offset";
+import { useEditorContext } from "../editor-provider";
 
 /** The box kinds of the overlay: a caret bar or a range-segment highlight. */
 type OverlaySlot = "docblocks/presence-caret" | "docblocks/presence-range";

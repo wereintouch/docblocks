@@ -9,9 +9,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
 import { screenDeltaToCanvas } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport";
+import { EditorProvider } from "../src/editor-provider";
 
 beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);

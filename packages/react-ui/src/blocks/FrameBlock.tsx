@@ -1,7 +1,7 @@
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../Editor";
-import { EditorProvider, useEditorContext } from "../EditorProvider";
+import { EditorProvider, useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { BlockGroups } from "./BlockView";
 import { BlockContext, useBlockContextValue } from "./block-context";

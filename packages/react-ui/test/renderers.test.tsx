@@ -8,8 +8,8 @@ import { createDoc } from "docblocks-core";
 import type { Block } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider, useEditorContext } from "../src/EditorProvider";
 import type { BlockRendererMap } from "../src/blocks/renderers";
+import { EditorProvider, useEditorContext } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 

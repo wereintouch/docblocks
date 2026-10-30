@@ -16,7 +16,6 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import type { BlockId } from "docblocks-core";
 
 import type { EditorView } from "../Editor";
-import { useEditorContext } from "../EditorProvider";
 import {
   BlockContext,
   CanvasView,
@@ -32,6 +31,7 @@ import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "../editing/mention";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
 import { useEditing } from "../editing/useEditing";
+import { useEditorContext } from "../editor-provider";
 import { PresenceCaretOverlay } from "../presence/presence-caret";
 import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";

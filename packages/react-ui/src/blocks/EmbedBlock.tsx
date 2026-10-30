@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
+import { useEditorContext } from "../editor-provider";
 import { Minus, Plus, RotateCcw } from "../shared/ui/icons";
 import { clamp } from "../shared/utils";
 

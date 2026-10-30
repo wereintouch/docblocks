@@ -5,8 +5,8 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 
 import type { BlockId, ImageBlock as ImageBlockType, TextAlign } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import type { BlobRef } from "../blob-store";
+import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import { Card, CardContent } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";

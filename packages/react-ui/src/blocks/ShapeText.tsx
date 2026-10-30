@@ -4,8 +4,8 @@ import { useEffect, useRef } from "react";
 import type { BlockId } from "docblocks-core";
 import type { Block } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import { SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, SHAPE_TEXT_WEIGHTS } from "../canvas";
+import { useEditorContext } from "../editor-provider";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./canvas-geometry";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
 

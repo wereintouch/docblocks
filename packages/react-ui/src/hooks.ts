@@ -2,7 +2,7 @@ import { useStore } from "zustand";
 
 import type { Block, BlockId, Doc, DocMeta, PresenceState, Selection, SelectionView } from "docblocks-core";
 
-import { useEditorContext } from "./EditorProvider";
+import { useEditorContext } from "./editor-provider";
 
 /** The headless document owned by the nearest EditorProvider. */
 function useDoc(): Doc {

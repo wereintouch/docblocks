@@ -1,7 +1,7 @@
 import type { BlockId, Doc, SyncEmbedBlock as SyncEmbedBlockType } from "docblocks-core";
 
 import { Editor } from "../Editor";
-import { EditorProvider, useEditorContext } from "../EditorProvider";
+import { EditorProvider, useEditorContext } from "../editor-provider";
 import { Alert, AlertTitle } from "../shared/ui/Alert";
 import { Card } from "../shared/ui/Card";
 import { ScrollArea } from "../shared/ui/ScrollArea";

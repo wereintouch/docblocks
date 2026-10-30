@@ -29,7 +29,6 @@ import type { ClipboardEvent as ReactClipboardEvent, KeyboardEvent as ReactKeybo
 
 import type { Block, BlockId, BlockType, TextRun } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import {
   caretOffsetIn,
   logicalTextOf,
@@ -42,6 +41,7 @@ import { useBlockKeyboard } from "../editing/keyboard";
 import { useMentionMenuApi } from "../editing/mention";
 import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
+import { useEditorContext } from "../editor-provider";
 import { renderRunsInto } from "../text/runs-dom";
 import type { BlockContextValue } from "./block-context";
 

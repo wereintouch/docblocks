@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
+import { useEditorContext } from "../editor-provider";
 
 /**
  * The block caption line: a centered single-line field BELOW the block

@@ -7,9 +7,9 @@ import { useStore } from "zustand";
 import { memo, useCallback, useRef } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
-import { useEditorContext } from "../EditorProvider";
 import { BlockNodeView, indentOf, insertParagraphAfter, useBlockContext } from "../blocks";
 import { editorRootOf } from "../editing/dom-offset";
+import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { Button } from "../shared/ui/Button";
 import { cn } from "../shared/ui/cn";

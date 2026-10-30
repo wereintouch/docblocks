@@ -4,8 +4,8 @@ import type { KeyboardEvent, RefObject } from "react";
 import { BLOCK_REGISTRY } from "docblocks-core";
 import type { BlockId, BlockType, Doc } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks";
+import { useEditorContext } from "../editor-provider";
 import { extendSelectionTo, focusCaretIn, moveSegmentInSequence, segmentRange } from "./block-commands";
 import { caretOffsetIn, editorRootOf, textBlockOfNode } from "./dom-offset";
 import { syncDomSelection } from "./selection-mapping";

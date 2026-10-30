@@ -7,7 +7,7 @@ import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import type { BlockId } from "docblocks-core";
 import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
+import { useEditorContext } from "../../editor-provider";
 import { focusCaretIn } from "../block-commands";
 import { blockTextOf, isQueryBoundary, liveCaretOf, slashInnerOf } from "../slash/utils";
 import { MentionPicker } from "./MentionPicker";

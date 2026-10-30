@@ -6,7 +6,7 @@ import { createDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
+import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-14T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;

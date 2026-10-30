@@ -12,7 +12,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 import type { Block, ShapeAttrs } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
+import { EditorProvider } from "../src/editor-provider";
 
 type ShapeWithGeometry = Extract<Block, { type: "shape" }>;
 

@@ -4,8 +4,8 @@ import type { ClipboardEvent, KeyboardEvent, RefObject } from "react";
 import type { BlockId, BlockType, TextPoint } from "docblocks-core";
 import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import type { BlockContextValue } from "../blocks";
+import { useEditorContext } from "../editor-provider";
 import {
   ensureTrailingParagraph,
   findParentId,

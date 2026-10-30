@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import type { ClipboardEvent, KeyboardEvent, PointerEvent, RefObject } from "react";
 
-import { useEditorContext } from "../EditorProvider";
 import { entrySequenceParent } from "../blocks";
+import { useEditorContext } from "../editor-provider";
 import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection, reseatHistorySelection } from "./block-commands";
 import { crossRangeClipboardContent, segmentOf } from "./cross-copy";
 import { useCrossDrag } from "./cross-drag";

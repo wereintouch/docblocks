@@ -14,9 +14,9 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
 import { wheelGesture, wheelPanDeltas } from "../src/blocks/canvas-view/models";
 import { pinchZoom } from "../src/canvas/viewport";
+import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 

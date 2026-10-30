@@ -2,12 +2,12 @@ import { useStore } from "zustand";
 
 import { useMemo } from "react";
 
-import { useEditorContext } from "./EditorProvider";
 import { BlockContext, BlockGroups, CanvasView, FormatPaletteContext, entrySequenceParent } from "./blocks";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "./editing/mention";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/useEditing";
+import { useEditorContext } from "./editor-provider";
 import { PresenceCaretOverlay } from "./presence/presence-caret";
 import { Card } from "./shared/ui/Card";
 import { cn } from "./shared/ui/cn";

@@ -5,8 +5,8 @@ import type { CSSProperties, ReactNode } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import type { Box, MovePreview } from "../canvas";
+import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { BlockView } from "./BlockView";
 import { ConnectorLine } from "./ConnectorLayer";

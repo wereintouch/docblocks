@@ -7,7 +7,7 @@ import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
+import { useEditorContext } from "../../editor-provider";
 import { Button } from "../../shared/ui";
 import {
   DropdownMenu,

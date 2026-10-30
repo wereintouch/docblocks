@@ -5,8 +5,8 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "re
 
 import type { Block, BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import { editorRootOf } from "../editing/dom-offset";
+import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import { Checkbox } from "../shared/ui/Checkbox";
 import { ScrollArea } from "../shared/ui/ScrollArea";

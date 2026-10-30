@@ -8,7 +8,7 @@
 export type { BlockRenderer, BlockRendererMap, BlockRendererProps } from "./blocks";
 export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
-export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./EditorProvider";
+export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./editor-provider";
 export type {
   EditorContextValue,
   EditorProviderProps,
@@ -18,7 +18,7 @@ export type {
   PdfPreview,
   PdfPreviewProps,
   SyncEmbedResolver,
-} from "./EditorProvider";
+} from "./editor-provider";
 export { DocHeader } from "./DocHeader";
 export { blobSubtypeOf, createMemoryBlobStore } from "./blob-store";
 export type { BlobMeta, BlobRef, BlobSubtype, BlobStore } from "./blob-store";

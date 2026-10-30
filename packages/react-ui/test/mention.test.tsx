@@ -6,10 +6,10 @@ import { createDoc } from "docblocks-core";
 import type { TextRun } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider, useEditorContext } from "../src/EditorProvider";
-import type { MentionProvider } from "../src/EditorProvider";
 import { segmentOf } from "../src/editing/cross-copy";
 import { deriveMention } from "../src/editing/mention";
+import { EditorProvider, useEditorContext } from "../src/editor-provider";
+import type { MentionProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;

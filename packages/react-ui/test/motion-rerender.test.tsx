@@ -12,8 +12,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
-import { EditorProvider } from "../src/EditorProvider";
 import type { BlockRendererProps } from "../src/blocks/renderers";
+import { EditorProvider } from "../src/editor-provider";
 import { MotionEditor } from "../src/motion/index";
 
 const counters = vi.hoisted(() => ({ rowList: 0, presence: 0 }));

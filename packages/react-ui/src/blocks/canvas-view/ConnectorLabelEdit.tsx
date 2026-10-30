@@ -15,7 +15,7 @@ import { useEffect, useRef } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
+import { useEditorContext } from "../../editor-provider";
 import { connectorLabelChipStyle } from "./ConnectorLabelChip";
 
 const LABEL_EDIT_WIDTH = 120;

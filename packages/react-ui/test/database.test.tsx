@@ -8,7 +8,6 @@ import { createDoc } from "docblocks-core";
 import type { DatabaseBlock, DatabaseColumn, DatabaseFilterPayload } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
 import type { BlockRendererMap } from "../src/blocks/renderers";
 import type { BridgeColumn, DatabaseBridge } from "../src/database/bridge";
 import { FilterBuilder } from "../src/database/filter-builder";
@@ -17,6 +16,7 @@ import type { RefTableDataMap } from "../src/database/grid/use-ref-tables";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
 import { DatabaseSlashPicker } from "../src/editing/slash-database-picker";
+import { EditorProvider } from "../src/editor-provider";
 
 // The radix Select drives the cell's pick through the pointer-capture API
 // (setPointerCapture / hasPointerCapture), which jsdom does not implement.

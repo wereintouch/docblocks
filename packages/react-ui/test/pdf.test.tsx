@@ -8,9 +8,9 @@ import { createDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
-import type { PdfPreviewProps } from "../src/EditorProvider";
 import type { BlobStore } from "../src/blob-store";
+import { EditorProvider } from "../src/editor-provider";
+import type { PdfPreviewProps } from "../src/editor-provider";
 import { PdfFirstPage } from "../src/pdf/index";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";

@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import type { BlockId, CodeBlock } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
+import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import {
   DropdownMenu,

@@ -44,8 +44,8 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 import type { BlockId, TableBlock as TableBlockType } from "docblocks-core";
 import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
 import { focusCaretIn } from "../../editing/block-commands";
+import { useEditorContext } from "../../editor-provider";
 import { Button } from "../../shared/ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { cn } from "../../shared/ui/cn";

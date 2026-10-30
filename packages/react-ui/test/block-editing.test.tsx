@@ -6,9 +6,9 @@ import { createDoc, validateDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { EditorProvider } from "../src/EditorProvider";
 import { moveSegmentInSequence } from "../src/editing/block-commands";
 import { caretOffsetIn } from "../src/editing/dom-offset";
+import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;

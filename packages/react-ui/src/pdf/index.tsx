@@ -21,7 +21,7 @@ import type { PDFDocumentLoadingTask } from "pdfjs-dist";
 
 import { useEffect, useRef, useState } from "react";
 
-import type { PdfPreviewProps } from "../EditorProvider";
+import type { PdfPreviewProps } from "../editor-provider";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 
 // The worker file is copied next to this entry at build time (dist/pdf/),

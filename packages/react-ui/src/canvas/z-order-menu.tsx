@@ -14,7 +14,7 @@
  */
 import type { Block, BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
+import { useEditorContext } from "../editor-provider";
 import {
   Button,
   DropdownMenu,

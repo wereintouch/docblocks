@@ -20,7 +20,7 @@ import type { CSSProperties } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
+import { useEditorContext } from "../../editor-provider";
 import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE, connectorStrokeWidthOf } from "../ConnectorLayer";
 import type { ConnectorPreviews } from "../canvas-geometry";
 import { connectorMidpoint } from "../canvas-geometry";

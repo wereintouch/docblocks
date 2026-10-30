@@ -42,9 +42,9 @@ import { useEffect, useRef, useState } from "react";
 
 import type { BlockId, CodeBlock } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import { CodeHeader, TextBlock, childrenSlot, textOf } from "../blocks";
 import type { BlockRendererProps } from "../blocks";
+import { useEditorContext } from "../editor-provider";
 import { Alert, AlertDescription, AlertTitle } from "../shared/ui/Alert";
 import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { Skeleton } from "../shared/ui/Skeleton";

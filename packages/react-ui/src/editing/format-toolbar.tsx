@@ -4,8 +4,8 @@ import type { ComponentType, ReactNode, RefObject, SVGProps } from "react";
 import type { Block, BlockId, TextAlign } from "docblocks-core";
 import { CALLOUT_ICONS } from "docblocks-core";
 
-import { useEditorContext } from "../EditorProvider";
 import { CALLOUT_ICON_COMPONENTS, CALLOUT_PRESET_ICONS, calloutIconName } from "../blocks";
+import { useEditorContext } from "../editor-provider";
 import { useBlock, useSelection } from "../hooks";
 import { Button } from "../shared/ui/Button";
 import { ColorSwatches } from "../shared/ui/ColorSwatches";

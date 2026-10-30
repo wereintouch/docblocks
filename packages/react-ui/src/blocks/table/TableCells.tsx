@@ -7,9 +7,9 @@ import type { CSSProperties, ClipboardEvent, KeyboardEvent } from "react";
 import { BLOCK_REGISTRY } from "docblocks-core";
 import type { Block, BlockId } from "docblocks-core";
 
-import { useEditorContext } from "../../EditorProvider";
 import { focusCaretIn, focusCellActivation } from "../../editing/block-commands";
 import { plainTextOfHtml } from "../../editing/clipboard";
+import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { cn } from "../../shared/ui/cn";
 import { BlockGroups } from "../BlockView";

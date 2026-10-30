@@ -6,7 +6,7 @@ import type { KeyboardEvent, RefObject } from "react";
 
 import type { BlockId, MentionKind } from "docblocks-core";
 
-import type { MentionProvider } from "../../EditorProvider";
+import type { MentionProvider } from "../../editor-provider";
 
 /** The open mention picker's derivation: the live query over the `@` phrase. */
 interface MentionDerivation {

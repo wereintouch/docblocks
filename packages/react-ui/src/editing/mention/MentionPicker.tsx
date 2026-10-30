@@ -4,7 +4,7 @@
  *  (the root is the positioning context), like the slash menu. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-import type { MentionEntry } from "../../EditorProvider";
+import type { MentionEntry } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
