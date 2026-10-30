@@ -9,7 +9,7 @@ import { isReservedId } from "../../id-safety";
 import { BLOCK_REGISTRY } from "../../registry";
 import { indentOf } from "../../utils";
 import { CANVAS_ZORDER_TYPES } from "../../z-order";
-import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../models";
+import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../constants";
 import type { ValidationError } from "../models";
 import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
 import { isIso8601, isPlainObject, show } from "./common";

@@ -15,7 +15,7 @@ import { cn } from "../../shared/ui/cn";
 import { BlockGroups } from "../BlockView";
 import { BlockContext, useBlockContext, useBlockContextValue } from "../block-context";
 import { useTextInner } from "../text-inner";
-import { EMPTY_IDS } from "./models";
+import { EMPTY_IDS } from "./constants";
 
 /** One row: the cell ids come from the row's own snapshot. */
 const TableRow = memo(function TableRow({

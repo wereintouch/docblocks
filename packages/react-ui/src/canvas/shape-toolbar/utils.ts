@@ -1,7 +1,7 @@
 /** The shape toolbar's pure helpers (the border width's dot index, the
  *  variant's icon, the hex input's normalization). */
 import { Circle, Cloud, Cylinder, Diamond, Square, SquareRounded } from "../../shared/ui/icons";
-import { BORDER_WIDTH_POINTS, HEX_RE } from "./models";
+import { BORDER_WIDTH_POINTS, HEX_RE } from "./constants";
 import type { ShapeVariantId } from "./models";
 
 // The width's dot index (the absent / the out-of-stand fall to the

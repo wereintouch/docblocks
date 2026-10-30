@@ -10,7 +10,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 import type { BlockId, Doc, Selection } from "docblocks-core";
 
 import { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "../src/canvas/nudge";
-import { NUDGE_SHIFT_MULTIPLIER, NUDGE_STEP_PX } from "../src/canvas/viewport/models";
+import { NUDGE_SHIFT_MULTIPLIER, NUDGE_STEP_PX } from "../src/canvas/viewport/constants";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 

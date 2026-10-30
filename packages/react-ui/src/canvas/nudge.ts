@@ -9,8 +9,8 @@ import type { BlockId, Doc, Selection } from "docblocks-core";
 
 import { effectiveGeometry } from "../blocks/canvas-geometry";
 import type { Box } from "../blocks/canvas-geometry";
+import { NUDGE_SHIFT_MULTIPLIER, NUDGE_STEP_PX } from "./viewport/constants";
 import { unitMembers } from "./viewport/hooks";
-import { NUDGE_SHIFT_MULTIPLIER, NUDGE_STEP_PX } from "./viewport/models";
 
 /** The nudge keys (the plain arrows — the Shift is the only modifier). */
 const NUDGE_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"] as const;

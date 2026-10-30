@@ -6,7 +6,7 @@
  * resolved-endpoint path with the orthogonal's stubs and the obstacle
  * avoidance).
  */
-export { DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "./models";
+export { DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "./constants";
 export {
   boxContains,
   canvasItemStyle,

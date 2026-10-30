@@ -54,7 +54,14 @@ import { BlockContext, useBlockContextValue } from "../block-context";
 import { useFormatPalette } from "../format-palette-context";
 import { HandleMenu, HandleMenuItems } from "./HandleMenu";
 import { TableRow } from "./TableCells";
-import { ADD_BUTTON_CLASSES, ADD_BUTTON_SIZE, EMPTY_IDS, GHOST_ROW_HEIGHT, HANDLE_SIZE, HANDLE_ZONE } from "./models";
+import {
+  ADD_BUTTON_CLASSES,
+  ADD_BUTTON_SIZE,
+  EMPTY_IDS,
+  GHOST_ROW_HEIGHT,
+  HANDLE_SIZE,
+  HANDLE_ZONE,
+} from "./constants";
 import type { AddChipSession, ColumnResizeSession, HandleAction, HandleKind, TableHandleSession } from "./models";
 import { useTableAddChips } from "./use-table-add-chips";
 import { useTableHandleDrag } from "./use-table-handle-drag";

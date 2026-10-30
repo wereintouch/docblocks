@@ -14,8 +14,8 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import type { BlockId, Doc, TableBlock as TableBlockType } from "docblocks-core";
 import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 
+import { DRAG_THRESHOLD } from "./constants";
 import type { HandleKind, TableDragPreview, TableHandleSession } from "./models";
-import { DRAG_THRESHOLD } from "./models";
 import { columnDropPosition, rowDropPosition, sameSequence } from "./utils";
 
 interface TableHandleDragDeps {

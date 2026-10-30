@@ -7,7 +7,7 @@
 import type { MarkSet, TextRun } from "docblocks-core";
 
 import { marksEqual } from "../../mark-utils";
-import { IMAGE_LINE, STRUCTURAL_TAG_LINE } from "../models";
+import { IMAGE_LINE, STRUCTURAL_TAG_LINE } from "../constants";
 import type { MdParagraphLine, MdPasteBlock } from "../models";
 import { decodeEntities, parseInline } from "./inline";
 

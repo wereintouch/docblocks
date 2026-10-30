@@ -7,7 +7,7 @@
  */
 import type { Block } from "docblocks-core";
 
-import { ORTHO_AVOID_MARGIN_PX, ORTHO_DETOUR_PX, ORTHO_STUB_PX, PORT_NORMAL, ROUTE_EPS } from "../models";
+import { ORTHO_AVOID_MARGIN_PX, ORTHO_DETOUR_PX, ORTHO_STUB_PX, PORT_NORMAL, ROUTE_EPS } from "../constants";
 import type {
   Box,
   CanvasPort,

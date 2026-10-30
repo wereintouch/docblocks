@@ -20,7 +20,7 @@ import {
 } from "../../shared/ui/DropdownMenu";
 import { resolveColorToHex } from "../../shared/ui/color-utils";
 import { Ellipsis, EllipsisVertical } from "../../shared/ui/icons";
-import { EMPTY_IDS } from "./models";
+import { EMPTY_IDS } from "./constants";
 import type { HandleAction, HandleKind } from "./models";
 import { handleClasses } from "./utils";
 

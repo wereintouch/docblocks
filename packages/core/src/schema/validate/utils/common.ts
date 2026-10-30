@@ -1,7 +1,7 @@
 /** The validator's shared value-shape checks (plain objects, the display
  *  form, the ISO 8601 / hex color / link href rules). */
 import { isPlainObject } from "../../utils";
-import { HEX_COLOR, ISO_8601, SCHEME_PREFIX, WEB_URL } from "../models";
+import { HEX_COLOR, ISO_8601, SCHEME_PREFIX, WEB_URL } from "../constants";
 
 const show = (value: unknown): string => {
   if (value === undefined) return "missing";

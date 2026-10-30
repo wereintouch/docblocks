@@ -51,4 +51,28 @@ const TOOL_SIZES: Record<CanvasTool, { w: number; h: number }> = {
 /** The box floor of a resize (canvas px, per axis). */
 const RESIZE_FLOOR_PX = 20;
 
-export { MAX_ZOOM, MIN_ZOOM, MOVE_THRESHOLD_PX, PINCH_ZOOM_COEFF, RESIZE_FLOOR_PX, TOOL_SIZES, ZOOM_STOPS, ZOOM_STEP };
+/** The endpoint drag's port snap radius (canvas px, the zoom-blind space). */
+const ENDPOINT_SNAP_RADIUS = 12;
+/** The endpoint drag's release threshold (screen px — a sub-threshold
+ * press-release commits nothing, the move sessions' contract). */
+const ENDPOINT_RELEASE_THRESHOLD_PX = 3;
+
+/** The arrow-key nudge's step (canvas world px — the data's space, the
+ * zoom-blind contract: the step stands the same over any zoom). */
+const NUDGE_STEP_PX = 10;
+/** The nudge's Shift multiplier (the step's factor — the 50 px stand). */
+const NUDGE_SHIFT_MULTIPLIER = 5;
+export {
+  ENDPOINT_RELEASE_THRESHOLD_PX,
+  ENDPOINT_SNAP_RADIUS,
+  NUDGE_SHIFT_MULTIPLIER,
+  NUDGE_STEP_PX,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  MOVE_THRESHOLD_PX,
+  PINCH_ZOOM_COEFF,
+  RESIZE_FLOOR_PX,
+  TOOL_SIZES,
+  ZOOM_STOPS,
+  ZOOM_STEP,
+};

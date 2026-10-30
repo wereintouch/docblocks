@@ -9,7 +9,7 @@ import type { CSSProperties } from "react";
 
 import type { Block, BlockId, BlockType, CanvasRef } from "docblocks-core";
 
-import { CANVAS_SUB_TYPES, DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "../models";
+import { CANVAS_SUB_TYPES, DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "../constants";
 import type { Box, CanvasPort, EndpointPoint, Ports } from "../models";
 import { edgeAnchor } from "./connector";
 

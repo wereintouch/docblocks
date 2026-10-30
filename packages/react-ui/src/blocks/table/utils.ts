@@ -6,7 +6,7 @@ import type { BlockId, Doc } from "docblocks-core";
 
 import { plainTextOfHtml } from "../../editing/clipboard";
 import { cn } from "../../shared/ui/cn";
-import { ADD_COLUMN_DRAG_STEP_PX, ADD_ROW_DRAG_STEP_PX, MIN_COLUMN_WIDTH } from "./models";
+import { ADD_COLUMN_DRAG_STEP_PX, ADD_ROW_DRAG_STEP_PX, MIN_COLUMN_WIDTH } from "./constants";
 import type { HandleKind } from "./models";
 
 /** The handle chip's classes (revealed when hovered / dragged / menued). */

@@ -9,8 +9,8 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BlockId, Doc } from "docblocks-core";
 
+import { MIN_COLUMN_WIDTH } from "./constants";
 import type { ColumnResizeSession } from "./models";
-import { MIN_COLUMN_WIDTH } from "./models";
 import { clampColumnWidth } from "./utils";
 
 interface TableSeamResizeDeps {

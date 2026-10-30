@@ -1,17 +1,6 @@
-import type { BlockType } from "docblocks-core";
-
 /** The canvas geometry's shared types (the box / ports / endpoint /
- *  connector-path shapes) and constants (the default sizes, the port
- *  normals, the orthogonal's stub / detour / tolerance). */
-
-/** The canvas-only element types (they render ONLY inside a surface). */
-const CANVAS_SUB_TYPES: readonly BlockType[] = ["shape", "connector", "canvas-text", "frame", "group"];
-
-/** The default size (px) of a canvas element without a geometry. */
-const DEFAULT_CANVAS_ITEM_SIZE = 100;
-
-/** The default size (px) of the page miniature when the root carries no geometry. */
-const DEFAULT_PAGE_SIZE = { w: 720, h: 960 } as const;
+ * connector-path shapes). The constants stand in `constants.ts`.
+ */
 
 /** The connector's box (the center-anchor geometry shape). */
 interface Box {
@@ -84,14 +73,4 @@ interface RoutePoint {
   y: number;
 }
 
-export {
-  CANVAS_SUB_TYPES,
-  DEFAULT_CANVAS_ITEM_SIZE,
-  DEFAULT_PAGE_SIZE,
-  ORTHO_AVOID_MARGIN_PX,
-  ORTHO_DETOUR_PX,
-  ORTHO_STUB_PX,
-  PORT_NORMAL,
-  ROUTE_EPS,
-};
 export type { Box, CanvasPort, ConnectorPath, ConnectorVariant, EdgeAnchor, EndpointPoint, Ports, RoutePoint };

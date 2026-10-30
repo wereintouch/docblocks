@@ -19,9 +19,9 @@ import {
   placeShape,
 } from "../insert";
 import { TOOL_SIZES } from "./constants";
+import { ENDPOINT_RELEASE_THRESHOLD_PX } from "./constants";
 import { marqueeRect, resizeBox, screenDeltaToCanvas, screenToCanvas, unionBox } from "./geometry";
 import type { Box, CanvasMode, CanvasPoint, CanvasTool, PenStroke, ResizeHandle, ScreenPoint } from "./models";
-import { ENDPOINT_RELEASE_THRESHOLD_PX } from "./models";
 import type {
   CanvasViewportState,
   DropIndicator,

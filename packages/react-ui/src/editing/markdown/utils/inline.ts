@@ -8,7 +8,7 @@
 import type { MarkSet, TextRun } from "docblocks-core";
 
 import { marksEqual } from "../../mark-utils";
-import { ENTITY, MARK_HIGHLIGHT, NAMED_ENTITIES, OPEN_TAG, STRAY_CLOSE_TAG, TAG_HREF } from "../models";
+import { ENTITY, MARK_HIGHLIGHT, NAMED_ENTITIES, OPEN_TAG, STRAY_CLOSE_TAG, TAG_HREF } from "../constants";
 
 /**
  * One decode pass (the lenient posture): numeric and the known named
