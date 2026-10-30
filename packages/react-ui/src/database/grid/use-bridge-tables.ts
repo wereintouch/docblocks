@@ -9,9 +9,10 @@ function useBridgeTables(bridge: DatabaseBridge, refreshKey: number): TableRef[]
   const [tables, setTables] = useState<TableRef[]>([]);
   useEffect(() => {
     let live = true;
-    void bridge.listTables().then((list) => {
+    void (async () => {
+      const list = await bridge.listTables();
       if (live) setTables([...list].sort((a, b) => a.name.localeCompare(b.name)));
-    });
+    })();
     return () => {
       live = false;
     };

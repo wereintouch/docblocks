@@ -35,14 +35,14 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
     const renderId = `mb-${renderSeq}-${safeId(id)}`;
     let cancelled = false;
     configureMermaidTheme(theme);
-    mermaid
-      .render(renderId, text)
-      .then(({ svg }) => {
+    void (async () => {
+      try {
+        const { svg } = await mermaid.render(renderId, text);
         if (!cancelled) setState({ svg, error: null });
-      })
-      .catch((error: unknown) => {
+      } catch (error: unknown) {
         if (!cancelled) setState({ svg: null, error: error instanceof Error ? error.message : String(error) });
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };

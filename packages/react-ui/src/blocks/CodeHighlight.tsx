@@ -56,9 +56,15 @@ function CodeHighlight({ code, language, wrap }: CodeHighlightProps) {
     if (isGrammarLoaded(grammar)) {
       paint();
     } else {
-      void loadGrammar(grammar)
-        .then(paint)
-        .catch(() => undefined); // a failed load keeps the raw text
+      void (async () => {
+        try {
+          await loadGrammar(grammar);
+        } catch {
+          // a failed load keeps the raw text
+          return;
+        }
+        paint();
+      })();
     }
     return () => {
       alive = false;

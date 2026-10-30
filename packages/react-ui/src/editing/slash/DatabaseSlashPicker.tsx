@@ -40,14 +40,14 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
 
   useEffect(() => {
     let cancelled = false;
-    databaseBridge
-      .listTables()
-      .then((refs) => {
+    void (async () => {
+      try {
+        const refs = await databaseBridge.listTables();
         if (!cancelled) setTables(refs);
-      })
-      .catch((listError) => {
+      } catch (listError) {
         if (!cancelled) setError(listError instanceof Error ? listError.message : String(listError));
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -58,13 +58,15 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
     if (trimmed.length === 0 || creating) return;
     setCreating(true);
     setError(null);
-    databaseBridge
-      .createTable(trimmed)
-      .then((tableId) => onCommit(tableId))
-      .catch((createError) => {
+    void (async () => {
+      try {
+        const tableId = await databaseBridge.createTable(trimmed);
+        onCommit(tableId);
+      } catch (createError) {
         setCreating(false);
         setError(createError instanceof Error ? createError.message : String(createError));
-      });
+      }
+    })();
   };
 
   const filtered = (tables ?? []).filter((ref) => ref.name.toLowerCase().includes(query.trim().toLowerCase()));

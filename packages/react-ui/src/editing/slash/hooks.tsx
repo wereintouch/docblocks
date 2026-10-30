@@ -166,9 +166,9 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       if (pending === null || file === null) return;
       const { blockId, parentId, slashOffset } = pending;
       if (doc.getBlock(blockId) === null) return;
-      blobStore
-        .upload(file, { name: file.name })
-        .then((key) => {
+      void (async () => {
+        try {
+          const key = await blobStore.upload(file, { name: file.name });
           const scope = rootRef.current ?? document;
           try {
             doc.transact(() => {
@@ -196,11 +196,11 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
             throw error;
           }
           close();
-        })
-        .catch(() => {
+        } catch {
           // The upload was refused (or the legacy resolver holds no upload
           // path): nothing commits; the menu stands open on the phrase.
-        });
+        }
+      })();
     },
     [blobStore, close, doc, rootRef]
   );

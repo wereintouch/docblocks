@@ -171,90 +171,101 @@ function scheduleSave(): void {
  * never sees the bridge pre-restore), every mutation schedules the
  * snapshot's save. */
 export const persistentDatabaseBridge: DatabaseBridge = {
-  listTables: () => databaseBridgeReady().then(() => getDefaultDatabaseBridge().listTables()),
-  createTable: (name, options) =>
-    databaseBridgeReady().then(async () => {
-      const id = await getDefaultDatabaseBridge().createTable(name, options);
-      if (options?.system === true) systemTableIds.add(id);
-      scheduleSave();
-      return id;
-    }),
-  renameTable: (tableId, name) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().renameTable(tableId, name);
-      scheduleSave();
-    }),
-  describeTable: (tableId) => databaseBridgeReady().then(() => getDefaultDatabaseBridge().describeTable(tableId)),
-  createColumn: (tableId, column, afterColumnId) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().createColumn(tableId, column, afterColumnId);
-      scheduleSave();
-    }),
-  updateColumn: (tableId, columnId, patch) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().updateColumn(tableId, columnId, patch);
-      scheduleSave();
-    }),
-  resolveRowDisplay: (tableId, rowIds, displayColumn) =>
-    databaseBridgeReady().then(() => getDefaultDatabaseBridge().resolveRowDisplay(tableId, rowIds, displayColumn)),
-  deleteColumn: (tableId, columnId) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().deleteColumn(tableId, columnId);
-      scheduleSave();
-    }),
-  restoreDeletedColumn: (tableId, columnId) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().restoreDeletedColumn!(tableId, columnId);
-      scheduleSave();
-    }),
-  renameColumn: (tableId, columnId, name) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().renameColumn(tableId, columnId, name);
-      scheduleSave();
-    }),
-  queryRows: (tableId, query) => databaseBridgeReady().then(() => getDefaultDatabaseBridge().queryRows(tableId, query)),
-  insertRow: (tableId, row) =>
-    databaseBridgeReady().then(async () => {
-      const id = await getDefaultDatabaseBridge().insertRow(tableId, row);
-      scheduleSave();
-      return id;
-    }),
-  updateRow: (tableId, rowId, cells) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().updateRow(tableId, rowId, cells);
-      scheduleSave();
-    }),
-  removeRow: (tableId, rowId) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().removeRow(tableId, rowId);
-      scheduleSave();
-    }),
-  undeleteRows: (tableId, rowIds) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().undeleteRows?.(tableId, rowIds);
-      scheduleSave();
-    }),
-  insertRows: (tableId, rows) =>
-    databaseBridgeReady().then(async () => {
-      const ids = await getDefaultDatabaseBridge().insertRows(tableId, rows);
-      scheduleSave();
-      return ids;
-    }),
-  updateRows: (tableId, rows) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().updateRows(tableId, rows);
-      scheduleSave();
-    }),
-  removeRows: (tableId, rowIds) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().removeRows(tableId, rowIds);
-      scheduleSave();
-    }),
-  moveRow: (tableId, rowId, beforeRowId) =>
-    databaseBridgeReady().then(async () => {
-      await getDefaultDatabaseBridge().moveRow(tableId, rowId, beforeRowId);
-      scheduleSave();
-    }),
+  listTables: async () => {
+    await databaseBridgeReady();
+    return getDefaultDatabaseBridge().listTables();
+  },
+  createTable: async (name, options) => {
+    await databaseBridgeReady();
+    const id = await getDefaultDatabaseBridge().createTable(name, options);
+    if (options?.system === true) systemTableIds.add(id);
+    scheduleSave();
+    return id;
+  },
+  renameTable: async (tableId, name) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().renameTable(tableId, name);
+    scheduleSave();
+  },
+  describeTable: async (tableId) => {
+    await databaseBridgeReady();
+    return getDefaultDatabaseBridge().describeTable(tableId);
+  },
+  createColumn: async (tableId, column, afterColumnId) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().createColumn(tableId, column, afterColumnId);
+    scheduleSave();
+  },
+  updateColumn: async (tableId, columnId, patch) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().updateColumn(tableId, columnId, patch);
+    scheduleSave();
+  },
+  resolveRowDisplay: async (tableId, rowIds, displayColumn) => {
+    await databaseBridgeReady();
+    return getDefaultDatabaseBridge().resolveRowDisplay(tableId, rowIds, displayColumn);
+  },
+  deleteColumn: async (tableId, columnId) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().deleteColumn(tableId, columnId);
+    scheduleSave();
+  },
+  restoreDeletedColumn: async (tableId, columnId) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().restoreDeletedColumn!(tableId, columnId);
+    scheduleSave();
+  },
+  renameColumn: async (tableId, columnId, name) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().renameColumn(tableId, columnId, name);
+    scheduleSave();
+  },
+  queryRows: async (tableId, query) => {
+    await databaseBridgeReady();
+    return getDefaultDatabaseBridge().queryRows(tableId, query);
+  },
+  insertRow: async (tableId, row) => {
+    await databaseBridgeReady();
+    const id = await getDefaultDatabaseBridge().insertRow(tableId, row);
+    scheduleSave();
+    return id;
+  },
+  updateRow: async (tableId, rowId, cells) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().updateRow(tableId, rowId, cells);
+    scheduleSave();
+  },
+  removeRow: async (tableId, rowId) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().removeRow(tableId, rowId);
+    scheduleSave();
+  },
+  undeleteRows: async (tableId, rowIds) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().undeleteRows?.(tableId, rowIds);
+    scheduleSave();
+  },
+  insertRows: async (tableId, rows) => {
+    await databaseBridgeReady();
+    const ids = await getDefaultDatabaseBridge().insertRows(tableId, rows);
+    scheduleSave();
+    return ids;
+  },
+  updateRows: async (tableId, rows) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().updateRows(tableId, rows);
+    scheduleSave();
+  },
+  removeRows: async (tableId, rowIds) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().removeRows(tableId, rowIds);
+    scheduleSave();
+  },
+  moveRow: async (tableId, rowId, beforeRowId) => {
+    await databaseBridgeReady();
+    await getDefaultDatabaseBridge().moveRow(tableId, rowId, beforeRowId);
+    scheduleSave();
+  },
   // The subscription stands the seed-less passthrough (the events flow
   // over the base bridge regardless of the restore).
   subscribeTable: (tableId, onEvents) => getDefaultDatabaseBridge().subscribeTable(tableId, onEvents),

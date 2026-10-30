@@ -164,9 +164,12 @@ function GridBody({
       setColumnForm(null);
     };
     if (draft.refKind === "enum") {
-      void bridge
-        .createTable(`${tableId}-enum-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, { system: true })
-        .then(async (enumTableId) => {
+      void (async () => {
+        try {
+          const enumTableId = await bridge.createTable(
+            `${tableId}-enum-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+            { system: true }
+          );
           await bridge.createColumn(enumTableId, {
             id: ENUM_OPTION_NAME_COLUMN,
             name: ENUM_OPTION_NAME_COLUMN,
@@ -185,11 +188,11 @@ function GridBody({
           }
           setCatalogRefresh((key) => key + 1);
           commitRef(enumTableId);
-        })
-        .catch(() => {
+        } catch {
           // The system table's create failure: the form stands open (the
           // commit stands none — the retry is the form's own press).
-        });
+        }
+      })();
       return;
     }
     if (draft.refKind === undefined) {
@@ -199,16 +202,16 @@ function GridBody({
     if (draft.refPick === NEW_TABLE_PICK) {
       const tableName = draft.newTableName.trim();
       if (tableName === "") return;
-      void bridge
-        .createTable(tableName)
-        .then((tableId) => {
+      void (async () => {
+        try {
+          const tableId = await bridge.createTable(tableName);
           setCatalogRefresh((key) => key + 1);
           commitRef(tableId);
-        })
-        .catch(() => {
+        } catch {
           // The table's create failure: the form stands open (the commit
           // stands none — the retry is the form's own create press).
-        });
+        }
+      })();
       return;
     }
     if (draft.refPick === "") return; // the ref stand is required
@@ -228,54 +231,56 @@ function GridBody({
     const column = data.table?.columns.find((entry) => entry.id === columnId);
     if (columnId === undefined || refTableId === "" || column === undefined) return;
     void (async () => {
-      const page = await bridge.queryRows(refTableId, { limit: 200 });
-      const current: { rowId: string; name: string; color: string | null }[] = [];
-      for (const [rowId, cells] of Object.entries(page.rows)) {
-        current.push({
-          rowId,
-          name: typeof cells[ENUM_OPTION_NAME_COLUMN] === "string" ? cells[ENUM_OPTION_NAME_COLUMN] : rowId,
-          color: typeof cells[ENUM_OPTION_COLOR_COLUMN] === "string" ? cells[ENUM_OPTION_COLOR_COLUMN] : null,
-        });
-      }
-      const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
-      const keptRowIds = new Set<string>();
-      const addedRowIds: string[] = [];
-      for (let i = 0; i < draftOptions.length; i++) {
-        const option = draftOptions[i];
-        if (option === undefined) continue;
-        if (option.rowId === undefined) {
-          const cells: Record<string, unknown> = { [ENUM_OPTION_NAME_COLUMN]: option.name.trim() };
-          if (option.color !== null) cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
-          addedRowIds.push(await bridge.insertRow(refTableId, cells));
-          continue;
+      try {
+        const page = await bridge.queryRows(refTableId, { limit: 200 });
+        const current: { rowId: string; name: string; color: string | null }[] = [];
+        for (const [rowId, cells] of Object.entries(page.rows)) {
+          current.push({
+            rowId,
+            name: typeof cells[ENUM_OPTION_NAME_COLUMN] === "string" ? cells[ENUM_OPTION_NAME_COLUMN] : rowId,
+            color: typeof cells[ENUM_OPTION_COLOR_COLUMN] === "string" ? cells[ENUM_OPTION_COLOR_COLUMN] : null,
+          });
         }
-        keptRowIds.add(option.rowId);
-        const before = current.find((entry) => entry.rowId === option.rowId);
-        if (before === undefined) continue;
-        const cells: Record<string, unknown> = {};
-        if (before.name !== option.name.trim()) cells[ENUM_OPTION_NAME_COLUMN] = option.name.trim();
-        if (before.color !== (option.color ?? null)) {
-          cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
+        const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
+        const keptRowIds = new Set<string>();
+        const addedRowIds: string[] = [];
+        for (let i = 0; i < draftOptions.length; i++) {
+          const option = draftOptions[i];
+          if (option === undefined) continue;
+          if (option.rowId === undefined) {
+            const cells: Record<string, unknown> = { [ENUM_OPTION_NAME_COLUMN]: option.name.trim() };
+            if (option.color !== null) cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
+            addedRowIds.push(await bridge.insertRow(refTableId, cells));
+            continue;
+          }
+          keptRowIds.add(option.rowId);
+          const before = current.find((entry) => entry.rowId === option.rowId);
+          if (before === undefined) continue;
+          const cells: Record<string, unknown> = {};
+          if (before.name !== option.name.trim()) cells[ENUM_OPTION_NAME_COLUMN] = option.name.trim();
+          if (before.color !== (option.color ?? null)) {
+            cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
+          }
+          if (Object.keys(cells).length > 0) await bridge.updateRow(refTableId, option.rowId, cells);
         }
-        if (Object.keys(cells).length > 0) await bridge.updateRow(refTableId, option.rowId, cells);
+        for (const entry of current) {
+          if (!keptRowIds.has(entry.rowId)) await bridge.removeRow(refTableId, entry.rowId);
+        }
+        const orderedIds = draftOptions.map((option, i) => option.rowId ?? addedRowIds[i]);
+        for (let i = 0; i < orderedIds.length - 1; i++) {
+          const rowId = orderedIds[i];
+          const beforeRowId = orderedIds[i + 1];
+          if (rowId === undefined || beforeRowId === undefined) continue;
+          await bridge.moveRow(refTableId, rowId, beforeRowId);
+        }
+        if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
+        setColumnFormOpen(false);
+        setColumnForm(null);
+      } catch {
+        // The commit's failure: the form stands open (the retry is the
+        // form's own save press).
       }
-      for (const entry of current) {
-        if (!keptRowIds.has(entry.rowId)) await bridge.removeRow(refTableId, entry.rowId);
-      }
-      const orderedIds = draftOptions.map((option, i) => option.rowId ?? addedRowIds[i]);
-      for (let i = 0; i < orderedIds.length - 1; i++) {
-        const rowId = orderedIds[i];
-        const beforeRowId = orderedIds[i + 1];
-        if (rowId === undefined || beforeRowId === undefined) continue;
-        await bridge.moveRow(refTableId, rowId, beforeRowId);
-      }
-      if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
-      setColumnFormOpen(false);
-      setColumnForm(null);
-    })().catch(() => {
-      // The commit's failure: the form stands open (the retry is the
-      // form's own save press).
-    });
+    })();
   };
 
   /** The edit form's open (the enum's options over the column's system

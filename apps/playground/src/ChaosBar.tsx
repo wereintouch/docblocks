@@ -48,28 +48,34 @@ function ChaosBar({ syncUrl }: { syncUrl: string }) {
   // leaves the bar in the unknown state until a mode is applied.
   useEffect(() => {
     let cancelled = false;
-    fetch(`${endpoint}?room=${encodeURIComponent(room)}`)
-      .then((response) => (response.ok ? (response.json() as Promise<ChaosState>) : null))
-      .then((value) => {
+    void (async () => {
+      try {
+        const response = await fetch(`${endpoint}?room=${encodeURIComponent(room)}`);
+        const value = response.ok ? ((await response.json()) as ChaosState) : null;
         if (!cancelled && value !== null) setState(value);
-      })
-      .catch(() => undefined);
+      } catch {
+        // the early 404 / the refused fetch leaves the bar in the unknown state
+      }
+    })();
     return () => {
       cancelled = true;
     };
   }, [endpoint, room]);
 
   const onMode = (mode: "none" | "drop50" | "delay500") => {
-    fetch(endpoint, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ room, mode }),
-    })
-      .then((response) => (response.ok ? (response.json() as Promise<ChaosState>) : null))
-      .then((value) => {
+    void (async () => {
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ room, mode }),
+        });
+        const value = response.ok ? ((await response.json()) as ChaosState) : null;
         if (value !== null) setState(value);
-      })
-      .catch(() => undefined);
+      } catch {
+        // the refused fetch stands the last known mode
+      }
+    })();
   };
 
   const activeLabel = state === null ? "unknown" : labelOf(state);

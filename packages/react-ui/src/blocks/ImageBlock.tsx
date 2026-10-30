@@ -70,14 +70,14 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   useEffect(() => {
     let alive = true;
     setRef(null);
-    blobStore
-      .resolve(src)
-      .then((resolved) => {
+    void (async () => {
+      try {
+        const resolved = await blobStore.resolve(src);
         if (alive) setRef(resolved);
-      })
-      .catch(() => {
+      } catch {
         if (alive) setRef(null);
-      });
+      }
+    })();
     return () => {
       alive = false;
     };

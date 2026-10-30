@@ -46,19 +46,21 @@ function MentionPicker(props: MentionMenuProps) {
     const request = (requestRef.current += 1);
     const timer = setTimeout(() => {
       setLoading(true);
-      const settled = Promise.all([
-        provider.searchUsers(query).catch(() => [] as MentionEntry[]),
-        provider.searchDocs(query).catch(() => [] as MentionEntry[]),
-      ])
-        .then(([users, docs]) => {
-          if (request !== requestRef.current) return; // a newer query won the race
-          setResult({ users, docs });
-          setLoading(false);
-        })
-        .catch(() => {
-          if (request === requestRef.current) setLoading(false);
-        });
-      void settled;
+      void (async () => {
+        // A refused / failed section stands empty (the other section's
+        // result still lands).
+        const section = async (search: (query: string) => Promise<MentionEntry[]>): Promise<MentionEntry[]> => {
+          try {
+            return await search(query);
+          } catch {
+            return [];
+          }
+        };
+        const [users, docs] = await Promise.all([section(provider.searchUsers), section(provider.searchDocs)]);
+        if (request !== requestRef.current) return; // a newer query won the race
+        setResult({ users, docs });
+        setLoading(false);
+      })();
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [provider, derived]);

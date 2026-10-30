@@ -94,14 +94,16 @@ function loadGrammar(grammar: string): Promise<void> {
   // ids); a direct call with an unknown id degrades to plain text
   // (the unknown-language throw is caught in highlightCode)
   if (loader === undefined) return Promise.resolve();
-  const load = loader()
-    .then((module) => {
+  const load = (async (): Promise<void> => {
+    try {
+      const module = await loader();
       hljs.registerLanguage(grammar, module.default);
-    })
-    .catch((error) => {
+    } catch (error) {
+      // a failed load is evicted from the cache and re-thrown (retryable)
       loadedGrammars.delete(grammar);
       throw error;
-    });
+    }
+  })();
   loadedGrammars.set(grammar, load);
   return load;
 }
@@ -151,7 +153,11 @@ function highlightSync(code: string, language: string | undefined): string | nul
 async function highlightCode(code: string, language: string | undefined): Promise<string | null> {
   const grammar = grammarOf(language);
   if (grammar === null) return null;
-  await loadGrammar(grammar).catch(() => undefined); // a failed load degrades to the missing-grammar null below
+  try {
+    await loadGrammar(grammar);
+  } catch {
+    // a failed load degrades to the missing-grammar null below
+  }
   return highlightSync(code, language);
 }
 

@@ -48,7 +48,13 @@ void (async () => {
   const bridge = persistentDatabaseBridge;
   // The duplicate-column create's refusal is the adoption stand (the peer
   // tab's concurrent seed or the standing column already stands it).
-  const ensureColumn = (tableId: string, column: BridgeColumn) => bridge.createColumn(tableId, column).catch(() => {});
+  const ensureColumn = async (tableId: string, column: BridgeColumn): Promise<void> => {
+    try {
+      await bridge.createColumn(tableId, column);
+    } catch {
+      // the duplicate-column create's refusal is the adoption stand
+    }
+  };
   // The enum's options' system table (the hidden stand — the `listTables`
   // stands it out; the options' rows over the `name` / the `color`
   // columns, the pk IS the option's value — the legacy dict's stand
@@ -82,13 +88,15 @@ void (async () => {
     statusColumn !== undefined &&
     (statusColumn.refKind !== "enum" || statusColumn.refTableId !== "table-statuses-enum")
   ) {
-    await bridge
-      .updateColumn(demoId, "status", {
+    try {
+      await bridge.updateColumn(demoId, "status", {
         type: "text",
         refKind: "enum",
         refTableId: "table-statuses-enum",
-      })
-      .catch(() => {});
+      });
+    } catch {
+      // the concurrent adoption's refusal: the column stands the ref anyway
+    }
   }
   await bridge.insertRows(demoId, [
     { id: "demo-1", title: "First task", count: 1, done: false, status: "todo" },

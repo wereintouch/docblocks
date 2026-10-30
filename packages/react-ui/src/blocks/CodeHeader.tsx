@@ -137,14 +137,16 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
 
   /** Copy the block's plain text (the indentation stands, no numbers). */
   const onCopy = (): void => {
-    void navigator.clipboard
-      .writeText(textOf(block.content))
-      .then(() => {
+    void (async () => {
+      try {
+        await navigator.clipboard.writeText(textOf(block.content));
         setCopied(true);
         if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
         copyTimer.current = window.setTimeout(() => setCopied(false), 1500);
-      })
-      .catch(() => undefined);
+      } catch {
+        // A refused clipboard (the no-permission / the non-secure context): the indicator stands off.
+      }
+    })();
   };
 
   // The display toggles read the absent attr as ON (the defaults).

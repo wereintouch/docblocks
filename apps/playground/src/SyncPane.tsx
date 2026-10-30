@@ -230,10 +230,14 @@ function SyncPane({
       b: client === "b" ? master.doc : (window.__masterDocs?.b ?? null),
     };
 
-    void provider
-      .connect()
-      .then(() => setConnected(true))
-      .catch(() => setConnected(false));
+    void (async () => {
+      try {
+        await provider.connect();
+        setConnected(true);
+      } catch {
+        setConnected(false);
+      }
+    })();
     setRuntime({ doc, provider, master, mountedAt });
 
     return () => {
@@ -286,10 +290,14 @@ function SyncPane({
     if (provider === null) return;
     setConnected(false);
     provider.disconnect();
-    void provider
-      .connect()
-      .then(() => setConnected(true))
-      .catch(() => setConnected(false));
+    void (async () => {
+      try {
+        await provider.connect();
+        setConnected(true);
+      } catch {
+        setConnected(false);
+      }
+    })();
   };
 
   // The harness runs exactly two clients, so a remote peer is the other one.
