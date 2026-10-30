@@ -15,7 +15,7 @@ import type { EnumOptionDraft } from "../database";
 import { ColorSwatches } from "../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { GripVertical, X } from "../shared/ui/icons";
-import { TRANSITION } from "./models";
+import { TRANSITION } from "./constants";
 
 interface MotionEnumOptionRowProps {
   option: EnumOptionDraft;

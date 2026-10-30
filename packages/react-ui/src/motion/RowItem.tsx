@@ -14,7 +14,7 @@ import { useBlock } from "../hooks";
 import { Button } from "../shared/ui/Button";
 import { cn } from "../shared/ui/cn";
 import { GripVertical, Plus } from "../shared/ui/icons";
-import { ANIMATE, ENTER, EXIT, TEXT_ROW_TYPES, TRANSITION } from "./models";
+import { ANIMATE, ENTER, EXIT, TEXT_ROW_TYPES, TRANSITION } from "./constants";
 import type { RowItemProps } from "./models";
 
 /**

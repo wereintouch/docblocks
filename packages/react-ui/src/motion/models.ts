@@ -1,36 +1,12 @@
-/** The motion editor's constants (the enter/exit geometry, the
- *  transition, the slide settle window, the drag affordance style, the
- *  text-row gutter types) and the row's props. */
+/** The motion editor's row props: the position-only layout slide armed
+ * (a drag in flight, a structural settle), the dragged row flag (the
+ * zIndex keeps it above the sliding siblings), the in-flight seam
+ * candidate (the drag's live preview — a pure preview, the doc/wire/store
+ * are untouched; the drop's commit applies the same value), the
+ * enter-animation gate (the editor saw a text input — a row that mounts
+ * while the gate stands closed renders its animate values at once), the
+ * drag session start / release / live seam-candidate update. */
 import type { FlatNode } from "../blocks";
-
-/**
- * The enter/exit geometry of a row. The spacing margin collapses on exit
- * so a leaving row does not keep its gap.
- */
-const ENTER = { opacity: 0, height: 0 } as const;
-const ANIMATE = { opacity: 1, height: "auto" } as const;
-const EXIT = { opacity: 0, height: 0, marginBottom: 0 } as const;
-
-/**
- * The enter/exit and layout-slide transition (one snappy ease). The
- * between-rows reflow while a drag runs (the rows slide into each crossed
- * slot) runs the layout arm of this transition (gated per-value: 0 while
- * the slide is disarmed).
- */
-const TRANSITION = { duration: 0.18, ease: "easeOut" } as const;
-
-/** How long the layout slide stays armed after a structural render (the slide itself runs 0.18s). */
-const SLIDE_SETTLE_MS = 400;
-
-/**
- * The drag affordance: the handle shows the grab cursor in this view
- * only — the rule is scoped to the root attribute below, so the base
- * editor keeps the stylesheet's plain pointer cursor.
- */
-const HANDLE_GRAB_STYLE = '[data-docblocks-motion] [data-slot="docblocks/gutter"] { cursor: grab; }';
-
-/** The text types whose built-in renderer renders the row's gutter handle (the row-level one stands for every other type). */
-const TEXT_ROW_TYPES = new Set(["paragraph", "quote", "heading", "callout", "list-item", "code"]);
 
 interface RowItemProps {
   node: FlatNode;
@@ -61,5 +37,4 @@ interface RowItemProps {
   onDragMove: (event: PointerEvent | MouseEvent | TouchEvent) => void;
 }
 
-export { ANIMATE, ENTER, EXIT, HANDLE_GRAB_STYLE, SLIDE_SETTLE_MS, TEXT_ROW_TYPES, TRANSITION };
 export type { RowItemProps };

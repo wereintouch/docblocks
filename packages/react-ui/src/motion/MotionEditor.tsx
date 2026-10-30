@@ -34,8 +34,8 @@ import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
 import { MotionEnumOptionsEditor } from "./EnumOptions";
 import { RowList } from "./RowList";
+import { HANDLE_GRAB_STYLE } from "./constants";
 import { useEnterAnimationGate, useTypingFlag } from "./hooks";
-import { HANDLE_GRAB_STYLE } from "./models";
 import { useMotionDrag } from "./use-motion-drag";
 
 function MotionEditor({
