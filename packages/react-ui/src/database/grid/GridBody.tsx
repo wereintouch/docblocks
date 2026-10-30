@@ -23,18 +23,12 @@ import { useDatabaseTable } from "../use-database-table";
 import { HeaderCell } from "./HeaderCell";
 import { DatabaseCell, RowMenuCell } from "./cells";
 import { columnTypeIcon } from "./column-type-icon";
-import {
-  ADD_COLUMN_TYPES,
-  DEFAULT_DATABASE_COLUMN_WIDTH_PX,
-  DRAG_START_THRESHOLD_PX,
-  MIN_DATABASE_COLUMN_WIDTH_PX,
-  NEW_TABLE_PICK,
-  REF_NONE_PICK,
-} from "./constants";
+import { ADD_COLUMN_TYPES, DRAG_START_THRESHOLD_PX, NEW_TABLE_PICK, REF_NONE_PICK } from "./constants";
 import { EnumOptionsEditor } from "./enum-options-editor";
 import { useEnumOptionsMotion } from "./enum-options-motion";
-import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession } from "./models";
+import type { AddColumnFormDraft, ColumnDragSession } from "./models";
 import { useBridgeTables } from "./use-bridge-tables";
+import { useGridSeamResize } from "./use-grid-seam-resize";
 import { refEntryKey, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
 import { emptyColumnForm } from "./utils";
@@ -305,6 +299,9 @@ function GridBody({
     doc.updateBlock(blockId, patch);
   };
 
+  const { resizePreview, onSeamPointerDown, onSeamPointerMove, onSeamPointerUp, onSeamPointerCancel } =
+    useGridSeamResize({ columns, columnWidths, updateView });
+
   // The parting preview: the stationary columns' shift (px) over the live
   // drop index (the dragged column's own cells stand the pointer's dx).
   const dragFrom = drag === null ? -1 : columns.findIndex((entry) => entry.id === drag.id);
@@ -412,69 +409,6 @@ function GridBody({
     const ids = session.ids.filter((value) => value !== session.columnId);
     ids.splice(toIndex, 0, session.columnId);
     updateView({ columnOrder: ids });
-  };
-
-  // --- The column resize session (the header cell's right-edge seam).
-  const [resizePreview, setResizePreview] = useState<{ col: number; width: number } | null>(null);
-  const resizeSession = useRef<ColumnResizeSession | null>(null);
-
-  /** The seam press: starts the resize session (the native click / the
-   *  column-drag gesture is suppressed — the seam's press stands its own
-   *  session). */
-  const onSeamPointerDown = (col: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || resizeSession.current !== null) return;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    const header = event.currentTarget.closest<HTMLElement>("[data-slot='docblocks/database-header-cell']");
-    const startWidth =
-      header !== null && header.offsetWidth > 0 ? header.offsetWidth : DEFAULT_DATABASE_COLUMN_WIDTH_PX;
-    resizeSession.current = {
-      col,
-      startX: event.clientX,
-      startWidth,
-      width: startWidth,
-      visible: columns.map((entry) => entry.id),
-    };
-  };
-
-  const onSeamPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const session = resizeSession.current;
-    if (session === null) return;
-    session.width = Math.max(
-      Math.round(session.startWidth + (event.clientX - session.startX)),
-      MIN_DATABASE_COLUMN_WIDTH_PX
-    );
-    setResizePreview({ col: session.col, width: session.width });
-  };
-
-  /** The seam release: the clamped width commits when it changed (one
-   *  `updateBlock`, one undo step) — the untouched columns stand their
-   *  measured rendered width (the WYSIWYG lock); a 0 px drag stands a
-   *  no-op (no wire traffic), and a stale visible sequence (a peer
-   *  reordered / hid a column mid-drag) stands no commit. */
-  const onSeamPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const session = resizeSession.current;
-    resizeSession.current = null;
-    setResizePreview(null);
-    if (session === null) return;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    if (session.width === session.startWidth) return;
-    if (!columns.map((entry) => entry.id).every((value, i) => session.visible[i] === value)) return;
-    const cells = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']"));
-    const next = columns.map((_, i) => {
-      if (i === session.col) return session.width;
-      const measured = cells[i]?.offsetWidth ?? 0;
-      const set = columnWidths?.[i];
-      const stand = set !== undefined && set > 0 ? set : measured > 0 ? measured : DEFAULT_DATABASE_COLUMN_WIDTH_PX;
-      return Math.max(Math.round(stand), MIN_DATABASE_COLUMN_WIDTH_PX);
-    });
-    updateView({ columnWidths: next });
-  };
-
-  const onSeamPointerCancel = () => {
-    resizeSession.current = null;
-    setResizePreview(null);
   };
 
   // --- The cell selection (pure view state): the single click stands the
