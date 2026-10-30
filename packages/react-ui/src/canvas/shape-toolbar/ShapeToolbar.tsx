@@ -24,6 +24,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   FigureBorderSelector,
+  Input,
 } from "../../shared/ui";
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
@@ -249,7 +250,8 @@ function ShapeToolbar({
                   <option key={size} value={size} />
                 ))}
               </datalist>
-              <input
+              <Input
+                size="sm"
                 type="number"
                 min={8}
                 max={512}
@@ -261,9 +263,9 @@ function ShapeToolbar({
                 placeholder={String(fontSize ?? 16)}
                 value={sizeDraft}
                 className="
-                  h-7 w-12 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
+                  h-7 w-12 rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
                   bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color)
-                  focus:outline-none
+                  dark:bg-(--docblocks-editor-background)
                 "
                 onMouseDown={(event) => event.stopPropagation()}
                 onChange={(event) => setSizeDraft(event.target.value)}

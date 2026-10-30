@@ -16,6 +16,7 @@ import { useEffect, useRef } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
+import { Input } from "../../shared/ui/Input";
 import { connectorLabelChipStyle } from "./ConnectorLabelChip";
 
 const LABEL_EDIT_WIDTH = 120;
@@ -70,12 +71,17 @@ function ConnectorLabelEdit({
   };
 
   return (
-    <input
+    <Input
       ref={inputRef}
       type="text"
       data-slot="docblocks/connector-label-edit"
       aria-label="Connector label"
       defaultValue={label}
+      // The chip's stand stands the inline style (the look's full set);
+      // the className drops the field base's what the chip owns (the
+      // height's fit, the frame's absence, the shadow's / the focus
+      // ring's absence).
+      className="h-auto border-0 shadow-none focus-visible:ring-0"
       style={{
         // The shared chip's stand (the opaque theme background, the frame
         // over the line's own stand, the small corner rounding); the input

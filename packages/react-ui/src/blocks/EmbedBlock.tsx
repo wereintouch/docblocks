@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
+import { Button } from "../shared/ui/Button";
 import { Minus, Plus, RotateCcw } from "../shared/ui/icons";
 import { clamp } from "../shared/utils";
 
@@ -238,57 +239,60 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           group-hover:flex
         "
       >
-        <button
-          type="button"
+        <Button
           data-slot="docblocks/embed-zoom-out"
+          variant="ghost"
+          size="icon"
           aria-label="Zoom out"
           className="
-            flex size-6 cursor-default items-center justify-center rounded-sm text-(--docblocks-text-color)
-            hover:bg-accent hover:text-accent-foreground
+            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
+            focus-visible:ring-0
             disabled:opacity-50
           "
           disabled={view.scale <= EMBED_MIN_SCALE}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => zoomBy(1 / EMBED_ZOOM_STEP)}
         >
-          <Minus className="size-3.5" />
-        </button>
+          <Minus className="size-4" />
+        </Button>
         <span
           data-slot="docblocks/embed-zoom"
           className="min-w-10 px-1 text-center text-xs text-(--docblocks-text-color) tabular-nums"
         >
           {Math.round(view.scale * 100)}%
         </span>
-        <button
-          type="button"
+        <Button
           data-slot="docblocks/embed-zoom-in"
+          variant="ghost"
+          size="icon"
           aria-label="Zoom in"
           className="
-            flex size-6 cursor-default items-center justify-center rounded-sm text-(--docblocks-text-color)
-            hover:bg-accent hover:text-accent-foreground
+            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
+            focus-visible:ring-0
             disabled:opacity-50
           "
           disabled={view.scale >= EMBED_MAX_SCALE}
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => zoomBy(EMBED_ZOOM_STEP)}
         >
-          <Plus className="size-3.5" />
-        </button>
-        <button
-          type="button"
+          <Plus className="size-4" />
+        </Button>
+        <Button
           data-slot="docblocks/embed-zoom-reset"
+          variant="ghost"
+          size="icon"
           aria-label="Reset zoom"
           className="
-            flex size-6 cursor-default items-center justify-center rounded-sm text-(--docblocks-text-color)
-            hover:bg-accent hover:text-accent-foreground
+            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
+            focus-visible:ring-0
             disabled:opacity-50
           "
           disabled={atIdentity}
           onMouseDown={(event) => event.preventDefault()}
           onClick={resetView}
         >
-          <RotateCcw className="size-3.5" />
-        </button>
+          <RotateCcw className="size-4" />
+        </Button>
       </div>
     </div>
   );

@@ -6,7 +6,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
 import { useFormatPalette } from "../../blocks/format-palette-context";
-import { Button } from "../../shared/ui";
+import { Button, Input } from "../../shared/ui";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { X } from "../../shared/ui/icons";
@@ -114,13 +114,14 @@ function ColorSection({
           noneActive={none}
           onSelectNone={allowNone ? () => apply("none") : undefined}
         />
-        <input
+        <Input
+          size="sm"
           data-slot={`docblocks/shape-${target}-hex`}
           aria-label={`${label} hex value`}
           className="
-            mt-2 h-7 w-full rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
+            mt-2 h-7 w-full rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
             bg-(--docblocks-editor-background) px-2 font-mono text-xs text-(--docblocks-text-color)
-            focus:outline-none
+            dark:bg-(--docblocks-editor-background)
           "
           placeholder="#rrggbb"
           value={draft}
