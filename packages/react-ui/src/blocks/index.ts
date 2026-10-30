@@ -6,7 +6,7 @@
 // close a cycle, since the canvas-view renderer here imports the canvas barrel
 // and the canvas viewport imports canvas-geometry.
 
-export { BlockGroups, BlockNodeView, childrenSlot } from "./BlockView";
+export { BlockGroups, BlockNodeView, BlockView, childrenSlot, FlatBlockView } from "./BlockView";
 export { BlockContext, useBlockContext } from "./block-context";
 export type { BlockContextValue } from "./block-context";
 export { CanvasView } from "./canvas-view";

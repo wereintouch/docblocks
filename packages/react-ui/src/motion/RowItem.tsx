@@ -7,7 +7,7 @@ import { useStore } from "zustand";
 import { memo, useCallback, useRef } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
-import { BlockNodeView, indentOf, insertParagraphAfter, useBlockContext } from "../blocks";
+import { BlockNodeView, FlatBlockView, indentOf, insertParagraphAfter, useBlockContext } from "../blocks";
 import { editorRootOf } from "../editing/dom-offset";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
@@ -225,7 +225,7 @@ const RowItem = memo(
             <Plus />
           </Button>
         )}
-        <BlockNodeView node={node} flat />
+        <BlockNodeView node={node} flat renderBlock={FlatBlockView} />
       </Reorder.Item>
     );
   },
