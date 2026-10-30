@@ -1,57 +1,20 @@
-/**
- * docblocks-react-ui/pdf — the PDF first-page preview renderer.
- *
- * pdfjs-dist is an optional peer dependency and is imported only from this
- * subpath: the base entry (`docblocks-react-ui`) never imports it, so a
- * consumer without the package ships zero extra weight.
- *
- * A PDF is not a block type — it is the existing `image` block whose blob
- * resolves to the `pdf` subtype (zero schema change). The document holds
- * only the blob key; the preview is view-only (no data / wire / awareness).
- * Wire the renderer per instance (the `pdfPreview` provider prop): a
- * `pdf`-subtype image block then stands a client-side first-page canvas
- * instead of the built-in native iframe viewer.
- *
- * The render is best-effort: on a fetch / parse / render failure the
- * preview falls back to the native iframe viewer, so the document always
- * stays viewable.
- */
-import { GlobalWorkerOptions, RenderingCancelledException, getDocument } from "pdfjs-dist";
+/** The first-page preview of one `pdf`-subtype image block: fetch the
+ * resolved blob, render page 1 to a canvas via pdfjs-dist. The previous
+ * phase stands until the (re-)render settles (no flicker while the url
+ * changes). A failure stands the error note over the native iframe
+ * fallback (the document stays viewable). */
+import { RenderingCancelledException, getDocument } from "pdfjs-dist";
 import type { PDFDocumentLoadingTask } from "pdfjs-dist";
 
 import { useEffect, useRef, useState } from "react";
 
 import type { PdfPreviewProps } from "../editor-provider";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
-
-// The worker file is copied next to this entry at build time (dist/pdf/),
-// so the relative reference resolves in the consumer's browser with no
-// bundler asset handling (the dist is served as static ESM). The path is
-// composed at runtime so the bundler leaves the new URL untouched.
-const WORKER_FILE = "pdf.worker.min.mjs";
-const WORKER_URL = new URL(`./${WORKER_FILE}`, import.meta.url);
-GlobalWorkerOptions.workerSrc = WORKER_URL.toString();
-
-// The JBIG2 decoder (the wasm module + the no-wasm js fallback) is copied next
-// to the worker at build time and loaded by the worker from this base url —
-// pdfjs resolves `${wasmUrl}jbig2.wasm`, so the worker's directory is the base.
-// Derived from the worker URL object (not import.meta.url) so a bundler's
-// `new URL(_, import.meta.url)` asset rewrite cannot mangle the directory form.
-// Scanned PDFs encode their text layers as JBIG2; without a resolvable wasmUrl
-// the worker fails to initialize those layers and the page renders as a bare
-// background image (the text is dropped).
-const WASM_URL = new URL("./", WORKER_URL).toString();
+import { WASM_URL } from "./pdf-worker";
 
 /** The preview's render phase. */
 type PdfPhase = "loading" | "ready" | "error";
 
-/**
- * The first-page preview of one `pdf`-subtype image block: fetch the
- * resolved blob, render page 1 to a canvas via pdfjs-dist. The previous
- * phase stands until the (re-)render settles (no flicker while the url
- * changes). A failure stands the error note over the native iframe
- * fallback (the document stays viewable).
- */
 function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
@@ -175,4 +138,3 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
 }
 
 export { PdfFirstPage };
-export type { PdfPreviewProps };
