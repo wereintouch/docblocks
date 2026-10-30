@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
 import { columnTypeIcon } from "../src/database/grid/column-type-icon";
 import {
   Cable,
-  Calendar,
   CalendarClock,
+  CalendarIcon,
   CircleCheck,
   CircleChevronDown,
   Hash,
@@ -22,7 +22,7 @@ describe("columnTypeIcon", () => {
     expect(columnTypeIcon("integer")).toBe(Hash);
     expect(columnTypeIcon("numeric")).toBe(Hash);
     expect(columnTypeIcon("boolean")).toBe(CircleCheck);
-    expect(columnTypeIcon("date")).toBe(Calendar);
+    expect(columnTypeIcon("date")).toBe(CalendarIcon);
     expect(columnTypeIcon("timestamptz")).toBe(CalendarClock);
   });
 

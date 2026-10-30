@@ -10,7 +10,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
 import { Separator } from "./Separator";
 import { TimeSegments } from "./TimeSegments";
 import { cn } from "./cn";
-import { Calendar as CalendarIcon } from "./icons";
+import { CalendarIcon } from "./icons";
 
 /** The trigger's label: the compact date, + the time when it is not the
  *  midnight zero (the seconds stand only when they are not zero). */

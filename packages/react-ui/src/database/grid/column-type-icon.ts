@@ -7,8 +7,8 @@
 import type { IconComponent } from "../../shared/ui/icons";
 import {
   Cable,
-  Calendar,
   CalendarClock,
+  CalendarIcon,
   CircleCheck,
   CircleChevronDown,
   Hash,
@@ -21,7 +21,7 @@ function columnTypeIcon(type: string, refKind?: "enum" | "row", refMany?: boolea
   if (refKind === "row") return Cable;
   if (type === "integer" || type === "numeric") return Hash;
   if (type === "boolean") return CircleCheck;
-  if (type === "date") return Calendar;
+  if (type === "date") return CalendarIcon;
   if (type === "timestamptz") return CalendarClock;
   return Type;
 }

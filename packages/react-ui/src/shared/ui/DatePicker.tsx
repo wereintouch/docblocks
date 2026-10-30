@@ -8,7 +8,7 @@ import { Button } from "./Button";
 import { Calendar } from "./Calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
 import { cn } from "./cn";
-import { Calendar as CalendarIcon } from "./icons";
+import { CalendarIcon } from "./icons";
 
 /**
  * The single-date picker: the trigger stands the calendar icon + the

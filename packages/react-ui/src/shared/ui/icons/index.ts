@@ -4,7 +4,7 @@ export { Baseline } from "./Baseline";
 export { Bold } from "./Bold";
 export { BookOpen } from "./BookOpen";
 export { Cable } from "./Cable";
-export { Calendar } from "./Calendar";
+export { CalendarIcon } from "./Calendar";
 export { CalendarClock } from "./CalendarClock";
 export { Captions } from "./Captions";
 export { Check } from "./Check";

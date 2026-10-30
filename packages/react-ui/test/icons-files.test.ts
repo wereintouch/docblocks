@@ -11,7 +11,7 @@ const ICON_SET = [
   "Bold",
   "BookOpen",
   "Cable",
-  "Calendar",
+  "CalendarIcon",
   "CalendarClock",
   "Captions",
   "Check",
