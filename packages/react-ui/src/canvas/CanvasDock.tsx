@@ -25,6 +25,7 @@ import {
   SquareSplitVertical,
   Type,
 } from "../shared/ui/icons";
+import { preventDefault } from "../shared/utils";
 import type { CanvasTool } from "./viewport";
 import type { CanvasViewportState } from "./viewport";
 
@@ -98,6 +99,8 @@ const CanvasDock = memo(
 
     const shapesActive = activeTool !== null && SHAPE_IDS.includes(activeTool);
 
+    const pickToolAt = (toolId: Parameters<typeof pickTool>[0]) => () => pickTool(toolId);
+
     return (
       <div data-slot="docblocks/canvas-chrome" className="absolute bottom-4 left-1/2 z-50 -translate-x-1/2">
         <div
@@ -109,7 +112,7 @@ const CanvasDock = memo(
             bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color)
             shadow-(--docblocks-formatbar-shadow)
           "
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={preventDefault}
         >
           {/* The mode's button: the icon stands the current mode (the
             select pointer / the pan hand) — the press toggles it. The M
@@ -152,7 +155,7 @@ const CanvasDock = memo(
                     aria-label={label}
                     data-tool={id}
                     className={cn("px-2.5", activeTool === id && "bg-accent text-accent-foreground")}
-                    onSelect={() => pickTool(id)}
+                    onSelect={pickToolAt(id)}
                   >
                     <Icon />
                     {label}
@@ -174,7 +177,7 @@ const CanvasDock = memo(
                   data-tool={id}
                   aria-pressed={activeTool === id}
                   className={activeTool === id ? "bg-accent text-accent-foreground" : undefined}
-                  onClick={() => pickTool(id)}
+                  onClick={pickToolAt(id)}
                 >
                   <Icon className="size-6" />
                 </Button>

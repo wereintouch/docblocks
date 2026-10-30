@@ -67,6 +67,14 @@ function EnumOptionsEditor({
     window.addEventListener("pointerup", up);
   };
 
+  const colorOpenChange = (index: number) => (open: boolean) => setColorOpen(open ? index : null);
+  const optionColorSelect = (index: number) => (hex: string) => setOption(index, { color: hex });
+  const optionColorNone = (index: number) => () => setOption(index, { color: null });
+  const optionNameChange = (index: number) => (event: React.ChangeEvent<HTMLInputElement>) =>
+    setOption(index, { name: event.target.value });
+  const optionDelete = (index: number) => () => onChange(options.filter((_, i) => i !== index));
+  const addOption = () => onChange([...options, { name: "", color: null, uid: Math.random().toString(36).slice(2) }]);
+
   return (
     <div data-slot="docblocks/database-enum-options" className="flex flex-col gap-1">
       <div className="text-sm text-foreground">Options</div>
@@ -86,7 +94,7 @@ function EnumOptionsEditor({
           >
             <GripVertical className="size-3.5" />
           </span>
-          <Popover open={colorOpen === index} onOpenChange={(open) => setColorOpen(open ? index : null)}>
+          <Popover open={colorOpen === index} onOpenChange={colorOpenChange(index)}>
             <PopoverTrigger asChild>
               <Button
                 data-slot="docblocks/database-enum-option-color"
@@ -108,8 +116,8 @@ function EnumOptionsEditor({
                 label="option color"
                 allowNone
                 noneActive={option.color === null}
-                onSelect={(hex) => setOption(index, { color: hex })}
-                onSelectNone={() => setOption(index, { color: null })}
+                onSelect={optionColorSelect(index)}
+                onSelectNone={optionColorNone(index)}
               />
             </PopoverContent>
           </Popover>
@@ -120,7 +128,7 @@ function EnumOptionsEditor({
             placeholder="Option"
             className="min-w-0 flex-1 cursor-text text-foreground focus:bg-muted/60"
             value={option.name}
-            onChange={(event) => setOption(index, { name: event.target.value })}
+            onChange={optionNameChange(index)}
           />
           <Button
             data-slot="docblocks/database-enum-option-delete"
@@ -131,7 +139,7 @@ function EnumOptionsEditor({
               hover:bg-transparent hover:text-foreground
               dark:hover:bg-transparent
             "
-            onClick={() => onChange(options.filter((_, i) => i !== index))}
+            onClick={optionDelete(index)}
           >
             <X className="size-3.5" />
           </Button>
@@ -142,7 +150,7 @@ function EnumOptionsEditor({
         variant="ghost"
         size="sm"
         className="h-auto cursor-pointer self-start rounded-sm px-1 py-0.5 font-normal text-muted-foreground"
-        onClick={() => onChange([...options, { name: "", color: null, uid: Math.random().toString(36).slice(2) }])}
+        onClick={addOption}
       >
         + Add option
       </Button>

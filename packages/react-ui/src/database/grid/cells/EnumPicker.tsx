@@ -42,6 +42,8 @@ function EnumPicker({ options, current, open, onPick, onClear, onEditEnd }: Enum
     setTall(open && chips != null && chips.scrollWidth > chips.clientWidth + 1);
   }, [open, trigger]);
   const currentValues = current === null ? [] : [current];
+  const noOp = () => undefined;
+
   return (
     <Popover
       open={open}
@@ -71,7 +73,7 @@ function EnumPicker({ options, current, open, onPick, onClear, onEditEnd }: Enum
           currentEmpty={current === null}
           tall={tall}
           onPick={onPick}
-          onToggle={() => undefined}
+          onToggle={noOp}
           onClear={onClear}
           onEditEnd={onEditEnd}
         />

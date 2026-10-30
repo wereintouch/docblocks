@@ -73,6 +73,10 @@ function ZOrderMenu({
   if (count < 2 || position < 0 || position >= count) return null;
   const atTop = position === count - 1;
   const atBottom = position === 0;
+  const bringForward = () => doc.setZOrder(targetId, "forward");
+  const bringToFront = () => doc.setZOrder(targetId, "toFront");
+  const sendBackward = () => doc.setZOrder(targetId, "back");
+  const sendToBack = () => doc.setZOrder(targetId, "toBack");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -87,17 +91,17 @@ function ZOrderMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={8} aria-label={label}>
-        <DropdownMenuItem data-action="forward" disabled={atTop} onSelect={() => doc.setZOrder(targetId, "forward")}>
+        <DropdownMenuItem data-action="forward" disabled={atTop} onSelect={bringForward}>
           Bring forward
         </DropdownMenuItem>
-        <DropdownMenuItem data-action="to-front" disabled={atTop} onSelect={() => doc.setZOrder(targetId, "toFront")}>
+        <DropdownMenuItem data-action="to-front" disabled={atTop} onSelect={bringToFront}>
           Bring to front
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem data-action="back" disabled={atBottom} onSelect={() => doc.setZOrder(targetId, "back")}>
+        <DropdownMenuItem data-action="back" disabled={atBottom} onSelect={sendBackward}>
           Send backward
         </DropdownMenuItem>
-        <DropdownMenuItem data-action="to-back" disabled={atBottom} onSelect={() => doc.setZOrder(targetId, "toBack")}>
+        <DropdownMenuItem data-action="to-back" disabled={atBottom} onSelect={sendToBack}>
           Send to back
         </DropdownMenuItem>
       </DropdownMenuContent>

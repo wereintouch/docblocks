@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../shared/ui/Select";
 import { Plus } from "../../shared/ui/icons";
+import { preventDefault } from "../../shared/utils";
 import type { BridgeColumn } from "../bridge";
 import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
@@ -362,6 +363,8 @@ function GridBody({
     );
   }
 
+  const retryLoad = () => data.retry();
+
   if (data.phase === "broken" || data.table === null) {
     return (
       <Card
@@ -398,7 +401,7 @@ function GridBody({
               GRID_BUTTON_HOVER +
               " h-auto px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none"
             }
-            onClick={() => data.retry()}
+            onClick={retryLoad}
           >
             Retry
           </Button>
@@ -422,6 +425,58 @@ function GridBody({
   };
 
   const lastRowId = rows.length > 0 ? rows[rows.length - 1]!.rowId : null;
+
+  const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => setNameDraft(event.target.value);
+  const onNameBlur = (event: React.FocusEvent<HTMLInputElement>) => commitName(event.target.value);
+  const onNameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+    if (event.key === "Escape") setNameDraft(null);
+  };
+  const beginNameEdit = () => setNameDraft(displayName);
+  const undoStep = () => void data.undo();
+  const redoStep = () => void data.redo();
+  const onFilterOpenChange = (open: boolean) => {
+    setFilterOpen(open);
+    if (open) setFilterDraft(filter ?? null);
+  };
+  const resetFilterDraft = () => setFilterDraft(emptyFilter());
+  const onColumnFormOpenChange = (open: boolean) => {
+    setColumnFormOpen(open);
+    // The close (the outside press / the Escape) drops the draft — the next
+    // open stands a fresh one.
+    if (!open) setColumnForm(null);
+  };
+  const insertEmptyRow = () => void data.insertRow({});
+  // The header's per-column handlers stand the column / the seam's index
+  // over the grid's shared pointer handlers (the map's per-item stand).
+  const columnMenuChange = (column: BridgeColumn) => (open: boolean) => setColumnMenu(open ? column.id : null);
+  const columnRename = (column: BridgeColumn) => (renameName: string) => void data.renameColumn(column.id, renameName);
+  const columnEditOptions = (column: BridgeColumn) =>
+    column.refKind === "enum" && column.refTableId !== undefined ? () => openColumnFormEdit(column) : undefined;
+  const columnHide = (column: BridgeColumn) => () =>
+    updateView({ hiddenColumns: [...(hiddenColumns ?? []), column.id] });
+  const columnShow = (column: BridgeColumn) => () =>
+    updateView({ hiddenColumns: (hiddenColumns ?? []).filter((entryId) => entryId !== column.id) });
+  const columnDelete = (column: BridgeColumn) => () => void data.deleteColumn(column.id);
+  const columnPointerDown = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerDown>[1]) =>
+    onColumnPointerDown(column, event);
+  const seamPointerDownAt = (seamIndex: number) => (event: Parameters<ReturnType<typeof onSeamPointerDown>>[0]) =>
+    onSeamPointerDown(seamIndex)(event);
+  const columnPointerUp = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerUp>[1]) =>
+    onColumnPointerUp(column, event);
+  const cellChange = (row: (typeof rows)[number], column: BridgeColumn) => (value: unknown) =>
+    void data.updateRow(row.rowId, { [column.id]: value });
+  const cellEditStart = (cellKey: string) => () => setEditingCell(cellKey);
+  const cellEditEnd = () => setEditingCell(null);
+  const rowMoveUp = (row: (typeof rows)[number]) => () => {
+    const index = rows.indexOf(row);
+    if (index > 0) void data.moveRow(row.rowId, rows[index - 1]!.rowId);
+  };
+  const rowMoveDown = (row: (typeof rows)[number]) => () => {
+    const index = rows.indexOf(row);
+    if (index < rows.length - 1) void data.moveRow(row.rowId, index + 2 < rows.length ? rows[index + 2]!.rowId : null);
+  };
+  const rowRemove = (row: (typeof rows)[number]) => () => void data.removeRow(row.rowId);
 
   return (
     <Card
@@ -449,12 +504,9 @@ function GridBody({
               }
               value={nameDraft}
               autoFocus
-              onChange={(event) => setNameDraft(event.target.value)}
-              onBlur={(event) => commitName(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                if (event.key === "Escape") setNameDraft(null);
-              }}
+              onChange={onNameChange}
+              onBlur={onNameBlur}
+              onKeyDown={onNameKeyDown}
             />
           ) : (
             <Button
@@ -469,7 +521,7 @@ function GridBody({
                 "font-(--docblocks-heading-font-weight) hover:bg-transparent hover:opacity-70 " +
                 "hover:text-inherit dark:bg-transparent dark:hover:bg-transparent"
               }
-              onClick={() => setNameDraft(displayName)}
+              onClick={beginNameEdit}
             >
               {displayName}
             </Button>
@@ -489,7 +541,7 @@ function GridBody({
                 " h-auto px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
               }
               disabled={!data.canUndo}
-              onClick={() => void data.undo()}
+              onClick={undoStep}
             >
               Undo
             </Button>
@@ -504,17 +556,11 @@ function GridBody({
                 " h-auto px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
               }
               disabled={!data.canRedo}
-              onClick={() => void data.redo()}
+              onClick={redoStep}
             >
               Redo
             </Button>
-            <Popover
-              open={filterOpen}
-              onOpenChange={(open) => {
-                setFilterOpen(open);
-                if (open) setFilterDraft(filter ?? null);
-              }}
-            >
+            <Popover open={filterOpen} onOpenChange={onFilterOpenChange}>
               <PopoverTrigger asChild>
                 <Button
                   data-slot="docblocks/database-filter"
@@ -547,7 +593,7 @@ function GridBody({
                         dark:bg-transparent
                         dark:hover:bg-transparent
                       "
-                      onClick={() => setFilterDraft(emptyFilter())}
+                      onClick={resetFilterDraft}
                     >
                       Clear
                     </Button>
@@ -610,26 +656,20 @@ function GridBody({
                 dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
                 dragShifted={drag !== null && drag.id !== column.id}
                 menuOpen={columnMenu === column.id}
-                onMenuChange={(open) => setColumnMenu(open ? column.id : null)}
-                onRename={(renameName) => void data.renameColumn(column.id, renameName)}
-                onEditOptions={
-                  column.refKind === "enum" && column.refTableId !== undefined
-                    ? () => openColumnFormEdit(column)
-                    : undefined
-                }
-                onHide={() => updateView({ hiddenColumns: [...(hiddenColumns ?? []), column.id] })}
-                onShow={() =>
-                  updateView({ hiddenColumns: (hiddenColumns ?? []).filter((entryId) => entryId !== column.id) })
-                }
-                onDelete={() => void data.deleteColumn(column.id)}
+                onMenuChange={columnMenuChange(column)}
+                onRename={columnRename(column)}
+                onEditOptions={columnEditOptions(column)}
+                onHide={columnHide(column)}
+                onShow={columnShow(column)}
+                onDelete={columnDelete(column)}
                 hidden={(hiddenColumns ?? []).includes(column.id)}
-                onPointerDown={(event) => onColumnPointerDown(column, event)}
-                onResizePointerDown={(event) => onSeamPointerDown(index)(event)}
+                onPointerDown={columnPointerDown(column)}
+                onResizePointerDown={seamPointerDownAt(index)}
                 onResizePointerMove={onSeamPointerMove}
                 onResizePointerUp={onSeamPointerUp}
                 onResizePointerCancel={onSeamPointerCancel}
                 onPointerMove={onColumnPointerMove}
-                onPointerUp={(event) => onColumnPointerUp(column, event)}
+                onPointerUp={columnPointerUp(column)}
               />
             ))}
             <div
@@ -680,15 +720,7 @@ function GridBody({
               {/* The create form (every menu entry opens it: the name
                   input + the type-specific attributes — the number's
                   display attributes stand the bridge's column data). */}
-              <Popover
-                open={columnFormOpen && columnForm !== null}
-                onOpenChange={(open) => {
-                  setColumnFormOpen(open);
-                  // The close (the outside press / the Escape) drops the
-                  // draft — the next open stands a fresh one.
-                  if (!open) setColumnForm(null);
-                }}
-              >
+              <Popover open={columnFormOpen && columnForm !== null} onOpenChange={onColumnFormOpenChange}>
                 <PopoverTrigger asChild>
                   <span data-slot="docblocks/database-add-column-form-anchor" className="absolute size-0" />
                 </PopoverTrigger>
@@ -701,7 +733,7 @@ function GridBody({
                   // form the very tick it opens. The outside press (the
                   // interact-outside) and the Escape keep the close (no
                   // create — the commit stands the form's button only).
-                  onFocusOutside={(event) => event.preventDefault()}
+                  onFocusOutside={preventDefault}
                 >
                   <div data-slot="docblocks/database-add-column-form" className="flex flex-col gap-2">
                     <Label>
@@ -917,9 +949,9 @@ function GridBody({
                       selected={selectedCells.has(key)}
                       singleSelected={selectedCells.has(key) && selectedCells.size === 1}
                       editing={editingCell === key}
-                      onChange={(value) => void data.updateRow(row.rowId, { [column.id]: value })}
+                      onChange={cellChange(row, column)}
                       onPointerDown={onCellPointerDown(row.rowId, column.id, rowIndex, index)}
-                      onEditStart={() => setEditingCell(key)}
+                      onEditStart={cellEditStart(key)}
                       refTableData={
                         column.refTableId !== undefined
                           ? refTableData[
@@ -927,7 +959,7 @@ function GridBody({
                             ]
                           : undefined
                       }
-                      onEditEnd={() => setEditingCell(null)}
+                      onEditEnd={cellEditEnd}
                       booleanPress={booleanPressRef}
                     />
                   );
@@ -938,16 +970,9 @@ function GridBody({
                   setRowMenu={setRowMenu}
                   canMoveUp={rows.indexOf(row) > 0}
                   canMoveDown={rows.indexOf(row) < rows.length - 1}
-                  onMoveUp={() => {
-                    const index = rows.indexOf(row);
-                    if (index > 0) void data.moveRow(row.rowId, rows[index - 1]!.rowId);
-                  }}
-                  onMoveDown={() => {
-                    const index = rows.indexOf(row);
-                    if (index < rows.length - 1)
-                      void data.moveRow(row.rowId, index + 2 < rows.length ? rows[index + 2]!.rowId : null);
-                  }}
-                  onRemove={() => void data.removeRow(row.rowId)}
+                  onMoveUp={rowMoveUp(row)}
+                  onMoveDown={rowMoveDown(row)}
+                  onRemove={rowRemove(row)}
                   lastRow={row.rowId === lastRowId}
                 />
               </Fragment>
@@ -978,7 +1003,7 @@ function GridBody({
             "text-(--docblocks-placeholder-color) hover:bg-transparent " +
             "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
           }
-          onClick={() => void data.insertRow({})}
+          onClick={insertEmptyRow}
         >
           + Add row
         </Button>

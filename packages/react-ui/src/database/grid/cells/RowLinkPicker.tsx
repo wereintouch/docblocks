@@ -38,6 +38,8 @@ function RowLinkPickerList({
       : rowIds.filter(
           (rowId) => (displays[rowId] ?? rowId).toLowerCase().includes(needle) || rowId.toLowerCase().includes(needle)
         );
+  const onQueryChange = (event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value);
+
   return (
     <div className="flex flex-col gap-2">
       <Input
@@ -48,7 +50,7 @@ function RowLinkPickerList({
         placeholder="Search rows"
         className="h-7 cursor-text text-xs focus:bg-muted/40"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={onQueryChange}
       />
       <div className="max-h-48 overflow-y-auto">
         <Button

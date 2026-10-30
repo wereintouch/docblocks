@@ -10,6 +10,7 @@ import { Button, Input } from "../../shared/ui";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { X } from "../../shared/ui/icons";
+import { preventDefault, stopPropagation } from "../../shared/utils";
 import { normalizeHex } from "./utils";
 
 function ColorSection({
@@ -64,6 +65,15 @@ function ColorSection({
     // The invalid draft is ignored (the input keeps its text).
   };
 
+  const selectNone = () => apply("none");
+  const onHexChange = (event: React.ChangeEvent<HTMLInputElement>) => setDraft(event.target.value);
+  const onHexKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitDraft();
+    }
+  };
+
   return (
     <Popover modal={false} open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
@@ -101,18 +111,18 @@ function ColorSection({
         // key on that focus (not a form control) would reach the editor
         // root's blocks-selection handling. The hex input opts out via
         // stopPropagation (its focus transfer must stand).
-        onMouseDown={(event) => event.preventDefault()}
-        onPointerDownOutside={(event) => event.preventDefault()}
-        onFocusOutside={(event) => event.preventDefault()}
+        onMouseDown={preventDefault}
+        onPointerDownOutside={preventDefault}
+        onFocusOutside={preventDefault}
       >
         <ColorSwatches
           colors={palette}
           current={lower}
-          onSelect={(hex) => onApply(hex)}
+          onSelect={onApply}
           label={target}
           allowNone={allowNone}
           noneActive={none}
-          onSelectNone={allowNone ? () => apply("none") : undefined}
+          onSelectNone={allowNone ? selectNone : undefined}
         />
         <Input
           size="sm"
@@ -125,14 +135,9 @@ function ColorSection({
           "
           placeholder="#rrggbb"
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          onMouseDown={(event) => event.stopPropagation()}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              commitDraft();
-            }
-          }}
+          onChange={onHexChange}
+          onMouseDown={stopPropagation}
+          onKeyDown={onHexKeyDown}
           onBlur={commitDraft}
         />
       </PopoverContent>

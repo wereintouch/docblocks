@@ -34,6 +34,8 @@ function RowMenuCell({
   onRemove,
   lastRow,
 }: RowMenuCellProps) {
+  const onRowMenuChange = (open: boolean) => setRowMenu(open ? row.rowId : null);
+
   return (
     <div
       data-slot="docblocks/database-row-menu"
@@ -45,11 +47,7 @@ function RowMenuCell({
         !lastRow && "border-b-(length:--docblocks-table-border-width)"
       )}
     >
-      <DropdownMenu
-        modal={false}
-        open={rowMenu === row.rowId}
-        onOpenChange={(open) => setRowMenu(open ? row.rowId : null)}
-      >
+      <DropdownMenu modal={false} open={rowMenu === row.rowId} onOpenChange={onRowMenuChange}>
         <DropdownMenuTrigger asChild>
           <Button
             data-slot="docblocks/database-row-menu-trigger"

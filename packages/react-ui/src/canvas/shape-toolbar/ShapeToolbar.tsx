@@ -40,6 +40,7 @@ import {
   Type,
   X,
 } from "../../shared/ui/icons";
+import { stopPropagation } from "../../shared/utils";
 import { ZOrderMenu } from "../ZOrderMenu";
 import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "../text-fonts";
 import { ColorSection } from "./ColorSection";
@@ -118,21 +119,42 @@ function ShapeToolbar({
     applyAttr({ fontSize: clamped });
   };
 
+  // The press on the toolbar body (the trigger buttons) keeps the canvas
+  // container's focus (the keyboard context). A press on the portaled
+  // palette content (the fiber path crosses this wrapper, the target is
+  // not contained in it) is NOT guarded: the hex input must receive the
+  // mousedown default (the focus transfer).
+  const onBodyMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
+      event.preventDefault();
+    }
+  };
+  const applyVariantAt = (variantId: ShapeVariantId) => () => applyVariant(variantId);
+  const applyFontFamily = (fontFamilyId: string) => () => applyAttr({ fontFamily: fontFamilyId });
+  const applyTextStyle = (textStyleId: string) => () => applyAttr({ textStyle: textStyleId });
+  const openTextSection = (open: boolean) => setOpenSection(open ? "text" : null);
+  const applyTextColor = (value: string | null) => applyAttr({ textColor: value });
+  const onSizeChange = (event: React.ChangeEvent<HTMLInputElement>) => setSizeDraft(event.target.value);
+  const onSizeKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitSize();
+    }
+  };
+  const applyAlign = (value: string) => () => applyAttr({ textAlign: value });
+  const beginTextEdit = () => textEdit?.setEditingId(id);
+  const openFillSection = (open: boolean) => setOpenSection(open ? "fill" : null);
+  const applyFill = (value: string | null) => applyAttr({ fill: value });
+  const openStrokeSection = (open: boolean) => setOpenSection(open ? "stroke" : null);
+  const applyStroke = (value: string | null) => applyAttr({ stroke: value });
+  const applyStrokeWidth = (index: number) => applyAttr({ strokeWidth: BORDER_WIDTH_POINTS[index] });
+
   return (
     <div
       data-slot="docblocks/canvas-chrome"
       className="absolute z-50"
       style={{ ...style, transform: "translate(-50%, -100%)" }}
-      onMouseDown={(event) => {
-        // The press on the toolbar body (the trigger buttons) keeps the
-        // canvas container's focus (the keyboard context). A press on the
-        // portaled palette content (the fiber path crosses this wrapper,
-        // the target is not contained in it) is NOT guarded: the hex
-        // input must receive the mousedown default (the focus transfer).
-        if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
-          event.preventDefault();
-        }
-      }}
+      onMouseDown={onBodyMouseDown}
     >
       <div
         data-slot="docblocks/shape-toolbar"
@@ -162,7 +184,7 @@ function ShapeToolbar({
                 aria-label={label}
                 data-variant={variantId}
                 checked={variant === variantId}
-                onSelect={() => applyVariant(variantId)}
+                onSelect={applyVariantAt(variantId)}
               >
                 <Icon />
                 {label}
@@ -194,7 +216,7 @@ function ShapeToolbar({
                     aria-label={option.label}
                     data-font={option.id}
                     checked={fontFamily === option.id}
-                    onSelect={() => applyAttr({ fontFamily: option.id })}
+                    onSelect={applyFontFamily(option.id)}
                   >
                     <span className="w-16 truncate text-xs" style={{ fontFamily: option.stack }}>
                       {option.label}
@@ -211,8 +233,8 @@ function ShapeToolbar({
               chipStyle={{ background: textColor ?? "transparent" }}
               icon={<Palette className="size-4" />}
               open={openSection === "text"}
-              onOpenChange={(value) => setOpenSection(value ? "text" : null)}
-              onApply={(value) => applyAttr({ textColor: value })}
+              onOpenChange={openTextSection}
+              onApply={applyTextColor}
               allowNone={false}
             />
             {/* The text style (the weight x the slant). */}
@@ -235,7 +257,7 @@ function ShapeToolbar({
                     aria-label={option.label}
                     data-style={option.id}
                     checked={textStyle === option.id}
-                    onSelect={() => applyAttr({ textStyle: option.id })}
+                    onSelect={applyTextStyle(option.id)}
                   >
                     {option.label}
                   </DropdownMenuCheckboxItem>
@@ -267,14 +289,9 @@ function ShapeToolbar({
                   bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color)
                   dark:bg-(--docblocks-editor-background)
                 "
-                onMouseDown={(event) => event.stopPropagation()}
-                onChange={(event) => setSizeDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    commitSize();
-                  }
-                }}
+                onMouseDown={stopPropagation}
+                onChange={onSizeChange}
+                onKeyDown={onSizeKeyDown}
                 onBlur={commitSize}
               />
             </div>
@@ -293,7 +310,7 @@ function ShapeToolbar({
                 title={label}
                 aria-pressed={textAlign === value}
                 className={cn("size-7", textAlign === value && "bg-accent text-accent-foreground")}
-                onClick={() => applyAttr({ textAlign: value })}
+                onClick={applyAlign(value)}
               >
                 <AlignIcon className="size-4" />
               </Button>
@@ -306,7 +323,7 @@ function ShapeToolbar({
             data-slot="docblocks/shape-toolbar-add-text"
             aria-label="Add text"
             title="Add text (or double-click the shape)"
-            onClick={() => textEdit?.setEditingId(id)}
+            onClick={beginTextEdit}
           >
             <Type className="size-4" />
           </Button>
@@ -319,8 +336,8 @@ function ShapeToolbar({
           chipStyle={{ background: fill ?? "transparent" }}
           icon={<Fill className="size-4" />}
           open={openSection === "fill"}
-          onOpenChange={(value) => setOpenSection(value ? "fill" : null)}
-          onApply={(value) => applyAttr({ fill: value })}
+          onOpenChange={openFillSection}
+          onApply={applyFill}
         />
         <ColorSection
           target="stroke"
@@ -329,15 +346,15 @@ function ShapeToolbar({
           chipStyle={{ border: `2px solid ${stroke ?? "currentColor"}` }}
           icon={<Stroke className="size-4" />}
           open={openSection === "stroke"}
-          onOpenChange={(value) => setOpenSection(value ? "stroke" : null)}
-          onApply={(value) => applyAttr({ stroke: value })}
+          onOpenChange={openStrokeSection}
+          onApply={applyStroke}
         />
         {/* The border's width (the 1–4 px dots; the absent stand is the
             2 px default) + the style (the solid / the dashed / none). */}
         <FigureBorderSelector
           points={BORDER_WIDTH_POINTS.length}
           value={borderWidthIndex(strokeWidth)}
-          onChange={(index) => applyAttr({ strokeWidth: BORDER_WIDTH_POINTS[index] })}
+          onChange={applyStrokeWidth}
           label="Shape border width"
           title="Border width (1–4 px)"
           className="mr-0.5"

@@ -49,13 +49,17 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
     const chips = trigger?.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chips"]');
     setTall(chips != null && chips.scrollWidth > chips.clientWidth + 1);
   }, [trigger]);
+  const noOp = () => undefined;
+  const onPopoverClose = (open: boolean) => {
+    if (!open) onEditEnd();
+  };
+  const onOptionToggle = (value: string) => {
+    const option = options.find((entry) => entry.value === value);
+    if (option !== undefined) toggle(option, !values.includes(value));
+  };
+
   return (
-    <Popover
-      open
-      onOpenChange={(open) => {
-        if (!open) onEditEnd();
-      }}
-    >
+    <Popover open onOpenChange={onPopoverClose}>
       <PopoverTrigger asChild>
         <span
           ref={setTrigger}
@@ -76,11 +80,8 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
           multi
           values={values}
           tall={tall}
-          onPick={() => undefined}
-          onToggle={(value) => {
-            const option = options.find((entry) => entry.value === value);
-            if (option !== undefined) toggle(option, !values.includes(value));
-          }}
+          onPick={noOp}
+          onToggle={onOptionToggle}
           onEditEnd={onEditEnd}
         />
       </PopoverContent>

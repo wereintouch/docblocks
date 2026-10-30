@@ -104,6 +104,20 @@ function ConnectorToolbar({
     apply({ strokeStyle: next });
   };
 
+  // The press on the toolbar body (the triggers) keeps the canvas container's
+  // focus (the keyboard context: the Delete/Backspace path). A press on the
+  // portaled palette content is NOT guarded (the hex input must receive the
+  // mousedown default).
+  const onBodyMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
+      event.preventDefault();
+    }
+  };
+  const applyStyleAt = (next: "solid" | "dash") => () => applyStyle(next);
+  const applyVariantAt = (next: "straight" | "orthogonal" | "curved") => () => applyVariant(next);
+  const openStrokeSection = (open: boolean) => setOpenSection(open ? "stroke" : null);
+  const applyStrokeColor = (value: string | null) => apply({ strokeColor: value });
+
   const styleOption = (next: "solid" | "dash", label: string, icon: ReactNode) => (
     <Button
       variant="ghost"
@@ -112,7 +126,7 @@ function ConnectorToolbar({
       aria-label={label}
       aria-pressed={currentStyle === next}
       title={label}
-      onClick={() => applyStyle(next)}
+      onClick={applyStyleAt(next)}
     >
       {icon}
     </Button>
@@ -126,7 +140,7 @@ function ConnectorToolbar({
       aria-label={label}
       aria-pressed={variant === next}
       title={label}
-      onClick={() => applyVariant(next)}
+      onClick={applyVariantAt(next)}
     >
       {icon}
     </Button>
@@ -192,15 +206,7 @@ function ConnectorToolbar({
       // everywhere the menu does not cover them.
       className="absolute z-60"
       style={{ ...style, transform: "translate(-50%, -100%)" }}
-      onMouseDown={(event) => {
-        // The press on the toolbar body (the triggers) keeps the canvas
-        // container's focus (the keyboard context: the Delete/Backspace
-        // path). A press on the portaled palette content is NOT guarded
-        // (the hex input must receive the mousedown default).
-        if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
-          event.preventDefault();
-        }
-      }}
+      onMouseDown={onBodyMouseDown}
     >
       <div
         data-slot="docblocks/connector-toolbar"
@@ -224,8 +230,8 @@ function ConnectorToolbar({
           chipStyle={{ border: `2px solid ${strokeColor ?? "currentColor"}` }}
           icon={<Stroke className="size-4" />}
           open={openSection === "stroke"}
-          onOpenChange={(value) => setOpenSection(value ? "stroke" : null)}
-          onApply={(value) => apply({ strokeColor: value })}
+          onOpenChange={openStrokeSection}
+          onApply={applyStrokeColor}
         />
         {/* The width (the 1–4 px dots; the absent stand is the 1 px
             default — unlike the shape's border, the connector is the

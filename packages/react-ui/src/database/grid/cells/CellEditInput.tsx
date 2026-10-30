@@ -27,6 +27,11 @@ interface CellEditInputProps {
   onCancel: () => void;
 }
 function CellEditInput({ draft, kind, min, step, alignRight, onDraftChange, onEnd, onCancel }: CellEditInputProps) {
+  const onInputChange = (event: React.ChangeEvent<HTMLInputElement>) => onDraftChange(event.target.value);
+  const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+    if (event.key === "Escape") onCancel();
+  };
   return (
     <Input
       size="sm"
@@ -37,12 +42,9 @@ function CellEditInput({ draft, kind, min, step, alignRight, onDraftChange, onEn
       step={step}
       className={cn(CELL_INPUT, alignRight && "text-right")}
       value={draft}
-      onChange={(event) => onDraftChange(event.target.value)}
+      onChange={onInputChange}
       onBlur={onEnd}
-      onKeyDown={(event) => {
-        if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-        if (event.key === "Escape") onCancel();
-      }}
+      onKeyDown={onInputKeyDown}
     />
   );
 }

@@ -60,6 +60,17 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
   const removeGroup = (index: number) =>
     onChange({ ...payload, groups: (payload.groups ?? []).filter((_, at) => at !== index) });
 
+  const addGroup = () => onChange({ ...payload, groups: [...(payload.groups ?? []), emptyFilter()] });
+  const setLogicAnd = () => setLogic("and");
+  const setLogicOr = () => setLogic("or");
+  // The per-item stands over the group's list handlers (the map's index
+  // stand).
+  const conditionChange = (index: number) => (next: DatabaseFilterPayload["conditions"][number]) =>
+    setCondition(index, next);
+  const conditionRemove = (index: number) => () => removeCondition(index);
+  const removeGroupAt = (index: number) => () => removeGroup(index);
+  const groupChange = (index: number) => (next: DatabaseFilterPayload) => setGroup(index, next);
+
   return (
     <div
       data-slot="docblocks/filter-group"
@@ -77,7 +88,7 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
             className={`cursor-pointer px-2 py-0.5 text-xs outline-none ${
               payload.logic === "and" ? "bg-accent text-foreground" : "text-muted-foreground"
             }`}
-            onClick={() => setLogic("and")}
+            onClick={setLogicAnd}
           >
             AND
           </button>
@@ -87,7 +98,7 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
             className={`cursor-pointer px-2 py-0.5 text-xs outline-none ${
               payload.logic === "or" ? "bg-accent text-foreground" : "text-muted-foreground"
             }`}
-            onClick={() => setLogic("or")}
+            onClick={setLogicOr}
           >
             OR
           </button>
@@ -102,8 +113,8 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           key={index}
           condition={condition}
           columns={columns}
-          onChange={(next) => setCondition(index, next)}
-          onRemove={() => removeCondition(index)}
+          onChange={conditionChange(index)}
+          onRemove={conditionRemove(index)}
           refTableData={refTableData}
         />
       ))}
@@ -117,7 +128,7 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
               variant="outline"
               size="sm"
               data-slot="docblocks/filter-remove-group"
-              onClick={() => removeGroup(index)}
+              onClick={removeGroupAt(index)}
             >
               Remove group
             </Button>
@@ -126,7 +137,7 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
             payload={group}
             columns={columns}
             depth={depth + 1}
-            onChange={(next) => setGroup(index, next)}
+            onChange={groupChange(index)}
             refTableData={refTableData}
           />
         </div>
@@ -148,13 +159,7 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           + Condition
         </Button>
         {depth < FILTER_MAX_DEPTH && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            data-slot="docblocks/filter-add-group"
-            onClick={() => onChange({ ...payload, groups: [...(payload.groups ?? []), emptyFilter()] })}
-          >
+          <Button type="button" variant="outline" size="sm" data-slot="docblocks/filter-add-group" onClick={addGroup}>
             + Group
           </Button>
         )}
@@ -178,6 +183,18 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
   const firstOperator = annotation.operators[0] ?? "is";
   const operator = annotation.operators.includes(condition.op) ? condition.op : firstOperator;
   const needsValue = !annotation.valueless.has(operator);
+  const onColumnChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextColumn = columns.find((entry) => entry.id === event.target.value);
+    if (nextColumn === undefined) return;
+    onChange({
+      columnId: nextColumn.id,
+      op: columnAnnotation(nextColumn).operators[0] ?? "is",
+      value: undefined,
+    });
+  };
+  const onOperatorChange = (event: React.ChangeEvent<HTMLSelectElement>) =>
+    onChange({ ...condition, op: event.target.value, value: undefined });
+  const onValueChange = (value: unknown) => onChange({ ...condition, op: operator, value });
 
   return (
     <div
@@ -186,30 +203,14 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
       data-op={operator}
       className="flex flex-wrap items-center gap-2"
     >
-      <BareSelect
-        data-slot="docblocks/filter-column"
-        value={column.id}
-        onChange={(event) => {
-          const nextColumn = columns.find((entry) => entry.id === event.target.value);
-          if (nextColumn === undefined) return;
-          onChange({
-            columnId: nextColumn.id,
-            op: columnAnnotation(nextColumn).operators[0] ?? "is",
-            value: undefined,
-          });
-        }}
-      >
+      <BareSelect data-slot="docblocks/filter-column" value={column.id} onChange={onColumnChange}>
         {columns.map((entry) => (
           <option key={entry.id} value={entry.id}>
             {entry.name}
           </option>
         ))}
       </BareSelect>
-      <BareSelect
-        data-slot="docblocks/filter-operator"
-        value={operator}
-        onChange={(event) => onChange({ ...condition, op: event.target.value, value: undefined })}
-      >
+      <BareSelect data-slot="docblocks/filter-operator" value={operator} onChange={onOperatorChange}>
         {annotation.operators.map((entry) => (
           <option key={entry} value={entry}>
             {entry}
@@ -221,7 +222,7 @@ function FilterConditionRow({ condition, columns, onChange, onRemove, refTableDa
           column={column}
           operator={operator}
           value={condition.value}
-          onChange={(value) => onChange({ ...condition, op: operator, value })}
+          onChange={onValueChange}
           refTableData={refTableData}
         />
       )}
@@ -250,6 +251,20 @@ interface ValueInputProps {
 function ValueInput({ column, operator, value, onChange, refTableData }: ValueInputProps) {
   const multiValue = operator === "in" || operator === "not in";
   const annotation = columnAnnotation(column);
+  const onMultiChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const parts = event.target.value
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part.length > 0);
+    onChange(parts.length > 0 ? parts : undefined);
+  };
+  const onScalarChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    onChange(event.target.value === "" ? undefined : event.target.value);
+  const onNumberChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    onChange(event.target.value === "" ? undefined : Number(event.target.value));
+  const onBooleanChange = (event: React.ChangeEvent<HTMLSelectElement>) =>
+    onChange(event.target.value === "" ? undefined : event.target.value === "true");
+
   if (multiValue) {
     const text = Array.isArray(value) ? value.join(", ") : value === undefined || value === null ? "" : String(value);
     return (
@@ -260,13 +275,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
         className="w-auto"
         placeholder="value, value"
         value={text}
-        onChange={(event) => {
-          const parts = event.target.value
-            .split(",")
-            .map((part) => part.trim())
-            .filter((part) => part.length > 0);
-          onChange(parts.length > 0 ? parts : undefined);
-        }}
+        onChange={onMultiChange}
       />
     );
   }
@@ -279,7 +288,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
           data-slot="docblocks/filter-value"
           className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : Number(event.target.value))}
+          onChange={onNumberChange}
         />
       );
     case "boolean":
@@ -287,7 +296,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
         <BareSelect
           data-slot="docblocks/filter-value"
           value={value === undefined || value === null ? "" : String(value)}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value === "true")}
+          onChange={onBooleanChange}
         >
           <option value="">—</option>
           <option value="true">true</option>
@@ -302,7 +311,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
           data-slot="docblocks/filter-value"
           className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
+          onChange={onScalarChange}
         />
       );
     case "datetime":
@@ -313,7 +322,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
           data-slot="docblocks/filter-value"
           className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
+          onChange={onScalarChange}
         />
       );
     case "enum":
@@ -330,7 +339,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
         <BareSelect
           data-slot="docblocks/filter-value"
           value={value === undefined || value === null ? "" : String(value)}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
+          onChange={onScalarChange}
         >
           <option value="">—</option>
           {entries.map((entry) => (
@@ -351,7 +360,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
           data-slot="docblocks/filter-value"
           className="w-auto"
           value={value === undefined || value === null ? "" : String(value)}
-          onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value)}
+          onChange={onScalarChange}
         />
       );
   }

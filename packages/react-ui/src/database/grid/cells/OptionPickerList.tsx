@@ -40,6 +40,20 @@ function OptionPickerList({
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const filtered = needle === "" ? options : options.filter((option) => option.label.toLowerCase().includes(needle));
+  const noOp = () => undefined;
+  const onQueryChange = (event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value);
+  const onClearOption = () => {
+    onClear?.();
+    onEditEnd();
+  };
+  const pickOption = (option: RefOption) => () => {
+    if (multi) onToggle(option.value);
+    else {
+      onPick(option.value);
+      onEditEnd();
+    }
+  };
+
   return (
     <div className="flex flex-col gap-2">
       <Input
@@ -50,7 +64,7 @@ function OptionPickerList({
         placeholder="Search options"
         className="h-7 cursor-text text-xs focus:bg-muted/40"
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={onQueryChange}
       />
       <div
         data-slot="docblocks/database-enum-picker-list"
@@ -67,10 +81,7 @@ function OptionPickerList({
                 "text-muted-foreground",
                 currentEmpty && "bg-muted text-foreground"
               )}
-              onClick={() => {
-                onClear();
-                onEditEnd();
-              }}
+              onClick={onClearOption}
             >
               —
             </Button>
@@ -87,18 +98,12 @@ function OptionPickerList({
                 "text-foreground hover:bg-accent",
                 values.includes(option.value) && "bg-muted"
               )}
-              onClick={() => {
-                if (multi) onToggle(option.value);
-                else {
-                  onPick(option.value);
-                  onEditEnd();
-                }
-              }}
+              onClick={pickOption(option)}
             >
               {multi && (
                 <Checkbox
                   checked={values.includes(option.value)}
-                  onCheckedChange={() => undefined}
+                  onCheckedChange={noOp}
                   className="pointer-events-none"
                 />
               )}

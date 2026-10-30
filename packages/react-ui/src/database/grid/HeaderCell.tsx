@@ -79,6 +79,16 @@ function HeaderCell({
     if (trimmed !== "" && trimmed !== column.name) onRename(trimmed);
     setNameDraft(column.name);
   };
+  const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => setNameDraft(event.target.value);
+  const focusName = () => setNameDraft(column.name);
+  const onNameKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter") (event.target as HTMLInputElement).blur();
+    if (event.key === "Escape") {
+      setNameDraft(column.name);
+      onMenuChange(false);
+    }
+  };
+
   return (
     <div
       data-slot="docblocks/database-header-cell"
@@ -136,16 +146,10 @@ function HeaderCell({
                 data-slot="docblocks/database-rename-input"
                 className="border-0 bg-muted/60 px-2 py-1 text-foreground select-text focus:bg-muted"
                 value={nameDraft}
-                onChange={(event) => setNameDraft(event.target.value)}
-                onFocus={() => setNameDraft(column.name)}
+                onChange={onNameChange}
+                onFocus={focusName}
                 onBlur={commitRename}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") (event.target as HTMLInputElement).blur();
-                  if (event.key === "Escape") {
-                    setNameDraft(column.name);
-                    onMenuChange(false);
-                  }
-                }}
+                onKeyDown={onNameKeyDown}
               />
               <span
                 data-slot="docblocks/database-column-type"

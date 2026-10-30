@@ -12,6 +12,7 @@ import { Separator } from "../../../shared/ui/Separator";
 import { Textarea } from "../../../shared/ui/Textarea";
 import { TimeSegments } from "../../../shared/ui/TimeSegments";
 import { cn } from "../../../shared/ui/cn";
+import { preventDefault } from "../../../shared/utils";
 import { columnAnnotation, parseCellValue } from "../../bridge";
 import type { BridgeColumn, BridgeColumnAnnotation } from "../../bridge";
 import { formatNumberValue } from "../../number-format";
@@ -276,6 +277,44 @@ function DatabaseCell({
       content = <CellDisplay text={refValues.join(", ")} />;
     }
   } else {
+    const noOp = () => undefined;
+    const clearValue = () => onChange(null);
+    const dateOnOpenChange = (open: boolean) => {
+      if (!open) onEditEnd();
+    };
+    const onDateSelect = (day: Date | undefined) => {
+      // The pick commits the ISO date (the same-day pick clears it — the
+      // day-picker's toggle) + closes the popover.
+      const next = day === undefined || day === null ? null : dateOnly(day);
+      onChange(next === null ? null : format(next, "yyyy-MM-dd"));
+      onEditEnd();
+    };
+    // The day-picker's same-day toggle (the undefined stand) resets no
+    // draft date: the datetime's commit is deferred to the close, so the
+    // toggle would clear the draft date and lose the typed time (the clear
+    // stand is the date cell's immediate-commit contract only).
+    const onDateTimeDaySelect = (day: Date | undefined) => {
+      if (day === undefined || day === null) return;
+      setDraftDate(dateOnly(day));
+    };
+    const dateTimeOnOpenChange = (open: boolean) => {
+      if (!open) {
+        closeCommittedRef.current = true;
+        commitDateTime();
+        onEditEnd();
+      }
+    };
+    // The press stands the toggle only over the armed stand (the cell
+    // stood the sole selection at the press — the selecting press stands
+    // no toggle; the double press's second click is the detail guard).
+    // The toggle's timestamp arms the wrapper's dblclick guard.
+    const onCheckboxPress = (event: React.MouseEvent<HTMLSpanElement>) => {
+      if (event.detail > 1) return;
+      if (!booleanPress.current.armed) return;
+      booleanPress.current.toggledTs = Date.now();
+      onChange(value === true ? false : true);
+    };
+
     switch (annotation.valueInput) {
       case "number": {
         // The display stands the column's format (the prefix / the
@@ -305,12 +344,7 @@ function DatabaseCell({
       }
       case "date":
         content = (
-          <Popover
-            open={editing}
-            onOpenChange={(open) => {
-              if (!open) onEditEnd();
-            }}
-          >
+          <Popover open={editing} onOpenChange={dateOnOpenChange}>
             <PopoverTrigger asChild>
               <CellDisplay text={dateValue !== null ? format(dateValue, "dd.MM.yyyy") : ""} />
             </PopoverTrigger>
@@ -319,13 +353,7 @@ function DatabaseCell({
                 mode="single"
                 selected={dateValue ?? undefined}
                 {...(dateValue !== null ? { defaultMonth: dateValue } : {})}
-                onSelect={(day) => {
-                  // The pick commits the ISO date (the same-day pick clears
-                  // it — the day-picker's toggle) + closes the popover.
-                  const next = day === undefined || day === null ? null : dateOnly(day);
-                  onChange(next === null ? null : format(next, "yyyy-MM-dd"));
-                  onEditEnd();
-                }}
+                onSelect={onDateSelect}
               />
             </PopoverContent>
           </Popover>
@@ -333,16 +361,7 @@ function DatabaseCell({
         break;
       case "datetime":
         content = (
-          <Popover
-            open={editing}
-            onOpenChange={(open) => {
-              if (!open) {
-                closeCommittedRef.current = true;
-                commitDateTime();
-                onEditEnd();
-              }
-            }}
-          >
+          <Popover open={editing} onOpenChange={dateTimeOnOpenChange}>
             <PopoverTrigger asChild>
               <CellDisplay text={dateValue !== null ? dateTimeLabel(dateValue) : ""} />
             </PopoverTrigger>
@@ -351,15 +370,7 @@ function DatabaseCell({
                 mode="single"
                 selected={draftDate ?? undefined}
                 defaultMonth={dateValue ?? undefined}
-                onSelect={(day) => {
-                  // The day-picker's same-day toggle (the undefined stand)
-                  // resets no draft date: the datetime's commit is deferred
-                  // to the close, so the toggle would clear the draft date
-                  // and lose the typed time (the clear stand is the date
-                  // cell's immediate-commit contract only).
-                  if (day === undefined || day === null) return;
-                  setDraftDate(dateOnly(day));
-                }}
+                onSelect={onDateTimeDaySelect}
               />
               <Separator />
               <div className="p-2">
@@ -387,23 +398,13 @@ function DatabaseCell({
               "flex w-full items-center justify-center px-1",
               checkboxInteractive ? "cursor-pointer" : "pointer-events-none"
             )}
-            onClick={(event) => {
-              // The press stands the toggle only over the armed stand
-              // (the cell stood the sole selection at the press — the
-              // selecting press stands no toggle; the double press's
-              // second click is the detail guard). The toggle's
-              // timestamp arms the wrapper's dblclick guard.
-              if (event.detail > 1) return;
-              if (!booleanPress.current.armed) return;
-              booleanPress.current.toggledTs = Date.now();
-              onChange(value === true ? false : true);
-            }}
+            onClick={onCheckboxPress}
           >
             <Checkbox
               data-slot="docblocks/database-cell-checkbox"
               aria-label={column.name}
               checked={value === true}
-              onCheckedChange={() => undefined}
+              onCheckedChange={noOp}
               className="pointer-events-none"
             />
           </span>
@@ -416,8 +417,8 @@ function DatabaseCell({
             options={refOptions}
             current={value === undefined || value === null ? null : String(value)}
             open={editing}
-            onPick={(next) => onChange(next)}
-            onClear={() => onChange(null)}
+            onPick={onChange}
+            onClear={clearValue}
             onEditEnd={onEditEnd}
           />
         );
@@ -430,7 +431,7 @@ function DatabaseCell({
             current={empty ? "" : rawValue}
             open={editing}
             onPick={onChange}
-            onClear={() => onChange(null)}
+            onClear={clearValue}
             onEditEnd={onEditEnd}
           />
         );
@@ -449,6 +450,50 @@ function DatabaseCell({
     }
   }
 
+  // The enum's overflow's stand (the value's display clipped — the
+  // ellipsis / the fade's mask): the press stands the picker's popover
+  // (the value's full's stand) over the selection's stand (the
+  // non-overflowing's value keeps the press model — the double press is
+  // the picker's stand). The single's chip truncates (the clip's measure
+  // stands the chip's own box); the multi's train overflows (the clip's
+  // measure stands the train's container). The open stands the click
+  // (the popover's mount over the in-flight press stands the radix's
+  // outside-dismiss).
+  const onCellClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (annotation.valueInput !== "enum") return;
+    const prober = isManyRef
+      ? event.currentTarget.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chips"]')
+      : event.currentTarget.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chip"]');
+    if (prober !== null && prober.scrollWidth > prober.clientWidth + 1) {
+      onEditStart();
+    }
+  };
+  const onCellDoubleClick = () => {
+    if (annotation.valueInput === "boolean") {
+      // The interactive click's toggle already stands over the double
+      // press (over the browser's double-click window) — the dblclick
+      // stands no second toggle.
+      if (Date.now() - booleanPress.current.toggledTs < CHECKBOX_TOGGLE_GUARD_MS) return;
+      onChange(value === true ? false : true);
+      return;
+    }
+    // The text / number's draft stands from the value at the open (the
+    // double press is the session's single entry; the mid-session value
+    // changes stand the draft untouched until the close commits).
+    if (isText || isNumber) {
+      textCancelledRef.current = false;
+      textSettledRef.current = false;
+      setTextDraft(rawValue);
+    }
+    // The datetime's drafts stand from the value at the open (the double
+    // press is the session's single entry; the mid-session value changes
+    // stand the draft untouched until the close commits).
+    if (isDateTime) {
+      setDraftDate(dateValue !== null ? dateOnly(dateValue) : null);
+      setDraftTime(dateValue !== null && hasTime(dateValue) ? format(dateValue, "HH:mm:ss") : null);
+    }
+    onEditStart();
+  };
   const cell = (
     <div
       data-slot="docblocks/database-cell"
@@ -468,50 +513,8 @@ function DatabaseCell({
       )}
       style={dragStyle}
       onPointerDown={onPointerDown}
-      onClick={(event) => {
-        // The enum's overflow's stand (the value's display clipped — the
-        // ellipsis / the fade's mask): the press stands the picker's
-        // popover (the value's full's stand) over the selection's stand
-        // (the non-overflowing's value keeps the press model — the double
-        // press is the picker's stand). The single's chip truncates (the
-        // clip's measure stands the chip's own box); the multi's train
-        // overflows (the clip's measure stands the train's container).
-        // The open stands the click (the popover's mount over the
-        // in-flight press stands the radix's outside-dismiss).
-        if (annotation.valueInput !== "enum") return;
-        const prober = isManyRef
-          ? event.currentTarget.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chips"]')
-          : event.currentTarget.querySelector<HTMLElement>('[data-slot="docblocks/database-ref-chip"]');
-        if (prober !== null && prober.scrollWidth > prober.clientWidth + 1) {
-          onEditStart();
-        }
-      }}
-      onDoubleClick={() => {
-        if (annotation.valueInput === "boolean") {
-          // The interactive click's toggle already stands over the double
-          // press (over the browser's double-click window) — the dblclick
-          // stands no second toggle.
-          if (Date.now() - booleanPress.current.toggledTs < CHECKBOX_TOGGLE_GUARD_MS) return;
-          onChange(value === true ? false : true);
-          return;
-        }
-        // The text / number's draft stands from the value at the open (the
-        // double press is the session's single entry; the mid-session
-        // value changes stand the draft untouched until the close commits).
-        if (isText || isNumber) {
-          textCancelledRef.current = false;
-          textSettledRef.current = false;
-          setTextDraft(rawValue);
-        }
-        // The datetime's drafts stand from the value at the open (the double
-        // press is the session's single entry; the mid-session value
-        // changes stand the draft untouched until the close commits).
-        if (isDateTime) {
-          setDraftDate(dateValue !== null ? dateOnly(dateValue) : null);
-          setDraftTime(dateValue !== null && hasTime(dateValue) ? format(dateValue, "HH:mm:ss") : null);
-        }
-        onEditStart();
-      }}
+      onClick={onCellClick}
+      onDoubleClick={onCellDoubleClick}
     >
       {content}
     </div>
@@ -528,24 +531,27 @@ function DatabaseCell({
     // the session's teardown) commits the draft in one updateRow, the
     // Escape cancels (no write — the content's onEscapeKeyDown keeps the
     // radix's own close commit out).
+    const multiOnOpenChange = (open: boolean) => {
+      if (!open) {
+        // The popover's own close (the real blur / the outside press)
+        // commits the draft over its own stand; the session's teardown
+        // (the other cell's / the outside press over the grid's pointer
+        // model) commits over the teardown's effect — the settled ref
+        // keeps the repeat commit a no-write.
+        if (!textCancelledRef.current) {
+          textSettledRef.current = true;
+          commitTextDraft();
+        }
+        onEditEnd();
+      }
+    };
+    const onMultiChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => setTextDraft(event.target.value);
+    const onMultiKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Escape") cancelTextDraft();
+    };
+
     return (
-      <Popover
-        open={editing}
-        onOpenChange={(open) => {
-          if (!open) {
-            // The popover's own close (the real blur / the outside press)
-            // commits the draft over its own stand; the session's teardown
-            // (the other cell's / the outside press over the grid's
-            // pointer model) commits over the teardown's effect — the
-            // settled ref keeps the repeat commit a no-write.
-            if (!textCancelledRef.current) {
-              textSettledRef.current = true;
-              commitTextDraft();
-            }
-            onEditEnd();
-          }
-        }}
-      >
+      <Popover open={editing} onOpenChange={multiOnOpenChange}>
         <PopoverTrigger asChild>{cell}</PopoverTrigger>
         <PopoverContent
           side="bottom"
@@ -554,7 +560,7 @@ function DatabaseCell({
           // opens over the row's top): the cell's 32px's height + the 8px's
           // stand, the negative offset over the anchor's bottom edge.
           sideOffset={-40}
-          onEscapeKeyDown={(event) => event.preventDefault()}
+          onEscapeKeyDown={preventDefault}
           className="w-(--radix-popover-trigger-width) rounded-md border border-border bg-popover p-0 shadow-md ring-0"
         >
           <Textarea
@@ -568,13 +574,9 @@ function DatabaseCell({
               md:text-base
             "
             value={textDraft ?? ""}
-            onChange={(event) => setTextDraft(event.target.value)}
+            onChange={onMultiChange}
             onBlur={onEditEnd}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                cancelTextDraft();
-              }
-            }}
+            onKeyDown={onMultiKeyDown}
           />
         </PopoverContent>
       </Popover>
