@@ -11,14 +11,13 @@ import type { BlockId, DatabaseFilterPayload } from "docblocks-core";
 import { Badge } from "../../shared/ui/Badge";
 import { Card, CardContent } from "../../shared/ui/Card";
 import { Checkbox } from "../../shared/ui/Checkbox";
-import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../shared/ui/Select";
-import { GripVertical, Plus, X } from "../../shared/ui/icons";
+import { Plus } from "../../shared/ui/icons";
 import type { BridgeColumn } from "../bridge";
-import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN, ENUM_OPTION_PALETTE } from "../bridge";
+import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
 import { useDatabaseTable } from "../use-database-table";
 import { HeaderCell } from "./HeaderCell";
@@ -32,159 +31,14 @@ import {
   NEW_TABLE_PICK,
   REF_NONE_PICK,
 } from "./constants";
+import { EnumOptionsEditor } from "./enum-options-editor";
 import { useEnumOptionsMotion } from "./enum-options-motion";
-import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession, EnumOptionDraft } from "./models";
+import type { AddColumnFormDraft, ColumnDragSession, ColumnResizeSession } from "./models";
 import { useBridgeTables } from "./use-bridge-tables";
 import { refEntryKey, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
 import { emptyColumnForm } from "./utils";
 import { cellKeyOf, visibleColumns } from "./utils";
-
-/**
- * The enum's options editor (the create / the edit's form stand): the
- * option's rows over the draft (the grip's press-drag stands the live
- * reorder — the draft's pure stand, no bridge write until the form's
- * commit; the color's swatch stands the palette's popover — the hex
- * stands the data; the name's input; the delete's control) + the
- * add-option's entry. The row's pitch stands the drag's index math
- * (the 32 px row + the 4 px gap = the 36 px pitch).
- */
-function EnumOptionsEditor({
-  options,
-  onChange,
-}: {
-  options: EnumOptionDraft[];
-  onChange: (next: EnumOptionDraft[]) => void;
-}) {
-  const [colorOpen, setColorOpen] = useState<number | null>(null);
-
-  const setOption = (index: number, patch: Partial<EnumOptionDraft>) => {
-    onChange(options.map((option, i) => (i === index ? { ...option, ...patch } : option)));
-  };
-
-  /** The grip's drag session (the window-level pointer stand — the capture
-   *  would retarget the presses): the live reorder over the draft's stand
-   *  (the release stands nothing extra — the draft IS the order). The
-   *  pitch stands measured (the row's own box + the group's row-gap —
-   *  the stand is layout-driven, not a constant). */
-  const beginGripDrag = (index: number) => (event: ReactPointerEvent) => {
-    if (event.button !== 0) return;
-    event.preventDefault();
-    const gripEl = event.currentTarget as HTMLElement;
-    const rowEl = gripEl.closest<HTMLElement>('[data-slot="docblocks/database-enum-option-row"]');
-    const groupEl = gripEl.closest<HTMLElement>('[data-slot="docblocks/database-enum-options"]');
-    const measured =
-      rowEl !== null && groupEl !== null
-        ? rowEl.getBoundingClientRect().height + Number.parseFloat(getComputedStyle(groupEl).rowGap)
-        : Number.NaN;
-    const pitch = Number.isFinite(measured) && measured > 0 ? measured : 36;
-    const startY = event.clientY;
-    let current = options;
-    const move = (pointer: PointerEvent) => {
-      const delta = Math.round((pointer.clientY - startY) / pitch);
-      const target = Math.min(current.length - 1, Math.max(0, index + delta));
-      if (target !== index) {
-        const next = [...current];
-        const [moved] = next.splice(index, 1);
-        if (moved === undefined) return;
-        next.splice(target, 0, moved);
-        current = next;
-        onChange(next);
-      }
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
-  };
-
-  return (
-    <div data-slot="docblocks/database-enum-options" className="flex flex-col gap-1">
-      <div className="text-sm text-foreground">Options</div>
-      {options.map((option, index) => (
-        <div
-          key={option.rowId ?? option.uid ?? `draft-${index}`}
-          data-slot="docblocks/database-enum-option-row"
-          className="flex h-8 items-center gap-1"
-        >
-          <span
-            data-slot="docblocks/database-enum-option-grip"
-            onPointerDown={beginGripDrag(index)}
-            className="
-              flex size-5 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground
-              active:cursor-grabbing
-            "
-          >
-            <GripVertical className="size-3.5" />
-          </span>
-          <Popover open={colorOpen === index} onOpenChange={(open) => setColorOpen(open ? index : null)}>
-            <PopoverTrigger asChild>
-              <button
-                type="button"
-                data-slot="docblocks/database-enum-option-color"
-                data-color={option.color ?? ""}
-                title="Option's color"
-                className="size-4 shrink-0 cursor-pointer rounded-full border border-border"
-                style={option.color !== null ? { backgroundColor: option.color } : undefined}
-              />
-            </PopoverTrigger>
-            <PopoverContent className="flex items-center p-2">
-              {/* The shared color's palette (the format's / the shape's
-                  toolbars' stand): the hex's resolve over the press (the
-                  data stands the hex, never the token), the none's stand
-                  over the transparent's swatch. */}
-              <ColorSwatches
-                colors={ENUM_OPTION_PALETTE}
-                current={option.color ?? undefined}
-                label="option color"
-                allowNone
-                noneActive={option.color === null}
-                onSelect={(hex) => setOption(index, { color: hex })}
-                onSelectNone={() => setOption(index, { color: null })}
-              />
-            </PopoverContent>
-          </Popover>
-          <input
-            type="text"
-            data-slot="docblocks/database-enum-option-name"
-            placeholder="Option"
-            className="
-              w-full min-w-0 flex-1 cursor-text rounded-md border border-border bg-transparent px-2 text-sm
-              text-foreground outline-none
-              focus:bg-muted/60
-            "
-            value={option.name}
-            onChange={(event) => setOption(index, { name: event.target.value })}
-          />
-          <button
-            type="button"
-            data-slot="docblocks/database-enum-option-delete"
-            className="
-              flex size-5 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none
-              hover:text-foreground
-            "
-            onClick={() => onChange(options.filter((_, i) => i !== index))}
-          >
-            <X className="size-3.5" />
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        data-slot="docblocks/database-enum-option-add"
-        className="
-          cursor-pointer self-start rounded-sm px-1 py-0.5 text-sm text-muted-foreground outline-none
-          hover:bg-accent hover:text-accent-foreground
-        "
-        onClick={() => onChange([...options, { name: "", color: null, uid: Math.random().toString(36).slice(2) }])}
-      >
-        + Add option
-      </button>
-    </div>
-  );
-}
 
 interface GridBodyProps {
   id: BlockId;
