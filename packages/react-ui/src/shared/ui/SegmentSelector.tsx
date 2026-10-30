@@ -11,6 +11,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { Button } from "./Button";
 import { cn } from "./cn";
 
 interface SegmentOption<T extends string> {
@@ -128,16 +129,18 @@ function SegmentSelector<T extends string>({
         />
       )}
       {options.map((option) => (
-        <button
+        <Button
           key={option.value}
           type="button"
+          variant="ghost"
           {...{ [`data-${buttonAttrName}`]: option.value }}
           aria-pressed={value === option.value}
           aria-label={option.label}
           title={option.label}
           className={cn(
             `
-              relative z-10 flex items-center justify-center rounded-md transition-colors
+              relative z-10 font-normal transition-colors
+              hover:bg-transparent
               focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
               focus-visible:outline-ring
             `,
@@ -147,7 +150,7 @@ function SegmentSelector<T extends string>({
           onClick={selectOption(option.value)}
         >
           {size === "text" ? option.label : option.icon}
-        </button>
+        </Button>
       ))}
     </div>
   );

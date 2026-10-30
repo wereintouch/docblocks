@@ -1,5 +1,6 @@
 import * as React from "react";
 
+import { Button } from "./Button";
 import { TimeSegment, type TimeSegmentType } from "./TimeSegment";
 import { cn } from "./cn";
 import { X } from "./icons";
@@ -122,19 +123,20 @@ function TimeSegments({ id, value, onChange, disabled, clearable, className }: T
         disabled={disabled}
       />
       {clearable && filled && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           tabIndex={-1}
           aria-label="Clear the time"
           onClick={handleClear}
           className="
-            absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-muted-foreground transition-colors
-            duration-300
-            hover:text-foreground
+            absolute top-1/2 right-2 size-auto -translate-y-1/2 p-0 text-muted-foreground transition-colors duration-300
+            hover:bg-transparent hover:text-foreground
+            focus-visible:ring-0
           "
         >
           <X className="size-3.5" />
-        </button>
+        </Button>
       )}
     </div>
   );

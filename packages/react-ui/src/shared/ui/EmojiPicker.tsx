@@ -6,6 +6,7 @@
  * content is portaled outside the editor root, where the `--docblocks-*`
  * tokens are not mapped).
  */
+import { Button } from "./Button";
 import { cn } from "./cn";
 import { AVATAR_EMOJI } from "./emoji-catalog";
 
@@ -29,9 +30,11 @@ function EmojiPicker({
         {AVATAR_EMOJI.map(({ emoji, label }) => {
           const isSelected = selected === emoji;
           return (
-            <button
+            <Button
               key={label}
               type="button"
+              variant="ghost"
+              size="icon"
               data-slot="docblocks/emoji-picker-option"
               data-emoji={emoji}
               aria-label={label}
@@ -39,31 +42,31 @@ function EmojiPicker({
               title={label}
               className={cn(
                 `
-                  flex size-8 items-center justify-center rounded-md text-base transition-colors
-                  hover:bg-accent
-                  focus-visible:outline-1 focus-visible:outline-ring
+                  size-8 text-base text-foreground transition-colors
+                  hover:text-foreground
+                  focus-visible:ring-0 focus-visible:outline-1 focus-visible:outline-ring
                 `,
                 isSelected && "bg-accent"
               )}
               onClick={pickEmoji(emoji)}
             >
               {emoji}
-            </button>
+            </Button>
           );
         })}
       </div>
-      <button
+      <Button
         type="button"
+        variant="ghost"
         data-slot="docblocks/emoji-picker-clear"
         className="
-          -mx-1 rounded-md px-2 py-1 text-left text-xs text-muted-foreground transition-colors
-          hover:bg-accent hover:text-foreground
-          focus-visible:outline-1 focus-visible:outline-ring
+          -mx-1 h-auto px-2 py-1 text-left text-xs font-normal text-muted-foreground transition-colors
+          focus-visible:ring-0 focus-visible:outline-1 focus-visible:outline-ring
         "
         onClick={onClear}
       >
         Remove avatar
-      </button>
+      </Button>
     </div>
   );
 }

@@ -15,6 +15,7 @@
  */
 import { useEffect, useState } from "react";
 
+import { Button } from "./Button";
 import { cn } from "./cn";
 import { normalizeHex, resolveColorToHex } from "./color-utils";
 
@@ -81,16 +82,18 @@ function ColorSwatches({
       {colors.map((entry, index) => {
         const selected = isColorSelected(entry, index);
         return (
-          <button
+          <Button
             key={index}
             type="button"
+            variant="ghost"
+            size="icon"
             data-slot="docblocks/palette-swatch"
             data-color={entry}
             aria-label={`${label} color ${index + 1}`}
             aria-pressed={selected}
             title={entry}
             className={cn(
-              "size-5 shrink-0 rounded-full border",
+              "size-5 rounded-full border transition-none",
               selected ? "border-2 border-(--primary)" : "border-(--border)"
             )}
             style={{ background: entry }}
@@ -99,15 +102,17 @@ function ColorSwatches({
         );
       })}
       {allowNone && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           data-slot="docblocks/palette-none"
           data-color="none"
           aria-label="No color"
           aria-pressed={noneActive}
           title="No color"
           className={cn(
-            "relative size-5 shrink-0 overflow-hidden rounded-full border",
+            "size-5 overflow-hidden rounded-full border transition-none",
             noneActive ? "border-2 border-(--primary)" : "border-(--border)"
           )}
           style={{ background: "var(--background, #ffffff)" }}
@@ -119,16 +124,18 @@ function ColorSwatches({
               absolute top-1/2 left-1/2 h-px w-7 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-(--destructive)
             "
           />
-        </button>
+        </Button>
       )}
       {allowCustom && (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon"
           data-slot="docblocks/palette-custom"
           data-color="custom"
           aria-label="Custom color"
           title="Custom color"
-          className="size-5 shrink-0 rounded-full border border-(--border)"
+          className="size-5 rounded-full border border-(--border) transition-none"
           style={{
             background: "conic-gradient(red, orange, yellow, green, cyan, blue, magenta, red)",
           }}
