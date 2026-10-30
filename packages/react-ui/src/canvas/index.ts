@@ -32,4 +32,12 @@ export {
   placeDragBox,
   snapAnySurfaceEdge,
 } from "./viewport/utils";
-export type { Box, CanvasMode, CanvasPoint, CanvasTool, MovePreview, ResizeHandle } from "./viewport";
+export type {
+  Box,
+  CanvasMode,
+  CanvasPoint,
+  CanvasTool,
+  CanvasViewportState,
+  MovePreview,
+  ResizeHandle,
+} from "./viewport";
