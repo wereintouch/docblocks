@@ -1,6 +1,6 @@
 /** The mention trigger's query derivation: the live query over the `@`
  *  phrase (analogous to the slash's derivation). */
-import { isQueryBoundary } from "../slash/utils";
+import { isQueryBoundary } from "../phrase";
 import type { MentionDerivation } from "./models";
 
 /**

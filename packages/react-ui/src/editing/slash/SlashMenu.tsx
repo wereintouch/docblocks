@@ -8,10 +8,11 @@ import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { locatePosition } from "../dom-offset";
+import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
 import { DatabaseSlashPicker } from "../slash-database-picker";
 import { SlashEmbedForm } from "../slash-embed-form";
 import type { SlashDerivation, SlashMenuProps } from "./models";
-import { blockTextOf, deriveSlash, filterCommands, liveCaretOf, slashInnerOf } from "./utils";
+import { deriveSlash, filterCommands } from "./utils";
 
 /**
  * The floating command list: a plain absolutely-positioned div inside the
@@ -83,7 +84,7 @@ function SlashMenu({
       return;
     }
     const root = rootRef.current;
-    const inner = slashInnerOf(rootRef, state.blockId);
+    const inner = blockInnerOf(rootRef, state.blockId);
     if (root === null || inner === null) return;
     const start = locatePosition(inner, state.slashOffset);
     const end = locatePosition(inner, state.slashOffset + 1);

@@ -9,7 +9,7 @@ import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
 import { focusCaretIn } from "../block-commands";
-import { blockTextOf, isQueryBoundary, liveCaretOf, slashInnerOf } from "../slash/utils";
+import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phrase";
 import { MentionPicker } from "./MentionPicker";
 import type { MentionDerivation, MentionMenuApi, MentionMenuState, MentionPick } from "./models";
 import { deriveMention } from "./utils";
@@ -191,7 +191,7 @@ function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionM
     const onSelectionChange = () => {
       const s = stateRef.current;
       if (s === null) return;
-      const el = slashInnerOf(rootRef, s.blockId);
+      const el = blockInnerOf(rootRef, s.blockId);
       if (el === null) {
         setState(null);
         return;

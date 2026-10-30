@@ -10,19 +10,10 @@ import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 import { useEditorContext } from "../../editor-provider";
 import { focusCaretIn, segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
+import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phrase";
 import { SlashMenu } from "./SlashMenu";
 import type { EmbedKind, OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
-import {
-  applySlashPlan,
-  blockTextOf,
-  deriveSlash,
-  filterCommands,
-  indentOf,
-  isQueryBoundary,
-  liveCaretOf,
-  planSlashApply,
-  slashInnerOf,
-} from "./utils";
+import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply } from "./utils";
 
 const SlashMenuContext = createContext<SlashMenuApi | null>(null);
 
@@ -414,7 +405,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       // The picker / form is standing (the input's focus is expected — the
       // menu stays open over the phrase until it commits or cancels).
       if (databasePickRef.current || embedFormRef.current) return;
-      const el = slashInnerOf(rootRef, s.blockId);
+      const el = blockInnerOf(rootRef, s.blockId);
       if (el === null) {
         setState(null);
         return;

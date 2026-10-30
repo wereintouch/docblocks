@@ -9,7 +9,7 @@ import { useBlock } from "../../hooks";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { locatePosition } from "../dom-offset";
-import { blockTextOf, liveCaretOf, slashInnerOf } from "../slash/utils";
+import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
 import type { MentionDerivation, MentionMenuProps, MentionPick } from "./models";
 import { deriveMention } from "./utils";
 
@@ -92,7 +92,7 @@ function MentionPicker(props: MentionMenuProps) {
       return;
     }
     const root = rootRef.current;
-    const inner = slashInnerOf(rootRef, state.blockId);
+    const inner = blockInnerOf(rootRef, state.blockId);
     if (root === null || inner === null) return;
     const start = locatePosition(inner, state.atOffset);
     const end = locatePosition(inner, state.atOffset + 1);
