@@ -32,14 +32,6 @@ interface EndpointPoint {
   ny: number;
 }
 
-/** The port's outward normal (the curved line bows out from it). */
-const PORT_NORMAL: Record<CanvasPort, { nx: number; ny: number }> = {
-  north: { nx: 0, ny: -1 },
-  east: { nx: 1, ny: 0 },
-  south: { nx: 0, ny: 1 },
-  west: { nx: -1, ny: 0 },
-};
-
 /** The connector's line shape (the absent variant renders straight). */
 type ConnectorVariant = "straight" | "orthogonal" | "curved";
 
@@ -61,15 +53,11 @@ interface ConnectorPath {
   mid: { x: number; y: number };
 }
 
-const ORTHO_STUB_PX = 12;
 /** The orthogonal detour's offset beyond the endpoints' span (canvas px). */
-const ORTHO_DETOUR_PX = 24;
 /** The obstacle detour's clearance from the obstacle's edge (canvas px —
  * the parity with the stub's offset). */
-const ORTHO_AVOID_MARGIN_PX = 12;
 /** The route-avoidance's boundary tolerance (canvas px — a route 0.5px
  * off a figure's edge stands clear of it). */
-const ROUTE_EPS = 0.5;
 
 /** A point of the computed route (the orthogonal's bend space). */
 interface RoutePoint {

@@ -3,4 +3,4 @@
  * the one-transaction block apply, the plain-text read) and the multi-block
  * markdown materialization of the `text/plain` branch.
  */
-export * from "./utils";
+export { applyMdPaste, applyRichPaste, htmlToBlocks, plainTextOfHtml, rawTextOfHtml } from "./utils";

@@ -35,7 +35,7 @@ const CHIP_BORDER_STYLE: Record<"solid" | "dash" | "dot", "solid" | "dashed" | "
  * (canvas px — the frame's thickness over the zoom); `lineStyle` stands
  * the line's `strokeStyle` (the frame's dash / the dot's stand).
  */
-export function connectorLabelChipStyle(
+function connectorLabelChipStyle(
   mid: { x: number; y: number },
   stroke: string,
   width = 1,
@@ -94,3 +94,5 @@ function ConnectorLabelChip({
 }
 
 export { ConnectorLabelChip };
+
+export { connectorLabelChipStyle };

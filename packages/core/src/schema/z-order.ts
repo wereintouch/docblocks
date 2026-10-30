@@ -21,7 +21,7 @@ import type { DocJSON } from "./types";
 import { isPlainObject } from "./utils";
 
 /** The canvas element types that carry the explicit z-order `zIndex`. */
-export const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
+const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);
 
 function normalizeZOrder(json: DocJSON): DocJSON {
   const source = json.blocks as unknown as Record<string, Record<string, unknown>>;
@@ -65,3 +65,5 @@ function normalizeZOrder(json: DocJSON): DocJSON {
 }
 
 export { normalizeZOrder };
+
+export { CANVAS_ZORDER_TYPES };

@@ -25,7 +25,7 @@ import { type DropRow, clampTailSeatCrossing, commitFlatDrag, dropCandidateInden
 import { pointerYOf, tailSeatId } from "./utils";
 
 /** The local row order: live during a drag (framer's reorder), locked to the store otherwise. */
-export function useMotionDrag({
+function useMotionDrag({
   doc,
   rootBlockId,
   store,
@@ -258,3 +258,5 @@ export function useMotionDrag({
     onRowReorder,
   };
 }
+
+export { useMotionDrag };

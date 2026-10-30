@@ -1,2 +1,2 @@
-export * from "./html";
-export * from "./markdown";
+export { applyMdPaste } from "./markdown";
+export { applyRichPaste, htmlToBlocks, plainTextOfHtml, rawTextOfHtml } from "./html";

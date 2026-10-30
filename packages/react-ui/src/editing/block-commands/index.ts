@@ -6,4 +6,20 @@
  * never writes the DOM back; the store rebuilds it, and the focus/caret
  * move is a DOM-only effect scheduled for the next frame.
  */
-export * from "./utils";
+export {
+  ensureTrailingParagraph,
+  extendSelectionTo,
+  findParentId,
+  focusCaretIn,
+  focusCellActivation,
+  indentIn,
+  indentOf,
+  mergeWithPrevious,
+  moveSegmentInSequence,
+  outdentBlock,
+  removeBlocksSelection,
+  reseatHistorySelection,
+  restoreSelectionIn,
+  segmentRange,
+  splitAt,
+} from "./utils";

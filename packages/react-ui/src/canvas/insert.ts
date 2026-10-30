@@ -15,7 +15,7 @@ type ShapeVariant = "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "c
  */
 
 /** The first surface (root order); created in `doc.transact` when absent. */
-export function firstSurface(doc: Doc): BlockId {
+function firstSurface(doc: Doc): BlockId {
   for (const id of doc.getChildren(doc.meta.id)) {
     if (doc.getBlock(id)?.type === "surface") return id;
   }
@@ -30,12 +30,7 @@ export function firstSurface(doc: Doc): BlockId {
  * A placed shape (rect / rounded / ellipse / diamond / cylinder / cloud)
  * at the point. Returns the new block id.
  */
-export function placeShape(
-  doc: Doc,
-  variant: ShapeVariant,
-  point: CanvasPoint,
-  size: { w: number; h: number }
-): BlockId {
+function placeShape(doc: Doc, variant: ShapeVariant, point: CanvasPoint, size: { w: number; h: number }): BlockId {
   const surface = firstSurface(doc);
   let id: BlockId | null = null;
   doc.transact(() => {
@@ -48,7 +43,7 @@ export function placeShape(
 /**
  * A placed canvas-text at the point. Returns the new block id.
  */
-export function placeCanvasText(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
+function placeCanvasText(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
   const surface = firstSurface(doc);
   let id: BlockId | null = null;
   doc.transact(() => {
@@ -62,7 +57,7 @@ export function placeCanvasText(doc: Doc, point: CanvasPoint, size: { w: number;
  * A placed frame at the point, with a starter paragraph inside (an empty
  * frame has no block to seat the caret on). Returns the new frame id.
  */
-export function placeFrame(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
+function placeFrame(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
   const surface = firstSurface(doc);
   let id: BlockId | null = null;
   doc.transact(() => {
@@ -78,7 +73,7 @@ export function placeFrame(doc: Doc, point: CanvasPoint, size: { w: number; h: n
  * an empty group (no members yet — the figures are dragged into it) with
  * its own free box. Returns the new group id.
  */
-export function placeContainer(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
+function placeContainer(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
   const surface = firstSurface(doc);
   let id: BlockId | null = null;
   doc.transact(() => {
@@ -94,7 +89,7 @@ export function placeContainer(doc: Doc, point: CanvasPoint, size: { w: number; 
  * Returns the new block id. Throws (and the transaction rolls back) when
  * the endpoints are not siblings of one surface.
  */
-export function placeConnector(doc: Doc, startId: BlockId, endId: BlockId): BlockId {
+function placeConnector(doc: Doc, startId: BlockId, endId: BlockId): BlockId {
   const surface = findParentSurface(doc, startId);
   if (surface === null || findParentSurface(doc, endId) !== surface) {
     throw new InvalidOperationError("The connector's endpoints must be canvas items of the same surface.");
@@ -110,7 +105,7 @@ export function placeConnector(doc: Doc, startId: BlockId, endId: BlockId): Bloc
  * A placed pen stroke: the shape's points (the block-local stroke) + the
  * bbox geometry. Returns the new block id.
  */
-export function placePenStroke(doc: Doc, stroke: PenStroke): BlockId {
+function placePenStroke(doc: Doc, stroke: PenStroke): BlockId {
   const surface = firstSurface(doc);
   let id: BlockId | null = null;
   doc.transact(() => {
@@ -121,7 +116,7 @@ export function placePenStroke(doc: Doc, stroke: PenStroke): BlockId {
 }
 
 /** The parent surface's id of a canvas item (null when not a surface child). */
-export function findParentSurface(doc: Doc, id: BlockId): BlockId | null {
+function findParentSurface(doc: Doc, id: BlockId): BlockId | null {
   for (const surfaceId of doc.getChildren(doc.meta.id)) {
     const surface = doc.getBlock(surfaceId);
     if (surface?.type !== "surface") continue;
@@ -138,7 +133,7 @@ export function findParentSurface(doc: Doc, id: BlockId): BlockId | null {
  * or the members across surfaces — the group is a flat marker over its
  * siblings, never a container). No throw: the hotkey's no-op posture.
  */
-export function makeGroup(doc: Doc, ids: readonly BlockId[]): BlockId | null {
+function makeGroup(doc: Doc, ids: readonly BlockId[]): BlockId | null {
   if (ids.length < 2) return null;
   let surface: BlockId | null = null;
   for (const id of ids) {
@@ -162,9 +157,22 @@ export function makeGroup(doc: Doc, ids: readonly BlockId[]): BlockId | null {
  * a container — no cascade). Returns false for the non-group id (the
  * caller's delete path owns it).
  */
-export function dissolveGroup(doc: Doc, id: BlockId): boolean {
+function dissolveGroup(doc: Doc, id: BlockId): boolean {
   const block = doc.getBlock(id);
   if (block === null || block.type !== "group") return false;
   doc.removeBlock(id);
   return true;
 }
+
+export {
+  firstSurface,
+  placeShape,
+  placeCanvasText,
+  placeFrame,
+  placeContainer,
+  placeConnector,
+  placePenStroke,
+  findParentSurface,
+  makeGroup,
+  dissolveGroup,
+};
