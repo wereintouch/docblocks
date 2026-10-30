@@ -7,7 +7,7 @@
 import type { DatabaseFilterPayload } from "docblocks-core";
 
 import { BareSelect, Button, Input } from "../../shared/ui";
-import { cn } from "../../shared/ui/cn";
+import { SegmentSelector } from "../../shared/ui/SegmentSelector";
 import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
 import { refEntryKey } from "../grid/use-ref-tables";
@@ -27,6 +27,11 @@ interface FilterBuilderProps {
 }
 
 /** The recursive and/or filter editor (the group card). */
+const FILTER_LOGIC_OPTIONS = [
+  { value: "and", label: "AND" },
+  { value: "or", label: "OR" },
+] as const;
+
 function FilterBuilder({ value, columns, onChange, refTableData }: FilterBuilderProps) {
   const payload = value ?? emptyFilter();
   return (
@@ -62,8 +67,9 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
     onChange({ ...payload, groups: (payload.groups ?? []).filter((_, at) => at !== index) });
 
   const addGroup = () => onChange({ ...payload, groups: [...(payload.groups ?? []), emptyFilter()] });
-  const setLogicAnd = () => setLogic("and");
-  const setLogicOr = () => setLogic("or");
+  const onLogicChange = (logic: "and" | "or") => {
+    if (logic !== payload.logic) setLogic(logic);
+  };
   // The per-item stands over the group's list handlers (the map's index
   // stand).
   const conditionChange = (index: number) => (next: DatabaseFilterPayload["conditions"][number]) =>
@@ -79,33 +85,16 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
       className="flex flex-col gap-2 rounded-md border border-border p-2"
     >
       <div className="flex items-center gap-2">
-        {/* The segmented text toggle stands raw: the SegmentSelector's
-            buttons are icon-sized (size-6), the text labels need its
-            text variant (the design-system gap). */}
-        <div data-slot="docblocks/filter-logic" className="flex items-center rounded-md border border-border">
-          <button
-            type="button"
-            data-filter-logic="and"
-            className={cn(
-              "cursor-pointer px-2 py-0.5 text-xs outline-none",
-              payload.logic === "and" ? "bg-accent text-foreground" : "text-muted-foreground"
-            )}
-            onClick={setLogicAnd}
-          >
-            AND
-          </button>
-          <button
-            type="button"
-            data-filter-logic="or"
-            className={cn(
-              "cursor-pointer px-2 py-0.5 text-xs outline-none",
-              payload.logic === "or" ? "bg-accent text-foreground" : "text-muted-foreground"
-            )}
-            onClick={setLogicOr}
-          >
-            OR
-          </button>
-        </div>
+        <SegmentSelector
+          options={FILTER_LOGIC_OPTIONS}
+          value={payload.logic}
+          onChange={onLogicChange}
+          ariaLabel="Filter logic"
+          slot="docblocks/filter-logic"
+          pillSlot="docblocks/filter-logic-pill"
+          buttonAttrName="filter-logic"
+          size="text"
+        />
         <span className="text-xs text-muted-foreground">
           match {payload.logic === "and" ? "all" : "any"} of the conditions
         </span>

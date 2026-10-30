@@ -16,8 +16,11 @@ import { cn } from "./cn";
 interface SegmentOption<T extends string> {
   value: T;
   label: string;
-  icon: ReactNode;
+  /** The icon stand (the icon size's option); the text size's options render the label. */
+  icon?: ReactNode;
 }
+
+type SegmentSelectorSize = "icon" | "text";
 
 interface PillGeometry {
   left: number;
@@ -34,6 +37,7 @@ function SegmentSelector<T extends string>({
   slot,
   pillSlot,
   buttonAttrName,
+  size = "icon",
 }: {
   options: readonly SegmentOption<T>[];
   value: T;
@@ -45,6 +49,9 @@ function SegmentSelector<T extends string>({
   pillSlot: string;
   /** The per-button data attribute name (rendered as `data-{name}={value}`). */
   buttonAttrName: string;
+  /** The button's stand: `icon` (the size-6 icon seat, the default) or
+   * `text` (the text label's stand — the compact h-6 label button). */
+  size?: SegmentSelectorSize;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   /** The sliding pill's geometry (the active button's position and size in the list). */
@@ -130,15 +137,16 @@ function SegmentSelector<T extends string>({
           title={option.label}
           className={cn(
             `
-              relative z-10 flex size-6 items-center justify-center rounded-md transition-colors
+              relative z-10 flex items-center justify-center rounded-md transition-colors
               focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
               focus-visible:outline-ring
             `,
+            size === "icon" ? "size-6" : "h-6 px-2 text-xs",
             value === option.value ? "text-foreground" : "hover:text-foreground"
           )}
           onClick={selectOption(option.value)}
         >
-          {option.icon}
+          {size === "text" ? option.label : option.icon}
         </button>
       ))}
     </div>
@@ -146,4 +154,4 @@ function SegmentSelector<T extends string>({
 }
 
 export { SegmentSelector };
-export type { SegmentOption };
+export type { SegmentOption, SegmentSelectorSize };
