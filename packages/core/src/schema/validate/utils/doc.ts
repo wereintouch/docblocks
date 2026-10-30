@@ -7,6 +7,7 @@
 import type { BlockType } from "../../block-union";
 import { isReservedId } from "../../id-safety";
 import { BLOCK_REGISTRY } from "../../registry";
+import { indentOf } from "../../utils";
 import { CANVAS_ZORDER_TYPES } from "../../z-order";
 import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../models";
 import type { ValidationError } from "../models";
@@ -42,13 +43,6 @@ function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): 
       message: `createdAt must be an ISO 8601 date-time (got ${show(doc.createdAt)}).`,
     });
   }
-}
-
-/** The block's effective indent; absent (or a non-integer, reported by the attrs spec) is 0. */
-function indentOf(block: Record<string, unknown>): number {
-  const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
-  const indent = attrs?.indent;
-  return typeof indent === "number" && Number.isInteger(indent) ? indent : 0;
 }
 
 /**

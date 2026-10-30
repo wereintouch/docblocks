@@ -18,9 +18,7 @@
  * rewritten entries are new.
  */
 import type { DocJSON } from "./types";
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { isPlainObject } from "./utils";
 
 /** The canvas element types that carry the explicit z-order `zIndex`. */
 export const CANVAS_ZORDER_TYPES: ReadonlySet<string> = new Set(["shape", "connector", "canvas-text", "group"]);

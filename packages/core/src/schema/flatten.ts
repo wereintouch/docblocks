@@ -27,18 +27,9 @@
 import type { Block, BlockType } from "./block-union";
 import { BLOCK_REGISTRY } from "./registry";
 import type { BlockId, DocJSON } from "./types";
-
-const isPlainObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
+import { indentOf, isPlainObject } from "./utils";
 
 type BlockMap = Record<string, unknown>;
-
-/** The block's stored indent; absent (or a non-integer — the validator reports it) is 0. */
-function storedIndent(block: Record<string, unknown>): number {
-  const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
-  const indent = attrs?.indent;
-  return typeof indent === "number" && Number.isInteger(indent) ? indent : 0;
-}
 
 /** The legacy `children` ids; null when the block carries no legacy form. */
 function legacyChildrenOf(block: Record<string, unknown>): unknown[] | null {
@@ -83,7 +74,7 @@ function expand(
       out.push(id); // a cycle (only in unvalidated input)
       continue;
     }
-    const stored = storedIndent(block);
+    const stored = indentOf(block);
     // A top-level entry is clamped against the preceding entry (a jump
     // violation — the lenient reader clamps); an inlined legacy child
     // derives its indent from the depth (the parent's final indent + 1).
