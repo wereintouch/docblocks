@@ -5,8 +5,8 @@ import { entrySequenceParent } from "../blocks";
 import { useEditorContext } from "../editor-provider";
 import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection, reseatHistorySelection } from "./block-commands";
 import { crossRangeClipboardContent, segmentOf } from "./cross-copy";
-import { useCrossDrag } from "./cross-drag";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
+import { useCrossDrag } from "./use-cross-drag";
 
 interface EditingHandle {
   /** Attach to the editor root element. */

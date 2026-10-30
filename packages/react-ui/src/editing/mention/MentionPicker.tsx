@@ -18,7 +18,7 @@ const SEARCH_DEBOUNCE_MS = 120;
 
 type MentionResult = { users: MentionEntry[]; docs: MentionEntry[] };
 
-function MentionMenu(props: MentionMenuProps) {
+function MentionPicker(props: MentionMenuProps) {
   const { rootRef, state, provider, active, onItemsChange, onHover, onPick, onClose } = props;
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
@@ -193,4 +193,4 @@ function MentionMenu(props: MentionMenuProps) {
   );
 }
 
-export { MentionMenu as MentionPicker };
+export { MentionPicker };
