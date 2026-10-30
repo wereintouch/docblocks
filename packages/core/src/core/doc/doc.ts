@@ -49,33 +49,23 @@ import {
   setZOrder as setZOrderCommand,
   unsetMark as unsetMarkCommand,
   updateBlock as updateBlockCommand,
-} from "./commands";
-import type { ChangeBlockTypeArgs, InsertBlockArgs, MarkInput, ZOrderAction } from "./commands";
-import { InvalidOperationError, InvalidSnapshotError, formatValidationErrors } from "./errors";
+} from "../commands";
+import type { ChangeBlockTypeArgs, InsertBlockArgs, MarkInput, ZOrderAction } from "../commands";
+import { InvalidOperationError, InvalidSnapshotError, formatValidationErrors } from "../errors";
 import {
   observeText as observeDocText,
   onBlock as onDocBlock,
   onChange as onDocChange,
   onRemoteChange as onDocRemoteChange,
-} from "./events";
-import type { Change } from "./events";
-import { undoManagerOf } from "./history";
-import { layoutDoc, loadOriginOf, localTransact, writeDocument } from "./layout";
-import { readBlock, readChildren, readMeta, readRuns, readText, toDocJSON } from "./read";
-import type { TextPoint } from "./selection";
+} from "../events";
+import type { Change } from "../events";
+import { undoManagerOf } from "../history";
+import { layoutDoc, loadOriginOf, localTransact, writeDocument } from "../layout";
+import { readBlock, readChildren, readMeta, readRuns, readText, toDocJSON } from "../read";
+import type { TextPoint } from "../selection";
+import type { CreateDocOptions } from "./models";
 
 const randomId = (): string => crypto.randomUUID();
-
-/** Options for createDoc: document identity and metadata (all optional). */
-interface CreateDocOptions {
-  /** Document id; defaults to a generated id (see `generateId`). */
-  id?: BlockId;
-  title?: string;
-  /** ISO 8601; defaults to the current time. */
-  createdAt?: string;
-  /** Document id generator; defaults to randomUUID. */
-  generateId?: () => string;
-}
 
 /**
  * A document: the live CRDT version of a schema JSON snapshot.
@@ -537,35 +527,4 @@ class Doc {
   }
 }
 
-/**
- * Create a new document. Initial state: only the root block (empty page),
- * whose id equals the document id. No auto first paragraph.
- */
-function createDoc(options: CreateDocOptions = {}): Doc {
-  return Doc.create(options);
-}
-
-/**
- * Restore a document from a CRDT snapshot.
- *
- * Expects a FULL snapshot state and throws InvalidSnapshotError otherwise
- * (e.g. on an incremental diff): a delta applied to an empty doc is a silent
- * partial document, so the state is validated on load. The consumer pattern
- * for a base + diffs is `loadDoc(base)` followed by `applyUpdate(diff)`.
- */
-function loadDoc(bytes: Uint8Array): Doc {
-  return Doc.load(bytes);
-}
-
-/**
- * Build a document from schema JSON. Validates first and throws the
- * ValidationError list as-is on violations. The legacy nesting form is
- * valid input and is normalized to the flat form on load. Runs are written
- * as given.
- */
-function fromJSON(json: DocJSON): Doc {
-  return Doc.fromJSON(json);
-}
-
-export { Doc, createDoc, fromJSON, loadDoc };
-export type { CreateDocOptions };
+export { Doc };
