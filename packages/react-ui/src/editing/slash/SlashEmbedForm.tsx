@@ -9,6 +9,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+import { BareSelect } from "../../shared/ui/BareSelect";
+import { Button } from "../../shared/ui/Button";
+import { Input } from "../../shared/ui/Input";
 import { Check } from "../../shared/ui/icons";
 import type { EmbedKind } from "./models";
 
@@ -52,14 +55,12 @@ function SlashEmbedForm({
 
   return (
     <div data-slot="docblocks/slash-embed-form" className="flex w-56 flex-col gap-2 p-1">
-      <input
+      <Input
+        size="sm"
         ref={urlInputRef}
         type="text"
         data-slot="docblocks/slash-embed-url"
-        className="
-          h-8 w-full rounded-sm border border-border bg-transparent px-2 text-sm outline-none
-          placeholder:text-muted-foreground
-        "
+        className="rounded-sm"
         placeholder="Embed URL (https://…)"
         value={url}
         onKeyDown={(event) => {
@@ -72,12 +73,9 @@ function SlashEmbedForm({
         onChange={(event) => setUrl(event.target.value)}
       />
       <div className="flex items-center gap-1">
-        <select
+        <BareSelect
           data-slot="docblocks/slash-embed-kind"
-          className="
-            h-7 min-w-0 flex-1 cursor-default rounded-sm border border-border bg-transparent px-1 text-sm
-            text-foreground outline-none
-          "
+          className="h-7 min-w-0 flex-1 cursor-default rounded-sm px-1"
           value={kind}
           onKeyDown={stopFormKey}
           onChange={(event) => setKind(event.target.value as EmbedKind)}
@@ -87,22 +85,18 @@ function SlashEmbedForm({
               {value}
             </option>
           ))}
-        </select>
-        <button
-          type="button"
+        </BareSelect>
+        <Button
           data-slot="docblocks/slash-embed-insert"
-          className="
-            flex size-7 shrink-0 cursor-default items-center justify-center rounded-sm border border-border
-            text-foreground select-none
-            hover:bg-accent hover:text-accent-foreground
-            disabled:cursor-default disabled:opacity-50
-          "
+          variant="outline"
+          size="icon"
+          className="size-7 cursor-default rounded-sm bg-transparent disabled:cursor-default dark:bg-transparent"
           disabled={!canCommit}
           onMouseDown={(event) => event.preventDefault()}
           onClick={commit}
         >
           <Check className="size-4" />
-        </button>
+        </Button>
       </div>
     </div>
   );

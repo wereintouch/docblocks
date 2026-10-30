@@ -11,6 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "../shared/ui/DropdownMenu";
+import { Input } from "../shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
@@ -207,7 +208,8 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
           >
             <div className="relative">
               <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
+              <Input
+                size="sm"
                 data-slot="docblocks/code-language-search"
                 type="text"
                 value={query}
@@ -221,10 +223,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                 }}
                 placeholder="Search language…"
                 aria-label="Search language"
-                className="
-                  h-8 w-full rounded-md border border-border bg-transparent pr-2 pl-7 text-sm outline-none
-                  focus:border-ring
-                "
+                className="pr-2 pl-7 focus:border-ring"
               />
             </div>
             <ScrollArea role="listbox" aria-label="Languages" className="max-h-64 overflow-x-hidden py-0.5">

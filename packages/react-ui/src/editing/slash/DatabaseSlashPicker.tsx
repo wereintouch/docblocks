@@ -13,6 +13,8 @@ import { useEffect, useRef, useState } from "react";
 
 import type { TableRef } from "../../database";
 import { useEditorContext } from "../../editor-provider";
+import { Button } from "../../shared/ui/Button";
+import { Input } from "../../shared/ui/Input";
 import { Check, Plus } from "../../shared/ui/icons";
 
 /** The table picker panel (the slash menu's database state). */
@@ -80,14 +82,12 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
     <div data-slot="docblocks/slash-database-picker" className="flex w-56 flex-col gap-2 p-1">
       {createOpen ? (
         <div data-slot="docblocks/slash-database-create-form" className="flex items-center gap-1">
-          <input
+          <Input
+            size="sm"
             ref={nameInputRef}
             type="text"
             data-slot="docblocks/slash-database-name"
-            className="
-              h-8 min-w-0 flex-1 rounded-sm border border-border bg-transparent px-2 text-sm outline-none
-              placeholder:text-muted-foreground
-            "
+            className="rounded-sm"
             placeholder="New table name"
             value={name}
             onKeyDown={(event) => {
@@ -99,49 +99,41 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
             }}
             onChange={(event) => setName(event.target.value)}
           />
-          <button
-            type="button"
+          <Button
             data-slot="docblocks/slash-database-create"
-            className="
-              flex size-8 shrink-0 cursor-default items-center justify-center rounded-sm border border-border
-              text-foreground select-none
-              hover:bg-accent hover:text-accent-foreground
-              disabled:cursor-default disabled:opacity-50
-            "
+            variant="outline"
+            size="icon"
+            className="size-8 cursor-default rounded-sm bg-transparent disabled:cursor-default dark:bg-transparent"
             disabled={name.trim().length === 0 || creating}
             onMouseDown={(event) => event.preventDefault()}
             onClick={create}
           >
             <Check className="size-4" />
-          </button>
+          </Button>
         </div>
       ) : (
-        <button
-          type="button"
+        <Button
           data-slot="docblocks/slash-database-create-new"
-          className="
-            flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm select-none
-            hover:bg-accent hover:text-accent-foreground
-          "
+          variant="ghost"
+          size="sm"
+          className="h-auto cursor-default rounded-sm px-2 py-1.5 text-sm font-normal"
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => setCreateOpen(true)}
         >
           <Plus className="size-4" />
           New table
-        </button>
+        </Button>
       )}
       {error !== null && (
         <div data-slot="docblocks/slash-database-error" className="px-2 py-1 text-xs text-destructive">
           {error}
         </div>
       )}
-      <input
+      <Input
+        size="sm"
         type="text"
         data-slot="docblocks/slash-database-search"
-        className="
-          h-8 w-full rounded-sm border border-border bg-transparent px-2 text-sm outline-none
-          placeholder:text-muted-foreground
-        "
+        className="rounded-sm"
         placeholder="Search tables…"
         value={query}
         onKeyDown={stopPickerKey}
@@ -159,23 +151,21 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
             </div>
           )}
           {filtered.map((ref) => (
-            <button
+            <Button
               key={ref.id}
-              type="button"
-              role="menuitem"
               data-slot="docblocks/slash-database-table"
               data-table-id={ref.id}
-              className="
-                flex cursor-default items-center rounded-sm px-2 py-1.5 text-sm select-none
-                hover:bg-accent hover:text-accent-foreground
-              "
+              variant="ghost"
+              size="sm"
+              role="menuitem"
+              className="h-auto w-full cursor-default justify-start rounded-sm px-2 py-1.5 text-sm font-normal"
               // The mousedown suppression keeps the caret's selection alive
               // across the click (the menu panel idiom).
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => onCommit(ref.id)}
             >
               {ref.name}
-            </button>
+            </Button>
           ))}
         </div>
       )}
