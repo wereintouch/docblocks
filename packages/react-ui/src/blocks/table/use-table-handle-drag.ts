@@ -9,7 +9,7 @@
  * state stands in the hook (the view reads the dragged row/column's live
  * position + the parting shift). */
 import { useState } from "react";
-import type { MutableRefObject, PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BlockId, Doc, TableBlock as TableBlockType } from "docblocks-core";
 import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
@@ -21,7 +21,7 @@ import { columnDropPosition, rowDropPosition, sameSequence } from "./utils";
 interface TableHandleDragDeps {
   /** The handle's drag session (shared with the add chip's + the seam's
    * guards — a press starts at most one session at a time). */
-  sessionRef: MutableRefObject<TableHandleSession | null>;
+  sessionRef: RefObject<TableHandleSession | null>;
   setHover: (hover: { row: number; col: number } | null) => void;
   setMenu: (menu: { kind: HandleKind; index: number } | null) => void;
   /** The table element (the live DOM — the drop measurement reads it). */

@@ -8,7 +8,7 @@
  * adds one) — the drag's release suppresses the capture's click. The
  * preview's state stands in the view (the chips' ghost / dimmed rows /
  * columns). */
-import type { MutableRefObject, PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BlockId, Doc, TableBlock as TableBlockType } from "docblocks-core";
 
@@ -18,15 +18,15 @@ import { addDragCount, sameSequence } from "./utils";
 
 interface TableAddChipsDeps {
   /** The add chip's drag session. */
-  addSessionRef: MutableRefObject<AddChipSession | null>;
+  addSessionRef: RefObject<AddChipSession | null>;
   /** The handle's drag session (the guard — a press starts at most one
    * session at a time). */
-  sessionRef: MutableRefObject<TableHandleSession | null>;
+  sessionRef: RefObject<TableHandleSession | null>;
   /** The seam's resize session (the guard). */
-  resizeSessionRef: MutableRefObject<ColumnResizeSession | null>;
+  resizeSessionRef: RefObject<ColumnResizeSession | null>;
   /** The click that follows the drag's release (the chip's onClick skips
    * it). */
-  addDragClickRef: MutableRefObject<boolean>;
+  addDragClickRef: RefObject<boolean>;
   setAddPreview: (preview: { kind: HandleKind; count: number } | null) => void;
   doc: Doc;
   /** The table's row ids (the press-time snapshot). */

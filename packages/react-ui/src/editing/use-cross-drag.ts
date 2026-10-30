@@ -44,6 +44,9 @@ function seatCrossSelection(anchor: DragPosition, position: DragPosition): void 
  * there is no own-scope text to stand on.
  */
 function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): DragPosition | null {
+  // The WebKit caret-range API (Chrome / Safari); the standard caretPositionFromPoint
+  // is Firefox-only and the geometry fallback below stands the non-WebKit positions.
+  // deprecation-allow: the WebKit caret-range API.
   const caretRange = typeof document.caretRangeFromPoint === "function" ? document.caretRangeFromPoint(x, y) : null;
   if (caretRange !== null) {
     const container =

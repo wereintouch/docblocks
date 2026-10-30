@@ -5,7 +5,7 @@
  * the cancel. The preview's state stands in the hook (the view's read of
  * the dragged column's width). */
 import { useState } from "react";
-import type { MutableRefObject, PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BlockId, Doc } from "docblocks-core";
 
@@ -21,7 +21,7 @@ interface TableSeamResizeDeps {
   id: BlockId;
   /** The seam's resize session (shared with the add chip's + the handle's
    * guards — a press starts at most one session at a time). */
-  resizeSessionRef: MutableRefObject<ColumnResizeSession | null>;
+  resizeSessionRef: RefObject<ColumnResizeSession | null>;
 }
 
 function useTableSeamResize({ docWidths, doc, id, resizeSessionRef }: TableSeamResizeDeps) {

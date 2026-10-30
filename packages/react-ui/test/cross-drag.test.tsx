@@ -42,6 +42,7 @@ function innerOf(id: BlockId): HTMLElement {
 function stubCaret() {
   let target: BlockId | null = null;
   let offset = 0;
+  // deprecation-allow: the WebKit caret-range API the hook reads (Chrome / Safari).
   document.caretRangeFromPoint = (x: number, y: number) => {
     void x;
     void y;
@@ -139,6 +140,7 @@ afterEach(() => {
   cleanup();
   // The stub is a property assignment (jsdom's document takes it); an
   // undefined value stands for the unimplemented method.
+  // deprecation-allow: the WebKit caret-range API the hook reads (Chrome / Safari).
   document.caretRangeFromPoint = undefined as unknown as typeof document.caretRangeFromPoint;
 });
 
