@@ -1,71 +1,16 @@
+/** The block keyboard hook: the format shortcuts, the navigation
+ *  (arrow-key) moves, and the table-cell descent. */
 import { useCallback } from "react";
-import type { KeyboardEvent, RefObject } from "react";
+import type { KeyboardEvent } from "react";
 
-import { BLOCK_REGISTRY } from "docblocks-core";
-import type { BlockId, BlockType, Doc } from "docblocks-core";
+import type { BlockId } from "docblocks-core";
 
-import type { BlockContextValue } from "../blocks";
-import { useEditorContext } from "../editor-provider";
-import { extendSelectionTo, focusCaretIn, moveSegmentInSequence, segmentRange } from "./block-commands";
-import { caretOffsetIn, editorRootOf, textBlockOfNode } from "./dom-offset";
-import { syncDomSelection } from "./selection-mapping";
-
-/** The marks the format shortcuts and the mark toolbar toggle. */
-type FormatMark = "bold" | "italic" | "strike" | "underline" | "code";
-
-/**
- * The toggle decision for one mark over [from, to): "unset" when every run
- * overlapping the range already carries the mark, "set" otherwise. A
- * partially covered run counts only if it carries the mark. Reads the block
- * snapshot via `getBlock`; the caller issues the command.
- */
-function markToggleAction(doc: Doc, blockId: BlockId, from: number, to: number, mark: FormatMark): "set" | "unset" {
-  const block = doc.getBlock(blockId);
-  if (block === null || !("content" in block)) return "set";
-  let pos = 0;
-  let overlaps = false;
-  for (const run of block.content ?? []) {
-    const start = pos;
-    pos += run.text.length;
-    if (pos <= from || start >= to) continue;
-    overlaps = true;
-    if (run.marks[mark] !== true) return "set";
-  }
-  return overlaps ? "unset" : "set";
-}
-
-/**
- * The adjacent sibling a cross-block arrow can land in: the nearest
- * previous/next sibling whose type carries text content — non-text siblings
- * (divider, image, ...) are skipped. Null when nothing with content remains
- * in that direction.
- */
-function findSiblingTextBlock(
-  doc: Doc,
-  id: BlockId,
-  parentId: BlockId,
-  direction: "previous" | "next"
-): { id: BlockId; length: number } | null {
-  const siblings = doc.getChildren(parentId);
-  const index = siblings.indexOf(id);
-  if (index === -1) return null;
-  const step = direction === "previous" ? -1 : 1;
-  for (let i = index + step; i >= 0 && i < siblings.length; i += step) {
-    const siblingId = siblings[i];
-    if (siblingId === undefined) return null;
-    const sibling = doc.getBlock(siblingId);
-    if (sibling === null || !BLOCK_REGISTRY[sibling.type].content) continue;
-    return { id: siblingId, length: doc.getTextLength(siblingId) };
-  }
-  return null;
-}
-
-interface BlockKeyboardProps {
-  id: BlockId;
-  blockType: BlockType;
-  context: BlockContextValue;
-  innerRef: RefObject<HTMLElement | null>;
-}
+import { useEditorContext } from "../../editor-provider";
+import { extendSelectionTo, focusCaretIn, moveSegmentInSequence, segmentRange } from "../block-commands";
+import { caretOffsetIn, editorRootOf, textBlockOfNode } from "../dom-offset";
+import { syncDomSelection } from "../selection-mapping";
+import type { BlockKeyboardProps, FormatMark } from "./models";
+import { cellDescendTarget, findSiblingTextBlock, markToggleAction, parentBlockIdOf } from "./utils";
 
 /**
  * The block's keyboard gestures beyond the input-safety guards: cross-block
@@ -227,34 +172,4 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
   return { onKeyDown };
 }
 
-/**
- * The parent of a block element: the nearest block wrapper above it (the
- * nested children render inside the parent's wrapper), or the document
- * root when it stands at the top level.
- */
-function parentBlockIdOf(blockEl: HTMLElement, doc: Doc): BlockId {
-  const wrapper = blockEl.parentElement;
-  const parent = wrapper?.parentElement?.closest<HTMLElement>("[data-block-id]") ?? null;
-  return parent?.dataset.blockId ?? doc.meta.id;
-}
-
-/**
- * The down-edge descent of a focused text block's cell's own content
- * layer: the layer stands above the cell's children sequence, so the
- * first text child takes the caret (the row's sibling walk finds the next
- * cell instead). Null for every other block or edge.
- */
-function cellDescendTarget(doc: Doc, focusBlockId: BlockId): { id: BlockId; length: number } | null {
-  const block = doc.getBlock(focusBlockId);
-  if (block === null || block.type !== "table-cell") return null;
-  for (const childId of doc.getChildren(focusBlockId)) {
-    if (childId === undefined) return null;
-    const child = doc.getBlock(childId);
-    if (child === null || !BLOCK_REGISTRY[child.type].content) continue;
-    return { id: childId, length: doc.getTextLength(childId) };
-  }
-  return null;
-}
-
-export { markToggleAction, useBlockKeyboard };
-export type { FormatMark };
+export { useBlockKeyboard };
