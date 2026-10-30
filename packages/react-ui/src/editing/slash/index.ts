@@ -62,8 +62,9 @@
  * (embed, sync-embed, the canvas types) are not offered; they stay
  * command-API inserts.
  */
-export { SlashMenuContext, useSlashMenu, useSlashMenuApi } from "./hooks";
-export { COMMAND_PALETTE_PLACEHOLDER, SLASH_COMMANDS } from "./models";
+export { SlashMenuContext, useSlashMenuApi } from "./context";
+export { useSlashMenu } from "./hooks";
+export { COMMAND_PALETTE_PLACEHOLDER, SLASH_COMMANDS } from "./constants";
 export { deriveSlash, filterCommands, planSlashApply } from "./utils";
 export { DatabaseSlashPicker } from "./DatabaseSlashPicker";
 export { SlashEmbedForm } from "./SlashEmbedForm";

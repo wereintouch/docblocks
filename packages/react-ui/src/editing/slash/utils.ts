@@ -7,7 +7,7 @@ import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH, InvalidAttrsError, InvalidO
 
 import { focusCaretIn, focusCellActivation } from "../block-commands";
 import { isQueryBoundary } from "../phrase";
-import { SLASH_COMMANDS } from "./models";
+import { SLASH_COMMANDS } from "./constants";
 import type { SlashApplyPlan, SlashCommand, SlashDerivation } from "./models";
 
 /** The command list filtered by the query (empty query = the full list). */

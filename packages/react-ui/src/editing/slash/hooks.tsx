@@ -1,8 +1,7 @@
-/** The slash menu's editor-level hooks: the context api and the
- *  `useSlashMenu` owner hook (the state + the auto-close + the pick /
- *  image / database commit paths). */
+/** The slash menu's owner hook: the editor-level state + the auto-close +
+ *  the pick / image / database commit paths. */
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BlockId } from "docblocks-core";
 import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
@@ -14,13 +13,6 @@ import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phra
 import { SlashMenu } from "./SlashMenu";
 import type { EmbedKind, OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
 import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply } from "./utils";
-
-const SlashMenuContext = createContext<SlashMenuApi | null>(null);
-
-/** The slash menu api for the nearest editor root (null = slash disabled). */
-function useSlashMenuApi(): SlashMenuApi | null {
-  return useContext(SlashMenuContext);
-}
 
 /**
  * The editor-level slash menu state and UI. The root owns the state and
@@ -451,4 +443,4 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   return { api, menuNode };
 }
 
-export { SlashMenuContext, useSlashMenu, useSlashMenuApi };
+export { useSlashMenu };
