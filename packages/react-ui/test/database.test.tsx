@@ -15,7 +15,7 @@ import { refEntryKey } from "../src/database/grid/use-ref-tables";
 import type { RefTableDataMap } from "../src/database/grid/use-ref-tables";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
-import { DatabaseSlashPicker } from "../src/editing/slash-database-picker";
+import { DatabaseSlashPicker } from "../src/editing/slash/DatabaseSlashPicker";
 import { EditorProvider } from "../src/editor-provider";
 
 // The radix Select drives the cell's pick through the pointer-capture API

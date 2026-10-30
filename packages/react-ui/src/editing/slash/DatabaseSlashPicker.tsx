@@ -11,9 +11,9 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-import type { TableRef } from "../database";
-import { useEditorContext } from "../editor-provider";
-import { Check, Plus } from "../shared/ui/icons";
+import type { TableRef } from "../../database";
+import { useEditorContext } from "../../editor-provider";
+import { Check, Plus } from "../../shared/ui/icons";
 
 /** The table picker panel (the slash menu's database state). */
 function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: string) => void; onCancel: () => void }) {

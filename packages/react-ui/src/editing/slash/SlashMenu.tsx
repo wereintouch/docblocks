@@ -9,8 +9,8 @@ import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { locatePosition } from "../dom-offset";
 import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
-import { DatabaseSlashPicker } from "../slash-database-picker";
-import { SlashEmbedForm } from "../slash-embed-form";
+import { DatabaseSlashPicker } from "./DatabaseSlashPicker";
+import { SlashEmbedForm } from "./SlashEmbedForm";
 import type { SlashDerivation, SlashMenuProps } from "./models";
 import { deriveSlash, filterCommands } from "./utils";
 

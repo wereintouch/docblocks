@@ -9,8 +9,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-import { Check } from "../shared/ui/icons";
-import type { EmbedKind } from "./slash/models";
+import { Check } from "../../shared/ui/icons";
+import type { EmbedKind } from "./models";
 
 /** The embed's kind catalog (the core `EmbedAttrs.kind` enum). */
 const EMBED_KINDS = ["iframe", "github", "figma", "loom", "html"] as const;
