@@ -77,6 +77,11 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
         data-state="diagram"
         className="mt-(--docblocks-block-spacing)"
       >
+        {/* The one dangerously-set node in the package: the svg is the
+            mermaid `render`'s own output over the strict-security stand
+            (the source sanitized, no scripts / click handlers bound —
+            mermaid-config.ts), so the node carries no attacker surface
+            beyond the diagram's own content. */}
         <div data-slot="docblocks/mermaid-diagram" dangerouslySetInnerHTML={{ __html: state.svg }} />
       </div>
     );
