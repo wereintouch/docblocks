@@ -102,10 +102,7 @@ const TableCell = memo(function TableCell({
     <td
       data-slot="docblocks/table-cell"
       data-block-id={id}
-      className={`
-        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
-        p-(--docblocks-table-cell-padding) align-top
-      `}
+      className="border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) p-(--docblocks-table-cell-padding) align-top"
       style={style}
     >
       <BlockContext.Provider value={contextValue}>

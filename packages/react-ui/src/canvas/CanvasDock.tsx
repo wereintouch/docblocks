@@ -107,11 +107,7 @@ const CanvasDock = memo(
           data-slot="docblocks/canvas-dock"
           role="toolbar"
           aria-label="Canvas tools"
-          className="
-            flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
-            bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color)
-            shadow-(--docblocks-formatbar-shadow)
-          "
+          className="flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)"
           onMouseDown={preventDefault}
         >
           {/* The mode's button: the icon stands the current mode (the

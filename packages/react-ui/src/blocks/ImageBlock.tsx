@@ -116,10 +116,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
         data-subtype="pdf"
         src={url}
         title={meta.name ?? "document"}
-        className="
-          my-(--docblocks-block-spacing) block aspect-video w-full rounded-(--docblocks-image-radius)
-          border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
-        "
+        className="my-(--docblocks-block-spacing) block aspect-video w-full rounded-(--docblocks-image-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none"
       />
     );
   }

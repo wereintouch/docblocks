@@ -116,11 +116,7 @@ function HeaderCell({
       onPointerUp={onPointerUp}
     >
       <ColumnIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span
-        className="
-          min-w-0 flex-1 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)
-        "
-      >
+      <span className="min-w-0 flex-1 truncate px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)">
         {column.name}
       </span>
       <div className="ml-auto flex shrink-0 items-center">
@@ -130,11 +126,7 @@ function HeaderCell({
               data-slot="docblocks/database-column-menu"
               variant="ghost"
               size="icon"
-              className="
-                size-5 cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
-                hover:bg-transparent hover:text-(--docblocks-text-color)
-                dark:hover:bg-transparent
-              "
+              className="size-5 cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color) hover:bg-transparent hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
             >
               <Ellipsis className="size-4" />
             </Button>

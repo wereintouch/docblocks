@@ -212,10 +212,7 @@ function ConnectorToolbar({
         data-slot="docblocks/connector-toolbar"
         role="toolbar"
         aria-label="Connector options"
-        className="
-          flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
-          bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
-        "
+        className="flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)"
       >
         {option("straight", "Straight line", <Diagonal className="size-4" />)}
         {option("orthogonal", "Orthogonal line", <Elbow className="size-4" />)}

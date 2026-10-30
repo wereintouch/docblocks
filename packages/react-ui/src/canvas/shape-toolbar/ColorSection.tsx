@@ -128,11 +128,7 @@ function ColorSection({
           size="sm"
           data-slot={`docblocks/shape-${target}-hex`}
           aria-label={`${label} hex value`}
-          className="
-            mt-2 h-7 w-full rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
-            bg-(--docblocks-editor-background) px-2 font-mono text-xs text-(--docblocks-text-color)
-            dark:bg-(--docblocks-editor-background)
-          "
+          className="mt-2 h-7 w-full rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color) bg-(--docblocks-editor-background) px-2 font-mono text-xs text-(--docblocks-text-color) dark:bg-(--docblocks-editor-background)"
           placeholder="#rrggbb"
           value={draft}
           onChange={onHexChange}

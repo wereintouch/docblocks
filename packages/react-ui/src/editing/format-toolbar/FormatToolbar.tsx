@@ -324,11 +324,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       ref={barRef}
       role="toolbar"
       aria-label="Text formatting"
-      className="
-        absolute z-50 flex items-center gap-0.5 rounded-(--docblocks-radius) border
-        border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background) p-1 text-[0.8125em]
-        text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
-      "
+      className="absolute z-50 flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background) p-1 text-[0.8125em] text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)"
       // Keep the text selection: a default mousedown would move the caret
       // into the bar and dismiss the toolbar (the selection maps to none).
       onMouseDown={preventDefault}

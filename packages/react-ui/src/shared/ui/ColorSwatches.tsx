@@ -115,9 +115,7 @@ function ColorSwatches({
         >
           <span
             aria-hidden
-            className="
-              absolute top-1/2 left-1/2 h-px w-7 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-(--destructive)
-            "
+            className="absolute top-1/2 left-1/2 h-px w-7 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-(--destructive)"
           />
         </button>
       )}

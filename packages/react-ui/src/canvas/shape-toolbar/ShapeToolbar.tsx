@@ -160,10 +160,7 @@ function ShapeToolbar({
         data-slot="docblocks/shape-toolbar"
         role="toolbar"
         aria-label="Shape options"
-        className="
-          flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
-          bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
-        "
+        className="flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)"
       >
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -284,11 +281,7 @@ function ShapeToolbar({
                 title="Text font size"
                 placeholder={String(fontSize ?? 16)}
                 value={sizeDraft}
-                className="
-                  h-7 w-12 rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
-                  bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color)
-                  dark:bg-(--docblocks-editor-background)
-                "
+                className="h-7 w-12 rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color) bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color) dark:bg-(--docblocks-editor-background)"
                 onMouseDown={stopPropagation}
                 onChange={onSizeChange}
                 onKeyDown={onSizeKeyDown}

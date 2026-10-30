@@ -54,10 +54,7 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
       <span
         data-slot="docblocks/database-enum-option-grip"
         onPointerDown={onGripPointerDown}
-        className="
-          flex size-5 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground
-          active:cursor-grabbing
-        "
+        className="flex size-5 shrink-0 cursor-grab touch-none items-center justify-center text-muted-foreground active:cursor-grabbing"
       >
         <GripVertical className="size-3.5" />
       </span>
@@ -97,11 +94,7 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
         data-slot="docblocks/database-enum-option-delete"
         variant="ghost"
         size="icon"
-        className="
-          size-5 shrink-0 cursor-pointer text-muted-foreground
-          hover:bg-transparent hover:text-foreground
-          dark:hover:bg-transparent
-        "
+        className="size-5 shrink-0 cursor-pointer text-muted-foreground hover:bg-transparent hover:text-foreground dark:hover:bg-transparent"
         onClick={onRemove}
       >
         <X className="size-3.5" />

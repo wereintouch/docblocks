@@ -257,10 +257,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                       aria-selected={selected}
                       data-lang-value={lang.value || "plain"}
                       onClick={pick(lang.value)}
-                      className="
-                        flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm
-                        hover:bg-accent hover:text-accent-foreground
-                      "
+                      className="flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground"
                     >
                       <span className="truncate">{lang.label}</span>
                       {selected && <Check className="size-4 shrink-0" />}
@@ -324,10 +321,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
               data-slot="docblocks/code-more"
               aria-label="Code options"
               title="More options"
-              className="
-                size-7 text-[length:inherit]
-                data-[state=open]:bg-accent data-[state=open]:text-accent-foreground
-              "
+              className="size-7 text-[length:inherit] data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
             >
               <EllipsisVertical className="size-4" />
             </Button>

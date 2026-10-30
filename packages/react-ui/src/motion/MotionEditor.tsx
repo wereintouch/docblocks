@@ -147,9 +147,7 @@ function MotionEditor({
                     // is unpadded.
                     <div
                       data-slot="docblocks/page"
-                      className="
-                        mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
-                      "
+                      className="mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)"
                     >
                       <RowList
                         order={order}

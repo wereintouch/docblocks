@@ -23,10 +23,7 @@ function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType })
       data-slot="docblocks/block"
       data-block-type="database"
       data-block-id={id}
-      className="
-        my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-        border-(--docblocks-table-border-color) outline-none
-      "
+      className="my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none"
     >
       <CardContent data-slot="docblocks/database">
         <div

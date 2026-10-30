@@ -126,10 +126,7 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
       onChange={onCaptionChange}
       onFocus={focusLocal}
       onBlur={blurLocal}
-      className="
-        mx-auto my-1 block w-[90%] bg-transparent text-center text-[0.8125em] text-muted-foreground outline-none
-        placeholder:text-muted-foreground/60
-      "
+      className="mx-auto my-1 block w-[90%] bg-transparent text-center text-[0.8125em] text-muted-foreground outline-none placeholder:text-muted-foreground/60"
     />
   );
 }

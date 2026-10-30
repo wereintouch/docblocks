@@ -567,12 +567,7 @@ function DatabaseCell({
             data-slot="docblocks/database-cell-multiline"
             ref={multiLineRefCallback}
             rows={6}
-            className="
-              resize-none scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-y-auto border-border
-              bg-transparent px-2.75 py-1.75 shadow-none select-text
-              focus-visible:ring-0
-              md:text-base
-            "
+            className="resize-none scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-y-auto border-border bg-transparent px-2.75 py-1.75 shadow-none select-text focus-visible:ring-0 md:text-base"
             value={textDraft ?? ""}
             onChange={onMultiChange}
             onBlur={onEditEnd}

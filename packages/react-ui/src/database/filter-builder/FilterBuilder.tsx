@@ -7,6 +7,7 @@
 import type { DatabaseFilterPayload } from "docblocks-core";
 
 import { BareSelect, Button, Input } from "../../shared/ui";
+import { cn } from "../../shared/ui/cn";
 import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
 import { refEntryKey } from "../grid/use-ref-tables";
@@ -85,9 +86,10 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           <button
             type="button"
             data-filter-logic="and"
-            className={`cursor-pointer px-2 py-0.5 text-xs outline-none ${
+            className={cn(
+              "cursor-pointer px-2 py-0.5 text-xs outline-none",
               payload.logic === "and" ? "bg-accent text-foreground" : "text-muted-foreground"
-            }`}
+            )}
             onClick={setLogicAnd}
           >
             AND
@@ -95,9 +97,10 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           <button
             type="button"
             data-filter-logic="or"
-            className={`cursor-pointer px-2 py-0.5 text-xs outline-none ${
+            className={cn(
+              "cursor-pointer px-2 py-0.5 text-xs outline-none",
               payload.logic === "or" ? "bg-accent text-foreground" : "text-muted-foreground"
-            }`}
+            )}
             onClick={setLogicOr}
           >
             OR

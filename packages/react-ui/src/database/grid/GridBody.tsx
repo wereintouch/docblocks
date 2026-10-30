@@ -371,10 +371,7 @@ function GridBody({
         data-slot="docblocks/block"
         data-block-type="database"
         data-block-id={id}
-        className="
-          my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-          border-(--docblocks-table-border-color) outline-none
-        "
+        className="my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none"
       >
         <CardContent
           data-slot="docblocks/database"
@@ -484,10 +481,7 @@ function GridBody({
       data-block-type="database"
       data-block-id={id}
       data-state="ready"
-      className="
-        my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-        border-(--docblocks-table-border-color) outline-none
-      "
+      className="my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none"
     >
       <CardContent
         data-slot="docblocks/database"
@@ -587,12 +581,7 @@ function GridBody({
                       data-slot="docblocks/filter-clear"
                       variant="outline"
                       size="sm"
-                      className="
-                        cursor-pointer bg-transparent px-2 py-1 text-xs font-normal shadow-none
-                        hover:bg-transparent hover:opacity-70
-                        dark:bg-transparent
-                        dark:hover:bg-transparent
-                      "
+                      className="cursor-pointer bg-transparent px-2 py-1 text-xs font-normal shadow-none hover:bg-transparent hover:opacity-70 dark:bg-transparent dark:hover:bg-transparent"
                       onClick={resetFilterDraft}
                     >
                       Clear
@@ -602,11 +591,7 @@ function GridBody({
                       variant="outline"
                       size="sm"
                       disabled={!filterIsComplete(filterDraft, data.table.columns)}
-                      className="
-                        cursor-pointer bg-accent px-2 py-1 text-xs font-normal
-                        hover:opacity-70
-                        disabled:cursor-default disabled:opacity-40
-                      "
+                      className="cursor-pointer bg-accent px-2 py-1 text-xs font-normal hover:opacity-70 disabled:cursor-default disabled:opacity-40"
                       onClick={applyFilter}
                     >
                       Apply
@@ -674,10 +659,7 @@ function GridBody({
             ))}
             <div
               data-slot="docblocks/database-add-column"
-              className="
-                relative flex items-center justify-center border-b-(length:--docblocks-table-border-width)
-                border-(--docblocks-table-border-color)
-              "
+              className="relative flex items-center justify-center border-b-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)"
             >
               <DropdownMenu modal={false} open={addingColumn} onOpenChange={setAddingColumn}>
                 <DropdownMenuTrigger asChild>
@@ -982,10 +964,7 @@ function GridBody({
           {rows.length === 0 && (
             <div
               data-slot="docblocks/database-empty"
-              className="
-                px-(--docblocks-table-cell-padding) py-(--docblocks-block-spacing) text-(length:--docblocks-font-size)
-                text-(--docblocks-placeholder-color) select-none
-              "
+              className="px-(--docblocks-table-cell-padding) py-(--docblocks-block-spacing) text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color) select-none"
             >
               No rows{filter !== undefined ? " match the filter" : ""}.
             </div>

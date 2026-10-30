@@ -30,11 +30,7 @@ const ZoomControls = memo(
           data-slot="docblocks/zoom-controls"
           role="toolbar"
           aria-label="Canvas zoom"
-          className="
-            flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
-            bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color)
-            shadow-(--docblocks-formatbar-shadow)
-          "
+          className="flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)"
           onMouseDown={preventDefault}
         >
           <Button variant="ghost" size="icon" aria-label="Fit to screen" onClick={onFit}>
