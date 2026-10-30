@@ -2,7 +2,8 @@
 import type { MentionMenuApi, MentionMenuProps, MentionMenuState, MentionPick } from "./models";
 import type { MentionDerivation } from "./models";
 
-export { MentionMenuContext, useMentionMenu, useMentionMenuApi } from "./hooks";
+export { MentionMenuContext, useMentionMenuApi } from "./context";
+export { useMentionMenu } from "./hooks";
 export { MentionPicker } from "./MentionPicker";
 export { deriveMention } from "./utils";
 export type { MentionDerivation, MentionMenuApi, MentionMenuProps, MentionMenuState, MentionPick };

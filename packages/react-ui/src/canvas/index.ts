@@ -14,7 +14,7 @@ export { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "./ins
 export { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "./nudge";
 export { ShapeToolbar } from "./shape-toolbar";
 export { SHAPE_FONT_OPTIONS, SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, SHAPE_TEXT_WEIGHTS } from "./text-fonts";
-export { zPositionOf } from "./z-order-menu";
+export { zPositionOf } from "./ZOrderMenu";
 export {
   MOVE_THRESHOLD_PX,
   canvasToScreen,

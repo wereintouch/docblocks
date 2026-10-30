@@ -32,9 +32,9 @@ import {
 } from "../shared/ui";
 import { Separator } from "../shared/ui/Separator";
 import { ArrowRight, Circle, Curve, Dashed, Diagonal, Elbow, Minus, Stroke } from "../shared/ui/icons";
+import { ZOrderMenu } from "./ZOrderMenu";
 import { ColorSection } from "./shape-toolbar/ColorSection";
 import { BORDER_WIDTH_POINTS } from "./shape-toolbar/models";
-import { ZOrderMenu } from "./z-order-menu";
 
 const WIDTH_POINTS = BORDER_WIDTH_POINTS;
 /** The absent width's stand (the registry's default). */

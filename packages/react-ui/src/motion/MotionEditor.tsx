@@ -32,7 +32,7 @@ import { useEditorContext } from "../editor-provider";
 import { PresenceCaretOverlay } from "../presence";
 import { Card } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
-import { MotionEnumOptionsEditor } from "./EnumOptions";
+import { MotionEnumOptionsEditor } from "./MotionEnumOptionsEditor";
 import { RowList } from "./RowList";
 import { HANDLE_GRAB_STYLE } from "./constants";
 import { useEnterAnimationGate, useTypingFlag } from "./hooks";

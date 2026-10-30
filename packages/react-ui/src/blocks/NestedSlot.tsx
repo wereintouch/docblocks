@@ -20,9 +20,9 @@ import type { ReactNode } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
+import type { BlockRenderer } from "./ListRun";
+import { GroupedNodes, ListRun, nestedSegments } from "./ListRun";
 import type { FlatNode, ListKind } from "./flat";
-import type { BlockRenderer } from "./list-run";
-import { GroupedNodes, ListRun, nestedSegments } from "./list-run";
 
 /**
  * The derived nested content's collapse gate: while the parent block is

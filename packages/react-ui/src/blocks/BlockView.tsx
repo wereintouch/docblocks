@@ -23,12 +23,12 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
+import type { BlockRenderer } from "./ListRun";
+import { GroupedNodes } from "./ListRun";
+import { ItemNested, NestedSlot } from "./NestedSlot";
 import { dispatchBuiltIn } from "./block-dispatch";
 import { deriveFlat } from "./flat";
 import type { FlatNode } from "./flat";
-import type { BlockRenderer } from "./list-run";
-import { GroupedNodes } from "./list-run";
-import { ItemNested, NestedSlot } from "./nested-slot";
 
 /**
  * The block body + the derived nested content, per view.

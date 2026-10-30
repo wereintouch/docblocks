@@ -40,8 +40,8 @@ import {
   Type,
   X,
 } from "../../shared/ui/icons";
+import { ZOrderMenu } from "../ZOrderMenu";
 import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "../text-fonts";
-import { ZOrderMenu } from "../z-order-menu";
 import { ColorSection } from "./ColorSection";
 import { BORDER_WIDTH_POINTS, SHAPE_VARIANTS } from "./models";
 import type { ShapeVariantId } from "./models";

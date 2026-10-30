@@ -1,7 +1,8 @@
-/** The mention picker's editor-level hooks: the context api and the
- *  `useMentionMenu` owner hook (the state, the `@` trigger, the live-query
- *  pick over the consumer's mention provider, and the open-menu keys). */
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+/** The mention picker's `useMentionMenu` owner hook (the state, the
+ *  `@` trigger, the live-query pick over the consumer's mention
+ *  provider, and the open-menu keys). The context stands in
+ *  `context.ts` (the provider's seat is the editor's root). */
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 
 import type { BlockId } from "docblocks-core";
@@ -13,13 +14,6 @@ import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phra
 import { MentionPicker } from "./MentionPicker";
 import type { MentionDerivation, MentionMenuApi, MentionMenuState, MentionPick } from "./models";
 import { deriveMention } from "./utils";
-
-const MentionMenuContext = createContext<MentionMenuApi | null>(null);
-
-/** The mention picker api for the nearest editor root (null = mention disabled). */
-function useMentionMenuApi(): MentionMenuApi | null {
-  return useContext(MentionMenuContext);
-}
 
 /**
  * The editor-level mention picker state. The root owns the state and renders
@@ -232,4 +226,4 @@ function useMentionMenu(rootRef: RefObject<HTMLElement | null>): { api: MentionM
   return { api, menuNode };
 }
 
-export { MentionMenuContext, useMentionMenu, useMentionMenuApi };
+export { useMentionMenu };
