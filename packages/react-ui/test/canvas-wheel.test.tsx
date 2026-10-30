@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { wheelGesture, wheelPanDeltas } from "../src/blocks/canvas-view/models";
+import { wheelGesture, wheelPanDeltas } from "../src/blocks/canvas-view/utils";
 import { pinchZoom } from "../src/canvas/viewport";
 import { EditorProvider } from "../src/editor-provider";
 

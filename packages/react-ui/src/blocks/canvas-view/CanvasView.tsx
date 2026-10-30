@@ -103,12 +103,9 @@ import {
   SCROLLBAR_GUARD_PX,
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
-  isPlaceTool,
-  wheelGesture,
-  wheelPanDeltas,
-} from "./models";
-import type { CanvasSession } from "./models";
-import { toggleCanvasSelection } from "./utils";
+} from "./constants";
+import type { CanvasPointerSession } from "./models";
+import { isPlaceTool, toggleCanvasSelection, wheelGesture, wheelPanDeltas } from "./utils";
 
 function CanvasView() {
   const { store, doc, rootBlockId, selection } = useEditorContext();
@@ -124,7 +121,7 @@ function CanvasView() {
   const [storedViewport] = useState(() => readCanvasViewport(doc.meta.id));
   const viewport = useCanvasViewport(doc, storedViewport);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const sessionRef = useRef<CanvasSession | null>(null);
+  const sessionRef = useRef<CanvasPointerSession | null>(null);
   // The page miniature's first press stands the card's move session over
   // the page's content (the two-click contract) — the flag drops the
   // compatibility mousedown's default (the caret / the focus move).

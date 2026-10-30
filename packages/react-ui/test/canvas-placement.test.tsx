@@ -9,7 +9,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 
-import { SHAPE_TOOLS, isShapeTool } from "../src/blocks/canvas-view/models";
+import { SHAPE_TOOLS } from "../src/blocks/canvas-view/constants";
+import { isShapeTool } from "../src/blocks/canvas-view/utils";
 import { CanvasDock } from "../src/canvas/CanvasDock";
 import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport";
