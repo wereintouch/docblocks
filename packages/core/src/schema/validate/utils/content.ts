@@ -6,7 +6,7 @@
 import type { BlockType } from "../../block-union";
 import { MARK_REGISTRY } from "../../registry";
 import type { AttrSpec, BlockSpec, MarkFieldSpec } from "../../registry";
-import type { MarkName } from "../../types";
+import type { MarkName } from "../../text";
 import type { ValidationError } from "../models";
 import { isHexColor, isLinkHref, isPlainObject, show } from "./common";
 

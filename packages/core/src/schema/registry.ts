@@ -6,7 +6,7 @@ import type { BlockType } from "./block-union";
 import { CANVAS_BLOCK_SPECS } from "./canvas-registry";
 import { ALIGN, CALLOUT_ICONS, DATABASE_CELL_TYPES, DEFAULT_TABLE_COLUMN_WIDTH, INDENT } from "./constants";
 import type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry-specs";
-import type { MarkName } from "./types";
+import type { MarkName } from "./text";
 
 const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
   root: { content: false, children: true, rows: false, childrenTypes: PAGE_BLOCK_TYPES, sequence: true },

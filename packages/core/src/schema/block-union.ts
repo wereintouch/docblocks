@@ -20,6 +20,7 @@ import type {
   WithGeometry,
 } from "./canvas";
 import type { DatabaseAttrs, DatabaseBlock } from "./database";
+import type { TableAttrs, TableBlock, TableCellBlock, TableRowBlock } from "./table";
 import type {
   CalloutAttrs,
   CalloutBlock,
@@ -40,11 +41,7 @@ import type {
   RootBlock,
   SyncEmbedAttrs,
   SyncEmbedBlock,
-  TableAttrs,
-  TableBlock,
   TableCellAttrs,
-  TableCellBlock,
-  TableRowBlock,
 } from "./types";
 
 type Block =

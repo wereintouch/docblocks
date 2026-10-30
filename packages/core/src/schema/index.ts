@@ -25,7 +25,6 @@ export {
 export type { ValidationError } from "./validate";
 export type { AttrsFor, Block, BlockAttrsPatch, BlockType } from "./block-union";
 export type {
-  BlockContent,
   BlockId,
   CalloutAttrs,
   CalloutBlock,
@@ -58,10 +57,6 @@ export type {
   ImageBlock,
   ListItemAttrs,
   ListItemBlock,
-  MarkName,
-  MarkSet,
-  MentionKind,
-  MentionMark,
   OpaqueBlock,
   PageIndent,
   ParagraphAttrs,
@@ -71,14 +66,11 @@ export type {
   ShapeBlock,
   SurfaceAttrs,
   SurfaceBlock,
-  TableAttrs,
-  TableBlock,
   TableCellAttrs,
-  TableCellBlock,
-  TableRowBlock,
   SyncEmbedAttrs,
   SyncEmbedBlock,
   SyncEmbedRef,
   TextAlign,
-  TextRun,
 } from "./types";
+export type { BlockContent, MarkName, MarkSet, MentionKind, MentionMark, TextRun } from "./text";
+export type { TableAttrs, TableBlock, TableCellBlock, TableRowBlock } from "./table";

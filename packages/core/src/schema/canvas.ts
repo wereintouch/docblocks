@@ -7,7 +7,8 @@
  * page view (the block flows); in the canvas view — the position. A block
  * without a geometry has no canvas placement.
  */
-import type { BlockContent, BlockId } from "./types";
+import type { BlockContent } from "./text";
+import type { BlockId } from "./types";
 
 /** The canvas geometry of a block. */
 interface Geometry {
