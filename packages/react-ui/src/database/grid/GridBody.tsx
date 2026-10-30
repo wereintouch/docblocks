@@ -8,9 +8,12 @@ import { Fragment, useMemo, useRef, useState } from "react";
 import type { BlockId, DatabaseFilterPayload } from "docblocks-core";
 
 import { Badge } from "../../shared/ui/Badge";
+import { Button } from "../../shared/ui/Button";
 import { Card, CardContent } from "../../shared/ui/Card";
 import { Checkbox } from "../../shared/ui/Checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
+import { Input } from "../../shared/ui/Input";
+import { Label } from "../../shared/ui/Label";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../shared/ui/Select";
@@ -34,6 +37,23 @@ import { refEntryKey, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
 import { emptyColumnForm } from "./utils";
 import { cellKeyOf, visibleColumns } from "./utils";
+
+// The grid's chrome frame: the --docblocks-* table's look (the border's
+// width / color, the radius, the transparent's background) — the call
+// site's classes merge over the primitive's stand (the call site's win);
+// the dark's variant re-sits the same tokens. The portaled's content
+// (the filter's popover) does not use it — the standard's tokens reach
+// there.
+const GRID_CHROME_FRAME =
+  "rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width) " +
+  "border-(--docblocks-table-border-color) bg-transparent " +
+  "dark:border-(--docblocks-table-border-color) dark:bg-transparent";
+
+// The chrome button's hover: the opacity's dim stand — the primitive's
+// hover's background / text stand is suppressed (the grid's hover is the
+// dim, not the accent's fill).
+const GRID_BUTTON_HOVER =
+  "cursor-pointer hover:opacity-70 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent";
 
 interface GridBodyProps {
   id: BlockId;
@@ -364,19 +384,17 @@ function GridBody({
               {data.error ?? `The table "${tableId}" is unknown to the bridge.`}
             </span>
           </div>
-          <button
-            type="button"
+          <Button
             data-slot="docblocks/database-retry"
-            className="
-              cursor-pointer rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-              border-(--docblocks-table-border-color) bg-transparent px-2 py-1 text-(length:--docblocks-font-size)
-              outline-none
-              hover:opacity-70
-            "
+            variant="outline"
+            size="sm"
+            className={
+              GRID_CHROME_FRAME + GRID_BUTTON_HOVER + " px-2 py-1 text-(length:--docblocks-font-size) shadow-none"
+            }
             onClick={() => data.retry()}
           >
             Retry
-          </button>
+          </Button>
         </CardContent>
       </Card>
     );
@@ -415,13 +433,13 @@ function GridBody({
       >
         <div data-slot="docblocks/database-toolbar" className="flex flex-wrap items-center gap-2">
           {nameDraft !== null ? (
-            <input
+            <Input
+              size="sm"
               data-slot="docblocks/database-name-input"
-              className="
-                min-w-32 rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-                border-(--docblocks-table-border-color) bg-transparent px-1 text-(length:--docblocks-font-size)
-                font-(--docblocks-heading-font-weight) outline-none
-              "
+              className={
+                GRID_CHROME_FRAME +
+                " min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
+              }
               value={nameDraft}
               autoFocus
               onChange={(event) => setNameDraft(event.target.value)}
@@ -432,54 +450,55 @@ function GridBody({
               }}
             />
           ) : (
-            <button
-              type="button"
+            <Button
               data-slot="docblocks/database-name"
+              variant="ghost"
+              size="sm"
               title="Rename"
-              className="
-                cursor-text rounded-(--docblocks-radius) px-1 text-(length:--docblocks-font-size)
-                font-(--docblocks-heading-font-weight) outline-none
-                hover:opacity-70
-              "
+              className={
+                GRID_CHROME_FRAME +
+                GRID_BUTTON_HOVER +
+                " cursor-text px-1 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
+              }
               onClick={() => setNameDraft(displayName)}
             >
               {displayName}
-            </button>
+            </Button>
           )}
           <Badge data-slot="docblocks/database-count" variant="secondary">
             {rows.length} {rows.length === 1 ? "row" : "rows"}
           </Badge>
           <div className="ml-auto flex items-center gap-2">
-            <button
-              type="button"
+            <Button
               data-slot="docblocks/database-undo"
+              variant="outline"
+              size="sm"
               data-disabled={data.canUndo ? undefined : true}
-              className="
-                cursor-pointer rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-                border-(--docblocks-table-border-color) bg-transparent px-2 py-0.5 text-xs outline-none
-                hover:opacity-70
-                disabled:cursor-default disabled:opacity-40
-              "
+              className={
+                GRID_CHROME_FRAME +
+                GRID_BUTTON_HOVER +
+                " px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
+              }
               disabled={!data.canUndo}
               onClick={() => void data.undo()}
             >
               Undo
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               data-slot="docblocks/database-redo"
+              variant="outline"
+              size="sm"
               data-disabled={data.canRedo ? undefined : true}
-              className="
-                cursor-pointer rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-                border-(--docblocks-table-border-color) bg-transparent px-2 py-0.5 text-xs outline-none
-                hover:opacity-70
-                disabled:cursor-default disabled:opacity-40
-              "
+              className={
+                GRID_CHROME_FRAME +
+                GRID_BUTTON_HOVER +
+                " px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
+              }
               disabled={!data.canRedo}
               onClick={() => void data.redo()}
             >
               Redo
-            </button>
+            </Button>
             <Popover
               open={filterOpen}
               onOpenChange={(open) => {
@@ -488,18 +507,15 @@ function GridBody({
               }}
             >
               <PopoverTrigger asChild>
-                <button
-                  type="button"
+                <Button
                   data-slot="docblocks/database-filter"
+                  variant="outline"
+                  size="sm"
                   data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
-                  className="
-                    cursor-pointer rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-                    border-(--docblocks-table-border-color) bg-transparent px-2 py-0.5 text-xs outline-none
-                    hover:opacity-70
-                  "
+                  className={GRID_CHROME_FRAME + GRID_BUTTON_HOVER + " px-2 py-0.5 text-xs font-normal shadow-none"}
                 >
                   Filter{filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
-                </button>
+                </Button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-96">
                 <div className="flex flex-col gap-(--docblocks-block-spacing)">
@@ -510,31 +526,34 @@ function GridBody({
                     refTableData={refTableData}
                   />
                   <div className="flex items-center justify-between gap-2">
-                    <button
-                      type="button"
+                    <Button
                       data-slot="docblocks/filter-clear"
+                      variant="outline"
+                      size="sm"
                       className="
-                        cursor-pointer rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none
-                        hover:opacity-70
+                        cursor-pointer bg-transparent px-2 py-1 text-xs font-normal shadow-none
+                        hover:bg-transparent hover:opacity-70
+                        dark:bg-transparent
+                        dark:hover:bg-transparent
                       "
                       onClick={() => setFilterDraft(emptyFilter())}
                     >
                       Clear
-                    </button>
-                    <button
-                      type="button"
+                    </Button>
+                    <Button
                       data-slot="docblocks/filter-apply"
+                      variant="outline"
+                      size="sm"
                       disabled={!filterIsComplete(filterDraft, data.table.columns)}
                       className="
-                        cursor-pointer rounded-md border border-border bg-accent px-2 py-1 text-xs text-foreground
-                        outline-none
+                        cursor-pointer bg-accent px-2 py-1 text-xs font-normal
                         hover:opacity-70
                         disabled:cursor-default disabled:opacity-40
                       "
                       onClick={applyFilter}
                     >
                       Apply
-                    </button>
+                    </Button>
                   </div>
                 </div>
               </PopoverContent>
@@ -611,16 +630,18 @@ function GridBody({
             >
               <DropdownMenu modal={false} open={addingColumn} onOpenChange={setAddingColumn}>
                 <DropdownMenuTrigger asChild>
-                  <button
-                    type="button"
+                  <Button
                     data-slot="docblocks/database-add-column-trigger"
-                    className="
-                      cursor-pointer rounded-(--docblocks-radius) p-1 text-(--docblocks-placeholder-color) outline-none
-                      hover:text-(--docblocks-text-color)
-                    "
+                    variant="ghost"
+                    size="icon"
+                    className={
+                      GRID_CHROME_FRAME +
+                      " size-6 cursor-pointer p-1 text-(--docblocks-placeholder-color) hover:bg-transparent " +
+                      "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
+                    }
                   >
                     <Plus className="size-4" />
-                  </button>
+                  </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="min-w-32">
                   {ADD_COLUMN_TYPES.map((entry) => {
@@ -672,37 +693,31 @@ function GridBody({
                   onFocusOutside={(event) => event.preventDefault()}
                 >
                   <div data-slot="docblocks/database-add-column-form" className="flex flex-col gap-2">
-                    <label className="flex items-center gap-2 text-sm text-foreground">
+                    <Label>
                       Name
-                      <input
+                      <Input
+                        size="sm"
                         type="text"
                         data-slot="docblocks/database-add-column-name"
-                        className="
-                          w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
-                          outline-none
-                          focus:bg-muted/60
-                        "
+                        className="cursor-text focus:bg-muted/60"
                         value={columnForm?.name ?? ""}
                         onChange={(event) =>
                           setColumnForm((draft) => (draft === null ? draft : { ...draft, name: event.target.value }))
                         }
                       />
-                    </label>
+                    </Label>
                     {columnFormNumber && (
                       <>
                         {columnForm?.numberKind === "decimal" && (
-                          <label className="flex items-center gap-2 text-sm text-foreground">
+                          <Label>
                             Decimals
-                            <input
+                            <Input
+                              size="sm"
                               type="number"
                               min={0}
                               max={10}
                               data-slot="docblocks/database-add-column-decimals"
-                              className="
-                                w-16 cursor-text rounded-md border border-border bg-transparent px-1 py-0.5 text-sm
-                                outline-none
-                                focus:bg-muted/60
-                              "
+                              className="w-16 cursor-text px-1 focus:bg-muted/60"
                               value={columnForm?.decimals ?? 0}
                               onChange={(event) =>
                                 setColumnForm((draft) =>
@@ -710,9 +725,9 @@ function GridBody({
                                 )
                               }
                             />
-                          </label>
+                          </Label>
                         )}
-                        <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+                        <Label className="cursor-pointer">
                           <Checkbox
                             data-slot="docblocks/database-add-column-thousands"
                             checked={columnForm?.thousands ?? false}
@@ -723,17 +738,14 @@ function GridBody({
                             }
                           />
                           Thousands' separator
-                        </label>
-                        <label className="flex items-center gap-2 text-sm text-foreground">
+                        </Label>
+                        <Label>
                           Prefix
-                          <input
+                          <Input
+                            size="sm"
                             type="text"
                             data-slot="docblocks/database-add-column-prefix"
-                            className="
-                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
-                              outline-none
-                              focus:bg-muted/60
-                            "
+                            className="cursor-text focus:bg-muted/60"
                             value={columnForm?.prefix ?? ""}
                             onChange={(event) =>
                               setColumnForm((draft) =>
@@ -741,17 +753,14 @@ function GridBody({
                               )
                             }
                           />
-                        </label>
-                        <label className="flex items-center gap-2 text-sm text-foreground">
+                        </Label>
+                        <Label>
                           Suffix
-                          <input
+                          <Input
+                            size="sm"
                             type="text"
                             data-slot="docblocks/database-add-column-suffix"
-                            className="
-                              w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
-                              outline-none
-                              focus:bg-muted/60
-                            "
+                            className="cursor-text focus:bg-muted/60"
                             value={columnForm?.suffix ?? ""}
                             onChange={(event) =>
                               setColumnForm((draft) =>
@@ -759,8 +768,8 @@ function GridBody({
                               )
                             }
                           />
-                        </label>
-                        <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+                        </Label>
+                        <Label className="cursor-pointer">
                           <Checkbox
                             data-slot="docblocks/database-add-column-negative"
                             checked={columnForm?.allowNegative ?? true}
@@ -771,7 +780,7 @@ function GridBody({
                             }
                           />
                           Allow negative
-                        </label>
+                        </Label>
                       </>
                     )}
                     {columnFormRef && columnForm?.refKind === "enum" && (
@@ -798,7 +807,7 @@ function GridBody({
                             value), the portaled list stands the standard
                             tokens (the --docblocks-* do not reach the
                             body). */}
-                        <label className="flex items-center gap-2 text-sm text-foreground">
+                        <Label>
                           Table
                           <Select
                             value={
@@ -828,19 +837,16 @@ function GridBody({
                               <SelectItem value={NEW_TABLE_PICK}>New table…</SelectItem>
                             </SelectContent>
                           </Select>
-                        </label>
+                        </Label>
                         {(columnForm?.refPick ?? "") === NEW_TABLE_PICK && (
-                          <label className="flex items-center gap-2 text-sm text-foreground">
+                          <Label>
                             Name
-                            <input
+                            <Input
+                              size="sm"
                               type="text"
                               data-slot="docblocks/database-add-column-ref-new"
                               placeholder="New table name"
-                              className="
-                                w-full cursor-text rounded-md border border-border bg-transparent px-2 py-0.5 text-sm
-                                text-foreground outline-none
-                                focus:bg-muted/60
-                              "
+                              className="cursor-text focus:bg-muted/60"
                               value={columnForm?.newTableName ?? ""}
                               onChange={(event) =>
                                 setColumnForm((draft) =>
@@ -848,13 +854,14 @@ function GridBody({
                                 )
                               }
                             />
-                          </label>
+                          </Label>
                         )}
                       </>
                     )}
-                    <button
-                      type="button"
+                    <Button
                       data-slot="docblocks/database-add-column-create"
+                      variant="outline"
+                      size="sm"
                       // The create / the save commits on the press only
                       // (the outside press / the Escape close without the
                       // commit); the empty name / the unpicked row's table
@@ -868,18 +875,13 @@ function GridBody({
                           (columnForm.refPick === "" ||
                             (columnForm.refPick === NEW_TABLE_PICK && columnForm.newTableName.trim() === "")))
                       }
-                      className="
-                        cursor-pointer rounded-md border border-border bg-accent px-2 py-1 text-sm text-foreground
-                        outline-none
-                        hover:opacity-70
-                        disabled:cursor-not-allowed disabled:opacity-50
-                      "
+                      className="bg-accent px-2 py-1 hover:opacity-70"
                       onClick={() => {
                         commitColumnForm();
                       }}
                     >
                       {columnForm?.editColumnId !== undefined ? "Save" : "Add column"}
-                    </button>
+                    </Button>
                   </div>
                 </PopoverContent>
               </Popover>
@@ -954,19 +956,20 @@ function GridBody({
           )}
         </ScrollArea>
 
-        <button
-          type="button"
+        <Button
           data-slot="docblocks/database-add-row"
-          className="
-            cursor-pointer self-start rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-            border-(--docblocks-table-border-color) bg-transparent px-2 py-1 text-(length:--docblocks-font-size)
-            text-(--docblocks-placeholder-color) outline-none select-none
-            hover:text-(--docblocks-text-color)
-          "
+          variant="outline"
+          size="sm"
+          className={
+            GRID_CHROME_FRAME +
+            " cursor-pointer px-2 py-1 text-(length:--docblocks-font-size) shadow-none select-none " +
+            "text-(--docblocks-placeholder-color) hover:bg-transparent hover:text-(--docblocks-text-color) " +
+            "dark:hover:bg-transparent"
+          }
           onClick={() => void data.insertRow({})}
         >
           + Add row
-        </button>
+        </Button>
       </CardContent>
     </Card>
   );

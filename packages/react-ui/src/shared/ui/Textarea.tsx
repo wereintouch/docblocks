@@ -1,8 +1,9 @@
 /**
  * The textarea primitive: the multiline field control (the database's
- * rich cell editor). Grows with its content (`field-sizing-content`);
- * the standard `--input` token frame + the focus ring, the same tokens
- * the `Input` default size stands.
+ * rich cell editor). The field's size stands the `rows` attribute's stand
+ * (the native behavior); the growing stand is the `field-sizing-content`
+ * class over the call site. The standard `--input` token frame + the
+ * focus ring, the same tokens the `Input` default size stands.
  */
 import * as React from "react";
 
@@ -14,8 +15,8 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
       data-slot="textarea"
       className={cn(
         `
-          flex field-sizing-content min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base
-          shadow-xs transition-[color,box-shadow] outline-none
+          flex min-h-16 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base shadow-xs
+          transition-[color,box-shadow] outline-none
           placeholder:text-muted-foreground
           focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50
           disabled:cursor-not-allowed disabled:opacity-50

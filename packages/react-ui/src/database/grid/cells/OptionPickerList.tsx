@@ -3,7 +3,9 @@
  *  order. */
 import { useState } from "react";
 
+import { Button } from "../../../shared/ui/Button";
 import { Checkbox } from "../../../shared/ui/Checkbox";
+import { Input } from "../../../shared/ui/Input";
 import { cn } from "../../../shared/ui/cn";
 import { OPTION_CHIP_INK } from "./constants";
 import type { RefOption } from "./models";
@@ -40,15 +42,13 @@ function OptionPickerList({
   const filtered = needle === "" ? options : options.filter((option) => option.label.toLowerCase().includes(needle));
   return (
     <div className="flex flex-col gap-2">
-      <input
+      <Input
+        size="sm"
         type="search"
         data-slot="docblocks/database-enum-picker-search"
         autoFocus
         placeholder="Search options"
-        className="
-          h-7 cursor-text rounded-md border border-border bg-transparent px-2 text-xs text-foreground outline-none
-          focus:bg-muted/40
-        "
+        className="h-7 cursor-text text-xs focus:bg-muted/40"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
@@ -58,12 +58,13 @@ function OptionPickerList({
       >
         <div className="flex flex-col gap-1">
           {onClear !== undefined && (
-            <button
-              type="button"
+            <Button
               data-slot="docblocks/database-enum-picker-clear"
+              variant="ghost"
+              size="sm"
               className={cn(
-                "block w-full cursor-pointer rounded-(--docblocks-radius) px-2 py-1.5 text-left text-sm",
-                "text-muted-foreground outline-none hover:bg-accent hover:text-accent-foreground",
+                "w-full cursor-pointer justify-start rounded-(--docblocks-radius) px-2 py-1.5 text-sm font-normal",
+                "text-muted-foreground",
                 currentEmpty && "bg-muted text-foreground"
               )}
               onClick={() => {
@@ -72,7 +73,7 @@ function OptionPickerList({
               }}
             >
               —
-            </button>
+            </Button>
           )}
           {filtered.map((option) => (
             <div

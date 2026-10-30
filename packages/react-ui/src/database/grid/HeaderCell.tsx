@@ -3,7 +3,9 @@
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
+import { Button } from "../../shared/ui/Button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
+import { Input } from "../../shared/ui/Input";
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
 import { Ellipsis } from "../../shared/ui/icons";
@@ -114,25 +116,25 @@ function HeaderCell({
       <div className="ml-auto flex shrink-0 items-center">
         <DropdownMenu modal={false} open={menuOpen} onOpenChange={onMenuChange}>
           <DropdownMenuTrigger asChild>
-            <button
-              type="button"
+            <Button
               data-slot="docblocks/database-column-menu"
+              variant="ghost"
+              size="icon"
               className="
-                cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color) outline-none
-                hover:text-(--docblocks-text-color)
+                cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
+                hover:bg-transparent hover:text-(--docblocks-text-color)
+                dark:hover:bg-transparent
               "
             >
               <Ellipsis className="size-4" />
-            </button>
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" sideOffset={4} className="flex w-52 flex-col gap-2 p-2">
             <div className="flex flex-col gap-1">
-              <input
+              <Input
+                size="sm"
                 data-slot="docblocks/database-rename-input"
-                className="
-                  w-full rounded-md border-0 bg-muted/60 px-2 py-1 text-sm text-foreground outline-none select-text
-                  focus:bg-muted
-                "
+                className="border-0 bg-muted/60 px-2 py-1 text-foreground select-text focus:bg-muted"
                 value={nameDraft}
                 onChange={(event) => setNameDraft(event.target.value)}
                 onFocus={() => setNameDraft(column.name)}

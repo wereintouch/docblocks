@@ -51,12 +51,14 @@ const CELL_SELECTED =
  *  canvas selection's fill (the border token at 50% — the figure
  *  selection's transparency). */
 const CELL_SELECTED_MULTI = "bg-(--docblocks-canvas-selection-fill)";
-/** The input's shared classes: no own border (the cell's border stands —
- *  the double border is gone), the focus stands the background tint. The
- *  table's `select-none` stands the edit's own text selection (the mouse
- *  selection inside the input is the edit's stand). */
+/** The input's shared classes over the `Input` primitive's sm base: no
+ *  own border (the cell's border stands — the double border is gone), the
+ *  focus stands the background tint. The table's `select-none` stands the
+ *  edit's own text selection (the mouse selection inside the input is the
+ *  edit's stand). */
 const CELL_INPUT =
-  "w-full select-text rounded-(--docblocks-radius) border-0 bg-transparent px-1 text-(length:--docblocks-font-size) outline-none focus:bg-(--docblocks-selected-background)/50";
+  "select-text rounded-(--docblocks-radius) border-0 bg-transparent px-1 " +
+  "text-(length:--docblocks-font-size) focus:bg-(--docblocks-selected-background)/50 dark:bg-transparent";
 
 export {
   ADD_COLUMN_TYPES,

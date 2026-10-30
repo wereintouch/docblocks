@@ -2,6 +2,8 @@
  *  client-side filter over the loaded page). */
 import { useState } from "react";
 
+import { Button } from "../../../shared/ui/Button";
+import { Input } from "../../../shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../shared/ui/Popover";
 
 interface RowLinkPickerProps {
@@ -38,25 +40,23 @@ function RowLinkPickerList({
         );
   return (
     <div className="flex flex-col gap-2">
-      <input
+      <Input
+        size="sm"
         type="search"
         data-slot="docblocks/database-row-picker-search"
         autoFocus
         placeholder="Search rows"
-        className="
-          h-7 cursor-text rounded-md border border-border bg-transparent px-2 text-xs text-foreground outline-none
-          focus:bg-muted/40
-        "
+        className="h-7 cursor-text text-xs focus:bg-muted/40"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
       />
       <div className="max-h-48 overflow-y-auto">
-        <button
-          type="button"
+        <Button
           data-slot="docblocks/database-row-picker-clear"
+          variant="ghost"
+          size="sm"
           className="
-            block w-full cursor-pointer rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground outline-none
-            hover:bg-accent hover:text-accent-foreground
+            w-full cursor-pointer justify-start rounded-sm px-2 py-1.5 text-sm font-normal text-muted-foreground
           "
           onClick={() => {
             onClear();
@@ -64,16 +64,16 @@ function RowLinkPickerList({
           }}
         >
           —
-        </button>
+        </Button>
         {filtered.map((rowId) => (
-          <button
+          <Button
             key={rowId}
-            type="button"
             data-slot="docblocks/database-row-picker-row"
             data-row-id={rowId}
+            variant="ghost"
+            size="sm"
             className="
-              block w-full cursor-pointer truncate rounded-sm px-2 py-1.5 text-left text-sm text-foreground outline-none
-              hover:bg-accent hover:text-accent-foreground
+              w-full cursor-pointer justify-start truncate rounded-sm px-2 py-1.5 text-sm font-normal text-foreground
             "
             onClick={() => {
               onPick(rowId);
@@ -81,7 +81,7 @@ function RowLinkPickerList({
             }}
           >
             {displays[rowId] ?? rowId}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

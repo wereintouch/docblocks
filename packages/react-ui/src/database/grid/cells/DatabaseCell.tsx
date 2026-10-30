@@ -9,6 +9,7 @@ import { Calendar } from "../../../shared/ui/Calendar";
 import { Checkbox } from "../../../shared/ui/Checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "../../../shared/ui/Popover";
 import { Separator } from "../../../shared/ui/Separator";
+import { Textarea } from "../../../shared/ui/Textarea";
 import { TimeSegments } from "../../../shared/ui/TimeSegments";
 import { cn } from "../../../shared/ui/cn";
 import { columnAnnotation, parseCellValue } from "../../bridge";
@@ -556,13 +557,15 @@ function DatabaseCell({
           onEscapeKeyDown={(event) => event.preventDefault()}
           className="w-(--radix-popover-trigger-width) rounded-md border border-border bg-popover p-0 shadow-md ring-0"
         >
-          <textarea
+          <Textarea
             data-slot="docblocks/database-cell-multiline"
             ref={multiLineRefCallback}
             rows={6}
             className="
-              box-border block w-full resize-none scrollbar-thin [scrollbar-color:var(--border)_transparent]
-              overflow-y-auto bg-transparent px-2.75 py-1.75 text-base outline-none select-text
+              resize-none scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-y-auto border-border
+              bg-transparent px-2.75 py-1.75 shadow-none select-text
+              focus-visible:ring-0
+              md:text-base
             "
             value={textDraft ?? ""}
             onChange={(event) => setTextDraft(event.target.value)}

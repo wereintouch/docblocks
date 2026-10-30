@@ -8,7 +8,9 @@
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
+import { Button } from "../../shared/ui/Button";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
+import { Input } from "../../shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { GripVertical, X } from "../../shared/ui/icons";
 import { ENUM_OPTION_PALETTE } from "../bridge";
@@ -86,12 +88,12 @@ function EnumOptionsEditor({
           </span>
           <Popover open={colorOpen === index} onOpenChange={(open) => setColorOpen(open ? index : null)}>
             <PopoverTrigger asChild>
-              <button
-                type="button"
+              <Button
                 data-slot="docblocks/database-enum-option-color"
+                variant="ghost"
                 data-color={option.color ?? ""}
                 title="Option's color"
-                className="size-4 shrink-0 cursor-pointer rounded-full border border-border"
+                className="size-4 shrink-0 cursor-pointer rounded-full border border-border focus-visible:ring-0"
                 style={option.color !== null ? { backgroundColor: option.color } : undefined}
               />
             </PopoverTrigger>
@@ -111,42 +113,39 @@ function EnumOptionsEditor({
               />
             </PopoverContent>
           </Popover>
-          <input
+          <Input
+            size="sm"
             type="text"
             data-slot="docblocks/database-enum-option-name"
             placeholder="Option"
-            className="
-              w-full min-w-0 flex-1 cursor-text rounded-md border border-border bg-transparent px-2 text-sm
-              text-foreground outline-none
-              focus:bg-muted/60
-            "
+            className="min-w-0 flex-1 cursor-text text-foreground focus:bg-muted/60"
             value={option.name}
             onChange={(event) => setOption(index, { name: event.target.value })}
           />
-          <button
-            type="button"
+          <Button
             data-slot="docblocks/database-enum-option-delete"
+            variant="ghost"
+            size="icon"
             className="
-              flex size-5 shrink-0 cursor-pointer items-center justify-center text-muted-foreground outline-none
-              hover:text-foreground
+              size-5 shrink-0 cursor-pointer text-muted-foreground
+              hover:bg-transparent hover:text-foreground
+              dark:hover:bg-transparent
             "
             onClick={() => onChange(options.filter((_, i) => i !== index))}
           >
             <X className="size-3.5" />
-          </button>
+          </Button>
         </div>
       ))}
-      <button
-        type="button"
+      <Button
         data-slot="docblocks/database-enum-option-add"
-        className="
-          cursor-pointer self-start rounded-sm px-1 py-0.5 text-sm text-muted-foreground outline-none
-          hover:bg-accent hover:text-accent-foreground
-        "
+        variant="ghost"
+        size="sm"
+        className="h-auto cursor-pointer self-start rounded-sm px-1 py-0.5 font-normal text-muted-foreground"
         onClick={() => onChange([...options, { name: "", color: null, uid: Math.random().toString(36).slice(2) }])}
       >
         + Add option
-      </button>
+      </Button>
     </div>
   );
 }

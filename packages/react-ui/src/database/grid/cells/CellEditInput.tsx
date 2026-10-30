@@ -1,4 +1,5 @@
 /** The cell's text / number edit input (the dumb controlled draft stand). */
+import { Input } from "../../../shared/ui/Input";
 import { cn } from "../../../shared/ui/cn";
 import { CELL_INPUT } from "../constants";
 
@@ -27,7 +28,8 @@ interface CellEditInputProps {
 }
 function CellEditInput({ draft, kind, min, step, alignRight, onDraftChange, onEnd, onCancel }: CellEditInputProps) {
   return (
-    <input
+    <Input
+      size="sm"
       type={kind === "number" ? "number" : "text"}
       data-slot="docblocks/database-cell-input"
       autoFocus

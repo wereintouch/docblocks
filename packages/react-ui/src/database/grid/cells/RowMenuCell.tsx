@@ -1,5 +1,6 @@
 /** The grid's row-menu track (the trailing grid column: the move / the
  *  delete row affordances). */
+import { Button } from "../../../shared/ui/Button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,16 +51,18 @@ function RowMenuCell({
         onOpenChange={(open) => setRowMenu(open ? row.rowId : null)}
       >
         <DropdownMenuTrigger asChild>
-          <button
-            type="button"
+          <Button
             data-slot="docblocks/database-row-menu-trigger"
+            variant="ghost"
+            size="icon"
             className="
-              cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color) outline-none
-              hover:text-(--docblocks-text-color)
+              cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
+              hover:bg-transparent hover:text-(--docblocks-text-color)
+              dark:hover:bg-transparent
             "
           >
             <Ellipsis className="size-4" />
-          </button>
+          </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-32">
           <DropdownMenuItem disabled={!canMoveUp} onClick={onMoveUp}>

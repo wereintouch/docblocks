@@ -32,7 +32,7 @@ const inputVariants = cva(
           md:text-sm
           dark:aria-invalid:ring-destructive/40
         `,
-        sm: `border-border px-2 py-0.5 text-sm`,
+        sm: `h-8 border-border px-2 py-0.5 text-sm`,
       },
     },
     defaultVariants: { size: "default" },
