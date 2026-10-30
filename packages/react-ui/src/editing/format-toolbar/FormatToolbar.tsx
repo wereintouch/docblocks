@@ -1,43 +1,64 @@
+/** The floating format toolbar — the selection's formatting affordance.
+ *
+ * It is visible while the view's selection is a text range over a
+ * toolbar-eligible target: a single block of an eligible type (paragraph,
+ * quote, heading, list-item, callout, table-cell; code and
+ * canvas-text have their own formatting model) or a cross-block range
+ * whose chain text blocks are all eligible. It floats above the selection
+ * (below it when there is no room above) and disappears as soon as the
+ * selection collapses, leaves the target, or becomes a blocks selection —
+ * the visibility is derived from the selection state, so no key or mouse
+ * capture is needed.
+ *
+ * Controls (shared/ui primitives): the five toggle marks (bold, monospace
+ * = the exclusive code mark, italic, underline, strikethrough) and the
+ * three text alignments as ghost icon buttons; the alignment is a block
+ * attr applied with updateBlock (set-only: updateBlock never removes
+ * attrs, so "left" is how the default is restored). The list-type menu
+ * (single-block paragraph/heading/list-item targets only) is a non-modal
+ * dropdown — a radio group that turns the block into a bullet/numbered/
+ * to-do list (a list-item swap is a `list` attr update; any other target
+ * is a changeBlockType) or into a paragraph (the flat model: a list
+ * item's derived segment re-attaches to the paragraph as its nested
+ * content — nothing is lost). The highlight control is a non-modal
+ * popover with a target switch (the text `color` mark vs the background
+ * `highlight` mark) and a color palette (the shared palette's eight
+ * swatches, overridable through the editor's `formatPalette` prop) plus a
+ * clear entry. The popovers are portaled to the document body (radix) and
+ * — like the bar — suppress the default mousedown so the editor's text
+ * selection stays alive while a swatch or option is picked; outside
+ * dismiss (pointer and focus) is suppressed the same way the bar is not
+ * dismissed by its own buttons (the selection state owns the visibility).
+ * A cross-block range applies the mark actions over the range's per-block
+ * segments (the align per chain block) and hides the list-type menu. A
+ * mark button is active when every run of the range carries the mark; a
+ * swatch is active when the whole range is uniformly marked with that
+ * value (a highlight without a value counts as the empty value). Every
+ * action is doc command(s) inside one transaction (one undo step, one
+ * wire update). */
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ComponentType, ReactNode, RefObject, SVGProps } from "react";
 
-import type { Block, BlockId, TextAlign } from "docblocks-core";
 import { CALLOUT_ICONS } from "docblocks-core";
+import type { Block, TextAlign } from "docblocks-core";
 
-import { CALLOUT_ICON_COMPONENTS, CALLOUT_PRESET_ICONS, calloutIconName } from "../blocks";
-import { useEditorContext } from "../editor-provider";
-import { useBlock, useSelection } from "../hooks";
-import { Button } from "../shared/ui/Button";
-import { ColorSwatches } from "../shared/ui/ColorSwatches";
+import { CALLOUT_ICON_COMPONENTS, CALLOUT_PRESET_ICONS, calloutIconName } from "../../blocks";
+import { useEditorContext } from "../../editor-provider";
+import { useBlock, useSelection } from "../../hooks";
+import { Button } from "../../shared/ui/Button";
+import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "../shared/ui/DropdownMenu";
-import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
-import { Separator } from "../shared/ui/Separator";
-import { cn } from "../shared/ui/cn";
-import {
-  Baseline,
-  Bold,
-  CodeXml,
-  Dot,
-  Italic,
-  ListOrdered,
-  Menu as MenuIcon,
-  Pilcrow,
-  Quote,
-  SquareCheck,
-  Strikethrough,
-  TextAlignCenter,
-  TextAlignEnd,
-  TextAlignStart,
-  Underline,
-} from "../shared/ui/icons";
-import { clamp } from "../shared/utils";
-import { restoreSelectionIn } from "./block-commands";
+} from "../../shared/ui/DropdownMenu";
+import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
+import { Separator } from "../../shared/ui/Separator";
+import { cn } from "../../shared/ui/cn";
+import { Baseline, Menu as MenuIcon } from "../../shared/ui/icons";
+import { clamp } from "../../shared/utils";
+import { restoreSelectionIn } from "../block-commands";
 import {
   TOOLBAR_BLOCK_TYPES,
   alignOfBlock,
@@ -51,108 +72,10 @@ import {
   uniformAlignOfRange,
   uniformMarkValue,
   uniformMarkValueRange,
-} from "./format-range";
-import type { CrossRange } from "./format-range";
-import { type FormatMark, markToggleAction } from "./keyboard";
-
-/**
- * The floating format toolbar — the selection's formatting affordance.
- *
- * It is visible while the view's selection is a text range over a
- * toolbar-eligible target: a single block of an eligible type (paragraph,
- * quote, heading, list-item, callout, table-cell; code and
- * canvas-text have their
- * own formatting model) or a cross-block range whose chain text blocks are all
- * eligible. It floats above the selection (below it when there is no room
- * above) and disappears as soon as the selection collapses, leaves the
- * target, or becomes a blocks selection — the visibility is derived from
- * the selection state, so no key or mouse capture is needed.
- *
- * Controls (shared/ui primitives): the five toggle marks (bold, monospace =
- * the exclusive code mark, italic, underline, strikethrough) and the three
- * text alignments as ghost icon buttons; the alignment is a block attr
- * applied with updateBlock (set-only: updateBlock never removes attrs, so
- * "left" is how the default is restored). The list-type menu (single-block
- * paragraph/heading/list-item targets only) is a non-modal dropdown — a
- * radio group that turns the block into a bullet/numbered/to-do list (a
- * list-item swap is a `list` attr update; any other target is a
- * changeBlockType) or into a paragraph (the flat model: a list item's
- * derived segment re-attaches to the paragraph as its nested content —
- * nothing is lost). The highlight control is a non-modal popover with a target
- * switch (the text `color` mark vs the background `highlight` mark) and a
- * color palette (the shared palette's eight swatches, overridable through
- * the editor's `formatPalette` prop) plus a clear entry. The popovers are
- * portaled to
- * the document body (radix) and — like the bar — suppress the default
- * mousedown so the editor's text selection stays alive while a swatch or
- * option is picked; outside dismiss (pointer and focus) is suppressed the
- * same way the bar is not dismissed by its own buttons (the selection
- * state owns the visibility). A cross-block range applies the mark actions
- * over the range's per-block segments (the align per chain block) and hides
- * the list-type menu. A mark button is active when every run of the range
- * carries the mark; a swatch is active when the whole range is uniformly
- * marked with that value (a highlight without a value counts as the empty
- * value). Every action is doc command(s) inside one transaction (one undo
- * step, one wire update).
- */
-
-/** A 24px-stroke icon component (the package icon set). */
-type ToolbarIcon = ComponentType<SVGProps<SVGSVGElement>>;
-
-/** The default format palette: the shared palette's seven pastel theme
- * tokens + the theme's own background token (a consumer can pass its own
- * through the editor's `formatPalette` prop — a `string[]` of hex or var). */
-const FORMAT_PALETTE: readonly string[] = [
-  "var(--docblocks-palette-red)",
-  "var(--docblocks-palette-orange)",
-  "var(--docblocks-palette-yellow)",
-  "var(--docblocks-palette-green)",
-  "var(--docblocks-palette-cyan)",
-  "var(--docblocks-palette-blue)",
-  "var(--docblocks-palette-violet)",
-  "var(--background)",
-];
-
-/** The list-type menu options, in display order ("paragraph" = turn into text). */
-const LIST_MENU_OPTIONS: {
-  option: "bullet" | "number" | "task" | "quote" | "paragraph";
-  label: string;
-  icon: ToolbarIcon;
-}[] = [
-  { option: "bullet", label: "Bullet list", icon: Dot },
-  { option: "number", label: "Numbered list", icon: ListOrdered },
-  { option: "task", label: "To-do list", icon: SquareCheck },
-  { option: "quote", label: "Quote", icon: Quote },
-  { option: "paragraph", label: "Text", icon: Pilcrow },
-];
-
-/** The toggle mark buttons, in display order. */
-const TOOLBAR_MARKS: { mark: FormatMark; title: string; icon: ToolbarIcon }[] = [
-  { mark: "bold", title: "Bold", icon: Bold },
-  { mark: "code", title: "Monospace", icon: CodeXml },
-  { mark: "italic", title: "Italic", icon: Italic },
-  { mark: "underline", title: "Underline", icon: Underline },
-  { mark: "strike", title: "Strikethrough", icon: Strikethrough },
-];
-
-/** The alignment buttons, in display order. */
-const TOOLBAR_ALIGNS: { align: TextAlign; title: string; icon: ToolbarIcon }[] = [
-  { align: "left", title: "Align left", icon: TextAlignStart },
-  { align: "center", title: "Align center", icon: TextAlignCenter },
-  { align: "right", title: "Align right", icon: TextAlignEnd },
-];
-
-/** The palette target: which mark the picked color is applied to. */
-type PaletteTarget = "color" | "highlight";
-
-/** The toolbar's target range: a same-block range or a cross-block range over the engine's chain. */
-type ToolbarRange =
-  { kind: "single"; blockId: BlockId; from: number; to: number } | { kind: "cross"; cross: CrossRange };
-
-interface FormatToolbarProps {
-  rootRef: RefObject<HTMLElement | null>;
-  palette: readonly string[];
-}
+} from "../format-range";
+import { type FormatMark, markToggleAction } from "../keyboard";
+import { LIST_MENU_OPTIONS, TOOLBAR_ALIGNS, TOOLBAR_MARKS } from "./constants";
+import type { FormatToolbarProps, PaletteTarget, ToolbarRange } from "./models";
 
 function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const { doc } = useEditorContext();
@@ -648,14 +571,4 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   );
 }
 
-/** The editor-level format toolbar layer (null while no eligible range is selected). */
-function useFormatToolbar(
-  rootRef: RefObject<HTMLElement | null>,
-  palette: readonly string[]
-): {
-  toolbarNode: ReactNode;
-} {
-  return { toolbarNode: <FormatToolbar rootRef={rootRef} palette={palette} /> };
-}
-
-export { FORMAT_PALETTE, useFormatToolbar };
+export { FormatToolbar };
