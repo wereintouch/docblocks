@@ -28,6 +28,7 @@ import {
   Search,
   TextWrap,
 } from "../shared/ui/icons";
+import { preventDefault } from "../shared/utils";
 import { requestCodeCaption } from "./CodeCaption";
 import { textOf } from "./TextBlock";
 
@@ -149,6 +150,27 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
     })();
   };
 
+  const onQueryChange = (event: React.ChangeEvent<HTMLInputElement>) => setQuery(event.target.value);
+  const onQueryKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const first = matches[0];
+    if (first !== undefined) pickLanguage(first.value);
+  };
+  const pick = (value: string) => () => pickLanguage(value);
+  const toggleCollapsed = () => doc.updateBlock(id, { collapsed: !collapsed });
+  const requestCaption = () => requestCodeCaption(store, id);
+  // The toggle keeps the menu open (the other toggle stands right here;
+  // the menu closes on escape / outside).
+  const toggleLineNumbers = (event: Event) => {
+    event.preventDefault();
+    doc.updateBlock(id, { lineNumbers: !lineNumbers });
+  };
+  const toggleWrap = (event: Event) => {
+    event.preventDefault();
+    doc.updateBlock(id, { wrap: !wrap });
+  };
+
   // The display toggles read the absent attr as ON (the defaults).
   const lineNumbers = block.attrs?.lineNumbers ?? true;
   const wrap = block.attrs?.wrap ?? true;
@@ -184,7 +206,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
       )}
       // Keep the caret: a default mousedown would move the focus out of the
       // editable (the controls are chrome, never the text).
-      onMouseDown={(event) => event.preventDefault()}
+      onMouseDown={preventDefault}
     >
       <div className={cn("flex items-center gap-1.5", controlClass)}>
         <Popover modal={false} open={languageOpen} onOpenChange={setLanguageOpen}>
@@ -215,14 +237,8 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                 data-slot="docblocks/code-language-search"
                 type="text"
                 value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    const first = matches[0];
-                    if (first !== undefined) pickLanguage(first.value);
-                  }
-                }}
+                onChange={onQueryChange}
+                onKeyDown={onQueryKeyDown}
                 placeholder="Search language…"
                 aria-label="Search language"
                 className="pr-2 pl-7 focus:border-ring"
@@ -240,7 +256,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                       role="option"
                       aria-selected={selected}
                       data-lang-value={lang.value || "plain"}
-                      onClick={() => pickLanguage(lang.value)}
+                      onClick={pick(lang.value)}
                       className="
                         flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm
                         hover:bg-accent hover:text-accent-foreground
@@ -283,7 +299,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
           // Disabled (not hidden) while the block fits in the clamp and is
           // not already collapsed (a collapsed block always expands).
           disabled={!collapsed && lineCount <= 5}
-          onClick={() => doc.updateBlock(id, { collapsed: !collapsed })}
+          onClick={toggleCollapsed}
         >
           {collapsed ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
         </Button>
@@ -295,7 +311,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
           aria-label={block.attrs?.caption ? "Edit the caption" : "Add a caption"}
           title="Caption"
           className="size-7 text-[length:inherit]"
-          onClick={() => requestCodeCaption(store, id)}
+          onClick={requestCaption}
         >
           <Captions className="size-4" />
         </Button>
@@ -322,27 +338,11 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
             data-slot="docblocks/code-more-menu"
             aria-label="Code options"
           >
-            <DropdownMenuCheckboxItem
-              checked={lineNumbers}
-              data-code-option="lineNumbers"
-              onSelect={(event) => {
-                // The toggle keeps the menu open (the other toggle stands
-                // right here; the menu closes on escape / outside).
-                event.preventDefault();
-                doc.updateBlock(id, { lineNumbers: !lineNumbers });
-              }}
-            >
+            <DropdownMenuCheckboxItem checked={lineNumbers} data-code-option="lineNumbers" onSelect={toggleLineNumbers}>
               <Hash className="size-4" />
               Line numbers
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={wrap}
-              data-code-option="wrap"
-              onSelect={(event) => {
-                event.preventDefault();
-                doc.updateBlock(id, { wrap: !wrap });
-              }}
-            >
+            <DropdownMenuCheckboxItem checked={wrap} data-code-option="wrap" onSelect={toggleWrap}>
               <TextWrap className="size-4" />
               Wrap long lines
             </DropdownMenuCheckboxItem>

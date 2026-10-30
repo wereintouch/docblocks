@@ -50,6 +50,7 @@ import { Button } from "../../shared/ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { cn } from "../../shared/ui/cn";
 import { Plus } from "../../shared/ui/icons";
+import { preventDefault } from "../../shared/utils";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import { useFormatPalette } from "../format-palette-context";
 import { HandleMenu, HandleMenuItems } from "./HandleMenu";
@@ -378,14 +379,36 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     rowMetrics.length > 0 ? rowMetrics[rowMetrics.length - 1]!.top + rowMetrics[rowMetrics.length - 1]!.height : 0;
   const columnTransforms = widths.map((_, index) => columnDragTransformOf(index));
 
+  const clearHover = () => setHover(null);
+  // The handle menu's action / color commits stand the handle's kind +
+  // index over the shared handle handlers (the map's per-item stand).
+  const onColumnHandleAction =
+    (index: number) =>
+    (action: HandleAction): void =>
+      handleAction("column", index, action);
+  const onColumnHandleColor =
+    (index: number) =>
+    (color: string | null): void =>
+      handleSetColor("column", index, color);
+  const onRowHandleAction =
+    (rowIndex: number) =>
+    (action: HandleAction): void =>
+      handleAction("row", rowIndex, action);
+  const onRowHandleColor =
+    (rowIndex: number) =>
+    (color: string | null): void =>
+      handleSetColor("row", rowIndex, color);
+  const closeMenu = (open: boolean) => {
+    if (!open) setMenu(null);
+  };
+  const closeCtx = (open: boolean) => {
+    if (!open) setCtx(null);
+  };
+
   return (
     <div ref={frameRef} data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">
       <div ref={scrollRef} className="scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-x-auto">
-        <div
-          className="relative w-max pt-5 pl-5"
-          onPointerMove={onContentPointerMove}
-          onPointerLeave={() => setHover(null)}
-        >
+        <div className="relative w-max pt-5 pl-5" onPointerMove={onContentPointerMove} onPointerLeave={clearHover}>
           <table
             data-slot="docblocks/table"
             data-block-type="table"
@@ -445,9 +468,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               left={columnCenters[index]! - HANDLE_SIZE / 2}
               top={0}
               open={menu !== null && menu.kind === "column" && menu.index === index}
-              onOpenChange={(open) => {
-                if (!open) setMenu(null);
-              }}
+              onOpenChange={closeMenu}
               dragging={isPreview("column", index)}
               dragDx={columnDragTransformOf(index).dx}
               dragTransition={columnDragTransformOf(index).shifted}
@@ -464,8 +485,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 palette={palette}
                 atStart={index === 0}
                 atEnd={index === widths.length - 1}
-                onAction={(action) => handleAction("column", index, action)}
-                onColor={(color) => handleSetColor("column", index, color)}
+                onAction={onColumnHandleAction(index)}
+                onColor={onColumnHandleColor(index)}
               />
             </HandleMenu>
           ))}
@@ -487,9 +508,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 HANDLE_SIZE / 2
               }
               open={menu !== null && menu.kind === "row" && menu.index === rowIndex}
-              onOpenChange={(open) => {
-                if (!open) setMenu(null);
-              }}
+              onOpenChange={closeMenu}
               dragging={isPreview("row", rowIndex)}
               dragDx={0}
               dragDy={rowDragTransformOf(rowIndex).dy}
@@ -506,8 +525,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 palette={palette}
                 atStart={rowIndex === 0}
                 atEnd={rowIndex === rows.length - 1}
-                onAction={(action) => handleAction("row", rowIndex, action)}
-                onColor={(color) => handleSetColor("row", rowIndex, color)}
+                onAction={onRowHandleAction(rowIndex)}
+                onColor={onRowHandleColor(rowIndex)}
               />
             </HandleMenu>
           ))}
@@ -647,7 +666,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
       {/* The cell's right-click menu: the 0×0 trigger stands at the pointer
           (frame-relative) while the menu is open — the content anchors to
           the cursor, like a native context menu. */}
-      <DropdownMenu modal={false} open={ctx !== null} onOpenChange={(open) => !open && setCtx(null)}>
+      <DropdownMenu modal={false} open={ctx !== null} onOpenChange={closeCtx}>
         <DropdownMenuTrigger asChild>
           <div
             aria-hidden
@@ -659,7 +678,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
           data-slot="docblocks/table-cell-menu"
           aria-label="Cell options"
           sideOffset={4}
-          onFocusOutside={(event) => event.preventDefault()}
+          onFocusOutside={preventDefault}
         >
           <DropdownMenuItem onSelect={onCellCopy}>Copy</DropdownMenuItem>
           <DropdownMenuItem onSelect={onCellPaste}>Paste</DropdownMenuItem>

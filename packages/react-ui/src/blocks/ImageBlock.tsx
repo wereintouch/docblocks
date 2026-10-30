@@ -18,6 +18,7 @@ import {
   TextAlignEnd,
   TextAlignStart,
 } from "../shared/ui/icons";
+import { preventDefault } from "../shared/utils";
 import { BlockCaption, requestBlockCaption } from "./BlockCaption";
 import { BlockContext } from "./block-context";
 
@@ -267,6 +268,8 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
     doc.updateBlock(id, { width: Math.round(width) });
   };
 
+  const requestCaption = () => requestBlockCaption(store, id);
+
   return (
     <>
       <div
@@ -288,7 +291,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
         )}
         // Keep the caret: a default mousedown would move the focus out of the
         // editable (the figure is chrome, never text).
-        onMouseDown={(event) => event.preventDefault()}
+        onMouseDown={preventDefault}
         onClick={onFigureClick}
       >
         <img
@@ -339,7 +342,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
           )}
           // Keep the caret: the menu is chrome (a default mousedown would
           // move the focus out of the editable).
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={preventDefault}
         >
           <Button variant="ghost" size="icon" asChild className="size-7">
             <a
@@ -360,7 +363,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
             aria-label={block.attrs.caption ? "Edit the caption" : "Add a caption"}
             title="Caption"
             className="size-7"
-            onClick={() => requestBlockCaption(store, id)}
+            onClick={requestCaption}
           >
             <Captions className="size-4" />
           </Button>

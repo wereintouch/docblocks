@@ -5,7 +5,7 @@ import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import { Minus, Plus, RotateCcw } from "../shared/ui/icons";
-import { clamp } from "../shared/utils";
+import { clamp, preventDefault } from "../shared/utils";
 
 /**
  * An embed (v1): a plain iframe for every kind — the kind is a renderer hint
@@ -162,6 +162,9 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
     });
   };
 
+  const zoomIn = () => zoomBy(EMBED_ZOOM_STEP);
+  const zoomOut = () => zoomBy(1 / EMBED_ZOOM_STEP);
+
   const resetView = () => setView(EMBED_VIEW_IDENTITY);
   const atIdentity = view.scale === EMBED_VIEW_IDENTITY.scale && view.x === 0 && view.y === 0;
 
@@ -250,8 +253,8 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
             disabled:opacity-50
           "
           disabled={view.scale <= EMBED_MIN_SCALE}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => zoomBy(1 / EMBED_ZOOM_STEP)}
+          onMouseDown={preventDefault}
+          onClick={zoomOut}
         >
           <Minus className="size-4" />
         </Button>
@@ -272,8 +275,8 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
             disabled:opacity-50
           "
           disabled={view.scale >= EMBED_MAX_SCALE}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => zoomBy(EMBED_ZOOM_STEP)}
+          onMouseDown={preventDefault}
+          onClick={zoomIn}
         >
           <Plus className="size-4" />
         </Button>
@@ -288,7 +291,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
             disabled:opacity-50
           "
           disabled={atIdentity}
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={preventDefault}
           onClick={resetView}
         >
           <RotateCcw className="size-4" />

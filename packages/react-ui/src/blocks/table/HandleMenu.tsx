@@ -155,6 +155,21 @@ function HandleMenuItems({
     }
     return undefined;
   });
+  const selectInsertAfter = () => onAction("insert-after");
+  const selectInsertBefore = () => onAction("insert-before");
+  const selectMoveNext = () => onAction("move-next");
+  const selectMovePrev = () => onAction("move-prev");
+  const selectDuplicate = () => onAction("duplicate");
+  const selectClear = () => onAction("clear");
+  const selectRemove = () => onAction("remove");
+  const clearColor = () => onColor(null);
+  // The palette entry is a theme token (or a consumer hex); the cell attr
+  // holds a hex, so the press resolves it first.
+  const selectSwatch = (swatch: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
+    const hex = resolveColorToHex(swatch, event.currentTarget);
+    if (hex !== null) onColor(hex);
+  };
+
   const column = kind === "column";
   return (
     <>
@@ -179,36 +194,27 @@ function HandleMenuItems({
               title={swatch}
               className="size-6"
               style={{ background: swatch }}
-              onClick={(event) => {
-                // The palette entry is a theme token (or a consumer hex); the
-                // cell attr holds a hex, so the press resolves it first.
-                const hex = resolveColorToHex(swatch, event.currentTarget);
-                if (hex !== null) onColor(hex);
-              }}
+              onClick={selectSwatch(swatch)}
             />
           ))}
         </DropdownMenuSubContent>
       </DropdownMenuSub>
       {color !== undefined && (
-        <DropdownMenuItem data-slot="docblocks/table-remove-color" onSelect={() => onColor(null)}>
+        <DropdownMenuItem data-slot="docblocks/table-remove-color" onSelect={clearColor}>
           Remove background
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem onSelect={() => onAction("insert-after")}>
-        {column ? "Insert right" : "Insert below"}
-      </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onAction("insert-before")}>
-        {column ? "Insert left" : "Insert above"}
-      </DropdownMenuItem>
-      <DropdownMenuItem disabled={atEnd} onSelect={() => onAction("move-next")}>
+      <DropdownMenuItem onSelect={selectInsertAfter}>{column ? "Insert right" : "Insert below"}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectInsertBefore}>{column ? "Insert left" : "Insert above"}</DropdownMenuItem>
+      <DropdownMenuItem disabled={atEnd} onSelect={selectMoveNext}>
         {column ? "Move right" : "Move down"}
       </DropdownMenuItem>
-      <DropdownMenuItem disabled={atStart} onSelect={() => onAction("move-prev")}>
+      <DropdownMenuItem disabled={atStart} onSelect={selectMovePrev}>
         {column ? "Move left" : "Move up"}
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onAction("duplicate")}>Duplicate</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onAction("clear")}>Clear content</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => onAction("remove")}>Delete</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectDuplicate}>Duplicate</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectClear}>Clear content</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectRemove}>Delete</DropdownMenuItem>
     </>
   );
 }

@@ -73,6 +73,16 @@ function ShapeText({ id, block, box }: { id: BlockId; block: ShapeBlockView; box
   const editing = textEdit !== null && textEdit.editingId === id;
   const innerRef = useRef<HTMLDivElement | null>(null);
   const committedRef = useRef(false);
+  const commitText = () => commit(innerRef.current?.innerText ?? innerRef.current?.textContent ?? "");
+  // The text box keeps its keys (no canvas / editor hotkeys while the
+  // shape's text is in the edit).
+  const onEditKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      innerRef.current?.blur();
+    }
+    event.stopPropagation();
+  };
   const text = block.attrs?.text ?? "";
   // The effective box (the resize preview's live box when in flight; the
   // committed geometry otherwise): the padding recomputes from it, so the
@@ -117,18 +127,10 @@ function ShapeText({ id, block, box }: { id: BlockId; block: ShapeBlockView; box
       data-slot="docblocks/shape-text-edit"
       suppressContentEditableWarning
       className="w-full outline-none"
-      onKeyDown={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          innerRef.current?.blur();
-        }
-        // The text box keeps its keys (no canvas / editor hotkeys while
-        // the shape's text is in the edit).
-        event.stopPropagation();
-      }}
+      onKeyDown={onEditKeyDown}
       // innerText maps the <br> soft breaks to \n (the read stand);
       // textContent is the jsdom fallback (innerText stands layout-only).
-      onBlur={() => commit(innerRef.current?.innerText ?? innerRef.current?.textContent ?? "")}
+      onBlur={commitText}
     />
   ) : (
     <div className="w-full" data-slot="docblocks/shape-text">

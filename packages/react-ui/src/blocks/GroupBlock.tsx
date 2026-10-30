@@ -20,6 +20,7 @@ import type { Block, BlockId } from "docblocks-core";
 import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import { Input } from "../shared/ui/Input";
+import { stopPropagation } from "../shared/utils";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
 
 type GROUP_BLOCK_VIEW = Extract<Block, { type: "group" }>;
@@ -62,6 +63,17 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
   };
 
   const closeEditing = () => canvasTextEdit?.setEditingId(null);
+  const onTitleBlur = (event: React.FocusEvent<HTMLInputElement>) => {
+    closeEditing();
+    commitTitle(event.target.value);
+  };
+  const onTitleKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
+  };
 
   const selectedColor = "var(--docblocks-canvas-selection-border-color)";
   const borderColor = selected ? selectedColor : "var(--docblocks-table-border-color)";
@@ -162,7 +174,7 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
           data-slot="docblocks/group-title-edit"
           aria-label="Container title"
           defaultValue={title}
-          onPointerDown={(event) => event.stopPropagation()}
+          onPointerDown={stopPropagation}
           // The chip stand lives in the inline style (the look set);
           // the className drops the field base props the chip owns
           // (height fit, no frame, no shadow, no focus ring).
@@ -183,17 +195,8 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
             color: "var(--docblocks-text-color)",
             outline: "none",
           }}
-          onBlur={(event) => {
-            closeEditing();
-            commitTitle(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === "Enter" || event.key === "Escape") {
-              event.preventDefault();
-              event.currentTarget.blur();
-            }
-          }}
+          onBlur={onTitleBlur}
+          onKeyDown={onTitleKeyDown}
         />
       )}
       {selected && !hasTitle && !editing && (
@@ -219,11 +222,32 @@ function GroupTitleMenu({
   onCommit: (value: string) => void;
 }) {
   const [draft, setDraft] = useState("");
+  const toggleOpen = () => onOpenChange(!open);
+  const onTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => setDraft(event.target.value);
+  const onFormBlur = () => {
+    onCommit(draft);
+    setDraft("");
+    onOpenChange(false);
+  };
+  const onFormKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      onCommit(draft);
+      setDraft("");
+      onOpenChange(false);
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      setDraft("");
+      onOpenChange(false);
+    }
+  };
+
   return (
     <div
       className="absolute"
       style={{ pointerEvents: "auto", left: TITLE_LEFT_PX, bottom: `calc(100% + ${TITLE_GAP_PX}px)` }}
-      onPointerDown={(event) => event.stopPropagation()}
+      onPointerDown={stopPropagation}
     >
       <Button
         data-slot="docblocks/group-title-menu"
@@ -238,7 +262,7 @@ function GroupTitleMenu({
           hover:bg-(--docblocks-page-card-background) hover:text-(--docblocks-text-color)
           focus-visible:ring-0
         "
-        onClick={() => onOpenChange(!open)}
+        onClick={toggleOpen}
       >
         Title
       </Button>
@@ -258,25 +282,9 @@ function GroupTitleMenu({
           "
           value={draft}
           placeholder="Container title"
-          onChange={(event) => setDraft(event.target.value)}
-          onBlur={() => {
-            onCommit(draft);
-            setDraft("");
-            onOpenChange(false);
-          }}
-          onKeyDown={(event) => {
-            event.stopPropagation();
-            if (event.key === "Enter") {
-              event.preventDefault();
-              onCommit(draft);
-              setDraft("");
-              onOpenChange(false);
-            } else if (event.key === "Escape") {
-              event.preventDefault();
-              setDraft("");
-              onOpenChange(false);
-            }
-          }}
+          onChange={onTitleChange}
+          onBlur={onFormBlur}
+          onKeyDown={onFormKeyDown}
         />
       )}
     </div>

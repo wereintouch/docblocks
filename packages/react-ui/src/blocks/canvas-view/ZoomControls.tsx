@@ -8,6 +8,7 @@ import { Button } from "../../shared/ui";
 import { Minus } from "../../shared/ui/icons/Minus";
 import { Plus } from "../../shared/ui/icons/Plus";
 import { Scan } from "../../shared/ui/icons/Scan";
+import { preventDefault } from "../../shared/utils";
 
 const ZoomControls = memo(
   function ZoomControls({
@@ -21,6 +22,8 @@ const ZoomControls = memo(
     onReset: () => void;
     onFit: () => void;
   }) {
+    const stepOut = () => onStep(-1);
+    const stepIn = () => onStep(1);
     return (
       <div data-slot="docblocks/canvas-chrome" className="absolute top-3 right-3 z-50">
         <div
@@ -32,12 +35,12 @@ const ZoomControls = memo(
             bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color)
             shadow-(--docblocks-formatbar-shadow)
           "
-          onMouseDown={(event) => event.preventDefault()}
+          onMouseDown={preventDefault}
         >
           <Button variant="ghost" size="icon" aria-label="Fit to screen" onClick={onFit}>
             <Scan className="size-4" />
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={() => onStep(-1)}>
+          <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={stepOut}>
             <Minus className="size-4" />
           </Button>
           <Button variant="ghost" size="sm" aria-label="Reset zoom" onClick={onReset}>
@@ -50,7 +53,7 @@ const ZoomControls = memo(
               stand scales it without a reflow. */}
             <span className="w-[5ch] text-center tabular-nums">{Math.round(zoom * 100)}%</span>
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={() => onStep(1)}>
+          <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={stepIn}>
             <Plus className="size-4" />
           </Button>
         </div>

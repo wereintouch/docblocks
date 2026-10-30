@@ -228,6 +228,21 @@ function CanvasView() {
     return style;
   })();
 
+  const closeLabelEdit = () => viewport.setConnectorLabelEditing(null);
+  const resetViewportZoom = () => viewport.setZoom(1);
+  // The press is prevented (the same contract as the resize handle's
+  // branch): the compatibility mousedown's default stands no caret /
+  // native text selection — the re-anchor drag over the connector's label
+  // chip (or the shape's text / the canvas's text) stands no selection.
+  // The world layer's user-select none (the shared drag session's stand)
+  // backstops it.
+  const onEndpointPointerDown = (which: "start" | "end") => (event: React.PointerEvent<SVGCircleElement>) => {
+    if (connectorToolbarTarget === null) return;
+    event.stopPropagation();
+    event.preventDefault();
+    beginEndpointDrag(connectorToolbarTarget.id, which, event.pointerId, event.clientX, event.clientY);
+  };
+
   return (
     <CanvasTextEditProvider editingId={viewport.shapeTextEditing} setEditingId={viewport.setShapeTextEditing}>
       <div
@@ -346,7 +361,7 @@ function CanvasView() {
               width={connectorLabelTarget.width}
               lineStyle={connectorLabelTarget.lineStyle}
               label={connectorLabelTarget.label}
-              onClose={() => viewport.setConnectorLabelEditing(null)}
+              onClose={closeLabelEdit}
             />
           )}
           {viewport.placePreview !== null && (
@@ -595,24 +610,7 @@ function CanvasView() {
                     fill="transparent"
                     pointerEvents="all"
                     style={{ cursor: "grab" }}
-                    onPointerDown={(event) => {
-                      event.stopPropagation();
-                      // The press is prevented (the same contract as the resize
-                      // handle's branch): the compatibility mousedown's default
-                      // stands no caret / native text selection — the
-                      // re-anchor drag over the connector's label chip (or the
-                      // shape's text / the canvas's text) stands no selection.
-                      // The world layer's user-select none (the shared drag
-                      // session's stand) backstops it.
-                      event.preventDefault();
-                      beginEndpointDrag(
-                        connectorToolbarTarget.id,
-                        which,
-                        event.pointerId,
-                        event.clientX,
-                        event.clientY
-                      );
-                    }}
+                    onPointerDown={onEndpointPointerDown(which)}
                   />
                   <circle
                     cx={CONNECTOR_HANDLE_HIT_RADIUS_PX}
@@ -653,12 +651,7 @@ function CanvasView() {
             }}
           />
         )}
-        <ZoomControls
-          zoom={viewport.zoom}
-          onStep={viewport.stepZoom}
-          onReset={() => viewport.setZoom(1)}
-          onFit={onFit}
-        />
+        <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={resetViewportZoom} onFit={onFit} />
         <CanvasDock viewport={viewport} />
       </div>
     </CanvasTextEditProvider>

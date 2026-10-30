@@ -70,6 +70,27 @@ function ConnectorLabelEdit({
     });
   };
 
+  // The double-click over the text selects the WHOLE label (the input's
+  // word-select stands nothing — the select-all is the stand: the Backspace
+  // / the Delete clear the selection). The propagation stands off (the
+  // container's double-click's handler keeps no target over the input —
+  // the edit's own stand only).
+  const onLabelDoubleClick = (event: React.MouseEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+    event.currentTarget.select();
+  };
+  const onLabelBlur = (event: React.FocusEvent<HTMLInputElement>) => commit(event.target.value);
+  // The blur's commit (the Enter / the Escape — the shape text's contract);
+  // the keys stand no canvas / editor gesture (the container's hotkeys keep
+  // the editing surface off).
+  const onLabelKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "Enter" || event.key === "Escape") {
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
+    event.stopPropagation();
+  };
+
   return (
     <Input
       ref={inputRef}
@@ -90,26 +111,9 @@ function ConnectorLabelEdit({
         width: LABEL_EDIT_WIDTH,
         outline: "none",
       }}
-      onDoubleClick={(event) => {
-        // The double-click over the text selects the WHOLE label (the
-        // input's word-select stands nothing — the select-all is the
-        // stand: the Backspace / the Delete clear the selection). The
-        // propagation stands off (the container's double-click's handler
-        // keeps no target over the input — the edit's own stand only).
-        event.stopPropagation();
-        event.currentTarget.select();
-      }}
-      onBlur={(event) => commit(event.target.value)}
-      onKeyDown={(event) => {
-        // The blur's commit (the Enter / the Escape — the shape text's
-        // contract); the keys stand no canvas / editor gesture (the
-        // container's hotkeys keep the editing surface off).
-        if (event.key === "Enter" || event.key === "Escape") {
-          event.preventDefault();
-          event.currentTarget.blur();
-        }
-        event.stopPropagation();
-      }}
+      onDoubleClick={onLabelDoubleClick}
+      onBlur={onLabelBlur}
+      onKeyDown={onLabelKeyDown}
     />
   );
 }

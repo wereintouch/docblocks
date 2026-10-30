@@ -107,6 +107,14 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
 
   if (caption === "" && !local) return null;
 
+  const onCaptionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    if (value === caption) return;
+    doc.updateBlock(id, { caption: value });
+  };
+  const focusLocal = () => setLocal(true);
+  const blurLocal = () => setLocal(false);
+
   return (
     <input
       ref={inputRef}
@@ -115,13 +123,9 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
       value={caption}
       aria-label={ariaLabel}
       placeholder={placeholder}
-      onChange={(event) => {
-        const value = event.target.value;
-        if (value === caption) return;
-        doc.updateBlock(id, { caption: value });
-      }}
-      onFocus={() => setLocal(true)}
-      onBlur={() => setLocal(false)}
+      onChange={onCaptionChange}
+      onFocus={focusLocal}
+      onBlur={blurLocal}
       className="
         mx-auto my-1 block w-[90%] bg-transparent text-center text-[0.8125em] text-muted-foreground outline-none
         placeholder:text-muted-foreground/60
