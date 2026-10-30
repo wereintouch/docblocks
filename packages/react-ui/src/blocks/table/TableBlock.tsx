@@ -62,7 +62,6 @@ import {
   GHOST_ROW_HEIGHT,
   HANDLE_SIZE,
   HANDLE_ZONE,
-  MIN_COLUMN_WIDTH,
 } from "./models";
 import type {
   AddChipSession,
@@ -72,10 +71,10 @@ import type {
   TableDragPreview,
   TableHandleSession,
 } from "./models";
+import { useTableSeamResize } from "./use-table-seam-resize";
 import {
   addDragCount,
   cellPlainText,
-  clampColumnWidth,
   columnDropPosition,
   pasteCellText,
   readClipboardText,
@@ -95,7 +94,11 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     { length: block.columnOrder.length },
     (_, index) => block.attrs?.columnWidths?.[index] ?? DEFAULT_TABLE_COLUMN_WIDTH
   );
-  const [resizePreview, setResizePreview] = useState<{ col: number; width: number } | null>(null);
+  // The column-seam's resize session (shared with the add chip's + the
+  // handle's guards — a press starts at most one session at a time).
+  const resizeSessionRef = useRef<ColumnResizeSession | null>(null);
+  const { resizePreview, onSeamPointerDown, onSeamPointerMove, onSeamPointerUp, onSeamPointerCancel } =
+    useTableSeamResize({ docWidths, doc, id, resizeSessionRef });
   const widths =
     resizePreview !== null
       ? docWidths.map((width, i) => (i === resizePreview.col - 1 ? resizePreview.width : width))
@@ -112,7 +115,6 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // The cell context menu (the right-click): the anchor point (frame-relative)
   // and the cell; the menu's content carries the copy/paste/clear items.
   const [ctx, setCtx] = useState<{ x: number; y: number; cellId: BlockId } | null>(null);
-  const resizeSessionRef = useRef<ColumnResizeSession | null>(null);
   // The add chip's drag session + the live count's preview (positive = the
   // ghost rows / columns, negative = the dimmed last ones) — view state:
   // the doc stands the commit on the release only.
@@ -285,48 +287,6 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const onHandlePointerCancel = () => {
     sessionRef.current = null;
     setPreview(null);
-  };
-
-  /**
-   * A seam press: starts the resize session (the native click / selection
-   * is suppressed — the release commits the width or stands a no-op).
-   */
-  const onSeamPointerDown = (col: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (event.button !== 0 || resizeSessionRef.current !== null) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture?.(event.pointerId);
-    const startWidth = docWidths[col - 1] ?? MIN_COLUMN_WIDTH;
-    resizeSessionRef.current = { col, startX: event.clientX, startWidth, width: startWidth };
-  };
-
-  const onSeamPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const session = resizeSessionRef.current;
-    if (session === null) return;
-    session.width = clampColumnWidth(session.startWidth + (event.clientX - session.startX));
-    setResizePreview({ col: session.col, width: session.width });
-  };
-
-  /**
-   * The seam release: the clamped width commits when it changed (one
-   * command, one undo step); a 0 px drag stands a no-op (no wire traffic).
-   */
-  const onSeamPointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const session = resizeSessionRef.current;
-    resizeSessionRef.current = null;
-    setResizePreview(null);
-    if (session === null || session.width === session.startWidth) return;
-    event.currentTarget.releasePointerCapture?.(event.pointerId);
-    try {
-      doc.setTableColumnWidth(id, session.col - 1, session.width);
-    } catch {
-      // A rejected width (a concurrent structural change won the race):
-      // the doc stands as-is, the preview stands the doc's width.
-    }
-  };
-
-  const onSeamPointerCancel = () => {
-    resizeSessionRef.current = null;
-    setResizePreview(null);
   };
 
   /**
