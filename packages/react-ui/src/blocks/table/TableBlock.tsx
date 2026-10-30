@@ -54,7 +54,7 @@ import { preventDefault } from "../../shared/utils";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import { useFormatPalette } from "../format-palette-context";
 import { HandleMenu, HandleMenuItems } from "./HandleMenu";
-import { TableRow } from "./TableCells";
+import { TableRow } from "./TableRow";
 import {
   ADD_BUTTON_CLASSES,
   ADD_BUTTON_SIZE,
