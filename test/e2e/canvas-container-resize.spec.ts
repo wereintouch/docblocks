@@ -1,54 +1,13 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
-
+// The container's resize's per-edge union clamp: a container's
 // box shrinks only up to its members' union (each edge stops at the members'
 // bounding shell), and grows unlimited. The preview = the commit (one source);
 // the overshoot-release is the clamped box (not raw); both panes over the
 // wire; the undo reverts to the previous box.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
+import { SETTLE, canvasCenter, canvasView, screenAt, toCanvas, twoPanes } from "./helpers";
 
 /** A canvas point at 100% zoom / no pan stands at the center + the offset. */
-function screenAt(center: { x: number; y: number }, x: number, y: number): { x: number; y: number } {
-  return { x: center.x + x, y: center.y + y };
-}
 
 interface CanvasBlock {
   type: string;

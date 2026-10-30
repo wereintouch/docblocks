@@ -25,6 +25,7 @@ import {
   endpointBoxOf,
   endpointPointOf,
 } from "./canvas-geometry";
+import { SURFACE_BG } from "./canvas-view/constants";
 import { CONNECT_COLOR, HIT_STROKE_WIDTH, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "./connector-constants";
 import type { CanvasSession } from "./connector-session-context";
 import { CanvasSessionContext } from "./connector-session-context";
@@ -136,7 +137,7 @@ function connectorLineOf(
   // former 1→2 emphasis; the label chip's frame reads the same stand).
   const strokeWidth = connectorStrokeWidthOf(attrs, selected);
   const dash = attrs.strokeStyle === "dash" ? "8 4" : attrs.strokeStyle === "dot" ? "1 4" : undefined;
-  // The arrowheads (the independent
+  // The arrowheads (the independent start figure): each end stands its own
   // figure — the end
   // defaults to "arrow" (absent), the start stands no marker when
   // absent. The marker follows the line's stroke (the data color / the
@@ -216,7 +217,7 @@ function connectorLineOf(
           cx={dragDraw.x + dragDraw.nx * SNAP_BADGE_LIFT}
           cy={dragDraw.y + dragDraw.ny * SNAP_BADGE_LIFT}
           r={SNAP_BADGE_RADIUS}
-          fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+          fill={SURFACE_BG}
           stroke={CONNECT_COLOR}
           strokeWidth={1.5}
         />
@@ -276,7 +277,7 @@ function connectorLineOf(
 
 /**
  * One connector's line, the surface's Z-ORDER stand (the explicit zIndex):
- * explicit zIndex): the line stands at the connector's position in the
+ * the line stands at the connector's position in the
  * surface's children (the paint order) — a connector can stand over or
  * under a figure, not only over every figure (the former single overlay
  * painted every line on top). The SVG is the surface's center-anchor

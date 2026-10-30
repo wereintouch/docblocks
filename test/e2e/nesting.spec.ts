@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { insertBlockType } from "./helpers";
-
 // Tab / Shift+Tab over the FLAT page model (schema §3.2): the nesting is
 // the block's `indent` attr relative to its PRECEDING block, so the
 // gestures are one `updateBlock({ indent })` each (one undo step, one wire
@@ -14,16 +10,9 @@ import { insertBlockType } from "./helpers";
 // paragraph lands at the item's attach level). Backspace at the start
 // refuses to merge a block that owns a non-empty derived segment.
 //
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, insertBlockType, outCount, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -86,35 +75,6 @@ async function rowPadding(page: Page, client: "a" | "b", id: string): Promise<st
 }
 
 /** The `out` (local) doc-update count of the wire log (awareness frames are not logged). */
-async function outCount(page: Page): Promise<number> {
-  const text = await page.getByTestId("wire-a").innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
-}
-
-async function twoPanes(
-  browser: Browser,
-  room: string
-): Promise<{
-  a: Page;
-  b: Page;
-  close: () => Promise<void>;
-}> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
 
 test("Tab indents the second paragraph (an indent attr update); one mod+z reverts it", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "c5c-indent");
@@ -126,14 +86,14 @@ test("Tab indents the second paragraph (an indent attr update); one mod+z revert
   const secondId = await insertBlockType(a, "a", "paragraph");
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(2);
 
-  const outBefore = await outCount(a);
+  const outBefore = await outCount(a, "a");
   await innerOf(a, "a", secondId).click();
   await a.keyboard.press("Tab");
 
   // The flat model: the indent attr is set (one updateBlock in one
   // transact — one wire update), the sequence order stands, and no
   // children field is written anywhere.
-  await expect.poll(async () => outCount(a), SETTLE).toBe(outBefore + 1);
+  await expect.poll(async () => outCount(a, "a"), SETTLE).toBe(outBefore + 1);
   await expect.poll(async () => indentOf(a, "a", secondId), SETTLE).toBe(1);
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual([firstId, secondId]);
   expect((await blockOf(a, "a", firstId))?.children).toBeUndefined();
@@ -182,20 +142,20 @@ test("the Tab boundary rules: the first block and the jump of more than one leve
     return { x, y, z };
   });
   if (seeded === null) throw new Error("the pane's doc is not mounted");
-  const outBefore = await outCount(a);
+  const outBefore = await outCount(a, "a");
 
   // Tab on the first block: no preceding block, nothing to nest under.
   const firstId = (await rootIds(a, "a"))[0]!;
   await innerOf(a, "a", firstId).click();
   await a.keyboard.press("Tab");
-  expect(await outCount(a)).toBe(outBefore);
+  expect(await outCount(a, "a")).toBe(outBefore);
   expect(await indentOf(a, "a", firstId)).toBeUndefined();
 
   // Tab on Z: the jump would exceed the preceding block's indent by more
   // than one (the markdown jump rule) — a no-op.
   await innerOf(a, "a", seeded.z).click();
   await a.keyboard.press("Tab");
-  expect(await outCount(a)).toBe(outBefore);
+  expect(await outCount(a, "a")).toBe(outBefore);
   expect(await indentOf(a, "a", seeded.z)).toBe(1);
   // The doc stands: the other pane is unchanged too.
   expect(await rootIds(b, "b")).toEqual(await rootIds(a, "a"));
@@ -209,13 +169,13 @@ test("Shift+Tab at the top level is a no-op", async ({ browser }) => {
 
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toHaveLength(1);
   const firstId = (await rootIds(a, "a"))[0]!;
-  const outBefore = await outCount(a);
+  const outBefore = await outCount(a, "a");
 
   await innerOf(a, "a", firstId).click();
   await a.keyboard.press("Shift+Tab");
 
   // The top level has no outdent target: no attr, no wire update.
-  expect(await outCount(a)).toBe(outBefore);
+  expect(await outCount(a, "a")).toBe(outBefore);
   expect(await indentOf(a, "a", firstId)).toBeUndefined();
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual([firstId]);
 
@@ -262,7 +222,7 @@ test("an empty root list item + Enter resets its type in place (the segment stan
   if (seeded === null) throw new Error("the pane's doc is not mounted");
   await a.waitForTimeout(600); // the enter animations settle
 
-  const outBefore = await outCount(a);
+  const outBefore = await outCount(a, "a");
 
   // Caret in the empty item, Enter: the root-level non-text block resets
   // its type to a plain paragraph IN PLACE (one updateBlock-class command,
@@ -270,7 +230,7 @@ test("an empty root list item + Enter resets its type in place (the segment stan
   await innerOf(a, "a", seeded.item).click();
   await a.keyboard.press("Enter");
 
-  await expect.poll(async () => outCount(a), SETTLE).toBe(outBefore + 1);
+  await expect.poll(async () => outCount(a, "a"), SETTLE).toBe(outBefore + 1);
   const after = await rootIds(a, "a");
   // The item's slot is a paragraph now (the same block id — the reset is
   // in place), the sublist and the starter stand.
@@ -321,7 +281,7 @@ test("Backspace at the start refuses to merge a block that owns a derived segmen
   await a.waitForTimeout(600); // the enter animations settle
 
   const before = await rootIds(a, "a");
-  const outBefore = await outCount(a);
+  const outBefore = await outCount(a, "a");
 
   // Caret at the blocked block's offset 0, Backspace: merging it into the
   // head would swallow its derived segment — the gesture is refused and
@@ -332,7 +292,7 @@ test("Backspace at the start refuses to merge a block that owns a derived segmen
   await a.waitForTimeout(300);
 
   // The doc stands: the order, the texts, the indent.
-  expect(await outCount(a)).toBe(outBefore);
+  expect(await outCount(a, "a")).toBe(outBefore);
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual(before);
   expect(await textOf(a, "a", seeded.head)).toBe("the head");
   expect(await textOf(a, "a", seeded.block)).toBe("the blocked");
@@ -362,7 +322,7 @@ test("a gutter selection + mod+shift+arrow moves the block's derived segment", a
   const headIndex = before.indexOf(seeded.head);
   expect(before[headIndex + 1]).toBe(seeded.child);
   expect(before[headIndex + 2]).toBe(seeded.after);
-  const outBefore = await outCount(a);
+  const outBefore = await outCount(a, "a");
 
   // Gutter click: a blocks selection on the head; mod+shift+ArrowDown
   // moves the segment (head + child) one slot down — the "after" row
@@ -374,7 +334,7 @@ test("a gutter selection + mod+shift+arrow moves the block's derived segment", a
 
   await a.keyboard.press("Control+Shift+ArrowDown");
 
-  await expect.poll(async () => outCount(a), SETTLE).toBe(outBefore + 1);
+  await expect.poll(async () => outCount(a, "a"), SETTLE).toBe(outBefore + 1);
   const afterOrder = await rootIds(a, "a");
   const newHeadIndex = afterOrder.indexOf(seeded.head);
   expect(afterOrder[newHeadIndex - 1]).toBe(seeded.after);
@@ -387,7 +347,7 @@ test("a gutter selection + mod+shift+arrow moves the block's derived segment", a
   // brings the segment back (one transact each way).
   await expect.poll(async () => (await rootIds(b, "b")).indexOf(seeded.head), SETTLE).toBe(newHeadIndex);
   await a.keyboard.press("Control+Shift+ArrowUp");
-  await expect.poll(async () => outCount(a), SETTLE).toBe(outBefore + 2);
+  await expect.poll(async () => outCount(a, "a"), SETTLE).toBe(outBefore + 2);
   await expect.poll(async () => rootIds(a, "a"), SETTLE).toEqual(before);
   await expect.poll(async () => rootIds(b, "b"), SETTLE).toEqual(before);
 
@@ -415,7 +375,7 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
   await expect(a.locator(`[data-block-id="${seeded.item}"]`).first()).toBeVisible();
   await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
   await expect(b.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
-  const wireA = await outCount(a);
+  const wireA = await outCount(a, "a");
 
   const toggle = a
     .locator(`[data-block-id="${seeded.item}"]`)
@@ -431,7 +391,7 @@ test("the collapse toggle unmounts the derived segment locally (no wire traffic,
   // update (the wire log stands).
   await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0);
   await expect(b.locator(`[data-block-id="${seeded.child}"]`).first()).toBeVisible();
-  expect(await outCount(a)).toBe(wireA);
+  expect(await outCount(a, "a")).toBe(wireA);
   // The data stands: the child keeps its indent in the doc.
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
@@ -502,14 +462,14 @@ test("the collapse triangle: a paragraph's derived segment and the fill/visibili
   // Collapse: the derived segment unmounts (view state — the data stands,
   // no wire update), the triangle turns right, and it stays visible
   // without the hover.
-  const wireA = await outCount(a);
+  const wireA = await outCount(a, "a");
   await toggle.click();
   await a.mouse.move(5, 5); // leave the wrapper: the hover is off
   await expect(toggle).toHaveCSS("opacity", "1");
   await expect(triangle).toHaveCSS("rotate", "90deg");
   expect(await triangle.evaluate((el) => getComputedStyle(el).fill)).not.toBe("none");
   await expect(a.locator(`[data-block-id="${seeded.child}"]`).first()).toHaveCount(0);
-  expect(await outCount(a)).toBe(wireA);
+  expect(await outCount(a, "a")).toBe(wireA);
   expect(await indentOf(a, "a", seeded.child)).toBe(1);
 
   // Expand re-mounts the segment.

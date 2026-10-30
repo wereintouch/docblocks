@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "../../../shared/ui/Popover";
+import { PICKER_SIDE_OFFSET_PX } from "../constants";
 import { OptionPickerList } from "./OptionPickerList";
 import { RefValueChips } from "./RefValueChips";
 import type { RefOption } from "./models";
@@ -71,7 +72,7 @@ function RefMultiEditor({ values, options, onCommit, onEditEnd }: RefMultiEditor
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        sideOffset={4}
+        sideOffset={PICKER_SIDE_OFFSET_PX}
         style={width !== undefined ? { width: `${width}px` } : undefined}
         className="flex w-(--radix-popover-trigger-width) flex-col gap-1 p-2"
       >

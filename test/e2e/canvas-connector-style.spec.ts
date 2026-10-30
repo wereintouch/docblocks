@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The connector's style attrs: the
 // strokeColor (the data hex), the strokeWidth (the 1–4 px stand), and the
 // two arrowheads' figures (none / arrow / circle — the start's independent
@@ -11,31 +7,9 @@ import { switchPaneView } from "./helpers";
 // end's figures stand independently), and the one-step undo. The
 // selection's cyan emphasis stands over the data color (the emphasis
 // follows the selection).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
+import { SETTLE, openPane, switchPaneView, twoPanes } from "./helpers";
 
 /** Seed a surface + two rects (the line runs through the canvas center). */
 async function seedLine(page: Page, client: "a" | "b"): Promise<void> {
@@ -689,7 +663,7 @@ test("the label's chip stands on the line for the port-pairs (the dist-to-path s
 });
 
 // The label chip's stand on the CURVE (the reopened case — the "777"
-// reopened case — the "777" connector): the curved variant's bow stands off
+// connector): the curved variant's bow stands off
 // the endpoints' straight mid, so the straight-mid seat (the former stand)
 // hung in the air off the bow. The chip stands on the curve (the bezier's
 // t = 0.5) in BOTH panes (the dist-to-curve stands zero — no air).

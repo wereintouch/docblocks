@@ -11,6 +11,7 @@ import { cn } from "../../shared/ui/cn";
 import { Ellipsis } from "../../shared/ui/icons";
 import type { BridgeColumn } from "../bridge";
 import { columnTypeIcon } from "./column-type-icon";
+import { GRID_DRAG_TRANSITION, PICKER_SIDE_OFFSET_PX } from "./constants";
 
 interface HeaderCellProps {
   column: BridgeColumn;
@@ -88,6 +89,17 @@ function HeaderCell({
       onMenuChange(false);
     }
   };
+  // The menu's item picks (the menu closes on the press — the column's
+  // action follows).
+  const onEditOptionsPress = () => {
+    if (onEditOptions === undefined) return; // the stand's absence
+    onMenuChange(false);
+    onEditOptions();
+  };
+  const onDeletePress = () => {
+    onMenuChange(false);
+    onDelete();
+  };
 
   return (
     <div
@@ -99,7 +111,7 @@ function HeaderCell({
               transform: `translateX(${dragDx}px)`,
               position: "relative",
               zIndex: dragShifted ? undefined : 10,
-              transition: dragShifted ? "transform 120ms ease-out" : undefined,
+              transition: dragShifted ? GRID_DRAG_TRANSITION : undefined,
             }
           : undefined
       }
@@ -139,7 +151,11 @@ function HeaderCell({
               <Ellipsis className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" sideOffset={4} className="flex w-52 flex-col gap-2 p-2">
+          <DropdownMenuContent
+            align="start"
+            sideOffset={PICKER_SIDE_OFFSET_PX}
+            className="flex w-52 flex-col gap-2 p-2"
+          >
             <div className="flex flex-col gap-1">
               <Input
                 size="sm"
@@ -161,26 +177,14 @@ function HeaderCell({
             </div>
             <Separator />
             {onEditOptions !== undefined && (
-              <DropdownMenuItem
-                data-slot="docblocks/database-column-edit-options"
-                onClick={() => {
-                  onMenuChange(false);
-                  onEditOptions();
-                }}
-              >
+              <DropdownMenuItem data-slot="docblocks/database-column-edit-options" onClick={onEditOptionsPress}>
                 Edit options
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={hidden ? onShow : onHide}>
               {hidden ? "Show column" : "Hide column"}
             </DropdownMenuItem>
-            <DropdownMenuItem
-              data-destructive
-              onClick={() => {
-                onMenuChange(false);
-                onDelete();
-              }}
-            >
+            <DropdownMenuItem data-destructive onClick={onDeletePress}>
               Delete column
             </DropdownMenuItem>
           </DropdownMenuContent>

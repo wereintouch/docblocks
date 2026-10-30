@@ -46,7 +46,7 @@ function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): 
 }
 
 /**
-
+ * The surface's explicit z-order invariant: the canvas elements
  * (shape / connector / canvas-text / group) carry a `zIndex` attr that is the
  * element's position among the surface's canvas elements (dense 1..N, the
  * children order's mirror — 1 = bottom). The invariant is all-or-nothing per

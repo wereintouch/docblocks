@@ -1,49 +1,14 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { insertBlockType } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs). The panes' master docs are
-// shared through the `<room>-master` room: pane A seeds the master;
-// pane B joins the empty room and receives the seed through the
 // attach() bootstrap, so the embeds resolve the same master and edits
 // converge (double-seeding with identical deterministic ids would
 // duplicate the root order). `?cycle=1` seeds the master with a
 // sync-embed that references the OUTER doc (the cycle-guard case).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string, cycle = false): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}${cycle ? "&cycle=1" : ""}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, insertBlockType, twoPanes } from "./helpers";
 
 /** Insert one harness type at the root through the pane's insert control. */
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {
   await insertBlockType(page, client, type);
-}
-
-async function twoPanes(
-  browser: Browser,
-  room: string,
-  cycle = false
-): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom, cycle);
-  await openPane(b, "b", uniqueRoom, cycle);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
 }
 
 /** The pane's sync-embed wrapper (the first in DOM order: nested ones sit inside it). */
@@ -230,7 +195,7 @@ test("a broken sync-embed (an unknown master id) renders the placeholder in both
 });
 
 test("a master that embeds the outer doc renders the cycle placeholder", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "ext03-cycle", true);
+  const { a, b, close } = await twoPanes(browser, "ext03-cycle", { cycle: true });
 
   await insertType(a, "a", "sync-embed");
 

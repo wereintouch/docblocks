@@ -25,6 +25,7 @@ import { BlockContext, useBlockContextValue } from "../block-context";
 import { effectiveGeometry, portsOf } from "../canvas-geometry";
 import type { CanvasSession } from "../connector-session-context";
 import { CanvasSessionContext } from "../connector-session-context";
+import { SURFACE_BG } from "./constants";
 
 function SurfaceLayer({
   id,
@@ -126,11 +127,7 @@ function PortDots({
           cx={p.x}
           cy={p.y}
           r={isSnapped ? 3.5 : 2.5}
-          fill={
-            isSnapped
-              ? "var(--docblocks-canvas-connect-color, #16a34a)"
-              : "var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
-          }
+          fill={isSnapped ? "var(--docblocks-canvas-connect-color, #16a34a)" : SURFACE_BG}
           strokeWidth={1}
           style={{
             stroke: isSnapped

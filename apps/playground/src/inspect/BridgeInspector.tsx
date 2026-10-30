@@ -333,18 +333,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
       <div className="border-b border-border px-2 py-1 text-xs">
         bridge — {tables.length} tables {selected !== null ? `· ${desc?.name ?? selected}` : ""}
       </div>
-      {error !== "" && (
-        <div
-          style={{
-            padding: "4px 8px",
-            fontSize: 11,
-            color: "var(--destructive)",
-            borderBottom: "1px solid var(--border)",
-          }}
-        >
-          {error}
-        </div>
-      )}
+      {error !== "" && <div className="bridge-error">{error}</div>}
 
       {/* Tables: the catalog (listTables) + create. */}
       <div className={BOX}>
@@ -586,18 +575,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
       {selected !== null && (
         <div className={BOX}>
           <div className={LABEL}>events (subscribeTable) — {events.length}</div>
-          <ul
-            ref={logRef}
-            style={{
-              listStyle: "none",
-              margin: "4px 0 0",
-              padding: 0,
-              overflow: "auto",
-              maxHeight: 140,
-              fontFamily: "monospace",
-              fontSize: 10,
-            }}
-          >
+          <ul ref={logRef} className="event-log">
             {events.map((event) => (
               <li key={event.seq}>
                 [t+{event.at}ms] {event.type}

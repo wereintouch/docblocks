@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Popover, PopoverContent, PopoverTrigger } from "../../../shared/ui/Popover";
+import { PICKER_SIDE_OFFSET_PX } from "../constants";
 import { OptionPickerList } from "./OptionPickerList";
 import { RefValueChips } from "./RefValueChips";
 import type { RefOption } from "./models";
@@ -43,14 +44,12 @@ function EnumPicker({ options, current, open, onPick, onClear, onEditEnd }: Enum
   }, [open, trigger]);
   const currentValues = current === null ? [] : [current];
   const noOp = () => undefined;
+  const onOpenChange = (isOpen: boolean) => {
+    if (!isOpen) onEditEnd();
+  };
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(isOpen) => {
-        if (!isOpen) onEditEnd();
-      }}
-    >
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
         <span
           ref={setTrigger}
@@ -62,7 +61,7 @@ function EnumPicker({ options, current, open, onPick, onClear, onEditEnd }: Enum
       </PopoverTrigger>
       <PopoverContent
         align="start"
-        sideOffset={4}
+        sideOffset={PICKER_SIDE_OFFSET_PX}
         style={width !== undefined ? { width: `${width}px` } : undefined}
         className="flex w-(--radix-popover-trigger-width) flex-col gap-1 p-2"
       >

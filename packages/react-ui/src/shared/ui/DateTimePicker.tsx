@@ -82,6 +82,15 @@ function DateTimePicker({
     onSelect(committed);
   };
 
+  // The day-picker's same-day toggle (the undefined stand) resets no draft
+  // date: the commit is deferred to the close, so the toggle would clear
+  // the draft date and lose the typed time (the clear stand is the date
+  // picker's immediate-commit contract only).
+  const onDraftDateSelect = (date: Date | undefined) => {
+    if (date === undefined || date === null) return;
+    setDraftDate(datePart(date));
+  };
+
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
@@ -101,15 +110,7 @@ function DateTimePicker({
           mode="single"
           selected={draftDate ?? undefined}
           {...(value !== null ? { defaultMonth: value } : {})}
-          onSelect={(date) => {
-            // The day-picker's same-day toggle (the undefined stand) resets
-            // no draft date: the commit is deferred to the close, so the
-            // toggle would clear the draft date and lose the typed time
-            // (the clear stand is the date picker's immediate-commit
-            // contract only).
-            if (date === undefined || date === null) return;
-            setDraftDate(datePart(date));
-          }}
+          onSelect={onDraftDateSelect}
         />
         <Separator />
         <div className="p-2">

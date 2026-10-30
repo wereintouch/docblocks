@@ -1,6 +1,5 @@
 /**
  * The slash `Database` picker: the create-new form (a `New table` button that stands the
-
  * auto-focused name input + the check commit — `bridge.createTable`) above
  * the existing tables (the search row filters the list by name —
  * `bridge.listTables`). The menu stands open over the phrase while the

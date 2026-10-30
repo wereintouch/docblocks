@@ -1,9 +1,7 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
+import { openPane, twoPanes } from "./helpers";
+
 const SETTLE = { timeout: 20_000 };
 const FIXTURE = new URL("./fixtures/sample.pdf", import.meta.url).pathname;
 // A real scanned PDF whose text layers are JBIG2-encoded (a JPEG background
@@ -11,29 +9,6 @@ const FIXTURE = new URL("./fixtures/sample.pdf", import.meta.url).pathname;
 // decoder path: without a resolvable wasmUrl the worker drops those layers and
 // the page renders as a bare (mostly-white) background image.
 const FIXTURE_JBIG2 = new URL("./fixtures/scan-jbig2.pdf", import.meta.url).pathname;
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`).first()).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
 
 /** The pane's image block's attrs from the harness global (its own letter). */
 async function imageAttrs(page: Page, client: "a" | "b"): Promise<Record<string, unknown> | null> {
@@ -114,7 +89,7 @@ test("the jbig2 text layers of a scanned pdf stand in the canvas preview", async
   const a = await context.newPage();
   const room = `jbig2-${Math.random().toString(36).slice(2, 8)}`;
   try {
-    await openPane(a, "a", room);
+    await openPane(a, "a", room, { first: true });
     // Upload the scanned (JBIG2) PDF through the slash Image path.
     const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
     await target.click();

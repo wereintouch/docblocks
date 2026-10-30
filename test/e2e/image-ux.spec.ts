@@ -1,34 +1,8 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { SETTLE, twoPanes } from "./helpers";
+
 const FIXTURE = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`).first()).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
 
 /** The pane's image block's attrs from the harness global (its own letter). */
 async function imageAttrs(page: Page, client: "a" | "b"): Promise<Record<string, unknown> | null> {
@@ -87,7 +61,7 @@ async function paragraphTextInDoc(page: Page, client: "a" | "b", id: string): Pr
 test("the delete key over the selected image converts it to an empty paragraph (the caret seats there, over the wire)", async ({
   browser,
 }) => {
-  const { a, b, close } = await twoPanes(browser, "img-ux");
+  const { a, b, close } = await twoPanes(browser, "img-ux", { first: true });
 
   const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
   await target.click();
@@ -149,7 +123,7 @@ test("the delete key over the selected image converts it to an empty paragraph (
 test("the image figure: the click's selection ring, the port resize, and the hover menu (over the wire)", async ({
   browser,
 }) => {
-  const { a, b, close } = await twoPanes(browser, "img-ux");
+  const { a, b, close } = await twoPanes(browser, "img-ux", { first: true });
 
   const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
   await target.click();

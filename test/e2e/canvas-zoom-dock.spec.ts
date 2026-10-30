@@ -1,44 +1,10 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { switchPaneView } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
+import { SETTLE, blockShapes, canvasCenter, canvasView, openPane, seedShape, toCanvas, twoPanes } from "./helpers";
 
 /** Switch the pane to the canvas view (the harness's view toggle). */
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
 
 /** The canvas-view container (the viewport's chrome root). */
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
 
 /** The world wrapper (the zoom/pan transform carrier). */
 const world = (page: Page, client: "a" | "b") =>
@@ -52,10 +18,6 @@ const zoomToolbar = (page: Page, client: "a" | "b") =>
 const dock = (page: Page, client: "a" | "b") => canvasView(page, client).getByRole("toolbar", { name: "Canvas tools" });
 
 /** The canvas-view center in page coordinates. */
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
 
 /** The box's center (the screen-px geometry). */
 function centerOf(box: { x: number; y: number; width: number; height: number }): { x: number; y: number } {
@@ -72,27 +34,6 @@ async function worldTransform(page: Page, client: "a" | "b"): Promise<{ scale: n
 }
 
 /** Seed one canvas shape on the pane's doc (the first surface, created when absent). */
-async function seedShape(
-  page: Page,
-  client: "a" | "b",
-  variant: "rect" | "rounded" | "ellipse" | "diamond",
-  geometry: { x: number; y: number; w: number; h: number }
-): Promise<string> {
-  return page.evaluate(
-    ({ client, variant, geometry }) => {
-      const docs = window.__paneDocs;
-      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-      if (doc === null) throw new Error("the pane's doc is not mounted");
-      const json = doc.toJSON();
-      const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
-      const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
-      const id = doc.insertBlock("shape", { variant }, { parent: surface });
-      doc.setGeometry(id, geometry);
-      return id;
-    },
-    { client, variant, geometry }
-  );
-}
 
 /** The shape ids on the pane's live doc. */
 async function shapeIds(page: Page, client: "a" | "b"): Promise<string[]> {
@@ -111,26 +52,6 @@ async function shapeIds(page: Page, client: "a" | "b"): Promise<string[]> {
 }
 
 /** The pane's doc JSON blocks (the type + the geometry per id). */
-async function blockShapes(
-  page: Page,
-  client: "a" | "b"
-): Promise<Record<string, { type: string; geometry: unknown }>> {
-  return page.evaluate(
-    ({ client }) => {
-      const docs = window.__paneDocs;
-      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-      if (doc === null) return {};
-      const json = doc.toJSON();
-      const out: Record<string, { type: string; geometry: unknown }> = {};
-      for (const [id, block] of Object.entries(json.blocks)) {
-        const entry = block as { type: string; geometry?: unknown };
-        out[id] = { type: entry.type, geometry: entry.geometry };
-      }
-      return out;
-    },
-    { client }
-  );
-}
 
 test.describe("the canvas zoom controls", () => {
   test("zoom in/out/reset change the world transform (view state, per pane)", async ({ browser }) => {
@@ -168,7 +89,7 @@ test.describe("the wheel's gesture", () => {
     const { a, close } = await twoPanes(browser, "canvas-wheel-pan");
     try {
       await toCanvas(a, "a");
-      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      const id = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 120, h: 80 });
       expect(id).toBeTruthy();
 
       const cursor = await canvasCenter(a, "a");
@@ -203,7 +124,7 @@ test.describe("the wheel's gesture", () => {
     const { a, close } = await twoPanes(browser, "canvas-wheel-shift-pan");
     try {
       await toCanvas(a, "a");
-      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      const id = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 120, h: 80 });
       expect(id).toBeTruthy();
 
       const cursor = await canvasCenter(a, "a");
@@ -233,7 +154,7 @@ test.describe("the wheel's gesture", () => {
     const { a, close } = await twoPanes(browser, "canvas-wheel-pinch");
     try {
       await toCanvas(a, "a");
-      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      const id = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 120, h: 80 });
       expect(id).toBeTruthy();
 
       // The shape's on-screen center at the 100% zoom.
@@ -267,7 +188,7 @@ test.describe("the wheel's gesture", () => {
     const { a, close } = await twoPanes(browser, "canvas-wheel-zoom");
     try {
       await toCanvas(a, "a");
-      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      const id = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 120, h: 80 });
       expect(id).toBeTruthy();
 
       // The hand's toggle: the pan mode.
@@ -301,7 +222,7 @@ test.describe("the wheel's gesture", () => {
     const { a, close } = await twoPanes(browser, "canvas-wheel-tool-zoom");
     try {
       await toCanvas(a, "a");
-      const id = await seedShape(a, "a", "rect", { x: 0, y: 0, w: 120, h: 80 });
+      const id = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 120, h: 80 });
       expect(id).toBeTruthy();
 
       // The dock's shapes' menu: the rect's pick stands the active tool.
@@ -515,8 +436,8 @@ test.describe("the canvas marquee selection", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const s1 = await seedShape(a, "a", "rect", { x: -500, y: 0, w: 120, h: 80 });
-      const s2 = await seedShape(a, "a", "ellipse", { x: 500, y: 0, w: 120, h: 80 });
+      const s1 = await seedShape(a, "a", { variant: "rect" }, { x: -500, y: 0, w: 120, h: 80 });
+      const s2 = await seedShape(a, "a", { variant: "ellipse" }, { x: 500, y: 0, w: 120, h: 80 });
 
       // Zoom out to 25%: the shapes stand at screen (±125, 0), the page
       // miniature shrinks to the (±45, ±60) center box — the marquee's
@@ -714,8 +635,8 @@ test.describe("the canvas dock", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const start = await seedShape(a, "a", "rect", { x: -80, y: 0, w: 100, h: 60 });
-      const end = await seedShape(a, "a", "ellipse", { x: 80, y: 0, w: 100, h: 60 });
+      const start = await seedShape(a, "a", { variant: "rect" }, { x: -80, y: 0, w: 100, h: 60 });
+      const end = await seedShape(a, "a", { variant: "ellipse" }, { x: 80, y: 0, w: 100, h: 60 });
 
       await dock(a, "a").getByLabel("Connector").click();
       const startItem = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${start}"]`);

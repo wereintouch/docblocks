@@ -1,6 +1,5 @@
 /** The column type's icon (the header's name-line's type mark + the
  * create-menu's entry's mark — the icon set's stand as local SVG). The mapping reads the column's type + the
- * local SVG's stand). The mapping reads the column's type + the
  * relation's kind / cardinality (the enum's dict / the row's link; the
  * many's stand): the relation's kinds read first (a ref's type stands the
  * plain `text`), then the scalar's type. */

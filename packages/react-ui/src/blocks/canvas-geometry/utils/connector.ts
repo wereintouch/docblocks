@@ -422,8 +422,8 @@ function connectorPathPoints(
   const c1 = { x: a.x + aNormal.nx * reach, y: a.y + aNormal.ny * reach };
   const c2 = { x: b.x + bNormal.nx * reach, y: b.y + bNormal.ny * reach };
   // The seat stands on the curve's own midpoint (the bezier's t = 0.5) — the
-  // endpoints' straight mid stands in the air off the bow.
-
+  // endpoints' straight mid stands in the air off the bow (the label
+  // sits on the curve, not on the chord).
   return {
     d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`,
     end: { x: b.x, y: b.y },

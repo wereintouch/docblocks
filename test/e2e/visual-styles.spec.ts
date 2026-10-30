@@ -1,11 +1,8 @@
-import { type Locator, type Page, expect, test } from "@playwright/test";
-
 // The catalog pane: ?catalog=1 makes the pane build the deterministic v1
 // catalog document (apps/playground/src/catalog.ts) instead of the empty
-// seed. A unique room per test: the relay keeps rooms for the dev server's
-// lifetime, so a shared room would be polluted by other specs.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Locator, type Page, expect, test } from "@playwright/test";
+
+import { RELAY, SETTLE } from "./helpers";
 
 async function openCatalogPane(page: Page): Promise<void> {
   const room = `vreg01s-${Math.random().toString(36).slice(2, 8)}`;

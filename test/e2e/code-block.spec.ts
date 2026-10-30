@@ -1,5 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
 // The code block's affordances: the header's hover/typing reveal, the
 // language picker (the attr over the wire), the clipboard copy, the
 // collapse/clamp sync, the caption line sync, the "more" menu's display
@@ -8,8 +6,9 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // mermaid mode segment, and the curated-language syntax highlight layer
 // (the paint, the edit/language-change re-paint over the wire, and the
 // wrap-off alignment).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Browser, type Page, expect, test } from "@playwright/test";
+
+import { RELAY, SETTLE } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's

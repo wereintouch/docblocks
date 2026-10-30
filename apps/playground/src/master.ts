@@ -4,10 +4,10 @@ import type { Doc, SyncSession } from "docblocks-core";
 const MASTER_CREATED_AT = "2026-01-01T00:00:00Z";
 
 /** The catalog pane's master id (fixed: the catalog's JSON golden is byte-stable). */
-export const CATALOG_MASTER_ID = "master-catalog";
+const CATALOG_MASTER_ID = "master-catalog";
 
 /** The seeded subtree paragraph's deterministic id (the subtree insert option targets it). */
-export const MASTER_SUBTREE_BLOCK_ID = "m0003";
+const MASTER_SUBTREE_BLOCK_ID = "m0003";
 
 /** Deterministic master block ids (m0001, m0002, ...): heading, then paragraphs. */
 function masterIdGenerator(): () => string {
@@ -76,5 +76,5 @@ function destroyMasterRuntime(master: MasterRuntime): void {
   master.provider.destroy();
 }
 
-export { createMasterRuntime, destroyMasterRuntime };
+export { CATALOG_MASTER_ID, MASTER_SUBTREE_BLOCK_ID, createMasterRuntime, destroyMasterRuntime };
 export type { MasterRuntime };

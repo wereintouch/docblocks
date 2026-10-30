@@ -17,6 +17,7 @@ import { Label } from "../../shared/ui/Label";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../shared/ui/Select";
+import { cn } from "../../shared/ui/cn";
 import { Plus } from "../../shared/ui/icons";
 import { preventDefault } from "../../shared/utils";
 import type { BridgeColumn } from "../bridge";
@@ -27,8 +28,14 @@ import { EnumOptionsEditor } from "./EnumOptionsEditor";
 import { HeaderCell } from "./HeaderCell";
 import { DatabaseCell, RowMenuCell } from "./cells";
 import { columnTypeIcon } from "./column-type-icon";
-import { ADD_COLUMN_TYPES, NEW_TABLE_PICK, REF_NONE_PICK } from "./constants";
-import type { AddColumnFormDraft } from "./models";
+import {
+  ADD_COLUMN_TYPES,
+  GRID_HISTORY_BUTTON,
+  NEW_TABLE_PICK,
+  PICKER_SIDE_OFFSET_PX,
+  REF_NONE_PICK,
+} from "./constants";
+import type { AddColumnFormDraft, AddColumnTypeEntry, EnumOptionDraft } from "./models";
 import { useBridgeTables } from "./use-bridge-tables";
 import { useEnumOptionsMotion } from "./use-enum-options-motion";
 import { useGridCellInteraction } from "./use-grid-cell-interaction";
@@ -219,6 +226,38 @@ function GridBody({
     commitRef(draft.refPick);
   };
 
+  /** The create form's entry press (the menu's pick): every entry stands
+   *  the create form (the name input + the type-specific block over it) —
+   *  the create commits on the form's button only. */
+  const openCreateForm = (entry: AddColumnTypeEntry) => {
+    setColumnForm(emptyColumnForm(entry));
+    setAddingColumn(false);
+    setColumnFormOpen(true);
+  };
+
+  /** The form's field updaters (each patches its own key; the draft's
+   *  absence is a no-op — the form's open stand sets it). */
+  const patchColumnForm = (patch: Partial<AddColumnFormDraft>) => {
+    setColumnForm((draft) => (draft === null ? draft : { ...draft, ...patch }));
+  };
+  const onColumnNameChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    patchColumnForm({ name: event.target.value });
+  const onColumnDecimalsChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    patchColumnForm({ decimals: Number(event.target.value) || 0 });
+  const onColumnThousandsChange = (checked: boolean | "indeterminate") =>
+    patchColumnForm({ thousands: checked === true });
+  const onColumnPrefixChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    patchColumnForm({ prefix: event.target.value });
+  const onColumnSuffixChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    patchColumnForm({ suffix: event.target.value });
+  const onColumnAllowNegativeChange = (checked: boolean | "indeterminate") =>
+    patchColumnForm({ allowNegative: checked === true });
+  const onColumnEnumOptionsChange = (next: EnumOptionDraft[]) => patchColumnForm({ enumOptions: next });
+  const onColumnRefPickChange = (next: string) =>
+    patchColumnForm({ refPick: next === REF_NONE_PICK ? "" : next, newTableName: "" });
+  const onColumnNewTableNameChange = (event: React.ChangeEvent<HTMLInputElement>) =>
+    patchColumnForm({ newTableName: event.target.value });
+
   /** The form's edit commit (the enum's options over the existing system
    *  table): the diff over the table's current rows (the matched's
    *  name / color's updates, the removed's removals, the added's inserts,
@@ -396,11 +435,11 @@ function GridBody({
             data-slot="docblocks/database-retry"
             variant="outline"
             size="sm"
-            className={
-              GRID_CHROME_FRAME +
-              GRID_BUTTON_HOVER +
-              " h-auto px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none"
-            }
+            className={cn(
+              GRID_CHROME_FRAME,
+              GRID_BUTTON_HOVER,
+              "h-auto px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none"
+            )}
             onClick={retryLoad}
           >
             Retry
@@ -498,10 +537,10 @@ function GridBody({
             <Input
               size="sm"
               data-slot="docblocks/database-name-input"
-              className={
-                GRID_CHROME_FRAME +
-                " h-auto min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
-              }
+              className={cn(
+                GRID_CHROME_FRAME,
+                "h-auto min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
+              )}
               value={nameDraft}
               autoFocus
               onChange={onNameChange}
@@ -535,11 +574,7 @@ function GridBody({
               variant="outline"
               size="sm"
               data-disabled={data.canUndo ? undefined : true}
-              className={
-                GRID_CHROME_FRAME +
-                GRID_BUTTON_HOVER +
-                " h-auto px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
-              }
+              className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
               disabled={!data.canUndo}
               onClick={undoStep}
             >
@@ -550,11 +585,7 @@ function GridBody({
               variant="outline"
               size="sm"
               data-disabled={data.canRedo ? undefined : true}
-              className={
-                GRID_CHROME_FRAME +
-                GRID_BUTTON_HOVER +
-                " h-auto px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40"
-              }
+              className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
               disabled={!data.canRedo}
               onClick={redoStep}
             >
@@ -567,9 +598,11 @@ function GridBody({
                   variant="outline"
                   size="sm"
                   data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
-                  className={
-                    GRID_CHROME_FRAME + GRID_BUTTON_HOVER + " h-auto px-2 py-0.5 text-xs font-normal shadow-none"
-                  }
+                  className={cn(
+                    GRID_CHROME_FRAME,
+                    GRID_BUTTON_HOVER,
+                    "h-auto px-2 py-0.5 text-xs font-normal shadow-none"
+                  )}
                 >
                   Filter{filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
                 </Button>
@@ -685,11 +718,11 @@ function GridBody({
                     data-slot="docblocks/database-add-column-trigger"
                     variant="ghost"
                     size="icon"
-                    className={
-                      GRID_CHROME_FRAME +
-                      " size-6 cursor-pointer p-1 text-(--docblocks-placeholder-color) hover:bg-transparent " +
+                    className={cn(
+                      GRID_CHROME_FRAME,
+                      "size-6 cursor-pointer p-1 text-(--docblocks-placeholder-color) hover:bg-transparent",
                       "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-                    }
+                    )}
                   >
                     <Plus className="size-4" />
                   </Button>
@@ -701,14 +734,7 @@ function GridBody({
                       <DropdownMenuItem
                         key={entry.key}
                         data-column-entry={entry.key}
-                        onClick={() => {
-                          // Every entry stands the create form (the name
-                          // input + the type-specific block over it): the
-                          // create commits on the form's button only.
-                          setColumnForm(emptyColumnForm(entry));
-                          setAddingColumn(false);
-                          setColumnFormOpen(true);
-                        }}
+                        onClick={() => openCreateForm(entry)}
                       >
                         <EntryIcon className="size-4 shrink-0 text-muted-foreground" />
                         {entry.label}
@@ -744,9 +770,7 @@ function GridBody({
                         data-slot="docblocks/database-add-column-name"
                         className="cursor-text focus:bg-muted/60"
                         value={columnForm?.name ?? ""}
-                        onChange={(event) =>
-                          setColumnForm((draft) => (draft === null ? draft : { ...draft, name: event.target.value }))
-                        }
+                        onChange={onColumnNameChange}
                       />
                     </Label>
                     {columnFormNumber && (
@@ -762,11 +786,7 @@ function GridBody({
                               data-slot="docblocks/database-add-column-decimals"
                               className="w-16 cursor-text px-1 focus:bg-muted/60"
                               value={columnForm?.decimals ?? 0}
-                              onChange={(event) =>
-                                setColumnForm((draft) =>
-                                  draft === null ? draft : { ...draft, decimals: Number(event.target.value) || 0 }
-                                )
-                              }
+                              onChange={onColumnDecimalsChange}
                             />
                           </Label>
                         )}
@@ -774,11 +794,7 @@ function GridBody({
                           <Checkbox
                             data-slot="docblocks/database-add-column-thousands"
                             checked={columnForm?.thousands ?? false}
-                            onCheckedChange={(checked) =>
-                              setColumnForm((draft) =>
-                                draft === null ? draft : { ...draft, thousands: checked === true }
-                              )
-                            }
+                            onCheckedChange={onColumnThousandsChange}
                           />
                           Thousands' separator
                         </Label>
@@ -790,11 +806,7 @@ function GridBody({
                             data-slot="docblocks/database-add-column-prefix"
                             className="cursor-text focus:bg-muted/60"
                             value={columnForm?.prefix ?? ""}
-                            onChange={(event) =>
-                              setColumnForm((draft) =>
-                                draft === null ? draft : { ...draft, prefix: event.target.value }
-                              )
-                            }
+                            onChange={onColumnPrefixChange}
                           />
                         </Label>
                         <Label>
@@ -805,22 +817,14 @@ function GridBody({
                             data-slot="docblocks/database-add-column-suffix"
                             className="cursor-text focus:bg-muted/60"
                             value={columnForm?.suffix ?? ""}
-                            onChange={(event) =>
-                              setColumnForm((draft) =>
-                                draft === null ? draft : { ...draft, suffix: event.target.value }
-                              )
-                            }
+                            onChange={onColumnSuffixChange}
                           />
                         </Label>
                         <Label className="cursor-pointer">
                           <Checkbox
                             data-slot="docblocks/database-add-column-negative"
                             checked={columnForm?.allowNegative ?? true}
-                            onCheckedChange={(checked) =>
-                              setColumnForm((draft) =>
-                                draft === null ? draft : { ...draft, allowNegative: checked === true }
-                              )
-                            }
+                            onCheckedChange={onColumnAllowNegativeChange}
                           />
                           Allow negative
                         </Label>
@@ -834,12 +838,7 @@ function GridBody({
                           (the framer's Reorder's rows) stands over the
                           slot's context; the plain's editor is the stand
                           over its absence. */
-                      <OptionsEditor
-                        options={columnForm.enumOptions ?? []}
-                        onChange={(next) =>
-                          setColumnForm((draft) => (draft === null ? draft : { ...draft, enumOptions: next }))
-                        }
-                      />
+                      <OptionsEditor options={columnForm.enumOptions ?? []} onChange={onColumnEnumOptionsChange} />
                     )}
                     {columnFormRef && columnForm?.refKind === "row" && (
                       <>
@@ -856,13 +855,7 @@ function GridBody({
                             value={
                               columnForm === null || columnForm.refPick === "" ? REF_NONE_PICK : columnForm.refPick
                             }
-                            onValueChange={(next) =>
-                              setColumnForm((draft) =>
-                                draft === null
-                                  ? draft
-                                  : { ...draft, refPick: next === REF_NONE_PICK ? "" : next, newTableName: "" }
-                              )
-                            }
+                            onValueChange={onColumnRefPickChange}
                           >
                             <SelectTrigger
                               data-slot="docblocks/database-add-column-ref"
@@ -870,7 +863,7 @@ function GridBody({
                             >
                               <SelectValue />
                             </SelectTrigger>
-                            <SelectContent align="start" sideOffset={4}>
+                            <SelectContent align="start" sideOffset={PICKER_SIDE_OFFSET_PX}>
                               <SelectItem value={REF_NONE_PICK}>— Select a table —</SelectItem>
                               {bridgeTables.map((table) => (
                                 <SelectItem key={table.id} value={table.id}>
@@ -891,11 +884,7 @@ function GridBody({
                               placeholder="New table name"
                               className="cursor-text focus:bg-muted/60"
                               value={columnForm?.newTableName ?? ""}
-                              onChange={(event) =>
-                                setColumnForm((draft) =>
-                                  draft === null ? draft : { ...draft, newTableName: event.target.value }
-                                )
-                              }
+                              onChange={onColumnNewTableNameChange}
                             />
                           </Label>
                         )}
@@ -919,9 +908,7 @@ function GridBody({
                             (columnForm.refPick === NEW_TABLE_PICK && columnForm.newTableName.trim() === "")))
                       }
                       className="bg-accent px-2 py-1 hover:opacity-70"
-                      onClick={() => {
-                        commitColumnForm();
-                      }}
+                      onClick={commitColumnForm}
                     >
                       {columnForm?.editColumnId !== undefined ? "Save" : "Add column"}
                     </Button>
@@ -996,13 +983,15 @@ function GridBody({
           data-slot="docblocks/database-add-row"
           variant="outline"
           size="sm"
-          className={
-            GRID_CHROME_FRAME +
-            " h-auto cursor-pointer self-start px-2 py-1 font-normal " +
-            "text-(length:--docblocks-font-size) shadow-none select-none " +
-            "text-(--docblocks-placeholder-color) hover:bg-transparent " +
+          className={cn(
+            GRID_CHROME_FRAME,
+            `
+              h-auto cursor-pointer self-start px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none
+              select-none
+            `,
+            "text-(--docblocks-placeholder-color) hover:bg-transparent",
             "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-          }
+          )}
           onClick={insertEmptyRow}
         >
           + Add row

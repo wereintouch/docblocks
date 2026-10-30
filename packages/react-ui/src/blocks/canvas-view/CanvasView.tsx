@@ -52,9 +52,11 @@ import { ConnectorSnapBadge } from "./ConnectorSnapBadge";
 import { SurfaceLayer } from "./SurfaceLayer";
 import { ZoomControls } from "./ZoomControls";
 import {
+  CANVAS_SELECTION_OUTLINE,
   CONNECTOR_HANDLE_HIT_RADIUS_PX,
   CONNECTOR_HANDLE_RADIUS_PX,
   RESIZE_HANDLE_POSITIONS,
+  SURFACE_BG,
   TOOLBAR_OFFSET_PX,
 } from "./constants";
 import type { CanvasPointerSession } from "./models";
@@ -249,11 +251,14 @@ function CanvasView() {
         data-slot="docblocks/canvas-view"
         ref={containerRef}
         tabIndex={-1}
-        className={
-          "relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background) " +
-          "bg-[radial-gradient(circle,var(--docblocks-canvas-view-dot)_1px,transparent_1px)] focus:outline-none " +
+        className={cn(
+          `
+            relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background)
+            bg-[radial-gradient(circle,var(--docblocks-canvas-view-dot)_1px,transparent_1px)]
+            focus:outline-none
+          `,
           cursor
-        }
+        )}
         style={{
           // The dot grid follows the pan/zoom (the background position is the
           // container center offset by the pan, the cell is the grid step
@@ -298,11 +303,7 @@ function CanvasView() {
                 box-border rounded-(--docblocks-radius) bg-(--docblocks-page-card-background)
                 p-(--docblocks-page-card-padding) shadow-(--docblocks-page-card-shadow)
               `,
-              pageCardSelected &&
-                `
-                  outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1
-                  outline-(--docblocks-canvas-selection-border-color) outline-solid
-                `
+              pageCardSelected && CANVAS_SELECTION_OUTLINE
             )}
           >
             <BlockContext.Provider value={pageContext}>
@@ -613,7 +614,7 @@ function CanvasView() {
                     cx={CONNECTOR_HANDLE_HIT_RADIUS_PX}
                     cy={CONNECTOR_HANDLE_HIT_RADIUS_PX}
                     r={CONNECTOR_HANDLE_RADIUS_PX}
-                    fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+                    fill={SURFACE_BG}
                     strokeWidth={1.5}
                     pointerEvents="none"
                     className="stroke-(--docblocks-canvas-selected-stroke)"

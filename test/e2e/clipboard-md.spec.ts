@@ -1,3 +1,7 @@
+import { type Browser, type Page, expect, test } from "@playwright/test";
+
+import { RELAY, SETTLE, pasteFromClipboard } from "./helpers";
+
 /**
  * The multi-block markdown paste (the `text/plain` branch, always-parsed):
  * the real-clipboard pipeline over the relay. The pins: the document
@@ -10,10 +14,6 @@
  * Idempotency: a unique room per test (the relay keeps rooms for the dev
  * server's lifetime) and the assertions scoped to the seeded ids.
  */
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
 
 /** The paste markdown (the mapping subset under test: the heading, the bold, the lists, the task, the quote). */
 const PASTE_MD = ["## Title", "", "text **bold** tail", "", "- one", "- [x] done", "", "> quoted"].join("\n");
@@ -80,20 +80,6 @@ async function writeCodeClipboard(page: Page, plain: string, html: string): Prom
 }
 
 /** Paste the OS clipboard into the focused element (headless Chromium does not synthesize the paste event). */
-async function pasteFromClipboard(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const items = await navigator.clipboard.read();
-    const item = items.find((i) => i.types.includes("text/plain"));
-    const text = item === undefined ? "" : ((await item.getType("text/plain").then((blob) => blob.text())) ?? "");
-    const target = document.activeElement;
-    if (!(target instanceof HTMLElement)) throw new Error("the paste target should be focused");
-    const transfer = new DataTransfer();
-    transfer.setData("text/plain", text);
-    const event = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(event, "clipboardData", { value: transfer });
-    target.dispatchEvent(event);
-  });
-}
 
 /** The first contenteditable of the pane (the starter paragraph's inner). */
 function firstInner(page: Page, client: "a" | "b") {

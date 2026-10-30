@@ -10,6 +10,14 @@ import type { PlaceTool, ShapeTool } from "./models";
  * space — a press / release within it of a port stands the port's shape). */
 const PORT_PICK_RADIUS_PX = 14;
 
+/** The canvas selection's outline (the shared selection token) — the
+ * selected figure / page card's stand. */
+const CANVAS_SELECTION_OUTLINE =
+  "outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1 outline-(--docblocks-canvas-selection-border-color) outline-solid";
+
+/** The surface's background token (the `--card` fallback over its absence). */
+const SURFACE_BG = "var(--docblocks-canvas-surface-background, var(--card, #ffffff))";
+
 /** The eight resize handles' positions (box percentages) + cursors. */
 const RESIZE_HANDLE_POSITIONS: { handle: ResizeHandle; className: string; style: CSSProperties }[] = [
   { handle: "nw", className: "cursor-nwse-resize", style: { left: 0, top: 0, transform: "translate(-50%, -50%)" } },
@@ -79,4 +87,6 @@ export {
   SHAPE_TOOLS,
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
+  CANVAS_SELECTION_OUTLINE,
+  SURFACE_BG,
 };

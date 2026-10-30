@@ -8,6 +8,7 @@ import type { BlockId } from "docblocks-core";
 import type { Box, MovePreview } from "../canvas";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
+import { cn } from "../shared/ui/cn";
 import { BlockView } from "./BlockView";
 import { ConnectorLine } from "./ConnectorLine";
 import { FrameBlock } from "./FrameBlock";
@@ -17,6 +18,7 @@ import { ShapeText } from "./ShapeText";
 import { TextBlock } from "./TextBlock";
 import { useBlockContext } from "./block-context";
 import { canvasItemStyle, endpointOf, isCanvasSubType } from "./canvas-geometry";
+import { CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
 
 /**
  * A canvas element: the positioned wrapper (the geometry -> the style)
@@ -149,14 +151,12 @@ const CanvasItem = memo(
         // would stand a phantom square over the page miniature). The
         // selected item's thin cyan outline (the shared selection token) stands
         // over the tint.
-        className={
-          selected && block.type !== "connector" && block.type !== "group"
-            ? `
-              bg-(--docblocks-selected-background) outline-(length:--docblocks-canvas-selection-border-width)
-              outline-offset-1 outline-(--docblocks-canvas-selection-border-color) outline-solid
-            `
-            : undefined
-        }
+        className={cn(
+          selected &&
+            block.type !== "connector" &&
+            block.type !== "group" &&
+            cn("bg-(--docblocks-selected-background)", CANVAS_SELECTION_OUTLINE)
+        )}
         style={style}
       >
         {content}

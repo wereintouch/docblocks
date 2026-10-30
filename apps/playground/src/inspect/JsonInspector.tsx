@@ -22,18 +22,7 @@ function JsonInspector({ client, doc }: { client: "a" | "b"; doc: Doc }) {
       <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
         json — <span data-testid={`json-bytes-${client}`}>{JSON.stringify(snapshot).length} B</span>
       </div>
-      <pre
-        style={{
-          margin: 0,
-          padding: 8,
-          overflow: "auto",
-          maxHeight: 220,
-          fontFamily: "monospace",
-          fontSize: 11,
-        }}
-      >
-        {JSON.stringify(snapshot, null, 2)}
-      </pre>
+      <pre className="json-view">{JSON.stringify(snapshot, null, 2)}</pre>
     </div>
   );
 }

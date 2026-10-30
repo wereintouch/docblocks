@@ -6,15 +6,7 @@
 // guard. The consume is canvas-only: the page view's wheel keeps scrolling.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { switchPaneView } from "./helpers";
-
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected", SETTLE);
-}
+import { openPane, switchPaneView } from "./helpers";
 
 async function onePane(browser: Browser, room: string): Promise<{ a: Page; close: () => Promise<void> }> {
   const context = await browser.newContext();

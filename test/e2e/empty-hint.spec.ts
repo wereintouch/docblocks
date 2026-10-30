@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-const RELAY = "ws://localhost:5199";
+import { RELAY } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's

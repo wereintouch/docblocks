@@ -7,6 +7,7 @@
 import { Link } from "../../shared/ui/icons";
 import { PORT_NORMAL } from "../canvas-geometry";
 import { CONNECT_COLOR, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "../connector-constants";
+import { SURFACE_BG } from "./constants";
 
 function ConnectorSnapBadge({
   slot,
@@ -32,7 +33,7 @@ function ConnectorSnapBadge({
         cx={badgeX}
         cy={badgeY}
         r={SNAP_BADGE_RADIUS}
-        fill="var(--docblocks-canvas-surface-background, var(--card, #ffffff))"
+        fill={SURFACE_BG}
         stroke={CONNECT_COLOR}
         strokeWidth={1.5}
       />

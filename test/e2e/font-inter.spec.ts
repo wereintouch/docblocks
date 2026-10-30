@@ -1,13 +1,11 @@
-import { type Locator, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
-
+// The UI default font: the editor's chrome + the page text render
 // in the self-hosted Inter (the @font-face ships it; the fetch is by
 // unicode-range). The consumer's `--font-sans` override takes priority (the
 // token contract stands). The shape text's own `fontFamily` attr stands over
 // the UI default (the shape mechanism is unchanged).
-const RELAY = "ws://localhost:5199";
+import { type Locator, type Page, expect, test } from "@playwright/test";
+
+import { RELAY, switchPaneView } from "./helpers";
 
 /** The catalog pane (the deterministic doc: page text + the UI chrome). */
 async function openCatalogPane(page: Page): Promise<void> {

@@ -2,33 +2,9 @@
 // carry its own runs in addition to its children blocks): the runs render
 // as an editable layer at the top of the cell in both panes, and the input
 // commits to the cell's own content over the wire (one undo step).
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  await openPane(a, "a", room);
-  await openPane(b, "b", room);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
+import { SETTLE, twoPanes } from "./helpers";
 
 /** Seed a 1-column table whose single cell carries its own runs. */
 async function seedOwnContentCell(page: Page, client: "a" | "b"): Promise<{ cellId: string }> {

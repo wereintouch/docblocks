@@ -62,6 +62,8 @@ const ENDPOINT_RELEASE_THRESHOLD_PX = 3;
 const NUDGE_STEP_PX = 10;
 /** The nudge's Shift multiplier (the step's factor — the 50 px stand). */
 const NUDGE_SHIFT_MULTIPLIER = 5;
+const TOOLTIP_SIDE_OFFSET_PX = 8;
+
 export {
   ENDPOINT_RELEASE_THRESHOLD_PX,
   ENDPOINT_SNAP_RADIUS,
@@ -75,4 +77,5 @@ export {
   TOOL_SIZES,
   ZOOM_STOPS,
   ZOOM_STEP,
+  TOOLTIP_SIDE_OFFSET_PX,
 };

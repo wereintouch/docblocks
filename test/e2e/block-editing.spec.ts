@@ -1,17 +1,6 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { insertBlockType } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, insertBlockType, openPane, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -43,31 +32,6 @@ async function insertType(page: Page, client: "a" | "b", type: string): Promise<
  */
 async function leftKeys(page: Page, n: number): Promise<void> {
   for (let i = 0; i < n; i++) await page.keyboard.press("ArrowLeft");
-}
-
-async function twoPanes(
-  browser: Browser,
-  room: string
-): Promise<{
-  a: Page;
-  b: Page;
-  close: () => Promise<void>;
-}> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
 }
 
 test("Enter splits the block in both panes and the caret lands in the tail", async ({ browser }) => {

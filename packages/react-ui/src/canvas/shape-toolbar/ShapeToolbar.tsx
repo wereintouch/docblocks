@@ -44,8 +44,9 @@ import {
 import { stopPropagation } from "../../shared/utils";
 import { ZOrderMenu } from "../ZOrderMenu";
 import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "../text-fonts";
+import { TOOLTIP_SIDE_OFFSET_PX } from "../viewport/constants";
 import { ColorSection } from "./ColorSection";
-import { BORDER_WIDTH_POINTS, SHAPE_VARIANTS } from "./constants";
+import { ACTIVE_ITEM_CLASS, BORDER_WIDTH_POINTS, SHAPE_VARIANTS } from "./constants";
 import type { ShapeVariantId } from "./models";
 import { borderWidthIndex, variantIcon } from "./utils";
 
@@ -95,6 +96,16 @@ function ShapeToolbar({
   const [sizeDraft, setSizeDraft] = useState("");
   const hasText = (text ?? "").length > 0;
   const borderNone = stroke === "none";
+  // The border-style's picks (the uncheck stands the no-op — the check's
+  // press commits the attr).
+  const pickBorderStyle = (style: "solid" | "dash") => (checked: boolean | "indeterminate") => {
+    if (checked !== true) return;
+    applyAttr({ strokeStyle: style });
+  };
+  const pickBorderNone = (checked: boolean | "indeterminate") => {
+    if (checked !== true) return;
+    applyAttr({ stroke: "none" });
+  };
   const sizeListId = `docblocks-shape-size-${id}`;
 
   const applyAttr = (patch: Record<string, unknown>) => {
@@ -178,7 +189,7 @@ function ShapeToolbar({
               <VariantIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" sideOffset={8} aria-label="Shape types">
+          <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Shape types">
             {SHAPE_VARIANTS.map(({ id: variantId, label, icon: Icon }) => (
               <DropdownMenuCheckboxItem
                 key={variantId}
@@ -210,7 +221,7 @@ function ShapeToolbar({
                   <Type className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" sideOffset={8} aria-label="Text font family">
+              <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Text font family">
                 {SHAPE_FONT_OPTIONS.map((option) => (
                   <DropdownMenuCheckboxItem
                     key={option.id}
@@ -251,7 +262,7 @@ function ShapeToolbar({
                   <Italic className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" sideOffset={8} aria-label="Text style">
+              <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Text style">
                 {SHAPE_TEXT_STYLE_OPTIONS.map((option) => (
                   <DropdownMenuCheckboxItem
                     key={option.id}
@@ -310,7 +321,7 @@ function ShapeToolbar({
                 aria-label={label}
                 title={label}
                 aria-pressed={textAlign === value}
-                className={cn("size-7", textAlign === value && "bg-accent text-accent-foreground")}
+                className={cn("size-7", textAlign === value && ACTIVE_ITEM_CLASS)}
                 onClick={applyAlign(value)}
               >
                 <AlignIcon className="size-4" />
@@ -372,39 +383,27 @@ function ShapeToolbar({
               {borderNone ? <X className="size-4" /> : <Minus className="size-4" />}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={8} aria-label="Border styles">
+          <DropdownMenuContent align="end" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Border styles">
             <DropdownMenuCheckboxItem
               checked={!borderNone && (strokeStyle ?? "solid") === "solid"}
-              onCheckedChange={(checked) => {
-                if (!checked) return;
-                applyAttr({ strokeStyle: "solid" });
-              }}
+              onCheckedChange={pickBorderStyle("solid")}
             >
               Solid line
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={!borderNone && strokeStyle === "dash"}
-              onCheckedChange={(checked) => {
-                if (!checked) return;
-                applyAttr({ strokeStyle: "dash" });
-              }}
+              onCheckedChange={pickBorderStyle("dash")}
             >
               Dashed
             </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem
-              checked={borderNone}
-              onCheckedChange={(checked) => {
-                if (!checked) return;
-                applyAttr({ stroke: "none" });
-              }}
-            >
+            <DropdownMenuCheckboxItem checked={borderNone} onCheckedChange={pickBorderNone}>
               No border
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
         <Separator orientation="vertical" className="h-5" />
         {/* The z-order menu (the explicit zIndex): the three-dots button,
-            three-dots button, the four reorder picks. */}
+            the four reorder picks. */}
         {zStand !== null && (
           <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label="Arrange shape" />
         )}

@@ -20,7 +20,7 @@ import {
 } from "../../shared/ui/DropdownMenu";
 import { resolveColorToHex } from "../../shared/ui/color-utils";
 import { Ellipsis, EllipsisVertical } from "../../shared/ui/icons";
-import { EMPTY_IDS } from "./constants";
+import { EMPTY_IDS, HANDLE_DRAG_TRANSITION } from "./constants";
 import type { HandleAction, HandleKind } from "./models";
 import { handleClasses } from "./utils";
 
@@ -76,7 +76,7 @@ function HandleMenu({
           style={{
             left: left + dragDx,
             top: top + dragDy,
-            ...(dragTransition !== undefined ? { transition: "left 120ms ease-out, top 120ms ease-out" } : {}),
+            ...(dragTransition !== undefined ? { transition: HANDLE_DRAG_TRANSITION } : {}),
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

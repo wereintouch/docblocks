@@ -664,8 +664,7 @@ function useCanvasSessions({
     }
   };
 
-  // The canvas content's double-click (the /
-
+  // The canvas content's double-click: the shape's text inline edit (the press's pointer
   // capture retargets the dblclick to THIS container — the event's target
   // is the container, not the shape — the shape stands the point's
   // element, the hit test through the world's transform) and the

@@ -1,56 +1,12 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
-
+// The shape's border controls: the
 // width's FigureBorderSelector (the 1–4 px dots, the handle's drag
 // SNAPS to the nearest dot — one updateBlock per stand) and the style
 // menu (the solid / the dashed / the no-border — the stroke's "none"
-// idiom). A/B sync over the relay.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-function canvasView(page: Page, client: "a" | "b") {
-  return page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-}
+import { SETTLE, canvasView, seedShape, switchPaneView, twoPanes } from "./helpers";
 
 /** Seeds one rect shape on the pane's doc. */
-async function seedShape(page: Page, client: "a" | "b"): Promise<string> {
-  return page.evaluate((which) => {
-    const docs = window.__paneDocs;
-    const doc = (which === "a" ? docs?.a : docs?.b) ?? null;
-    if (doc === null) throw new Error("the pane's doc is not mounted");
-    const json = doc.toJSON();
-    const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
-    const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
-    const id = doc.insertBlock("shape", { variant: "rect", fill: "none" }, { parent: surface });
-    doc.setGeometry(id, { x: 0, y: 0, w: 240, h: 120 });
-    return id;
-  }, client);
-}
 
 /** Click-selects the shape (the press on its canvas-item wrapper). */
 async function selectShape(page: Page, client: "a" | "b", id: string): Promise<void> {
@@ -81,7 +37,7 @@ test.describe("the border's controls", () => {
     await switchPaneView(a, "a", "canvas");
     await a.waitForTimeout(200);
 
-    const id = await seedShape(a, "a");
+    const id = await seedShape(a, "a", { variant: "rect", fill: "none" });
     await selectShape(a, "a", id);
 
     const slider = a.getByRole("slider", { name: "Shape border width" });
@@ -151,7 +107,7 @@ test.describe("the border's controls", () => {
     await switchPaneView(a, "a", "canvas");
     await a.waitForTimeout(200);
 
-    const id = await seedShape(a, "a");
+    const id = await seedShape(a, "a", { variant: "rect", fill: "none" });
     await selectShape(a, "a", id);
 
     // The stand: the solid line is the checked entry (the default's).
@@ -201,7 +157,7 @@ test.describe("the border's controls", () => {
     await switchPaneView(a, "a", "canvas");
     await a.waitForTimeout(200);
 
-    const id = await seedShape(a, "a");
+    const id = await seedShape(a, "a", { variant: "rect", fill: "none" });
     await selectShape(a, "a", id);
     const slider = a.getByRole("slider", { name: "Shape border width" });
 

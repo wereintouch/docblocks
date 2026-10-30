@@ -108,7 +108,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
 /**
  * One connector's line (the visible path + the hit path + the connect
  * badge), the data the per-line render stands. The line is between the
-
+ * two ENDPOINTS (the endpoint shape): a block ref with a PORT
  * stands at the block's edge midpoint, a block ref WITHOUT a port stands
  * at the block's edge anchor toward the other endpoint (the sticky legacy
  * anchor — a moved block re-anchors the line), and a FREE point (x / y in

@@ -23,7 +23,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
-import type { BlockRenderer } from "./ListRun";
+import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes } from "./ListRun";
 import { ItemNested, NestedSlot } from "./NestedSlot";
 import { dispatchBuiltIn } from "./block-dispatch";
@@ -48,7 +48,7 @@ const BlockNodeView = memo(
   }: {
     node: FlatNode;
     flat?: boolean;
-    renderBlock: BlockRenderer;
+    renderBlock: FlatBlockRenderer;
   }) {
     const { renderers } = useEditorContext();
     const block = useBlock(node.id);
@@ -109,8 +109,8 @@ const BlockNodeView = memo(
 /**
  * One derived node of a flat sequence, rendered in the base view.
  */
-const FlatBlockView: BlockRenderer = memo(
-  function FlatBlockView({ node, renderBlock }: { node: FlatNode; renderBlock: BlockRenderer }) {
+const FlatBlockView: FlatBlockRenderer = memo(
+  function FlatBlockView({ node, renderBlock }: { node: FlatNode; renderBlock: FlatBlockRenderer }) {
     return <BlockNodeView node={node} renderBlock={renderBlock} />;
   },
   (prev, next) => prev.node === next.node && prev.renderBlock === next.renderBlock

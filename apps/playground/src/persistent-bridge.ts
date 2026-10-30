@@ -123,7 +123,7 @@ const systemTableIds = new Set<string>();
 
 /** The seed's readiness (the harness's table seed awaits it: the guard
  * reads the snapshot's tables, not the empty bridge). */
-export function databaseBridgeReady(): Promise<void> {
+function databaseBridgeReady(): Promise<void> {
   if (seedPromise === null) {
     const snapshot = loadSnapshot();
     seedPromise = snapshot !== null ? seed(getDefaultDatabaseBridge(), snapshot) : Promise.resolve();
@@ -170,7 +170,7 @@ function scheduleSave(): void {
 /** The wrapped bridge: every read stands the seed first (the consumer
  * never sees the bridge pre-restore), every mutation schedules the
  * snapshot's save. */
-export const persistentDatabaseBridge: DatabaseBridge = {
+const persistentDatabaseBridge: DatabaseBridge = {
   listTables: async () => {
     await databaseBridgeReady();
     return getDefaultDatabaseBridge().listTables();
@@ -270,3 +270,5 @@ export const persistentDatabaseBridge: DatabaseBridge = {
   // over the base bridge regardless of the restore).
   subscribeTable: (tableId, onEvents) => getDefaultDatabaseBridge().subscribeTable(tableId, onEvents),
 };
+
+export { databaseBridgeReady, persistentDatabaseBridge };

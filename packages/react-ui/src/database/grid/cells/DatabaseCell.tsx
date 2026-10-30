@@ -16,7 +16,14 @@ import { preventDefault } from "../../../shared/utils";
 import { columnAnnotation, parseCellValue } from "../../bridge";
 import type { BridgeColumn, BridgeColumnAnnotation } from "../../bridge";
 import { formatNumberValue } from "../../number-format";
-import { CELL_SELECTED, CELL_SELECTED_MULTI, CELL_WRAP, CHECKBOX_TOGGLE_GUARD_MS } from "../constants";
+import {
+  CELL_SELECTED,
+  CELL_SELECTED_MULTI,
+  CELL_WRAP,
+  CHECKBOX_TOGGLE_GUARD_MS,
+  GRID_DRAG_TRANSITION,
+  PICKER_SIDE_OFFSET_PX,
+} from "../constants";
 import type { RefTableData } from "../use-ref-tables";
 import {
   cellKeyOf,
@@ -104,7 +111,7 @@ function DatabaseCell({
           transform: `translateX(${dragDx}px)`,
           position: "relative" as const,
           zIndex: dragShifted ? undefined : 10,
-          transition: dragShifted ? "transform 120ms ease-out" : undefined,
+          transition: dragShifted ? GRID_DRAG_TRANSITION : undefined,
         }
       : undefined;
   // The text / number's draft stands from the value at the session's open
@@ -348,7 +355,7 @@ function DatabaseCell({
             <PopoverTrigger asChild>
               <CellDisplay text={dateValue !== null ? format(dateValue, "dd.MM.yyyy") : ""} />
             </PopoverTrigger>
-            <PopoverContent align="start" sideOffset={4} className="w-auto p-0">
+            <PopoverContent align="start" sideOffset={PICKER_SIDE_OFFSET_PX} className="w-auto p-0">
               <Calendar
                 mode="single"
                 selected={dateValue ?? undefined}
@@ -365,7 +372,7 @@ function DatabaseCell({
             <PopoverTrigger asChild>
               <CellDisplay text={dateValue !== null ? dateTimeLabel(dateValue) : ""} />
             </PopoverTrigger>
-            <PopoverContent align="start" sideOffset={4} className="w-auto p-0">
+            <PopoverContent align="start" sideOffset={PICKER_SIDE_OFFSET_PX} className="w-auto p-0">
               <Calendar
                 mode="single"
                 selected={draftDate ?? undefined}

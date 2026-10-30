@@ -70,6 +70,9 @@ const TOOL_GROUPS: DockTool[][] = [
  * another pick). The chrome wrapper keeps the container's pointer
  * sessions out (the buttons handle their own).
  */
+// The active tool / mode's tint (the current's stand over the ghost).
+const ACTIVE_TOOL_CLASS = "bg-accent text-accent-foreground";
+
 const CanvasDock = memo(
   function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
     const { mode, activeTool, setMode, setActiveTool, setPendingStand } = viewport;
@@ -122,7 +125,7 @@ const CanvasDock = memo(
             size="xl"
             aria-label={mode === "pan" ? "Switch to the select mode" : "Switch to the pan mode"}
             aria-pressed={mode === "pan"}
-            className={mode === "pan" ? "bg-accent text-accent-foreground" : undefined}
+            className={cn(mode === "pan" && ACTIVE_TOOL_CLASS)}
             onClick={toggleHand}
           >
             {mode === "pan" ? <Hand className="size-6" /> : <MousePointer2 className="size-6" />}
@@ -138,7 +141,7 @@ const CanvasDock = memo(
                   aria-label="Shapes"
                   data-tool="shapes"
                   aria-pressed={shapesActive}
-                  className={shapesActive ? "bg-accent text-accent-foreground" : undefined}
+                  className={cn(shapesActive && ACTIVE_TOOL_CLASS)}
                 >
                   <Square className="size-6" />
                 </Button>
@@ -176,7 +179,7 @@ const CanvasDock = memo(
                   aria-label={label}
                   data-tool={id}
                   aria-pressed={activeTool === id}
-                  className={activeTool === id ? "bg-accent text-accent-foreground" : undefined}
+                  className={cn(activeTool === id && ACTIVE_TOOL_CLASS)}
                   onClick={pickToolAt(id)}
                 >
                   <Icon className="size-6" />

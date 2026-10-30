@@ -1,17 +1,6 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { insertBlockType } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, insertBlockType, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -118,30 +107,10 @@ async function domSelection(
   });
 }
 
-async function twoPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  // The paste test seeds and reads the OS clipboard (headless Chromium
-  // does not write it from a keyboard copy).
-  await contextA.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await contextB.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  await openPane(a, "a", room);
-  await openPane(b, "b", room);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
 test("a cross-block selection raises the toolbar; bold marks the per-block segments", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "c5d-cross-bold");
+  const { a, b, close } = await twoPanes(browser, "c5d-cross-bold", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   await expect.poll(async () => (await blocksOf(b, "b")).length, SETTLE).toBe(2);
   const blocks = await blocksOf(a, "a");
@@ -184,7 +153,9 @@ test("a cross-block selection raises the toolbar; bold marks the per-block segme
 });
 
 test("typing over the cross range replaces it; one Control+z restores it", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "c5d-cross-replace");
+  const { a, close } = await twoPanes(browser, "c5d-cross-replace", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   const blocks = await blocksOf(a, "a");
   const [first, second] = [blocks[0]!, blocks[1]!];
@@ -221,7 +192,9 @@ test("typing over the cross range replaces it; one Control+z restores it", async
 });
 
 test("Delete over a cross range removes the covered blocks; undo restores them", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "c5d-cross-delete");
+  const { a, b, close } = await twoPanes(browser, "c5d-cross-delete", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   await insertBlockType(a, "a", "paragraph");
   await inners(a, "a").nth(2).click();
@@ -251,7 +224,9 @@ test("Delete over a cross range removes the covered blocks; undo restores them",
 });
 
 test("a cross range selected in pane B renders as a range highlight in pane A", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "c5d-cross-presence");
+  const { a, b, close } = await twoPanes(browser, "c5d-cross-presence", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   await expect.poll(async () => (await blocksOf(b, "b")).length, SETTLE).toBe(2);
   const blocks = await blocksOf(b, "b");
@@ -282,7 +257,9 @@ test("a cross range selected in pane B renders as a range highlight in pane A", 
 test("a divider inside the composed chain is skipped by the extension and removed by the replace", async ({
   browser,
 }) => {
-  const { a, close } = await twoPanes(browser, "c5d-cross-divider");
+  const { a, close } = await twoPanes(browser, "c5d-cross-divider", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   // The room's starter is typed, then a second empty paragraph is split
   // off, a divider and a paragraph are appended, and the last is typed:
   // [p1, p2 (empty), divider, p3].
@@ -328,7 +305,9 @@ test("a divider inside the composed chain is skipped by the extension and remove
 });
 
 test("an arrow key from the cross range collapses it to a caret", async ({ browser }) => {
-  const { a, close } = await twoPanes(browser, "c5d-cross-arrow");
+  const { a, close } = await twoPanes(browser, "c5d-cross-arrow", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   const blocks = await blocksOf(a, "a");
 
@@ -347,7 +326,9 @@ test("an arrow key from the cross range collapses it to a caret", async ({ brows
 });
 
 test("a cross paste replaces the range at the seam (one undo step)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "c5d-cross-paste");
+  const { a, b, close } = await twoPanes(browser, "c5d-cross-paste", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   const blocks = await blocksOf(a, "a");
   const [first, second] = [blocks[0]!, blocks[1]!];
@@ -423,7 +404,9 @@ test("a cross paste replaces the range at the seam (one undo step)", async ({ br
 test("a rich cross paste materializes the blocks at the seam (the seam block stands; one undo step)", async ({
   browser,
 }) => {
-  const { a, b, close } = await twoPanes(browser, "c5d-rich-cross-paste");
+  const { a, b, close } = await twoPanes(browser, "c5d-rich-cross-paste", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   const blocks = await blocksOf(a, "a");
   const [first, second] = [blocks[0]!, blocks[1]!];
@@ -522,7 +505,9 @@ test("a rich cross paste materializes the blocks at the seam (the seam block sta
 test("a cross copy serializes the range from the doc (the default copy cannot cross the boundary)", async ({
   browser,
 }) => {
-  const { a, close } = await twoPanes(browser, "c5d-cross-copy");
+  const { a, close } = await twoPanes(browser, "c5d-cross-copy", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   const blocks = await blocksOf(a, "a");
   const [first, second] = [blocks[0]!, blocks[1]!];
@@ -576,7 +561,9 @@ async function dragAcrossBlocks(page: Page, client: "a" | "b"): Promise<void> {
 }
 
 test("a mouse drag composes the cross selection (and the in-block drag stands)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "c5d-cross-drag");
+  const { a, b, close } = await twoPanes(browser, "c5d-cross-drag", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   await typeTwoBlocks(a, "a");
   const blocks = await blocksOf(a, "a");
   const [first, second] = [blocks[0]!, blocks[1]!];

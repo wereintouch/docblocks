@@ -68,4 +68,10 @@ const TOOLBAR_ALIGNS: { align: TextAlign; title: string; icon: ToolbarIcon }[] =
   { align: "right", title: "Align right", icon: TextAlignEnd },
 ];
 
-export { FORMAT_PALETTE, LIST_MENU_OPTIONS, TOOLBAR_ALIGNS, TOOLBAR_MARKS };
+/** The active item's stand (the pressed / the current's tint). */
+const ACTIVE_ITEM_CLASS = "bg-accent text-accent-foreground";
+
+/** The menu's offset from the trigger (px). */
+const MENU_SIDE_OFFSET_PX = 6;
+
+export { ACTIVE_ITEM_CLASS, FORMAT_PALETTE, LIST_MENU_OPTIONS, MENU_SIDE_OFFSET_PX, TOOLBAR_ALIGNS, TOOLBAR_MARKS };

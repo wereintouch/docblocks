@@ -83,15 +83,7 @@ function ChaosBar({ syncUrl }: { syncUrl: string }) {
   const activeLabel = state === null ? "unknown" : labelOf(state);
 
   return (
-    <div
-      data-testid="chaosbar"
-      style={{
-        display: "flex",
-        gap: 8,
-        alignItems: "center",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
+    <div data-testid="chaosbar" className="chaosbar">
       <span className="text-xs">chaos:</span>
       {MODES.map(({ mode, label, testid }) => {
         const active = state !== null && labelOf(state) === label;

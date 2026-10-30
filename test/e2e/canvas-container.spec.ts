@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The canvas container (the reworked group):
 // the dock's container tool (the click's default-size place, the drag-to-size),
 // the container's own free box (the positioned render + the eight resize
@@ -9,55 +5,15 @@ import { switchPaneView } from "./helpers";
 // drag-out's membership (the green / red stand, the release's one transact
 // over the wire), the container's move (the box + the members), the border's
 // selection (the figures stand z-above), and the delete (the members stand).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
+import { SETTLE, canvasCenter, canvasView, screenAt, screenAtZoom, toCanvas, twoPanes } from "./helpers";
 
 const dock = (page: Page, client: "a" | "b") => canvasView(page, client).getByRole("toolbar", { name: "Canvas tools" });
 
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
 /** A canvas point at 100% zoom / no pan stands at the center + the offset. */
-function screenAt(center: { x: number; y: number }, x: number, y: number): { x: number; y: number } {
-  return { x: center.x + x, y: center.y + y };
-}
 
 /** A canvas point at an arbitrary zoom / no pan stands at the center + the scaled offset. */
-function screenAtZoom(center: { x: number; y: number }, x: number, y: number, zoom: number): { x: number; y: number } {
-  return { x: center.x + x * zoom, y: center.y + y * zoom };
-}
 
 /** Steps the zoom down (10% per step) to the target percent; returns the factor. */
 async function zoomOut(page: Page, client: "a" | "b", targetPercent: number): Promise<number> {

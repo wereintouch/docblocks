@@ -17,3 +17,66 @@ body {
 .z-modal {
   z-index: 60;
 }
+
+/* The harness's own chrome (the dev harness is not a consumer: its page
+   layout is plain CSS, not the shipped utility layer). */
+.chaosbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-family: system-ui, sans-serif;
+}
+
+.doc-main {
+  font-family: system-ui, sans-serif;
+  padding: 16px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.doc-aside {
+  width: 420px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+}
+
+.bridge-error {
+  padding: 4px 8px;
+  font-size: 11px;
+  color: var(--destructive);
+  border-bottom: 1px solid var(--border);
+}
+
+.event-log {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  overflow: auto;
+  max-height: 140px;
+  font-family: monospace;
+  font-size: 10px;
+}
+
+.json-view {
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  max-height: 220px;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.wire-log {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  overflow: auto;
+  max-height: 220px;
+  font-family: monospace;
+  font-size: 11px;
+}

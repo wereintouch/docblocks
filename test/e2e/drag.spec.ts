@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { insertBlockType } from "./helpers";
-
 // The flat-model drag (the motion subpath): pure framer Reorder over the
 // flat page sequence — one `Reorder.Item` per block, the gutter handle the
 // only drag trigger. A vertical drag is a reorder only (the level change is
@@ -10,16 +6,9 @@ import { insertBlockType } from "./helpers";
 // and a stale drop (the release's derived order is not the current
 // sequence with the segment moved — e.g. a drop over the segment's own
 // rows) issue no command.
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, insertBlockType, outCount, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -72,10 +61,6 @@ async function rootState(
 }
 
 /** The wire log's outbound doc-update count (awareness frames are not logged). */
-async function outCount(page: Page, client: "a" | "b"): Promise<number> {
-  const text = await page.getByTestId(`wire-${client}`).innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
-}
 
 /** The table's cell children's shape (rows → cells → the children's ids). */
 async function tableCells(page: Page, client: "a" | "b", tableId: string): Promise<string[][][] | null> {
@@ -88,31 +73,6 @@ async function tableCells(page: Page, client: "a" | "b", tableId: string): Promi
     },
     { client, tableId }
   );
-}
-
-async function twoPanes(
-  browser: Browser,
-  room: string
-): Promise<{
-  a: Page;
-  b: Page;
-  close: () => Promise<void>;
-}> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
 }
 
 /**

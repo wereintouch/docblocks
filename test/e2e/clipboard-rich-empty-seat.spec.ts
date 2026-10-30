@@ -1,3 +1,7 @@
+import { type Browser, type Page, expect, test } from "@playwright/test";
+
+import { RELAY, SETTLE, pasteFromClipboard } from "./helpers";
+
 /**
  * The rich `text/html` paste into an empty seat (the copy of the editor's
  * own text): the real default-copy payload carries the rendered inline style
@@ -13,10 +17,6 @@
  * Idempotency: a unique room per test (the relay keeps rooms for the dev
  * server's lifetime).
  */
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
 
 /**
  * The real default-copy `text/html` a browser writes for a text selection in
@@ -86,26 +86,6 @@ async function seedClipboard(page: Page, html: string | null, plain: string | nu
  * synthesize the paste event): read both flavors back and dispatch a real-shape
  * paste event.
  */
-async function pasteFromClipboard(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const items = await navigator.clipboard.read();
-    const textOf = async (type: string): Promise<string | null> => {
-      for (const item of items) {
-        if (item.types.includes(type)) return (await item.getType(type)).text();
-      }
-      return null;
-    };
-    const [html, plain] = await Promise.all([textOf("text/html"), textOf("text/plain")]);
-    const target = document.activeElement;
-    if (!(target instanceof HTMLElement)) throw new Error("the paste target should be focused");
-    const transfer = new DataTransfer();
-    if (html !== null) transfer.setData("text/html", html);
-    if (plain !== null) transfer.setData("text/plain", plain);
-    const event = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(event, "clipboardData", { value: transfer });
-    target.dispatchEvent(event);
-  });
-}
 
 /** The inner contenteditable of the given block (the pane-scoped query). */
 function innerOf(page: Page, client: "a" | "b", index: number) {

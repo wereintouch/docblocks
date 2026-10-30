@@ -6,7 +6,7 @@ import { BLOCK_REGISTRY, validateDoc } from "../src/schema";
 import type { DatabaseAttrs, DatabaseBlock, DatabaseFilterPayload } from "../src/schema";
 
 /**
- * The database block's view attributes (the external-form view state,
+ * The database block's view attributes (the external-form view state): the
  * `filter` (the recursive and/or payload), the
  * `columnOrder` / `hiddenColumns` / `views` / `viewType`. These are CRDT
  * block attrs (undo-able) — the structure of the `filter` payload is

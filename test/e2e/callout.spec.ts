@@ -1,35 +1,11 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
 // The callout's controls (the list-type menu's callout target): the type
 // (preset) switch, the color override, and the icon override commit one
 // updateBlock each (one undo step, one wire update) and reach the other
 // pane; the preset switch resets the overrides. The icon grid stands the
 // full catalog.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  await openPane(a, "a", room);
-  await openPane(b, "b", room);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
+import { SETTLE, twoPanes } from "./helpers";
 
 /** The pane's floating format toolbar. */
 const toolbar = (page: Page, client: "a" | "b") =>

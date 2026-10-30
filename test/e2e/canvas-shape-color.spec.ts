@@ -1,48 +1,10 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The shape's color toolbar (the single `shape` selection): the fill and
 // the stroke applies (the palette swatch, the none entry, the custom hex)
 // reach the doc on both panes (one updateBlock per apply) and the svg's
 // paint attributes stand; the multi selection hides the toolbar.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
+import { SETTLE, canvasCenter, canvasView, seedShape, toCanvas, twoPanes } from "./helpers";
 
 async function shapeAttrs(
   page: Page,
@@ -67,23 +29,6 @@ async function shapeAttrs(
   );
 }
 
-async function seedShape(page: Page, client: "a" | "b"): Promise<string> {
-  return page.evaluate(
-    ({ client }) => {
-      const docs = window.__paneDocs;
-      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-      if (doc === null) throw new Error("the pane's doc is not mounted");
-      const json = doc.toJSON();
-      const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
-      const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
-      const id = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-      doc.setGeometry(id, { x: 0, y: 0, w: 200, h: 100 });
-      return id;
-    },
-    { client }
-  );
-}
-
 /** Click the shape's center (selects it; the no-op press writes nothing). */
 async function selectShape(page: Page, client: "a" | "b"): Promise<void> {
   const center = await canvasCenter(page, client);
@@ -99,7 +44,7 @@ test.describe("the shape color toolbar", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const shape = await seedShape(a, "a");
+      const shape = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 200, h: 100 });
       await selectShape(a, "a");
       expect(await toolbar(a, "a").count()).toBe(1);
 
@@ -125,7 +70,7 @@ test.describe("the shape color toolbar", () => {
     const { a, close } = await twoPanes(browser, "cvs-color-stroke");
     try {
       await toCanvas(a, "a");
-      const shape = await seedShape(a, "a");
+      const shape = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 200, h: 100 });
       await selectShape(a, "a");
 
       await a.locator('[data-slot="docblocks/shape-toolbar-stroke"]').click();
@@ -147,7 +92,7 @@ test.describe("the shape color toolbar", () => {
     const { a, close } = await twoPanes(browser, "cvs-color-none");
     try {
       await toCanvas(a, "a");
-      const shape = await seedShape(a, "a");
+      const shape = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 200, h: 100 });
       await selectShape(a, "a");
 
       await a.locator('[data-slot="docblocks/shape-toolbar-fill"]').click();
@@ -168,7 +113,7 @@ test.describe("the shape color toolbar", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const shape = await seedShape(a, "a");
+      const shape = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 200, h: 100 });
       await selectShape(a, "a");
 
       // The sections are mutually exclusive: the non-modal popover does
@@ -256,7 +201,7 @@ test.describe("the shape color toolbar", () => {
     const { a, close } = await twoPanes(browser, "cvs-color-hex-keys");
     try {
       await toCanvas(a, "a");
-      const shape = await seedShape(a, "a");
+      const shape = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 200, h: 100 });
       await selectShape(a, "a");
 
       await a.locator('[data-slot="docblocks/shape-toolbar-fill"]').click();
@@ -308,7 +253,7 @@ test.describe("the shape color toolbar", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const shape = await seedShape(a, "a");
+      const shape = await seedShape(a, "a", { variant: "rect" }, { x: 0, y: 0, w: 200, h: 100 });
       await selectShape(a, "a");
       expect(await toolbar(a, "a").count()).toBe(1);
 

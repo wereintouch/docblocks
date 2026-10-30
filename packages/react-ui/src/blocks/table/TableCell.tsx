@@ -14,7 +14,7 @@ import { BlockGroups } from "../BlockView";
 import { BlockContext, useBlockContext, useBlockContextValue } from "../block-context";
 import { useTextInner } from "../text-inner";
 import { CellActivation } from "./CellActivation";
-import { EMPTY_IDS } from "./constants";
+import { DRAG_TRANSITION, EMPTY_IDS } from "./constants";
 
 /** One cell: its flat content sequence renders through the flat sequence renderer. */
 const TableCell = memo(function TableCell({
@@ -40,7 +40,7 @@ const TableCell = memo(function TableCell({
           transform: `translateX(${dragX}px)`,
           position: "relative" as const,
           zIndex: dragShifted ? undefined : 10,
-          transition: dragShifted ? "transform 120ms ease-out" : undefined,
+          transition: dragShifted ? DRAG_TRANSITION : undefined,
         }
       : {}),
   };

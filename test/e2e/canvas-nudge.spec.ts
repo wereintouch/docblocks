@@ -1,15 +1,12 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The canvas arrow-key nudge: the
 // selection's canvas items shift by the world px step (the Arrow = 10,
 // the Shift+Arrow = 50 — the zoom-blind data's space, the step stands the
 // same over any zoom). Each press is a real move (one setGeometry per
 // item in one transact — one undo step, one wire update), the selection
 // stands on the same items, and the page never scrolls over the arrows.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
+
+import { SETTLE, canvasCenter, canvasView, toCanvas, twoPanes } from "./helpers";
 
 type BlockJson = {
   type: string;
@@ -18,43 +15,8 @@ type BlockJson = {
   content?: unknown[];
 };
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-
 const zoomToolbar = (page: Page, client: "a" | "b") =>
   canvasView(page, client).getByRole("toolbar", { name: "Canvas zoom" });
-
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
 
 /** Zoom the pane to 50% (five 10% steps down from 100%). */
 async function zoomTo50(page: Page, client: "a" | "b"): Promise<void> {

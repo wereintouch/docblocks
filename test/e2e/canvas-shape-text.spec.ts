@@ -1,44 +1,10 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The shape's text: the double-click's
 // inline edit (the commit on the blur / the Escape, one updateBlock),
 // the toolbar's text controls (the font / the color / the style / the
 // size / the alignment — the texted stand only), and the rounded
-// rectangle's variant (the line's removal). A/B sync over the relay.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
+import { SETTLE, canvasView, seedShape, toCanvas, twoPanes } from "./helpers";
 
 /** The pane's doc's attrs of the given shape (null when absent). */
 async function shapeAttrs(page: Page, client: "a" | "b", id: string): Promise<Record<string, unknown> | null> {
@@ -55,27 +21,6 @@ async function shapeAttrs(page: Page, client: "a" | "b", id: string): Promise<Re
 }
 
 /** Seeds one shape with the given attrs + geometry on the pane's doc. */
-async function seedShape(
-  page: Page,
-  client: "a" | "b",
-  attrs: Record<string, unknown>,
-  geometry: { x: number; y: number; w: number; h: number }
-): Promise<string> {
-  return page.evaluate(
-    ({ client, attrs, geometry }) => {
-      const docs = window.__paneDocs;
-      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-      if (doc === null) throw new Error("the pane's doc is not mounted");
-      const json = doc.toJSON();
-      const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
-      const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
-      const id = doc.insertBlock("shape", attrs, { parent: surface });
-      doc.setGeometry(id, geometry);
-      return id;
-    },
-    { client, attrs, geometry }
-  );
-}
 
 /** Click-selects the shape (the pointerdown on its canvas-item wrapper). */
 async function selectShape(page: Page, client: "a" | "b", id: string): Promise<void> {

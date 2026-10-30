@@ -19,4 +19,7 @@ const SHAPE_VARIANTS = [
 /** The hex input's accepted form (3 or 6 digits, the `#` optional). */
 const HEX_RE = /^(?:#)?([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-export { BORDER_WIDTH_POINTS, HEX_RE, SHAPE_VARIANTS };
+/** The active item's stand (the pressed / the current's tint). */
+const ACTIVE_ITEM_CLASS = "bg-accent text-accent-foreground";
+
+export { ACTIVE_ITEM_CLASS, BORDER_WIDTH_POINTS, HEX_RE, SHAPE_VARIANTS };

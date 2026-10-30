@@ -7,7 +7,7 @@ import type { BlockId } from "docblocks-core";
 import { useBlock } from "../../hooks";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import { TableCell } from "./TableCell";
-import { EMPTY_IDS } from "./constants";
+import { DRAG_TRANSITION, EMPTY_IDS } from "./constants";
 
 /** One row: the cell ids come from the row's own snapshot. */
 const TableRow = memo(function TableRow({
@@ -37,7 +37,7 @@ const TableRow = memo(function TableRow({
                     transform: `translateY(${rowTransform.dy}px)`,
                     position: "relative" as const,
                     zIndex: rowTransform.shifted ? undefined : 10,
-                    transition: rowTransform.shifted ? "transform 120ms ease-out" : undefined,
+                    transition: rowTransform.shifted ? DRAG_TRANSITION : undefined,
                   }
                 : {}),
               ...(dimmed ? { opacity: 0.4 } : {}),

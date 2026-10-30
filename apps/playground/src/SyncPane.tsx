@@ -352,15 +352,7 @@ function SyncPane({
   // contenteditable); the canvas view carries its own definite height for
   // the editor's flex chain.
   return (
-    <main
-      style={{
-        fontFamily: "system-ui, sans-serif",
-        padding: 16,
-        display: "flex",
-        gap: 16,
-        alignItems: "flex-start",
-      }}
-    >
+    <main className="doc-main">
       {/* The component under test: the page flow or the document canvas. */}
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -385,17 +377,7 @@ function SyncPane({
         </div>
       </section>
       {/* The system panel: status, chaos, and the live inspectors. */}
-      <aside
-        style={{
-          width: 420,
-          flexShrink: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-          borderLeft: "1px solid var(--border)",
-          paddingLeft: 16,
-        }}
-      >
+      <aside className="doc-aside">
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
           theme
           <Button

@@ -157,7 +157,6 @@ interface EndpointDrag {
 
 /** The endpoint drag's edge snap (the sibling block, the side, and the
  * fractional position along it — the continuous anchor). */
-
 interface EndpointSnap {
   blockId: string;
   port: CanvasPort;
@@ -192,7 +191,7 @@ interface CanvasViewportState {
    * stick disk — the legacy port ref, the portT's 0.5 absent); null over
    * the plain block ref (the auto anchor) and over the free stand. */
   pendingPort: CanvasPort | null;
-
+  /** The free stand's frozen direction (the snapped side); null when the
    * stand stands no
    * direction (the empty-canvas press). */
   pendingFreePort: CanvasPort | null;

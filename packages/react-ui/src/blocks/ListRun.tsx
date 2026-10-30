@@ -21,7 +21,7 @@ import type { FlatNode, ListKind } from "./flat";
 /** The per-block renderer the list runs render (the per-block wrapper, the
  * `renderBlock` threaded recursively so the nested content renders the
  * per-block without a back-edge import). */
-type BlockRenderer = ComponentType<{ node: FlatNode; renderBlock: BlockRenderer }>;
+type FlatBlockRenderer = ComponentType<{ node: FlatNode; renderBlock: FlatBlockRenderer }>;
 
 /** One segment of nested content: a stretch of blocks rendered inside a container (the slot or the item). */
 type NestedSegment =
@@ -40,7 +40,7 @@ function ListRun({
   nodes: FlatNode[];
   kind: ListKind;
   indent: number;
-  renderBlock: BlockRenderer;
+  renderBlock: FlatBlockRenderer;
 }) {
   const Tag: "ul" | "ol" = kind === "number" ? "ol" : "ul";
   const cycle = markerCycle(indent);
@@ -106,7 +106,7 @@ function nestedSegments(nodes: FlatNode[], ownKind: ListKind | undefined): Neste
 }
 
 /** A non-list block's (or a slot's) children in reading order: list runs as lists, the rest as single blocks. */
-function GroupedNodes({ nodes, renderBlock }: { nodes: FlatNode[]; renderBlock: BlockRenderer }) {
+function GroupedNodes({ nodes, renderBlock }: { nodes: FlatNode[]; renderBlock: FlatBlockRenderer }) {
   const segments = nestedSegments(nodes, undefined);
   const RenderBlock = renderBlock;
   return (
@@ -131,4 +131,4 @@ function GroupedNodes({ nodes, renderBlock }: { nodes: FlatNode[]; renderBlock: 
 export { GroupedNodes, ListRun, nestedSegments };
 export type { NestedSegment };
 
-export type { BlockRenderer };
+export type { FlatBlockRenderer };

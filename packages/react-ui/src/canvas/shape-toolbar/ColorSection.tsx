@@ -11,6 +11,7 @@ import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { X } from "../../shared/ui/icons";
 import { preventDefault, stopPropagation } from "../../shared/utils";
+import { TOOLTIP_SIDE_OFFSET_PX } from "../viewport/constants";
 import { normalizeHex } from "./utils";
 
 function ColorSection({
@@ -101,7 +102,7 @@ function ColorSection({
       </PopoverTrigger>
       <PopoverContent
         align="center"
-        sideOffset={8}
+        sideOffset={TOOLTIP_SIDE_OFFSET_PX}
         data-slot={`docblocks/shape-${target}-palette`}
         aria-label={label}
         className="w-auto p-2"

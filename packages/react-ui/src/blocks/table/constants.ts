@@ -33,6 +33,9 @@ const MIN_COLUMN_WIDTH = 50;
 const ADD_BUTTON_CLASSES =
   "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
+const DRAG_TRANSITION = "transform 120ms ease-out";
+const HANDLE_DRAG_TRANSITION = "left 120ms ease-out, top 120ms ease-out";
+
 export {
   ADD_BUTTON_CLASSES,
   ADD_BUTTON_SIZE,
@@ -44,4 +47,6 @@ export {
   HANDLE_SIZE,
   HANDLE_ZONE,
   MIN_COLUMN_WIDTH,
+  DRAG_TRANSITION,
+  HANDLE_DRAG_TRANSITION,
 };

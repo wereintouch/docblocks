@@ -1,17 +1,6 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { insertBlockType } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, insertBlockType, pasteFromClipboard, twoPanes } from "./helpers";
 
 /** The inner contenteditables of the pane's text blocks, in order. */
 function inners(page: Page, client: "a" | "b") {
@@ -49,57 +38,11 @@ async function copyBlockToClipboard(page: Page, client: "a" | "b"): Promise<void
  * payload is read back and dispatched as a paste event (headless Chromium
  * does not synthesize a paste event from Control+v).
  */
-async function pasteFromClipboard(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const textOf = async (items: readonly ClipboardItem[], type: string): Promise<string | null> => {
-      for (const item of items) {
-        if (item.types.includes(type)) return (await item.getType(type)).text();
-      }
-      return null;
-    };
-    const items = await navigator.clipboard.read();
-    const html = await textOf(items, "text/html");
-    const plain = await textOf(items, "text/plain");
-    const target = document.activeElement;
-    if (!(target instanceof HTMLElement)) throw new Error("the paste target should be focused");
-    const transfer = new DataTransfer();
-    if (html !== null) transfer.setData("text/html", html);
-    if (plain !== null) transfer.setData("text/plain", plain);
-    const event = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(event, "clipboardData", { value: transfer });
-    target.dispatchEvent(event);
-  });
-}
-
-async function twoPanes(
-  browser: Browser,
-  room: string
-): Promise<{
-  a: Page;
-  b: Page;
-  close: () => Promise<void>;
-}> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  await contextA.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await contextB.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
 
 test("a rich paste carries the clipboard marks into both panes", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "ui04-clipboard");
+  const { a, b, close } = await twoPanes(browser, "ui04-clipboard", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
 
   // The room starts with pane "a"'s single starter.
   await expect(inners(a, "a")).toHaveCount(1);

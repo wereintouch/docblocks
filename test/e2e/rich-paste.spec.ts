@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { insertBlockType } from "./helpers";
-
 // The multi-block rich `text/html` paste (the v1.1 upgrade of the rich
 // branch): the block structure materializes through the shared pipeline
 // (the caret block split, the merge, the one transact), the table stands
@@ -11,13 +7,9 @@ import { insertBlockType } from "./helpers";
 // Control+v, so the clipboard payload is seeded via `navigator.clipboard`
 // and the paste event is dispatched with it (the paste side is the real
 // pipeline).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, insertBlockType, pasteFromClipboard, twoPanes } from "./helpers";
 
 /** The inner contenteditables of the pane's text blocks, in order. */
 function inners(page: Page, client: "a" | "b") {
@@ -35,47 +27,6 @@ async function seedClipboard(page: Page, formats: Record<string, string>): Promi
 }
 
 /** Pastes the OS clipboard into the focused element (the real paste event). */
-async function pasteFromClipboard(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const textOf = async (items: readonly ClipboardItem[], type: string): Promise<string | null> => {
-      for (const item of items) {
-        if (item.types.includes(type)) return (await item.getType(type)).text();
-      }
-      return null;
-    };
-    const items = await navigator.clipboard.read();
-    const html = await textOf(items, "text/html");
-    const plain = await textOf(items, "text/plain");
-    const target = document.activeElement;
-    if (!(target instanceof HTMLElement)) throw new Error("the paste target should be focused");
-    const transfer = new DataTransfer();
-    if (html !== null) transfer.setData("text/html", html);
-    if (plain !== null) transfer.setData("text/plain", plain);
-    const event = new Event("paste", { bubbles: true, cancelable: true });
-    Object.defineProperty(event, "clipboardData", { value: transfer });
-    target.dispatchEvent(event);
-  });
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  await contextA.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await contextB.grantPermissions(["clipboard-read", "clipboard-write"]);
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
 
 /** The pane's block types in the sequence, comma-joined. */
 function typesOf(page: Page, client: "a" | "b") {
@@ -126,7 +77,9 @@ function attrOf(page: Page, client: "a" | "b", id: string, attr: string) {
 test("a multi-block rich paste materializes the blocks (the caret lands; one undo step reverts)", async ({
   browser,
 }) => {
-  const { a, b, close } = await twoPanes(browser, "richpaste-multi");
+  const { a, b, close } = await twoPanes(browser, "richpaste-multi", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   const firstA = inners(a, "a").first();
   await firstA.click();
   await a.keyboard.type("before");
@@ -193,7 +146,9 @@ test("a multi-block rich paste materializes the blocks (the caret lands; one und
 });
 
 test("the rich table paste stands the native table (the cells' marks; the trailing paragraph)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "richpaste-table");
+  const { a, b, close } = await twoPanes(browser, "richpaste-table", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   const firstA = inners(a, "a").first();
   await firstA.click();
 
@@ -264,7 +219,9 @@ test("the rich table paste stands the native table (the cells' marks; the traili
 });
 
 test("the code target takes the raw text with the line structure (no marks, no flattening)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "richpaste-code");
+  const { a, b, close } = await twoPanes(browser, "richpaste-code", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
   // The code block as the seat.
   const firstA = inners(a, "a").first();
   await firstA.click();

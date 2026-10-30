@@ -414,6 +414,18 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, [openFlag, rootRef]);
 
+  // The pick's cancels (the database's picker, the embed's form): the
+  // stand closes, the pending stand cleared (the phrase strip's removal
+  // is the close's own press).
+  const cancelDatabasePick = () => {
+    setDatabasePick(false);
+    pendingDatabaseRef.current = null;
+  };
+  const cancelEmbedForm = () => {
+    setEmbedForm(false);
+    pendingEmbedRef.current = null;
+  };
+
   const api = useMemo(() => ({ onKeyDown, onSlashKey }), [onKeyDown, onSlashKey]);
   const menuNode =
     state !== null ? (
@@ -426,16 +438,10 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         onImageFile={handleImageFile}
         imageClickRef={imageClickRef}
         databasePick={databasePick}
-        onDatabasePickCancel={() => {
-          setDatabasePick(false);
-          pendingDatabaseRef.current = null;
-        }}
+        onDatabasePickCancel={cancelDatabasePick}
         onDatabaseCommit={commitDatabase}
         embedForm={embedForm}
-        onEmbedCancel={() => {
-          setEmbedForm(false);
-          pendingEmbedRef.current = null;
-        }}
+        onEmbedCancel={cancelEmbedForm}
         onEmbedCommit={commitEmbed}
       />
     ) : null;

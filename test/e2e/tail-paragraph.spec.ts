@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { insertBlockType } from "./helpers";
-
 // The document's tail contract (a non-text last block stands no caret
 // home): the editor keeps an editable empty paragraph over any non-text
 // tail — the local gestures (the removal, the slash's insert, the drag's
@@ -11,34 +7,9 @@ import { insertBlockType } from "./helpers";
 // database card renders no gutter (its own contract), so the Backspace
 // over the trailing empty paragraph is what removes the block.
 //
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
+import { SETTLE, insertBlockType, twoPanes } from "./helpers";
 
 /** The pane A's root children as `type[]` from the live doc. */
 function rootTypes(page: Page) {

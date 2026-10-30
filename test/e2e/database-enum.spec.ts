@@ -1,21 +1,13 @@
+import { type Page, expect, test } from "@playwright/test";
+
+import { SETTLE, openPane } from "./helpers";
+
 /** The enum / the multi-enum's stand: the picker's width's clamp (the
  * cell's floor, the option's drive, the 220 px's ceiling), the rows'
  * selected's stand (the current value / the empty's clear), the
  * overflow's stands (the single press's picker over the clipped value;
  * the tall's list over the clipped chips), the options' block (the
  * standard's font, the shared color's palette, the grip's live reorder). */
-import { type Page, expect, test } from "@playwright/test";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
 
 /** The demo's table over the pane's bridge (the seed's stand). */
 async function bridgeDemoTable(page: Page): Promise<{ id: string; name: string }> {

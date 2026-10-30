@@ -7,7 +7,7 @@ export default defineConfig({
   // loads (the relay + the panes' boot), not the test logic — higher
   // parallelism loads the dev server and the panes hard enough for the
   // sync/presence polls to flake. Measured over the full suite: workers 2 =
-  // full 280-test suite): workers 2 = 127s / 0 flakes, 4 = 83s / 0 flakes
+  // 127s / 0 flakes, 4 = 83s / 0 flakes
   // (two runs), 6 = 71s / 1 flake per run, 8 = 67s / 4 flakes. Four stands
   // the sweet spot: the flake rate stays at the baseline's zero.
   workers: 4,

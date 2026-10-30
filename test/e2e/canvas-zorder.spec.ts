@@ -1,8 +1,4 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
-
+// The canvas z-order (the explicit zIndex): the dense `zIndex`
 // (1..N over the surface's canvas elements — 1 = bottom) stands the paint
 // order (the children order's mirror). The three-dots menu over the shape /
 // connector toolbars reorders via `setZOrder` (one transact — one undo step,
@@ -10,35 +6,9 @@ import { switchPaneView } from "./helpers";
 // top (max + 1). The paint stand is the DOM order (the connector's line
 // stands inside its own wrapper, so a reorder moves the real line over /
 // under the figures).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
+import { SETTLE, toCanvas, twoPanes } from "./helpers";
 
 /** The surface + the three shapes (rect / ellipse / rect), disjoint boxes. */
 async function seedShapes(page: Page, client: "a" | "b"): Promise<{ surface: string; ids: [string, string, string] }> {

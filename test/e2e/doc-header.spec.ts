@@ -1,5 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
 // The consumer-placed document header panel (the page/canvas switcher, the
 // avatar, the title): the title / the avatar edit commit one command (one
 // undo step) and sync over the wire to the second pane; the mode switcher
@@ -7,31 +5,9 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // pane's chrome, so the editor's views are headerless. The mermaid mode
 // switcher (the SegmentSelector it was refactored from) is pinned by its
 // own spec (mermaid.spec.ts).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
+import { SETTLE, twoPanes } from "./helpers";
 
 /** The pane's doc meta (the harness global; the letter's doc on its own page). */
 async function metaOf(page: Page, client: "a" | "b"): Promise<{ title: string; avatar: string }> {

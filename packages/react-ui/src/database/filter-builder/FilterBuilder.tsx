@@ -67,6 +67,14 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
     onChange({ ...payload, groups: (payload.groups ?? []).filter((_, at) => at !== index) });
 
   const addGroup = () => onChange({ ...payload, groups: [...(payload.groups ?? []), emptyFilter()] });
+  // The "+ Condition" press: the group's first column as a new condition
+  // over its first operator (the group's column set stands the options).
+  const addCondition = () => {
+    const column = columns[0];
+    if (column === undefined) return;
+    const firstOperator = columnAnnotation(column).operators[0] ?? "is";
+    onChange({ ...payload, conditions: [...payload.conditions, { columnId: column.id, op: firstOperator }] });
+  };
   const onLogicChange = (logic: "and" | "or") => {
     if (logic !== payload.logic) setLogic(logic);
   };
@@ -141,12 +149,7 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           variant="outline"
           size="sm"
           data-slot="docblocks/filter-add-condition"
-          onClick={() => {
-            const column = columns[0];
-            if (column === undefined) return;
-            const firstOperator = columnAnnotation(column).operators[0] ?? "is";
-            onChange({ ...payload, conditions: [...payload.conditions, { columnId: column.id, op: firstOperator }] });
-          }}
+          onClick={addCondition}
         >
           + Condition
         </Button>

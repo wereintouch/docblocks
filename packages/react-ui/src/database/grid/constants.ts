@@ -60,7 +60,18 @@ const CELL_INPUT =
   "select-text rounded-(--docblocks-radius) border-0 bg-transparent px-1 " +
   "text-(length:--docblocks-font-size) focus:bg-(--docblocks-selected-background)/50 dark:bg-transparent";
 
+const PICKER_SIDE_OFFSET_PX = 4;
+
+const GRID_DRAG_TRANSITION = "transform 120ms ease-out";
+
+/** The undo / redo button's frame stand (the disabled's off). */
+const GRID_HISTORY_BUTTON =
+  "h-auto px-2 py-0.5 text-xs font-normal shadow-none disabled:cursor-default disabled:opacity-40";
+
 export {
+  GRID_DRAG_TRANSITION,
+  GRID_HISTORY_BUTTON,
+  PICKER_SIDE_OFFSET_PX,
   ADD_COLUMN_TYPES,
   CELL_INPUT,
   CELL_SELECTED,

@@ -1,101 +1,20 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The canvas move session (the pointer drag over a canvas item): the press
 // selects (group-aware), the drag previews and commits one setGeometry
 // per item in one transact on release (one undo step), and a no-op press
 // writes nothing. Every test zooms out to 25% so the page miniature
 // shrinks and the empty canvas around the seeded shapes stands free.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
+
+import { SETTLE, blockShapes, canvasCenter, canvasView, seedShape, toCanvas, twoPanes } from "./helpers";
+
 const ZOOM = 0.25;
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
 
 const zoomToolbar = (page: Page, client: "a" | "b") =>
   canvasView(page, client).getByRole("toolbar", { name: "Canvas zoom" });
 
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
 /** The pane's doc JSON blocks (the geometry per id). */
-async function blockShapes(
-  page: Page,
-  client: "a" | "b"
-): Promise<Record<string, { type: string; geometry: { x: number; y: number; w: number; h: number } | undefined }>> {
-  return page.evaluate(
-    ({ client }) => {
-      const docs = window.__paneDocs;
-      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-      if (doc === null) return {};
-      const json = doc.toJSON();
-      const out: Record<
-        string,
-        { type: string; geometry: { x: number; y: number; w: number; h: number } | undefined }
-      > = {};
-      for (const [id, block] of Object.entries(json.blocks)) {
-        const entry = block as { type: string; geometry?: { x: number; y: number; w: number; h: number } };
-        out[id] = { type: entry.type, geometry: entry.geometry };
-      }
-      return out;
-    },
-    { client }
-  );
-}
 
 /** Seed one canvas shape on the pane's doc (the first surface, created when absent). */
-async function seedShape(
-  page: Page,
-  client: "a" | "b",
-  variant: "rect" | "rounded" | "ellipse" | "diamond",
-  geometry: { x: number; y: number; w: number; h: number }
-): Promise<string> {
-  return page.evaluate(
-    ({ client, variant, geometry }) => {
-      const docs = window.__paneDocs;
-      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-      if (doc === null) throw new Error("the pane's doc is not mounted");
-      const json = doc.toJSON();
-      const surfaceId = Object.entries(json.blocks).find(([, block]) => block.type === "surface")?.[0];
-      const surface = surfaceId !== undefined ? surfaceId : doc.insertBlock("surface");
-      const id = doc.insertBlock("shape", { variant }, { parent: surface });
-      doc.setGeometry(id, geometry);
-      return id;
-    },
-    { client, variant, geometry }
-  );
-}
 
 /** Zoom the pane out to 25% (four steps down from 100%). */
 async function zoomTo25(page: Page, client: "a" | "b"): Promise<void> {
@@ -246,8 +165,8 @@ test.describe("the canvas move session", () => {
     const { a, close } = await twoPanes(browser, "canvas-move-connector");
     try {
       await toCanvas(a, "a");
-      const s1 = await seedShape(a, "a", "rect", { x: -500, y: 0, w: 120, h: 80 });
-      const s2 = await seedShape(a, "a", "ellipse", { x: 500, y: 0, w: 120, h: 80 });
+      const s1 = await seedShape(a, "a", { variant: "rect" }, { x: -500, y: 0, w: 120, h: 80 });
+      const s2 = await seedShape(a, "a", { variant: "ellipse" }, { x: 500, y: 0, w: 120, h: 80 });
       const connector = await a.evaluate(
         ({ client, s1, s2 }) => {
           const docs = window.__paneDocs;
@@ -337,7 +256,7 @@ test.describe("the canvas move session", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const s1 = await seedShape(a, "a", "rect", { x: 300, y: 0, w: 120, h: 80 });
+      const s1 = await seedShape(a, "a", { variant: "rect" }, { x: 300, y: 0, w: 120, h: 80 });
       await zoomTo25(a, "a");
 
       // The item's screen center: the canvas center + the canvas position
@@ -373,8 +292,8 @@ test.describe("the canvas move session", () => {
     const { a, close } = await twoPanes(browser, "canvas-move-click");
     try {
       await toCanvas(a, "a");
-      const s1 = await seedShape(a, "a", "rect", { x: 300, y: 0, w: 120, h: 80 });
-      const s2 = await seedShape(a, "a", "ellipse", { x: -300, y: 0, w: 120, h: 80 });
+      const s1 = await seedShape(a, "a", { variant: "rect" }, { x: 300, y: 0, w: 120, h: 80 });
+      const s2 = await seedShape(a, "a", { variant: "ellipse" }, { x: -300, y: 0, w: 120, h: 80 });
       await zoomTo25(a, "a");
 
       const center = await canvasCenter(a, "a");
@@ -393,7 +312,7 @@ test.describe("the canvas move session", () => {
     const { a, close } = await twoPanes(browser, "canvas-move-noop");
     try {
       await toCanvas(a, "a");
-      await seedShape(a, "a", "rect", { x: 300, y: 0, w: 120, h: 80 });
+      await seedShape(a, "a", { variant: "rect" }, { x: 300, y: 0, w: 120, h: 80 });
       await zoomTo25(a, "a");
       const before = await blockShapes(a, "a");
 
@@ -470,8 +389,8 @@ test.describe("the canvas move session", () => {
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
-      const s1 = await seedShape(a, "a", "rect", { x: -500, y: 0, w: 120, h: 80 });
-      const s2 = await seedShape(a, "a", "ellipse", { x: 500, y: 0, w: 120, h: 80 });
+      const s1 = await seedShape(a, "a", { variant: "rect" }, { x: -500, y: 0, w: 120, h: 80 });
+      const s2 = await seedShape(a, "a", { variant: "ellipse" }, { x: 500, y: 0, w: 120, h: 80 });
       await zoomTo25(a, "a");
       const center = await canvasCenter(a, "a");
 

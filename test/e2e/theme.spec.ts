@@ -1,7 +1,7 @@
+// Its own room: a manually left-over tab must not pollute the sync specs.
 import { expect, test } from "@playwright/test";
 
-// Its own room: a manually left-over tab must not pollute the sync specs.
-const SETTLE = { timeout: 15_000 };
+import { SETTLE } from "./helpers";
 
 test("the dark theme activates via the .dark class on an ancestor", async ({ page }) => {
   await page.goto(`/?syncUrl=ws://localhost:5199/theme-${Math.random().toString(36).slice(2, 8)}`);

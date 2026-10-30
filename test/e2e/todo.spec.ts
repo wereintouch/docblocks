@@ -1,15 +1,6 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { SETTLE, twoPanes } from "./helpers";
 
 /**
  * Insert a task list item into the pane's doc (the pane's harness doc
@@ -34,24 +25,6 @@ async function taskItem(page: Page, client: "a" | "b", id: string) {
     },
     { c: client, blockId: id }
   );
-}
-
-async function twoPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  await openPane(a, "a", room);
-  await openPane(b, "b", room);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
 }
 
 test.describe("todo checkbox", () => {

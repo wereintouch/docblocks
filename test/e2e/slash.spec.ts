@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-const RELAY = "ws://localhost:5199";
+import { RELAY, outCount } from "./helpers";
 
 /**
  * The "/" slash command menu (the reworked model): the "/" is regular doc
@@ -51,10 +51,6 @@ function menu(page: Page) {
 }
 
 /** The pane's wire-log outbound doc-update count (awareness frames are not logged). */
-async function outCount(page: Page, client: "a" | "b"): Promise<number> {
-  const text = await page.getByTestId(`wire-${client}`).innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
-}
 
 /** The rect of the block's "/" character (the flat offset `slashOffset` of its logical text; null when the pane or text node is missing). The optional `blockId` scopes the read (the default is the pane's first block). */
 async function slashRect(

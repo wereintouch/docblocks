@@ -36,6 +36,12 @@ function DatePicker({
   placeholder?: string;
 } & Omit<React.ComponentPropsWithoutRef<"button">, "value" | "onSelect">) {
   const [open, setOpen] = React.useState(false);
+  // The day's pick: the popover closes on the pick (the immediate-commit
+  // contract).
+  const onDateSelect = (date: Date | undefined) => {
+    setOpen(false);
+    onSelect(date ?? null);
+  };
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -51,14 +57,7 @@ function DatePicker({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
-        <Calendar
-          mode="single"
-          selected={value ?? undefined}
-          onSelect={(date) => {
-            setOpen(false);
-            onSelect(date ?? null);
-          }}
-        />
+        <Calendar mode="single" selected={value ?? undefined} onSelect={onDateSelect} />
       </PopoverContent>
     </Popover>
   );

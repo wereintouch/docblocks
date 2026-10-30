@@ -30,18 +30,7 @@ function WireLog({ client, events }: { client: "a" | "b"; events: WireEvent[] })
       <div style={{ padding: "4px 8px", borderBottom: "1px solid var(--border)", fontSize: 12 }}>
         wire — {events.length} events
       </div>
-      <ul
-        ref={listRef}
-        style={{
-          listStyle: "none",
-          margin: 0,
-          padding: 8,
-          overflow: "auto",
-          maxHeight: 220,
-          fontFamily: "monospace",
-          fontSize: 11,
-        }}
-      >
+      <ul ref={listRef} className="wire-log">
         {events.map((event) => (
           <li key={event.id}>
             [t+{event.at}ms] {event.dir} {event.bytes}B

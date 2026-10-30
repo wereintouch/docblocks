@@ -1,44 +1,9 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The connector's options toolbar (the selected line's menu) stands the
-// TOPMOST chrome: over the selected connector's endpoint handles (the port
 // circles) and the world layer. When the menu overlaps an endpoint's zone
-// the port stands hidden under it and non-interactive (a click in the zone
-// hits the menu, not the port); where the menu does not cover an endpoint
-// the port keeps its stand (visible and clickable — the re-anchor / the
-// port snap). The port-snap in draw / the endpoint-drag is pinned by the
 // connector endpoint spec (the handles keep their stand there).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
+import { SETTLE, toCanvas, twoPanes } from "./helpers";
 
 /** The connector block between the surface's shapes (the first such child). */
 async function connectorOf(page: Page, client: "a" | "b"): Promise<string | null> {

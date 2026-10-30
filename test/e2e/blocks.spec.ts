@@ -1,53 +1,14 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { insertBlockType } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-  // The harness loads dark by default; the pins in this spec are light
-  // seed values, so clear the `.dark` class explicitly.
-  await page.evaluate(() => document.documentElement.classList.remove("dark"));
-}
+import { SETTLE, insertBlockType, twoPanes } from "./helpers";
 
 /** Insert one v1 type at the root through the pane's harness control. */
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {
   await insertBlockType(page, client, type);
 }
 
-async function twoPanes(
-  browser: Browser,
-  room: string
-): Promise<{
-  a: Page;
-  b: Page;
-  close: () => Promise<void>;
-}> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
 test("structurally inserted blocks render in the other pane", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "ui03a-blocks");
+  const { a, b, close } = await twoPanes(browser, "ui03a-blocks", { light: true });
 
   await insertType(a, "a", "code");
   await insertType(a, "a", "table");

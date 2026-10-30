@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-const RELAY = "ws://localhost:5199";
+import { RELAY, outCount } from "./helpers";
 
 /**
  * The mouse selection gestures: a double-click selects the word under the
@@ -45,10 +45,6 @@ function toolbar(page: Page) {
 }
 
 /** The pane's wire-log outbound doc-update count (awareness frames are not logged). */
-async function outCount(page: Page): Promise<number> {
-  const text = await page.getByTestId("wire-a").innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
-}
 
 /** The DOM selection (the mouse gestures' contract level). */
 async function selState(page: Page): Promise<{ collapsed: boolean; text: string }> {
@@ -168,9 +164,9 @@ test("a mark from the toolbar over the double-click selection is one transact an
   await a.mouse.dblclick(x, y);
   await expect(toolbar(a)).toBeVisible();
 
-  const outBefore = await outCount(a);
+  const outBefore = await outCount(a, "a");
   await a.locator('[data-slot="docblocks/format-toolbar"] button[aria-label="Bold"]').click();
-  expect(await outCount(a)).toBe(outBefore + 1);
+  expect(await outCount(a, "a")).toBe(outBefore + 1);
 
   // The selection stands (the mark-only change re-renders the text in
   // place) and the whole word is bold in the doc.

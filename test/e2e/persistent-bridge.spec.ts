@@ -1,5 +1,3 @@
-import { type Page, expect, test } from "@playwright/test";
-
 // The persistent bridge's harness global (the wrapped default memory bridge
 // over the localStorage snapshot).
 //
@@ -7,12 +5,9 @@ import { type Page, expect, test } from "@playwright/test";
 // the reload's restore re-creates the table under its original id: a rename
 // and the doc's `tableId` references survive. Pinned: create → rename →
 // save → reload keeps the original table id.
-const RELAY = "ws://localhost:5199";
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`).first()).toHaveText("connected");
-}
+import { openPane } from "./helpers";
 
 /** Whether the bridge holds a table of the given id (the seed's readiness
  * is awaited by the bridge's reads). */
@@ -29,7 +24,7 @@ test("the persistent bridge keeps the table id across a rename and a reload", as
   const a = await context.newPage();
   const room = `persist-${Math.random().toString(36).slice(2, 8)}`;
   try {
-    await openPane(a, "a", room);
+    await openPane(a, "a", room, { first: true });
 
     // Create a table through the persistent bridge and capture its id.
     const tableId = await a.evaluate(() => {

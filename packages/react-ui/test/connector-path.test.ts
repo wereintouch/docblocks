@@ -175,7 +175,6 @@ describe("endpointPointOf", () => {
       }
     );
     // The north edge at the corner (t = 1 — the corners stand).
-
     expect(endpointPointOf({ blockId: "s1", port: "north", portT: 1 }, siblings, blocks, { x: 0, y: 0 })).toEqual({
       x: -200,
       y: -150,

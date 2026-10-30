@@ -1,50 +1,12 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The connector arrows (the edge-to-edge lines): the two-click dock
 // placement, the edge anchors (the line leaves the source box's edge, the
 // arrowhead stands at the end box's edge), the sticky behavior (a moved
 // block re-anchors the line — the doc carries only the geometry), the
 // variant switch over the toolbar (one updateBlock per pick, one undo
 // step, the other pane syncs), and the line-click selection + Delete.
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
+import { SETTLE, canvasCenter, canvasView, outCount, toCanvas, twoPanes } from "./helpers";
 
 /** Seeds the two seeded shapes (left / right) and returns their ids. The
  *  vertical stand (the boxes stacked at (0, -200) and (0, 150)): the
@@ -1289,10 +1251,6 @@ async function fullEndpointAttrs(
 }
 
 /** The wire log's outbound doc-update count (awareness frames are not logged). */
-async function outCount(page: Page, client: "a" | "b"): Promise<number> {
-  const text = await page.getByTestId(`wire-${client}`).innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
-}
 
 /** The real pointer click at the given screen point (a page-level helper). */
 async function pageClick(page: Page, x: number, y: number): Promise<void> {

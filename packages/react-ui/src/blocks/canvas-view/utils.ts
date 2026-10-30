@@ -46,8 +46,8 @@ function wheelGesture(
 }
 
 /** The wheel-pan's axis deltas (screen px, the 1:1 stand): the content
-
- * — the wheel down stands the canvas up). The shift stands the horizontal
+ * moves OPPOSITE to the wheel's delta (the inversion — the wheel down
+ * stands the canvas up). The shift stands the horizontal
  * axis only (the browser maps the shifted vertical wheel onto deltaX;
  * the unconverted notch takes the deltaY fallback). */
 function wheelPanDeltas(deltaX: number, deltaY: number, shiftKey: boolean): { dx: number; dy: number } {

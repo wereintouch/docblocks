@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The canvas copy/paste: the Ctrl/Cmd+C
 // copies the selection's canvas items (the deep data — the copy stands the
 // original's later edits out; the frame stands the copy out), the
@@ -12,8 +8,9 @@ import { switchPaneView } from "./helpers";
 // one wire update — the undo drops the whole copy); the copy keeps the
 // selection, the paste seats the selection on the pasted (the undo stands
 // the previous selection back, the redo re-seats the pasted).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
+
+import { SETTLE, canvasCenter, canvasView, toCanvas, twoPanes } from "./helpers";
 
 /** The pane's zoom (the shapes stand the 100% viewport — the 50% stand). */
 const ZOOM = 0.5;
@@ -25,43 +22,8 @@ type BlockJson = {
   content?: unknown[];
 };
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, room: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom);
-  await openPane(b, "b", uniqueRoom);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
-
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
-
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-
 const zoomToolbar = (page: Page, client: "a" | "b") =>
   canvasView(page, client).getByRole("toolbar", { name: "Canvas zoom" });
-
-async function canvasCenter(page: Page, client: "a" | "b"): Promise<{ x: number; y: number }> {
-  const box = (await canvasView(page, client).boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
 
 /** Zoom the pane to 50% (five 10% steps down from 100%). */
 async function zoomTo50(page: Page, client: "a" | "b"): Promise<void> {

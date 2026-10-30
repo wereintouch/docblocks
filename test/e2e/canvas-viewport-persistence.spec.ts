@@ -7,27 +7,11 @@
 // Pure view state — the doc's own data stands.
 import { type Page, expect, test } from "@playwright/test";
 
-import { switchPaneView } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs). The persistence's key is the
-// doc id (master-<room>), unique per room.
-const RELAY = "ws://localhost:5199";
-
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
+import { canvasView, openPane, switchPaneView, toCanvas } from "./helpers";
 
 /** Switch the pane to the canvas view (the harness's view toggle). */
-async function toCanvas(page: Page, client: "a" | "b"): Promise<void> {
-  await switchPaneView(page, client, "canvas");
-}
 
 /** The canvas-view container (the viewport's chrome root). */
-const canvasView = (page: Page, client: "a" | "b") =>
-  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
 
 /** The world transform (the zoom / pan's stand, the style string). */
 const worldTransform = async (page: Page, client: "a" | "b"): Promise<string> =>

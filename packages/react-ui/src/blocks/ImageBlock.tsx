@@ -21,6 +21,7 @@ import {
 import { preventDefault } from "../shared/utils";
 import { BlockCaption, requestBlockCaption } from "./BlockCaption";
 import { BlockContext } from "./block-context";
+import { CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
 
 /** The placeholder card's shared classes (the unknown-key and loading states). */
 const PLACEHOLDER_CLASS = `
@@ -174,6 +175,12 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
   const blockContext = useContext(BlockContext);
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const align = block.attrs.align ?? "left";
+  // The align's pick: the current align's press is the no-op stand
+  // (it writes nothing).
+  const pickAlign = (value: TextAlign) => () => {
+    if (align === value) return;
+    doc.updateBlock(id, { align: value });
+  };
   const [dragWidth, setDragWidth] = useState<number | null>(null);
   const dragWidthRef = useRef<number | null>(null);
   const dragRef = useRef<{ startX: number; startWidth: number; max: number; corner: ImagePortCorner } | null>(null);
@@ -283,11 +290,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
           alignClass,
           "outline-none",
           // The canvas selection's token (the shared selection outline).
-          selected &&
-            `
-              outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1
-              outline-(--docblocks-canvas-selection-border-color) outline-solid
-            `
+          selected && CANVAS_SELECTION_OUTLINE
         )}
         // Keep the caret: a default mousedown would move the focus out of the
         // editable (the figure is chrome, never text).
@@ -381,10 +384,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
               title={title}
               aria-pressed={align === value}
               className={cn("size-7", align === value && "bg-accent text-accent-foreground")}
-              onClick={() => {
-                if (align === value) return;
-                doc.updateBlock(id, { align: value });
-              }}
+              onClick={pickAlign(value)}
             >
               <Icon className="size-4" />
             </Button>

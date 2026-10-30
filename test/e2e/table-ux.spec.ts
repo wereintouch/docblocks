@@ -1,5 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
 // The table affordances: the slash Table insert,
 // the cell activation (the first input materializes the paragraph; Enter is a
 // soft line break; the empty layer's Backspace is a no-op), the handle menus
@@ -12,40 +10,11 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // menu (the plain-text copy, the plain-text paste — the markdown degrades to
 // one paragraph — and the clear).
 //
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for the
-// dev server's lifetime, so a shared room would be polluted by other spec
-// files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Page, expect, test } from "@playwright/test";
 
-async function openPane(page: Page, client: "a" | "b", room: string): Promise<void> {
-  await page.goto(`/?client=${client}&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
-async function twoPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  const a = await contextA.newPage();
-  const b = await contextB.newPage();
-  await openPane(a, "a", room);
-  await openPane(b, "b", room);
-  return {
-    a,
-    b,
-    close: async () => {
-      await contextA.close();
-      await contextB.close();
-    },
-  };
-}
+import { SETTLE, openPane, outCount, twoPanes } from "./helpers";
 
 /** The wire log's outbound doc-update count (awareness frames are not logged). */
-async function outCount(page: Page, client: "a" | "b"): Promise<number> {
-  const text = await page.getByTestId(`wire-${client}`).innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
-}
 
 interface CellSnap {
   blocks: number;

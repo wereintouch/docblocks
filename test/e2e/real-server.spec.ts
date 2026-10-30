@@ -1,7 +1,10 @@
 import { type Page, expect, test } from "@playwright/test";
+import "@playwright/test";
 import http from "node:http";
 import { WebSocketServer } from "ws";
 import { docs, setupWSConnection } from "y-websocket/bin/utils";
+
+import { SETTLE, openPane } from "./helpers";
 
 // The bin/utils subpath ships CommonJS without type declarations (typed by ./y-websocket.d.ts).
 
@@ -13,7 +16,6 @@ import { docs, setupWSConnection } from "y-websocket/bin/utils";
  */
 
 const PREFERRED_PORT = 1234;
-const SETTLE = { timeout: 15_000 };
 
 let server: http.Server;
 let wss: WebSocketServer;
@@ -75,11 +77,6 @@ function paneUrl(client: "a" | "b", docName: string): string {
   return `/?client=${client}&syncUrl=ws://localhost:${port}/${docName}`;
 }
 
-async function openPane(page: Page, url: string, client: "a" | "b"): Promise<void> {
-  await page.goto(url);
-  await expect(page.getByTestId(`status-${client}`)).toHaveText("connected");
-}
-
 async function expectDocContains(page: Page, client: "a" | "b", text: string): Promise<void> {
   await expect
     .poll(async () => (await page.getByTestId(`doc-${client}`).innerText()).includes(text), SETTLE)
@@ -93,8 +90,8 @@ test("A's text reaches B through the standard server", async ({ browser }) => {
   const pageB = await contextB.newPage();
   const doc = `smoke-a2b-${Math.random().toString(36).slice(2, 8)}`;
   const url = paneUrl("a", doc);
-  await openPane(pageA, url, "a");
-  await openPane(pageB, paneUrl("b", doc), "b");
+  await openPane(pageA, "a", "", { url });
+  await openPane(pageB, "b", "", { url: paneUrl("b", doc) });
 
   // Typing goes into the real editor (the first block in reading order).
   const firstA = pageA.locator('[data-testid="doc-a"] [data-block-type="paragraph"]').first();
@@ -113,8 +110,8 @@ test("B's text reaches A through the standard server", async ({ browser }) => {
   const pageB = await contextB.newPage();
   const doc = `smoke-b2a-${Math.random().toString(36).slice(2, 8)}`;
   const url = paneUrl("b", doc);
-  await openPane(pageA, paneUrl("a", doc), "a");
-  await openPane(pageB, url, "b");
+  await openPane(pageA, "a", "", { url: paneUrl("a", doc) });
+  await openPane(pageB, "b", "", { url });
 
   const firstB = pageB.locator('[data-testid="doc-b"] [data-block-type="paragraph"]').first();
   await firstB.click();

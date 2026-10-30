@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
-
 // The design system preview (?ds=1, harness-only): the shared/ui primitives
 // rendered OUTSIDE any editor root. Pins the compiled utility CSS
 // (the utility layer of the shipped docblocks-react-ui/styles.css) end to end: the utilities resolve the standard
 // tokens at the use site, the dark set flips under the .dark class, and the
 // popup content (menu/popover/select) is styled by the utility CSS.
+import { expect, test } from "@playwright/test";
+
 const URL = "/?ds=1";
 
 /** The standard token value the page resolves (the inlined seed, light). */

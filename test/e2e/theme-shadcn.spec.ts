@@ -1,7 +1,7 @@
+// Its own room: a manually left-over tab must not pollute the sync specs.
 import { expect, test } from "@playwright/test";
 
-// Its own room: a manually left-over tab must not pollute the sync specs.
-const SETTLE = { timeout: 15_000 };
+import { SETTLE } from "./helpers";
 
 // The standard (shadcn) input-token contract: when the consumer defines the
 // standard tokens on :root/.dark, the editor's --docblocks-* tokens follow

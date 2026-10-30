@@ -124,6 +124,24 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     id,
   });
 
+  // The add-chip's press (the drag-out stand's guard): the chip's drag
+  // commits the add over its release; a plain press stands the one-row /
+  // one-column add (the drag's click-stand suppresses it).
+  const insertTableColumn = () => {
+    if (addDragClickRef.current) {
+      addDragClickRef.current = false;
+      return;
+    }
+    doc.insertTableColumn(id);
+  };
+  const insertTableRow = () => {
+    if (addDragClickRef.current) {
+      addDragClickRef.current = false;
+      return;
+    }
+    doc.insertTableRow(id);
+  };
+
   // The add-row chip's left offset: the center of the visible part of the
   // table (no scroll listeners — the chip is pinned to the frame, not the
   // scrolled content). jsdom has no ResizeObserver; the offset stays 0.
@@ -600,13 +618,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
             aria-label="Add column"
             variant="ghost"
             size="icon"
-            onClick={() => {
-              if (addDragClickRef.current) {
-                addDragClickRef.current = false;
-                return;
-              }
-              doc.insertTableColumn(id);
-            }}
+            onClick={insertTableColumn}
             onPointerDown={onAddChipPointerDown("column")}
             onPointerMove={onAddChipPointerMove}
             onPointerUp={onAddChipPointerUp}
@@ -632,13 +644,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         aria-label="Add row"
         variant="ghost"
         size="icon"
-        onClick={() => {
-          if (addDragClickRef.current) {
-            addDragClickRef.current = false;
-            return;
-          }
-          doc.insertTableRow(id);
-        }}
+        onClick={insertTableRow}
         onPointerDown={onAddChipPointerDown("row")}
         onPointerMove={onAddChipPointerMove}
         onPointerUp={onAddChipPointerUp}

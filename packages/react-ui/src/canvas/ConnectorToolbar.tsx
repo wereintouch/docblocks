@@ -7,9 +7,9 @@
  * dot data renders but stands no pick), and the two arrowheads' figures
  * (none / arrow / circle) — the start first, then the end, the two
  * equal three-way menus
- * (the: the start stands its own figure, not a
+ * (the start stands its own figure, not a copy of the end), and the
  * z-order menu (the explicit zIndex: the three-dots button, the four
- * zIndex: the three-dots button, the four reorder picks — one
+ * reorder picks — one
  * `setZOrder` each). Each pick is one `updateBlock` in one transact (one
  * undo step, one wire update). The toolbar is canvas chrome (its own
  * pointers; a press on it starts no canvas session). The label is not a
@@ -35,6 +35,7 @@ import { ArrowRight, Circle, Curve, Dashed, Diagonal, Elbow, Minus, Stroke } fro
 import { ZOrderMenu } from "./ZOrderMenu";
 import { ColorSection } from "./shape-toolbar/ColorSection";
 import { BORDER_WIDTH_POINTS } from "./shape-toolbar/constants";
+import { TOOLTIP_SIDE_OFFSET_PX } from "./viewport/constants";
 
 const WIDTH_POINTS = BORDER_WIDTH_POINTS;
 /** The absent width's stand (the registry's default). */
@@ -156,6 +157,12 @@ function ConnectorToolbar({
     pick: (value: "none" | "arrow" | "circle") => void
   ) => {
     const label = `${which === "start" ? "Start" : "End"} arrowhead`;
+    // The figure's pick: the current figure's press is the no-op stand
+    // (it writes nothing).
+    const pickArrowHead = (value: "none" | "arrow" | "circle") => () => {
+      if (value === effective) return;
+      pick(value);
+    };
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -171,7 +178,7 @@ function ConnectorToolbar({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"
-          sideOffset={8}
+          sideOffset={TOOLTIP_SIDE_OFFSET_PX}
           aria-label={`${which === "start" ? "Start" : "End"} arrowheads`}
         >
           {ARROW_HEADS.map(({ value, label: headLabel, icon }) => (
@@ -179,10 +186,7 @@ function ConnectorToolbar({
               key={value}
               aria-label={headLabel}
               checked={effective === value}
-              onSelect={() => {
-                if (value === effective) return; // the no-op stand writes nothing
-                pick(value);
-              }}
+              onSelect={pickArrowHead(value)}
             >
               {icon}
               {headLabel}
@@ -260,7 +264,7 @@ function ConnectorToolbar({
         {arrowHeadMenu("end", arrowHead ?? "arrow", (value) => apply({ arrowHead: value }))}
         <Separator orientation="vertical" className="h-5" />
         {/* The z-order menu (the explicit zIndex): the three-dots button,
-            three-dots button, the four reorder picks. */}
+            the four reorder picks. */}
         {zStand !== null && (
           <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label="Arrange line" />
         )}

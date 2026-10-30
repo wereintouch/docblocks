@@ -1,5 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
 // The quote block: a page text block with a continuous left rule (the marker
 // zone, the list checkboxes' axis). The two creation paths are the slash
 // menu's Quote command and the format toolbar's list-type menu option (after
@@ -8,8 +6,9 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 // paragraph takes the caret); Backspace at the start never merges into the
 // previous block (the characters, line breaks included, delete in place
 // until the quote is empty, then it resets to a paragraph).
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { type Browser, type Page, expect, test } from "@playwright/test";
+
+import { RELAY, SETTLE, outCount } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -49,10 +48,6 @@ function toolbar(page: Page, client: "a" | "b") {
 }
 
 /** The pane's wire-log outbound doc-update count (awareness frames are not logged). */
-async function outCount(page: Page, client: "a" | "b"): Promise<number> {
-  const text = await page.getByTestId(`wire-${client}`).innerText();
-  return text.match(/\] out \d+B/g)?.length ?? 0;
-}
 
 /** The pane's root entry-list ids (plain values across the evaluate bridge). */
 async function rootIds(page: Page, client: "a" | "b"): Promise<string[]> {

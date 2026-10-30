@@ -1,7 +1,7 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { RELAY, SETTLE } from "./helpers";
+
 const FIXTURE = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
 
 /**

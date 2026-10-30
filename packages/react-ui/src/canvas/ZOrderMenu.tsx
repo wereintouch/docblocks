@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "../shared/ui";
 import { EllipsisVertical } from "../shared/ui/icons";
+import { TOOLTIP_SIDE_OFFSET_PX } from "./viewport/constants";
 
 /** The z-order target types (the surface's canvas elements — the frame
  *  and the page blocks stand no index; the core command's parity). */
@@ -90,7 +91,7 @@ function ZOrderMenu({
           <EllipsisVertical className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" sideOffset={8} aria-label={label}>
+      <DropdownMenuContent align="end" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label={label}>
         <DropdownMenuItem data-action="forward" disabled={atTop} onSelect={bringForward}>
           Bring forward
         </DropdownMenuItem>

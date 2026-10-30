@@ -20,7 +20,7 @@ import type { ReactNode } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
-import type { BlockRenderer } from "./ListRun";
+import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes, ListRun, nestedSegments } from "./ListRun";
 import type { FlatNode, ListKind } from "./flat";
 
@@ -41,7 +41,7 @@ function CollapsedGate({ id, children }: { id: BlockId; children: ReactNode }) {
  * list run groups into its list, the rest stands as single blocks); hidden
  * while the parent block is collapsed.
  */
-function NestedSlot({ id, nodes, renderBlock }: { id: BlockId; nodes: FlatNode[]; renderBlock: BlockRenderer }) {
+function NestedSlot({ id, nodes, renderBlock }: { id: BlockId; nodes: FlatNode[]; renderBlock: FlatBlockRenderer }) {
   return (
     <CollapsedGate id={id}>
       <div data-slot="docblocks/nested" className="pl-(--docblocks-nested-indent)">
@@ -68,7 +68,7 @@ function ItemNested({
   id: BlockId;
   nodes: FlatNode[];
   ownKind: ListKind;
-  renderBlock: BlockRenderer;
+  renderBlock: FlatBlockRenderer;
 }) {
   const segments = nestedSegments(nodes, ownKind);
   return (

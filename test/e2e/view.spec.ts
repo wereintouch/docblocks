@@ -1,11 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { switchPaneView } from "./helpers";
-
-// Each test gets its own room via ?syncUrl= — the relay keeps rooms for
-// the dev server's lifetime, so a shared room would be polluted by other
-// spec files (and by manually opened tabs).
-const RELAY = "ws://localhost:5199";
+import { RELAY, switchPaneView } from "./helpers";
 
 const ROOT = '[data-testid="doc-a"]';
 

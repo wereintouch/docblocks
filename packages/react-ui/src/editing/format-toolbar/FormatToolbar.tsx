@@ -74,7 +74,7 @@ import {
   uniformMarkValueRange,
 } from "../format-range";
 import { type FormatMark, markToggleAction } from "../keyboard";
-import { LIST_MENU_OPTIONS, TOOLBAR_ALIGNS, TOOLBAR_MARKS } from "./constants";
+import { ACTIVE_ITEM_CLASS, LIST_MENU_OPTIONS, MENU_SIDE_OFFSET_PX, TOOLBAR_ALIGNS, TOOLBAR_MARKS } from "./constants";
 import type { FormatToolbarProps, PaletteTarget, ToolbarRange } from "./models";
 
 function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
@@ -342,7 +342,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           title={title}
           aria-label={title}
           aria-pressed={markActive(mark)}
-          className={cn(markActive(mark) && "bg-accent text-accent-foreground")}
+          className={cn(markActive(mark) && ACTIVE_ITEM_CLASS)}
           onClick={toggleMarkAt(mark)}
         >
           <Icon className="size-4" />
@@ -358,7 +358,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           title={title}
           aria-label={title}
           aria-pressed={alignActive(align)}
-          className={cn(alignActive(align) && "bg-accent text-accent-foreground")}
+          className={cn(alignActive(align) && ACTIVE_ITEM_CLASS)}
           onClick={alignAt(align)}
         >
           <Icon className="size-4" />
@@ -390,7 +390,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                 focus, and the selection state owns the visibility. */}
               <DropdownMenuContent
                 align="start"
-                sideOffset={6}
+                sideOffset={MENU_SIDE_OFFSET_PX}
                 data-slot="docblocks/format-list-menu"
                 onMouseDown={preventDefault}
                 onPointerDownOutside={preventDefault}
@@ -440,7 +440,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
               state owns the visibility. */}
             <PopoverContent
               align="start"
-              sideOffset={6}
+              sideOffset={MENU_SIDE_OFFSET_PX}
               data-slot="docblocks/format-callout-menu"
               className="w-auto p-2"
               onMouseDown={preventDefault}
@@ -462,7 +462,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                       aria-pressed={active}
                       aria-label={`${variant} callout`}
                       title={`${variant} callout`}
-                      className={cn("h-7", active && "bg-accent text-accent-foreground")}
+                      className={cn("h-7", active && ACTIVE_ITEM_CLASS)}
                       onClick={calloutPresetAt(variant)}
                     >
                       {PresetIcon !== undefined && <PresetIcon className="size-4" />}
@@ -498,7 +498,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                         aria-pressed={active}
                         aria-label={`${name} icon`}
                         title={name}
-                        className={cn("size-7", active && "bg-accent text-accent-foreground")}
+                        className={cn("size-7", active && ACTIVE_ITEM_CLASS)}
                         onClick={calloutIconAt(name)}
                       >
                         <Icon className="size-4" />
@@ -511,10 +511,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                     data-callout-icon-preset
                     aria-label="Preset icon"
                     title="Preset icon"
-                    className={cn(
-                      "col-span-6 h-7 text-xs",
-                      (single.attrs?.icon ?? null) === null && "bg-accent text-accent-foreground"
-                    )}
+                    className={cn("col-span-6 h-7 text-xs", (single.attrs?.icon ?? null) === null && ACTIVE_ITEM_CLASS)}
                     onClick={clearCalloutIcon}
                   >
                     Preset
@@ -541,7 +538,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          sideOffset={6}
+          sideOffset={MENU_SIDE_OFFSET_PX}
           data-slot="docblocks/format-palette"
           aria-label="Text and background color"
           className="w-auto p-2"
@@ -559,7 +556,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                 aria-pressed={target === t}
                 aria-label={t === "highlight" ? "Highlight the background" : "Color the text"}
                 title={t === "highlight" ? "Highlight the background" : "Color the text"}
-                className={cn("h-7 flex-1 text-xs", target === t && "bg-accent text-accent-foreground")}
+                className={cn("h-7 flex-1 text-xs", target === t && ACTIVE_ITEM_CLASS)}
                 onClick={selectTarget(t)}
               >
                 {t === "highlight" ? "bg" : "text"}

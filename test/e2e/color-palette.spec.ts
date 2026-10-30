@@ -1,7 +1,3 @@
-import { type Browser, type Page, expect, test } from "@playwright/test";
-
-import { switchPaneView } from "./helpers";
-
 // The shared color palette's e2e contract (the real browser resolves the
 // theme tokens — jsdom cannot): the format palette popover and the shape
 // toolbar's palette stand the eight circular swatches (the seven pastel
@@ -9,9 +5,9 @@ import { switchPaneView } from "./helpers";
 // the swatch's computed background follows the theme (the pastel light
 // value on light, the more muted dark value on dark — the dark flip), and
 // the selected swatch stands the accent border (the theme's primary).
+import { type Browser, type Page, expect, test } from "@playwright/test";
 
-const RELAY = "ws://localhost:5199";
-const SETTLE = { timeout: 15_000 };
+import { SETTLE, canvasCenter, openPane, switchPaneView } from "./helpers";
 
 // The palette's order: the seven pastel tokens, then the theme's
 // background.
@@ -61,15 +57,10 @@ interface ThemeTokens {
   background: string;
 }
 
-async function openPane(page: Page, room: string): Promise<void> {
-  await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
-  await expect(page.getByTestId("status-a")).toHaveText("connected");
-}
-
 async function openPage(browser: Browser): Promise<{ page: Page; close: () => Promise<void> }> {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await openPane(page, `palette-${Math.random().toString(36).slice(2, 8)}`);
+  await openPane(page, "a", `palette-${Math.random().toString(36).slice(2, 8)}`);
   return {
     page,
     close: async () => {
@@ -84,12 +75,6 @@ async function setTheme(page: Page, dark: boolean): Promise<void> {
   }, dark);
 }
 
-async function canvasCenter(page: Page): Promise<{ x: number; y: number }> {
-  const view = page.locator('[data-testid="doc-a"] [data-slot="docblocks/canvas-view"]');
-  const box = (await view.boundingBox())!;
-  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-}
-
 test("the shape fill palette stands the eight swatches in order, theme-adaptive", async ({ browser }) => {
   const { page, close } = await openPage(browser);
   try {
@@ -101,7 +86,7 @@ test("the shape fill palette stands the eight swatches in order, theme-adaptive"
       const surfaceId = doc.insertBlock("surface");
       doc.insertBlock("shape", { variant: "rect" }, { parent: surfaceId });
     });
-    const center = await canvasCenter(page);
+    const center = await canvasCenter(page, "a");
     await page.mouse.click(center.x, center.y);
     await expect(page.locator('[data-slot="docblocks/shape-toolbar"]')).toBeVisible();
 
@@ -183,7 +168,7 @@ test("the palette's per-theme token sets stand the flip (the light over the dark
       const surfaceId = doc.insertBlock("surface");
       doc.insertBlock("shape", { variant: "rect" }, { parent: surfaceId });
     });
-    const center = await canvasCenter(page);
+    const center = await canvasCenter(page, "a");
     await page.mouse.click(center.x, center.y);
     await expect(page.locator('[data-slot="docblocks/shape-toolbar"]')).toBeVisible();
     await page.getByLabel("Shape fill color").click();
