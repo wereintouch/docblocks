@@ -147,9 +147,7 @@ test("the header's controls stand over the keyboard (the focus reveal + the lang
   // reveal.
   await language.focus();
   await a.keyboard.press("Tab");
-  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe(
-    "docblocks/code-copy"
-  );
+  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/code-copy");
   await close();
 });
 

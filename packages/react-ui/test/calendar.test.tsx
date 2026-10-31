@@ -144,9 +144,7 @@ describe("TimeSegments (the HH:MM:SS box)", () => {
 
   it("the external value change stands the draft (the reset and the clear over the untyped group)", () => {
     const read = () =>
-      [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")].map(
-        (input) => input.value
-      );
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")].map((input) => input.value);
     const { rerender } = render(<TimeSegments value={"10:20:30"} onChange={() => undefined} />);
     expect(read()).toEqual(["10", "20", "30"]);
     // The external replacement while no segment holds the focus.
@@ -168,9 +166,7 @@ describe("TimeSegments (the HH:MM:SS box)", () => {
     // The focus leave stands the external value over the draft.
     fireEvent.blur(hours!, { relatedTarget: document.body });
     const read = () =>
-      [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")].map(
-        (input) => input.value
-      );
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")].map((input) => input.value);
     expect(read()).toEqual(["11", "05", "09"]);
   });
 });

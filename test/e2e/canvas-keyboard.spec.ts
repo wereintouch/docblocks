@@ -10,9 +10,8 @@ import { SETTLE, blockShapes, canvasView, seedShape, toCanvas, twoPanes } from "
 const kbFocusedId = (page: Page) =>
   page.evaluate(
     () =>
-      document
-        .querySelector('[data-slot="docblocks/canvas-item"][data-kb-focused]')
-        ?.getAttribute("data-block-id") ?? null
+      document.querySelector('[data-slot="docblocks/canvas-item"][data-kb-focused]')?.getAttribute("data-block-id") ??
+      null
   );
 
 /** The Tab's path: the Tab presses (the page's chrome's stand) until the
@@ -44,11 +43,13 @@ test("the canvas's keyboard model: the Tab's path, the arrows' navigation, the E
     await a.keyboard.press("ArrowRight");
     await expect.poll(async () => kbFocusedId(a), SETTLE).toBe(shapeId);
 
-    // The Enter's selection: the item's selected stand + the pressed's state.
+    // The Enter's selection: the item's selected stand (the role's image's
+    // stand for the screen reader's — the pressed's stand is out of the
+    // item's contract, the container's operations stand it).
     await a.keyboard.press("Enter");
     const item = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${shapeId}"]`);
     await expect(item).toHaveAttribute("data-selected", "true");
-    await expect(item).toHaveAttribute("aria-pressed", "true");
+    await expect(item).toHaveAttribute("role", "img");
 
     // The selection's arrows stand the nudge (the wire reaches B).
     await a.keyboard.press("ArrowRight");

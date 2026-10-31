@@ -74,12 +74,11 @@ describe("the canvas's keyboard contract", () => {
     expect(view.getAttribute("aria-label")).toBe("Canvas");
   });
 
-  it("the items stand the selection's announcement (the role, the label, the pressed state)", () => {
+  it("the items stand the label's stand (the type's stand, the selection's data's stand)", () => {
     const { view, shapeA } = renderCanvas();
     const item = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${shapeA}"]`)!;
-    expect(item.getAttribute("role")).toBe("button");
     expect(item.getAttribute("aria-label")).toBe("Shape block");
-    expect(item.hasAttribute("aria-pressed")).toBe(false);
+    expect(item.hasAttribute("data-selected")).toBe(false);
   });
 
   it("the arrows move the keyboard focus over the items (the paint order, the wrap stand)", () => {
@@ -108,7 +107,6 @@ describe("the canvas's keyboard contract", () => {
     });
     const item = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${shapeA}"]`)!;
     expect(item.hasAttribute("data-selected")).toBe(true);
-    expect(item.getAttribute("aria-pressed")).toBe("true");
     // The selection stands the shared view (the pointer click's parity).
     expect(doc.getBlock(shapeA)).not.toBeNull();
   });

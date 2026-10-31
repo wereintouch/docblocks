@@ -223,9 +223,7 @@ function useCanvasKeys({
       // the canvas items (the DOM's paint order, the wrap stand) — the
       // Enter selects the focused item, the selection's arrows stand the
       // nudge over it.
-      const items = Array.from(
-        event.currentTarget.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item']")
-      )
+      const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item']"))
         .map((el) => el.dataset.blockId)
         .filter((id): id is string => id !== undefined);
       if (items.length === 0) return;

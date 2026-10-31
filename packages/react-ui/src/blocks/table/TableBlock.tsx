@@ -575,9 +575,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                     absolute flex w-1.5 -translate-x-1/2 cursor-col-resize items-stretch justify-center opacity-0
                     transition-opacity outline-none
                     hover:opacity-100
-                    focus-visible:opacity-100
-                    focus-visible:ring-2
-                    focus-visible:ring-ring
+                    focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring
                   `,
                   resizePreview?.col === seamIndex && "opacity-100"
                 )}

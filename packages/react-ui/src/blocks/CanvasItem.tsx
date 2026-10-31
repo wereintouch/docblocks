@@ -167,20 +167,19 @@ const CanvasItem = memo(
         // selected item's thin cyan outline (the shared selection token) stands
         // over the tint. The keyboard focus's dashed outline stands the
         // same items (the connector / group's box stands no stand of its
-        // own, the selection's parity).
-        role="button"
+        // own, the selection's parity). The item's role stands the image's
+        // (the object's stand for the screen reader's): the keyboard's
+        // operations stand the container's (the role's application — the
+        // items are not individually operable, so the pressed's stand is
+        // out of their contract).
+        role="img"
         aria-label={`${CANVAS_ITEM_LABELS[block.type] ?? block.type} block`}
-        aria-pressed={selected || undefined}
         className={cn(
           selected &&
             block.type !== "connector" &&
             block.type !== "group" &&
             cn("bg-(--docblocks-selected-background)", CANVAS_SELECTION_OUTLINE),
-          kbFocused &&
-            !selected &&
-            block.type !== "connector" &&
-            block.type !== "group" &&
-            CANVAS_KB_FOCUS_OUTLINE
+          kbFocused && !selected && block.type !== "connector" && block.type !== "group" && CANVAS_KB_FOCUS_OUTLINE
         )}
         style={style}
       >
