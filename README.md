@@ -93,6 +93,14 @@ playground), `make check` (lint + typecheck), `make full` (the full gate),
 `make unit` / `make unit-f F=<test file>` (all unit tests / a single file),
 `make e2e-file F=<spec>` (a single e2e spec).
 
+## Continuous integration
+
+GitHub Actions runs the full local gate (`npm run check`) on pushes to the
+main branches and on pull requests, over the supported Node versions (the
+`engines` floor of each major plus the current major). Releases are a
+separate job: a changesets Version PR on `main`, publishing behind the
+protected `npm` environment with minimal permissions.
+
 ## Boundaries (enforced by ESLint)
 
 - `packages/react-ui` must not import `yjs` / `y-protocols` / `lib0` or deep

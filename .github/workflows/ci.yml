@@ -1,0 +1,43 @@
+name: Check
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+concurrency:
+  group: check-${{ github.ref }}
+  cancel-in-progress: true
+
+# The full local gate (lint, format, build, typecheck, deprecations, unit,
+# packaging, E2E) over the supported Node versions (the root package.json
+# engines floor + the current major).
+jobs:
+  check:
+    name: check (node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    env:
+      # The runner stands 2 vCPUs: lower the E2E worker count (the local
+      # default of four is tuned for a 16-core machine) to keep the
+      # sync/presence polls from flaking under load.
+      PLAYWRIGHT_WORKERS: "2"
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22.22.2", "24.15.0", "26"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install the E2E browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run the full local gate
+        run: npm run check
