@@ -232,14 +232,20 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           pointerEvents: panModifier ? "none" : "auto",
         }}
       />
+      {/* The hover / focus reveal (the code header's controls idiom):
+          invisible and unclickable unless the wrapper is hovered or a zoom
+          control holds the keyboard focus (the wrapper's focus-within). The
+          opacity (not the display) hides it, so the controls stay in the
+          Tab's path. */}
       <div
         data-slot="docblocks/embed-toolbar"
         className="
-          absolute top-1.5 right-1.5 z-10 hidden items-center gap-0.5 rounded-(--docblocks-radius)
+          pointer-events-none absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-(--docblocks-radius)
           border-(length:--docblocks-divider-border-width) border-(--docblocks-divider-border-color)
-          bg-(--docblocks-page-card-background) p-0.5 text-(--docblocks-text-color)
-          shadow-(--docblocks-formatbar-shadow)
-          group-hover:flex
+          bg-(--docblocks-page-card-background) p-0.5 text-(--docblocks-text-color) opacity-0
+          shadow-(--docblocks-formatbar-shadow) transition-opacity
+          group-focus-within:pointer-events-auto group-focus-within:opacity-100
+          group-hover:pointer-events-auto group-hover:opacity-100
         "
       >
         <Button
@@ -247,11 +253,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           variant="ghost"
           size="icon"
           aria-label="Zoom out"
-          className="
-            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
-            focus-visible:ring-0
-            disabled:opacity-50
-          "
+          className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={view.scale <= EMBED_MIN_SCALE}
           onMouseDown={preventDefault}
           onClick={zoomOut}
@@ -269,11 +271,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           variant="ghost"
           size="icon"
           aria-label="Zoom in"
-          className="
-            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
-            focus-visible:ring-0
-            disabled:opacity-50
-          "
+          className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={view.scale >= EMBED_MAX_SCALE}
           onMouseDown={preventDefault}
           onClick={zoomIn}
@@ -285,11 +283,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           variant="ghost"
           size="icon"
           aria-label="Reset zoom"
-          className="
-            size-6 cursor-default rounded-sm text-(--docblocks-text-color)
-            focus-visible:ring-0
-            disabled:opacity-50
-          "
+          className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={atIdentity}
           onMouseDown={preventDefault}
           onClick={resetView}

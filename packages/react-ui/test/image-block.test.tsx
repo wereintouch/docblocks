@@ -237,6 +237,35 @@ describe("the corner port's resize session", () => {
     expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1" });
     expect(imgOf().style.width).toBe("100%");
   });
+
+  it("the keyboard resize stands the width by a step (the arrows over the corner's side), one updateBlock per press", async () => {
+    const { doc, imageId } = renderImageDoc((attrs) => {
+      attrs.width = 400;
+    });
+    await flushResolve();
+    const figure = figureOf();
+    standRects(figure, 400, 800);
+    fireEvent.click(figure); // the selection's seats (the ports' stand)
+    const ne = document.querySelector<HTMLElement>('[data-slot="docblocks/image-port"][data-corner="ne"]');
+    expect(ne, "the ne's port's stands (the figure's selected)").not.toBeNull();
+    // The ne's (the right's corner): the right's arrow's widens, the left's
+    // shrinks (one `updateBlock` per press — the step's stands on the
+    // committed's width).
+    act(() => {
+      fireEvent.keyDown(ne!, { key: "ArrowRight" });
+    });
+    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 410 });
+    act(() => {
+      fireEvent.keyDown(ne!, { key: "ArrowLeft" });
+    });
+    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 400 });
+    // The non-arrow's key's stands the width (the no-op's — the Enter's
+    // default's activate's issues nothing, the resize's is the arrows's).
+    act(() => {
+      fireEvent.keyDown(ne!, { key: "Enter" });
+    });
+    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", width: 400 });
+  });
 });
 
 describe("the hover menu (the download, the caption, the align)", () => {

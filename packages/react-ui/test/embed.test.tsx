@@ -176,15 +176,18 @@ describe("embed pan/zoom (view state)", () => {
     return doc;
   }
 
-  it("the toolbar stands (zoom in / out / reset) over the iframe, hidden until the hover", () => {
+  it("the toolbar stands (zoom in / out / reset) over the iframe, the opacity's hidden until the reveal (the hover / the focus-within's)", () => {
     renderEmbed();
 
     const toolbar = document.querySelector<HTMLElement>(TOOLBAR_SELECTOR);
     expect(toolbar).not.toBeNull();
-    // The hover reveal: the toolbar is in the DOM but display-none until the
-    // wrapper's `group-hover` (jsdom does not resolve the hover, so it stands
-    // `hidden` = display none).
-    expect(toolbar!.className).toContain("hidden");
+    // The hover / focus reveal: the toolbar is in the DOM but the opacity-0 +
+    // the pointer-events-none until the wrapper's `group-hover` /
+    // `group-focus-within` (the opacity's hide — not the display's — so the
+    // controls stay in the Tab's path, the keyboard's reachable's stand). jsdom
+    // does not resolve the hover / the focus, so it stands the at-rest's stand.
+    expect(toolbar!.className).toContain("opacity-0");
+    expect(toolbar!.className).toContain("pointer-events-none");
     expect(toolbar!.querySelector('[data-slot="docblocks/embed-zoom-in"]')).not.toBeNull();
     expect(toolbar!.querySelector('[data-slot="docblocks/embed-zoom-out"]')).not.toBeNull();
     expect(toolbar!.querySelector('[data-slot="docblocks/embed-zoom-reset"]')).not.toBeNull();

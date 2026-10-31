@@ -19,7 +19,7 @@ import {
   TextAlignEnd,
   TextAlignStart,
 } from "../shared/ui/icons";
-import { preventDefault } from "../shared/utils";
+import { clamp, preventDefault } from "../shared/utils";
 import { BlockCaption, requestBlockCaption } from "./BlockCaption";
 import { BlockContext } from "./block-context";
 import { CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
@@ -36,6 +36,8 @@ const MIN_IMAGE_WIDTH_PX = 20;
 
 /** The drag's commit threshold (px): a sub-threshold drag issues no command. */
 const COMMIT_THRESHOLD_PX = 2;
+/** The port's keyboard resize's step (the arrows' width's nudge per press). */
+const IMAGE_KEYBOARD_RESIZE_STEP_PX = 10;
 
 /** The image's align controls, in display order (the format toolbar's set). */
 const IMAGE_ALIGNS: { align: TextAlign; title: string; icon: typeof TextAlignStart }[] = [
@@ -213,6 +215,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
   const dragWidthRef = useRef<number | null>(null);
   const dragRef = useRef<{ startX: number; startWidth: number; max: number; corner: ImagePortCorner } | null>(null);
   const figureRef = useRef<HTMLDivElement | null>(null);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const setPreview = (value: number | null): void => {
     dragWidthRef.current = value;
@@ -249,33 +252,50 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
     figureRef.current?.focus();
   };
 
+  /** The figure's keyboard focus seats the selection (the ports' + the menu's
+   * stand — the keyboard's resize + the menu's reveal stand on the selected
+   * figure). */
+  const onFigureFocus = (): void => {
+    const view = selectionRef.view;
+    if (view === null) return;
+    view.set({ kind: "blocks", ids: [id], anchorId: id });
+  };
+
+  /** The figure's upper width bound (the editor's content width — the row's
+   * content box over the indent, the editor root in the base view): the
+   * resize's clamp, so the figure never stands past the editor. */
+  const figureMaxWidth = (): number => {
+    const figure = figureRef.current;
+    if (figure === null) return MIN_IMAGE_WIDTH_PX;
+    const rect = figure.getBoundingClientRect();
+    const row = figure.closest<HTMLElement>('[data-slot="docblocks/row"]');
+    const scope = row ?? figure.closest('[data-slot="docblocks/editor"]');
+    let max = rect.width;
+    if (scope !== null) {
+      const scopeStyle = window.getComputedStyle(scope);
+      const content =
+        scope.getBoundingClientRect().width -
+        (parseFloat(scopeStyle.paddingLeft) || 0) -
+        (parseFloat(scopeStyle.paddingRight) || 0);
+      if (content > 0) max = content;
+    }
+    return Math.max(max, rect.width, MIN_IMAGE_WIDTH_PX);
+  };
+
   /** The port press starts the resize session (the pointer capture stays on the port). */
   const onPortPointerDown =
     (corner: ImagePortCorner) =>
-    (event: ReactPointerEvent<HTMLDivElement>): void => {
+    (event: ReactPointerEvent<HTMLElement>): void => {
       const figure = figureRef.current;
       if (figure === null) return;
       event.stopPropagation();
       event.preventDefault();
       const rect = figure.getBoundingClientRect();
-      // The editor's content width (the row's content box — the row carries
-      // the indent padding; the editor root in the base view): the figure's
-      // upper bound, so the drag never stretches the figure past the editor.
       const row = figure.closest<HTMLElement>('[data-slot="docblocks/row"]');
-      const scope = row ?? figure.closest('[data-slot="docblocks/editor"]');
-      let max = rect.width;
-      if (scope !== null) {
-        const scopeStyle = window.getComputedStyle(scope);
-        const content =
-          scope.getBoundingClientRect().width -
-          (parseFloat(scopeStyle.paddingLeft) || 0) -
-          (parseFloat(scopeStyle.paddingRight) || 0);
-        if (content > 0) max = content;
-      }
       dragRef.current = {
         startX: event.clientX,
         startWidth: rect.width,
-        max: Math.max(max, rect.width, MIN_IMAGE_WIDTH_PX),
+        max: figureMaxWidth(),
         corner,
       };
       setPreview(rect.width);
@@ -284,7 +304,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
     };
 
   /** The session's live width (pure view state — the doc stands as it is). */
-  const onPortPointerMove = (event: ReactPointerEvent<HTMLDivElement>): void => {
+  const onPortPointerMove = (event: ReactPointerEvent<HTMLElement>): void => {
     const drag = dragRef.current;
     if (drag === null) return;
     const dx = event.clientX - drag.startX;
@@ -303,6 +323,31 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
     doc.updateBlock(id, { width: Math.round(width) });
   };
 
+  /** The port's keyboard resize: the arrows stand the width by a step (one
+   * `updateBlock` — one undo step per press), clamped to the image's range.
+   * The left corners widen on the left's arrow, the right on the right's. */
+  const onPortKeyDown =
+    (corner: ImagePortCorner) =>
+    (event: React.KeyboardEvent<HTMLElement>): void => {
+      const key = event.key;
+      if (key !== "ArrowLeft" && key !== "ArrowRight") return;
+      event.preventDefault();
+      const widens = corner === "nw" || corner === "sw" ? key === "ArrowLeft" : key === "ArrowRight";
+      // The current width's baseline (the committed's attr, the rendered's over
+      // the absent's): the step's stands on the image's current's width, not the
+      // figure's box (the column's — the constant's stand would step nowhere).
+      const baseline = block.attrs?.width ?? imgRef.current?.clientWidth ?? MIN_IMAGE_WIDTH_PX;
+      doc.updateBlock(id, {
+        width: Math.round(
+          clamp(
+            baseline + (widens ? IMAGE_KEYBOARD_RESIZE_STEP_PX : -IMAGE_KEYBOARD_RESIZE_STEP_PX),
+            MIN_IMAGE_WIDTH_PX,
+            figureMaxWidth()
+          )
+        ),
+      });
+    };
+
   const requestCaption = () => requestBlockCaption(store, id);
 
   return (
@@ -318,14 +363,22 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
           alignClass,
           "outline-none",
           // The canvas selection's token (the shared selection outline).
-          selected && CANVAS_SELECTION_OUTLINE
+          selected && CANVAS_SELECTION_OUTLINE,
+          // The keyboard focus's stand (the dashed outline — distinct from
+          // the selection's solid stand, the canvas items' idiom).
+          `
+            focus-visible:outline-(length:--docblocks-canvas-selection-border-width) focus-visible:outline-offset-1
+            focus-visible:outline-(--docblocks-canvas-selection-border-color) focus-visible:outline-dashed
+          `
         )}
         // Keep the caret: a default mousedown would move the focus out of the
         // editable (the figure is chrome, never text).
         onMouseDown={preventDefault}
         onClick={onFigureClick}
+        onFocus={onFigureFocus}
       >
         <img
+          ref={imgRef}
           data-slot="docblocks/image"
           data-block-type="image"
           data-block-id={id}
@@ -338,13 +391,22 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
         />
         {selected &&
           IMAGE_PORT_CORNERS.map(({ corner, cursor }) => (
-            <div
+            <button
               key={corner}
+              type="button"
               data-slot="docblocks/image-port"
               data-corner={corner}
+              aria-label="Resize the image"
               className={cn(
                 "pointer-events-auto absolute z-10 size-2.5 rounded-full",
                 "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)",
+                // The keyboard focus's stand (the dashed outline — the port's
+                // a resize control, not a click).
+                `
+                  outline-none
+                  focus-visible:outline-2 focus-visible:outline-offset-1
+                  focus-visible:outline-(--docblocks-canvas-selection-border-color) focus-visible:outline-dashed
+                `,
                 cursor
               )}
               style={{
@@ -358,6 +420,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
               onPointerMove={onPortPointerMove}
               onPointerUp={onPortPointerUp}
               onPointerCancel={onPortPointerUp}
+              onKeyDown={onPortKeyDown(corner)}
             />
           ))}
         <div
@@ -367,9 +430,14 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
             "p-0.5",
             "border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)",
             "bg-(--docblocks-page-card-background) shadow-(--docblocks-formatbar-shadow)",
-            // The hover reveal (the code header's controls idiom): invisible
-            // and unclickable unless the figure is hovered.
-            "opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100"
+            // The hover / focus reveal (the code header's controls idiom):
+            // invisible and unclickable unless the figure is hovered or a menu
+            // control holds the keyboard focus (the figure's focus-within).
+            `
+              opacity-0 transition-opacity
+              group-focus-within:pointer-events-auto group-focus-within:opacity-100
+              group-hover:pointer-events-auto group-hover:opacity-100
+            `
           )}
           // Keep the caret: the menu is chrome (a default mousedown would
           // move the focus out of the editable).
