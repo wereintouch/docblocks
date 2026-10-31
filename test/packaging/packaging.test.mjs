@@ -127,9 +127,28 @@ try {
       2
     )
   );
-  sh("npm", ["install", "--prefer-offline", "--no-audit", "--no-fund", "--loglevel=error"], {
-    cwd: consumerDir,
-  });
+  // The consumer install runs over an isolated npm environment, not the
+  // user's: a user-level `allow-scripts` policy (npm 12) would otherwise
+  // fail the install with EALLOWSCRIPTS — a false negative, since the
+  // published packages carry no lifecycle scripts. The clean userconfig
+  // drops the user's `~/.npmrc`, the scrubbed env drops any `npm_config_*`
+  // policy vars, and `--ignore-scripts` skips scripts outright.
+  const userconfigPath = join(tmp, "userconfig");
+  writeFileSync(userconfigPath, "# isolated consumer install: no user-level npm policy\n");
+  const cleanEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith("npm_config_")));
+  sh(
+    "npm",
+    [
+      "install",
+      `--userconfig=${userconfigPath}`,
+      "--ignore-scripts",
+      "--prefer-offline",
+      "--no-audit",
+      "--no-fund",
+      "--loglevel=error",
+    ],
+    { cwd: consumerDir, env: cleanEnv }
+  );
 
   // The minimal consumer: exercise the core entry, resolve the react-ui entry
   // + CSS + optional subpaths, and prove they resolve inside the installed
