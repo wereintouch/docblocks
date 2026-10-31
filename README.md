@@ -25,7 +25,9 @@ are documented in `packages/react-ui/README.md`.
 
 ## Requirements
 
-- Node.js >= 20 and npm (npm workspaces; no other toolchain requirements)
+- Node.js `^22.22.2 || ^24.15.0 || >=26.0.0` (the `.node-version` file
+  pins the development runtime) and npm (npm workspaces; no other
+  toolchain requirements)
 - For the E2E suite only: a Playwright browser, installed once with
   `npx playwright install chromium`
 
