@@ -7,6 +7,13 @@ import { type RelayHandle, startRelay } from "./server/relay.ts";
 // Strict: the E2E specs and the pane's default ?syncUrl= point at this port.
 const RELAY_PORT = 5199;
 
+// The relay binds loopback (127.0.0.1) by default — it is a dev-only sync
+// harness, not a network service. An explicit non-loopback bind
+// (DOCBLOCKS_RELAY_HOST) is only honored together with a token
+// (DOCBLOCKS_RELAY_TOKEN); a host without a token fails the start.
+const RELAY_HOST = process.env.DOCBLOCKS_RELAY_HOST;
+const RELAY_TOKEN = process.env.DOCBLOCKS_RELAY_TOKEN;
+
 // The pending/started relay of the current dev server session; null when none.
 let relay: Promise<RelayHandle | null> | null = null;
 
@@ -19,7 +26,7 @@ let relay: Promise<RelayHandle | null> | null = null;
 const relayPlugin: Plugin = {
   name: "docblocks-ws-relay",
   configureServer() {
-    relay = startRelay(RELAY_PORT)
+    relay = startRelay(RELAY_PORT, { host: RELAY_HOST, token: RELAY_TOKEN })
       .then((handle) => {
         console.log(`ws relay on :${RELAY_PORT}`);
         return handle;

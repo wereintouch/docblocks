@@ -6,6 +6,10 @@ import type { IncomingMessage, ServerResponse } from "node:http";
  * setting is a property of a live room: the room exists once a client
  * connects, so the HTTP control refuses to create rooms and answers 404
  * for unknown ones.
+ *
+ * The relay is a dev-only, loopback-bound server (see relay.ts): the
+ * control surface accepts local origins only (no permissive CORS), and the
+ * request body is bounded (an oversized body stands 413).
  */
 
 type ChaosMode = "none" | "drop" | "delay";
@@ -70,72 +74,143 @@ function handleChaosRequest(
   getChaos: (room: string) => ChaosConfig | undefined,
   setChaos: (room: string, chaos: ChaosConfig) => void
 ): void {
+  const origin = req.headers.origin;
+  // The local-origin gate: a foreign origin is refused before any answer
+  // (403, no CORS headers) — a cross-origin page cannot drive the control.
+  if (!isLocalOrigin(origin)) {
+    respond(res, 403, { error: "forbidden origin" });
+    return;
+  }
   const url = new URL(req.url ?? "/", "http://localhost");
   if (url.pathname !== "/__chaos") {
-    respond(res, 404, { error: "not found" });
+    respond(res, 404, { error: "not found" }, origin);
     return;
   }
   if (req.method === "GET") {
     const room = url.searchParams.get("room");
     const chaos = room === null ? undefined : getChaos(room);
     if (chaos === undefined) {
-      respond(res, 404, { error: "unknown room" });
+      respond(res, 404, { error: "unknown room" }, origin);
       return;
     }
-    respond(res, 200, chaos);
+    respond(res, 200, chaos, origin);
     return;
   }
   if (req.method === "POST") {
-    void readBody(req).then((body) => {
-      let parsed: { room?: unknown; mode?: unknown };
-      try {
-        parsed = JSON.parse(body) as { room?: unknown; mode?: unknown };
-      } catch {
-        respond(res, 400, { error: "invalid JSON body" });
-        return;
-      }
-      const chaos = chaosForMode(typeof parsed.mode === "string" ? parsed.mode : undefined);
-      if (typeof parsed.room !== "string" || chaos === null) {
-        respond(res, 400, { error: "body needs a room name and a mode (none | drop50 | delay500)" });
-        return;
-      }
-      if (getChaos(parsed.room) === undefined) {
-        respond(res, 404, { error: "unknown room" });
-        return;
-      }
-      setChaos(parsed.room, chaos);
-      respond(res, 200, chaos);
-    });
+    void readBody(req)
+      .then(({ body, truncated }) => {
+        if (truncated) {
+          respond(res, 413, { error: "request body too large" }, origin);
+          // Abort the (draining) upload once the 413 is flushed — destroying
+          // the request before the response is written would stand ECONNRESET
+          // instead of the 413.
+          res.on("finish", () => req.destroy());
+          res.on("close", () => req.destroy());
+          return;
+        }
+        let parsed: { room?: unknown; mode?: unknown };
+        try {
+          parsed = JSON.parse(body) as { room?: unknown; mode?: unknown };
+        } catch {
+          respond(res, 400, { error: "invalid JSON body" }, origin);
+          return;
+        }
+        const chaos = chaosForMode(typeof parsed.mode === "string" ? parsed.mode : undefined);
+        if (typeof parsed.room !== "string" || chaos === null) {
+          respond(res, 400, { error: "body needs a room name and a mode (none | drop50 | delay500)" }, origin);
+          return;
+        }
+        if (getChaos(parsed.room) === undefined) {
+          respond(res, 404, { error: "unknown room" }, origin);
+          return;
+        }
+        setChaos(parsed.room, chaos);
+        respond(res, 200, chaos, origin);
+      })
+      .catch(() => {
+        respond(res, 500, { error: "internal error" }, origin);
+      });
     return;
   }
   if (req.method === "OPTIONS") {
-    res.writeHead(204, CORS_HEADERS);
+    res.writeHead(204, localCorsHeaders(origin));
     res.end();
     return;
   }
-  respond(res, 405, { error: "method not allowed" });
+  respond(res, 405, { error: "method not allowed" }, origin);
 }
 
 const CORS_HEADERS: Record<string, string> = {
-  "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, OPTIONS",
   "access-control-allow-headers": "content-type",
   "content-type": "application/json",
 };
 
-function respond(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, CORS_HEADERS);
+/** The control body's ceiling (the chaos JSON is tiny; the cap bounds the
+ * accumulated body — an oversized body stands 413, never an unbounded
+ * buffer). */
+const MAX_BODY_BYTES = 64 * 1024;
+
+/**
+ * The local-origin gate: the relay is dev-only and loopback-bound, so a
+ * request is local when its Origin is absent (a non-browser client: curl,
+ * node) or its host is a loopback / localhost name. A foreign origin is
+ * refused (the upgrade is dropped, the control answers 403 with no CORS
+ * headers, so a cross-origin page cannot read or drive the control).
+ */
+function isLocalOrigin(origin: string | null | undefined): boolean {
+  if (origin === null || origin === undefined) return true;
+  try {
+    // IPv6 loopback arrives bracketed ("[::1]") from URL.hostname.
+    const host = new URL(origin).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+/** The response headers for a local request: the standard CORS set with
+ * the Origin echoed back (a cross-origin local page reads its own answer).
+ * `origin` is the requesting origin (absent for a non-browser client). */
+function localCorsHeaders(origin: string | null | undefined): Record<string, string> {
+  if (origin === null || origin === undefined) return CORS_HEADERS;
+  return { "access-control-allow-origin": origin, ...CORS_HEADERS };
+}
+
+function respond(res: ServerResponse, status: number, body: unknown, origin?: string | null): void {
+  res.writeHead(status, localCorsHeaders(origin));
   res.end(JSON.stringify(body));
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
-  return new Promise((resolve, reject) => {
+function readBody(req: IncomingMessage): Promise<{ body: string; truncated: boolean }> {
+  return new Promise((resolve) => {
     const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-    req.on("error", reject);
+    let size = 0;
+    let settled = false;
+    // Never reject (an unhandled rejection would tear the relay down); an
+    // error / abort settles with what was read, and the caller always ends
+    // the response. An oversized body stops buffering (the rest drains,
+    // discarded) so the buffer stays bounded — the caller sends 413 and
+    // destroys the request after the response is flushed.
+    const settle = (truncated: boolean): void => {
+      if (settled) return;
+      settled = true;
+      resolve({ body: Buffer.concat(chunks).toString("utf8"), truncated });
+    };
+    req.on("data", (chunk: Buffer) => {
+      if (settled) return; // the body is draining; discard the rest
+      size += chunk.length;
+      if (size > MAX_BODY_BYTES) {
+        settle(true);
+        req.resume(); // keep draining (discarding) so the socket does not stall
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => settle(false));
+    req.on("error", () => settle(false));
   });
 }
 
-export { DEFAULT_CHAOS, chaosForMode, handleChaosRequest, maybeChaosSend };
+export { DEFAULT_CHAOS, chaosForMode, handleChaosRequest, isLocalOrigin, maybeChaosSend };
 export type { ChaosConfig, ChaosMode };
