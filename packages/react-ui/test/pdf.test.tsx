@@ -174,3 +174,56 @@ describe("PdfFirstPage (the ./pdf subpath)", () => {
     expect(sandbox).not.toContain("allow-scripts");
   });
 });
+
+describe("PdfFirstPage fetch cancellation (unmount / url change)", () => {
+  /** A fetch stand-in that never settles and records the url + the
+   * AbortSignal it was called with — the in-flight fetch the tests assert
+   * on (the real fetch rejects on abort; the mock only needs to stand the
+   * signal so the component's controller.abort() is observable). */
+  function pendingFetch() {
+    const calls: { url: string; signal: AbortSignal }[] = [];
+    const mock = vi.fn((input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      calls.push({ url, signal: init?.signal ?? new AbortController().signal });
+      return new Promise<Response>(() => {});
+    });
+    return { mock, calls };
+  }
+
+  it("aborts the in-flight fetch on unmount", async () => {
+    const { mock, calls } = pendingFetch();
+    vi.stubGlobal("fetch", mock);
+
+    const { unmount } = render(<PdfFirstPage id="b1" url="https://a.test/doc.pdf" name="doc.pdf" />);
+    await act(async () => {});
+
+    expect(calls).toHaveLength(1);
+    const first = calls[0]!;
+    expect(first.url).toBe("https://a.test/doc.pdf");
+    expect(first.signal.aborted).toBe(false);
+
+    unmount();
+    expect(first.signal.aborted).toBe(true);
+  });
+
+  it("aborts the superseded fetch on a url change", async () => {
+    const { mock, calls } = pendingFetch();
+    vi.stubGlobal("fetch", mock);
+
+    const { rerender } = render(<PdfFirstPage id="b1" url="https://a.test/doc.pdf" name="doc.pdf" />);
+    await act(async () => {});
+    expect(calls).toHaveLength(1);
+    const signalA = calls[0]!.signal;
+    expect(signalA.aborted).toBe(false);
+
+    rerender(<PdfFirstPage id="b1" url="https://b.test/doc.pdf" name="doc.pdf" />);
+    await act(async () => {});
+
+    // The new url's fetch stands un-aborted; the superseded one is dropped.
+    expect(calls).toHaveLength(2);
+    const second = calls[1]!;
+    expect(second.url).toBe("https://b.test/doc.pdf");
+    expect(signalA.aborted).toBe(true);
+    expect(second.signal.aborted).toBe(false);
+  });
+});

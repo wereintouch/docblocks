@@ -2,9 +2,12 @@
  * resolved blob, render page 1 to a canvas via pdfjs-dist. The previous
  * phase stands until the (re-)render settles (no flicker while the url
  * changes). A failure stands the error note over the native iframe
- * fallback (the document stays viewable). */
+ * fallback (the document stays viewable). The in-flight fetch is aborted
+ * on unmount / url change and the render task + document are released,
+ * so a torn-down preview leaves no network request or pdf.js worker
+ * behind. */
 import { RenderingCancelledException, getDocument } from "pdfjs-dist";
-import type { PDFDocumentLoadingTask } from "pdfjs-dist";
+import type { PDFDocumentLoadingTask, RenderTask } from "pdfjs-dist";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -20,32 +23,41 @@ type PdfPhase = "loading" | "ready" | "error";
 function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
+  const renderTaskRef = useRef<RenderTask | null>(null);
   const [phase, setPhase] = useState<PdfPhase>("loading");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const controller = new AbortController();
     let cancelled = false;
     setPhase("loading");
     setError(null);
 
     const run = async (): Promise<void> => {
       try {
-        const response = await fetch(url);
+        const response = await fetch(url, { signal: controller.signal });
         if (cancelled) return;
         if (!response.ok) throw new Error(`Failed to fetch the PDF (HTTP ${response.status}).`);
         const data = new Uint8Array(await response.arrayBuffer());
+        // Torn down while the body was in flight: the abort above already
+        // rejected the fetch; drop before a pdf.js worker is spun up.
+        if (cancelled) return;
         const task = getDocument({ data, wasmUrl: WASM_URL });
         loadingTaskRef.current = task;
-        // Unmounted while the fetch was in flight: drop the worker just
-        // created (the effect cleanup already ran, so it cannot).
+        const pdf = await task.promise;
+        if (cancelled) {
+          // Unmounted while the document was parsing: drop the worker just
+          // created (the effect cleanup already ran, so it cannot).
+          loadingTaskRef.current = null;
+          void task.destroy().catch(() => undefined);
+          return;
+        }
+        const page = await pdf.getPage(1);
         if (cancelled) {
           loadingTaskRef.current = null;
           void task.destroy().catch(() => undefined);
           return;
         }
-        const pdf = await task.promise;
-        const page = await pdf.getPage(1);
-        if (cancelled) return;
         const canvas = canvasRef.current;
         if (canvas === null) return;
         // Render at the natural page size (scale 1), the backing store
@@ -57,10 +69,21 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
         canvas.style.width = `${Math.max(1, Math.floor(viewport.width / ratio))}px`;
         canvas.style.height = `${Math.max(1, Math.floor(viewport.height / ratio))}px`;
         const renderTask = page.render({ canvas, viewport });
+        renderTaskRef.current = renderTask;
         await renderTask.promise;
+        if (renderTaskRef.current === renderTask) renderTaskRef.current = null;
         if (!cancelled) setPhase("ready");
       } catch (cause) {
-        if (cancelled || cause instanceof RenderingCancelledException) return;
+        // A cancellation (the fetch's abort, the render-task's cancel)
+        // rejects with an AbortError / RenderingCancelledException; neither
+        // is a failure — do not stand the error note for a torn-down view.
+        if (
+          cancelled ||
+          cause instanceof RenderingCancelledException ||
+          (cause instanceof DOMException && cause.name === "AbortError")
+        ) {
+          return;
+        }
         const message = cause instanceof Error ? cause.message : String(cause);
         setError(message);
         setPhase("error");
@@ -70,8 +93,12 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
     void run();
     return () => {
       cancelled = true;
-      // The worker is per getDocument (workerSrc, not a shared port), so
-      // destroying the task frees it without affecting other previews.
+      controller.abort();
+      const renderTask = renderTaskRef.current;
+      renderTaskRef.current = null;
+      // Cancelling the render rejects its promise (the run's catch stands it
+      // aside); destroying the document releases the page + the worker.
+      if (renderTask !== null) renderTask.cancel();
       const task = loadingTaskRef.current;
       loadingTaskRef.current = null;
       if (task !== null) void task.destroy().catch(() => undefined);
