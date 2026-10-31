@@ -59,6 +59,11 @@ function DateTimePicker({
   const [open, setOpen] = React.useState(false);
   const [draftDate, setDraftDate] = React.useState<Date | null>(null);
   const [draftTime, setDraftTime] = React.useState<string | null>(null);
+  // The time box's auto-advance addresses the segments by the DOM id —
+  // the per-instance id stands the two mounted pickers apart (a shared
+  // literal id would point the second picker's advance at the first one's
+  // segments over the global lookup).
+  const timeSegmentsId = React.useId();
 
   const handleOpenChange = (next: boolean) => {
     if (next) {
@@ -114,7 +119,7 @@ function DateTimePicker({
         />
         <Separator />
         <div className="p-2">
-          <TimeSegments id="date-time-picker-time" value={draftTime} onChange={setDraftTime} clearable />
+          <TimeSegments id={timeSegmentsId} value={draftTime} onChange={setDraftTime} clearable />
         </div>
       </PopoverContent>
     </Popover>

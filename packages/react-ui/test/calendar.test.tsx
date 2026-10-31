@@ -238,4 +238,20 @@ describe("DateTimePicker (the calendar + the time box)", () => {
     fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
     expect(picks).toEqual([new Date(2026, 9, 1, 18, 30)]);
   });
+
+  it("the time ids stand per instance (the second instance's box stands its own ids)", async () => {
+    const readHoursId = () => document.querySelector<HTMLInputElement>("[data-slot='time-segments'] input")!.id;
+    const first = render(<DateTimePicker value={null} onSelect={() => undefined} aria-label="picker-a" />);
+    fireEvent.click(screen.getByRole("button", { name: "picker-a" }));
+    await poll(() => document.querySelector("[data-slot='time-segments']"));
+    const hoursIdA = readHoursId();
+    expect(hoursIdA).not.toBe("");
+    // The second instance's box stands its own ids (a shared literal id
+    // would collide over the auto-advance's global lookup).
+    first.unmount();
+    render(<DateTimePicker value={null} onSelect={() => undefined} aria-label="picker-b" />);
+    fireEvent.click(screen.getByRole("button", { name: "picker-b" }));
+    await poll(() => document.querySelector("[data-slot='time-segments']"));
+    expect(readHoursId()).not.toBe(hoursIdA);
+  });
 });
