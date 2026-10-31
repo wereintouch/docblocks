@@ -7,6 +7,7 @@ import type { BlockId, ImageBlock as ImageBlockType, TextAlign } from "docblocks
 
 import type { BlobRef } from "../blob-store";
 import { useEditorContext } from "../editor-provider";
+import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "../pdf/constants";
 import { Button } from "../shared/ui/Button";
 import { Card, CardContent } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
@@ -109,12 +110,39 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
       const Preview = pdfPreview;
       return <Preview id={id} url={url} name={meta.name} />;
     }
+    // The native iframe stands only over the embeddable scheme (the
+    // hostile-store gate): the data / blob / javascript urls stand the
+    // download card (their bytes are never executed over the frame's
+    // context).
+    if (!isEmbeddablePdfUrl(url)) {
+      return (
+        <Card
+          data-slot="docblocks/image-file"
+          data-block-type="image"
+          data-block-id={id}
+          data-subtype="pdf"
+          className={PLACEHOLDER_CLASS}
+        >
+          <CardContent className="flex items-center justify-center gap-2">
+            <ImageIcon className="size-4 shrink-0" />
+            <a
+              href={url}
+              download={meta.name ?? src}
+              className="max-w-60 truncate text-sm underline underline-offset-2"
+            >
+              {meta.name ?? src}
+            </a>
+          </CardContent>
+        </Card>
+      );
+    }
     return (
       <iframe
         data-slot="docblocks/image-pdf"
         data-block-type="image"
         data-block-id={id}
         data-subtype="pdf"
+        sandbox={PDF_VIEWER_SANDBOX}
         src={url}
         title={meta.name ?? "document"}
         className="

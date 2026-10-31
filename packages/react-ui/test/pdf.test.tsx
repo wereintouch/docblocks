@@ -55,14 +55,38 @@ afterEach(() => {
 });
 
 describe("the pdf subtype's preview renderer seam", () => {
-  it("stands the native iframe viewer without a pdfPreview prop", async () => {
+  it("stands the native iframe viewer without a pdfPreview prop (the strict sandbox stands)", async () => {
     renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), { blobStore: pdfStore("https://cdn.test/doc.pdf") });
     await flushResolve();
 
     const frame = document.querySelector<HTMLIFrameElement>("iframe[data-slot='docblocks/image-pdf']");
     expect(frame).not.toBeNull();
     expect(frame!.getAttribute("src")).toBe("https://cdn.test/doc.pdf");
+    // The hostile-store gate: the frame stands the strict sandbox (no
+    // allow-same-origin, no allow-scripts) — a hostile document standing in
+    // place of the PDF cannot read the parent or execute.
+    expect(frame!.hasAttribute("sandbox")).toBe(true);
+    const sandbox = frame!.getAttribute("sandbox") ?? "";
+    expect(sandbox).not.toContain("allow-same-origin");
+    expect(sandbox).not.toContain("allow-scripts");
     expect(document.querySelector("[data-slot='test-pdf-preview']")).toBeNull();
+  });
+
+  it("stands the download card (not the iframe) over a non-embeddable scheme (the hostile-store gate)", async () => {
+    renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), {
+      blobStore: pdfStore("data:text/html;base64,PGIgc2NyaXB0PmFsZXJ0KDE8L2I+"),
+    });
+    await flushResolve();
+
+    // The hostile same-origin HTML url stands no iframe at all — only the
+    // download card (its bytes are never executed over the frame's context).
+    expect(document.querySelector("iframe[data-slot='docblocks/image-pdf']")).toBeNull();
+    const card = document.querySelector('[data-slot="docblocks/image-file"][data-subtype="pdf"]');
+    expect(card).not.toBeNull();
+    const link = card!.querySelector<HTMLAnchorElement>("a");
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute("href")).toBe("data:text/html;base64,PGIgc2NyaXB0PmFsZXJ0KDE8L2I+");
+    expect(link!.hasAttribute("download")).toBe(true);
   });
 
   it("renders the consumer's pdfPreview renderer instead of the iframe when supplied", async () => {
@@ -90,7 +114,7 @@ describe("the pdf subtype's preview renderer seam", () => {
 });
 
 describe("PdfFirstPage (the ./pdf subpath)", () => {
-  it("falls back to the native iframe viewer on a render failure (jsdom)", async () => {
+  it("falls back to the download link on a render failure over a non-embeddable url (the hostile-store gate)", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
 
     let blockId: BlockId | undefined;
@@ -105,7 +129,8 @@ describe("PdfFirstPage (the ./pdf subpath)", () => {
     );
 
     // The fetch rejects on a microtask: the preview settles into the error
-    // phase, which stands the error note over the native iframe fallback.
+    // phase. The data url stands no iframe (the hostile-store gate) — the
+    // error note + the download link stand.
     await screen.findByText(/PDF preview unavailable/);
 
     const shell = document.querySelector('[data-slot="docblocks/image-pdf-preview"][data-phase="error"]');
@@ -116,8 +141,36 @@ describe("PdfFirstPage (the ./pdf subpath)", () => {
     const note = document.querySelector('[data-slot="docblocks/image-pdf-error"]');
     expect(note).not.toBeNull();
     expect(note!.textContent).toContain("network down");
+    expect(document.querySelector("iframe[data-slot='docblocks/image-pdf']")).toBeNull();
+    const link = document.querySelector<HTMLAnchorElement>("[data-slot='docblocks/image-pdf-download']");
+    expect(link).not.toBeNull();
+    expect(link!.getAttribute("href")).toBe("data:application/pdf;base64,AAAA");
+    expect(link!.hasAttribute("download")).toBe(true);
+  });
+
+  it("falls back to the strict-sandboxed native iframe on a render failure over an embeddable url", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
+
+    renderDoc(
+      (doc) => {
+        doc.insertBlock("image", { src: "key-1" });
+      },
+      {
+        blobStore: pdfStore("https://cdn.test/doc.pdf"),
+        pdfPreview: PdfFirstPage,
+      }
+    );
+
+    await screen.findByText(/PDF preview unavailable/);
+
     const frame = document.querySelector<HTMLIFrameElement>("iframe[data-slot='docblocks/image-pdf']");
     expect(frame).not.toBeNull();
-    expect(frame!.getAttribute("src")).toBe("data:application/pdf;base64,AAAA");
+    expect(frame!.getAttribute("src")).toBe("https://cdn.test/doc.pdf");
+    // The same strict sandbox stands the error-fallback frame (both the
+    // hostile same-origin HTML and the hostile blob url are neutralized).
+    expect(frame!.hasAttribute("sandbox")).toBe(true);
+    const sandbox = frame!.getAttribute("sandbox") ?? "";
+    expect(sandbox).not.toContain("allow-same-origin");
+    expect(sandbox).not.toContain("allow-scripts");
   });
 });

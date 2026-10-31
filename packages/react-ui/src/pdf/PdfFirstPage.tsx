@@ -11,6 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PdfPreviewProps } from "../editor-provider";
 import { cn } from "../shared/ui/cn";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
+import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "./constants";
 import { WASM_URL } from "./pdf-worker";
 
 /** The preview's render phase. */
@@ -98,16 +99,32 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
             PDF preview unavailable ({error}). Showing the built-in viewer.
           </span>
         </div>
-        <iframe
-          data-slot="docblocks/image-pdf"
-          data-subtype="pdf"
-          src={url}
-          title={name ?? "document"}
-          className="
-            block aspect-video w-full rounded-(--docblocks-image-radius) border-(length:--docblocks-table-border-width)
-            border-(--docblocks-table-border-color) outline-none
-          "
-        />
+        {/* The built-in viewer stands only over the embeddable scheme (the
+          hostile-store gate): the data / blob / javascript urls stand the
+          download link instead (their bytes are never executed over the
+          frame's context). */}
+        {isEmbeddablePdfUrl(url) ? (
+          <iframe
+            data-slot="docblocks/image-pdf"
+            data-subtype="pdf"
+            sandbox={PDF_VIEWER_SANDBOX}
+            src={url}
+            title={name ?? "document"}
+            className="
+              block aspect-video w-full rounded-(--docblocks-image-radius)
+              border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
+            "
+          />
+        ) : (
+          <a
+            data-slot="docblocks/image-pdf-download"
+            href={url}
+            download={name ?? undefined}
+            className="inline-block text-sm underline underline-offset-2"
+          >
+            {name ?? "document"}
+          </a>
+        )}
       </div>
     );
   }
