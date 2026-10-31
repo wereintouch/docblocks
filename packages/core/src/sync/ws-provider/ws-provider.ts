@@ -18,6 +18,7 @@ import {
   concatFrames,
 } from "../ws-frames";
 import type { WsLike, WsSyncOptions } from "./models";
+import type { PendingStats } from "./models";
 import { defaultWebSocketImpl, parseSelection, swallowDecodeError } from "./parse";
 
 /**
@@ -40,6 +41,18 @@ import { defaultWebSocketImpl, parseSelection, swallowDecodeError } from "./pars
  * after an unexpected close the application calls `connect()` again and the
  * step1/step2 exchange resyncs.
  *
+ * Backpressure and budgets (client-side, not a security boundary — the
+ * server stands the ACL and the quotas):
+ *
+ * - the offline buffer holds a byte count, not a copy of each update; the
+ *   updates live in the internal doc and are coalesced into ONE state
+ *   update on the open, so an offline edit storm stands one flush frame,
+ *   not one frame per edit. `maxPendingBytes` caps the count and sets the
+ *   overflow flag (getPendingStats) when it is passed; the flush still
+ *   sends the full coalesced state (nothing is dropped).
+ * - one incoming socket message over `maxFrameBytes` is dropped whole
+ *   (not decoded or applied), bounding the per-message decode/apply work.
+ *
  * Safe attach order: `attach` registers its remote subscription before the
  * bootstrap send, so it stands correct pre-connect (the bootstrap buffered
  * until open), mid-handshake, and after the handshake — a late attach over
@@ -49,6 +62,11 @@ import { defaultWebSocketImpl, parseSelection, swallowDecodeError } from "./pars
  * v1 scope cuts: no reconnect backoff, no periodic resync, no socket
  * watchdog, no sync-status reporting.
  */
+
+/** The default ceilings (4 MiB) for the offline buffer and an incoming frame. */
+const DEFAULT_MAX_PENDING_BYTES = 4 * 1024 * 1024;
+const DEFAULT_MAX_FRAME_BYTES = 4 * 1024 * 1024;
+
 class WsSyncProvider implements SyncProvider {
   #url: string;
   #token?: string;
@@ -57,7 +75,14 @@ class WsSyncProvider implements SyncProvider {
   #awareness: Awareness;
   #socket: WsLike | null = null;
   #open = false;
-  #pending: Uint8Array[] = [];
+  /** The offline buffer's bookkeeping: a byte count + a flag, not a copy
+   *  of each update (the updates live in the internal doc and are
+   *  coalesced into one state update on the open). */
+  #pendingBytes = 0;
+  #hasPending = false;
+  #pendingOverflow = false;
+  #maxPendingBytes: number;
+  #maxFrameBytes: number;
   /**
    * The provider has received document state from the wire (a step2 or an
    * update). Gates the onUpdate accumulated-state delivery: a pre-connect
@@ -81,6 +106,8 @@ class WsSyncProvider implements SyncProvider {
     this.#url = url;
     this.#token = opts.token;
     this.#webSocketImpl = opts.webSocketImpl ?? defaultWebSocketImpl;
+    this.#maxPendingBytes = opts.maxPendingBytes ?? DEFAULT_MAX_PENDING_BYTES;
+    this.#maxFrameBytes = opts.maxFrameBytes ?? DEFAULT_MAX_FRAME_BYTES;
     this.#doc = new Y.Doc();
     this.#awareness = new Awareness(this.#doc);
     this.#awareness.on("update", this.#onAwarenessUpdate);
@@ -108,9 +135,15 @@ class WsSyncProvider implements SyncProvider {
         if (this.#awareness.getLocalState() !== null) {
           socket.send(buildAwarenessFrame(this.#awareness, [this.#awareness.clientID]));
         }
-        const pending = this.#pending;
-        this.#pending = [];
-        for (const update of pending) socket.send(buildSyncUpdateFrame(update));
+        // The offline buffer's flush: the internal doc holds every buffered
+        // update, so ONE coalesced state update stands the whole queue (an
+        // offline edit storm is one frame, not one frame per edit).
+        if (this.#hasPending) {
+          socket.send(buildSyncUpdateFrame(Y.encodeStateAsUpdate(this.#doc)));
+          this.#hasPending = false;
+          this.#pendingBytes = 0;
+          this.#pendingOverflow = false;
+        }
         // The attempt is settled: a later connect stands over the open socket.
         this.#connectPromise = null;
         this.#connectReject = null;
@@ -167,6 +200,7 @@ class WsSyncProvider implements SyncProvider {
   destroy(): void {
     this.disconnect();
     this.#awareness.destroy();
+    this.#doc.destroy(); // release the internal doc's state (terminal)
   }
 
   /** Send a local document update to peers (buffered while the socket is not open). */
@@ -174,12 +208,25 @@ class WsSyncProvider implements SyncProvider {
     Y.applyUpdate(this.#doc, bytes);
     // The socket stands CONNECTING between connect() and the open: a raw
     // send there throws (the browser's WebSocket rejects pre-open sends),
-    // so the open flag — not the socket's presence — stands the gate.
+    // so the open flag — not the socket's presence — stands the gate. The
+    // offline path only counts the bytes (the update lives in the internal
+    // doc); the open flush coalesces the count into one state update.
     if (this.#open && this.#socket !== null) {
       this.#socket.send(buildSyncUpdateFrame(bytes));
     } else {
-      this.#pending.push(bytes);
+      this.#pendingBytes += bytes.byteLength;
+      this.#hasPending = true;
+      if (this.#pendingBytes > this.#maxPendingBytes) this.#pendingOverflow = true;
     }
+  }
+
+  /**
+   * The offline buffer's stats (the observable backpressure): the buffered
+   * local update bytes and whether they passed `maxPendingBytes`. Cleared
+   * on the open flush.
+   */
+  getPendingStats(): PendingStats {
+    return { pendingBytes: this.#pendingBytes, overflow: this.#pendingOverflow };
   }
 
   /**
@@ -248,6 +295,9 @@ class WsSyncProvider implements SyncProvider {
 
   #onMessage(frame: Uint8Array): void {
     if (this.#socket === null) return;
+    // The client-side frame budget: an oversized message is dropped whole
+    // (not decoded or applied) — bounds the per-message decode/apply work.
+    if (frame.byteLength > this.#maxFrameBytes) return;
     const decoder = decoding.createDecoder(frame);
     const replies: Uint8Array[] = [];
     try {
