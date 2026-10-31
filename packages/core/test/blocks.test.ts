@@ -275,6 +275,24 @@ describe("updateBlock", () => {
     expect(doc.getBlock(li)).toEqual({ type: "list-item", attrs: { list: "task", checked: false } });
   });
 
+  it("rejects a non-finite numeric attr (the mutation path, like the import path)", () => {
+    const doc = newDoc();
+    const img = doc.insertBlock("image", { src: "a.png" });
+    // Infinity / -Infinity / NaN are not representable in JSON and would hand
+    // an infinite size to the renderer; the command stands a typed error.
+    expect(() => doc.updateBlock(img, { width: Infinity })).toThrow(InvalidAttrsError);
+    expect(() => doc.updateBlock(img, { width: -Infinity })).toThrow(InvalidAttrsError);
+    expect(() => doc.updateBlock(img, { width: NaN })).toThrow(InvalidAttrsError);
+    expect(() => doc.updateBlock(img, { width: Infinity })).toThrow(/finite number/);
+    // The rejected patch is a no-op: the block keeps its prior attrs.
+    expect(doc.getBlock(img)).toEqual({ type: "image", attrs: { src: "a.png" } });
+    // The array-item path (the table's columnWidths) is gated the same way.
+    const table = doc.insertBlock("table", { cols: 1 });
+    expect(() => doc.updateBlock(table, { columnWidths: [Infinity] })).toThrow(InvalidAttrsError);
+    // insertBlock validates the same way (a non-finite width is rejected).
+    expect(() => doc.insertBlock("image", { src: "b.png", width: Infinity })).toThrow(InvalidAttrsError);
+  });
+
   it("sets the code display attrs (the absent ones stay absent; the empty caption is the removed state)", () => {
     const doc = newDoc();
     const co = doc.insertBlock("code", { language: "ts" });

@@ -39,16 +39,16 @@ function validateAttrValue(
       }
       break;
     case "number":
-      if (typeof value !== "number" || Number.isNaN(value)) {
-        errors.push({ path, message: `Attribute "${name}" must be a number (got ${show(value)}).` });
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        errors.push({ path, message: `Attribute "${name}" must be a finite number (got ${show(value)}).` });
       } else {
         validateNumber(name, spec, value, path, errors);
       }
       break;
     case "nullable-number":
       if (value === null) break;
-      if (typeof value !== "number" || Number.isNaN(value)) {
-        errors.push({ path, message: `Attribute "${name}" must be a number or null (got ${show(value)}).` });
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        errors.push({ path, message: `Attribute "${name}" must be a finite number or null (got ${show(value)}).` });
       } else {
         validateNumber(name, spec, value, path, errors);
       }

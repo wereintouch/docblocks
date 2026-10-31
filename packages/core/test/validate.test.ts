@@ -386,6 +386,29 @@ describe("attributes", () => {
       "blocks.i.attrs.width",
       "number or null"
     );
+    // Non-finite numbers are rejected: they are not JSON-representable
+    // (JSON.stringify stands them as null) and would hand an infinite size
+    // to the renderer / layout.
+    expectError(
+      withBlock("i", { type: "image", attrs: { src: "k", width: Infinity } }),
+      "blocks.i.attrs.width",
+      "finite number"
+    );
+    expectError(
+      withBlock("i", { type: "image", attrs: { src: "k", width: -Infinity } }),
+      "blocks.i.attrs.width",
+      "finite number"
+    );
+    expectError(
+      withBlock("i", { type: "image", attrs: { src: "k", width: NaN } }),
+      "blocks.i.attrs.width",
+      "finite number"
+    );
+    expectError(
+      withBlock("t", { type: "table", columnOrder: ["c1"], attrs: { columnWidths: [Infinity] } }),
+      "blocks.t.attrs.columnWidths[0]",
+      "finite number"
+    );
     expectError(withBlock("i", { type: "image", attrs: { src: "k", align: "up" } }), "blocks.i.attrs.align", "one of");
     expectError(withBlock("p", { type: "paragraph", attrs: { align: "up" } }), "blocks.p.attrs.align", "one of");
     expectError(
