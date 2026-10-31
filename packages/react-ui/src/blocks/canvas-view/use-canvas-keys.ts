@@ -1,7 +1,9 @@
 /** The canvas view's keyboard handlers: the mode switch (M), the group
  * hotkeys (Ctrl/Cmd+G / +Shift+G), the canvas clipboard (Ctrl/Cmd+C/V),
- * the arrow-key nudge, the canvas items' delete (Delete/Backspace), the
- * tools' cancel (Escape), and the held space (the temporary pan). The
+ * the arrow-key nudge, the canvas items' keyboard navigation (the arrows
+ * over the selection's absence) + the Enter's selection, the canvas items'
+ * delete (Delete/Backspace), the tools' cancel (Escape), and the held
+ * space (the temporary pan). The
  * app-level hotkeys win over the editing surfaces (the isEditingSurface
  * guard keeps the text's own shortcuts). */
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
@@ -191,31 +193,67 @@ function useCanvasKeys({
       event.target === event.currentTarget
     ) {
       const sel = selection.view?.get();
-      if (sel?.kind !== "blocks" || sel.ids.length === 0) return;
-      if (
-        nudgeGate(
-          {
-            move: viewport.moveSession,
-            resize: viewport.resizeSession,
-            pan: sessionRef.current !== null,
-            endpoint: viewport.connectorEndpoint !== null,
-            marquee: viewport.marquee !== null,
-            pen: viewport.penPoints.length > 0,
-            place: viewport.placePreview !== null,
-            tool: viewport.activeTool !== null,
-            pending: viewport.pendingConnector !== null || viewport.pendingFree !== null,
-          },
-          sel
-        )
-      ) {
-        const delta = nudgeDelta(event.key, event.shiftKey);
-        if (delta !== null) {
-          event.preventDefault();
-          event.stopPropagation();
-          nudgeSelection(doc, sel.ids, delta.dx, delta.dy);
+      if (sel?.kind === "blocks" && sel.ids.length > 0) {
+        if (
+          nudgeGate(
+            {
+              move: viewport.moveSession,
+              resize: viewport.resizeSession,
+              pan: sessionRef.current !== null,
+              endpoint: viewport.connectorEndpoint !== null,
+              marquee: viewport.marquee !== null,
+              pen: viewport.penPoints.length > 0,
+              place: viewport.placePreview !== null,
+              tool: viewport.activeTool !== null,
+              pending: viewport.pendingConnector !== null || viewport.pendingFree !== null,
+            },
+            sel
+          )
+        ) {
+          const delta = nudgeDelta(event.key, event.shiftKey);
+          if (delta !== null) {
+            event.preventDefault();
+            event.stopPropagation();
+            nudgeSelection(doc, sel.ids, delta.dx, delta.dy);
+          }
         }
         return;
       }
+      // The selection stands none: the arrows move the keyboard focus over
+      // the canvas items (the DOM's paint order, the wrap stand) — the
+      // Enter selects the focused item, the selection's arrows stand the
+      // nudge over it.
+      const items = Array.from(
+        event.currentTarget.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item']")
+      )
+        .map((el) => el.dataset.blockId)
+        .filter((id): id is string => id !== undefined);
+      if (items.length === 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const forward = event.key === "ArrowRight" || event.key === "ArrowDown";
+      const current = viewport.kbFocusId;
+      const idx = current !== null ? items.indexOf(current) : forward ? -1 : 0;
+      viewport.setKbFocusId(items[(idx + (forward ? 1 : -1) + items.length) % items.length] ?? null);
+      return;
+    }
+    // The Enter: the keyboard selection (the kb-focused item stands the
+    // shared blocks selection — the pointer click's parity). The key stands
+    // over the container's own focus (the hotkey's context — the view's own
+    // controls keep their own Enter).
+    if (
+      event.key === "Enter" &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      event.target === event.currentTarget
+    ) {
+      const id = viewport.kbFocusId;
+      if (id === null || doc.getBlock(id) === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      selection.view?.set({ kind: "blocks", ids: [id], anchorId: id });
+      return;
     }
     // The canvas items' delete (the page's removeBlocksSelection path
     // stands the root's page sequence — the canvas items are not in it).

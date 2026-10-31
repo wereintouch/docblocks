@@ -18,7 +18,17 @@ import { ShapeText } from "./ShapeText";
 import { TextBlock } from "./TextBlock";
 import { useBlockContext } from "./block-context";
 import { canvasItemStyle, endpointOf, isCanvasSubType } from "./canvas-geometry";
-import { CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
+import { CANVAS_KB_FOCUS_OUTLINE, CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
+
+/** The canvas item's accessible label (the block type's stand; the
+ * consumer's renderer's type stands the type's string). */
+const CANVAS_ITEM_LABELS: Record<string, string> = {
+  shape: "Shape",
+  "canvas-text": "Text",
+  frame: "Frame",
+  group: "Group",
+  connector: "Connector",
+};
 
 /**
  * A canvas element: the positioned wrapper (the geometry -> the style)
@@ -45,6 +55,7 @@ const CanvasItem = memo(
     movePreview = null,
     resizeBox = null,
     interactive = true,
+    kbFocused = false,
   }: {
     id: BlockId;
     pendingConnector?: string | null;
@@ -55,6 +66,9 @@ const CanvasItem = memo(
     /** The line's interactivity (the hit path / the selection reach): the
      *  canvas view stands it, the page view's surface stands it inert. */
     interactive?: boolean;
+    /** The keyboard focus's stand (the canvas view's arrow navigation —
+     *  the dashed outline over the selection's solid one). */
+    kbFocused?: boolean;
   }) {
     const { store, renderers } = useEditorContext();
     const { siblings } = useBlockContext();
@@ -144,18 +158,29 @@ const CanvasItem = memo(
         data-slot="docblocks/canvas-item"
         data-block-id={id}
         data-selected={selected || undefined}
+        data-kb-focused={kbFocused || undefined}
         data-connector-pending={connectorPending || undefined}
         data-missing={missing || undefined}
         // The connector stands no wrapper tint or outline: its emphasis is
         // the line's selected stroke (the 100x100 default box at the origin
         // would stand a phantom square over the page miniature). The
         // selected item's thin cyan outline (the shared selection token) stands
-        // over the tint.
+        // over the tint. The keyboard focus's dashed outline stands the
+        // same items (the connector / group's box stands no stand of its
+        // own, the selection's parity).
+        role="button"
+        aria-label={`${CANVAS_ITEM_LABELS[block.type] ?? block.type} block`}
+        aria-pressed={selected || undefined}
         className={cn(
           selected &&
             block.type !== "connector" &&
             block.type !== "group" &&
-            cn("bg-(--docblocks-selected-background)", CANVAS_SELECTION_OUTLINE)
+            cn("bg-(--docblocks-selected-background)", CANVAS_SELECTION_OUTLINE),
+          kbFocused &&
+            !selected &&
+            block.type !== "connector" &&
+            block.type !== "group" &&
+            CANVAS_KB_FOCUS_OUTLINE
         )}
         style={style}
       >
@@ -171,7 +196,8 @@ const CanvasItem = memo(
     prev.pendingConnector === next.pendingConnector &&
     prev.movePreview === next.movePreview &&
     prev.resizeBox === next.resizeBox &&
-    prev.interactive === next.interactive
+    prev.interactive === next.interactive &&
+    prev.kbFocused === next.kbFocused
 );
 
 export { CanvasItem };

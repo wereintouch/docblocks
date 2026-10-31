@@ -37,6 +37,7 @@ function SurfaceLayer({
   endpointPreview,
   showPorts,
   endpointSnap,
+  kbFocusId = null,
 }: {
   id: BlockId;
   children: BlockId[];
@@ -54,6 +55,8 @@ function SurfaceLayer({
    *  position — the continuous anchor,; the
    *  snapped dot stands the connect green at the anchor's point). */
   endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
+  /** The keyboard focus's item (the canvas view's arrow navigation). */
+  kbFocusId?: string | null;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
   // The session's referential identity stands on the four inputs (a
@@ -74,6 +77,7 @@ function SurfaceLayer({
             pendingConnector={pendingConnector}
             movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
             resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
+            kbFocused={kbFocusId === childId}
           />
         ))}
         {showPorts && <PortDots id={id} snapped={endpointSnap} />}

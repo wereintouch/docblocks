@@ -250,12 +250,14 @@ function CanvasView() {
       <div
         data-slot="docblocks/canvas-view"
         ref={containerRef}
-        tabIndex={-1}
+        tabIndex={0}
+        role="application"
+        aria-label="Canvas"
         className={cn(
           `
             relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background)
             bg-[radial-gradient(circle,var(--docblocks-canvas-view-dot)_1px,transparent_1px)]
-            focus:outline-none
+            focus:outline-none focus-visible:ring-2 focus-visible:ring-ring
           `,
           cursor
         )}
@@ -328,6 +330,7 @@ function CanvasView() {
                     : null
               }
               showPorts={viewport.activeTool === "connector" || viewport.connectorEndpoint !== null}
+              kbFocusId={viewport.kbFocusId}
             />
           ))}
           {/* The connector label chips (the shared chip's display stand):

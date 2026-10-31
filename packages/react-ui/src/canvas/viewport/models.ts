@@ -232,6 +232,10 @@ interface CanvasViewportState {
   shapeTextEditing: string | null;
   /** The connector in the label's inline edit (the line's double-click); null outside an edit. */
   connectorLabelEditing: string | null;
+  /** The canvas items' keyboard focus (the container focus's arrows move
+   * it over the selection's absence; the Enter selects it). View state —
+   * not the doc's data, not the selection. */
+  kbFocusId: string | null;
   /** Opens / closes the shape's inline text edit (the double-click, the
    * toolbar's add-text button, the edit's blur / Escape close). */
   setShapeTextEditing: (id: string | null) => void;
@@ -260,6 +264,7 @@ interface CanvasViewportState {
     pressPoint?: CanvasPoint | null
   ) => void;
   setMarquee: (marquee: MarqueeState | null) => void;
+  setKbFocusId: (id: string | null) => void;
   setPenPoints: (points: CanvasPoint[]) => void;
   /** The in-flight marquee's rectangle (screen space, normalized); null outside a drag. */
   marqueeRect: ScreenRect | null;

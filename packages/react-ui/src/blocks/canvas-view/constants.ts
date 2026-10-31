@@ -15,6 +15,11 @@ const PORT_PICK_RADIUS_PX = 14;
 const CANVAS_SELECTION_OUTLINE =
   "outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1 outline-(--docblocks-canvas-selection-border-color) outline-solid";
 
+/** The canvas items' keyboard focus's outline (the selection token's
+ * dashed stand — the keyboard focus is distinct from the selection). */
+const CANVAS_KB_FOCUS_OUTLINE =
+  "outline-(length:--docblocks-canvas-selection-border-width) outline-offset-1 outline-(--docblocks-canvas-selection-border-color) outline-dashed";
+
 /** The surface's background token (the `--card` fallback over its absence). */
 const SURFACE_BG = "var(--docblocks-canvas-surface-background, var(--card, #ffffff))";
 
@@ -88,5 +93,6 @@ export {
   TOOLBAR_OFFSET_PX,
   WHEEL_ZOOM_DELTA,
   CANVAS_SELECTION_OUTLINE,
+  CANVAS_KB_FOCUS_OUTLINE,
   SURFACE_BG,
 };

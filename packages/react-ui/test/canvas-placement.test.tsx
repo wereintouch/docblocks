@@ -173,6 +173,8 @@ describe("the dock", () => {
       setShapeTextEditing: noop,
       connectorLabelEditing: null,
       setConnectorLabelEditing: noop,
+      kbFocusId: null,
+      setKbFocusId: noop,
       resizePreview: null,
       resizeSession: false,
       setZoom: noop,
