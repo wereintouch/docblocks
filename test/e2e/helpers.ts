@@ -74,6 +74,7 @@ interface PaneDoc {
   getText(id: string): string;
   getRuns(id: string): { text: string; marks: Record<string, unknown> }[];
   insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string; after?: string }): string;
+  setTitle(title: string): void;
   insertText(blockId: string, pos: number, text: string, marks?: Record<string, unknown>): void;
   updateBlock(id: string, attrs: Record<string, unknown>): void;
   setCell(

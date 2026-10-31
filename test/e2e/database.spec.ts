@@ -1076,6 +1076,69 @@ test("the header's right-edge seam resizes the column (the columnWidths attr ove
   await close();
 });
 
+test("two grids on one page stand their own measurement (the seam's commit reads its own grid's cells)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "ext04-multigrid");
+
+  // Two blocks over the same table: the page stands two grids at once (the
+  // measurement's scope — a grid must not read the foreign grid's cells).
+  const demo = await bridgeDemoTable(a);
+  const dbIdA = (await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id))!;
+  const dbIdB = (await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id))!;
+  const gridOf = (id: string) => a.locator(`[data-block-id='${id}']`);
+  const seamOf = (id: string, index: number) =>
+    gridOf(id).locator(`[data-slot='docblocks/database-col-resize'][data-index='${index}']`);
+  const headerCellOf = (id: string, index: number) =>
+    gridOf(id).locator("[data-slot='docblocks/database-header-cell']").nth(index);
+  const widthsOf = (id: string) =>
+    a.evaluate(
+      (blockId) =>
+        (window.__paneDocs!.a!.toJSON().blocks[blockId]?.attrs as Record<string, unknown> | undefined)?.columnWidths ??
+        null,
+      id
+    );
+
+  await expect(gridOf(dbIdA).locator("[data-slot='docblocks/database-grid']")).toBeVisible(SETTLE);
+  await expect(gridOf(dbIdB).locator("[data-slot='docblocks/database-grid']")).toBeVisible(SETTLE);
+
+  // The grid A's columns 0 + 1 widen (the commit's stand over the default).
+  const widen = async (id: string, index: number) => {
+    await headerCellOf(id, index).hover();
+    const seam = (await seamOf(id, index).boundingBox())!;
+    await a.mouse.move(seam.x + 1, seam.y + 1);
+    await a.mouse.down();
+    await a.mouse.move(seam.x + 1 + 96, seam.y + 1, { steps: 6 });
+    await a.mouse.up();
+  };
+  await widen(dbIdA, 0);
+  await expect.poll(async () => await widthsOf(dbIdA), SETTLE).toEqual(expect.arrayContaining([expect.any(Number)]));
+  await widen(dbIdA, 1);
+  await expect.poll(async () => await widthsOf(dbIdA), SETTLE).not.toBeNull();
+  const widthsA = (await widthsOf(dbIdA)) as number[];
+  expect(widthsA[0]!).toBeGreaterThan(190);
+  expect(widthsA[1]!).toBeGreaterThan(190);
+
+  // The grid B's commit reads its own cells: the non-dragged column 1 must
+  // stand its own measured width (not the grid A's widened stand — the
+  // document-wide query would stand the grid A's cell over the grid B's
+  // commit).
+  await headerCellOf(dbIdB, 0).hover();
+  const seamB = (await seamOf(dbIdB, 0).boundingBox())!;
+  await a.mouse.move(seamB.x + 1, seamB.y + 1);
+  await a.mouse.down();
+  await a.mouse.move(seamB.x + 1 + 2, seamB.y + 1, { steps: 3 });
+  await a.mouse.up();
+  await expect.poll(async () => await widthsOf(dbIdB), SETTLE).toEqual(expect.arrayContaining([expect.any(Number)]));
+  const widthsB = (await widthsOf(dbIdB)) as number[];
+  expect(
+    widthsB[1]!,
+    "the grid B's column 1 must stand its own measurement (not the grid A's widened stand)"
+  ).toBeLessThan(180);
+
+  await close();
+});
+
 test("the datetime cell stands the calendar + the time box (the time/date order, the same-day toggle; the commit over the wire)", async ({
   browser,
 }) => {

@@ -71,7 +71,13 @@ function useGridSeamResize({ columns, columnWidths, updateView }: GridSeamResize
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     if (session.width === session.startWidth) return;
     if (!columns.map((entry) => entry.id).every((value, i) => session.visible[i] === value)) return;
-    const cells = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']"));
+    // The measurement's scope stands the grid's own container — the
+    // header cell's query is not document-wide (a page may stand two
+    // grids; the foreign's cells' widths would stand the commit).
+    const scope = event.currentTarget.closest<HTMLElement>("[data-slot='docblocks/database']");
+    const cells = Array.from(
+      scope?.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']") ?? []
+    );
     const next = columns.map((_, i) => {
       if (i === session.col) return session.width;
       const measured = cells[i]?.offsetWidth ?? 0;
