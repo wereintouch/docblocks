@@ -111,6 +111,48 @@ test("the header reveals on hover; typing keeps the strip and hides the controls
   await close();
 });
 
+test("the header's controls stand over the keyboard (the focus reveal + the language pick)", async ({ browser }) => {
+  const { a, b, close } = await openPanes(browser, "ux16-code-keyboard");
+  const id = await seedCode(a, "a", "const x = 1;");
+  await a.waitForTimeout(600);
+
+  const block = blockWrapper(a, "a", id);
+  const header = block.locator('[data-slot="docblocks/code-header"]');
+  const language = header.locator('[data-slot="docblocks/code-language"]');
+  const actions = header.locator('[data-slot="docblocks/code-header-actions"]');
+
+  // At rest (the pointer is away): the controls stand hidden.
+  expect(await actions.evaluate((el) => getComputedStyle(el).opacity)).toBe("0");
+
+  // The keyboard's path: the focus on a control stands the reveal (the
+  // row's own focus-within — the hover-only reveal kept the controls
+  // invisible under the Tab). Both groups stand: the focus on the left
+  // control reveals the right ones over the tab walk.
+  await language.focus();
+  await expect(actions).toHaveCSS("opacity", "1");
+  expect(await language.evaluate((el) => document.activeElement === el)).toBe(true);
+
+  // The keyboard pick: the Enter stands the search, the typed name + the
+  // Enter stand the language over the wire.
+  await a.keyboard.press("Enter");
+  const search = a.getByLabel("Search language");
+  await expect(search).toBeVisible();
+  await search.fill("py");
+  await a.keyboard.press("Enter");
+  expect((await blockOf(a, "a", id))?.attrs).toMatchObject({ language: "python" });
+  await expect.poll(async () => (await blockOf(b, "b", id))?.attrs, SETTLE).toMatchObject({ language: "python" });
+
+  // The Tab stands the next control (the copy button — the collapse is
+  // disabled on the one-line block and skips the tab order) over the same
+  // reveal.
+  await language.focus();
+  await a.keyboard.press("Tab");
+  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe(
+    "docblocks/code-copy"
+  );
+  await close();
+});
+
 test("a language pick in A writes the attr — the label stands in B over the wire", async ({ browser }) => {
   const { a, b, close } = await openPanes(browser, "ux16-code-language");
   const id = await seedCode(a, "a", "const x = 1;");

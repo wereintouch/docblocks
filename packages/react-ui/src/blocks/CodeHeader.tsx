@@ -39,8 +39,10 @@ import { textOf } from "./TextBlock";
  *
  * Visibility: the row always occupies its space (no layout shift) and its
  * strip (the row's bottom border) is revealed while the wrapper is hovered
- * or focused (the typing state); the controls themselves reveal only on a
- * hover — the typing state keeps the strip and hides the controls.
+ * or focused (the typing state); the controls themselves reveal on a
+ * hover or while one of the controls holds the keyboard focus (the row's
+ * own focus-within) — the typing state (the focus in the text) keeps the
+ * strip and hides the controls.
  *
  * Language: the name is always shown (default "Plain Text" — the absent
  * or empty `language` attr). The picker is a non-modal popover with a
@@ -181,23 +183,25 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
   // hide wrapped line boxes even at ≤5 logical lines).
   const lineCount = textOf(block.content).split("\n").length;
 
-  // The controls' hover reveal: invisible (and unclickable) unless the
-  // wrapper is hovered; the row's strip stands on hover or while the
-  // block is focused (the typing state — the strip stands, the controls
-  // stay invisible). While a header menu stands open the controls stay
-  // visible: the menus are portaled OUTSIDE the block, so the pointer over
-  // them loses the block hover and the controls would fade away mid-use.
+  // The controls' reveal: invisible (and unclickable) unless the wrapper
+  // is hovered or one of the controls holds the keyboard focus (the row's
+  // own focus-within — the Tab's path stands the controls with the
+  // visible focus; the typing state, the focus in the text, stands the
+  // strip only and keeps the controls invisible). While a header menu
+  // stands open the controls stay visible: the menus are portaled
+  // OUTSIDE the block, so the pointer over them loses the block hover
+  // and the controls would fade away mid-use.
   const menuOpen = languageOpen || moreOpen;
   const controlClass = menuOpen
     ? "opacity-100 transition-opacity"
-    : "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100";
+    : "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within/code:pointer-events-auto group-focus-within/code:opacity-100";
 
   return (
     <div
       data-slot="docblocks/code-header"
       className={cn(
         `
-          mb-1 flex items-center justify-between gap-2 border-b border-transparent pb-1 text-[0.8125em]
+          group/code mb-1 flex items-center justify-between gap-2 border-b border-transparent pb-1 text-[0.8125em]
           group-focus-within:border-border
           group-hover:border-border
         `,

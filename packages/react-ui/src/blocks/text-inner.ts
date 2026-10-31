@@ -139,6 +139,15 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
    */
   const onKeydown = useCallback(
     (event: ReactKeyboardEvent<HTMLElement>) => {
+      // The block chrome (the header's controls) owns its keys: a keydown
+      // that bubbles from a control outside the editable content (and the
+      // wrapper itself, the gutter selection's focus) stands no block
+      // gesture — the native control behavior (the button's Enter/Space
+      // click) must not be suppressed by the block's handler.
+      const inner = innerRef.current;
+      const target = event.target;
+      if (target instanceof Element && target !== event.currentTarget && (inner === null || !inner.contains(target)))
+        return;
       if (slash !== null && slash.onKeyDown(event, id)) return;
       if (mention !== null && mention.onKeyDown(event, id)) return;
       onGestureKeyDown(event);
