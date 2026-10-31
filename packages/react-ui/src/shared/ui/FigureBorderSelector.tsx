@@ -88,6 +88,7 @@ function FigureBorderSelector({
     <div
       ref={trackRef}
       role="slider"
+      tabIndex={0}
       aria-label={label}
       aria-valuemin={0}
       aria-valuemax={points - 1}

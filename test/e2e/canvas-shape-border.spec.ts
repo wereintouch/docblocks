@@ -100,6 +100,36 @@ test.describe("the border's controls", () => {
     await close();
   });
 
+  test("the width's selector steps by the keyboard (the Tab's reach + the arrows, the sync stands)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "border-keyboard");
+    await switchPaneView(a, "a", "canvas");
+    await a.waitForTimeout(200);
+
+    const id = await seedShape(a, "a", { variant: "rect", fill: "none" });
+    await selectShape(a, "a", id);
+
+    // The keyboard's path: from the stroke-color trigger (the control
+    // before the slider), a single Tab stands the focus on the slider
+    // (the tabIndex 0 stand — the slider was unreachable by the Tab
+    // before the fix).
+    await a.getByRole("button", { name: "Shape stroke color" }).focus();
+    await a.keyboard.press("Tab");
+    expect(await a.evaluate(() => document.activeElement?.getAttribute("role"))).toBe("slider");
+
+    // The arrows step the dots (the default 2 px = the second dot).
+    await a.keyboard.press("ArrowRight");
+    expect(await shapeAttrs(a, "a", id)).toMatchObject({ strokeWidth: 3 });
+    await expect.poll(() => shapeAttrs(b, "b", id), SETTLE).toMatchObject({ strokeWidth: 3 });
+    await a.keyboard.press("End");
+    expect(await shapeAttrs(a, "a", id)).toMatchObject({ strokeWidth: 4 });
+    await a.keyboard.press("Home");
+    expect(await shapeAttrs(a, "a", id)).toMatchObject({ strokeWidth: 1 });
+
+    await close();
+  });
+
   test("the style menu applies the dashed / the no-border (one updateBlock each, the svg stands in both panes)", async ({
     browser,
   }) => {

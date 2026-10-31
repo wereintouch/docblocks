@@ -229,6 +229,36 @@ describe("FigureBorderSelector (the border's width dots)", () => {
     expect(changes).toEqual([3, 0]);
   });
 
+  it("stands focusable (the tabIndex 0 + the arrows over the focused slider)", () => {
+    const changes: number[] = [];
+    function StatefulSelector({ start }: { start: number }) {
+      const [value, setValue] = useState(start);
+      return (
+        <FigureBorderSelector
+          points={4}
+          value={value}
+          onChange={(index) => {
+            changes.push(index);
+            setValue(index);
+          }}
+          label="Border width"
+        />
+      );
+    }
+    render(<StatefulSelector start={1} />);
+    const slider = screen.getByRole("slider", { name: "Border width" });
+    // The slider contract: the control stands in the tab order (the
+    // tabIndex 0) and receives the focus.
+    expect(slider.getAttribute("tabindex")).toBe("0");
+    slider.focus();
+    expect(document.activeElement).toBe(slider);
+    // The arrows stand the step while the focus is on the slider.
+    fireEvent.keyDown(slider, { key: "ArrowRight" });
+    expect(changes).toEqual([2]);
+    fireEvent.keyDown(slider, { key: "End" });
+    expect(changes).toEqual([2, 3]);
+  });
+
   it("snaps to the nearest dot on the pointer's stand (the magnet's drag)", () => {
     const changes: number[] = [];
     function StatefulSelector() {
