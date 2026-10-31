@@ -53,9 +53,22 @@ interface TimeSegmentsOptions {
  * logic — the "HH:MM:SS" wire format, the focus auto-advance between the
  * segments, and the two-digit normalization ("00" / "0X") when the focus
  * leaves the group — so every time editor stands consistent.
+ *
+ * The draft contract: the typed draft (the per-segment digits) stands
+ * while the group holds the focus — an external `value` change (the
+ * reset / the clear from outside) stands no draft change during the
+ * typing. When the focus leaves the group, the draft syncs from the
+ * current `value`, so the external change lands on the next render.
  */
 function TimeSegments({ id, value, onChange, disabled, clearable, className }: TimeSegmentsOptions) {
   const [seg, setSeg] = React.useState<Segments>(() => toSegments(value));
+  // Whether a segment holds the focus: while the group is typed the
+  // draft stands (the external `value` change stands no draft change);
+  // on the focus leave the draft syncs from the current `value`.
+  const [editing, setEditing] = React.useState(false);
+  React.useEffect(() => {
+    if (!editing) setSeg(toSegments(value));
+  }, [value, editing]);
 
   const filled = value !== undefined && value !== null && value !== "";
 
@@ -82,7 +95,9 @@ function TimeSegments({ id, value, onChange, disabled, clearable, className }: T
   // wire value is already two-digit via `toWire`.
   const handleBlur = (event: React.FocusEvent<HTMLDivElement>) => {
     const next = event.relatedTarget;
-    if (next instanceof Node && event.currentTarget.contains(next)) return;
+    const stays = next instanceof Node && event.currentTarget.contains(next);
+    if (stays) return;
+    setEditing(false);
     if (seg.h === "" && seg.m === "" && seg.s === "") return;
     setSeg({ h: padSeg(seg.h), m: padSeg(seg.m), s: padSeg(seg.s) });
   };
@@ -93,6 +108,7 @@ function TimeSegments({ id, value, onChange, disabled, clearable, className }: T
     <div
       data-slot="time-segments"
       data-filled={filled || undefined}
+      onFocus={() => setEditing(true)}
       onBlur={handleBlur}
       className={cn(
         `

@@ -129,6 +129,38 @@ describe("TimeSegments (the HH:MM:SS box)", () => {
     rerender(<TimeSegments value={null} onChange={(wire) => wires.push(wire)} clearable />);
     expect(document.querySelector("[data-slot='time-segments'] button")).toBeNull();
   });
+
+  it("the external value change stands the draft (the reset and the clear over the untyped group)", () => {
+    const read = () =>
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")].map(
+        (input) => input.value
+      );
+    const { rerender } = render(<TimeSegments value={"10:20:30"} onChange={() => undefined} />);
+    expect(read()).toEqual(["10", "20", "30"]);
+    // The external replacement while no segment holds the focus.
+    rerender(<TimeSegments value={"11:05:09"} onChange={() => undefined} />);
+    expect(read()).toEqual(["11", "05", "09"]);
+    // The external clear.
+    rerender(<TimeSegments value={null} onChange={() => undefined} />);
+    expect(read()).toEqual(["", "", ""]);
+  });
+
+  it("the external value change over the focused group stands the draft (the sync lands on the blur)", () => {
+    const { rerender } = render(<TimeSegments value={"10:20:30"} onChange={() => undefined} />);
+    const [hours] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
+    hours!.focus();
+    fireEvent.change(hours!, { target: { value: "1" } });
+    // The external replacement while the group holds the focus: the draft stands.
+    rerender(<TimeSegments value={"11:05:09"} onChange={() => undefined} />);
+    expect(hours!.value).toBe("1");
+    // The focus leave stands the external value over the draft.
+    fireEvent.blur(hours!, { relatedTarget: document.body });
+    const read = () =>
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")].map(
+        (input) => input.value
+      );
+    expect(read()).toEqual(["11", "05", "09"]);
+  });
 });
 
 describe("DateTimePicker (the calendar + the time box)", () => {
