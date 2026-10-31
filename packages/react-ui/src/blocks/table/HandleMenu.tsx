@@ -3,12 +3,12 @@
  * duplicate / clear / delete items). */
 import { useStore } from "zustand";
 
-import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, PointerEvent as ReactPointerEvent } from "react";
 
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
-import { Button } from "../../shared/ui";
+import { Button, cn } from "../../shared/ui";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +46,7 @@ function HandleMenu({
   onPointerMove,
   onPointerUp,
   onPointerCancel,
+  onOpen,
   children,
 }: {
   kind: HandleKind;
@@ -60,19 +61,32 @@ function HandleMenu({
   dragDy: number;
   /** A stationary chip of an in-flight drag (the parting shift's transition). */
   dragTransition?: boolean;
-  onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerMove: (event: ReactPointerEvent<HTMLDivElement>) => void;
-  onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
+  onPointerDown: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerMove: (event: ReactPointerEvent<HTMLButtonElement>) => void;
+  onPointerUp: (event: ReactPointerEvent<HTMLButtonElement>) => void;
   onPointerCancel: () => void;
+  /** The keyboard's open (the Enter / Space on the focused handle): the
+   * controlled menu's state stand — the pointer's open stands the drag
+   * hook's release. */
+  onOpen: () => void;
   children: ReactNode;
 }) {
+  // The keyboard's open: the controlled state stand (Radix's trigger's
+  // toggle is a no-op against the controlled open — the pointer's open
+  // stands the drag hook's release, so the press itself opens nothing).
+  const onTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "Enter" || event.key === " ") onOpen();
+  };
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={onOpenChange}>
       <DropdownMenuTrigger asChild>
-        <div
+        <Button
+          type="button"
+          variant="ghost"
           data-slot={kind === "column" ? "docblocks/table-col-handle" : "docblocks/table-row-handle"}
           data-index={index}
-          className={handleClasses(visible, dragging)}
+          aria-label={kind === "column" ? `Column ${index + 1} options` : `Row ${index + 1} options`}
+          className={cn(handleClasses(visible, dragging), "p-0")}
           style={{
             left: left + dragDx,
             top: top + dragDy,
@@ -82,9 +96,10 @@ function HandleMenu({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerCancel}
+          onKeyDown={onTriggerKeyDown}
         >
           {kind === "column" ? <Ellipsis className="size-3.5" /> : <EllipsisVertical className="size-3.5" />}
-        </div>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         data-slot={kind === "column" ? "docblocks/table-col-menu" : "docblocks/table-row-menu"}

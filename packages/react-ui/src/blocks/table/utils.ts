@@ -14,7 +14,7 @@ function handleClasses(visible: boolean, dragging: boolean): string {
   return cn(
     `
       absolute z-10 flex size-5 cursor-grab items-center justify-center rounded-md border border-border bg-muted
-      text-foreground shadow-xs transition-opacity
+      text-foreground shadow-xs transition-opacity focus-visible:opacity-100
     `,
     dragging && "cursor-grabbing",
     visible ? "opacity-100" : "pointer-events-none opacity-0"

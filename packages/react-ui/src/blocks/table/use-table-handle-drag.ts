@@ -38,7 +38,7 @@ interface TableHandleDragDeps {
 function useTableHandleDrag({ sessionRef, setHover, setMenu, tableEl, doc, rows, block, id }: TableHandleDragDeps) {
   const [preview, setPreview] = useState<TableDragPreview | null>(null);
 
-  const onHandlePointerDown = (kind: HandleKind, index: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onHandlePointerDown = (kind: HandleKind, index: number) => (event: ReactPointerEvent<HTMLButtonElement>) => {
     if (event.button !== 0 || sessionRef.current !== null) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -99,7 +99,7 @@ function useTableHandleDrag({ sessionRef, setHover, setMenu, tableEl, doc, rows,
     return position;
   };
 
-  const onHandlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onHandlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const session = sessionRef.current;
     if (session === null) return;
     const dx = event.clientX - session.startX;
@@ -123,7 +123,7 @@ function useTableHandleDrag({ sessionRef, setHover, setMenu, tableEl, doc, rows,
    * snapshot (a concurrent structural change stands — no command, the rows
    * resync from the doc on the next change).
    */
-  const onHandlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const onHandlePointerUp = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const session = sessionRef.current;
     sessionRef.current = null;
     if (session === null) return;

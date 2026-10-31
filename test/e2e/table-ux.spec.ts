@@ -944,3 +944,46 @@ test("the add-column chip's drag appends / removes several columns (the ghosts s
     await close();
   }
 });
+
+test("the keyboard path: the handle's focus + the Enter open + the keyboard pick; the seam's arrow resize (B)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ux18-table-kbd");
+  try {
+    const tableId = await seedTable(a, "a", [
+      ["a1", "a2"],
+      ["b1", "b2"],
+    ]);
+    await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
+
+    // The row handle stands a focusable button (the tab path lands on it):
+    // the Enter opens the menu, the keyboard pick (the arrows + the Enter)
+    // commits over the wire.
+    const handle = a.locator('[data-slot="docblocks/table-row-handle"][data-index="0"]');
+    await expect(handle).toHaveAttribute("aria-label", "Row 1 options");
+    await handle.focus();
+    await a.keyboard.press("Enter");
+    await expect(rowMenu(a)).toBeVisible();
+    // The menu's open auto-focus (the first item) stands async of the mount:
+    // the navigation keys need the focus seated.
+    await a.waitForTimeout(150);
+    await a.keyboard.press("ArrowDown"); // to the insert item (past the background sub)
+    await a.keyboard.press("Enter");
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(3);
+    // The pick was the insert-below (the empty row at the handle's side; the
+    // old rows travel down).
+    expect((await tableSnapshot(b, "b", tableId))?.rows[1]?.[0]?.text).toBe("");
+    expect((await tableSnapshot(b, "b", tableId))?.rows[2]?.[0]?.text).toBe("b1");
+
+    // The seam stands a focusable separator: the arrows step the column's
+    // width (the live commit per press; the B JSON takes the width).
+    const seam = a.locator('[data-slot="docblocks/table-col-resize"][data-index="0"]');
+    await expect(seam).toHaveAttribute("role", "separator");
+    await seam.focus();
+    await a.keyboard.press("ArrowRight");
+    await a.keyboard.press("ArrowRight");
+    await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.widths?.[0], SETTLE).toBe(116);
+  } finally {
+    await close();
+  }
+});

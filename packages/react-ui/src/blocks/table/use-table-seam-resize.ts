@@ -5,11 +5,11 @@
  * the cancel. The preview's state stands in the hook (the view's read of
  * the dragged column's width). */
 import { useState } from "react";
-import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
+import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BlockId, Doc } from "docblocks-core";
 
-import { MIN_COLUMN_WIDTH } from "./constants";
+import { MIN_COLUMN_WIDTH, RESIZE_KEY_STEP_PX } from "./constants";
 import type { ColumnResizeSession } from "./models";
 import { clampColumnWidth } from "./utils";
 
@@ -60,6 +60,29 @@ function useTableSeamResize({ docWidths, doc, id, resizeSessionRef }: TableSeamR
     }
   };
 
+  /**
+   * The seam's keyboard resize (the ARIA separator's pattern): the arrows
+   * step the column's width by the key step — one setTableColumnWidth per
+   * press (one undo step), the clamp stands the no-op at the edges.
+   */
+  const onSeamKeyDown = (col: number) => (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    // The live read (not the render-time prop): a fast key sequence commits
+    // against the doc's current width, not the last render's.
+    const table = doc.getBlock(id);
+    const current =
+      (table !== null && table.type === "table" ? table.attrs?.columnWidths?.[col - 1] : undefined) ?? MIN_COLUMN_WIDTH;
+    const next = clampColumnWidth(current + (event.key === "ArrowRight" ? RESIZE_KEY_STEP_PX : -RESIZE_KEY_STEP_PX));
+    if (next === current) return;
+    try {
+      doc.setTableColumnWidth(id, col - 1, next);
+    } catch {
+      // A rejected width (a concurrent structural change won the race):
+      // the doc stands as-is.
+    }
+  };
+
   const onSeamPointerCancel = () => {
     resizeSessionRef.current = null;
     setResizePreview(null);
@@ -78,6 +101,7 @@ function useTableSeamResize({ docWidths, doc, id, resizeSessionRef }: TableSeamR
     onSeamPointerMove,
     onSeamPointerUp,
     onSeamPointerCancel,
+    onSeamKeyDown,
   };
 }
 

@@ -84,7 +84,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // The column-seam's resize session (shared with the add chip's + the
   // handle's guards — a press starts at most one session at a time).
   const resizeSessionRef = useRef<ColumnResizeSession | null>(null);
-  const { resizePreview, onSeamPointerDown, onSeamPointerMove, onSeamPointerUp, onSeamPointerCancel } =
+  const { resizePreview, onSeamPointerDown, onSeamPointerMove, onSeamPointerUp, onSeamPointerCancel, onSeamKeyDown } =
     useTableSeamResize({ docWidths, doc, id, resizeSessionRef });
   const widths =
     resizePreview !== null
@@ -419,6 +419,10 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const closeMenu = (open: boolean) => {
     if (!open) setMenu(null);
   };
+  /** The handle's keyboard open (the Enter / Space on the focused handle):
+   * the controlled state stand — the pointer's open stands the drag hook's
+   * release. */
+  const openHandleMenu = (kind: HandleKind) => (index: number) => () => setMenu({ kind, index });
   const closeCtx = (open: boolean) => {
     if (!open) setCtx(null);
   };
@@ -495,6 +499,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               onPointerMove={onHandlePointerMove}
               onPointerUp={onHandlePointerUp}
               onPointerCancel={onHandlePointerCancel}
+              onOpen={openHandleMenu("column")(index)}
             >
               <HandleMenuItems
                 tableId={id}
@@ -535,6 +540,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               onPointerMove={onHandlePointerMove}
               onPointerUp={onHandlePointerUp}
               onPointerCancel={onHandlePointerCancel}
+              onOpen={openHandleMenu("row")(rowIndex)}
             >
               <HandleMenuItems
                 tableId={id}
@@ -560,11 +566,18 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 key={`seam-${seamIndex}`}
                 data-slot="docblocks/table-col-resize"
                 data-index={col}
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={`Resize column ${col + 1}`}
+                tabIndex={0}
                 className={cn(
                   `
                     absolute flex w-1.5 -translate-x-1/2 cursor-col-resize items-stretch justify-center opacity-0
-                    transition-opacity
+                    transition-opacity outline-none
                     hover:opacity-100
+                    focus-visible:opacity-100
+                    focus-visible:ring-2
+                    focus-visible:ring-ring
                   `,
                   resizePreview?.col === seamIndex && "opacity-100"
                 )}
@@ -573,6 +586,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 onPointerMove={onSeamPointerMove}
                 onPointerUp={onSeamPointerUp}
                 onPointerCancel={onSeamPointerCancel}
+                onKeyDown={onSeamKeyDown(seamIndex)}
               >
                 <div
                   data-slot="docblocks/table-col-resize-line"

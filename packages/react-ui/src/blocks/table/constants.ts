@@ -28,6 +28,9 @@ const GHOST_ROW_HEIGHT = 28;
 /** The minimum width a column can be resized to (px; a drag below it clamps).
  */
 const MIN_COLUMN_WIDTH = 50;
+/** The seam's keyboard resize step (the arrow's width change, one commit
+ * per press — the ARIA separator's resize pattern). */
+const RESIZE_KEY_STEP_PX = 8;
 // The add chips stand hidden until the table frame is hovered or holds the
 // focus (typing in a cell keeps them up), like the code header's controls.
 const ADD_BUTTON_CLASSES =
@@ -47,6 +50,7 @@ export {
   HANDLE_SIZE,
   HANDLE_ZONE,
   MIN_COLUMN_WIDTH,
+  RESIZE_KEY_STEP_PX,
   DRAG_TRANSITION,
   HANDLE_DRAG_TRANSITION,
 };
