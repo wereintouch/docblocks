@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { format } from "date-fns";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { act } from "react";
 
@@ -10,9 +10,22 @@ import { Calendar, DatePicker, DateTimePicker, TimeSegments } from "../src/share
 // The radix Popover drives the open gesture through the pointer-capture
 // API, which jsdom does not implement. The stub keeps the gesture testable.
 beforeAll(() => {
+  // The calendar's default month stands "today" (react-day-picker's
+  // `dateLib.today()`), so the suite pins the system time to a fixed
+  // October 2026 date — the day cells the tests target stand in the
+  // displayed month regardless of the run date. The timers the portal
+  // poll leans on (`setTimeout`) stay real.
+  vi.useFakeTimers({
+    toNotFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate"],
+  });
+  vi.setSystemTime(new Date(2026, 9, 1));
   Element.prototype.hasPointerCapture = Element.prototype.hasPointerCapture ?? (() => false);
   if (!Element.prototype.setPointerCapture) Element.prototype.setPointerCapture = () => undefined;
   if (!Element.prototype.releasePointerCapture) Element.prototype.releasePointerCapture = () => undefined;
+});
+
+afterAll(() => {
+  vi.useRealTimers();
 });
 
 const OCT_19 = new Date(2026, 9, 19);
