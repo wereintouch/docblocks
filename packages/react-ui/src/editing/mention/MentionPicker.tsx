@@ -6,6 +6,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { MentionEntry } from "../../editor-provider";
 import { useBlock } from "../../hooks";
+import { Button } from "../../shared/ui/Button";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { preventDefault } from "../../shared/utils";
@@ -36,35 +37,50 @@ function MentionPicker(props: MentionMenuProps) {
   }, [text, state, rootRef, onClose]);
 
   // The search: fetch the two sections for the live query (debounced, and
-  // raced — a newer query wins; a refused / failed request stands an empty
-  // section). Re-fetches on every query change.
+  // raced — a newer query or a closed picker wins; a failed section stands
+  // the error stand, distinct from a correct empty). Re-fetches on every
+  // query change and on a retry.
   const [result, setResult] = useState<MentionResult>({ users: [], docs: [] });
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [retry, setRetry] = useState(0);
   const requestRef = useRef(0);
   useEffect(() => {
     if (provider === null || derived === null || derived.closed) return;
     const query = derived.query;
     const request = (requestRef.current += 1);
+    let cancelled = false;
     const timer = setTimeout(() => {
+      if (cancelled) return;
       setLoading(true);
+      setError(null);
       void (async () => {
-        // A refused / failed section stands empty (the other section's
-        // result still lands).
-        const section = async (search: (query: string) => Promise<MentionEntry[]>): Promise<MentionEntry[]> => {
+        // A failed section stands empty in the result but records the
+        // failure (the error stand is distinct from a correct empty).
+        const section = async (
+          search: (query: string) => Promise<MentionEntry[]>
+        ): Promise<{ entries: MentionEntry[]; error: string | null }> => {
           try {
-            return await search(query);
-          } catch {
-            return [];
+            return { entries: await search(query), error: null };
+          } catch (cause) {
+            const message = cause instanceof Error ? cause.message : "Search failed.";
+            return { entries: [], error: message };
           }
         };
         const [users, docs] = await Promise.all([section(provider.searchUsers), section(provider.searchDocs)]);
-        if (request !== requestRef.current) return; // a newer query won the race
-        setResult({ users, docs });
+        // The picker closed (or a newer query won) while the search ran:
+        // drop the stale result rather than stand it over a gone view.
+        if (cancelled || request !== requestRef.current) return;
+        setResult({ users: users.entries, docs: docs.entries });
+        setError(users.error ?? docs.error);
         setLoading(false);
       })();
     }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [provider, derived]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [provider, derived, retry]);
 
   // The flattened items (people, then documents) the hook navigates.
   const items: MentionPick[] =
@@ -126,6 +142,7 @@ function MentionPicker(props: MentionMenuProps) {
 
   const hoverItem = (index: number) => () => onHover(index);
   const pickItem = (item: MentionPick) => () => onPick(item);
+  const retrySearch = () => setRetry((n) => n + 1);
 
   const renderItem = (item: MentionPick, index: number) => (
     <div
@@ -188,10 +205,28 @@ function MentionPicker(props: MentionMenuProps) {
               {result.docs.map((d, i) => renderItem({ kind: "doc", id: d.id, label: d.label }, usersCount + i))}
             </div>
           )}
-          {items.length === 0 && !loading && (
-            <div data-slot="docblocks/mention-empty" className="px-2 py-1.5 text-sm text-muted-foreground">
-              No matches
+          {error !== null ? (
+            <div
+              data-slot="docblocks/mention-error"
+              className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm text-muted-foreground"
+            >
+              <span className="min-w-0 truncate">Couldn't load mention results.</span>
+              <Button
+                data-slot="docblocks/mention-retry"
+                variant="link"
+                size="sm"
+                className="h-auto shrink-0 px-0 py-0 text-sm"
+                onClick={retrySearch}
+              >
+                Retry
+              </Button>
             </div>
+          ) : (
+            items.length === 0 && (
+              <div data-slot="docblocks/mention-empty" className="px-2 py-1.5 text-sm text-muted-foreground">
+                No matches
+              </div>
+            )
           )}
         </>
       )}
