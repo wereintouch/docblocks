@@ -85,6 +85,10 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setError(null);
         setPhase("ready");
       } catch (loadError) {
+        // A superseded load's failure stands no state (the newer load owns
+        // its own loading / ready / broken stand) — only the newest load
+        // may break the grid.
+        if (token !== loadTokenRef.current) return;
         if (quiet) return; // a refetch failure keeps the current state
         setPhase("broken");
         setError(loadError instanceof Error ? loadError.message : String(loadError));
@@ -110,6 +114,9 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     return () => {
       cancelled = true;
       unsubscribe();
+      // Invalidate the in-flight load: after the unmount (or the identity
+      // change) its result and error stand no state.
+      loadTokenRef.current++;
     };
   }, [load, tableId, bridge]);
 

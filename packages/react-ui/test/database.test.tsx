@@ -2110,6 +2110,47 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
     expect(page.rows[r1]!.t ?? null).toBeNull();
     expect(page.rows[r2]!.t ?? null).toBeNull();
   });
+
+  it("a superseded load's reject keeps the retried ready grid (the stale error stands no state)", async () => {
+    const base = createMemoryDatabaseBridge();
+    const tableId = await base.createTable("Stale");
+    await base.createColumn(tableId, { id: "t", name: "T", type: "text" });
+    // Each describeTable call holds on its own gate: the first (the initial
+    // load) stays pending until the test rejects it, the second (the
+    // retry's load) resolves and stands the ready state.
+    const gates: Array<{ p: Promise<void>; resolve: () => void; reject: (error: Error) => void }> = [];
+    const bridge: DatabaseBridge = {
+      ...base,
+      describeTable: (id: string) => {
+        let resolve!: () => void;
+        let reject!: (error: Error) => void;
+        const p = new Promise<void>((res, rej) => {
+          resolve = res;
+          reject = rej;
+        });
+        gates.push({ p, resolve, reject });
+        return p.then(() => base.describeTable(id));
+      },
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
+    await until(() => gates.length === 1, "the initial load's request");
+    expect(result.current.phase).toBe("loading");
+    // The retry stands the second load.
+    await act(async () => {
+      result.current.retry();
+    });
+    await until(() => gates.length === 2, "the retry's request");
+    await act(async () => {
+      gates[1]!.resolve();
+    });
+    await until(() => result.current.phase === "ready", "the retry's load");
+    // The initial load's reject lands AFTER the retry's ready.
+    await act(async () => {
+      gates[0]!.reject(new Error("the stale failure"));
+    });
+    expect(result.current.phase).toBe("ready");
+    expect(result.current.error).toBeNull();
+  });
 });
 
 describe("the slash Database picker (the rework: the create form + the search)", () => {
