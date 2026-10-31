@@ -83,7 +83,7 @@ first after a source change, or the playground runs the stale build.
 | `npm run build`                   | tsdown builds for both packages (core first)                    |
 | `npm run typecheck`               | `tsc --noEmit` in every workspace + the e2e project             |
 | `npm test`                        | Vitest unit tests per workspace (run after `npm run build`)     |
-| `npm run test:e2e`                | Playwright E2E (starts the playground dev server itself)        |
+| `npm run test:e2e`                | Playwright E2E (spawns the playground dev server itself)         |
 | `npm run lint` / `lint:fix`       | ESLint (flat config, includes the boundary gates)               |
 | `npm run format` / `format:check` | Prettier                                                        |
 | `npm run check`                   | Full local gate: lint → format → build → typecheck → test → e2e |
@@ -92,6 +92,11 @@ The `Makefile` wraps the npm scripts for the daily loop: `make dev` (the
 playground), `make check` (lint + typecheck), `make full` (the full gate),
 `make unit` / `make unit-f F=<test file>` (all unit tests / a single file),
 `make e2e-file F=<spec>` (a single e2e spec).
+
+The E2E suite spawns its own dev server on `:5173` (strict port): a run
+with the port already occupied fails rather than silently testing a stale
+build. To reuse an already-running dev server locally, set
+`PLAYWRIGHT_REUSE_SERVER=true`.
 
 ## Continuous integration
 

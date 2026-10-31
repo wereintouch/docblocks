@@ -19,7 +19,12 @@ export default defineConfig({
   webServer: {
     command: "npm run dev -w apps/playground",
     url: "http://localhost:5173",
-    reuseExistingServer: true,
+    // Reuse of an already-running :5173 is an explicit local opt-in
+    // (PLAYWRIGHT_REUSE_SERVER=true) — the default stands the run's own
+    // server. The dev server is strict-port, so an occupied :5173 fails the
+    // start rather than the run silently testing a stale dist / another
+    // service (the gate and CI never reuse).
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "true",
     timeout: 30_000,
   },
 });
