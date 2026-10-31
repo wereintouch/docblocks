@@ -85,6 +85,7 @@ function TimeSegments({ id, value, onChange, disabled, clearable, className }: T
   };
 
   const handleClear = () => {
+    if (disabled) return; // the disabled stand: the clear stands no wire
     setSeg({ ...EMPTY_SEGMENTS });
     onChange(null);
   };
@@ -144,6 +145,7 @@ function TimeSegments({ id, value, onChange, disabled, clearable, className }: T
           variant="ghost"
           tabIndex={-1}
           aria-label="Clear the time"
+          disabled={disabled}
           onClick={handleClear}
           className="
             absolute top-1/2 right-2 size-auto -translate-y-1/2 p-0 text-muted-foreground transition-colors duration-300

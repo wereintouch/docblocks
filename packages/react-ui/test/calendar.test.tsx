@@ -130,6 +130,18 @@ describe("TimeSegments (the HH:MM:SS box)", () => {
     expect(document.querySelector("[data-slot='time-segments'] button")).toBeNull();
   });
 
+  it("the disabled clear stands no wire (the pointer and the keyboard activation)", () => {
+    const wires: (string | null)[] = [];
+    render(<TimeSegments value={"10:20:30"} onChange={(wire) => wires.push(wire)} clearable disabled />);
+    const clear = document.querySelector<HTMLButtonElement>("[data-slot='time-segments'] button");
+    expect(clear!.disabled).toBe(true);
+    // The disabled stand: the guard stands the wire over every activation.
+    fireEvent.click(clear!);
+    fireEvent.keyDown(clear!, { key: "Enter" });
+    fireEvent.keyDown(clear!, { key: " " });
+    expect(wires).toHaveLength(0);
+  });
+
   it("the external value change stands the draft (the reset and the clear over the untyped group)", () => {
     const read = () =>
       [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")].map(
