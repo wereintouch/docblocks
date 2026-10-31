@@ -2151,6 +2151,69 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
     expect(result.current.phase).toBe("ready");
     expect(result.current.error).toBeNull();
   });
+
+  it("a loadMore pending over a relink drops the stale page (no cross-table rows, no stale error)", async () => {
+    const base = createMemoryDatabaseBridge();
+    // Two tables; the provider's pagination stands synthesized (two rows
+    // per page), so the second page is a controllable pending request.
+    const aId = await base.createTable("Stale-A");
+    const bId = await base.createTable("Stale-B");
+    for (const id of [aId, bId]) await base.createColumn(id, { id: "t", name: "T", type: "text" });
+    const data: Record<string, Array<{ id: string; t: string }>> = {
+      [aId]: [
+        { id: "ra1", t: "a-1" },
+        { id: "ra2", t: "a-2" },
+        { id: "ra3", t: "a-3" },
+      ],
+      [bId]: [
+        { id: "rb1", t: "b-1" },
+        { id: "rb2", t: "b-2" },
+        { id: "rb3", t: "b-3" },
+      ],
+    };
+    let gateResolve!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      gateResolve = resolve;
+    });
+    const pageOf = (id: string, all: Array<{ id: string; t: string }>, page: number) => ({
+      rows: Object.fromEntries(all.slice(page * 2, page * 2 + 2).map((entry) => [entry.id, { t: entry.t }])),
+      nextCursor: page * 2 + 2 < all.length ? "c" + (page + 1) : null,
+    });
+    const bridge: DatabaseBridge = {
+      ...base,
+      queryRows: async (id: string, options?: { cursor?: string | null }) => {
+        if (options?.cursor !== undefined) {
+          // Table A's second page holds on the gate until the test releases it.
+          if (id === aId) await gate;
+          return pageOf(id, data[id]!, 1);
+        }
+        return pageOf(id, data[id]!, 0);
+      },
+    };
+    const { result, rerender } = renderHook(({ id }: { id: string }) => useDatabaseTable(bridge, id), {
+      initialProps: { id: aId },
+    });
+    await until(
+      () => result.current.phase === "ready" && result.current.nextCursor !== null,
+      "the page one + the cursor"
+    );
+    await act(async () => {
+      void result.current.loadMore();
+    });
+    // The relink while the page is pending.
+    await act(async () => {
+      rerender({ id: bId });
+    });
+    await until(() => result.current.table?.name === "Stale-B", "the reloaded table B");
+    await act(async () => {
+      gateResolve();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    // The stale page stands no state: B's rows only, B's cursor, no error.
+    expect(result.current.rows.map((row) => row.cells.t)).toEqual(["b-1", "b-2"]);
+    expect(result.current.nextCursor).toBe("c1");
+    expect(result.current.error).toBeNull();
+  });
 });
 
 describe("the slash Database picker (the rework: the create form + the search)", () => {

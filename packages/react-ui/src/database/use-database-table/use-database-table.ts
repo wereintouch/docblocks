@@ -512,12 +512,18 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
 
   const loadMore = useCallback(async () => {
     if (nextCursor === null) return;
+    // The token at the call's time: a full load (the retry, the event
+    // refetch, the identity / filter change's re-load) bumps it, so the
+    // stale page (the previous table's / filter's rows) stands no state
+    // over the fresh one's rows + cursor.
+    const token = loadTokenRef.current;
     try {
       const page = await bridge.queryRows(tableId, {
         filter: filter === undefined ? undefined : filter,
         cursor: nextCursor,
         limit: PAGE_SIZE,
       });
+      if (token !== loadTokenRef.current) return; // a newer load stands the rows + cursor
       setRows((rows) => {
         const known = new Set(rows.map((row) => row.rowId));
         const appended = Object.entries(page.rows)
@@ -527,6 +533,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       });
       setNextCursor(page.nextCursor ?? null);
     } catch (operationError) {
+      if (token !== loadTokenRef.current) return; // a stale failure stands no error
       setError(messageOf(operationError));
     }
   }, [bridge, tableId, nextCursor, filterKey]);
