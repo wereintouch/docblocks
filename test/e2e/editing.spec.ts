@@ -127,8 +127,25 @@ test("mod+z outside the editor does not undo the document", async ({ browser }) 
   await expectDocContains(b, "b", "ab");
 
   // Control+z typed on a non-editable pane element (focus lands on the
-  // document body, outside the editor root's keyboard scope) must not undo.
+  // document body, outside the editor root's keyboard scope) must not
+  // undo. The click's focus drop settles on its own schedule (a loaded
+  // runner defers the blur past the next keypress) — assert the
+  // precondition before the key, so the hotkey is unambiguously out of
+  // scope and a stuck focus names its holder.
   await a.getByTestId("status-a").click();
+  await expect
+    .poll(
+      async () =>
+        a.evaluate(() => {
+          const active = document.activeElement;
+          if (active === document.body) return "body";
+          if (active instanceof Element)
+            return `${active.tagName.toLowerCase()} (${active.getAttribute("data-testid") ?? active.getAttribute("data-slot") ?? "plain"})`;
+          return active === null ? "none" : "document";
+        }),
+      SETTLE
+    )
+    .toBe("body");
   await a.keyboard.press("Control+z");
   await a.waitForTimeout(500);
   await expect(paragraph(a, "a")).toHaveText("ab");
