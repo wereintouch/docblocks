@@ -44,8 +44,10 @@ function seatCrossSelection(anchor: DragPosition, position: DragPosition): void 
  * there is no own-scope text to stand on.
  */
 function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): DragPosition | null {
-  // The WebKit caret-range API (Chrome / Safari); the standard caretPositionFromPoint
-  // is Firefox-only and the geometry fallback below stands the non-WebKit positions.
+  // The WebKit caret-range API (Chrome / Safari): the exact caret stand
+  // (the deprecated mark is nominal — Blink ships it as the WebKit-compat
+  // API); the standard caretPositionFromPoint is unused, so the non-WebKit
+  // (Firefox) positions stand the geometry fallback below.
   // deprecation-allow: the WebKit caret-range API.
   const caretRange = typeof document.caretRangeFromPoint === "function" ? document.caretRangeFromPoint(x, y) : null;
   if (caretRange !== null) {
