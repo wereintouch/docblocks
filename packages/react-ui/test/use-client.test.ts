@@ -1,7 +1,6 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-
 import { describe, expect, it } from "vitest";
 
 // The package ships a built ESM dist — the bundler strips the `use client`
@@ -24,12 +23,14 @@ async function collectSourceFiles(dir: string): Promise<string[]> {
 
 describe("the shared source carries no `use client` directive", () => {
   it("no source file stands the directive (the built dist is the consumer's entry)", async () => {
-    const offenders = (await Promise.all(
-      (await collectSourceFiles(SRC)).map(async (file) => {
-        const lines = (await readFile(file, "utf8")).split("\n");
-        return lines.some((line) => DIRECTIVE.test(line)) ? file : null;
-      })
-    )).filter((file) => file !== null);
+    const offenders = (
+      await Promise.all(
+        (await collectSourceFiles(SRC)).map(async (file) => {
+          const lines = (await readFile(file, "utf8")).split("\n");
+          return lines.some((line) => DIRECTIVE.test(line)) ? file : null;
+        })
+      )
+    ).filter((file) => file !== null);
     expect(offenders).toEqual([]);
   });
 });

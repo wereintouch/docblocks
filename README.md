@@ -83,7 +83,7 @@ first after a source change, or the playground runs the stale build.
 | `npm run build`                   | tsdown builds for both packages (core first)                    |
 | `npm run typecheck`               | `tsc --noEmit` in every workspace + the e2e project             |
 | `npm test`                        | Vitest unit tests per workspace (run after `npm run build`)     |
-| `npm run test:e2e`                | Playwright E2E (spawns the playground dev server itself)         |
+| `npm run test:e2e`                | Playwright E2E (spawns the playground dev server itself)        |
 | `npm run lint` / `lint:fix`       | ESLint (flat config, includes the boundary gates)               |
 | `npm run format` / `format:check` | Prettier                                                        |
 | `npm run check`                   | Full local gate: lint → format → build → typecheck → test → e2e |
