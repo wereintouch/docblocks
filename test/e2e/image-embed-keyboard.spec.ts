@@ -67,8 +67,11 @@ test("the image's figure + menu stand over the keyboard (the focus's selection, 
     const menu = a.locator('[data-slot="docblocks/image-menu"]');
 
     // At rest (no hover, no focus): the menu's opacity's "0" (the reveal's
-    // absent).
-    expect(await opacityOf(a, menu)).toBe("0");
+    // absent). The pointer stands neutral first: the upload's last click may
+    // sit over the figure's hover area (the layout's stand), which stands
+    // the hover reveal.
+    await a.mouse.move(5, 5);
+    await expect.poll(async () => opacityOf(a, menu), SETTLE).toBe("0");
 
     // The keyboard's focus seats the selection (the ports' stand) + stands the
     // menu's reveal (the focus-within's — the hover-only reveal kept the menu
@@ -131,8 +134,11 @@ test("the embed's toolbar stands over the keyboard (the focus's reveal, the zoom
 
     // The toolbar's reveal (the focus-within's stand): at rest the opacity's
     // "0" (the display:none's stand kept the controls out of the Tab's path);
-    // the focus on a zoom control's stands the reveal.
-    expect(await opacityOf(a, toolbar)).toBe("0");
+    // the focus on a zoom control's stands the reveal. The pointer stands
+    // neutral first: the form's insert's click may sit over the toolbar's
+    // hover area (the layout's stand).
+    await a.mouse.move(5, 5);
+    await expect.poll(async () => opacityOf(a, toolbar), SETTLE).toBe("0");
     await zoomIn.focus();
     await expect.poll(async () => opacityOf(a, toolbar), SETTLE).toBe("1");
 

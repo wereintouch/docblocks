@@ -965,8 +965,28 @@ test("the keyboard path: the handle's focus + the Enter open + the keyboard pick
     await a.keyboard.press("Enter");
     await expect(rowMenu(a)).toBeVisible();
     // The menu's open auto-focus (the first item) stands async of the mount:
-    // the navigation keys need the focus seated.
-    await a.waitForTimeout(150);
+    // the navigation keys need the focus seated — the seat's condition, not
+    // a timer.
+    await expect
+      .poll(
+        () => a.evaluate(() => document.activeElement?.closest('[data-slot="docblocks/table-row-menu"]') !== null),
+        SETTLE
+      )
+      .toBe(true);
+    // The content's open animation keeps the menu's keys inert while it runs
+    // (a navigation key pressed during it is lost): wait for its end (the
+    // animation's stand, not a timer).
+    await expect
+      .poll(
+        () =>
+          a.evaluate(
+            () =>
+              document.querySelector<HTMLElement>("[data-slot='docblocks/table-row-menu']")?.getAnimations().length ===
+              0
+          ),
+        SETTLE
+      )
+      .toBe(true);
     await a.keyboard.press("ArrowDown"); // to the insert item (past the background sub)
     await a.keyboard.press("Enter");
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(3);
