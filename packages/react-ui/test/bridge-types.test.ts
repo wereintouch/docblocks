@@ -1,177 +1,57 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { columnAnnotation, conditionMatches, parseCellValue } from "../src/database/bridge";
+import { columnAnnotation, conditionMatches, isBridgeError, parseCellValue } from "../src/database/bridge";
+import type { BridgeErrorCode } from "../src/database/bridge";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
+import { newMutationContext } from "../src/database/use-database-table";
 
-describe("the default bridge — the ref contract (the dict tables / the updateColumn / the row displays)", () => {
-  it("stands the pk-value rows over the dict tables (the row id = the pk value)", async () => {
+/** The rejected error's code (null = not a bridge error). */
+function codeOf(error: unknown): BridgeErrorCode | null {
+  return isBridgeError(error) ? error.code : null;
+}
+
+describe("the reference bridge — the table's identity + the unknown-id codes", () => {
+  it("createTable's name stands the deterministic slug; the repeat name stands the suffixed id", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const id = await bridge.createTable("Statuses");
-    await bridge.insertRows(id, [{ id: "todo" }, { id: "doing" }]);
-    const page = await bridge.queryRows(id, {});
-    // The row ids stand the pk values (the option labels), not the
-    // derived counters.
-    expect(Object.keys(page.rows).sort()).toEqual(["doing", "todo"]);
-    // The pk value is not a cell (the bridge-managed stand).
-    expect(page.rows["todo"] ?? {}).toEqual({});
-    // The idempotent re-seed (the channel's instances converge): the
-    // repeat insert stands the same row.
-    const rowId = await bridge.insertRow(id, { id: "todo" });
-    expect(rowId).toBe("todo");
-    const after = await bridge.queryRows(id, {});
-    expect(Object.keys(after.rows).sort()).toEqual(["doing", "todo"]);
+    const first = await bridge.createTable({ name: "Demo" }, newMutationContext());
+    expect(first.result.id).toBe("table-demo");
+    // The repeat name stands the distinct table (the suffixed id), not the
+    // adoption of the first one.
+    const second = await bridge.createTable({ name: "Demo" }, newMutationContext());
+    expect(second.result.id).toBe("table-demo-2");
+    expect((await bridge.listTables()).map((table) => table.name)).toEqual(["Demo", "Demo"]);
   });
 
-  it("createTable's explicit id fixes the identity (the restore's stand) and adopts on re-create", async () => {
+  it("the unknown table / column stand the structured not_found / invalid_column codes", async () => {
     const bridge = createMemoryDatabaseBridge();
-    // The explicit id (the restore/import stand): the table stands under the
-    // given id, independent of the name — a rename + re-create keeps it.
-    const id = await bridge.createTable("Stable", { id: "table-stable-identity" });
-    expect(id).toBe("table-stable-identity");
-    await bridge.renameTable(id, "Stable Renamed");
-    const list = await bridge.listTables();
-    expect(list.find((table) => table.id === "table-stable-identity")?.name).toBe("Stable Renamed");
-    // The idempotent re-seed (the reload's restore): the repeat createTable
-    // with the same explicit id adopts the existing table as-is (no fresh
-    // table, the rows survive).
-    await bridge.insertRow(id, { id: "r1" });
-    const reseed = await bridge.createTable("Stable Renamed", { id: "table-stable-identity" });
-    expect(reseed).toBe("table-stable-identity");
-    expect((await bridge.listTables()).length).toBe(1);
-    expect((await bridge.queryRows(id, {})).rows["r1"] !== undefined).toBe(true);
-  });
-
-  it("createTable's name-derived id stands the deterministic slug (the demo-seed adoption)", async () => {
-    const bridge = createMemoryDatabaseBridge();
-    // Absent the explicit id: the id stands the name's slug — the two
-    // identically-named tables (the demo-seed adoption) share one id.
-    const a = await bridge.createTable("Demo");
-    expect(a).toBe("table-demo");
-    const b = await bridge.createTable("Demo");
-    expect(b).toBe(a);
-    expect((await bridge.listTables()).length).toBe(1);
-  });
-
-  it("parallel user inserts across two bridges keep both rows and converge", async () => {
-    // Two bridges over one channel (the two tabs' stand): both insert a
-    // pk-less row into the shared table. The ids stand globally unique (no
-    // shared counter), so the collision never drops a row — both rows are
-    // kept and the bridges converge to the same two rows (the same id set,
-    // each row's data intact on both sides).
-    const channelName = crypto.randomUUID();
-    const a = createMemoryDatabaseBridge({ channelName });
-    const b = createMemoryDatabaseBridge({ channelName });
-    const tableId = await a.createTable("Concurrent");
-    // The table's created echo reaches B before the inserts land there.
-    await vi.waitFor(async () => {
-      expect((await b.listTables()).some((table) => table.id === tableId)).toBe(true);
-    });
-    const [idA] = await a.insertRows(tableId, [{ title: "from-A" }]);
-    const [idB] = await b.insertRows(tableId, [{ title: "from-B" }]);
-    if (idA === undefined || idB === undefined) throw new Error("the insert stands the row ids");
-    expect(idA).not.toBe(idB);
-    await vi.waitFor(async () => {
-      const pageA = await a.queryRows(tableId, {});
-      const pageB = await b.queryRows(tableId, {});
-      // Both bridges hold both rows (no collision dropped a row) — the same
-      // id set, each row's data intact on both sides.
-      expect(Object.keys(pageA.rows).sort()).toHaveLength(2);
-      expect(Object.keys(pageA.rows).sort()).toEqual(Object.keys(pageB.rows).sort());
-      expect(pageA.rows[idA]?.["title"]).toBe("from-A");
-      expect(pageA.rows[idB]?.["title"]).toBe("from-B");
-      expect(pageB.rows[idA]?.["title"]).toBe("from-A");
-      expect(pageB.rows[idB]?.["title"]).toBe("from-B");
-    });
-  });
-
-  it("an undelete restores the row over the channel (the other clients converge; the seat stands)", async () => {
-    // Two bridges over one channel (the two tabs' stand): A removes a row
-    // (B converges to the removal), then A undeletes it. The restore event
-    // (the cells + the original fractional position) reaches B, so both
-    // bridges converge to the restored row at its ORIGINAL seat (not the
-    // end), the cells intact. The repeat undelete stands idempotent.
-    const channelName = crypto.randomUUID();
-    const a = createMemoryDatabaseBridge({ channelName });
-    const b = createMemoryDatabaseBridge({ channelName });
-    const tableId = await a.createTable("Restore");
-    await vi.waitFor(async () => {
-      expect((await b.listTables()).some((table) => table.id === tableId)).toBe(true);
-    });
-    const [first, second] = await a.insertRows(tableId, [{ title: "first" }, { title: "second" }]);
-    if (first === undefined || second === undefined) throw new Error("the insert stands the row ids");
-    // A removes the first row; B converges to the removal.
-    await a.removeRow(tableId, first);
-    await vi.waitFor(async () => {
-      const pageB = await b.queryRows(tableId, {});
-      expect(Object.keys(pageB.rows)).toHaveLength(1);
-      expect(pageB.rows[second]?.["title"]).toBe("second");
-    });
-    // A undeletes the row; B converges to the restore (the row stands again
-    // before the second row — its original seat — the cells intact).
-    await a.undeleteRows!(tableId, [first]);
-    await vi.waitFor(async () => {
-      const pageB = await b.queryRows(tableId, {});
-      expect(Object.keys(pageB.rows)).toEqual([first, second]);
-      expect(pageB.rows[first]?.["title"]).toBe("first");
-      expect(pageB.rows[second]?.["title"]).toBe("second");
-    });
-    // The repeat undelete stands idempotent (the row is out of the trash —
-    // no second restore, no duplicate).
-    await a.undeleteRows!(tableId, [first]);
-    expect(Object.keys((await a.queryRows(tableId, {})).rows)).toHaveLength(2);
-  });
-
-  it("the updateColumn's patch stands the attributes (the name keeps; the zero patch is a no-op)", async () => {
-    const bridge = createMemoryDatabaseBridge();
-    const id = await bridge.createTable("T");
-    await bridge.createColumn(id, { id: "n", name: "N", type: "integer" });
-    await bridge.updateColumn(id, "n", { decimals: 2, prefix: "₽" });
-    let schema = await bridge.describeTable(id);
-    expect(schema.columns[0]).toEqual({ id: "n", name: "N", type: "integer", decimals: 2, prefix: "₽" });
-    // The name stands the renameColumn's domain (the patch's name entry
-    // stands skipped — the typed patch does not carry it).
-    await bridge.renameColumn(id, "n", "Budget");
-    schema = await bridge.describeTable(id);
-    expect(schema.columns[0]!.name).toBe("Budget");
-    // The unknown column rejects.
-    await expect(bridge.updateColumn(id, "missing", { decimals: 1 })).rejects.toThrow("Unknown column");
-  });
-
-  it("the resolveRowDisplay stands the display column (the declared / the first text / the pk)", async () => {
-    const bridge = createMemoryDatabaseBridge();
-    const id = await bridge.createTable("People");
-    await bridge.createColumn(id, { id: "code", name: "Code", type: "text" });
-    await bridge.createColumn(id, { id: "full", name: "Full name", type: "text" });
-    const [a, b] = (await bridge.insertRows(id, [
-      { code: "P-1", full: "Ann P." },
-      { code: "P-2", full: "Bob P." },
-    ])) as [string, string];
-    // The declared display column.
-    const declared = await bridge.resolveRowDisplay(id, [a, b], "code");
-    expect(declared).toEqual({ [a]: "P-1", [b]: "P-2" });
-    // The default (the first text column).
-    const firstText = await bridge.resolveRowDisplay(id, [a]);
-    expect(firstText).toEqual({ [a]: "P-1" });
-    // The dead row stands the empty display.
-    const dead = await bridge.resolveRowDisplay(id, ["r-x-99"]);
-    expect(dead).toEqual({ "r-x-99": "" });
-    await bridge.removeRow(id, a);
-    // The removed row stands the empty stand (the trash keeps the cells, the
-    // display resolution reads the live rows).
-    expect(await bridge.resolveRowDisplay(id, [a])).toEqual({ [a]: "" });
-  });
-
-  it("the array cell values stand the junction emulation (the updateRow's array stand)", async () => {
-    const bridge = createMemoryDatabaseBridge();
-    const id = await bridge.createTable("T");
-    const rowId = await bridge.insertRow(id, {});
-    await bridge.updateRow(id, rowId, { tags: ["a", "b"] });
-    const page = await bridge.queryRows(id, {});
-    expect(page.rows[rowId]!.tags).toEqual(["a", "b"]);
-    // The array's update stand (the before snapshot keeps the old array).
-    await bridge.updateRow(id, rowId, { tags: ["b"] });
-    const after = await bridge.queryRows(id, {});
-    expect(after.rows[rowId]!.tags).toEqual(["b"]);
+    const unknownTable = await bridge.snapshotTable("the-unknown-table", {}).catch((error: unknown) => error);
+    expect(codeOf(unknownTable)).toBe("not_found");
+    const unknownRename = await bridge
+      .renameTable("the-unknown-table", { name: "X" }, newMutationContext())
+      .catch((error: unknown) => error);
+    expect(codeOf(unknownRename)).toBe("not_found");
+    const unknownColumn = await bridge
+      .updateColumn("the-unknown-table", "the-unknown-column", { name: "X" }, newMutationContext())
+      .catch((error: unknown) => error);
+    expect(codeOf(unknownColumn)).toBe("not_found");
+    const bridge2 = createMemoryDatabaseBridge();
+    const table = await bridge2.createTable({ name: "Cols" }, newMutationContext());
+    const column = await bridge2.createColumn(
+      table.result.id,
+      { column: { name: "C", type: "text", position: 0, nullable: true } },
+      newMutationContext()
+    );
+    const missingDelete = await bridge2
+      .deleteColumn(table.result.id, "the-unknown-column", newMutationContext())
+      .catch((error: unknown) => error);
+    expect(codeOf(missingDelete)).toBe("not_found");
+    const missingUpdate = await bridge2
+      .updateColumn(table.result.id, "the-unknown-column", { name: "X" }, newMutationContext())
+      .catch((error: unknown) => error);
+    expect(codeOf(missingUpdate)).toBe("invalid_column");
+    // The known column stands (the delete's commit).
+    const deleted = await bridge2.deleteColumn(table.result.id, column.result.id, newMutationContext());
+    expect(deleted.result.columnId).toBe(column.result.id);
   });
 });
 

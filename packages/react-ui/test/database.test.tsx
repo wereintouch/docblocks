@@ -9,12 +9,21 @@ import type { DatabaseBlock, DatabaseColumn, DatabaseFilterPayload } from "docbl
 
 import { Editor } from "../src/Editor";
 import type { BlockRendererMap } from "../src/blocks/renderers";
-import type { BridgeColumn, DatabaseBridge } from "../src/database/bridge";
+import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../src/database/bridge";
+import type {
+  BridgeColumn,
+  DatabaseBridge,
+  MutationContext,
+  MutationReceipt,
+  PageQuery,
+  QuerySemantics,
+  TableRef,
+} from "../src/database/bridge";
 import { FilterBuilder } from "../src/database/filter-builder";
 import { refEntryKey } from "../src/database/grid/use-ref-tables";
 import type { RefTableDataMap } from "../src/database/grid/use-ref-tables";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
-import { useDatabaseTable } from "../src/database/use-database-table";
+import { newMutationContext, useDatabaseTable } from "../src/database/use-database-table";
 import { DatabaseSlashPicker } from "../src/editing/slash/DatabaseSlashPicker";
 import { EditorProvider } from "../src/editor-provider";
 
@@ -37,6 +46,11 @@ const COLUMNS: DatabaseColumn[] = [
 ];
 
 type TestDoc = ReturnType<typeof createDoc>;
+
+/** The write context (a fresh operation id per call). */
+function ctx(): MutationContext {
+  return newMutationContext();
+}
 
 /** Seeds the doc (prepare returns the database id), then renders provider + editor. */
 function renderDoc(
@@ -71,10 +85,10 @@ async function settleGrid() {
 }
 
 /** Polls the condition over the settled frames (the radix portals settle async). */
-async function until(condition: () => unknown, label: string): Promise<void> {
+async function until(condition: () => unknown | Promise<unknown>, label: string): Promise<void> {
   const deadline = Date.now() + 2000;
   for (;;) {
-    if (condition()) return;
+    if (await condition()) return;
     if (Date.now() > deadline) throw new Error(`timed out waiting for: ${label}`);
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 5));
@@ -82,30 +96,146 @@ async function until(condition: () => unknown, label: string): Promise<void> {
   }
 }
 
+/** The row's cells over the bridge's page (the page's row order stands). */
+async function cellsOf(bridge: DatabaseBridge, tableId: string, rowId: string): Promise<Record<string, unknown>> {
+  const page = await bridge.snapshotTable(tableId, {});
+  const row = page.page.rows.find((entry) => entry.id === rowId);
+  if (row === undefined) throw new Error(`the row "${rowId}" is not in the table "${tableId}"`);
+  return row.cells;
+}
+
+/** The first row's id of the table's page. */
+async function firstRowId(bridge: DatabaseBridge, tableId: string): Promise<string> {
+  const page = await bridge.snapshotTable(tableId, {});
+  if (page.page.rows[0] === undefined) throw new Error(`the table "${tableId}" stands no rows`);
+  return page.page.rows[0].id;
+}
+
+/** The page's row id at the given index (the page's order stand). */
+async function rowIdAt(bridge: DatabaseBridge, tableId: string, index: number): Promise<string> {
+  const page = await bridge.snapshotTable(tableId, {});
+  const row = page.page.rows[index];
+  if (row === undefined) throw new Error(`the table "${tableId}" stands no row at the index ${index}`);
+  return row.id;
+}
+
+/** The grid's seeded ids: the table, the enum's options table, the
+ *  bridge-assigned column ids, and the option's row ids (the enum's cell
+ *  value is the option's row id, the display stands the name's label). */
+interface SeededGrid {
+  bridge: ReturnType<typeof createMemoryDatabaseBridge>;
+  tableId: string;
+  statusesId: string;
+  cols: { title: string; n: string; done: string; status: string };
+  optionCols: { name: string; color: string };
+  options: { todo: string; active: string; done: string };
+}
+
+/** Seeds the grid's tables over the bridge (the Demo table + the Statuses'
+ *  option rows), returning the generated ids. */
+async function seedGrid(bridge: ReturnType<typeof createMemoryDatabaseBridge>): Promise<SeededGrid> {
+  const table = await bridge.createTable({ name: "Demo" }, ctx());
+  const tableId = table.result.id;
+  // The options' table (the option IS a row — the `name` / the `color`
+  // columns stand the labels / the chip's colors over the cell's keys).
+  const statuses = await bridge.createTable({ name: "Statuses" }, ctx());
+  const statusesId = statuses.result.id;
+  const optionName = await bridge.createColumn(
+    statusesId,
+    { column: { name: "name", type: "text", position: 0, nullable: true } },
+    ctx()
+  );
+  const optionColor = await bridge.createColumn(
+    statusesId,
+    { column: { name: "color", type: "text", position: 1, nullable: true } },
+    ctx()
+  );
+  const option = async (label: string): Promise<string> =>
+    (
+      await bridge.batchRows(
+        statusesId,
+        { ops: [{ op: "create", row: { [optionName.result.id]: label }, beforeRowId: null }] },
+        ctx()
+      )
+    ).result.rows[0]!.id;
+  const options = { todo: await option("todo"), active: await option("active"), done: await option("done") };
+  const title = await bridge.createColumn(
+    tableId,
+    { column: { name: "Title", type: "text", position: 0, nullable: true } },
+    ctx()
+  );
+  const n = await bridge.createColumn(
+    tableId,
+    { column: { name: "N", type: "integer", position: 1, nullable: true } },
+    ctx()
+  );
+  const done = await bridge.createColumn(
+    tableId,
+    { column: { name: "Done", type: "boolean", position: 2, nullable: true } },
+    ctx()
+  );
+  const status = await bridge.createColumn(
+    tableId,
+    {
+      column: {
+        name: "Status",
+        type: "text",
+        position: 3,
+        nullable: true,
+        reference: { kind: "enum", tableId: statusesId, many: false },
+      },
+    },
+    ctx()
+  );
+  await bridge.batchRows(
+    tableId,
+    {
+      ops: [
+        {
+          op: "create",
+          row: {
+            [title.result.id]: "a",
+            [n.result.id]: 1,
+            [done.result.id]: false,
+            [status.result.id]: options.todo,
+          },
+          beforeRowId: null,
+        },
+        {
+          op: "create",
+          row: {
+            [title.result.id]: "b",
+            [n.result.id]: 2,
+            [done.result.id]: true,
+            [status.result.id]: options.active,
+          },
+          beforeRowId: null,
+        },
+      ],
+    },
+    ctx()
+  );
+  return {
+    bridge,
+    tableId,
+    statusesId,
+    cols: { title: title.result.id, n: n.result.id, done: done.result.id, status: status.result.id },
+    optionCols: { name: optionName.result.id, color: optionColor.result.id },
+    options,
+  };
+}
+
 /** The grid on a fresh bridge (title / n / done / status; two rows). */
 async function renderGrid(attrs: Record<string, unknown> = {}) {
   const bridge = createMemoryDatabaseBridge();
-  const tableId = await bridge.createTable("Demo");
-  // The dict table (the enum options — the PK IS the option label).
-  await bridge.createTable("Statuses");
-  await bridge.insertRows("table-statuses", [{ id: "todo" }, { id: "active" }, { id: "done" }]);
-  await bridge.createColumn(tableId, { id: "title", name: "Title", type: "text" });
-  await bridge.createColumn(tableId, { id: "n", name: "N", type: "integer" });
-  await bridge.createColumn(tableId, { id: "done", name: "Done", type: "boolean" });
-  await bridge.createColumn(tableId, {
-    id: "status",
-    name: "Status",
-    type: "text",
-    refKind: "enum",
-    refTableId: "table-statuses",
-  });
-  await bridge.insertRows(tableId, [
-    { title: "a", n: 1, done: false, status: "todo" },
-    { title: "b", n: 2, done: true, status: "active" },
-  ]);
-  const { doc, db } = renderDoc((d) => d.insertBlock("database", { tableId, ...attrs }), undefined, bridge);
+  const seeded = await seedGrid(bridge);
+  const { doc, db } = renderDoc(
+    (d) => d.insertBlock("database", { tableId: seeded.tableId, ...attrs }),
+    undefined,
+    bridge
+  );
   await settleGrid();
-  return { doc, db, bridge, tableId };
+  return { doc, db, ...seeded };
 }
 
 afterEach(() => cleanup());
@@ -167,10 +297,22 @@ describe("built-in renderer: database (the placeholder card)", () => {
 
   it("the external form (the tableId reference) stands the live grid over the bridge", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const tableId = await bridge.createTable("External");
-    await bridge.createColumn(tableId, { id: "title", name: "Title", type: "text" });
-    await bridge.createColumn(tableId, { id: "n", name: "N", type: "integer" });
-    await bridge.insertRows(tableId, [{ title: "a", n: 1 }]);
+    const tableId = (await bridge.createTable({ name: "External" }, ctx())).result.id;
+    const title = (
+      await bridge.createColumn(
+        tableId,
+        { column: { name: "Title", type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const n = (
+      await bridge.createColumn(tableId, { column: { name: "N", type: "integer", position: 1, nullable: true } }, ctx())
+    ).result.id;
+    await bridge.batchRows(
+      tableId,
+      { ops: [{ op: "create", row: { [title]: "a", [n]: 1 }, beforeRowId: null }] },
+      ctx()
+    );
 
     renderDoc((doc) => doc.insertBlock("database", { tableId }), undefined, bridge);
     await settleGrid();
@@ -188,8 +330,8 @@ describe("built-in renderer: database (the placeholder card)", () => {
 
   it("the inline → external transition re-renders the card live", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const tableId = await bridge.createTable("Migrated");
-    await bridge.createColumn(tableId, { id: "c", name: "C", type: "text" });
+    const tableId = (await bridge.createTable({ name: "Migrated" }, ctx())).result.id;
+    await bridge.createColumn(tableId, { column: { name: "C", type: "text", position: 0, nullable: true } }, ctx());
 
     const { doc, db } = renderDoc((doc) => doc.insertBlock("database", { columns: COLUMNS }), undefined, bridge);
     // The inline card stands first.
@@ -208,14 +350,24 @@ describe("built-in renderer: database (the placeholder card)", () => {
 
   it("the timestamp column stands the datetime cell display", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const tableId = await bridge.createTable("Times");
-    await bridge.createColumn(tableId, { id: "when", name: "When", type: "timestamptz" });
-    await bridge.insertRows(tableId, [{ when: "2024-05-17T10:30" }]);
+    const tableId = (await bridge.createTable({ name: "Times" }, ctx())).result.id;
+    const when = (
+      await bridge.createColumn(
+        tableId,
+        { column: { name: "When", type: "timestamptz", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    await bridge.batchRows(
+      tableId,
+      { ops: [{ op: "create", row: { [when]: "2024-05-17T10:30" }, beforeRowId: null }] },
+      ctx()
+    );
 
     renderDoc((doc) => doc.insertBlock("database", { tableId }), undefined, bridge);
     await settleGrid();
 
-    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='when']");
+    const cell = document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${when}']`);
     expect(cell).not.toBeNull();
     // The datetime cell stands the display (the compact date + time
     // label): no native <input type="datetime-local">, no trigger chrome —
@@ -228,15 +380,18 @@ describe("built-in renderer: database (the placeholder card)", () => {
 
   it("a valid number edit commits to the bridge and a cleared cell commits null", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const tableId = await bridge.createTable("Nums");
-    await bridge.createColumn(tableId, { id: "n", name: "N", type: "integer" });
-    const rowIds = await bridge.insertRows(tableId, [{ n: 1 }]);
-    const rowId = rowIds[0]!;
+    const tableId = (await bridge.createTable({ name: "Nums" }, ctx())).result.id;
+    const n = (
+      await bridge.createColumn(tableId, { column: { name: "N", type: "integer", position: 0, nullable: true } }, ctx())
+    ).result.id;
+    const rowId = (
+      await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [n]: 1 }, beforeRowId: null }] }, ctx())
+    ).result.rows[0]!.id;
 
     renderDoc((doc) => doc.insertBlock("database", { tableId }), undefined, bridge);
     await settleGrid();
 
-    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='n']")!;
+    const cell = document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${n}']`)!;
     expect(cell).not.toBeNull();
     expect(cell.tagName).toBe("DIV");
     // The display stand (the value text; no input until the edit).
@@ -253,8 +408,7 @@ describe("built-in renderer: database (the placeholder card)", () => {
     await act(async () => {
       fireEvent.blur(input!);
     });
-    let page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.n).toBe(7);
+    expect((await cellsOf(bridge, tableId, rowId))[n]).toBe(7);
     // The edit session closes on the commit (the display stand stands).
     expect(cell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
 
@@ -268,8 +422,8 @@ describe("built-in renderer: database (the placeholder card)", () => {
     await act(async () => {
       fireEvent.blur(input2!);
     });
-    page = await bridge.queryRows(tableId, {});
-    expect("n" in page.rows[rowId]!).toBe(false);
+    const cleared = await cellsOf(bridge, tableId, rowId);
+    expect(cleared[n] ?? null).toBeNull();
   });
 });
 
@@ -289,7 +443,7 @@ describe("the grid's header (the table's name, the column menu, the column drag)
       "the renamed table's name stands over the table event"
     );
     // The name is the table's attribute: the bridge stands the new name.
-    expect((await bridge.describeTable(tableId)).name).toBe("Renamed Tasks");
+    expect((await bridge.describeTable(tableId)).table.name).toBe("Renamed Tasks");
     // The rename is a bridge operation — the block's JSON stands untouched
     // (no `name` attr write).
     expect((doc.getBlock(db) as DatabaseBlock).attrs.name).toBeUndefined();
@@ -301,18 +455,18 @@ describe("the grid's header (the table's name, the column menu, the column drag)
   });
 
   it("the header cell stands the name only (the type stands in the menu, not the row)", async () => {
-    await renderGrid();
+    const { cols } = await renderGrid();
     const header = document.querySelector<HTMLElement>(
-      "[data-slot='docblocks/database-header-cell'][data-column-id='title']"
+      `[data-slot='docblocks/database-header-cell'][data-column-id='${cols.title}']`
     );
     expect(header?.textContent).toBe("Title");
     expect(header!.querySelector("[data-slot='docblocks/database-column-type']")).toBeNull();
   });
 
   it("the header's press stands the menu (the rename line + the read-only type line); the rename commits to the bridge", async () => {
-    const { bridge, tableId } = await renderGrid();
+    const { bridge, tableId, cols } = await renderGrid();
     const header = document.querySelector<HTMLElement>(
-      "[data-slot='docblocks/database-header-cell'][data-column-id='title']"
+      `[data-slot='docblocks/database-header-cell'][data-column-id='${cols.title}']`
     );
     // The Ellipsis's own press stands the menu (the header's name zone's
     // press stands nothing — the menu-open's only trigger is the Ellipsis).
@@ -328,16 +482,19 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     fireEvent.blur(menuInput!);
     await settleGrid();
     const schema = await bridge.describeTable(tableId);
-    expect(schema.columns.find((column) => column.id === "title")?.name).toBe("Headline");
+    expect(schema.columns.find((column) => column.id === cols.title)?.name).toBe("Headline");
     expect(
-      document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='title']")?.textContent
+      document.querySelector(`[data-slot='docblocks/database-header-cell'][data-column-id='${cols.title}']`)
+        ?.textContent
     ).toBe("Headline");
   });
 
   it("the checkbox cell stands the Checkbox component (the double press toggles, the commit goes to the bridge)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='done']");
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await firstRowId(bridge, tableId);
+    const cell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${cols.done}']`
+    );
     expect(cell).not.toBeNull();
     // The package's Checkbox (the radix root, the checked state stands),
     // not a bare input — the stand (the single press is the selection, the
@@ -351,20 +508,20 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     fireEvent.doubleClick(cell!);
     await settleGrid();
     expect(box!.getAttribute("data-state")).toBe("checked");
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.done).toBe(true);
+    expect((await cellsOf(bridge, tableId, rowId))[cols.done]).toBe(true);
     // The toggle back stands the uncheck (the double press again).
     fireEvent.doubleClick(cell!);
     await settleGrid();
     expect(box!.getAttribute("data-state")).toBe("unchecked");
-    const page2 = await bridge.queryRows(tableId, {});
-    expect(page2.rows[rowId]!.done).toBe(false);
+    expect((await cellsOf(bridge, tableId, rowId))[cols.done]).toBe(false);
   });
 
   it("the checkbox's interactive stand: over the sole selection the pointer cursor + the press toggles; the multi-selection stands none", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='done']");
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await firstRowId(bridge, tableId);
+    const cell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${cols.done}']`
+    );
     const wrap = () => cell!.querySelector<HTMLElement>("[data-slot='docblocks/database-cell-checkbox-wrap']");
     // The stand (the cell unselected): the wrapper is pointer-transparent
     // (the cursor is the default, the press is the selection).
@@ -380,13 +537,13 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     expect(wrap()!.className).not.toContain("pointer-events-none");
 
     // The second press (the cell stands the sole selection at the press —
-    // the armed stand) over the checkbox toggles (one updateRow over the
+    // the armed stand) over the checkbox toggles (one update over the
     // bridge; the selecting press itself stood no toggle).
     fireEvent.pointerDown(wrap()!, { button: 0, clientX: 10, clientY: 5 });
     fireEvent.click(wrap()!, { detail: 1 });
     await settleGrid();
-    let page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.done).toBe(true);
+    let cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[cols.done]).toBe(true);
 
     // The double press over the interactive stand stands exactly one toggle
     // (the first click's toggle arms the mark, the second click is the
@@ -395,12 +552,14 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     fireEvent.click(wrap()!, { detail: 2 });
     fireEvent.doubleClick(wrap()!);
     await settleGrid();
-    page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.done).toBe(true);
+    cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[cols.done]).toBe(true);
 
     // The multi-selection (the press-drag's rectangle) stands the stand off
     // again (the elementFromPoint stub stands the region's second cell).
-    const nCell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='n']");
+    const nCell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${cols.n}']`
+    );
     const original = document.elementFromPoint;
     document.elementFromPoint = () => nCell!;
     fireEvent.pointerDown(cell!, { button: 0, clientX: 10, clientY: 5 });
@@ -412,10 +571,10 @@ describe("the grid's header (the table's name, the column menu, the column drag)
   });
 
   it("the enum cell stands the package's picker (the double press opens; the pick commits; the search filters; the empty pick clears)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const { bridge, tableId, cols, options } = await renderGrid();
+    const rowId = await firstRowId(bridge, tableId);
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='status']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${cols.status}']`);
     // The picker's trigger (the chip's stand over the value) — the radix
     // combobox / the native select stand out. The single press is the
     // selection, the double press opens the list.
@@ -436,11 +595,11 @@ describe("the grid's header (the table's name, the column menu, the column drag)
         (entry) => entry.textContent === label
       );
 
-    // The pick commits to the bridge (one updateRow) over the row's press.
+    // The pick commits to the bridge (one update) over the row's press.
     await open();
     fireEvent.click(row("done")!);
     await settleGrid();
-    expect((await bridge.queryRows(tableId, {})).rows[rowId]!.status).toBe("done");
+    expect((await cellsOf(bridge, tableId, rowId))[cols.status]).toBe(options.done);
     expect(cell()!.textContent).toContain("done");
 
     // The search filters the list (the client-side stand over the loaded
@@ -457,19 +616,23 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await open();
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-picker-clear']")!);
     await settleGrid();
-    const page2 = await bridge.queryRows(tableId, {});
     // The bridge drops the cleared cell (the absent value stands the null).
-    expect(page2.rows[rowId]!.status ?? null).toBeNull();
+    const cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[cols.status] ?? null).toBeNull();
   });
 
   it("the enum's dict extension stands in the cell's editor live (the ref table's event)", async () => {
-    const { bridge } = await renderGrid();
+    const { bridge, statusesId, optionCols, cols } = await renderGrid();
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='status']");
-    // The dict's option extension (the `insertRow` over the dict table — the
-    // PK IS the option label): the cell's editor list refreshes over the
-    // ref table's live event.
-    await bridge.insertRow("table-statuses", { id: "review" });
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${cols.status}']`);
+    // The dict's option extension (the `batchRows`' create over the options'
+    // table): the cell's editor list refreshes over the ref table's live
+    // event.
+    await bridge.batchRows(
+      statusesId,
+      { ops: [{ op: "create", row: { [optionCols.name]: "review" }, beforeRowId: null }] },
+      ctx()
+    );
     await until(() => cell() !== null, "the cell");
     fireEvent.doubleClick(cell()!);
     await until(
@@ -487,60 +650,107 @@ describe("the grid's header (the table's name, the column menu, the column drag)
 
   it("the row-link cell stands the resolved display (the join over the bridge; the dead row id keeps the raw stand)", async () => {
     const { bridge, tableId } = await renderGrid();
-    // The linked table + the row-link column (the display over the first
-    // text column — the default stand). The linked table's columns: the
-    // `code` (the non-display stand) + the `name` (the declared display
-    // column — the `refDisplayColumn`'s stand over the first-text
-    // default).
-    await bridge.createTable("People");
-    await bridge.createColumn("table-people", { id: "code", name: "Code", type: "text" });
-    await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
-    const peopleIds = await bridge.insertRows("table-people", [
-      { code: "P-1", name: "Ann" },
-      { code: "P-2", name: "Bob" },
-    ]);
-    const annId = peopleIds[0]!;
-    await bridge.createColumn(tableId, {
-      id: "owner",
-      name: "Owner",
-      type: "text",
-      refKind: "row",
-      refTableId: "table-people",
-      refDisplayColumn: "name",
-    });
-    const page = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(page.rows)[0]!;
-    await bridge.updateRow(tableId, rowId, { owner: annId });
+    // The linked table + the row-link column (the display over the declared
+    // column — the `displayColumnId`'s stand). The linked table's columns:
+    // the `Code` (the non-display stand) + the `Name` (the declared display
+    // column).
+    const people = await bridge.createTable({ name: "People" }, ctx());
+    const peopleId = people.result.id;
+    const codeCol = (
+      await bridge.createColumn(
+        peopleId,
+        { column: { name: "Code", type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const nameCol = (
+      await bridge.createColumn(
+        peopleId,
+        { column: { name: "Name", type: "text", position: 1, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const peopleReceipt = await bridge.batchRows(
+      peopleId,
+      {
+        ops: [
+          { op: "create", row: { [codeCol]: "P-1", [nameCol]: "Ann" }, beforeRowId: null },
+          { op: "create", row: { [codeCol]: "P-2", [nameCol]: "Bob" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const annId = peopleReceipt.result.rows[0]!.id;
+    const owner = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Owner",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "row", tableId: peopleId, many: false, displayColumnId: nameCol },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    const rowId = await firstRowId(bridge, tableId);
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [owner]: annId } }] }, ctx());
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owner']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${owner}']`);
     await until(() => cell() !== null, "the cell");
     await until(() => (cell()!.textContent ?? "").includes("Ann"), "the display");
     expect(cell()!.textContent).toContain("Ann");
 
     // The dead row id stands the raw stand (the lenient read — the display
     // resolution stands none over the unknown row).
-    await bridge.updateRow(tableId, rowId, { owner: "r-table-people-99" });
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [owner]: "r-table-people-99" } }] }, ctx());
     await until(() => (cell()!.textContent ?? "").includes("r-table-people-99"), "the raw stand");
   });
 
   it("the row-link's picker: the search filters the rows; the pick commits the row id; the clear entry clears", async () => {
     const { bridge, tableId } = await renderGrid();
-    await bridge.createTable("People");
-    await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
-    const peopleIds = await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
-    const annId = peopleIds[0]!;
-    const bobId = peopleIds[1]!;
-    await bridge.createColumn(tableId, {
-      id: "owner",
-      name: "Owner",
-      type: "text",
-      refKind: "row",
-      refTableId: "table-people",
-    });
-    const page = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(page.rows)[0]!;
+    const people = await bridge.createTable({ name: "People" }, ctx());
+    const peopleId = people.result.id;
+    const nameCol = (
+      await bridge.createColumn(
+        peopleId,
+        { column: { name: "Name", type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const peopleReceipt = await bridge.batchRows(
+      peopleId,
+      {
+        ops: [
+          { op: "create", row: { [nameCol]: "Ann" }, beforeRowId: null },
+          { op: "create", row: { [nameCol]: "Bob" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const annId = peopleReceipt.result.rows[0]!.id;
+    const bobId = peopleReceipt.result.rows[1]!.id;
+    const owner = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Owner",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "row", tableId: peopleId, many: false },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    const rowId = await firstRowId(bridge, tableId);
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owner']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${owner}']`);
     await until(() => cell() !== null, "the cell");
 
     // The double press opens the picker (the search + the rows over the
@@ -566,8 +776,7 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     expect(bobRow.textContent).toBe("Bob");
     fireEvent.click(bobRow);
     await settleGrid();
-    const after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.owner).toBe(bobId);
+    expect((await cellsOf(bridge, tableId, rowId))[owner]).toBe(bobId);
     await until(() => (cell()!.textContent ?? "").includes("Bob"), "the new display");
 
     // The clear entry stands the null.
@@ -575,25 +784,35 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await until(() => document.querySelector("[data-slot='docblocks/database-row-picker']") !== null, "the picker");
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-row-picker-clear']")!);
     await settleGrid();
-    const cleared = await bridge.queryRows(tableId, {});
-    expect(cleared.rows[rowId]!.owner ?? null).toBeNull();
+    const cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[owner] ?? null).toBeNull();
   });
 
   it("the multi-enum cell: the display stands the chips; the editor's toggle commits the array", async () => {
-    const { bridge, tableId } = await renderGrid();
-    await bridge.createColumn(tableId, {
-      id: "tags",
-      name: "Tags",
-      type: "text",
-      refKind: "enum",
-      refTableId: "table-statuses",
-      refMany: true,
-    });
-    const page = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(page.rows)[0]!;
-    await bridge.updateRow(tableId, rowId, { tags: ["todo", "done"] });
+    const { bridge, tableId, statusesId, options } = await renderGrid();
+    const tags = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Tags",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "enum", tableId: statusesId, many: true },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    const rowId = await firstRowId(bridge, tableId);
+    await bridge.batchRows(
+      tableId,
+      { ops: [{ op: "update", rowId, cells: { [tags]: [options.todo, options.done] } }] },
+      ctx()
+    );
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='tags']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${tags}']`);
     const chips = () =>
       cell() === null
         ? []
@@ -606,49 +825,53 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     expect(chips()).toEqual(["todo", "done"]);
 
     // The double press opens the checkbox list (the toggle commits the
-    // array immediately — one `updateRow` per option).
+    // array immediately — one `update` per option).
     fireEvent.doubleClick(cell()!);
     await until(
       () => document.querySelector("[data-slot='docblocks/database-ref-multi-option']") !== null,
       "the multi editor"
     );
-    const option = (value: string) =>
-      document.querySelector<HTMLElement>(
-        `[data-slot='docblocks/database-ref-multi-option'][data-option-value='${value}']`
+    const option = (label: string) =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-multi-option']")].find(
+        (entry) => entry.textContent === label
       );
     // The checkboxes stand the committed values.
     expect(option("todo")!.getAttribute("data-state")).toBe("checked");
     expect(option("active")!.getAttribute("data-state")).not.toBe("checked");
     fireEvent.click(option("active")!);
     await settleGrid();
-    const after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.tags).toEqual(["todo", "done", "active"]);
+    expect((await cellsOf(bridge, tableId, rowId))[tags]).toEqual([options.todo, options.done, options.active]);
     // The chips stand the live values.
     await until(() => chips().length === 3, "the chips' update");
     expect(chips()).toEqual(["todo", "done", "active"]);
     // The uncheck drops the option (the array's stand).
     fireEvent.click(option("todo")!);
     await settleGrid();
-    const after2 = await bridge.queryRows(tableId, {});
-    expect(after2.rows[rowId]!.tags).toEqual(["done", "active"]);
+    expect((await cellsOf(bridge, tableId, rowId))[tags]).toEqual([options.done, options.active]);
     await until(() => chips().length === 2, "the chips' uncheck");
     expect(chips()).toEqual(["done", "active"]);
   });
 
   it("the multi-enum's EMPTY cell: the double press stands the multi editor; the first pick commits the array", async () => {
-    const { bridge, tableId } = await renderGrid();
-    await bridge.createColumn(tableId, {
-      id: "tags",
-      name: "Tags",
-      type: "text",
-      refKind: "enum",
-      refTableId: "table-statuses",
-      refMany: true,
-    });
-    const page = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(page.rows)[0]!;
+    const { bridge, tableId, statusesId, options } = await renderGrid();
+    const tags = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Tags",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "enum", tableId: statusesId, many: true },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    const rowId = await firstRowId(bridge, tableId);
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='tags']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${tags}']`);
     const chips = () =>
       cell() === null
         ? []
@@ -668,25 +891,25 @@ describe("the grid's header (the table's name, the column menu, the column drag)
       () => document.querySelector("[data-slot='docblocks/database-ref-multi-option']") !== null,
       "the multi editor"
     );
-    const option = (value: string) =>
-      document.querySelector<HTMLElement>(
-        `[data-slot='docblocks/database-ref-multi-option'][data-option-value='${value}']`
+    const option = (label: string) =>
+      [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-ref-multi-option']")].find(
+        (entry) => entry.textContent === label
       );
     expect(option("todo")!.getAttribute("data-state")).not.toBe("checked");
 
     // The first pick commits the ARRAY (the scalar's stand is out —
-    // `[value]`), the second pick appends (the toggle's one `updateRow`).
+    // `[value]`), the second pick appends (the toggle's one `update`).
     fireEvent.click(option("todo")!);
     await settleGrid();
-    let after = await bridge.queryRows(tableId, {});
-    expect(Array.isArray(after.rows[rowId]!.tags)).toBe(true);
-    expect(after.rows[rowId]!.tags).toEqual(["todo"]);
+    let cells = await cellsOf(bridge, tableId, rowId);
+    expect(Array.isArray(cells[tags])).toBe(true);
+    expect(cells[tags]).toEqual([options.todo]);
     await until(() => chips().length === 1, "the chip");
     expect(chips()).toEqual(["todo"]);
     fireEvent.click(option("done")!);
     await settleGrid();
-    after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.tags).toEqual(["todo", "done"]);
+    cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[tags]).toEqual([options.todo, options.done]);
     await until(() => chips().length === 2, "the chips");
 
     // The uncheck over the last value stands the empty array (the cell's
@@ -696,30 +919,52 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await settleGrid();
     fireEvent.click(option("done")!);
     await settleGrid();
-    after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.tags).toEqual([]);
+    cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[tags]).toEqual([]);
     await until(() => chips().length === 0, "the chips' clear");
   });
 
   it("the multi row-links' EMPTY cell: the picks stand the array of the row ids; the chips stand the displays", async () => {
     const { bridge, tableId } = await renderGrid();
-    await bridge.createTable("People");
-    await bridge.createColumn("table-people", { id: "name", name: "Name", type: "text" });
-    const peopleIds = await bridge.insertRows("table-people", [{ name: "Ann" }, { name: "Bob" }]);
-    const annId = peopleIds[0]!;
-    const bobId = peopleIds[1]!;
-    await bridge.createColumn(tableId, {
-      id: "owners",
-      name: "Owners",
-      type: "text",
-      refKind: "row",
-      refTableId: "table-people",
-      refMany: true,
-    });
-    const page = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(page.rows)[0]!;
+    const people = await bridge.createTable({ name: "People" }, ctx());
+    const peopleId = people.result.id;
+    const nameCol = (
+      await bridge.createColumn(
+        peopleId,
+        { column: { name: "Name", type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const peopleReceipt = await bridge.batchRows(
+      peopleId,
+      {
+        ops: [
+          { op: "create", row: { [nameCol]: "Ann" }, beforeRowId: null },
+          { op: "create", row: { [nameCol]: "Bob" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const annId = peopleReceipt.result.rows[0]!.id;
+    const bobId = peopleReceipt.result.rows[1]!.id;
+    const owners = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Owners",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "row", tableId: peopleId, many: true },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    const rowId = await firstRowId(bridge, tableId);
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='owners']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${owners}']`);
     const chips = () =>
       cell() === null
         ? []
@@ -740,23 +985,25 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     expect(option(annId)!).not.toBeNull();
     fireEvent.click(option(annId)!);
     await settleGrid();
-    let after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.owners).toEqual([annId]);
+    let cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[owners]).toEqual([annId]);
     await until(() => chips().length === 1, "the chip");
     expect(chips()).toEqual(["Ann"]);
     fireEvent.click(option(bobId)!);
     await settleGrid();
-    after = await bridge.queryRows(tableId, {});
-    expect(after.rows[rowId]!.owners).toEqual([annId, bobId]);
+    cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[owners]).toEqual([annId, bobId]);
     await until(() => chips().length === 2, "the chips");
     expect(chips()).toEqual(["Ann", "Bob"]);
   });
 
   it("the header's press-drag reorders the columns (the columnOrder attr; the live preview stands no write)", async () => {
-    const { doc, db } = await renderGrid();
+    const { doc, db, cols } = await renderGrid();
     const dbAttrs = () => (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
     const header = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell'][data-column-id='title']");
+      document.querySelector<HTMLElement>(
+        `[data-slot='docblocks/database-header-cell'][data-column-id='${cols.title}']`
+      );
     // The press + the drag past the threshold (the live preview is view state
     // — the doc stands until the release).
     fireEvent.pointerDown(header()!, { clientX: 100, clientY: 5 });
@@ -768,30 +1015,32 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     // the pointer, so the drop position is past the last stationary column
     // (title lands last — the visible order with the dragged column at the
     // pointer's drop position).
-    expect(dbAttrs()?.columnOrder).toEqual(["n", "done", "status", "title"]);
+    expect(dbAttrs()?.columnOrder).toEqual([cols.n, cols.done, cols.status, cols.title]);
 
     // The grid resyncs from the attr (the header order follows it).
     const order = [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']")].map(
       (cell) => cell.dataset.columnId
     );
-    expect(order).toEqual(["n", "done", "status", "title"]);
+    expect(order).toEqual([cols.n, cols.done, cols.status, cols.title]);
 
     // A sub-threshold press stands the menu, not a reorder (the attr stands).
     fireEvent.pointerDown(header()!, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(header()!, { clientX: 10, clientY: 5 });
     await settleGrid();
-    expect(dbAttrs()?.columnOrder).toEqual(["n", "done", "status", "title"]);
+    expect(dbAttrs()?.columnOrder).toEqual([cols.n, cols.done, cols.status, cols.title]);
   });
 });
 
 describe("the grid's cells (the type editors)", () => {
   it("the cell's blur with the unchanged value stands no commit (no bridge call, no undo entry)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await firstRowId(bridge, tableId);
     // The bridge call is the commit's wire: an unchanged blur must not
     // reach it (no no-op refetch, no no-op undo entry).
-    const updateRowSpy = vi.spyOn(bridge, "updateRow");
-    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='title']")!;
+    const batchRowsSpy = vi.spyOn(bridge, "batchRows");
+    const cell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${cols.title}']`
+    )!;
     // The double press stands the edit session (the portaled 6-row
     // textarea); the outside press (the blur's stand) reverts nothing and
     // commits nothing (the draft stands the value).
@@ -803,7 +1052,7 @@ describe("the grid's cells (the type editors)", () => {
     );
     fireEvent.pointerDown(document.body, { button: 0 });
     await settleGrid();
-    expect(updateRowSpy).not.toHaveBeenCalled();
+    expect(batchRowsSpy).not.toHaveBeenCalled();
     // The changed value commits (the guard is equality-only).
     const textarea = () =>
       document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']");
@@ -815,34 +1064,47 @@ describe("the grid's cells (the type editors)", () => {
     });
     fireEvent.pointerDown(document.body, { button: 0 });
     await settleGrid();
-    expect(updateRowSpy).toHaveBeenCalledTimes(1);
-    expect(updateRowSpy).toHaveBeenCalledWith(tableId, rowId, { title: "edited" });
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.title).toBe("edited");
+    expect(batchRowsSpy).toHaveBeenCalledTimes(1);
+    const call = batchRowsSpy.mock.calls[0]!;
+    expect(call[0]).toBe(tableId);
+    expect(call[1].ops).toHaveLength(1);
+    const op = call[1].ops[0]!;
+    expect(op.op).toBe("update");
+    if (op.op === "update") {
+      expect(op.rowId).toBe(rowId);
+      expect(op.cells).toEqual({ [cols.title]: "edited" });
+    }
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title]).toBe("edited");
   });
 
   it("the cell wrapper owns the single border (the display / the input stand borderless)", async () => {
-    await renderGrid();
+    const { cols } = await renderGrid();
     // The cell wrapper owns the single border (the interaction unit — the
     // display / the input stand inside it, borderless).
-    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='title']");
+    const cell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${cols.title}']`
+    );
     expect(cell!.className).toContain("border-(--docblocks-table-border-color)");
     expect(cell!.className).not.toContain("border-l-");
     // The second column's wrapper carries the left border (the single
     // border between the columns).
-    const secondCell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='n']");
+    const secondCell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${cols.n}']`
+    );
     expect(secondCell!.className).toContain("border-l-(length:--docblocks-table-border-width)");
   });
 
   it("the date cell stands the calendar on the double press (the pick commits the ISO date; the same-day pick clears)", async () => {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, { id: "due", name: "Due", type: "date" });
-    await bridge.updateRow(tableId, rowId, { due: "2026-10-19" });
+    const rowId = await firstRowId(bridge, tableId);
+    const due = (
+      await bridge.createColumn(tableId, { column: { name: "Due", type: "date", position: 4, nullable: true } }, ctx())
+    ).result.id;
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [due]: "2026-10-19" } }] }, ctx());
     await settleGrid();
 
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='due']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${due}']`);
     // The cell stands the display (the compact date), not a native
     // <input type="date"> and no trigger chrome: the calendar opens on the
     // double press over the cell itself.
@@ -852,13 +1114,12 @@ describe("the grid's cells (the type editors)", () => {
     expect(cell()!.getAttribute("data-empty")).toBeNull();
 
     // The pick: the calendar stands in the portaled content; the day's
-    // click commits the ISO date (one updateRow) and the popover closes.
+    // click commits the ISO date (one update) and the popover closes.
     fireEvent.doubleClick(cell()!);
     await until(() => document.querySelector("[data-slot='calendar']") !== null, "the calendar");
     fireEvent.click(document.querySelector("button[data-day='10/20/2026']")!);
     await settleGrid();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.due).toBe("2026-10-20");
+    expect((await cellsOf(bridge, tableId, rowId))[due]).toBe("2026-10-20");
     expect(cell()!.textContent).toContain("20.10.2026");
     expect(document.querySelector("[data-slot='calendar']")).toBeNull();
 
@@ -868,19 +1129,21 @@ describe("the grid's cells (the type editors)", () => {
     await until(() => document.querySelector("[data-slot='calendar']") !== null, "the calendar (the re-open)");
     fireEvent.click(document.querySelector("button[data-day='10/20/2026']")!);
     await settleGrid();
-    const page2 = await bridge.queryRows(tableId, {});
-    expect(page2.rows[rowId]!.due ?? null).toBeNull();
+    const cells = await cellsOf(bridge, tableId, rowId);
+    expect(cells[due] ?? null).toBeNull();
     expect(cell()!.getAttribute("data-empty")).toBe("true");
   });
 
   it("the press over the portaled picker is the picker's own (the cell's selection handler stands none)", async () => {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, { id: "due", name: "Due", type: "date" });
-    await bridge.updateRow(tableId, rowId, { due: "2026-10-19" });
+    const rowId = await firstRowId(bridge, tableId);
+    const due = (
+      await bridge.createColumn(tableId, { column: { name: "Due", type: "date", position: 4, nullable: true } }, ctx())
+    ).result.id;
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [due]: "2026-10-19" } }] }, ctx());
     await settleGrid();
 
-    const cell = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='due']")!;
+    const cell = document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${due}']`)!;
     fireEvent.pointerDown(cell, { button: 0 });
     fireEvent.doubleClick(cell);
     await until(() => document.querySelector("[data-slot='calendar']") !== null, "the calendar");
@@ -901,8 +1164,7 @@ describe("the grid's cells (the type editors)", () => {
     // The day's click still commits (the press did not tear the session down).
     fireEvent.click(day);
     await settleGrid();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.due).toBe("2026-10-20");
+    expect((await cellsOf(bridge, tableId, rowId))[due]).toBe("2026-10-20");
     expect(document.querySelector("[data-slot='calendar']")).toBeNull();
   });
 
@@ -958,13 +1220,19 @@ describe("the grid's cells (the type editors)", () => {
 
   it("the datetime cell stands the calendar + the time on the double press (the close commits the ISO date-time)", async () => {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, { id: "at", name: "At", type: "timestamptz" });
-    await bridge.updateRow(tableId, rowId, { at: "2026-10-01T18:00" });
+    const rowId = await firstRowId(bridge, tableId);
+    const at = (
+      await bridge.createColumn(
+        tableId,
+        { column: { name: "At", type: "timestamptz", position: 4, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [at]: "2026-10-01T18:00" } }] }, ctx());
     await settleGrid();
 
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='at']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${at}']`);
     // The cell stands the display (the compact date + time), not a native
     // <input type="datetime-local"> and no trigger chrome: the calendar +
     // the time box open on the double press over the cell itself.
@@ -980,8 +1248,7 @@ describe("the grid's cells (the type editors)", () => {
     fireEvent.change(minutes!, { target: { value: "30" } });
     fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
     await settleGrid();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.at).toBe("2026-10-05T18:30");
+    expect((await cellsOf(bridge, tableId, rowId))[at]).toBe("2026-10-05T18:30");
     expect(cell()!.textContent).toContain("05.10.2026 18:30");
   });
 });
@@ -991,13 +1258,19 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
   // the double-press's open).
   async function renderDateTime() {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, { id: "at", name: "At", type: "timestamptz" });
-    await bridge.updateRow(tableId, rowId, { at: "2026-10-01T18:00" });
+    const rowId = await firstRowId(bridge, tableId);
+    const at = (
+      await bridge.createColumn(
+        tableId,
+        { column: { name: "At", type: "timestamptz", position: 4, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [at]: "2026-10-01T18:00" } }] }, ctx());
     await settleGrid();
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='at']")!;
-    const value = async () => (await bridge.queryRows(tableId, {})).rows[rowId]!.at ?? null;
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${at}']`)!;
+    const value = async () => (await cellsOf(bridge, tableId, rowId))[at] ?? null;
     const segments = () => [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
     const openPicker = async () => {
       // The real gesture's stand: the press (the grid's session + the
@@ -1029,6 +1302,7 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
       bridge,
       tableId,
       rowId,
+      at,
       cell,
       value,
       segments,
@@ -1118,7 +1392,7 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
   });
 
   it("the other cell's press commits the in-flight draft (the teardown stand)", async () => {
-    const { value, segments, openPicker, cell } = await renderDateTime();
+    const { value, segments, openPicker, cell, at } = await renderDateTime();
     await openPicker();
     const [hours] = segments();
     fireEvent.change(hours!, { target: { value: "09" } });
@@ -1127,7 +1401,7 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     // no radix close): the teardown stand commits the draft + the press
     // selects the other cell.
     const otherCell = document.querySelector<HTMLElement>(
-      "[data-slot='docblocks/database-cell'][data-column-id='at'][data-row='1']"
+      `[data-slot='docblocks/database-cell'][data-column-id='${at}'][data-row='1']`
     )!;
     fireEvent.pointerDown(otherCell, { button: 0 });
     await settleGrid();
@@ -1146,17 +1420,18 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
   });
 
   it("the repeat-commit guard stands per session (a later session re-commits the earlier ISO)", async () => {
-    const { bridge, tableId, rowId, value, segments, openPicker, closeByEscape } = await renderDateTime();
+    const { bridge, tableId, rowId, at, value, segments, openPicker, closeByEscape } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
     fireEvent.change(hours!, { target: { value: "09" } });
     fireEvent.change(minutes!, { target: { value: "30" } });
     await closeByEscape();
     expect(await value()).toBe("2026-10-01T09:30");
-    // The peer's write moves the value away; the later session explicitly
-    // restores the earlier ISO (the day's pick + the time) — the guard's
-    // per-session stand (the open resets it) commits the restore.
-    await bridge.updateRow(tableId, rowId, { at: "2026-10-02T00:00" });
+    // The peer's write moves the value away (the envelope stream stands the
+    // page's refetch); the later session explicitly restores the earlier
+    // ISO (the day's pick + the time) — the guard's per-session stand (the
+    // open resets it) commits the restore.
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [at]: "2026-10-02T00:00" } }] }, ctx());
     await until(async () => (await value()) === "2026-10-02T00:00", "the peer's value");
     await openPicker();
     const [hours2, minutes2] = segments();
@@ -1168,14 +1443,14 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
   });
 
   it("the mid-session value change stands the draft (the in-flight edit wins the commit)", async () => {
-    const { bridge, tableId, rowId, cell, value, segments, openPicker, closeByEscape } = await renderDateTime();
+    const { bridge, tableId, rowId, at, cell, value, segments, openPicker, closeByEscape } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
     fireEvent.change(hours!, { target: { value: "09" } });
     fireEvent.change(minutes!, { target: { value: "30" } });
-    // The peer's write over the same cell (the bridge event's refetch)
+    // The peer's write over the same cell (the envelope stream's refetch)
     // re-renders the value — the in-flight draft stands (no reset).
-    await bridge.updateRow(tableId, rowId, { at: "2026-11-11T08:00" });
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [at]: "2026-11-11T08:00" } }] }, ctx());
     await until(() => cell().textContent === "11.11.2026 08:00", "the peer's value stand");
     // The draft's date stand: the day's pick over the still-open calendar.
     fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
@@ -1225,11 +1500,15 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
   });
 
   it("the empty cells stand empty (no placeholder, no trigger chrome)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[1]!;
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 1);
     // The second row's status is the value; clear the title + n of it → the
     // cells stand empty (the display stand, no chrome).
-    await bridge.updateRow(tableId, rowId, { title: null, n: null });
+    await bridge.batchRows(
+      tableId,
+      { ops: [{ op: "update", rowId, cells: { [cols.title]: null, [cols.n]: null } }] },
+      ctx()
+    );
     await settleGrid();
     const empty = cellOf(1, 0);
     expect(empty).not.toBeNull();
@@ -1238,8 +1517,8 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     expect(empty!.querySelector("input")).toBeNull();
   });
 
-  it("the press-drag stands the rectangular region; the Delete stands the clear (one updateRow per row; the boolean uncheck)", async () => {
-    const { bridge, tableId } = await renderGrid();
+  it("the press-drag stands the rectangular region; the Delete stands the clear (one update per row; the boolean uncheck)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
     // The drag from the (0,0) to the (1,2): the jsdom elementFromPoint
     // stands the target cell stub (the region is the 2x3).
     const a = cellOf(0, 0)!;
@@ -1268,26 +1547,26 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     fireEvent.pointerUp(a, { clientX: 60, clientY: 60 });
     await settleGrid();
 
-    // The Delete over the stand: one updateRow per row (the columns are
-    // the null cells; the boolean null stands the unchecked box).
+    // The Delete over the stand: one update per row (the columns are the
+    // null cells; the boolean null stands the unchecked box).
     const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
     table!.focus();
     fireEvent.keyDown(table!, { key: "Delete", bubbles: true });
     await settleGrid();
-    const page = await bridge.queryRows(tableId, {});
-    const [rowA, rowB] = Object.values(page.rows);
-    expect(rowA?.title ?? null).toBeNull();
-    expect(rowA?.n ?? null).toBeNull();
-    expect(rowA?.done ?? null).toBeNull();
-    expect(rowB?.title ?? null).toBeNull();
-    expect(rowB?.n ?? null).toBeNull();
-    expect(rowB?.done ?? null).toBeNull();
+    const page = await bridge.snapshotTable(tableId, {});
+    const [rowA, rowB] = page.page.rows;
+    expect(rowA!.cells[cols.title] ?? null).toBeNull();
+    expect(rowA!.cells[cols.n] ?? null).toBeNull();
+    expect(rowA!.cells[cols.done] ?? null).toBeNull();
+    expect(rowB!.cells[cols.title] ?? null).toBeNull();
+    expect(rowB!.cells[cols.n] ?? null).toBeNull();
+    expect(rowB!.cells[cols.done] ?? null).toBeNull();
     // The selection stands after the clear (the stand is the view state).
     expect(cellOf(0, 0)!.getAttribute("data-selected")).toBe("true");
   });
 
   it("the region clear stands ONE commit: the grid's Undo stands every cleared row back over the single press", async () => {
-    const { bridge, tableId } = await renderGrid();
+    const { bridge, tableId, cols } = await renderGrid();
     const a = cellOf(0, 0)!;
     const b = cellOf(1, 1)!;
     const original = document.elementFromPoint;
@@ -1301,10 +1580,10 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     table!.focus();
     fireEvent.keyDown(table!, { key: "Delete", bubbles: true });
     await settleGrid();
-    let page = await bridge.queryRows(tableId, {});
-    for (const row of Object.values(page.rows)) {
-      expect(row.title ?? null).toBeNull();
-      expect(row.n ?? null).toBeNull();
+    let page = await bridge.snapshotTable(tableId, {});
+    for (const row of page.page.rows) {
+      expect(row.cells[cols.title] ?? null).toBeNull();
+      expect(row.cells[cols.n] ?? null).toBeNull();
     }
     // The ONE commit: the grid's Undo stands the WHOLE clear back (both
     // rows) over the single press — not one row per press.
@@ -1313,24 +1592,23 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     expect(undo!.hasAttribute("disabled")).toBe(false);
     fireEvent.click(undo!);
     await settleGrid();
-    page = await bridge.queryRows(tableId, {});
-    const restored = Object.values(page.rows);
-    expect(restored[0]!.title).toBe("a");
-    expect(restored[0]!.n).toBe(1);
-    expect(restored[1]!.title).toBe("b");
-    expect(restored[1]!.n).toBe(2);
+    page = await bridge.snapshotTable(tableId, {});
+    const restored = page.page.rows;
+    expect(restored[0]!.cells[cols.title]).toBe("a");
+    expect(restored[0]!.cells[cols.n]).toBe(1);
+    expect(restored[1]!.cells[cols.title]).toBe("b");
+    expect(restored[1]!.cells[cols.n]).toBe(2);
     // The redo stands the clear again over the single press.
     const redo = document.querySelector<HTMLElement>("[data-slot='docblocks/database-redo']");
     fireEvent.click(redo!);
     await settleGrid();
-    page = await bridge.queryRows(tableId, {});
-    for (const row of Object.values(page.rows)) expect(row.title ?? null).toBeNull();
+    page = await bridge.snapshotTable(tableId, {});
+    for (const row of page.page.rows) expect(row.cells[cols.title] ?? null).toBeNull();
   });
 
   it("the focused input keeps its own character editing (the cell clear stands no stand)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rows = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(rows.rows)[0]!;
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
     const cell = cellOf(0, 0)!;
     fireEvent.doubleClick(cell);
     await settleGrid();
@@ -1340,14 +1618,12 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     // table's keys' stand).
     fireEvent.keyDown(textarea, { key: "Delete", bubbles: true });
     await settleGrid();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.title).toBe("a");
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title]).toBe("a");
   });
 
   it("the Escape cancels the edit session (the draft reverts, no write over the wire)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rows = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(rows.rows)[0]!;
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
     const cell = cellOf(0, 0)!;
     fireEvent.doubleClick(cell);
     await settleGrid();
@@ -1361,8 +1637,7 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     // closes, and the bridge stands the original value (no commit).
     expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).toBeNull();
     expect(cell.textContent).toBe("a");
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.title).toBe("a");
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title]).toBe("a");
   });
 
   it("the Escape stands the selection no stand (and the editor's blocks gesture does not double-fire)", async () => {
@@ -1394,8 +1669,8 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
   };
 
   it("the typed draft commits on the outside press (the input unmounts before the DOM's blur)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
     const titleCell = cellOf(0, 0)!;
     await pressSelect(titleCell);
     fireEvent.doubleClick(titleCell);
@@ -1411,13 +1686,12 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
     fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
     await settleGrid();
     expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).toBeNull();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.title).toBe("typed draft");
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title]).toBe("typed draft");
   });
 
   it("the typed number draft commits on the other cell's press (the session's swap)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
     const numberCell = cellOf(0, 1)!;
     const otherCell = cellOf(1, 1)!;
     await pressSelect(numberCell);
@@ -1432,13 +1706,12 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
     fireEvent.pointerDown(otherCell, { button: 0, clientX: 10, clientY: 5 });
     await settleGrid();
     expect(numberCell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.n).toBe(42);
+    expect((await cellsOf(bridge, tableId, rowId))[cols.n]).toBe(42);
   });
 
   it("the Escape cancels the draft (the session closes, no write)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
     const titleCell = cellOf(0, 0)!;
     await pressSelect(titleCell);
     fireEvent.doubleClick(titleCell);
@@ -1450,8 +1723,7 @@ describe("the cell edit's external teardown (the mouse-blur's commit)", () => {
     fireEvent.keyDown(textarea, { key: "Escape" });
     await settleGrid();
     expect(document.querySelector("[data-slot='docblocks/database-cell-multiline']")).toBeNull();
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.title).toBe("a");
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title]).toBe("a");
   });
 
   it("the unchanged draft stands no commit (the no-op teardown's no undo entry)", async () => {
@@ -1575,49 +1847,67 @@ describe("the keyboard's selection (the arrows' slide + the shift+arrow's extens
 describe("the number column (the display format + the create form)", () => {
   it("the cell's display stands the column's format (the prefix / the thousands / the suffix; the raw number stays the data)", async () => {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, {
-      id: "num",
-      name: "Num",
-      type: "number",
-      decimals: 0,
-      thousands: true,
-      prefix: "AAA",
-      suffix: "BBB",
-      allowNegative: true,
-    });
-    await bridge.updateRow(tableId, rowId, { num: 555222 });
+    const rowId = await firstRowId(bridge, tableId);
+    const num = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Num",
+            type: "number",
+            position: 4,
+            nullable: true,
+            numberDisplay: { decimals: 0, thousands: true, prefix: "AAA", suffix: "BBB", allowNegative: true },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [num]: 555222 } }] }, ctx());
     await settleGrid();
 
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='num']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${num}']`);
     expect(cell()!.textContent).toBe("AAA 555 222 BBB");
     // The row's data keeps the raw number (the format is the display stand
     // only — the consumer's data is never rewritten).
-    const page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.num).toBe(555222);
+    expect((await cellsOf(bridge, tableId, rowId))[num]).toBe(555222);
   });
 
   it("the decimals stand the fixed digit count after the point (the absent stand is the integer)", async () => {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, { id: "frac", name: "Frac", type: "number", decimals: 2 });
-    await bridge.updateRow(tableId, rowId, { frac: 5 });
+    const rowId = await firstRowId(bridge, tableId);
+    const frac = (
+      await bridge.createColumn(
+        tableId,
+        { column: { name: "Frac", type: "number", position: 4, nullable: true, numberDisplay: { decimals: 2 } } },
+        ctx()
+      )
+    ).result.id;
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [frac]: 5 } }] }, ctx());
     await settleGrid();
 
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='frac']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${frac}']`);
     expect(cell()!.textContent).toBe("5.00");
   });
 
   it("the negative's reject (the allowNegative is false): the commit reverts, the valid stand commits", async () => {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, { id: "pos", name: "Pos", type: "number", allowNegative: false });
+    const rowId = await firstRowId(bridge, tableId);
+    const pos = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: { name: "Pos", type: "number", position: 4, nullable: true, numberDisplay: { allowNegative: false } },
+        },
+        ctx()
+      )
+    ).result.id;
     await settleGrid();
 
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='pos']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${pos}']`);
     // The double press enters the edit (the input stands min=0).
     fireEvent.pointerDown(cell()!, { button: 0 });
     fireEvent.doubleClick(cell()!);
@@ -1629,8 +1919,7 @@ describe("the number column (the display format + the create form)", () => {
     fireEvent.change(input()!, { target: { value: "-5" } });
     fireEvent.blur(input()!);
     await settleGrid();
-    let page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.pos ?? null).toBe(null);
+    expect((await cellsOf(bridge, tableId, rowId))[pos] ?? null).toBeNull();
 
     // The valid stand commits.
     fireEvent.pointerDown(cell()!, { button: 0 });
@@ -1638,24 +1927,43 @@ describe("the number column (the display format + the create form)", () => {
     fireEvent.change(input()!, { target: { value: "7" } });
     fireEvent.blur(input()!);
     await settleGrid();
-    page = await bridge.queryRows(tableId, {});
-    expect(page.rows[rowId]!.pos).toBe(7);
+    expect((await cellsOf(bridge, tableId, rowId))[pos]).toBe(7);
   });
 
   it("the float column without the explicit digits stands the raw value (no rounding; the integer stand rounds)", async () => {
     const { bridge, tableId } = await renderGrid();
-    const rowId = Object.keys((await bridge.queryRows(tableId, {})).rows)[0]!;
-    await bridge.createColumn(tableId, { id: "price", name: "Price", type: "double precision" });
-    await bridge.createColumn(tableId, { id: "units", name: "Units", type: "integer" });
-    await bridge.updateRow(tableId, rowId, { price: 1000.5, units: 1000 });
+    const rowId = await firstRowId(bridge, tableId);
+    const price = (
+      await bridge.createColumn(
+        tableId,
+        { column: { name: "Price", type: "double precision", position: 4, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const units = (
+      await bridge.createColumn(
+        tableId,
+        { column: { name: "Units", type: "integer", position: 5, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    await bridge.batchRows(
+      tableId,
+      { ops: [{ op: "update", rowId, cells: { [price]: 1000.5, [units]: 1000 } }] },
+      ctx()
+    );
     await settleGrid();
 
     // The float stand keeps the value's own stand (the 0.5 is not rounded
     // away), the integer stand stands the integer digits.
-    const price = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='price']");
-    const units = document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='units']");
-    expect(price!.textContent).toBe("1000.5");
-    expect(units!.textContent).toBe("1000");
+    const priceCell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${price}']`
+    );
+    const unitsCell = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-cell'][data-column-id='${units}']`
+    );
+    expect(priceCell!.textContent).toBe("1000.5");
+    expect(unitsCell!.textContent).toBe("1000");
   });
 
   it("stands the 10-type catalog (the plain types + the relation declarations)", async () => {
@@ -1720,20 +2028,22 @@ describe("the number column (the display format + the create form)", () => {
     expect(refTrigger.textContent).toBe("Statuses");
     expect(create.disabled).toBe(false);
     fireEvent.click(create);
-    await until(
-      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
-      "the column's create"
-    );
+    await until(async () => (await bridge.describeTable(tableId)).columns.length === 5, "the column's create");
 
     const schema = await bridge.describeTable(tableId);
-    const created = schema.columns.find((column) => column.id === "col5");
-    expect(created).toEqual({
-      id: "col5",
-      name: "Row link",
-      type: "text",
-      refKind: "row",
-      refTableId: "table-statuses",
-    });
+    const created = schema.columns.find((column) => column.name === "Row link");
+    expect(created).toBeDefined();
+    // The wire's reference stand (the cell holds the linked table's row id).
+    expect(created!.position).toBe(4);
+    expect(created!.reference).toMatchObject({ kind: "row", tableId: "table-statuses", many: false });
+    // The header follows the wire's schema over the envelope stream's
+    // refetch (the column's create stands the `field.created`'s frame).
+    await until(
+      () =>
+        document.querySelector(`[data-slot='docblocks/database-header-cell'][data-column-id='${created!.id}']`) !==
+        null,
+      "the header's create"
+    );
     expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
   });
 
@@ -1770,22 +2080,15 @@ describe("the number column (the display format + the create form)", () => {
     )!;
     fireEvent.change(newTableInput, { target: { value: "Tags" } });
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
-    await until(
-      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
-      "the column's create"
-    );
+    await until(async () => (await bridge.describeTable(tableId)).columns.length === 5, "the column's create");
 
     const tables = await bridge.listTables();
     expect(tables.map((table) => table.name)).toContain("Tags");
     const schema = await bridge.describeTable(tableId);
-    const created = schema.columns.find((column) => column.id === "col5");
-    expect(created).toEqual({
-      id: "col5",
-      name: "Row link",
-      type: "text",
-      refKind: "row",
-      refTableId: "table-tags",
-    });
+    const created = schema.columns.find((column) => column.name === "Row link");
+    expect(created).toBeDefined();
+    // The created table's deterministic id stands the reference's target.
+    expect(created!.reference).toMatchObject({ kind: "row", tableId: "table-tags", many: false });
   });
 
   it("the column's create: the menu's Decimal entry stands the attribute form; the Add commits the column's data", async () => {
@@ -1826,30 +2129,27 @@ describe("the number column (the display format + the create form)", () => {
     });
     // The negative's reject is on by default (the form's stand) — it stays.
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
-    await until(
-      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
-      "the column's create"
-    );
+    await until(async () => (await bridge.describeTable(tableId)).columns.length === 5, "the column's create");
 
     // The commit stands the column's data (the attributes ride the bridge's
     // column — not the block's view attr).
     const schema = await bridge.describeTable(tableId);
-    const created = schema.columns.find((column) => column.id === "col5");
-    expect(created).toEqual({
-      id: "col5",
+    const created = schema.columns.find((column) => column.name === "Decimal");
+    expect(created).toMatchObject({
       name: "Decimal",
       type: "numeric",
-      decimals: 1,
-      thousands: true,
-      prefix: "AAA",
-      suffix: "BBB",
-      allowNegative: true,
+      position: 4,
+      nullable: true,
+      numberDisplay: { decimals: 1, thousands: true, prefix: "AAA", suffix: "BBB", allowNegative: true },
     });
-    // The header stands the created column (the live schema over the bridge).
-    expect(
-      document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")?.textContent
-    ).toBe("Decimal");
-    // The form closes on the create.
+    // The header stands the created column (the live schema over the
+    // bridge — the `field.created`'s frame stands the page's refetch).
+    await until(
+      () =>
+        document.querySelector(`[data-slot='docblocks/database-header-cell'][data-column-id='${created!.id}']`)
+          ?.textContent === "Decimal",
+      "the header's stand"
+    );
     expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
   });
 
@@ -1867,19 +2167,16 @@ describe("the number column (the display format + the create form)", () => {
     expect(document.querySelector("[data-slot='docblocks/database-add-column-decimals']")).toBeNull();
     expect(document.querySelector("[data-slot='docblocks/database-add-column-thousands']")).not.toBeNull();
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
-    await until(
-      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
-      "the column's create"
-    );
+    await until(async () => (await bridge.describeTable(tableId)).columns.length === 5, "the column's create");
 
     const schema = await bridge.describeTable(tableId);
-    const created = schema.columns.find((column) => column.id === "col5");
-    expect(created).toEqual({
-      id: "col5",
+    const created = schema.columns.find((column) => column.name === "Integer");
+    expect(created).toMatchObject({
       name: "Integer",
       type: "integer",
-      thousands: false,
-      allowNegative: true,
+      position: 4,
+      nullable: true,
+      numberDisplay: { thousands: false, allowNegative: true },
     });
   });
 
@@ -1902,19 +2199,20 @@ describe("the number column (the display format + the create form)", () => {
     // The name from the input stands the column's name over the create.
     fireEvent.change(name, { target: { value: "Notes" } });
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
-    await until(
-      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
-      "the column's create"
-    );
+    await until(async () => (await bridge.describeTable(tableId)).columns.length === 5, "the column's create");
 
     const schema = await bridge.describeTable(tableId);
-    const created = schema.columns.find((column) => column.id === "col5");
-    expect(created).toEqual({ id: "col5", name: "Notes", type: "text" });
-    expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
+    const created = schema.columns.find((column) => column.name === "Notes");
+    expect(created).toMatchObject({ name: "Notes", type: "text", position: 4, nullable: true });
+    // The form closes over the create's commit (the failure stands it open).
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-add-column-form']") === null,
+      "the form's close"
+    );
   });
 
   it("the empty name stands the disabled create (the commit is impossible over it)", async () => {
-    await renderGrid();
+    const { bridge, tableId } = await renderGrid();
     const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
@@ -1929,12 +2227,12 @@ describe("the number column (the display format + the create form)", () => {
     // The press over the disabled button stands no create (the form stands).
     fireEvent.click(create);
     await settleGrid();
-    expect(document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeNull();
+    expect((await bridge.describeTable(tableId)).columns).toHaveLength(4);
     expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).not.toBeNull();
   });
 
   it("the Escape over the form closes without the create", async () => {
-    await renderGrid();
+    const { bridge, tableId } = await renderGrid();
     const trigger = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-trigger']")!;
     fireEvent.pointerDown(trigger, { clientX: 10, clientY: 5 });
     fireEvent.pointerUp(trigger, { clientX: 10, clientY: 5 });
@@ -1948,7 +2246,7 @@ describe("the number column (the display format + the create form)", () => {
     fireEvent.keyDown(form!, { key: "Escape", bubbles: true });
     await settleGrid();
     expect(document.querySelector("[data-slot='docblocks/database-add-column-form']")).toBeNull();
-    expect(document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']")).toBeNull();
+    expect((await bridge.describeTable(tableId)).columns).toHaveLength(4);
   });
 });
 
@@ -1971,157 +2269,97 @@ describe("renderer registry: database", () => {
 });
 
 describe("the data provider (the useDatabaseTable's batch commit)", () => {
-  afterEach(() => cleanup());
+  const SEMANTICS: QuerySemantics = {
+    semanticsVersion: "test",
+    collation: "undecoded",
+    timezone: "UTC",
+    nullOrdering: "last",
+    operatorsByColumnType: {},
+  };
 
   it("the renameTable commits to the bridge's table (no doc write); the undo / redo walk the name back", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const tableId = await bridge.createTable("Batch");
+    const tableId = (await bridge.createTable({ name: "Batch" }, ctx())).result.id;
     const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
     await until(() => result.current.phase === "ready", "the load");
     await act(async () => {
       await result.current.renameTable("Second Name");
     });
-    expect((await bridge.describeTable(tableId)).name).toBe("Second Name");
+    expect((await bridge.describeTable(tableId)).table.name).toBe("Second Name");
     await act(async () => {
       await result.current.undo();
     });
-    expect((await bridge.describeTable(tableId)).name).toBe("Batch");
+    expect((await bridge.describeTable(tableId)).table.name).toBe("Batch");
     await act(async () => {
       await result.current.redo();
     });
-    expect((await bridge.describeTable(tableId)).name).toBe("Second Name");
-  });
-
-  it("the table.renamed event stands on the peer's bridge over the channel echo", async () => {
-    const sharedChannel = `rename-echo-${Math.random().toString(36).slice(2, 8)}`;
-    const a = createMemoryDatabaseBridge({ channelName: sharedChannel });
-    const b = createMemoryDatabaseBridge({ channelName: sharedChannel });
-    // A's table stands on B's state over the created echo (the shared
-    // demo table of the two panes / tabs — the same id on both sides).
-    const tableId = await a.createTable("Demo");
-    const seenDeadline = Date.now() + 2000;
-    let seen = false;
-    while (!seen) {
-      if (Date.now() > seenDeadline) throw new Error("the table.created echo did not arrive");
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      seen = (await b.listTables()).some((entry) => entry.id === tableId);
-    }
-    await a.renameTable(tableId, "Echo Name");
-    // The echo is the channel's message event: poll the peer's state
-    // (the sleep yields to the macrotask queue, where the message lands).
-    const deadline = Date.now() + 2000;
-    let name = (await b.describeTable(tableId)).name;
-    while (name !== "Echo Name") {
-      if (Date.now() > deadline) throw new Error(`the rename echo did not arrive (name: ${name})`);
-      await new Promise((resolve) => setTimeout(resolve, 5));
-      name = (await b.describeTable(tableId)).name;
-    }
-  });
-
-  it("the table id stands derived from the name (deterministic over the channel's instances)", async () => {
-    const sharedChannel = `identity-${Math.random().toString(36).slice(2, 8)}`;
-    const a = createMemoryDatabaseBridge({ channelName: sharedChannel });
-    const b = createMemoryDatabaseBridge({ channelName: sharedChannel });
-    // The two instances' identically-named tables share one deterministic
-    // id (the two tabs' demo seed): a tableId reference created in A
-    // resolves in B (the per-page data model of the e2e panes).
-    const tableA = await a.createTable("Demo");
-    const tableB = await b.createTable("Demo");
-    expect(tableA).toBe(tableB);
-    // The different names stand separate tables (the old `table-1`
-    // collision of the two tabs' own tables is gone).
-    const projectsA = await a.createTable("Projects");
-    const projectsB = await b.createTable("Projects");
-    expect(projectsA).toBe(projectsB);
-    expect(projectsA).not.toBe(tableA);
-    // The created / schema echoes stand the table + the column on the
-    // peer's state (the adopted table stands under the same id).
-    await a.createColumn(tableA, { id: "t", name: "T", type: "text" });
-    const schemaDeadline = Date.now() + 2000;
-    for (;;) {
-      const description = await b.describeTable(tableB).catch(() => null);
-      if (description !== null && description.columns.some((column) => column.id === "t")) break;
-      if (Date.now() > schemaDeadline) throw new Error("the column echo did not settle on B");
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    // The row ids stay deterministic and the counter syncs over the echo:
-    // A's insert stands on B, and B's next insert never reuses A's id.
-    const firstRow = await a.insertRow(tableA, { t: "from-a" });
-    const settleDeadline = Date.now() + 2000;
-    for (;;) {
-      const page = await b.queryRows(tableB, {});
-      if (page.rows[firstRow] !== undefined) break;
-      if (Date.now() > settleDeadline) throw new Error("the row echo did not settle on B");
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    const secondRow = await b.insertRow(tableB, { t: "from-b" });
-    expect(secondRow).not.toBe(firstRow);
-    // Both sides converge on both rows.
-    const convergeDeadline = Date.now() + 2000;
-    for (;;) {
-      const page = await a.queryRows(tableA, {});
-      if (page.rows[firstRow] !== undefined && page.rows[secondRow] !== undefined) {
-        expect(Object.keys(page.rows)).toHaveLength(2);
-        break;
-      }
-      if (Date.now() > convergeDeadline) throw new Error("the row echoes did not converge on A");
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
+    expect((await bridge.describeTable(tableId)).table.name).toBe("Second Name");
   });
 
   it("the updateRows stands ONE commit: the single undo restores every touched row (the redo stands the batch again)", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const tableId = await bridge.createTable("Batch");
-    await bridge.createColumn(tableId, { id: "t", name: "T", type: "text" });
-    await bridge.createColumn(tableId, { id: "n", name: "N", type: "integer" });
-    await bridge.insertRows(tableId, [
-      { t: "a", n: 1 },
-      { t: "b", n: 2 },
-    ]);
-    const ids = Object.keys((await bridge.queryRows(tableId, {})).rows);
-    const r1 = ids[0]!;
-    const r2 = ids[1]!;
+    const tableId = (await bridge.createTable({ name: "Batch" }, ctx())).result.id;
+    const t = (
+      await bridge.createColumn(tableId, { column: { name: "T", type: "text", position: 0, nullable: true } }, ctx())
+    ).result.id;
+    const n = (
+      await bridge.createColumn(tableId, { column: { name: "N", type: "integer", position: 1, nullable: true } }, ctx())
+    ).result.id;
+    const receipt = await bridge.batchRows(
+      tableId,
+      {
+        ops: [
+          { op: "create", row: { [t]: "a", [n]: 1 }, beforeRowId: null },
+          { op: "create", row: { [t]: "b", [n]: 2 }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const r1 = receipt.result.rows[0]!.id;
+    const r2 = receipt.result.rows[1]!.id;
     const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
     await until(() => result.current.phase === "ready", "the load");
     await act(async () => {
       await result.current.updateRows([
-        { rowId: r1, cells: { t: null, n: null } },
-        { rowId: r2, cells: { t: null, n: null } },
+        { rowId: r1, cells: { [t]: null, [n]: null } },
+        { rowId: r2, cells: { [t]: null, [n]: null } },
       ]);
     });
-    let page = await bridge.queryRows(tableId, {});
-    expect(page.rows[r1]!.t ?? null).toBeNull();
-    expect(page.rows[r2]!.t ?? null).toBeNull();
+    let c1 = await cellsOf(bridge, tableId, r1);
+    let c2 = await cellsOf(bridge, tableId, r2);
+    expect(c1[t] ?? null).toBeNull();
+    expect(c2[t] ?? null).toBeNull();
     expect(result.current.canUndo).toBe(true);
     // The single undo stands the WHOLE batch back (both rows).
     await act(async () => {
       await result.current.undo();
     });
-    page = await bridge.queryRows(tableId, {});
-    expect(page.rows[r1]!.t).toBe("a");
-    expect(page.rows[r1]!.n).toBe(1);
-    expect(page.rows[r2]!.t).toBe("b");
-    expect(page.rows[r2]!.n).toBe(2);
+    c1 = await cellsOf(bridge, tableId, r1);
+    c2 = await cellsOf(bridge, tableId, r2);
+    expect(c1[t]).toBe("a");
+    expect(c1[n]).toBe(1);
+    expect(c2[t]).toBe("b");
+    expect(c2[n]).toBe(2);
     // The redo stands the batch again (the single press).
     await act(async () => {
       await result.current.redo();
     });
-    page = await bridge.queryRows(tableId, {});
-    expect(page.rows[r1]!.t ?? null).toBeNull();
-    expect(page.rows[r2]!.t ?? null).toBeNull();
+    c1 = await cellsOf(bridge, tableId, r1);
+    c2 = await cellsOf(bridge, tableId, r2);
+    expect(c1[t] ?? null).toBeNull();
+    expect(c2[t] ?? null).toBeNull();
   });
 
   it("a superseded load's reject keeps the retried ready grid (the stale error stands no state)", async () => {
     const base = createMemoryDatabaseBridge();
-    const tableId = await base.createTable("Stale");
-    await base.createColumn(tableId, { id: "t", name: "T", type: "text" });
-    // Each describeTable call holds on its own gate: the first (the initial
+    const tableId = (await base.createTable({ name: "Stale" }, ctx())).result.id;
+    // Each snapshotTable call holds on its own gate: the first (the initial
     // load) stays pending until the test rejects it, the second (the
     // retry's load) resolves and stands the ready state.
     const gates: Array<{ p: Promise<void>; resolve: () => void; reject: (error: Error) => void }> = [];
     const bridge: DatabaseBridge = {
       ...base,
-      describeTable: (id: string) => {
+      snapshotTable: (id: string, query: PageQuery) => {
         let resolve!: () => void;
         let reject!: (error: Error) => void;
         const p = new Promise<void>((res, rej) => {
@@ -2129,8 +2367,11 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
           reject = rej;
         });
         gates.push({ p, resolve, reject });
-        return p.then(() => base.describeTable(id));
+        return p.then(() => base.snapshotTable(id, query));
       },
+      // The subscription stands a noop handle (the replay's stand is out of
+      // the gate's scope — the test pins the load's token, not the stream).
+      subscribeTable: () => ({ unsubscribe: () => undefined }),
     };
     const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
     await until(() => gates.length === 1, "the initial load's request");
@@ -2156,9 +2397,11 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
     const base = createMemoryDatabaseBridge();
     // Two tables; the provider's pagination stands synthesized (two rows
     // per page), so the second page is a controllable pending request.
-    const aId = await base.createTable("Stale-A");
-    const bId = await base.createTable("Stale-B");
-    for (const id of [aId, bId]) await base.createColumn(id, { id: "t", name: "T", type: "text" });
+    const aId = (await base.createTable({ name: "Stale-A" }, ctx())).result.id;
+    const bId = (await base.createTable({ name: "Stale-B" }, ctx())).result.id;
+    for (const id of [aId, bId]) {
+      await base.createColumn(id, { column: { name: "T", type: "text", position: 0, nullable: true } }, ctx());
+    }
     const data: Record<string, Array<{ id: string; t: string }>> = {
       [aId]: [
         { id: "ra1", t: "a-1" },
@@ -2171,24 +2414,38 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
         { id: "rb3", t: "b-3" },
       ],
     };
+    const nameOf = (id: string) => (id === aId ? "Stale-A" : "Stale-B");
     let gateResolve!: () => void;
     const gate = new Promise<void>((resolve) => {
       gateResolve = resolve;
     });
-    const pageOf = (id: string, all: Array<{ id: string; t: string }>, page: number) => ({
-      rows: Object.fromEntries(all.slice(page * 2, page * 2 + 2).map((entry) => [entry.id, { t: entry.t }])),
-      nextCursor: page * 2 + 2 < all.length ? "c" + (page + 1) : null,
+    const pageOfTable = (id: string, page: number) => ({
+      rows: data[id]!.slice(page * 2, page * 2 + 2).map((entry, index) => ({
+        id: entry.id,
+        orderKey: page * 2 + index + 1,
+        revision: "rev-1",
+        cells: { t: entry.t },
+      })),
+      nextCursor: page * 2 + 2 < data[id]!.length ? "c" + (page + 1) : null,
+      asOfSeq: 0,
+      schemaRevision: "rev-1",
+      queryFingerprint: "fp-test",
+      semantics: SEMANTICS,
     });
     const bridge: DatabaseBridge = {
       ...base,
-      queryRows: async (id: string, options?: { cursor?: string | null }) => {
-        if (options?.cursor !== undefined) {
-          // Table A's second page holds on the gate until the test releases it.
-          if (id === aId) await gate;
-          return pageOf(id, data[id]!, 1);
-        }
-        return pageOf(id, data[id]!, 0);
+      snapshotTable: async (id: string) => ({
+        table: { id, name: nameOf(id), revision: "rev-1" },
+        columns: [{ id: "t", name: "T", type: "text", position: 0, nullable: true, revision: "rev-1" }],
+        schemaRevision: "rev-1",
+        page: pageOfTable(id, 0),
+      }),
+      queryNextPage: async (id: string) => {
+        // Table A's second page holds on the gate until the test releases it.
+        if (id === aId) await gate;
+        return pageOfTable(id, 1);
       },
+      subscribeTable: () => ({ unsubscribe: () => undefined }),
     };
     const { result, rerender } = renderHook(({ id }: { id: string }) => useDatabaseTable(bridge, id), {
       initialProps: { id: aId },
@@ -2219,12 +2476,20 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
 describe("the slash Database picker (the rework: the create form + the search)", () => {
   /** A bridge with two seeded tables + a spied `createTable`. */
   function mockBridge() {
-    const tables = [
-      { id: "t-demo", name: "Demo" },
-      { id: "t-zebra", name: "Zebra Board" },
+    const tables: TableRef[] = [
+      { id: "t-demo", name: "Demo", revision: "rev-1" },
+      { id: "t-zebra", name: "Zebra Board", revision: "rev-1" },
     ];
     const base = createMemoryDatabaseBridge();
-    const createTable = vi.fn(async (name: string) => `t-${name.toLowerCase().replace(/\s+/g, "-")}`);
+    const createTable = vi.fn(
+      async (input: { name: string; system?: boolean }): Promise<MutationReceipt<TableRef>> => ({
+        operationId: "op-pick",
+        txId: "tx-pick",
+        committedSeq: 1,
+        result: { id: `t-${input.name.toLowerCase().replace(/\s+/g, "-")}`, name: input.name, revision: "rev-1" },
+        revisions: {},
+      })
+    );
     const bridge: DatabaseBridge = { ...base, listTables: async () => tables, createTable };
     return { bridge, createTable };
   }
@@ -2287,7 +2552,9 @@ describe("the slash Database picker (the rework: the create form + the search)",
     expect((slot("slash-database-create") as HTMLButtonElement).disabled).toBe(false);
     fireEvent.keyDown(nameInput, { key: "Enter" });
     await settleGrid();
-    expect(createTable).toHaveBeenCalledWith("My Board");
+    // The create stands the contract's input + the fresh mutation context (the
+    // client-issued idempotency key).
+    expect(createTable).toHaveBeenCalledWith({ name: "My Board" }, expect.anything());
     expect(onCommit).toHaveBeenCalledWith("t-my-board");
   });
 
@@ -2301,7 +2568,7 @@ describe("the slash Database picker (the rework: the create form + the search)",
     fireEvent.change(nameInput, { target: { value: "My Board" } });
     fireEvent.click(slot("slash-database-create")!);
     await settleGrid();
-    expect(createTable).toHaveBeenCalledWith("My Board");
+    expect(createTable).toHaveBeenCalledWith({ name: "My Board" }, expect.anything());
     expect(onCommit).toHaveBeenCalledWith("t-my-board");
   });
 
@@ -2398,27 +2665,20 @@ describe("the filter builder — the ref value inputs (the enum's dict options /
 });
 
 describe("the enum's options' mechanics (the system table; the create / the edit's form; the chip's display)", () => {
-  it("the system table stands hidden (the listTables stands it out; the echo carries the flag)", async () => {
-    const sharedChannel = `enum-system-${Math.random().toString(36).slice(2, 8)}`;
-    const a = createMemoryDatabaseBridge({ channelName: sharedChannel });
-    const b = createMemoryDatabaseBridge({ channelName: sharedChannel });
-    const id = await a.createTable("Tags-enum", { system: true });
+  it("the system table stands hidden (the listTables stands it out; the ref carries the flag)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const created = await bridge.createTable({ name: "Tags-enum", system: true }, ctx());
+    const id = created.result.id;
     // The hidden stand: the consumer's catalog reads it out.
-    expect(await a.listTables()).toEqual([]);
+    expect(await bridge.listTables()).toEqual([]);
     // The schema / rows stay reachable by id (the grid's ref read).
-    const description = await a.describeTable(id);
-    expect(description.name).toBe("Tags-enum");
-    // The echo carries the flag (the peer's catalog stands it out too).
-    const seenDeadline = Date.now() + 2000;
-    for (;;) {
-      if (Date.now() > seenDeadline) throw new Error("the system table's echo did not arrive");
-      const tables = await b.listTables();
-      const descriptionB = await b.describeTable(id).catch(() => null);
-      if (descriptionB !== null && tables.length === 0) break;
-      await new Promise((resolve) => setTimeout(resolve, 5));
-    }
-    expect((await b.describeTable(id)).name).toBe("Tags-enum");
-    expect((await b.listTables()).map((table) => table.id)).not.toContain(id);
+    const description = await bridge.describeTable(id);
+    expect(description.table.name).toBe("Tags-enum");
+    expect(created.result.system).toBe(true);
+    // The non-system table stands in the catalog (the flag stands the
+    // enum's dict, not every table).
+    const visible = await bridge.createTable({ name: "Visible" }, ctx());
+    expect((await bridge.listTables()).map((table) => table.id)).toEqual([visible.result.id]);
   });
 
   it("the enum's create form stands the options' editor (the reordering, the colors, the delete; the system table's commit)", async () => {
@@ -2489,51 +2749,81 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     expect(swatch().getAttribute("data-color")).toBe("#f7a8a8");
 
     // The create's commit (the button's press): the system table's creation
-    // + the options' rows + the column's `refTableId` reference.
+    // + the options' rows + the column's reference over the hidden table.
     fireEvent.change(document.querySelector<HTMLInputElement>("[data-slot='docblocks/database-add-column-name']")!, {
       target: { value: "Stage" },
     });
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
-    await until(
-      () => document.querySelector("[data-slot='docblocks/database-header-cell'][data-column-id='col5']") !== null,
-      "the column"
-    );
+    await until(async () => (await bridge.describeTable(tableId)).columns.length === 5, "the column");
     const schema = await bridge.describeTable(tableId);
-    const created = schema.columns.find((column) => column.id === "col5");
-    expect(created?.refKind).toBe("enum");
-    expect(created?.refTableId).not.toBeUndefined();
-    const enumTableId = created!.refTableId!;
+    const created = schema.columns.find((column) => column.name === "Stage");
+    expect(created).toBeDefined();
+    // The wire's reference stand (the cell holds the option's row id).
+    expect(created!.reference).toMatchObject({ kind: "enum", many: false });
+    const enumTableId = created!.reference!.tableId;
     // The hidden table stands the catalog out (the options are reachable
     // by id only).
     expect((await bridge.listTables()).map((table) => table.id)).not.toContain(enumTableId);
-    const page = await bridge.queryRows(enumTableId, {});
-    const optionRows = Object.values(page.rows).map((cells) => cells as Record<string, unknown>);
-    expect(optionRows.map((cells) => cells.name)).toEqual(["gamma", "beta"]);
-    expect(optionRows[0]?.color).toBe("#f7a8a8");
+    // The options' rows stand the ordered page (the labels / the colors
+    // over the named columns' ids).
+    const enumSchema = await bridge.describeTable(enumTableId);
+    const nameColId = enumSchema.columns.find((column) => column.name === ENUM_OPTION_NAME_COLUMN)!.id;
+    const colorColId = enumSchema.columns.find((column) => column.name === ENUM_OPTION_COLOR_COLUMN)!.id;
+    const enumPage = await bridge.snapshotTable(enumTableId, {});
+    expect(enumPage.page.rows.map((row) => row.cells[nameColId])).toEqual(["gamma", "beta"]);
+    expect(enumPage.page.rows[0]!.cells[colorColId]).toBe("#f7a8a8");
   });
 
   it("the enum's edit form stands the diff commit (the values stand; the names / the order / the colors update)", async () => {
     const { bridge, tableId } = await renderGrid();
     // The enum column over the fresh system table (the created stand).
-    const enumTableId = await bridge.createTable("Stage-enum", { system: true });
-    await bridge.createColumn(enumTableId, { id: "name", name: "name", type: "text" });
-    await bridge.createColumn(enumTableId, { id: "color", name: "color", type: "text" });
-    await bridge.insertRows(enumTableId, [{ name: "alpha", color: "#f7a8a8" }, { name: "beta" }]);
-    await bridge.createColumn(tableId, {
-      id: "stage",
-      name: "Stage",
-      type: "text",
-      refKind: "enum",
-      refTableId: enumTableId,
-    });
-    const page = await bridge.queryRows(tableId, {});
-    const rowId = Object.keys(page.rows)[0]!;
+    const enumTableId = (await bridge.createTable({ name: "Stage-enum", system: true }, ctx())).result.id;
+    const nameCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_NAME_COLUMN, type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const colorCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_COLOR_COLUMN, type: "text", position: 1, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const optionsReceipt = await bridge.batchRows(
+      enumTableId,
+      {
+        ops: [
+          { op: "create", row: { [nameCol]: "alpha", [colorCol]: "#f7a8a8" }, beforeRowId: null },
+          { op: "create", row: { [nameCol]: "beta" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const alphaRowId = optionsReceipt.result.rows[0]!.id;
+    const stage = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Stage",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "enum", tableId: enumTableId, many: false },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    const rowId = await firstRowId(bridge, tableId);
     // The cell value stands the option's row id (the edit's identity).
-    const alphaRowId = Object.keys((await bridge.queryRows(enumTableId, {})).rows)[0]!;
-    await bridge.updateRow(tableId, rowId, { stage: alphaRowId });
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [stage]: alphaRowId } }] }, ctx());
     await settleGrid();
     const cell = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-cell'][data-column-id='stage']");
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-column-id='${stage}']`);
     await until(() => cell() !== null, "the cell");
     await until(() => (cell()!.textContent ?? "").includes("alpha"), "the display");
 
@@ -2541,7 +2831,7 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     // header's press stands the menu): the draft prefills from the system
     // table (the order's stand, the names, the colors).
     const stageHeader = () =>
-      document.querySelector<HTMLElement>("[data-slot='docblocks/database-header-cell'][data-column-id='stage']")!;
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-header-cell'][data-column-id='${stage}']`)!;
     const ellipsis = stageHeader().querySelector<HTMLElement>("[data-slot='docblocks/database-column-menu']")!;
     fireEvent.pointerDown(ellipsis, { clientX: 10, clientY: 5 });
     await until(
@@ -2590,12 +2880,12 @@ describe("the enum's options' mechanics (the system table; the create / the edit
 
     // The diff's commit over the system table (the alpha's row stands its
     // id — the cell's value is intact; the names / the order updated).
-    const afterPage = await bridge.queryRows(enumTableId, {});
-    const ids = Object.keys(afterPage.rows);
-    expect(ids).toHaveLength(3);
-    expect(afterPage.rows[alphaRowId]!.name).toBe("alfa");
-    expect(ids[0]).not.toBe(alphaRowId); // the gamma's stand is first
-    expect(afterPage.rows[alphaRowId]!.color).toBe("#f7a8a8");
+    const afterPage = await bridge.snapshotTable(enumTableId, {});
+    const rows = afterPage.page.rows;
+    expect(rows).toHaveLength(3);
+    expect(rows.find((row) => row.id === alphaRowId)!.cells[nameCol]).toBe("alfa");
+    expect(rows[0]!.id).not.toBe(alphaRowId); // the gamma's stand is first
+    expect(rows.find((row) => row.id === alphaRowId)!.cells[colorCol]).toBe("#f7a8a8");
 
     // The cell's display stands the renamed option (the identity's
     // resolution over the row id).
@@ -2607,33 +2897,63 @@ describe("the enum's options' mechanics (the system table; the create / the edit
       () => document.querySelector("[data-slot='docblocks/database-enum-picker-search']") !== null,
       "the picker"
     );
-    const rows = [...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']")].map(
-      (entry) => entry.textContent
-    );
-    expect(rows).toEqual(["gamma", "alfa", "beta"]);
+    const optionLabels = [
+      ...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']"),
+    ].map((entry) => entry.textContent);
+    expect(optionLabels).toEqual(["gamma", "alfa", "beta"]);
   });
 
   it("the enum cell's chip stands the option's color (the empty stand stands the background only)", async () => {
-    const { bridge, tableId } = await renderGrid();
-    const enumTableId = await bridge.createTable("Color-enum", { system: true });
-    await bridge.createColumn(enumTableId, { id: "name", name: "name", type: "text" });
-    await bridge.createColumn(enumTableId, { id: "color", name: "color", type: "text" });
-    await bridge.insertRows(enumTableId, [{ name: "green", color: "#97e3a8" }, { name: "plain" }]);
-    await bridge.createColumn(tableId, {
-      id: "tint",
-      name: "Tint",
-      type: "text",
-      refKind: "enum",
-      refTableId: enumTableId,
-    });
-    const page = await bridge.queryRows(tableId, {});
-    const [rowA, rowB] = Object.keys(page.rows);
-    const greenRowId = Object.keys((await bridge.queryRows(enumTableId, {})).rows)[0]!;
-    await bridge.updateRow(tableId, rowA!, { tint: greenRowId });
+    const { bridge, tableId, cols } = await renderGrid();
+    const enumTableId = (await bridge.createTable({ name: "Color-enum", system: true }, ctx())).result.id;
+    const nameCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_NAME_COLUMN, type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const colorCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_COLOR_COLUMN, type: "text", position: 1, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const options = await bridge.batchRows(
+      enumTableId,
+      {
+        ops: [
+          { op: "create", row: { [nameCol]: "green", [colorCol]: "#97e3a8" }, beforeRowId: null },
+          { op: "create", row: { [nameCol]: "plain" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const greenRowId = options.result.rows[0]!.id;
+    const plainRowId = options.result.rows[1]!.id;
+    const tint = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Tint",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "enum", tableId: enumTableId, many: false },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    const rowA = await rowIdAt(bridge, tableId, 0);
+    const rowB = await rowIdAt(bridge, tableId, 1);
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId: rowA, cells: { [tint]: greenRowId } }] }, ctx());
     await settleGrid();
     const cellA = () =>
       document.querySelector<HTMLElement>(
-        `[data-slot='docblocks/database-cell'][data-column-id='tint'][data-row='0']`
+        `[data-slot='docblocks/database-cell'][data-column-id='${tint}'][data-row='0']`
       )!;
     await until(() => cellA() !== null, "the cell");
     const chip = () => cellA().querySelector<HTMLElement>("[data-slot='docblocks/database-ref-chip']");
@@ -2643,12 +2963,11 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     expect(chip()!.style.backgroundColor).toBe("rgb(151, 227, 168)");
     expect(chip()!.textContent).toBe("green");
     // The no-color option stands the neutral chip (the muted background).
-    const plainRowId = Object.keys((await bridge.queryRows(enumTableId, {})).rows)[1]!;
-    await bridge.updateRow(tableId, rowB!, { tint: plainRowId });
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId: rowB, cells: { [tint]: plainRowId } }] }, ctx());
     await settleGrid();
     const cellB = () =>
       document.querySelector<HTMLElement>(
-        `[data-slot='docblocks/database-cell'][data-column-id='tint'][data-row='1']`
+        `[data-slot='docblocks/database-cell'][data-column-id='${tint}'][data-row='1']`
       )!;
     await until(() => cellB().querySelector("[data-slot='docblocks/database-ref-chip']") !== null, "the neutral chip");
     expect(cellB().querySelector<HTMLElement>("[data-slot='docblocks/database-ref-chip']")!.style.backgroundColor).toBe(
@@ -2656,11 +2975,11 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     );
     expect(cellB().getAttribute("data-empty")).not.toBe("true");
     // The empty stand: the cell's background only (no chip's box).
-    await bridge.insertRow(tableId, { title: "c" });
+    await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [cols.title]: "c" }, beforeRowId: null }] }, ctx());
     await settleGrid();
     const cellC = () =>
       document.querySelector<HTMLElement>(
-        `[data-slot='docblocks/database-cell'][data-column-id='tint'][data-row='2']`
+        `[data-slot='docblocks/database-cell'][data-column-id='${tint}'][data-row='2']`
       )!;
     await until(() => cellC() !== null, "the empty cell");
     expect(cellC().querySelector("[data-slot='docblocks/database-ref-chip']")).toBeNull();

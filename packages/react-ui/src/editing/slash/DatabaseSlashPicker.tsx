@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { TableRef } from "../../database";
+import { newMutationContext } from "../../database";
 import { useEditorContext } from "../../editor-provider";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
@@ -60,7 +61,7 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
     setError(null);
     void (async () => {
       try {
-        const tableId = await databaseBridge.createTable(trimmed);
+        const tableId = (await databaseBridge.createTable({ name: trimmed }, newMutationContext())).result.id;
         onCommit(tableId);
       } catch (createError) {
         setCreating(false);

@@ -1,9 +1,17 @@
-import { type BridgeColumn, type BridgeTableDescription, type TableEvent, type TableRef } from "docblocks-react-ui";
+import {
+  type BatchOp,
+  type Column,
+  type RowWire,
+  type SubscriptionStatus,
+  type TableDescription,
+  type TableEvent,
+  type TableRef,
+} from "docblocks-react-ui";
 import { BareSelect, Button, Checkbox, Input, Label, cn } from "docblocks-react-ui";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { persistentDatabaseBridge } from "../persistent-bridge";
+import { newMutationContext, persistentDatabaseBridge } from "../persistent-bridge";
 
 /** The PostgreSQL type catalog the add-column form offers (the package's
  *  default annotation resolves each to its operator catalog + input). */
@@ -28,13 +36,33 @@ const BOX = "mt-2 rounded border border-border p-2";
 const BTN = "h-auto gap-0 rounded px-2 py-0.5 text-[11px] font-normal shadow-none";
 const FIELD = "h-auto text-[11px] shadow-none";
 
-/** A stamped bridge event (the relative ms is for the log line). */
-type StampedEvent = TableEvent & { at: number; seq: number };
+/** A stamped bridge envelope (the relative ms + the local log sequence —
+ * the envelope's own `seq` stands the stream's, the at-least-once
+ * delivery stands the local key). */
+type StampedEvent = TableEvent & { at: number; logSeq: number };
 
-/** One row of the selected table (id + the cell map). */
-interface RowView {
-  id: string;
-  cells: Record<string, unknown>;
+/** The envelope's log line: the kind + the nested domain events' types (the
+ * row frames carry the row's id, the delete the row id, the option's rename
+ * the option's id). */
+function eventSummary(event: TableEvent): string {
+  if (event.kind === "invalidate") return "invalidate (rebaseline)";
+  return event.events
+    .map((domain) => {
+      switch (domain.type) {
+        case "row.deleted":
+          return `${domain.type} ${domain.payload.rowId}`;
+        case "row.created":
+        case "row.updated":
+        case "row.moved":
+        case "row.restored":
+          return `${domain.type} ${domain.payload.row.id}`;
+        case "enum.option.renamed":
+          return `${domain.type} ${domain.payload.option.id}`;
+        default:
+          return domain.type;
+      }
+    })
+    .join(", ");
 }
 
 /** The cell value as display text (null / undefined = empty). */
@@ -45,16 +73,18 @@ function cellText(value: unknown): string {
   return String(value);
 }
 
-/** A unique column id from a name (the harness's id derivation). */
-function slugify(name: string, taken: Set<string>): string {
-  const base =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "column";
-  let id = base;
-  for (let n = 2; taken.has(id); n += 1) id = `${base}-${n}`;
-  return id;
+/** The column's schema line (the type + the position / the nullability /
+ * the revision + the reference relation + the number display). */
+function columnLine(column: Column): string {
+  let line = `${column.id}: ${column.type} · pos ${column.position} · ${column.nullable ? "nullable" : "not null"} · rev ${column.revision}`;
+  if (column.reference !== undefined) {
+    line += ` [${column.reference.kind}${column.reference.many ? ":many" : ""} → ${column.reference.tableId}]`;
+  }
+  if (column.numberDisplay !== undefined) {
+    const display = column.numberDisplay;
+    line += ` {dec=${display.decimals ?? 0}${display.prefix !== undefined ? `, prefix="${display.prefix}"` : ""}${display.suffix !== undefined ? `, suffix="${display.suffix}"` : ""}}`;
+  }
+  return line;
 }
 
 /**
@@ -65,16 +95,17 @@ function slugify(name: string, taken: Set<string>): string {
  * management UI (the F4 scope) — the data lives in RAM (the memory
  * bridge); the grid and this panel both read the same bridge instance, so
  * a mutation here is visible in the grid (and vice-versa) over the live
- * events.
+ * envelopes.
  */
 function BridgeInspector({ client }: { client: "a" | "b" }) {
   const bridge = persistentDatabaseBridge;
   const [tables, setTables] = useState<TableRef[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [desc, setDesc] = useState<BridgeTableDescription | null>(null);
-  const [rows, setRows] = useState<RowView[]>([]);
+  const [desc, setDesc] = useState<TableDescription | null>(null);
+  const [rows, setRows] = useState<RowWire[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
   const [events, setEvents] = useState<StampedEvent[]>([]);
+  const [status, setStatus] = useState<SubscriptionStatus | null>(null);
   const [error, setError] = useState<string>("");
   const [busy, setBusy] = useState(false);
   // form state
@@ -88,7 +119,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const [tableRenames, setTableRenames] = useState<Record<string, string>>({});
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const mountedAt = useRef(Date.now());
-  const eventSeq = useRef(0);
+  const logSeq = useRef(0);
   const logRef = useRef<HTMLUListElement | null>(null);
 
   // The busy stand: every action button stands the wait cursor while the
@@ -117,30 +148,26 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const onColTypeChange = (event: React.ChangeEvent<HTMLSelectElement>) => setColType(event.target.value);
   const onColRefTableChange = (event: React.ChangeEvent<HTMLSelectElement>) => setColRefTable(event.target.value);
 
-  const stamp = (list: StampedEvent[]): void => {
-    for (const event of list) {
-      eventSeq.current += 1;
-      event.at = Date.now() - mountedAt.current;
-      event.seq = eventSeq.current;
-    }
-  };
-
   const refreshTables = useCallback(async () => {
     setTables(await bridge.listTables());
   }, [bridge]);
 
   const refreshTable = useCallback(
     async (tableId: string) => {
-      const [description, page] = await Promise.all([bridge.describeTable(tableId), bridge.queryRows(tableId, {})]);
-      setDesc(description);
-      setRows(Object.entries(page.rows).map(([id, cells]) => ({ id, cells })));
+      // The snapshot stands the schema + the ordered rows from one
+      // consistent read (the `page.asOfSeq`'s stand).
+      const snapshot = await bridge.snapshotTable(tableId, {});
+      setDesc({ table: snapshot.table, columns: snapshot.columns, schemaRevision: snapshot.schemaRevision });
+      setRows(snapshot.page.rows);
     },
     [bridge]
   );
 
   // Load the catalog on mount and keep the selected table live (the event
   // feed drives the row / schema refresh, so the grid and this panel stay
-  // in sync without polling).
+  // in sync without polling). The feed subscribes over the snapshot's `R`
+  // — the replay stands the events between the read and the subscription,
+  // so the log stays live-only (no history flood).
   useEffect(() => {
     void refreshTables();
   }, [refreshTables]);
@@ -151,18 +178,52 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
       setRows([]);
       setRemoved([]);
       setChecked(new Set());
+      setStatus(null);
       return;
     }
-    void refreshTable(selected);
     setEvents([]);
-    const unsubscribe = bridge.subscribeTable(selected, (batch) => {
-      const stamped = batch.map((event) => ({ ...event, at: 0, seq: 0 })) as StampedEvent[];
-      stamp(stamped);
-      setEvents((prev) => [...prev, ...stamped].slice(-LOG_CAP));
-      void refreshTable(selected);
-    });
+    let handle: { unsubscribe(): void } | null = null;
+    let live = true;
+    void (async () => {
+      try {
+        const snapshot = await bridge.snapshotTable(selected, {});
+        if (!live) return;
+        setDesc({ table: snapshot.table, columns: snapshot.columns, schemaRevision: snapshot.schemaRevision });
+        setRows(snapshot.page.rows);
+        handle = bridge.subscribeTable(
+          selected,
+          { afterSeq: snapshot.page.asOfSeq },
+          {
+            ready: () => undefined,
+            event: (envelope) => {
+              logSeq.current += 1;
+              const stamped: StampedEvent = {
+                ...envelope,
+                at: Date.now() - mountedAt.current,
+                logSeq: logSeq.current,
+              };
+              setEvents((prev) => [...prev, stamped].slice(-LOG_CAP));
+              void refreshTable(selected);
+            },
+            status: (value) => {
+              if (live) setStatus(value);
+            },
+            error: (bridgeError) => {
+              if (live) setError(`${bridgeError.code}: ${bridgeError.message}`);
+            },
+            reset: () => {
+              // The forced rebaseline: the fresh snapshot's stand.
+              void refreshTable(selected);
+            },
+          }
+        );
+      } catch (e) {
+        if (live) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
     return () => {
-      unsubscribe();
+      live = false;
+      handle?.unsubscribe();
     };
   }, [selected, bridge, refreshTable]);
 
@@ -195,10 +256,10 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
     const name = newTable.trim();
     if (name === "") return;
     run("createTable", async () => {
-      const id = await bridge.createTable(name);
+      const receipt = await bridge.createTable({ name }, newMutationContext());
       setNewTable("");
       await refreshTables();
-      select(id);
+      select(receipt.result.id);
     });
   };
 
@@ -207,14 +268,24 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
     const name = colName.trim();
     if (name === "") return;
     run("createColumn", async () => {
-      const existing = new Set((desc?.columns ?? []).map((column) => column.id));
-      const column: BridgeColumn = { id: slugify(name, existing), name, type: colType };
-      if (colRefKind !== "" && colRefTable !== "") {
-        column.refKind = colRefKind as "enum" | "row";
-        column.refTableId = colRefTable;
-        if (colRefMany) column.refMany = true;
-      }
-      await bridge.createColumn(selected, column);
+      const reference =
+        colRefKind !== "" && colRefTable !== ""
+          ? { kind: colRefKind as "enum" | "row", tableId: colRefTable, many: colRefMany }
+          : undefined;
+      // The id stands the bridge's allocation (the harness never names one).
+      await bridge.createColumn(
+        selected,
+        {
+          column: {
+            name,
+            type: colType,
+            position: desc?.columns.length ?? 0,
+            nullable: true,
+            ...(reference !== undefined ? { reference } : {}),
+          },
+        },
+        newMutationContext()
+      );
       setColName("");
       setColRefKind("");
       setColRefMany(false);
@@ -228,7 +299,8 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
     const name = (renames[columnId] ?? "").trim();
     if (name === "") return;
     run("renameColumn", async () => {
-      await bridge.renameColumn(selected, columnId, name);
+      // The rename stands the name's patch (the name is an attribute).
+      await bridge.updateColumn(selected, columnId, { name }, newMutationContext());
       setRenames((prev) => {
         const next = { ...prev };
         delete next[columnId];
@@ -241,9 +313,9 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const renameTable = (): void => {
     if (selected === null || desc === null) return;
     const name = (tableRenames[selected] ?? "").trim();
-    if (name === "" || name === desc.name) return;
+    if (name === "" || name === desc.table.name) return;
     run("renameTable", async () => {
-      await bridge.renameTable(selected, name);
+      await bridge.renameTable(selected, { name }, newMutationContext());
       setTableRenames((prev) => {
         const next = { ...prev };
         delete next[selected];
@@ -257,42 +329,44 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const deleteColumn = (columnId: string): void => {
     if (selected === null) return;
     run("deleteColumn", async () => {
-      await bridge.deleteColumn(selected, columnId);
+      await bridge.deleteColumn(selected, columnId, newMutationContext());
       await refreshTable(selected);
     });
   };
 
   const addRow = (): void => {
     if (selected === null) return;
-    run("insertRow", async () => {
-      await bridge.insertRow(selected, {});
+    run("create row", async () => {
+      const ops: BatchOp[] = [{ op: "create", row: {}, beforeRowId: null }];
+      await bridge.batchRows(selected, { ops }, newMutationContext());
       await refreshTable(selected);
     });
   };
 
   const addRows = (count: number): void => {
     if (selected === null) return;
-    run("insertRows", async () => {
-      await bridge.insertRows(
-        selected,
-        Array.from({ length: count }, () => ({}))
-      );
+    run("batch create rows", async () => {
+      const ops: BatchOp[] = [];
+      for (let i = 0; i < count; i += 1) ops.push({ op: "create", row: {}, beforeRowId: null });
+      await bridge.batchRows(selected, { ops }, newMutationContext());
       await refreshTable(selected);
     });
   };
 
   const moveRow = (rowId: string, beforeRowId: string | null): void => {
     if (selected === null) return;
-    run("moveRow", async () => {
-      await bridge.moveRow(selected, rowId, beforeRowId);
+    run("move row", async () => {
+      const ops: BatchOp[] = [{ op: "move", rowId, beforeRowId }];
+      await bridge.batchRows(selected, { ops }, newMutationContext());
       await refreshTable(selected);
     });
   };
 
   const removeRow = (rowId: string): void => {
     if (selected === null) return;
-    run("removeRow", async () => {
-      await bridge.removeRow(selected, rowId);
+    run("delete row", async () => {
+      const ops: BatchOp[] = [{ op: "delete", rowId }];
+      await bridge.batchRows(selected, { ops }, newMutationContext());
       setRemoved((prev) => [...prev, rowId]);
       await refreshTable(selected);
     });
@@ -310,8 +384,9 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   const removeChecked = (): void => {
     if (selected === null || checked.size === 0) return;
     const ids = [...checked];
-    run("removeRows", async () => {
-      await bridge.removeRows(selected, ids);
+    run("batch delete rows", async () => {
+      const ops: BatchOp[] = ids.map((rowId) => ({ op: "delete", rowId }));
+      await bridge.batchRows(selected, { ops }, newMutationContext());
       setRemoved((prev) => [...prev, ...ids]);
       setChecked(new Set());
       await refreshTable(selected);
@@ -322,7 +397,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
     if (selected === null || removed.length === 0) return;
     const ids = removed;
     run("undeleteRows", async () => {
-      await bridge.undeleteRows?.(selected, ids);
+      await bridge.undeleteRows(selected, { rowIds: ids }, newMutationContext());
       setRemoved([]);
       await refreshTable(selected);
     });
@@ -331,7 +406,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
   return (
     <div data-testid={`bridge-${client}`} className="mt-2 rounded border border-border">
       <div className="border-b border-border px-2 py-1 text-xs">
-        bridge — {tables.length} tables {selected !== null ? `· ${desc?.name ?? selected}` : ""}
+        bridge — {tables.length} tables {selected !== null ? `· ${desc?.table.name ?? selected}` : ""}
       </div>
       {error !== "" && <div className="bridge-error">{error}</div>}
 
@@ -386,19 +461,14 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
 
       {selected !== null && desc !== null && (
         <>
-          {/* Schema: describeTable + createColumn / renameColumn / deleteColumn. */}
+          {/* Schema: describeTable + createColumn / updateColumn / deleteColumn. */}
           <div className={BOX}>
-            <div className={LABEL}>
-              schema (describeTable · pk={desc.pkId ?? "id"} · order={desc.rowOrderId ?? "rowOrder"})
-            </div>
+            <div className={LABEL}>schema (describeTable · rev {desc.schemaRevision})</div>
             <div style={{ marginTop: 4, fontFamily: "monospace", fontSize: 11 }}>
               {desc.columns.map((column) => (
                 <div key={column.id} style={{ display: "flex", alignItems: "center", gap: 4, padding: "1px 0" }}>
-                  <span className="flex-1">
-                    {column.id}: {column.type}
-                    {column.refKind !== undefined
-                      ? ` [${column.refKind}${column.refMany ? ":many" : ""} → ${column.refTableId ?? "?"}]`
-                      : ""}
+                  <span className="flex-1" title={columnLine(column)}>
+                    {columnLine(column)}
                   </span>
                   <Input
                     size="sm"
@@ -411,7 +481,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    title="rename"
+                    title="rename (updateColumn)"
                     className={BTN_ACTIVE}
                     onClick={() => renameColumn(column.id)}
                   >
@@ -421,7 +491,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    title="delete"
+                    title="delete (soft-delete)"
                     className={BTN_ACTIVE}
                     onClick={() => deleteColumn(column.id)}
                   >
@@ -469,10 +539,10 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
             </div>
           </div>
 
-          {/* Rows: queryRows + insertRow / moveRow / removeRow(s) / undeleteRows. */}
+          {/* Rows: snapshotTable + the batchRows' ops / the undeleteRows. */}
           <div className={BOX}>
             <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span className={LABEL}>rows (queryRows) — {rows.length}</span>
+              <span className={LABEL}>rows (snapshotTable) — {rows.length}</span>
               <span className="flex-1" />
               <Button type="button" variant="outline" size="sm" className={BTN_ACTIVE} onClick={addRow}>
                 + row
@@ -516,7 +586,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    title="move up (moveRow before the previous)"
+                    title="move up (the batch's move op over the previous)"
                     disabled={index === 0}
                     className={BTN_ACTIVE}
                     onClick={() => moveRow(row.id, rows[index - 1]?.id ?? null)}
@@ -527,7 +597,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    title="move down (moveRow before the next)"
+                    title="move down (the batch's move op over the next)"
                     disabled={index === rows.length - 1}
                     className={BTN_ACTIVE}
                     onClick={() => moveRow(row.id, rows[index + 1]?.id ?? null)}
@@ -538,7 +608,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    title="move to the end (moveRow null)"
+                    title="move to the end (the batch's move op over null)"
                     disabled={index === rows.length - 1}
                     className={BTN_ACTIVE}
                     onClick={() => moveRow(row.id, null)}
@@ -549,7 +619,7 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    title="remove (removeRow → trash)"
+                    title="delete (the batch's delete op → the trash)"
                     className={BTN_ACTIVE}
                     onClick={() => removeRow(row.id)}
                   >
@@ -574,12 +644,13 @@ function BridgeInspector({ client }: { client: "a" | "b" }) {
       {/* Events: subscribeTable (the live feed for the selected table). */}
       {selected !== null && (
         <div className={BOX}>
-          <div className={LABEL}>events (subscribeTable) — {events.length}</div>
+          <div className={LABEL}>
+            events (subscribeTable{status !== null ? ` · ${status}` : ""}) — {events.length}
+          </div>
           <ul ref={logRef} className="event-log">
             {events.map((event) => (
-              <li key={event.seq}>
-                [t+{event.at}ms] {event.type}
-                {"rowId" in event ? ` ${event.rowId}` : ""}
+              <li key={event.logSeq}>
+                [t+{event.at}ms] seq={event.seq} (prev={event.prevSeq ?? "∅"}) · {eventSummary(event)}
               </li>
             ))}
           </ul>

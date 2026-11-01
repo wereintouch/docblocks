@@ -1,9 +1,12 @@
 /**
  * The database table hook's types: the loaded row, the load phase, the undo
- * stack entry (the operation's two directions), and the hook's public result
- * (the grid renderer + the consumer UI read from it).
+ * stack entry (the operation's two directions), and the hook's public
+ * result (the grid renderer + the consumer UI read from it). The result
+ * carries the structured error's code + the negotiated protocol
+ * capabilities the optional paths gate on (the row / column restore, the
+ * CAS, the server sort).
  */
-import type { BridgeColumn, BridgeTableDescription } from "../bridge";
+import type { BridgeColumn, BridgeErrorCode, BridgeTableDescription, ProtocolCapability } from "../bridge";
 
 /** One loaded row: the row id (the pk value) + the cells. */
 interface DatabaseTableRow {
@@ -33,6 +36,12 @@ interface UseDatabaseTable {
   nextCursor: string | null;
   /** The last operation error (the transient display); cleared on the next load. */
   error: string | null;
+  /** The last operation's structured error code (null = no error, or the
+   *  failure carried no machine code). */
+  errorCode: BridgeErrorCode | null;
+  /** The negotiated protocol capabilities (the optional paths' gate — the
+   *  row / column restore, the CAS, the server sort stands). */
+  capabilities: readonly ProtocolCapability[];
   insertRow(cells?: Record<string, unknown>): Promise<string>;
   updateRow(rowId: string, cells: Record<string, unknown>): Promise<void>;
   /** The batch update: ONE commit (the one bridge call + the one undo
@@ -41,7 +50,9 @@ interface UseDatabaseTable {
   updateRows(updates: Array<{ rowId: string; cells: Record<string, unknown> }>): Promise<void>;
   removeRow(rowId: string): Promise<void>;
   moveRow(rowId: string, beforeRowId: string | null): Promise<void>;
-  addColumn(column: BridgeColumn, afterColumnId?: string): Promise<void>;
+  /** Creates the column over the bridge → the bridge-assigned column id
+   *  (the view state the caller appends to the block's `columnOrder`). */
+  addColumn(column: BridgeColumn, afterColumnId?: string): Promise<string>;
   updateColumn(columnId: string, patch: Partial<Omit<BridgeColumn, "id" | "name">>): Promise<void>;
   deleteColumn(columnId: string): Promise<void>;
   renameColumn(columnId: string, name: string): Promise<void>;

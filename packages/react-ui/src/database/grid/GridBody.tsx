@@ -23,7 +23,7 @@ import { preventDefault } from "../../shared/utils";
 import type { BridgeColumn } from "../bridge";
 import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
-import { useDatabaseTable } from "../use-database-table";
+import { newMutationContext, useDatabaseTable } from "../use-database-table";
 import { EnumOptionsEditor } from "./EnumOptionsEditor";
 import { HeaderCell } from "./HeaderCell";
 import { DatabaseCell, RowMenuCell } from "./cells";
@@ -139,7 +139,7 @@ function GridBody({
       commitColumnEdit(draft);
       return;
     }
-    const commitRef = (refTableId: string | undefined) => {
+    const commitRef = async (refTableId: string | undefined): Promise<void> => {
       const columnSuffix = String((data.table?.columns.length ?? 0) + 1);
       const column: BridgeColumn = { id: `col${columnSuffix}`, name, type: draft.type };
       if (draft.numberKind !== undefined) {
@@ -154,19 +154,28 @@ function GridBody({
         if (draft.refMany) column.refMany = true;
         column.refTableId = refTableId;
       }
-      void data.addColumn(column);
-      // The create commit keeps the view's column order complete: the
-      // block's explicit `columnOrder` (a previous drag committed it) stands
-      // the visible order, so the new column is appended to its end — one
-      // `updateBlock` (the view attr, CRDT / undo as the current ones). Read
-      // fresh over the doc: the enum's commit runs in the async's tail, where
-      // the render-time `columnOrder` prop stands stale. Without an explicit
-      // order the bridge's schema order stands (the create appends to the end)
-      // and the attr is left untouched.
-      const block = doc.getBlock(blockId);
-      const currentOrder = block !== null && block.type === "database" ? block.attrs.columnOrder : undefined;
-      if (currentOrder !== undefined) {
-        doc.updateBlock(blockId, { columnOrder: [...currentOrder, column.id] });
+      try {
+        const liveColumnId = await data.addColumn(column);
+        // The create commit keeps the view's column order complete: the
+        // block's explicit `columnOrder` (a previous drag committed it)
+        // stands the visible order, so the new column is appended to its
+        // end over the bridge-assigned id (the draft's placeholder stands
+        // the form's local only) — one `updateBlock` (the view attr, CRDT /
+        // undo as the current ones). Read fresh over the doc: the enum's
+        // commit runs in the async's tail, where the render-time
+        // `columnOrder` prop stands stale. Without an explicit order the
+        // bridge's schema order stands (the create appends to the end) and
+        // the attr is left untouched.
+        const block = doc.getBlock(blockId);
+        const currentOrder = block !== null && block.type === "database" ? block.attrs.columnOrder : undefined;
+        if (currentOrder !== undefined) {
+          doc.updateBlock(blockId, { columnOrder: [...currentOrder, liveColumnId] });
+        }
+      } catch {
+        // The create's failure: the form stands open (the retry is the
+        // form's own create press); the error stands the hook's transient
+        // display.
+        return;
       }
       setColumnFormOpen(false);
       setColumnForm(null);
@@ -174,28 +183,44 @@ function GridBody({
     if (draft.refKind === "enum") {
       void (async () => {
         try {
-          const enumTableId = await bridge.createTable(
-            `${tableId}-enum-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
-            { system: true }
-          );
-          await bridge.createColumn(enumTableId, {
-            id: ENUM_OPTION_NAME_COLUMN,
-            name: ENUM_OPTION_NAME_COLUMN,
-            type: "text",
-          });
-          await bridge.createColumn(enumTableId, {
-            id: ENUM_OPTION_COLOR_COLUMN,
-            name: ENUM_OPTION_COLOR_COLUMN,
-            type: "text",
-          });
+          // The system table + its two named columns (the option's label +
+          // the chip's color); the cell's keys stand the created columns'
+          // ids (the bridge assigns them).
+          const enumTableId = (
+            await bridge.createTable(
+              {
+                name: `${tableId}-enum-${name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+                system: true,
+              },
+              newMutationContext()
+            )
+          ).result.id;
+          const nameColumnId = (
+            await bridge.createColumn(
+              enumTableId,
+              { column: { name: ENUM_OPTION_NAME_COLUMN, type: "text", position: 0, nullable: true } },
+              newMutationContext()
+            )
+          ).result.id;
+          const colorColumnId = (
+            await bridge.createColumn(
+              enumTableId,
+              { column: { name: ENUM_OPTION_COLOR_COLUMN, type: "text", position: 1, nullable: true } },
+              newMutationContext()
+            )
+          ).result.id;
           for (const option of draft.enumOptions ?? []) {
             if (option.name.trim() === "") continue;
-            const cells: Record<string, unknown> = { [ENUM_OPTION_NAME_COLUMN]: option.name.trim() };
-            if (option.color !== null) cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
-            await bridge.insertRow(enumTableId, cells);
+            const cells: Record<string, unknown> = { [nameColumnId]: option.name.trim() };
+            if (option.color !== null) cells[colorColumnId] = option.color;
+            await bridge.batchRows(
+              enumTableId,
+              { ops: [{ op: "create", row: cells, beforeRowId: null }] },
+              newMutationContext()
+            );
           }
           setCatalogRefresh((key) => key + 1);
-          commitRef(enumTableId);
+          await commitRef(enumTableId);
         } catch {
           // The system table's create failure: the form stands open (the
           // commit stands none — the retry is the form's own press).
@@ -204,7 +229,7 @@ function GridBody({
       return;
     }
     if (draft.refKind === undefined) {
-      commitRef(undefined);
+      void commitRef(undefined);
       return;
     }
     if (draft.refPick === NEW_TABLE_PICK) {
@@ -212,9 +237,9 @@ function GridBody({
       if (tableName === "") return;
       void (async () => {
         try {
-          const tableId = await bridge.createTable(tableName);
+          const tableId = (await bridge.createTable({ name: tableName }, newMutationContext())).result.id;
           setCatalogRefresh((key) => key + 1);
-          commitRef(tableId);
+          await commitRef(tableId);
         } catch {
           // The table's create failure: the form stands open (the commit
           // stands none — the retry is the form's own create press).
@@ -223,7 +248,7 @@ function GridBody({
       return;
     }
     if (draft.refPick === "") return; // the ref stand is required
-    commitRef(draft.refPick);
+    void commitRef(draft.refPick);
   };
 
   /** The create form's entry press (the menu's pick): every entry stands
@@ -272,15 +297,22 @@ function GridBody({
     if (columnId === undefined || refTableId === "" || column === undefined) return;
     void (async () => {
       try {
-        const page = await bridge.queryRows(refTableId, { limit: 200 });
-        const current: { rowId: string; name: string; color: string | null }[] = [];
-        for (const [rowId, cells] of Object.entries(page.rows)) {
-          current.push({
-            rowId,
-            name: typeof cells[ENUM_OPTION_NAME_COLUMN] === "string" ? cells[ENUM_OPTION_NAME_COLUMN] : rowId,
-            color: typeof cells[ENUM_OPTION_COLOR_COLUMN] === "string" ? cells[ENUM_OPTION_COLOR_COLUMN] : null,
-          });
-        }
+        // The option's columns stand by their names (the bridge assigns
+        // the ids); the cell's keys read the ids.
+        const snapshot = await bridge.snapshotTable(refTableId, { limit: 200 });
+        const nameColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_NAME_COLUMN)?.id;
+        const colorColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_COLOR_COLUMN)?.id;
+        const current: { rowId: string; name: string; color: string | null }[] = snapshot.page.rows.map((row) => ({
+          rowId: row.id,
+          name:
+            nameColumnId !== undefined && typeof row.cells[nameColumnId] === "string"
+              ? (row.cells[nameColumnId] as string)
+              : row.id,
+          color:
+            colorColumnId !== undefined && typeof row.cells[colorColumnId] === "string"
+              ? (row.cells[colorColumnId] as string)
+              : null,
+        }));
         const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
         const keptRowIds = new Set<string>();
         const addedRowIds: string[] = [];
@@ -288,30 +320,49 @@ function GridBody({
           const option = draftOptions[i];
           if (option === undefined) continue;
           if (option.rowId === undefined) {
-            const cells: Record<string, unknown> = { [ENUM_OPTION_NAME_COLUMN]: option.name.trim() };
-            if (option.color !== null) cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
-            addedRowIds.push(await bridge.insertRow(refTableId, cells));
+            const cells: Record<string, unknown> = {};
+            if (nameColumnId !== undefined) cells[nameColumnId] = option.name.trim();
+            if (option.color !== null && colorColumnId !== undefined) cells[colorColumnId] = option.color;
+            const created = await bridge.batchRows(
+              refTableId,
+              { ops: [{ op: "create", row: cells, beforeRowId: null }] },
+              newMutationContext()
+            );
+            addedRowIds.push(created.result.rows[0]!.id);
             continue;
           }
           keptRowIds.add(option.rowId);
           const before = current.find((entry) => entry.rowId === option.rowId);
           if (before === undefined) continue;
           const cells: Record<string, unknown> = {};
-          if (before.name !== option.name.trim()) cells[ENUM_OPTION_NAME_COLUMN] = option.name.trim();
-          if (before.color !== (option.color ?? null)) {
-            cells[ENUM_OPTION_COLOR_COLUMN] = option.color;
+          if (before.name !== option.name.trim() && nameColumnId !== undefined)
+            cells[nameColumnId] = option.name.trim();
+          if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
+            cells[colorColumnId] = option.color;
           }
-          if (Object.keys(cells).length > 0) await bridge.updateRow(refTableId, option.rowId, cells);
+          if (Object.keys(cells).length > 0) {
+            await bridge.batchRows(
+              refTableId,
+              { ops: [{ op: "update", rowId: option.rowId, cells }] },
+              newMutationContext()
+            );
+          }
         }
         for (const entry of current) {
-          if (!keptRowIds.has(entry.rowId)) await bridge.removeRow(refTableId, entry.rowId);
+          if (!keptRowIds.has(entry.rowId)) {
+            await bridge.batchRows(refTableId, { ops: [{ op: "delete", rowId: entry.rowId }] }, newMutationContext());
+          }
         }
         const orderedIds = draftOptions.map((option, i) => option.rowId ?? addedRowIds[i]);
         for (let i = 0; i < orderedIds.length - 1; i++) {
           const rowId = orderedIds[i];
           const beforeRowId = orderedIds[i + 1];
           if (rowId === undefined || beforeRowId === undefined) continue;
-          await bridge.moveRow(refTableId, rowId, beforeRowId);
+          await bridge.batchRows(
+            refTableId,
+            { ops: [{ op: "move", rowId, beforeRowId: beforeRowId }] },
+            newMutationContext()
+          );
         }
         if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
         setColumnFormOpen(false);

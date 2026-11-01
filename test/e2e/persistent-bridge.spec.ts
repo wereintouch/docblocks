@@ -27,19 +27,30 @@ test("the persistent bridge keeps the table id across a rename and a reload", as
     await openPane(a, "a", room, { first: true });
 
     // Create a table through the persistent bridge and capture its id.
-    const tableId = await a.evaluate(() => {
+    const tableId = await a.evaluate(async () => {
       const bridge = window.__bridge;
       if (bridge === undefined) throw new Error("the bridge global is not ready");
-      return bridge.createTable("Probe Table");
+      const receipt = await bridge.createTable(
+        { name: "Probe Table" },
+        { operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() }
+      );
+      return receipt.result.id;
     });
 
-    // Rename it. The table id is derived from the name's slug, and the
-    // snapshot stores the name only — so the reload's re-creation would
-    // derive a fresh id and drop the original one.
-    await a.evaluate((id) => {
+    // Rename it. The table id stands the create's name's slug derivation;
+    // the snapshot stores the stable id (independent of the name), so the
+    // reload's restore re-creates the table under the original id.
+    await a.evaluate(async (id) => {
       const bridge = window.__bridge;
       if (bridge === undefined) throw new Error("the bridge global is not ready");
-      return bridge.renameTable(id, "Renamed Table");
+      await bridge.renameTable(
+        id,
+        { name: "Renamed Table" },
+        {
+          operationId: crypto.randomUUID(),
+          issuedAt: new Date().toISOString(),
+        }
+      );
     }, tableId);
 
     // Let the save's debounce flush the snapshot to localStorage.

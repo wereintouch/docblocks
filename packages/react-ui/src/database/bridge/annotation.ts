@@ -3,7 +3,7 @@
  * from the column's Postgres type (the package's default catalog; the
  * consumer's `operators` override always wins) + the column's reference kind
  * (the enum / row-link columns stand the option-based catalog). The filter
- * builder renders from this; `queryRows` must apply exactly the declared
+ * builder renders from this; `snapshotTable` / `queryNextPage` must apply exactly the declared
  * operators.
  */
 import type { BridgeColumn, BridgeColumnAnnotation, BridgeValueInput } from "./models";
@@ -101,7 +101,7 @@ function valueInputFor(type: string): BridgeValueInput | undefined {
  * catalog (the consumer's `operators` override, else the option-based
  * catalog for the option columns, else the package default for the
  * Postgres type, else the minimal `is` / `is not`) + the value input
- * kind. The filter builder renders from this; `queryRows` must apply
+ * kind. The filter builder renders from this; `snapshotTable` / `queryNextPage` must apply
  * exactly the declared operators.
  */
 function columnAnnotation(column: BridgeColumn): BridgeColumnAnnotation {

@@ -1,601 +1,1326 @@
 /**
- * The default in-memory `DatabaseBridge` (the dev / e2e mode): the
- * tables, the columns, and the rows live in the page's JS memory — a
- * page reload drops them. The cross-tab / cross-page propagation is a
- * `BroadcastChannel` echo of the same event stream (each page keeps its
- * own copy of the state and applies the remote events idempotently); a
- * production consumer replaces the whole bridge with its backend
- * implementation. The bridge speaks the standard fractional row order
- * (the `rowOrder` column value) and the table-derived row ids (the pk-value
- * rows — the dict-table rows — stand the pk value itself as the row id; the
- * user row without a pk stands a globally unique id, so two authors
- * inserting concurrently never collide on a shared counter); the table id
- * stands derived from the table name, so the channel's instances converge
- * on the same tables (the two tabs' identically-named demo tables share one
- * table).
+ * The in-memory reference bridge: a single-process `DatabaseBridge`
+ * that demonstrates the normative contract end to end — the
+ * snapshot → subscribe(`afterSeq = R`) → replay → live bootstrap, the
+ * append-only per-table envelope stream (one committed transaction → one
+ * `seq` / `prevSeq`, the replay gap is the envelope's absence), the
+ * structured errors, the idempotent writes, and the atomic mixed batch with
+ * the order-key allocation + the in-transaction rebalance.
+ *
+ * The contract stands this implementation pins:
+ * - `snapshotTable` is the sole initial read; its `page.asOfSeq` is the `R`
+ *  both the schema and the page represent. `queryNextPage` only follows the
+ *  opaque cursor bound to `R` + the query fingerprint; any commit that
+ *  advanced the table's public head after `R` rejects with `cursor_expired`.
+ * - the envelope is appended to the outbox BEFORE the live notification —
+ *  the subscriber never sees an event it cannot replay.
+ * - the `commit` and the `invalidate` envelopes both stand the explicit
+ *  rebaseline: the caller takes a fresh snapshot (the in-place refill is
+ *  not a stand).
+ * - idempotency: the same `operationId` + the same canonical body returns
+ *  the stored receipt without a second effect; the same id with a different
+ *  body rejects with `idempotency_conflict`; an id past the retention
+ *  horizon rejects with `idempotency_expired` and is never re-executed.
+ * - `batchRows` is one atomic operation: every op is validated before any
+ *  mutation lands, and a failure restores the pre-batch state (no partial
+ *  envelope). The first unexecutable op carries its `ops[i]` path.
+ * - the order key allocation follows the normative candidates (head = the
+ *  right bound − 1, middle = the mean, tail = the left bound + 1); a
+ *  collapse / occupancy triggers the full baseline rebalance within the
+ *  same transaction — the order is rewritten, the op is written exactly
+ *  once, and the batch publishes one `invalidate` envelope instead of the
+ *  row frames (the canonical receipt still stands).
+ * - soft delete: the tombstone (the `deletedAt` stamp) keeps the row's
+ *  cells; `gcTable` is the reference stand of the consumer-side GC — it is
+ *  invisible (no envelope, no head advance), and a restore of a GC'd row
+ *  stands the safe `not_found`.
+ * - the cell value is the single source of truth: no denormalized display
+ *  fields exist in the bridge's state.
  */
-import type { DatabaseFilterPayload } from "docblocks-core";
-
-import { TEXT_TYPES, conditionMatches } from "../bridge";
+import { TEXT_TYPES, columnAnnotation, conditionMatches } from "../bridge";
+import type { BridgeColumn } from "../bridge";
+import { BridgeError, toBridgeError } from "../bridge";
 import type {
-  BridgeColumn,
-  BridgeTableDescription,
+  BatchOp,
+  BridgeErrorCode,
+  Column,
   DatabaseBridge,
-  RowPage,
-  RowQuery,
+  DomainEvent,
+  FilterInput,
+  MutationContext,
+  MutationReceipt,
+  OperationStatus,
+  PageQuery,
+  PageSnapshot,
+  ProtocolDescriptor,
+  QueryOperator,
+  QuerySemantics,
+  RowWire,
+  SortInput,
+  SubscriptionHandle,
+  SubscriptionObserver,
+  TableDescription,
   TableEvent,
   TableRef,
+  TableSnapshot,
 } from "../bridge";
-import { DEFAULT_LIMIT, ORDER_STEP, PK_COLUMN, ROW_ORDER_COLUMN } from "./constants";
-import type { MemoryBridgeOptions, MemoryTable } from "./models";
-import { decodeCursor, encodeCursor, stripManaged, tableIdFor } from "./utils";
+import {
+  DEFAULT_LIMIT,
+  DEFAULT_OPERATION_RETENTION_SECONDS,
+  DEFAULT_REPLAY_WINDOW,
+  DEFAULT_RETRY_HORIZON_SECONDS,
+  DEFAULT_TOMBSTONE_RETENTION_MS,
+  MAX_BATCH_OPS,
+  MAX_FILTER_DEPTH,
+  MAX_FILTER_TERMS,
+  MAX_FRAME_BYTES,
+  MAX_PAGE_SIZE,
+  MAX_REQUEST_BYTES,
+  MAX_SUBSCRIPTIONS,
+  PROTOCOL_CAPABILITIES,
+  SEMANTICS_COLLATION,
+  SEMANTICS_NULL_ORDERING,
+  SEMANTICS_TIMEZONE,
+  SEMANTICS_VERSION,
+} from "./constants";
+import type { MemoryBridgeOptions, MemoryIdempotencyEntry, MemoryRow, MemoryTable } from "./models";
+import { canonicalJson, decodeCursor, deepEqual, encodeCursor, fnv1aHex, physicalCompare, tableIdFor } from "./utils";
 
-/**
- * Creates the in-memory bridge. Two bridges on the same page with the
- * same channel name share the table state through the event echo (each
- * applies the other's events idempotently).
- */
-function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): DatabaseBridge {
+/** The reference bridge's public surface (the contract + the GC test stand). */
+interface MemoryDatabaseBridge extends DatabaseBridge {
+  /** The reference stand of the consumer-side tombstone GC: drops the rows
+   *  past the `tombstoneRetentionMs`. Invisible — no envelope, no head
+   *  advance; the public stream stands unchanged. */
+  gcTable(tableId: string): void;
+}
+
+function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDatabaseBridge {
+  const operationRetentionSeconds = options.operationRetentionSeconds ?? DEFAULT_OPERATION_RETENTION_SECONDS;
+  const operationRetentionMs = operationRetentionSeconds * 1000;
+  const retryHorizonSeconds = options.retryHorizonSeconds ?? DEFAULT_RETRY_HORIZON_SECONDS;
+  const tombstoneRetentionMs = options.tombstoneRetentionMs ?? DEFAULT_TOMBSTONE_RETENTION_MS;
+  const replayWindow = options.replayWindow ?? DEFAULT_REPLAY_WINDOW;
+
   const tables = new Map<string, MemoryTable>();
-  const listeners = new Map<string, Set<(events: TableEvent[]) => void>>();
-  const origin = Math.random().toString(36).slice(2);
+  const subscribers = new Map<string, Set<SubscriptionObserver>>();
+  const idempotency = new Map<string, MemoryIdempotencyEntry>();
+  /** The instance's session id (the envelope's `originSessionId` stand —
+   *  the per-connection id the consumer assigns). */
+  const originSessionId = `session-${Math.random().toString(36).slice(2, 10)}`;
 
-  const channel: BroadcastChannel | null =
-    typeof BroadcastChannel !== "undefined"
-      ? new BroadcastChannel(options.channelName ?? "docblocks-database-bridge")
-      : null;
+  const descriptor: ProtocolDescriptor = {
+    protocolVersion: 2,
+    capabilities: PROTOCOL_CAPABILITIES,
+    limits: {
+      maxFilterDepth: MAX_FILTER_DEPTH,
+      maxFilterTerms: MAX_FILTER_TERMS,
+      maxPageSize: MAX_PAGE_SIZE,
+      maxBatchOps: MAX_BATCH_OPS,
+      maxRequestBytes: MAX_REQUEST_BYTES,
+      maxFrameBytes: MAX_FRAME_BYTES,
+      maxSubscriptions: MAX_SUBSCRIPTIONS,
+    },
+    operationRetentionSeconds,
+    retryHorizonSeconds,
+  };
 
-  function notifyLocal(tableId: string, events: TableEvent[]): void {
-    const set = listeners.get(tableId);
-    if (set === undefined || events.length === 0) return;
-    for (const listener of [...set]) listener(events);
-  }
-
-  /** The local mutation: the events go to the local listeners and out the channel. */
-  function emit(tableId: string, events: TableEvent[]): void {
-    if (events.length === 0) return;
-    notifyLocal(tableId, events);
-    channel?.postMessage({ origin, tableId, events });
-  }
-
-  /** The remote echo: apply to the local state idempotently, notify the local listeners, no re-broadcast. */
-  function applyRemote(tableId: string, events: TableEvent[]): void {
-    // A created table stands the local state first (the echo carries the
-    // origin's table id, so the local copy stands under the SAME key the
-    // origin's row / schema events address); an already-seeded local table
-    // is left untouched (the concurrent seed stands its own state).
-    for (const event of events) {
-      if (event.type === "table.created" && !tables.has(tableId)) {
-        tables.set(tableId, {
-          name: event.name,
-          system: event.system === true ? true : undefined,
-          columns: clone(event.columns),
-          rows: new Map(),
-          orderValues: new Map(),
-          trash: new Map(),
-          detachedColumns: new Map(),
-        });
-      }
-    }
-    const table = tables.get(tableId);
-    if (table !== undefined) applyEvents(tableId, table, events);
-    notifyLocal(tableId, events);
-  }
-
-  channel?.addEventListener("message", (message: MessageEvent) => {
-    const data = message.data as { origin?: string; tableId?: string; events?: TableEvent[] } | null;
-    if (
-      data === null ||
-      typeof data !== "object" ||
-      data.origin === origin ||
-      typeof data.tableId !== "string" ||
-      !Array.isArray(data.events)
-    )
-      return;
-    applyRemote(data.tableId, data.events);
-  });
-
-  function tableOf(tableId: string): MemoryTable {
-    const table = tables.get(tableId);
-    if (table === undefined) throw new Error(`Unknown table "${tableId}".`);
-    return table;
-  }
+  // ---------- the basics ----------
 
   function clone<T>(value: T): T {
     return JSON.parse(JSON.stringify(value)) as T;
   }
 
-  function deepEqual(a: unknown, b: unknown): boolean {
-    if (Object.is(a, b)) return true;
-    if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
-    const keysA = Object.keys(a as Record<string, unknown>);
-    const keysB = Object.keys(b as Record<string, unknown>);
-    if (keysA.length !== keysB.length) return false;
-    return keysA.every((key) => deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key]));
+  function nextRevision(table: MemoryTable): string {
+    table.revisionCounter += 1;
+    return `rev-${table.revisionCounter}`;
   }
 
-  /** The row's order: the fractional value, then the row id — the equal
-   *  fractional positions stand a deterministic total order (two tabs with
-   *  the same (order, id) set sort identically). */
-  function rowOrderCompare(table: MemoryTable, a: string, b: string): number {
-    const aOrder = table.orderValues.get(a) ?? 0;
-    const bOrder = table.orderValues.get(b) ?? 0;
-    if (aOrder !== bOrder) return aOrder - bOrder;
-    return a < b ? -1 : a > b ? 1 : 0;
+  function newTxId(): string {
+    return `tx-${Math.random().toString(36).slice(2, 12)}`;
   }
 
-  function orderedRowIds(table: MemoryTable): string[] {
-    return [...table.rows.keys()].sort((a, b) => rowOrderCompare(table, a, b));
+  function tableRefOf(table: MemoryTable): TableRef {
+    return {
+      id: table.id,
+      name: table.name,
+      revision: table.revision,
+      ...(table.system ? { system: true } : {}),
+    };
   }
 
-  function nextOrder(table: MemoryTable): number {
-    let max = 0;
-    for (const value of table.orderValues.values()) max = Math.max(max, value);
-    return max + ORDER_STEP;
+  function rowWireOf(row: MemoryRow): RowWire {
+    return { id: row.id, orderKey: row.orderKey, revision: row.revision, cells: clone(row.cells) };
   }
 
-  /** The idempotent event application (the remote echo path). */
-  function applyEvents(tableId: string, table: MemoryTable, events: TableEvent[]): void {
-    for (const event of events) {
-      switch (event.type) {
-        case "table.renamed": {
-          table.name = event.name;
-          break;
+  /** The retained physical order (the live + the tombstoned rows) sorted by
+   *  `(orderKey, id)`. */
+  function physicalOrder(table: MemoryTable): MemoryRow[] {
+    return [...table.rows].sort((a, b) => physicalCompare(a, b));
+  }
+
+  function liveRows(table: MemoryTable): MemoryRow[] {
+    return physicalOrder(table).filter((row) => row.deletedAt === null);
+  }
+
+  function liveRowOf(table: MemoryTable, rowId: string): MemoryRow | undefined {
+    return table.rows.find((row) => row.id === rowId && row.deletedAt === null);
+  }
+
+  function tableOf(tableId: string): MemoryTable {
+    const table = tables.get(tableId);
+    if (table === undefined) throw new BridgeError("not_found", `The table "${tableId}" is unknown.`);
+    return table;
+  }
+
+  // ---------- the stream ----------
+
+  /** The live delivery (the outbox was already appended — the replay
+   *  coverage of a delivered event always holds). */
+  function notify(tableId: string, envelope: TableEvent): void {
+    const set = subscribers.get(tableId);
+    if (set === undefined) return;
+    for (const observer of [...set]) observer.event(clone(envelope));
+  }
+
+  /** One committed transaction → one outer envelope (the `commit` kind
+   *  with the ordered nested events, or the `invalidate` kind when the
+   *  rebalance rewrote the order keys). The receipt stands in both. */
+  function publish<T>(
+    table: MemoryTable,
+    operationId: string,
+    result: T,
+    revisions: Record<string, string>,
+    events: DomainEvent[],
+    rebalanced = false
+  ): MutationReceipt<T> {
+    table.headSeq += 1;
+    const seq = table.headSeq;
+    const previous = table.envelopes[table.envelopes.length - 1];
+    const txId = newTxId();
+    const receipt: MutationReceipt<T> = {
+      operationId,
+      txId,
+      committedSeq: seq,
+      result: clone(result),
+      revisions: clone(revisions),
+    };
+    const base = {
+      tableId: table.id,
+      seq,
+      prevSeq: previous !== undefined ? previous.seq : null,
+      txId,
+    };
+    const envelope: TableEvent = rebalanced
+      ? {
+          ...base,
+          kind: "invalidate" as const,
+          originSessionId,
+          operationId,
+          receipt: receipt as MutationReceipt<unknown>,
+          events: [],
         }
-        case "row.created": {
-          if (!table.rows.has(event.rowId)) {
-            table.rows.set(event.rowId, clone(event.cells));
-            if (!table.orderValues.has(event.rowId)) table.orderValues.set(event.rowId, nextOrder(table));
+      : {
+          ...base,
+          kind: "commit" as const,
+          originSessionId,
+          operationId,
+          receipt: receipt as MutationReceipt<unknown>,
+          events: clone(events),
+        };
+    table.envelopes.push(envelope);
+    notify(table.id, envelope);
+    return receipt;
+  }
+
+  /** The no-op mutation's receipt (no envelope, no head advance): the
+   *  commit sequence stands the table's current head. */
+  function noOpReceipt<T>(ctx: MutationContext, table: MemoryTable, result: T): MutationReceipt<T> {
+    return {
+      operationId: ctx.operationId,
+      txId: newTxId(),
+      committedSeq: table.headSeq,
+      result: clone(result),
+      revisions: {},
+    };
+  }
+
+  // ---------- the idempotency ----------
+
+  /** The same operation id + the same canonical body → the stored receipt
+   *  (never a second effect); the same id with a different body →
+   *  `idempotency_conflict`; past the retention → `idempotency_expired`
+   *  (never re-executed). */
+  function idempotent<T>(
+    ctx: MutationContext,
+    fingerprint: string,
+    execute: () => MutationReceipt<T>
+  ): MutationReceipt<T> {
+    const entry = idempotency.get(ctx.operationId);
+    if (entry !== undefined) {
+      if (Date.now() - entry.committedAt > operationRetentionMs) {
+        idempotency.delete(ctx.operationId);
+        throw new BridgeError(
+          "idempotency_expired",
+          `The operation "${ctx.operationId}" is outside the retention horizon and is never re-executed.`
+        );
+      }
+      if (entry.fingerprint !== fingerprint) {
+        throw new BridgeError(
+          "idempotency_conflict",
+          `The operation "${ctx.operationId}" was committed with a different body.`
+        );
+      }
+      return entry.receipt as MutationReceipt<T>;
+    }
+    const receipt = execute();
+    idempotency.set(ctx.operationId, {
+      fingerprint,
+      receipt: receipt as MutationReceipt<unknown>,
+      committedAt: Date.now(),
+    });
+    return receipt;
+  }
+
+  function fingerprintOf(kind: string, payload: Record<string, unknown>): string {
+    return `fnv1a-${fnv1aHex(canonicalJson({ kind, ...payload }))}`;
+  }
+
+  // ---------- the query validation + evaluation ----------
+
+  /** The column's effective operator catalog (the consumer's `operators`
+   *  override, else the option catalog for the reference columns, else the
+   *  type's default — */
+  function columnAsBridge(column: Column): BridgeColumn {
+    const bridge: BridgeColumn = {
+      id: column.id,
+      name: column.name,
+      type: column.type,
+      ...(column.operators !== undefined ? { operators: [...column.operators] } : {}),
+      ...(column.reference !== undefined
+        ? {
+            refKind: column.reference.kind,
+            refTableId: column.reference.tableId,
+            refMany: column.reference.many,
+            ...(column.reference.displayColumnId !== undefined
+              ? { refDisplayColumn: column.reference.displayColumnId }
+              : {}),
           }
-          break;
-        }
-        case "row.updated": {
-          const row = table.rows.get(event.rowId);
-          if (row === undefined) break;
-          for (const [key, value] of Object.entries(event.cells)) {
-            if (value === null) {
-              if (key in row) delete row[key];
-            } else if (!deepEqual(row[key], value)) {
-              row[key] = clone(value);
-            }
-          }
-          break;
-        }
-        case "row.removed": {
-          const row = table.rows.get(event.rowId);
-          if (row !== undefined) {
-            table.trash.set(event.rowId, {
-              cells: clone(row),
-              orderValue: table.orderValues.get(event.rowId) ?? nextOrder(table),
-            });
-            table.rows.delete(event.rowId);
-            table.orderValues.delete(event.rowId);
-          }
-          break;
-        }
-        case "row.moved": {
-          const current = table.orderValues.get(event.rowId);
-          if (current === undefined) break;
-          moveOrder(table, event.rowId, event.beforeRowId);
-          break;
-        }
-        case "row.restored": {
-          // The idempotent re-delivery: the row already stands (a duplicate
-          // restore, or the local origin already restored it) — stand skipped.
-          if (table.rows.has(event.rowId)) break;
-          table.rows.set(event.rowId, clone(event.cells));
-          // The original fractional position (the seat the row stood at before
-          // the remove — the restore lands it back, not at the end).
-          table.orderValues.set(event.rowId, event.orderValue);
-          table.trash.delete(event.rowId);
-          break;
-        }
-        case "schema.changed": {
-          table.columns = clone(event.columns);
-          break;
-        }
+        : {}),
+    };
+    return bridge;
+  }
+
+  function validateFilter(table: MemoryTable, filter: FilterInput, depth = 0, terms = { count: 0 }): void {
+    if (depth > MAX_FILTER_DEPTH)
+      throw new BridgeError("limit_exceeded", `The filter depth exceeds ${MAX_FILTER_DEPTH}.`);
+    if (typeof filter !== "object" || filter === null || Array.isArray(filter)) {
+      throw new BridgeError("invalid_filter", "The filter must be a plain object.");
+    }
+    if (filter.logic !== "and" && filter.logic !== "or") {
+      throw new BridgeError("invalid_filter", 'The filter logic must be "and" or "or".');
+    }
+    if (!Array.isArray(filter.conditions))
+      throw new BridgeError("invalid_filter", "The filter conditions must be an array.");
+    for (const condition of filter.conditions) {
+      terms.count += 1;
+      if (terms.count > MAX_FILTER_TERMS) {
+        throw new BridgeError("limit_exceeded", `The filter terms exceed ${MAX_FILTER_TERMS}.`);
+      }
+      if (typeof condition !== "object" || condition === null || Array.isArray(condition)) {
+        throw new BridgeError("invalid_filter", "A filter condition must be a plain object.");
+      }
+      if (typeof condition.columnId !== "string" || typeof condition.op !== "string") {
+        throw new BridgeError("invalid_filter", "A filter condition requires the columnId and the operator.");
+      }
+      const column = table.columns.find((entry) => entry.id === condition.columnId);
+      if (column === undefined) {
+        throw new BridgeError("invalid_column", `The filter references the unknown column "${condition.columnId}".`);
+      }
+      const annotation = columnAnnotation(columnAsBridge(column));
+      if (!annotation.operators.includes(condition.op)) {
+        throw new BridgeError(
+          "invalid_operator",
+          `The operator "${condition.op}" is not declared for the column type "${column.type}".`
+        );
+      }
+      if (annotation.valueless.has(condition.op) && condition.value !== undefined) {
+        throw new BridgeError("invalid_filter", `The operator "${condition.op}" takes no value.`);
+      }
+    }
+    for (const group of filter.groups ?? []) validateFilter(table, group, depth + 1, terms);
+  }
+
+  function validateSort(table: MemoryTable, sort: SortInput): void {
+    for (const key of sort) {
+      if (typeof key?.fieldId !== "string" || (key.direction !== "asc" && key.direction !== "desc")) {
+        throw new BridgeError("invalid_filter", "A sort key requires the fieldId and the direction.");
+      }
+      if (!table.columns.some((column) => column.id === key.fieldId)) {
+        throw new BridgeError("invalid_column", `The sort references the unknown column "${key.fieldId}".`);
       }
     }
   }
 
-  /** Recomputes the row's order value before `beforeRowId` (null = the end). */
-  function moveOrder(table: MemoryTable, rowId: string, beforeRowId: string | null): void {
-    let value: number;
-    if (beforeRowId === null) {
-      value = nextOrder(table);
-    } else {
-      const beforeValue = table.orderValues.get(beforeRowId);
-      if (beforeValue === undefined) return; // the before row vanished: stand where it was last known
-      const beforeIds = orderedRowIds(table).filter(
-        (id) => id !== rowId && (table.orderValues.get(id) ?? 0) < beforeValue
-      );
-      const prevId = beforeIds.length > 0 ? beforeIds[beforeIds.length - 1] : undefined;
-      const prevValue = prevId !== undefined ? (table.orderValues.get(prevId) ?? 0) : undefined;
-      value = prevValue !== undefined ? (prevValue + beforeValue) / 2 : beforeValue - ORDER_STEP;
+  function validateQuery(table: MemoryTable, query: PageQuery): void {
+    if (query.filter !== undefined) validateFilter(table, query.filter);
+    if (query.sort !== undefined) validateSort(table, query.sort);
+    if (
+      query.limit !== undefined &&
+      (!Number.isInteger(query.limit) || query.limit <= 0 || query.limit > MAX_PAGE_SIZE)
+    ) {
+      throw new BridgeError("limit_exceeded", `The page limit must be an integer in 1..${MAX_PAGE_SIZE}.`);
     }
-    table.orderValues.set(rowId, value);
   }
 
-  function payloadMatches(payload: DatabaseFilterPayload, cells: Record<string, unknown>): boolean {
-    const items: boolean[] = payload.conditions.map((condition) =>
+  function filterMatches(filter: FilterInput, cells: Record<string, unknown>): boolean {
+    const conditionResults = filter.conditions.map((condition) =>
       conditionMatches(condition.op, cells[condition.columnId], condition.value)
     );
-    for (const group of payload.groups ?? []) items.push(payloadMatches(group, cells));
-    if (items.length === 0) return true;
-    return payload.logic === "and" ? items.every(Boolean) : items.some(Boolean);
+    const groupResults = (filter.groups ?? []).map((group) => filterMatches(group, cells));
+    const all = [...conditionResults, ...groupResults];
+    return filter.logic === "and" ? all.every(Boolean) : all.some(Boolean);
   }
 
-  function compareRows(table: MemoryTable, a: string, b: string, orderBy: string[]): number {
-    const cellsA = table.rows.get(a) ?? {};
-    const cellsB = table.rows.get(b) ?? {};
-    for (const key of orderBy) {
-      const descending = key.startsWith("-");
-      const columnId = descending ? key.slice(1) : key;
-      const va = cellsA[columnId];
-      const vb = cellsB[columnId];
-      let result: number;
-      if (typeof va === "number" && typeof vb === "number") result = va - vb;
-      else if (typeof va === "boolean" && typeof vb === "boolean") result = Number(va) - Number(vb);
-      else result = String(va ?? "").localeCompare(String(vb ?? ""));
-      if (result !== 0) return descending ? -result : result;
+  function compareSortKey(
+    key: { fieldId: string; direction: "asc" | "desc"; nulls?: "first" | "last" },
+    a: Record<string, unknown>,
+    b: Record<string, unknown>
+  ): number {
+    const va = a[key.fieldId];
+    const vb = b[key.fieldId];
+    const aNull = va === undefined || va === null;
+    const bNull = vb === undefined || vb === null;
+    if (aNull || bNull) {
+      if (aNull === bNull) return 0;
+      const nullFirst = key.nulls ?? SEMANTICS_NULL_ORDERING;
+      return aNull ? (nullFirst === "first" ? -1 : 1) : nullFirst === "first" ? 1 : -1;
     }
-    return 0; // the stable fallback is the row order (the query applies it after)
+    let result: number;
+    if (typeof va === "number" && typeof vb === "number") result = va - vb;
+    else if (typeof va === "boolean" && typeof vb === "boolean") result = Number(va) - Number(vb);
+    else {
+      const sa = String(va);
+      const sb = String(vb);
+      result = sa < sb ? -1 : sa > sb ? 1 : 0;
+    }
+    return key.direction === "desc" ? -result : result;
   }
 
-  const bridge: DatabaseBridge = {
-    async listTables(): Promise<TableRef[]> {
-      return [...tables.entries()]
-        .filter(([, table]) => table.system !== true)
-        .map(([id, table]) => ({ id, name: table.name }));
-    },
-
-    async createTable(name: string, options?: { system?: boolean; id?: string }): Promise<string> {
-      // The id stands the explicit `options.id` when given (the restore /
-      // import stand — the table's identity is fixed independently of the
-      // name, so a rename / a re-creation keeps the same id and the doc's
-      // `tableId` references survive); absent, the id stands derived from
-      // the name (deterministic across the channel's instances: the two
-      // tabs' identically-named tables share one table — the demo-seed
-      // contract). An existing table of the id (the local seed, the peer's
-      // created echo, or the explicit-id restore) is adopted as-is.
-      const id = options?.id ?? tableIdFor(name);
-      if (tables.has(id)) return id;
-      tables.set(id, {
-        name,
-        system: options?.system === true ? true : undefined,
-        columns: [],
-        rows: new Map(),
-        orderValues: new Map(),
-        trash: new Map(),
-        detachedColumns: new Map(),
+  /** The filtered + sorted visible rows (the input order stands the
+   *  physical order; the sort tie-break keeps it). */
+  function orderedQueryRows(
+    table: MemoryTable,
+    filter: FilterInput | undefined,
+    sort: SortInput | undefined
+  ): MemoryRow[] {
+    let rows = liveRows(table);
+    if (filter !== undefined) rows = rows.filter((row) => filterMatches(filter, row.cells));
+    if (sort !== undefined && sort.length > 0) {
+      rows = [...rows].sort((a, b) => {
+        for (const key of sort) {
+          const result = compareSortKey(key, a.cells, b.cells);
+          if (result !== 0) return result;
+        }
+        return physicalCompare(a, b);
       });
-      emit(id, [
-        { type: "table.created", tableId: id, name, columns: [], system: options?.system === true ? true : undefined },
-      ]);
-      return id;
-    },
+    }
+    return rows;
+  }
 
-    async renameTable(tableId: string, name: string): Promise<void> {
-      const table = tableOf(tableId);
-      if (table.name === name) return;
-      table.name = name;
-      emit(tableId, [{ type: "table.renamed", name }]);
-    },
+  // ---------- the query fingerprint + the semantics ----------
 
-    async describeTable(tableId: string): Promise<BridgeTableDescription> {
-      const table = tableOf(tableId);
-      return { name: table.name, columns: clone(table.columns), pkId: PK_COLUMN, rowOrderId: ROW_ORDER_COLUMN };
-    },
+  /** The server's signed canonical form: the hash of the canonical query
+   *  together with the table, the snapshot boundary, the schema revision
+   *  and the declared semantics (the client never constructs one). */
+  function queryFingerprint(
+    table: MemoryTable,
+    R: number,
+    filter: FilterInput | undefined,
+    sort: SortInput | undefined,
+    limit: number
+  ): string {
+    return `fp-${fnv1aHex(
+      canonicalJson({
+        tableId: table.id,
+        R,
+        schemaRevision: table.schemaRevision,
+        filter:
+          filter === undefined
+            ? null
+            : { logic: filter.logic, conditions: filter.conditions, groups: filter.groups ?? [] },
+        sort: sort ?? null,
+        limit,
+        semanticsVersion: SEMANTICS_VERSION,
+        collation: SEMANTICS_COLLATION,
+        nullOrdering: SEMANTICS_NULL_ORDERING,
+      })
+    )}`;
+  }
 
-    async createColumn(tableId: string, column: BridgeColumn, afterColumnId?: string): Promise<void> {
-      const table = tableOf(tableId);
-      if (table.columns.some((existing) => existing.id === column.id)) {
-        throw new Error(`The column "${column.id}" already exists in table "${tableId}".`);
+  function semanticsOf(table: MemoryTable): QuerySemantics {
+    const operatorsByColumnType: Record<string, QueryOperator[]> = {};
+    for (const type of [...new Set(table.columns.map((column) => column.type))]) {
+      const column = table.columns.find((entry) => entry.type === type);
+      if (column === undefined) continue;
+      const bridge = columnAsBridge(column);
+      const annotation = columnAnnotation(bridge);
+      operatorsByColumnType[type] = annotation.operators.map((op) => ({
+        id: op,
+        valueKind: annotation.valueless.has(op) ? "none" : bridge.refMany ? "list" : "scalar",
+      }));
+    }
+    return {
+      semanticsVersion: SEMANTICS_VERSION,
+      collation: SEMANTICS_COLLATION,
+      timezone: SEMANTICS_TIMEZONE,
+      nullOrdering: SEMANTICS_NULL_ORDERING,
+      operatorsByColumnType,
+    };
+  }
+
+  // ---------- the page cursor ----------
+
+  function buildCursor(
+    table: MemoryTable,
+    R: number,
+    filter: FilterInput | undefined,
+    sort: SortInput | undefined,
+    limit: number,
+    afterRow: MemoryRow | null
+  ): string {
+    return encodeCursor({
+      tableId: table.id,
+      R,
+      fp: queryFingerprint(table, R, filter, sort, limit),
+      filter: filter ?? null,
+      sort: sort ?? null,
+      limit,
+      afterOrderKey: afterRow === null ? null : afterRow.orderKey,
+      afterRowId: afterRow === null ? null : afterRow.id,
+    });
+  }
+
+  // ---------- the column schema ----------
+
+  function reindexColumns(table: MemoryTable): void {
+    table.columns.forEach((column, index) => {
+      column.position = index;
+    });
+  }
+
+  function validateColumnSpec(table: MemoryTable, spec: Omit<Column, "id" | "revision">): void {
+    if (typeof spec?.name !== "string" || spec.name.trim() === "") {
+      throw new BridgeError("validation", "The column name must be a non-empty string.");
+    }
+    if (typeof spec?.type !== "string" || spec.type === "") {
+      throw new BridgeError("validation", "The column type must be a non-empty string.");
+    }
+    if (typeof spec.position !== "number" || !Number.isInteger(spec.position) || spec.position < 0) {
+      throw new BridgeError("validation", "The column position must be a non-negative integer.");
+    }
+    if (typeof spec.nullable !== "boolean")
+      throw new BridgeError("validation", "The column nullability must be a boolean.");
+    if (spec.operators !== undefined && !spec.operators.every((op) => typeof op === "string")) {
+      throw new BridgeError("validation", "The column operators must be strings.");
+    }
+    const reference = spec.reference;
+    if (reference !== undefined) {
+      if (reference.kind !== "enum" && reference.kind !== "row") {
+        throw new BridgeError("validation", 'The column reference kind must be "enum" or "row".');
       }
-      // The soft-delete's re-creation: a fresh column of the deleted
-      // column's id DROPS the detached data (the old values stand cleared
-      // — the live rows over the row.updated nulls, the trash's copy is
-      // dropped locally; the remote's trash keeps no read API).
-      const events: TableEvent[] = [];
-      if (table.detachedColumns.delete(column.id)) {
-        for (const [rowId, row] of table.rows) {
-          if (column.id in row) {
-            delete row[column.id];
-            events.push({ type: "row.updated", rowId, cells: { [column.id]: null }, before: {} });
+      if (typeof reference.many !== "boolean") {
+        throw new BridgeError("validation", "The column reference cardinality must be a boolean.");
+      }
+      const linked = tables.get(reference.tableId);
+      if (linked === undefined) {
+        throw new BridgeError("not_found", `The referenced table "${reference.tableId}" is unknown.`);
+      }
+      if (
+        reference.displayColumnId !== undefined &&
+        !linked.columns.some((column) => column.id === reference.displayColumnId)
+      ) {
+        throw new BridgeError(
+          "invalid_column",
+          `The reference display column "${reference.displayColumnId}" is unknown in the linked table.`
+        );
+      }
+    }
+    if (spec.numberDisplay !== undefined) {
+      const display = spec.numberDisplay;
+      if (
+        display.decimals !== undefined &&
+        (typeof display.decimals !== "number" || !Number.isInteger(display.decimals) || display.decimals < 0)
+      ) {
+        throw new BridgeError("validation", "The number display decimals must be a non-negative integer.");
+      }
+      for (const key of ["thousands", "allowNegative"] as const) {
+        if (display[key] !== undefined && typeof display[key] !== "boolean") {
+          throw new BridgeError("validation", `The number display ${key} must be a boolean.`);
+        }
+      }
+      for (const key of ["prefix", "suffix"] as const) {
+        if (display[key] !== undefined && typeof display[key] !== "string") {
+          throw new BridgeError("validation", `The number display ${key} must be a string.`);
+        }
+      }
+    }
+  }
+
+  // ---------- the row batch ----------
+
+  interface TableCheckpoint {
+    revision: string;
+    columns: Column[];
+    detachedColumns: Column[];
+    rows: MemoryRow[];
+    headSeq: number;
+    envelopes: TableEvent[];
+    schemaRevision: string;
+    revisionCounter: number;
+    nextRowSeq: number;
+    nextColumnSeq: number;
+  }
+
+  function cloneTableCheckpoint(table: MemoryTable): TableCheckpoint {
+    return clone({
+      revision: table.revision,
+      columns: table.columns,
+      detachedColumns: table.detachedColumns,
+      rows: table.rows,
+      headSeq: table.headSeq,
+      envelopes: table.envelopes,
+      schemaRevision: table.schemaRevision,
+      revisionCounter: table.revisionCounter,
+      nextRowSeq: table.nextRowSeq,
+      nextColumnSeq: table.nextColumnSeq,
+    });
+  }
+
+  function restoreTableCheckpoint(table: MemoryTable, checkpoint: TableCheckpoint): void {
+    table.revision = checkpoint.revision;
+    table.columns = checkpoint.columns;
+    table.detachedColumns = checkpoint.detachedColumns;
+    table.rows = checkpoint.rows;
+    table.headSeq = checkpoint.headSeq;
+    table.envelopes = checkpoint.envelopes;
+    table.schemaRevision = checkpoint.schemaRevision;
+    table.revisionCounter = checkpoint.revisionCounter;
+    table.nextRowSeq = checkpoint.nextRowSeq;
+    table.nextColumnSeq = checkpoint.nextColumnSeq;
+  }
+
+  /** The cell keys against the schema + the value stands (the unknown
+   *  column, the null into the non-nullable, the non-scalar into the
+   *  plain column, the non-array into the many reference). */
+  function validateCells(
+    table: MemoryTable,
+    cells: Record<string, unknown>,
+    fail: (code: BridgeErrorCode, message: string) => never
+  ): void {
+    for (const [fieldId, value] of Object.entries(cells)) {
+      const column = table.columns.find((entry) => entry.id === fieldId);
+      if (column === undefined) fail("invalid_column", `The cell references the unknown column "${fieldId}".`);
+      if (value === null && !column.nullable) fail("validation", `The column "${column.name}" is not nullable.`);
+      if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+        fail("validation", `The column "${column.name}" holds scalar values (or an id array for a many reference).`);
+      }
+      if (column.reference !== undefined && column.reference.many && value !== null && !Array.isArray(value)) {
+        fail("validation", `The column "${column.name}" is a many reference and holds an id array.`);
+      }
+    }
+  }
+
+  function assertCas(
+    current: string,
+    expected: string | undefined,
+    fail: (code: BridgeErrorCode, message: string) => never,
+    what: string
+  ): void {
+    if (expected !== undefined && expected !== current) {
+      fail("conflict", `The expected revision of ${what} is stale (expected "${expected}", current "${current}").`);
+    }
+  }
+
+  /** The enum option's live-reference guard: the delete of an option row
+   *  a live cell of a `kind: "enum"` column references (the scalar match
+   *  or the many array's membership) stands the default refusal — the
+   *  explicit replacement migration is the consumer's separate operation,
+   *  never a plain delete. */
+  function assertNoLiveEnumOptionReference(
+    source: MemoryTable,
+    rowId: string,
+    fail: (code: BridgeErrorCode, message: string) => never
+  ): void {
+    for (const other of tables.values()) {
+      for (const column of other.columns) {
+        const reference = column.reference;
+        if (reference === undefined || reference.kind !== "enum" || reference.tableId !== source.id) continue;
+        for (const row of liveRows(other)) {
+          const value = row.cells[column.id];
+          const referenced = value === rowId || (Array.isArray(value) && value.includes(rowId));
+          if (referenced) {
+            fail(
+              "enum.option_in_use",
+              `The enum option "${rowId}" is referenced by a live cell of table "${other.id}".`
+            );
           }
         }
-        for (const entry of table.trash.values()) delete entry.cells[column.id];
       }
-      const at =
-        afterColumnId === undefined
-          ? table.columns.length
-          : table.columns.findIndex((existing) => existing.id === afterColumnId);
-      if (afterColumnId !== undefined && at === -1)
-        throw new Error(`Unknown column "${afterColumnId}" in table "${tableId}".`);
-      table.columns.splice(at, 0, clone(column));
-      emit(tableId, [...events, { type: "schema.changed", columns: clone(table.columns) }]);
+    }
+  }
+
+  /** The order key allocation: the normative candidate for the (left,
+   *  right) bounds — the right bound − 1 for the head, the mean for the
+   *  middle, the left bound + 1 for the tail. The bounds read over the
+   *  RETAINED rows (a tombstone between two live rows keeps its key), the
+   *  anchor is a live row. A collapse / occupancy triggers the full
+   *  baseline rebalance: the retained sequence is rewritten to the dense
+   *  integers, the bounds are re-read, and the candidate is validated
+   *  again — the original op is then written exactly once. */
+  function allocateOrderKey(
+    table: MemoryTable,
+    beforeRowId: string | null,
+    movingRowId: string | undefined,
+    fail: (code: BridgeErrorCode, message: string) => never
+  ): { key: number; rebalanced: boolean } {
+    const bounds = (retained: MemoryRow[]): { left: MemoryRow | undefined; right: MemoryRow | undefined } => {
+      const live = retained.filter((row) => row.deletedAt === null);
+      if (beforeRowId === null) {
+        return { left: retained[retained.length - 1], right: undefined };
+      }
+      const anchorIndex = live.findIndex((row) => row.id === beforeRowId);
+      if (anchorIndex === -1) fail("not_found", `The anchor row "${beforeRowId}" is unknown or deleted.`);
+      const anchor = live[anchorIndex]!;
+      const retainedIndex = retained.findIndex((row) => row.id === anchor.id);
+      return { left: retainedIndex > 0 ? retained[retainedIndex - 1] : undefined, right: anchor };
+    };
+    const candidate = (left: MemoryRow | undefined, right: MemoryRow | undefined): number =>
+      right === undefined
+        ? (left?.orderKey ?? 0) + 1
+        : left === undefined
+          ? right.orderKey - 1
+          : left.orderKey + (right.orderKey - left.orderKey) / 2;
+    const valid = (
+      key: number,
+      retained: MemoryRow[],
+      left: MemoryRow | undefined,
+      right: MemoryRow | undefined
+    ): boolean => {
+      if (!Number.isFinite(key)) return false;
+      if (right === undefined) {
+        if (left !== undefined && key <= left.orderKey) return false;
+      } else if (left === undefined) {
+        if (key >= right.orderKey) return false;
+      } else if (key <= left.orderKey || key >= right.orderKey) {
+        return false;
+      }
+      return !retained.some((row) => row.id !== movingRowId && row.orderKey === key);
+    };
+    const retained = physicalOrder(table);
+    const { left, right } = bounds(retained);
+    const key = candidate(left, right);
+    if (valid(key, retained, left, right)) return { key, rebalanced: false };
+    // The collapse / occupancy: the full baseline rebalance within the
+    // same transaction.
+    retained.forEach((row, index) => {
+      row.orderKey = index + 1;
+    });
+    const retained2 = physicalOrder(table);
+    const bounds2 = bounds(retained2);
+    const rebalancedKey = candidate(bounds2.left, bounds2.right);
+    if (!valid(rebalancedKey, retained2, bounds2.left, bounds2.right)) {
+      fail("conflict", "The row order allocation is still invalid after the rebalance; the batch rolled back.");
+    }
+    return { key: rebalancedKey, rebalanced: true };
+  }
+
+  /** The move's no-op stand: the row is already the immediate predecessor
+   *  of the anchor (or already at the requested tail / head) in the
+   *  VISIBLE order. */
+  function moveIsNoOp(table: MemoryTable, rowId: string, beforeRowId: string | null): boolean {
+    const live = physicalOrder(table).filter((row) => row.deletedAt === null);
+    if (beforeRowId === null) return live[live.length - 1]?.id === rowId;
+    if (beforeRowId === rowId) return true;
+    const index = live.findIndex((row) => row.id === rowId);
+    if (index === -1) return false;
+    return live[index + 1]?.id === beforeRowId;
+  }
+
+  function stripUndefinedCells(cells: Record<string, unknown>): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(cells)) {
+      if (value !== undefined) out[key] = value;
+    }
+    return out;
+  }
+
+  // ---------- the display ----------
+
+  function formatCellDisplay(value: unknown): string | null {
+    if (value === undefined || value === null) return null;
+    if (Array.isArray(value)) {
+      const parts = value.map((item) => formatCellDisplay(item)).filter((part): part is string => part !== null);
+      return parts.length > 0 ? parts.join(", ") : null;
+    }
+    if (typeof value === "object") return JSON.stringify(value);
+    return String(value);
+  }
+
+  // ---------- the bridge ----------
+
+  const bridge: MemoryDatabaseBridge = {
+    async describeProtocol(): Promise<ProtocolDescriptor> {
+      return descriptor;
     },
 
-    async deleteColumn(tableId: string, columnId: string): Promise<void> {
-      const table = tableOf(tableId);
-      const at = table.columns.findIndex((existing) => existing.id === columnId);
-      if (at === -1) throw new Error(`Unknown column "${columnId}" in table "${tableId}".`);
-      // The soft delete: the definition + the anchor position stand
-      // preserved (the restore re-inserts the schema at the anchor), the
-      // cell values stay in the rows' objects (invisible without the
-      // schema) — the restore therefore covers every row, the loaded
-      // pages' and the removed ones alike.
-      const column = table.columns[at]!;
-      table.detachedColumns.set(columnId, {
-        column: clone(column),
-        prevColumnId: at > 0 ? table.columns[at - 1]!.id : null,
+    async listTables(): Promise<TableRef[]> {
+      return [...tables.values()].filter((table) => !table.system).map(tableRefOf);
+    },
+
+    async createTable(
+      input: { name: string; system?: boolean },
+      ctx: MutationContext
+    ): Promise<MutationReceipt<TableRef>> {
+      const name = typeof input.name === "string" ? input.name : "";
+      if (name.trim() === "") throw new BridgeError("validation", "The table name must be a non-empty string.");
+      const fingerprint = fingerprintOf("createTable", { name, system: input.system === true });
+      return idempotent(ctx, fingerprint, () => {
+        const base = tableIdFor(name);
+        let id = base;
+        let suffix = 2;
+        while (tables.has(id)) id = `${base}-${suffix++}`;
+        const table: MemoryTable = {
+          id,
+          name,
+          system: input.system === true,
+          revision: "",
+          columns: [],
+          detachedColumns: [],
+          rows: [],
+          headSeq: 0,
+          envelopes: [],
+          schemaRevision: "",
+          revisionCounter: 0,
+          nextRowSeq: 0,
+          nextColumnSeq: 0,
+        };
+        table.revision = nextRevision(table);
+        table.schemaRevision = nextRevision(table);
+        tables.set(id, table);
+        const ref = tableRefOf(table);
+        return publish(table, ctx.operationId, ref, { [id]: ref.revision }, [
+          {
+            type: "table.created",
+            payload: { table: { table: ref, columns: [], schemaRevision: table.schemaRevision } },
+          },
+        ]);
       });
-      table.columns.splice(at, 1);
-      emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
     },
 
-    async restoreDeletedColumn(tableId: string, columnId: string): Promise<void> {
+    async renameTable(
+      tableId: string,
+      input: { name: string },
+      ctx: MutationContext
+    ): Promise<MutationReceipt<TableRef>> {
       const table = tableOf(tableId);
-      // The column stands in the schema again (the re-creation dropped the
-      // detached data) — the restore stands a no-op.
-      if (table.columns.some((existing) => existing.id === columnId)) return;
-      const detached = table.detachedColumns.get(columnId);
-      if (detached === undefined) throw new Error(`No deleted column "${columnId}" to restore in table "${tableId}".`);
-      table.detachedColumns.delete(columnId);
-      // The anchor position: the deleted stand's `null` anchor = the column
-      // stood first (the restore stands it at the head); a living anchor
-      // column = after it; a vanished anchor column = the end fallback.
-      let at: number;
-      if (detached.prevColumnId === null) {
-        at = 0;
-      } else {
-        const anchorIndex = table.columns.findIndex((existing) => existing.id === detached.prevColumnId);
-        at = anchorIndex === -1 ? table.columns.length : anchorIndex + 1;
+      const name = typeof input.name === "string" ? input.name : "";
+      if (name.trim() === "") throw new BridgeError("validation", "The table name must be a non-empty string.");
+      const fingerprint = fingerprintOf("renameTable", { tableId, name });
+      return idempotent(ctx, fingerprint, () => {
+        if (table.name === name) return noOpReceipt(ctx, table, tableRefOf(table));
+        table.name = name;
+        table.revision = nextRevision(table);
+        const ref = tableRefOf(table);
+        return publish(table, ctx.operationId, ref, { [tableId]: ref.revision }, [
+          { type: "table.renamed", payload: { table: ref } },
+        ]);
+      });
+    },
+
+    async describeTable(tableId: string): Promise<TableDescription> {
+      const table = tableOf(tableId);
+      return { table: tableRefOf(table), columns: clone(table.columns), schemaRevision: table.schemaRevision };
+    },
+
+    async snapshotTable(tableId: string, query: PageQuery): Promise<TableSnapshot> {
+      const table = tableOf(tableId);
+      if (JSON.stringify(query ?? null).length > MAX_REQUEST_BYTES) {
+        throw new BridgeError(
+          "payload_too_large",
+          `The query exceeds the request limit of ${MAX_REQUEST_BYTES} bytes.`
+        );
       }
-      table.columns.splice(at, 0, clone(detached.column));
-      emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
+      validateQuery(table, query);
+      const limit = query.limit ?? DEFAULT_LIMIT;
+      const R = table.headSeq;
+      const rows = orderedQueryRows(table, query.filter, query.sort);
+      const pageRows = rows.slice(0, limit);
+      return {
+        table: tableRefOf(table),
+        columns: clone(table.columns),
+        schemaRevision: table.schemaRevision,
+        page: {
+          rows: pageRows.map(rowWireOf),
+          nextCursor:
+            pageRows.length > 0 && pageRows.length < rows.length
+              ? buildCursor(table, R, query.filter, query.sort, limit, pageRows[pageRows.length - 1]!)
+              : null,
+          asOfSeq: R,
+          schemaRevision: table.schemaRevision,
+          queryFingerprint: queryFingerprint(table, R, query.filter, query.sort, limit),
+          semantics: semanticsOf(table),
+        },
+      };
     },
 
-    async renameColumn(tableId: string, columnId: string, name: string): Promise<void> {
+    async queryNextPage(
+      tableId: string,
+      input: { cursor: string; asOfSeq: number; queryFingerprint: string }
+    ): Promise<PageSnapshot> {
       const table = tableOf(tableId);
-      const column = table.columns.find((existing) => existing.id === columnId);
-      if (column === undefined) throw new Error(`Unknown column "${columnId}" in table "${tableId}".`);
-      column.name = name;
-      emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
+      const cursor = decodeCursor(input.cursor);
+      if (
+        cursor === null ||
+        cursor.tableId !== tableId ||
+        cursor.R !== input.asOfSeq ||
+        input.asOfSeq !== table.headSeq ||
+        cursor.fp !== input.queryFingerprint ||
+        cursor.fp !==
+          queryFingerprint(table, input.asOfSeq, cursor.filter ?? undefined, cursor.sort ?? undefined, cursor.limit)
+      ) {
+        throw new BridgeError(
+          "cursor_expired",
+          "The page cursor is stale, foreign, or bound to a different snapshot or query."
+        );
+      }
+      const rows = orderedQueryRows(table, cursor.filter ?? undefined, cursor.sort ?? undefined);
+      let start = 0;
+      if (cursor.afterOrderKey !== null && cursor.afterRowId !== null) {
+        const at = rows.findIndex((row) => row.orderKey === cursor.afterOrderKey && row.id === cursor.afterRowId);
+        if (at === -1)
+          throw new BridgeError("cursor_expired", "The page cursor's position no longer exists in the table.");
+        start = at + 1;
+      }
+      const pageRows = rows.slice(start, start + cursor.limit);
+      return {
+        rows: pageRows.map(rowWireOf),
+        nextCursor:
+          pageRows.length > 0 && start + pageRows.length < rows.length
+            ? buildCursor(
+                table,
+                input.asOfSeq,
+                cursor.filter ?? undefined,
+                cursor.sort ?? undefined,
+                cursor.limit,
+                pageRows[pageRows.length - 1]!
+              )
+            : null,
+        asOfSeq: input.asOfSeq,
+        schemaRevision: table.schemaRevision,
+        queryFingerprint: input.queryFingerprint,
+        semantics: semanticsOf(table),
+      };
+    },
+
+    async createColumn(
+      tableId: string,
+      input: { column: Omit<Column, "id" | "revision">; afterColumnId?: string },
+      ctx: MutationContext
+    ): Promise<MutationReceipt<Column>> {
+      const table = tableOf(tableId);
+      validateColumnSpec(table, input.column);
+      const fingerprint = fingerprintOf("createColumn", {
+        tableId,
+        column: input.column,
+        afterColumnId: input.afterColumnId ?? null,
+      });
+      return idempotent(ctx, fingerprint, () => {
+        let position: number;
+        if (input.afterColumnId !== undefined) {
+          const anchor = table.columns.findIndex((column) => column.id === input.afterColumnId);
+          if (anchor === -1)
+            throw new BridgeError("invalid_column", `The anchor column "${input.afterColumnId}" is unknown.`);
+          position = anchor + 1;
+        } else {
+          position = Math.min(input.column.position, table.columns.length);
+        }
+        const column: Column = {
+          id: `c-${table.id}-${++table.nextColumnSeq}`,
+          name: input.column.name,
+          type: input.column.type,
+          position,
+          nullable: input.column.nullable,
+          revision: nextRevision(table),
+          ...(input.column.operators !== undefined ? { operators: [...input.column.operators] } : {}),
+          ...(input.column.reference !== undefined ? { reference: clone(input.column.reference) } : {}),
+          ...(input.column.numberDisplay !== undefined ? { numberDisplay: clone(input.column.numberDisplay) } : {}),
+        };
+        table.columns.splice(position, 0, column);
+        reindexColumns(table);
+        table.schemaRevision = nextRevision(table);
+        const wire = clone(column);
+        return publish(table, ctx.operationId, wire, { [column.id]: column.revision }, [
+          { type: "field.created", payload: { column: wire, schemaRevision: table.schemaRevision } },
+        ]);
+      });
     },
 
     async updateColumn(
       tableId: string,
       columnId: string,
-      patch: Partial<Omit<BridgeColumn, "id" | "name">>
-    ): Promise<void> {
+      patch: Partial<Omit<Column, "id" | "revision">>,
+      ctx: MutationContext
+    ): Promise<MutationReceipt<Column>> {
       const table = tableOf(tableId);
-      const column = table.columns.find((existing) => existing.id === columnId);
-      if (column === undefined) throw new Error(`Unknown column "${columnId}" in table "${tableId}".`);
-      // The patch never removes an attribute: the undefined entries stand
-      // skipped, the existing attributes keep.
-      let changed = false;
-      for (const [key, value] of Object.entries(patch)) {
-        if (key === "id" || key === "name" || value === undefined) continue;
-        (column as unknown as Record<string, unknown>)[key] = clone(value);
-        changed = true;
+      const column = table.columns.find((entry) => entry.id === columnId);
+      if (column === undefined) throw new BridgeError("invalid_column", `The column "${columnId}" is unknown.`);
+      const fingerprint = fingerprintOf("updateColumn", { tableId, columnId, patch });
+      return idempotent(ctx, fingerprint, () => {
+        // Pre-validate the whole patch before the mutation: an invalid key
+        // stands no partial apply (the patch's all-or-nothing stand).
+        for (const [key, value] of Object.entries(patch)) {
+          if (value === undefined || key === "id" || key === "revision") continue;
+          if (key === "position" && (typeof value !== "number" || !Number.isInteger(value) || value < 0)) {
+            throw new BridgeError("validation", "The column position must be a non-negative integer.");
+          }
+          if (key === "name" && (typeof value !== "string" || value.trim() === "")) {
+            throw new BridgeError("validation", "The column name must be a non-empty string.");
+          }
+          if (key === "nullable" && typeof value !== "boolean") {
+            throw new BridgeError("validation", "The column nullability must be a boolean.");
+          }
+        }
+        let changed = false;
+        for (const [key, value] of Object.entries(patch)) {
+          if (
+            value === undefined ||
+            key === "id" ||
+            key === "revision" ||
+            deepEqual(column[key as keyof Column], value)
+          )
+            continue;
+          (column as unknown as Record<string, unknown>)[key] = clone(value);
+          changed = true;
+        }
+        if (!changed) return noOpReceipt(ctx, table, clone(column));
+        reindexColumns(table);
+        table.schemaRevision = nextRevision(table);
+        column.revision = nextRevision(table);
+        const wire = clone(column);
+        return publish(table, ctx.operationId, wire, { [columnId]: column.revision }, [
+          { type: "field.updated", payload: { column: wire, schemaRevision: table.schemaRevision } },
+        ]);
+      });
+    },
+
+    async deleteColumn(
+      tableId: string,
+      columnId: string,
+      ctx: MutationContext
+    ): Promise<MutationReceipt<{ columnId: string }>> {
+      const table = tableOf(tableId);
+      const at = table.columns.findIndex((column) => column.id === columnId);
+      if (at === -1) throw new BridgeError("not_found", `The column "${columnId}" is unknown or already deleted.`);
+      const fingerprint = fingerprintOf("deleteColumn", { tableId, columnId });
+      return idempotent(ctx, fingerprint, () => {
+        const column = table.columns.splice(at, 1)[0]!;
+        reindexColumns(table);
+        table.detachedColumns.push(column);
+        table.schemaRevision = nextRevision(table);
+        column.revision = nextRevision(table);
+        const before = clone(column);
+        return publish(table, ctx.operationId, { columnId }, { [columnId]: column.revision }, [
+          { type: "field.deleted", payload: { columnId, before, schemaRevision: table.schemaRevision } },
+        ]);
+      });
+    },
+
+    async restoreDeletedColumn(
+      tableId: string,
+      columnId: string,
+      ctx: MutationContext
+    ): Promise<MutationReceipt<Column>> {
+      const table = tableOf(tableId);
+      const live = table.columns.find((column) => column.id === columnId);
+      if (live !== undefined) {
+        const fingerprint = fingerprintOf("restoreDeletedColumn", { tableId, columnId });
+        return idempotent(ctx, fingerprint, () => noOpReceipt(ctx, table, clone(live)));
       }
-      if (!changed) return; // the zero-change no-op
-      emit(tableId, [{ type: "schema.changed", columns: clone(table.columns) }]);
+      const at = table.detachedColumns.findIndex((column) => column.id === columnId);
+      if (at === -1) throw new BridgeError("not_found", `No deleted column "${columnId}" to restore.`);
+      const fingerprint = fingerprintOf("restoreDeletedColumn", { tableId, columnId });
+      return idempotent(ctx, fingerprint, () => {
+        const column = table.detachedColumns.splice(at, 1)[0]!;
+        table.columns.splice(Math.min(column.position, table.columns.length), 0, column);
+        reindexColumns(table);
+        table.schemaRevision = nextRevision(table);
+        column.revision = nextRevision(table);
+        const wire = clone(column);
+        return publish(table, ctx.operationId, wire, { [columnId]: column.revision }, [
+          { type: "field.restored", payload: { column: wire, schemaRevision: table.schemaRevision } },
+        ]);
+      });
     },
 
     async resolveRowDisplay(
       tableId: string,
-      rowIds: string[],
-      displayColumn?: string
-    ): Promise<Record<string, string>> {
+      input: { rowIds: string[]; displayColumn?: string }
+    ): Promise<Record<string, string | null>> {
       const table = tableOf(tableId);
-      // The display column: the declared one (when it stands a column of
-      // the table), else the first text column, else the first column /
-      // the pk fallback.
-      let column =
-        displayColumn !== undefined ? table.columns.find((existing) => existing.id === displayColumn) : undefined;
+      const rowIds = Array.isArray(input.rowIds) ? input.rowIds : [];
+      let column: Column | undefined;
+      if (input.displayColumn !== undefined) column = table.columns.find((entry) => entry.id === input.displayColumn);
       if (column === undefined) {
-        column = table.columns.find((existing) => TEXT_TYPES.has(existing.type)) ??
-          table.columns[0] ?? {
-            id: PK_COLUMN,
-            name: PK_COLUMN,
-            type: "text",
-          };
+        column =
+          table.columns.find((entry) => TEXT_TYPES.has(entry.type.replace(/\[\]$/, "").trim())) ?? table.columns[0];
       }
-      const displays: Record<string, string> = {};
+      const displays: Record<string, string | null> = {};
       for (const rowId of rowIds) {
-        const row = table.rows.get(rowId);
-        if (row === undefined) {
-          displays[rowId] = "";
-          continue;
-        }
-        const value = row[column.id];
-        displays[rowId] = value === undefined || value === null || value === "" ? rowId : String(value);
+        const row = liveRowOf(table, rowId);
+        displays[rowId] = row === undefined || column === undefined ? null : formatCellDisplay(row.cells[column.id]);
       }
       return displays;
     },
 
-    async queryRows(tableId: string, query: RowQuery): Promise<RowPage> {
+    async batchRows(
+      tableId: string,
+      input: { ops: BatchOp[] },
+      ctx: MutationContext
+    ): Promise<MutationReceipt<{ rows: RowWire[] }>> {
       const table = tableOf(tableId);
-      let ids = orderedRowIds(table);
-      if (query.filter !== undefined) ids = ids.filter((id) => payloadMatches(query.filter!, table.rows.get(id) ?? {}));
-      if (query.orderBy !== undefined && query.orderBy.length > 0) {
-        ids = [...ids].sort((a, b) => {
-          const compared = compareRows(table, a, b, query.orderBy!);
-          return compared !== 0 ? compared : rowOrderCompare(table, a, b);
-        });
+      const ops: BatchOp[] = Array.isArray(input.ops) ? input.ops : [];
+      if (ops.length > MAX_BATCH_OPS) {
+        throw new BridgeError("limit_exceeded", `The batch exceeds the limit of ${MAX_BATCH_OPS} operations.`);
       }
-      const start = query.cursor !== undefined ? decodeCursor(query.cursor) : 0;
-      const limit = query.limit ?? DEFAULT_LIMIT;
-      const page = ids.slice(start, start + limit);
-      const rows: Record<string, Record<string, unknown>> = {};
-      for (const id of page) rows[id] = clone(table.rows.get(id) ?? {});
-      const nextCursor = start + limit < ids.length ? encodeCursor(start + limit) : null;
-      return { rows, nextCursor };
-    },
-
-    async insertRow(tableId: string, row: Record<string, unknown>): Promise<string> {
-      const table = tableOf(tableId);
-      // The row id stands the pk value when the row carries one (the
-      // dict-table stand — the pk IS the value, the option label; the
-      // deterministic stand across the channel's instances); the user row
-      // without a pk stands a globally unique id (the two authors inserting
-      // concurrently never collide on a shared counter).
-      const pkValue = row[PK_COLUMN];
-      const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : crypto.randomUUID();
-      if (table.rows.has(rowId)) return rowId; // the idempotent re-seed
-      table.rows.set(rowId, clone(stripManaged(row)));
-      table.orderValues.set(rowId, nextOrder(table));
-      emit(tableId, [{ type: "row.created", rowId, cells: clone(table.rows.get(rowId) ?? {}) }]);
-      return rowId;
-    },
-
-    async updateRow(tableId: string, rowId: string, cells: Record<string, unknown>): Promise<void> {
-      const table = tableOf(tableId);
-      const row = table.rows.get(rowId);
-      if (row === undefined) throw new Error(`Unknown row "${rowId}" of table "${tableId}".`);
-      const patch: Record<string, unknown> = {};
-      const before: Record<string, unknown> = {};
-      applyCells(row, cells, patch, before);
-      if (Object.keys(patch).length === 0) return; // the zero-change no-op
-      emit(tableId, [{ type: "row.updated", rowId, cells: clone(patch), before: clone(before) }]);
-    },
-
-    async removeRow(tableId: string, rowId: string): Promise<void> {
-      const table = tableOf(tableId);
-      if (!table.rows.has(rowId)) throw new Error(`Unknown row "${rowId}" of table "${tableId}".`);
-      emit(tableId, [{ type: "row.removed", rowId }]);
-      applyEvents(tableId, table, [{ type: "row.removed", rowId }]);
-    },
-
-    async undeleteRows(tableId: string, rowIds: string[]): Promise<void> {
-      const table = tableOf(tableId);
-      // The restore stands the `row.restored` event (the cells + the original
-      // fractional position) — it goes to the local listeners and out the
-      // channel, and the local state applies over the SAME `applyEvents`
-      // path as the remote echo (the single restore code path; the re-delivery
-      // stands idempotent — an already-present row is skipped).
-      const events: TableEvent[] = [];
-      for (const rowId of rowIds) {
-        const entry = table.trash.get(rowId);
-        if (entry === undefined || table.rows.has(rowId)) continue;
-        events.push({ type: "row.restored", rowId, cells: clone(entry.cells), orderValue: entry.orderValue });
+      if (JSON.stringify(ops).length > MAX_REQUEST_BYTES) {
+        throw new BridgeError(
+          "payload_too_large",
+          `The batch exceeds the request limit of ${MAX_REQUEST_BYTES} bytes.`
+        );
       }
-      if (events.length === 0) return; // the zero-change no-op (nothing to restore)
-      emit(tableId, events);
-      applyEvents(tableId, table, events);
-    },
-
-    async insertRows(tableId: string, rows: Record<string, unknown>[]): Promise<string[]> {
-      const table = tableOf(tableId);
-      const created: TableEvent[] = [];
-      const ids: string[] = [];
-      for (const row of rows) {
-        // The pk-value row stand (the dict table's label rows) — the same
-        // stand as the single insertRow (the global id over the pk-less row).
-        const pkValue = row[PK_COLUMN];
-        const rowId = typeof pkValue === "string" && pkValue !== "" ? pkValue : crypto.randomUUID();
-        if (table.rows.has(rowId)) {
-          ids.push(rowId);
-          continue;
+      const fingerprint = fingerprintOf("batchRows", { tableId, ops });
+      return idempotent(ctx, fingerprint, () => {
+        const checkpoint = cloneTableCheckpoint(table);
+        try {
+          let rebalanced = false;
+          const events: DomainEvent[] = [];
+          const affected: MemoryRow[] = [];
+          const touched = new Set<string>();
+          const touch = (row: MemoryRow) => {
+            if (!touched.has(row.id)) {
+              touched.add(row.id);
+              affected.push(row);
+            }
+          };
+          ops.forEach((op, index) => {
+            function fail(code: BridgeErrorCode, message: string): never {
+              throw new BridgeError(code, message, { path: `ops[${index}]` });
+            }
+            switch (op.op) {
+              case "create": {
+                if (JSON.stringify(op.row).length > MAX_REQUEST_BYTES) {
+                  fail("payload_too_large", "The row exceeds the request limit.");
+                }
+                validateCells(table, op.row, fail);
+                const allocated = allocateOrderKey(table, op.beforeRowId ?? null, undefined, fail);
+                rebalanced = rebalanced || allocated.rebalanced;
+                const row: MemoryRow = {
+                  id: `r-${table.id}-${++table.nextRowSeq}`,
+                  orderKey: allocated.key,
+                  revision: nextRevision(table),
+                  cells: stripUndefinedCells(op.row),
+                  deletedAt: null,
+                  deletedRevision: null,
+                };
+                table.rows.push(row);
+                touch(row);
+                events.push({ type: "row.created", payload: { row: rowWireOf(row) } });
+                break;
+              }
+              case "update": {
+                const row = liveRowOf(table, op.rowId);
+                if (row === undefined) fail("not_found", `The row "${op.rowId}" is unknown or deleted.`);
+                assertCas(row.revision, op.expectedRevision, fail, `the row "${op.rowId}"`);
+                validateCells(table, op.cells, fail);
+                let changed = false;
+                for (const [fieldId, value] of Object.entries(op.cells)) {
+                  if (deepEqual(row.cells[fieldId], value)) continue;
+                  row.cells[fieldId] = value === null ? null : clone(value);
+                  changed = true;
+                }
+                if (!changed) break;
+                row.revision = nextRevision(table);
+                touch(row);
+                events.push({ type: "row.updated", payload: { row: rowWireOf(row) } });
+                break;
+              }
+              case "delete": {
+                const row = liveRowOf(table, op.rowId);
+                if (row === undefined) fail("not_found", `The row "${op.rowId}" is unknown or deleted.`);
+                assertCas(row.revision, op.expectedRevision, fail, `the row "${op.rowId}"`);
+                assertNoLiveEnumOptionReference(table, op.rowId, fail);
+                const before = rowWireOf(row);
+                row.deletedAt = Date.now();
+                row.deletedRevision = row.revision;
+                touch(row);
+                events.push({
+                  type: "row.deleted",
+                  payload: { rowId: row.id, deletedRevision: row.deletedRevision, before },
+                });
+                break;
+              }
+              case "move": {
+                const row = liveRowOf(table, op.rowId);
+                if (row === undefined) fail("not_found", `The row "${op.rowId}" is unknown or deleted.`);
+                assertCas(row.revision, op.expectedRevision, fail, `the row "${op.rowId}"`);
+                if (moveIsNoOp(table, row.id, op.beforeRowId)) break;
+                const allocated = allocateOrderKey(table, op.beforeRowId, row.id, fail);
+                rebalanced = rebalanced || allocated.rebalanced;
+                row.orderKey = allocated.key;
+                touch(row);
+                events.push({ type: "row.moved", payload: { row: rowWireOf(row) } });
+                break;
+              }
+            }
+          });
+          const revisions: Record<string, string> = {};
+          for (const row of affected) revisions[row.id] = row.revision;
+          const result: { rows: RowWire[] } = { rows: affected.map(rowWireOf) };
+          if (events.length === 0) {
+            // The all-no-op batch stands the no-op receipt (no envelope, no
+            // head advance): the commit sequence stands the table's head.
+            return noOpReceipt(ctx, table, result);
+          }
+          return publish(table, ctx.operationId, result, revisions, events, rebalanced);
+        } catch (error) {
+          restoreTableCheckpoint(table, checkpoint);
+          throw toBridgeError(error);
         }
-        table.rows.set(rowId, clone(stripManaged(row)));
-        table.orderValues.set(rowId, nextOrder(table));
-        created.push({ type: "row.created", rowId, cells: clone(table.rows.get(rowId) ?? {}) });
-        ids.push(rowId);
-      }
-      emit(tableId, created);
-      return ids;
+      });
     },
 
-    async updateRows(tableId: string, rows: ({ rowId: string } & Record<string, unknown>)[]): Promise<void> {
+    async undeleteRows(
+      tableId: string,
+      input: { rowIds: string[] },
+      ctx: MutationContext
+    ): Promise<MutationReceipt<{ rows: RowWire[] }>> {
       const table = tableOf(tableId);
-      const events: TableEvent[] = [];
-      for (const entry of rows) {
-        const { rowId, ...cells } = entry;
-        const row = table.rows.get(rowId);
-        if (row === undefined) continue;
-        const patch: Record<string, unknown> = {};
-        const before: Record<string, unknown> = {};
-        applyCells(row, cells, patch, before);
-        if (Object.keys(patch).length > 0)
-          events.push({ type: "row.updated", rowId, cells: clone(patch), before: clone(before) });
-      }
-      emit(tableId, events);
+      const rowIds = Array.isArray(input.rowIds) ? input.rowIds : [];
+      const fingerprint = fingerprintOf("undeleteRows", { tableId, rowIds: [...rowIds].sort() });
+      return idempotent(ctx, fingerprint, () => {
+        // Pre-validate every id before the mutation: the restore is one
+        // atomic operation (a failed id stands no partial restore).
+        const byId = new Map(table.rows.map((row) => [row.id, row]));
+        const toRestore: MemoryRow[] = [];
+        for (const rowId of rowIds) {
+          const row = byId.get(rowId);
+          if (row === undefined)
+            throw new BridgeError("not_found", `The row "${rowId}" is unknown or past its physical GC.`);
+          if (row.deletedAt === null) continue; // the already-live stand: the no-op contribution
+          toRestore.push(row);
+        }
+        if (toRestore.length === 0) return noOpReceipt(ctx, table, { rows: [] });
+        const events: DomainEvent[] = [];
+        const revisions: Record<string, string> = {};
+        for (const row of toRestore) {
+          row.deletedAt = null;
+          row.deletedRevision = null;
+          row.revision = nextRevision(table);
+          revisions[row.id] = row.revision;
+          events.push({ type: "row.restored", payload: { row: rowWireOf(row) } });
+        }
+        const result = { rows: toRestore.map(rowWireOf) };
+        return publish(table, ctx.operationId, result, revisions, events, false);
+      });
     },
 
-    async removeRows(tableId: string, rowIds: string[]): Promise<void> {
+    subscribeTable(tableId: string, input: { afterSeq: number }, observer: SubscriptionObserver): SubscriptionHandle {
       const table = tableOf(tableId);
-      const events: TableEvent[] = rowIds
-        .filter((rowId) => table.rows.has(rowId))
-        .map((rowId) => ({
-          type: "row.removed",
-          rowId,
-        }));
-      emit(tableId, events);
-      applyEvents(tableId, table, events);
-    },
-
-    async moveRow(tableId: string, rowId: string, beforeRowId: string | null): Promise<void> {
-      const table = tableOf(tableId);
-      if (!table.rows.has(rowId)) throw new Error(`Unknown row "${rowId}" of table "${tableId}".`);
-      if (beforeRowId !== null && !table.orderValues.has(beforeRowId)) {
-        throw new Error(`Unknown before row "${beforeRowId}" of table "${tableId}".`);
+      const noopHandle: SubscriptionHandle = { unsubscribe(): void {} };
+      if (typeof input.afterSeq !== "number" || !Number.isInteger(input.afterSeq) || input.afterSeq < 0) {
+        observer.status("connecting");
+        observer.error(new BridgeError("validation", "The subscription afterSeq must be a non-negative integer."));
+        observer.status("closed");
+        return noopHandle;
       }
-      moveOrder(table, rowId, beforeRowId);
-      emit(tableId, [{ type: "row.moved", rowId, beforeRowId }]);
-    },
-
-    subscribeTable(tableId: string, onEvents: (events: TableEvent[]) => void): () => void {
-      let set = listeners.get(tableId);
+      if (Number.isFinite(replayWindow) && input.afterSeq < table.headSeq - replayWindow) {
+        observer.status("connecting");
+        observer.ready({ afterSeq: input.afterSeq, headSeq: table.headSeq, protocol: descriptor });
+        observer.status("replaying");
+        observer.reset({ code: "replay_expired" });
+        observer.status("closed");
+        return noopHandle;
+      }
+      let set = subscribers.get(tableId);
       if (set === undefined) {
         set = new Set();
-        listeners.set(tableId, set);
+        subscribers.set(tableId, set);
       }
-      set.add(onEvents);
-      return () => {
-        set!.delete(onEvents);
+      if (set.size >= MAX_SUBSCRIPTIONS) {
+        observer.status("connecting");
+        observer.error(
+          new BridgeError("limit_exceeded", `The table's live subscriptions reach the limit of ${MAX_SUBSCRIPTIONS}.`)
+        );
+        observer.status("closed");
+        return noopHandle;
+      }
+      let closed = false;
+      const handle: SubscriptionHandle = {
+        unsubscribe(): void {
+          if (closed) return;
+          closed = true;
+          set.delete(observer);
+          observer.status("closed");
+        },
       };
+      set.add(observer);
+      observer.status("connecting");
+      observer.ready({ afterSeq: input.afterSeq, headSeq: table.headSeq, protocol: descriptor });
+      if (input.afterSeq < table.headSeq) {
+        observer.status("replaying");
+        for (const envelope of table.envelopes) {
+          if (envelope.seq > input.afterSeq) observer.event(clone(envelope));
+        }
+      }
+      if (!closed) observer.status("live");
+      return handle;
+    },
+
+    async getOperationStatus(operationId: string): Promise<OperationStatus> {
+      const entry = idempotency.get(operationId);
+      if (entry === undefined) {
+        throw new BridgeError("operation_unknown", `The operation "${operationId}" is unknown.`);
+      }
+      if (Date.now() - entry.committedAt > operationRetentionMs) {
+        idempotency.delete(operationId);
+        throw new BridgeError("operation_unknown", `The operation "${operationId}" is outside the retention horizon.`);
+      }
+      return { state: "committed", receipt: entry.receipt };
+    },
+
+    gcTable(tableId: string): void {
+      const table = tableOf(tableId);
+      const deadline = Date.now() - tombstoneRetentionMs;
+      const before = table.rows.length;
+      table.rows = table.rows.filter((row) => row.deletedAt === null || row.deletedAt > deadline);
+      if (table.rows.length === before) return;
+      // The GC is invisible by design: no envelope, no head advance — the
+      // public stream stands unchanged and a restore of a GC'd row stands
+      // the safe `not_found`.
     },
   };
 
   return bridge;
-
-  /** The cells write: null clears the cell, `undefined` is skipped, the equal value is a no-op. */
-  function applyCells(
-    row: Record<string, unknown>,
-    cells: Record<string, unknown>,
-    patch: Record<string, unknown>,
-    before: Record<string, unknown>
-  ): void {
-    for (const [key, value] of Object.entries(cells)) {
-      if (value === undefined || key === PK_COLUMN || key === ROW_ORDER_COLUMN) continue;
-      if (value === null) {
-        if (key in row) {
-          before[key] = row[key];
-          delete row[key];
-          patch[key] = null;
-        }
-        continue;
-      }
-      if (!deepEqual(row[key], value)) {
-        before[key] = row[key];
-        row[key] = clone(value);
-        patch[key] = value;
-      }
-    }
-  }
 }
 
 /** The shared per-page default bridge (the `databaseBridge` prop fallback). */
-let defaultBridge: DatabaseBridge | null = null;
+let defaultBridge: MemoryDatabaseBridge | null = null;
 
 /** The per-page default bridge (created lazily, shared by all the panes of the page). */
-function getDefaultDatabaseBridge(): DatabaseBridge {
+function getDefaultDatabaseBridge(): MemoryDatabaseBridge {
   if (defaultBridge === null) defaultBridge = createMemoryDatabaseBridge();
   return defaultBridge;
 }
 
 export { createMemoryDatabaseBridge, getDefaultDatabaseBridge };
-export type { MemoryBridgeOptions };
+export type { MemoryDatabaseBridge };

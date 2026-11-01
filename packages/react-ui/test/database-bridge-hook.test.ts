@@ -1,0 +1,199 @@
+// @vitest-environment jsdom
+import { renderHook, waitFor } from "@testing-library/react";
+import { describe, expect, it } from "vitest";
+
+import type { DatabaseBridge, MutationContext, TableEvent } from "../src/database/bridge";
+import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
+import { useDatabaseTable } from "../src/database/use-database-table";
+
+function ctx(operationId?: string): MutationContext {
+  return { operationId: operationId ?? crypto.randomUUID(), issuedAt: new Date().toISOString() };
+}
+
+/** Seeds the table (the Name column + the given rows). */
+async function seed(bridge: ReturnType<typeof createMemoryDatabaseBridge>) {
+  const table = await bridge.createTable({ name: "People" }, ctx());
+  const column = await bridge.createColumn(
+    table.result.id,
+    { column: { name: "Name", type: "text", position: 0, nullable: true } },
+    ctx()
+  );
+  const rowIds: string[] = [];
+  for (const name of ["Alice", "Bob"]) {
+    const receipt = await bridge.batchRows(
+      table.result.id,
+      { ops: [{ op: "create", row: { [column.result.id]: name }, beforeRowId: null }] },
+      ctx()
+    );
+    rowIds.push(receipt.result.rows[0]!.id);
+  }
+  return { tableId: table.result.id, nameColumnId: column.result.id, rowIds };
+}
+
+describe("the data provider hook — the bootstrap + the stream's stands", () => {
+  it("bootstraps over the snapshot → subscribe order and maps the wire schema to the grid's stand", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    expect(result.current.phase).toBe("loading");
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.table?.name).toBe("People");
+    expect(result.current.table?.columns.map((column) => column.name)).toEqual(["Name"]);
+    expect(result.current.rows.map((row) => row.rowId)).toEqual(seeded.rowIds);
+    expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("Alice");
+    // The negotiated capabilities stand the optional paths' gate.
+    for (const capability of ["rowRestore", "columnRestore", "cas", "serverSort", "mixedBatch"]) {
+      expect(result.current.capabilities).toContain(capability);
+    }
+    expect(result.current.errorCode).toBeNull();
+  });
+
+  it("refetches the page over the event and stands the subscription alive (the second write delivers)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    // The peer's write (the direct bridge surface — the push channel's
+    // delivery): the event stands the page refetch.
+    await bridge.batchRows(
+      seeded.tableId,
+      { ops: [{ op: "create", row: { [seeded.nameColumnId]: "Zed" }, beforeRowId: null }] },
+      ctx()
+    );
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("Zed");
+    // The subscription stands alive over the refetch: the next write
+    // delivers too.
+    await bridge.batchRows(
+      seeded.tableId,
+      { ops: [{ op: "create", row: { [seeded.nameColumnId]: "Yan" }, beforeRowId: null }] },
+      ctx()
+    );
+    await waitFor(() => expect(result.current.rows.length).toBe(4));
+    expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("Yan");
+  });
+
+  it("the protocol mismatch stands the broken phase + the structured code (no silent downgrade)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const descriptor = await bridge.describeProtocol();
+    const badBridge = {
+      ...bridge,
+      describeProtocol: async () => ({ ...descriptor, protocolVersion: 1 as unknown as 2 }),
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(badBridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("broken"));
+    expect(result.current.errorCode).toBe("protocol_mismatch");
+  });
+
+  it("insertRow stands the receipt's row id; the undo stands the inverse remove (the redo re-creates)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const rowId = await result.current.insertRow({ [seeded.nameColumnId]: "New" });
+    expect(rowId).toBeDefined();
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    expect(result.current.canUndo).toBe(true);
+    await result.current.undo();
+    await waitFor(() => expect(result.current.rows.length).toBe(2));
+    expect(result.current.canRedo).toBe(true);
+    await result.current.redo();
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("New");
+  });
+
+  it("the failed undo entry stands retryable (the entry stays on the stack)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const rowId = await result.current.insertRow({ [seeded.nameColumnId]: "Doomed" });
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    await result.current.removeRow(rowId);
+    await waitFor(() => expect(result.current.rows.length).toBe(2));
+    // The peer's GC drops the tombstone (the reference's stand): the
+    // inverse stands the safe not_found.
+    bridge.gcTable(seeded.tableId);
+    await result.current.undo();
+    await waitFor(() => expect(result.current.errorCode).toBe("not_found"));
+    // The entry stands on the stack (the retry stand).
+    expect(result.current.canUndo).toBe(true);
+  });
+
+  it("the failed write stands the optimistic rollback over the pre-op snapshot", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const rowId = seeded.rowIds[0]!;
+    // The peer deletes the row (the event's refetch stands the fresh state)
+    // — the hook's write over the gone row stands the not_found rejection.
+    await bridge.batchRows(seeded.tableId, { ops: [{ op: "delete", rowId }] }, ctx());
+    await waitFor(() => expect(result.current.rows.length).toBe(1));
+    await expect(result.current.updateRow(rowId, { [seeded.nameColumnId]: "Ghost" })).rejects.toThrow();
+    await waitFor(() => expect(result.current.errorCode).toBe("not_found"));
+    expect(result.current.rows.length).toBe(1);
+  });
+
+  it("dedups the at-least-once replay and rebaselines on the broken prevSeq chain", async () => {
+    const real = createMemoryDatabaseBridge();
+    const seeded = await seed(real);
+    // The synthetic envelopes over the real table's wire stand: the valid
+    // frame (chained to the snapshot's R), its at-least-once duplicate,
+    // then the gapped frame (its prevSeq skips the applied one).
+    const baseline = await real.snapshotTable(seeded.tableId, { limit: 10 });
+    const R = baseline.page.asOfSeq;
+    const wire = baseline.page.rows[0]!;
+    const synthetic = (seq: number, prevSeq: number | null): TableEvent => ({
+      tableId: seeded.tableId,
+      seq,
+      prevSeq,
+      txId: `tx-${seq}`,
+      kind: "commit",
+      originSessionId: "session-synthetic",
+      operationId: `op-${seq}`,
+      receipt: { operationId: `op-${seq}`, txId: `tx-${seq}`, committedSeq: seq, result: {}, revisions: {} },
+      events: [{ type: "row.updated", payload: { row: wire } }],
+    });
+    let snapshotCalls = 0;
+    let subscribeCalls = 0;
+    const bridge: DatabaseBridge = {
+      ...real,
+      snapshotTable: (tableId, query) => {
+        snapshotCalls += 1;
+        return real.snapshotTable(tableId, query);
+      },
+      subscribeTable: (tableId, input, observer) => {
+        subscribeCalls += 1;
+        if (subscribeCalls !== 1) return real.subscribeTable(tableId, input, observer);
+        const applied = synthetic(R + 1, R);
+        const gapped = synthetic(R + 2, R);
+        setTimeout(() => observer.event(applied), 0);
+        setTimeout(() => observer.event(applied), 5);
+        setTimeout(() => observer.event(gapped), 10);
+        return real.subscribeTable(tableId, input, {
+          ready: () => undefined,
+          event: () => undefined,
+          status: () => undefined,
+          error: () => undefined,
+          reset: () => undefined,
+        });
+      },
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    // The scripted deliveries + the refetch / the rebaseline settle over
+    // the real bridge's instant resolutions.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    // The duplicate stands no re-apply (the seen-seq's dedup); the broken
+    // chain stands the full rebaseline: the fresh snapshot + the
+    // re-subscription over the fresh R — the total stand of the three
+    // snapshots (the bootstrap, the applied frame's refetch, the
+    // rebaseline) and the two subscriptions.
+    expect(snapshotCalls).toBe(3);
+    expect(subscribeCalls).toBe(2);
+    expect(result.current.phase).toBe("ready");
+    expect(result.current.rows.map((row) => row.rowId)).toEqual(seeded.rowIds);
+  });
+});

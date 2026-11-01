@@ -4,17 +4,22 @@
  * tables / columns / rows survive the tab's reload (the package's default
  * stands memory-only; the consumer's own backend persists on its side).
  *
- * The snapshot keeps the table's stable id (independent of the name — the
+ * The snapshot keeps each table's stable id (independent of the name — the
  * reload's restore re-creates the table under its original id, so a rename
- * and the doc's `tableId` references survive), the table names, the column
- * schema, and the rows in the row order (the row ids stand the pk-value
- * insertion, so the row-link cells survive). The soft-delete trash stands no
- * read API and is not captured.
+ * and the doc's `tableId` references survive), the table's current name,
+ * the live column schema (in the schema order), and the live rows in the
+ * visible order (the `RowWire`'s cells are keyed by the column id, the row
+ * order by the bridge's physical order key). The generated ids
+ * (`c-<tableId>-N` / `r-<tableId>-N`) are restored exactly: the restore
+ * advances the bridge's allocation counters with throwaway create + delete
+ * pairs, so a deleted column / row stands no shift of the surviving ids
+ * (the cells are keyed by the column id, the row-link cells reference the
+ * row ids). The soft-delete trash and the envelope stream stand no capture.
  */
-import { getDefaultDatabaseBridge } from "docblocks-react-ui";
-import type { BridgeColumn, DatabaseBridge } from "docblocks-react-ui";
+import { getDefaultDatabaseBridge, newMutationContext } from "docblocks-react-ui";
+import type { BatchOp, CellMap, Column, DatabaseBridge, RowWire, TableRef } from "docblocks-react-ui";
 
-const STORAGE_KEY = "docblocks-playground-bridge-v1";
+const STORAGE_KEY = "docblocks-playground-bridge-v2";
 
 /** The save's debounce window: a mutation stands the snapshot within it
  * (a reload inside the window loses the very last mutation — the harness
@@ -23,16 +28,14 @@ const SAVE_DEBOUNCE_MS = 150;
 
 interface SnapshotTable {
   /** The table's stable id (the restore's identity — the doc's `tableId`
-   *  references depend on it surviving a rename + reload). Absent on the
-   *  legacy snapshots (the pre-id format — the seed falls back to the name's
-   *  deterministic slug there). */
-  id?: string;
+   *  references depend on it surviving a rename + reload). */
+  id: string;
   name: string;
   /** The system (hidden) table's stand (the enum's options — the
    *  `listTables` stands it out, so the snapshot names it explicitly). */
   system?: boolean;
-  columns: BridgeColumn[];
-  rows: { id: string; cells: Record<string, unknown> }[];
+  columns: Column[];
+  rows: RowWire[];
 }
 
 interface Snapshot {
@@ -50,79 +53,214 @@ function loadSnapshot(): Snapshot | null {
   }
 }
 
-/** The full state re-read over the public API (the snapshot's source; the
- *  system tables stand over the `systemTableIds`' set — the `listTables`
- *  stands them out). */
-async function snapshotOf(bridge: DatabaseBridge): Promise<Snapshot> {
-  const tables: SnapshotTable[] = [];
-  const refs = [...(await bridge.listTables()), ...[...systemTableIds].map((id) => ({ id, name: id }))];
-  for (const ref of refs) {
-    const description = await bridge.describeTable(ref.id);
-    const rows: SnapshotTable["rows"] = [];
-    let cursor: string | undefined;
-    do {
-      const page = await bridge.queryRows(ref.id, { cursor, limit: 1_000 });
-      for (const rowId of Object.keys(page.rows)) {
-        rows.push({ id: rowId, cells: page.rows[rowId] ?? {} });
+/** The generated id's sequence over the `c-<tableId>-N` / `r-<tableId>-N`
+ * allocation (null = an id outside the reference bridge's pattern). */
+function generatedSeq(tableId: string, kind: "c" | "r", id: string): number | null {
+  const prefix = `${kind}-${tableId}-`;
+  if (!id.startsWith(prefix)) return null;
+  const seq = Number(id.slice(prefix.length));
+  return Number.isInteger(seq) && seq > 0 ? seq : null;
+}
+
+/** The column's create spec (the wire `Column` minus the bridge-owned
+ * `id` / `revision`). */
+function columnSpecOf(column: Column): Omit<Column, "id" | "revision"> {
+  return {
+    name: column.name,
+    type: column.type,
+    position: column.position,
+    nullable: column.nullable,
+    ...(column.operators !== undefined ? { operators: [...column.operators] } : {}),
+    ...(column.reference !== undefined ? { reference: { ...column.reference } } : {}),
+    ...(column.numberDisplay !== undefined ? { numberDisplay: { ...column.numberDisplay } } : {}),
+  };
+}
+
+/** The restore's table order: a referenced table stands before its
+ * referencer (the column's reference validation requires the linked
+ * table's presence); a cycle keeps the snapshot's order. */
+function restoreOrder(tables: SnapshotTable[]): SnapshotTable[] {
+  const byId = new Map(tables.map((table) => [table.id, table]));
+  const placed = new Set<string>();
+  const out: SnapshotTable[] = [];
+  const visit = (table: SnapshotTable, chain: Set<string>): void => {
+    if (placed.has(table.id) || chain.has(table.id)) return;
+    chain.add(table.id);
+    for (const column of table.columns) {
+      const refTableId = column.reference?.tableId;
+      if (refTableId !== undefined) {
+        const linked = byId.get(refTableId);
+        if (linked !== undefined) visit(linked, chain);
       }
-      cursor = page.nextCursor ?? undefined;
-    } while (cursor !== undefined);
+    }
+    chain.delete(table.id);
+    placed.add(table.id);
+    out.push(table);
+  };
+  for (const table of tables) visit(table, new Set());
+  return out;
+}
+
+/** The full state re-read over the public API (the snapshot's source; the
+ * system tables stand over the `systemTableIds`' set — the `listTables`
+ * stands them out, so the snapshot names them explicitly). */
+async function snapshotOf(bridge: DatabaseBridge): Promise<Snapshot> {
+  const limit = (await bridge.describeProtocol()).limits.maxPageSize;
+  const refs: TableRef[] = [
+    ...(await bridge.listTables()),
+    ...[...systemTableIds].map((id) => ({ id, name: id, revision: "" })),
+  ];
+  const tables: SnapshotTable[] = [];
+  for (const ref of refs) {
+    let snapshot = await bridge.snapshotTable(ref.id, { limit });
+    // The keyset cursor's continuation (a commit during the save stands the
+    // cursor's expiry — the failure rejects the save's pass, the next
+    // mutation re-saves).
+    while (snapshot.page.nextCursor !== null) {
+      const cursor = snapshot.page.nextCursor;
+      const page = await bridge.queryNextPage(ref.id, {
+        cursor,
+        asOfSeq: snapshot.page.asOfSeq,
+        queryFingerprint: snapshot.page.queryFingerprint,
+      });
+      snapshot = {
+        ...snapshot,
+        page: {
+          ...snapshot.page,
+          rows: [...snapshot.page.rows, ...page.rows],
+          nextCursor: page.nextCursor,
+        },
+      };
+    }
     tables.push({
-      id: ref.id,
-      name: description.name,
-      system: systemTableIds.has(ref.id) ? true : undefined,
-      columns: description.columns,
-      rows,
+      id: snapshot.table.id,
+      name: snapshot.table.name,
+      ...(snapshot.table.system === true ? { system: true } : {}),
+      columns: snapshot.columns,
+      rows: snapshot.page.rows,
     });
   }
   return { tables };
 }
 
+/** The column / row restore over the bridge's generated id's counter: a
+ * throwaway create + delete pair advances the allocation by one (the
+ * throwaway stands soft-deleted — invisible over the live schema / page,
+ * the stream is not captured). The caller passes the bridge's allocated
+ * counter (the last allocated sequence, 0 over a fresh table) and the
+ * target's sequence minus one. */
+async function padColumns(bridge: DatabaseBridge, tableId: string, current: number, target: number): Promise<void> {
+  for (let pad = current; pad < target; pad += 1) {
+    const dummy = await bridge.createColumn(
+      tableId,
+      { column: { name: "tmp", type: "text", position: 0, nullable: true } },
+      newMutationContext()
+    );
+    await bridge.deleteColumn(tableId, dummy.result.id, newMutationContext());
+  }
+}
+
+async function padRows(bridge: DatabaseBridge, tableId: string, current: number, target: number): Promise<void> {
+  const dummies = target - current;
+  if (dummies <= 0) return;
+  const ops: BatchOp[] = [];
+  for (let i = 0; i < dummies; i += 1) ops.push({ op: "create", row: {}, beforeRowId: null });
+  const dummyReceipt = await bridge.batchRows(tableId, { ops }, newMutationContext());
+  const dummyIds = dummyReceipt.result.rows.map((row) => row.id);
+  const deletes: BatchOp[] = dummyIds.map((rowId) => ({ op: "delete", rowId }));
+  await bridge.batchRows(tableId, { ops: deletes }, newMutationContext());
+}
+
 /** The snapshot's seed (the reload's restore): the tables / columns / rows
- * stand over the memory bridge before any consumer read. The duplicate
- * column create stands a concurrent seeder (the peer tab's echo over the
- * shared channel) already stood the column — the error is the adoption. */
+ * stand over the memory bridge before any consumer read. The reference
+ * bridge derives the table id from the name's slug, so the table is
+ * created under the slug the saved id implies and then renamed to the
+ * saved name (the rename's stand over the create's id). The generated
+ * column / row ids are restored over the counter's padding (see
+ * `padColumns` / `padRows`); the rows are re-created in the saved visible
+ * order (the append's stand keeps it), and a cell over a since-deleted
+ * column is dropped (the column's soft-delete posture stands no capture). */
 function seed(bridge: DatabaseBridge, snapshot: Snapshot): Promise<void> {
   return (async () => {
-    for (const table of snapshot.tables) {
-      // The explicit id (the new snapshot format) restores the table under
-      // its original identity (a rename + reload keeps the doc's `tableId`
-      // references); the legacy snapshots (no id) stand the name's
-      // deterministic slug (the pre-id behavior).
-      const options = { system: table.system === true ? true : undefined, id: table.id };
-      const id = await bridge.createTable(
-        table.name,
-        table.id !== undefined || table.system === true ? options : undefined
-      );
-      if (table.system === true) systemTableIds.add(id);
-      for (const column of table.columns) {
-        try {
-          await bridge.createColumn(id, column);
-        } catch {
-          // The adoption stand (see the head note).
-        }
-      }
-      if (table.rows.length > 0) {
-        // The pk-value insertion: the row's own id stands the row's identity
-        // (the row-link cells reference the ids).
-        await bridge.insertRows(
-          id,
-          table.rows.map((row) => ({ id: row.id, ...row.cells }))
+    for (const table of restoreOrder(snapshot.tables)) {
+      try {
+        // The slug name the saved id implies (the `table-` prefix's stand);
+        // a malformed id stands the saved name (the fresh derivation's
+        // best-effort stand).
+        const slug = table.id.startsWith("table-") ? table.id.slice("table-".length) : table.name;
+        const receipt = await bridge.createTable(
+          { name: slug, ...(table.system === true ? { system: true } : {}) },
+          newMutationContext()
         );
+        if (table.system === true) systemTableIds.add(receipt.result.id);
+        if (receipt.result.name !== table.name) {
+          await bridge.renameTable(receipt.result.id, { name: table.name }, newMutationContext());
+        }
+        // The columns stand the ascending generated-id sequence (the
+        // counter's allocation stand — the padding advances the bridge's
+        // allocation over the deleted columns' gaps), placed over the
+        // `afterColumnId` anchor (the nearest standing visible
+        // predecessor), so the visible order stands the snapshot's schema
+        // order.
+        let columnSeq = 0;
+        const createdColumnIndexes = new Set<number>();
+        const createOrder = table.columns
+          .map((column, index) => ({ column, index, seq: generatedSeq(receipt.result.id, "c", column.id) }))
+          .sort((a, b) => (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER));
+        for (const entry of createOrder) {
+          if (entry.seq !== null) await padColumns(bridge, receipt.result.id, columnSeq, entry.seq - 1);
+          let anchorId: string | undefined;
+          for (let index = entry.index - 1; index >= 0; index -= 1) {
+            if (createdColumnIndexes.has(index)) {
+              anchorId = table.columns[index]!.id;
+              break;
+            }
+          }
+          await bridge.createColumn(
+            receipt.result.id,
+            {
+              column: columnSpecOf(entry.column),
+              ...(anchorId !== undefined ? { afterColumnId: anchorId } : {}),
+            },
+            newMutationContext()
+          );
+          columnSeq = entry.seq !== null ? entry.seq : columnSeq + 1;
+          createdColumnIndexes.add(entry.index);
+        }
+        const liveColumnIds = new Set(table.columns.map((column) => column.id));
+        let rowSeq = 0;
+        for (const row of table.rows) {
+          const seq = generatedSeq(receipt.result.id, "r", row.id);
+          if (seq !== null) await padRows(bridge, receipt.result.id, rowSeq, seq - 1);
+          const cells: CellMap = {};
+          for (const [key, value] of Object.entries(row.cells)) {
+            if (liveColumnIds.has(key)) cells[key] = value;
+          }
+          await bridge.batchRows(
+            receipt.result.id,
+            { ops: [{ op: "create", row: cells, beforeRowId: null }] },
+            newMutationContext()
+          );
+          rowSeq = seq !== null ? seq : rowSeq + 1;
+        }
+      } catch (error) {
+        // The un-restorable table (the malformed snapshot / the foreign
+        // reference) stands the page's survival: the demo tables re-seed
+        // over insert-blocks, the user's table stands the console's stand.
+        console.error("the persistent bridge's restore failed for the table", table.id, error);
       }
     }
   })();
 }
 
-let seedPromise: Promise<void> | null = null;
-
 /** The system tables' ids (the `listTables` stands them out — the
- *  snapshot names them over this set; the seed restores the flag, the
- *  create records the fresh id). */
+ * snapshot names them over this set; the seed restores the flag, the
+ * create records the fresh id). */
 const systemTableIds = new Set<string>();
 
 /** The seed's readiness (the harness's table seed awaits it: the guard
  * reads the snapshot's tables, not the empty bridge). */
+let seedPromise: Promise<void> | null = null;
 function databaseBridgeReady(): Promise<void> {
   if (seedPromise === null) {
     const snapshot = loadSnapshot();
@@ -153,6 +291,10 @@ async function flushSave(): Promise<void> {
         // memory-only stand (no throw over the mutation).
       }
     }
+  } catch (error) {
+    // The save's read failure (the cursor's expiry over a concurrent
+    // commit) stands the skip — the next mutation re-saves.
+    console.error("the persistent bridge's save failed", error);
   } finally {
     saveInFlight = false;
   }
@@ -171,104 +313,88 @@ function scheduleSave(): void {
  * never sees the bridge pre-restore), every mutation schedules the
  * snapshot's save. */
 const persistentDatabaseBridge: DatabaseBridge = {
+  describeProtocol: async () => {
+    await databaseBridgeReady();
+    return getDefaultDatabaseBridge().describeProtocol();
+  },
   listTables: async () => {
     await databaseBridgeReady();
     return getDefaultDatabaseBridge().listTables();
   },
-  createTable: async (name, options) => {
+  createTable: async (input, ctx) => {
     await databaseBridgeReady();
-    const id = await getDefaultDatabaseBridge().createTable(name, options);
-    if (options?.system === true) systemTableIds.add(id);
+    const receipt = await getDefaultDatabaseBridge().createTable(input, ctx);
+    if (input.system === true) systemTableIds.add(receipt.result.id);
     scheduleSave();
-    return id;
+    return receipt;
   },
-  renameTable: async (tableId, name) => {
+  renameTable: async (tableId, input, ctx) => {
     await databaseBridgeReady();
-    await getDefaultDatabaseBridge().renameTable(tableId, name);
+    const receipt = await getDefaultDatabaseBridge().renameTable(tableId, input, ctx);
     scheduleSave();
+    return receipt;
   },
   describeTable: async (tableId) => {
     await databaseBridgeReady();
     return getDefaultDatabaseBridge().describeTable(tableId);
   },
-  createColumn: async (tableId, column, afterColumnId) => {
+  snapshotTable: async (tableId, query) => {
     await databaseBridgeReady();
-    await getDefaultDatabaseBridge().createColumn(tableId, column, afterColumnId);
+    return getDefaultDatabaseBridge().snapshotTable(tableId, query);
+  },
+  queryNextPage: async (tableId, input) => {
+    await databaseBridgeReady();
+    return getDefaultDatabaseBridge().queryNextPage(tableId, input);
+  },
+  createColumn: async (tableId, input, ctx) => {
+    await databaseBridgeReady();
+    const receipt = await getDefaultDatabaseBridge().createColumn(tableId, input, ctx);
     scheduleSave();
+    return receipt;
   },
-  updateColumn: async (tableId, columnId, patch) => {
+  updateColumn: async (tableId, columnId, patch, ctx) => {
     await databaseBridgeReady();
-    await getDefaultDatabaseBridge().updateColumn(tableId, columnId, patch);
+    const receipt = await getDefaultDatabaseBridge().updateColumn(tableId, columnId, patch, ctx);
     scheduleSave();
+    return receipt;
   },
-  resolveRowDisplay: async (tableId, rowIds, displayColumn) => {
+  deleteColumn: async (tableId, columnId, ctx) => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().resolveRowDisplay(tableId, rowIds, displayColumn);
-  },
-  deleteColumn: async (tableId, columnId) => {
-    await databaseBridgeReady();
-    await getDefaultDatabaseBridge().deleteColumn(tableId, columnId);
+    const receipt = await getDefaultDatabaseBridge().deleteColumn(tableId, columnId, ctx);
     scheduleSave();
+    return receipt;
   },
-  restoreDeletedColumn: async (tableId, columnId) => {
+  restoreDeletedColumn: async (tableId, columnId, ctx) => {
     await databaseBridgeReady();
-    await getDefaultDatabaseBridge().restoreDeletedColumn!(tableId, columnId);
+    const receipt = await getDefaultDatabaseBridge().restoreDeletedColumn(tableId, columnId, ctx);
     scheduleSave();
+    return receipt;
   },
-  renameColumn: async (tableId, columnId, name) => {
+  resolveRowDisplay: async (tableId, input) => {
     await databaseBridgeReady();
-    await getDefaultDatabaseBridge().renameColumn(tableId, columnId, name);
+    return getDefaultDatabaseBridge().resolveRowDisplay(tableId, input);
+  },
+  batchRows: async (tableId, input, ctx) => {
+    await databaseBridgeReady();
+    const receipt = await getDefaultDatabaseBridge().batchRows(tableId, input, ctx);
     scheduleSave();
+    return receipt;
   },
-  queryRows: async (tableId, query) => {
+  undeleteRows: async (tableId, input, ctx) => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().queryRows(tableId, query);
-  },
-  insertRow: async (tableId, row) => {
-    await databaseBridgeReady();
-    const id = await getDefaultDatabaseBridge().insertRow(tableId, row);
+    const receipt = await getDefaultDatabaseBridge().undeleteRows(tableId, input, ctx);
     scheduleSave();
-    return id;
+    return receipt;
   },
-  updateRow: async (tableId, rowId, cells) => {
+  // The subscription stands the seed-less passthrough (the consumer's
+  // bootstrap reads the snapshot first — that read stands the seed — and
+  // subscribes over the snapshot's `asOfSeq`, so the replay's coverage
+  // stands the events between the read and the subscription).
+  subscribeTable: (tableId, input, observer) => getDefaultDatabaseBridge().subscribeTable(tableId, input, observer),
+  getOperationStatus: async (operationId) => {
     await databaseBridgeReady();
-    await getDefaultDatabaseBridge().updateRow(tableId, rowId, cells);
-    scheduleSave();
+    return getDefaultDatabaseBridge().getOperationStatus(operationId);
   },
-  removeRow: async (tableId, rowId) => {
-    await databaseBridgeReady();
-    await getDefaultDatabaseBridge().removeRow(tableId, rowId);
-    scheduleSave();
-  },
-  undeleteRows: async (tableId, rowIds) => {
-    await databaseBridgeReady();
-    await getDefaultDatabaseBridge().undeleteRows?.(tableId, rowIds);
-    scheduleSave();
-  },
-  insertRows: async (tableId, rows) => {
-    await databaseBridgeReady();
-    const ids = await getDefaultDatabaseBridge().insertRows(tableId, rows);
-    scheduleSave();
-    return ids;
-  },
-  updateRows: async (tableId, rows) => {
-    await databaseBridgeReady();
-    await getDefaultDatabaseBridge().updateRows(tableId, rows);
-    scheduleSave();
-  },
-  removeRows: async (tableId, rowIds) => {
-    await databaseBridgeReady();
-    await getDefaultDatabaseBridge().removeRows(tableId, rowIds);
-    scheduleSave();
-  },
-  moveRow: async (tableId, rowId, beforeRowId) => {
-    await databaseBridgeReady();
-    await getDefaultDatabaseBridge().moveRow(tableId, rowId, beforeRowId);
-    scheduleSave();
-  },
-  // The subscription stands the seed-less passthrough (the events flow
-  // over the base bridge regardless of the restore).
-  subscribeTable: (tableId, onEvents) => getDefaultDatabaseBridge().subscribeTable(tableId, onEvents),
 };
 
-export { databaseBridgeReady, persistentDatabaseBridge };
+export { databaseBridgeReady, newMutationContext, persistentDatabaseBridge };

@@ -1,4 +1,5 @@
 import { type Browser, type Page, expect } from "@playwright/test";
+import type { DatabaseBridge } from "docblocks-react-ui";
 
 declare global {
   interface Window {
@@ -11,35 +12,7 @@ declare global {
     /** The catalog pane's live doc (catalog mode only; null outside it) — the harness global the visual spec reads for the byte-stable snapshot. */
     __catalogDoc?: PaneDoc | null;
     /** The playground pane's default database bridge (harness global; the state is per page) — the e2e bridge suite reads/drives it. */
-    __bridge?: {
-      listTables(): Promise<{ id: string; name: string }[]>;
-      createTable(name: string, options?: { system?: boolean; id?: string }): Promise<string>;
-      renameTable(tableId: string, name: string): Promise<void>;
-      createColumn(
-        tableId: string,
-        column: {
-          id: string;
-          name: string;
-          type: string;
-          options?: string[];
-          refKind?: "enum" | "row";
-          refMany?: boolean;
-          refTableId?: string;
-        }
-      ): Promise<void>;
-      insertRows(tableId: string, rows: Record<string, unknown>[]): Promise<string[]>;
-      insertRow(tableId: string, row: Record<string, unknown>): Promise<string>;
-      moveRow(tableId: string, rowId: string, beforeRowId: string | null): Promise<void>;
-      describeTable(tableId: string): Promise<{
-        name: string;
-        columns: { id: string; name: string; type: string; refKind?: "enum" | "row"; refTableId?: string }[];
-      }>;
-      queryRows(
-        tableId: string,
-        query?: { filter?: unknown; orderBy?: string[]; cursor?: string; limit?: number }
-      ): Promise<{ rows: Record<string, Record<string, unknown>>; nextCursor: string | null }>;
-      updateRow(tableId: string, rowId: string, cells: Record<string, unknown>): Promise<void>;
-    };
+    __bridge?: DatabaseBridge;
   }
 }
 

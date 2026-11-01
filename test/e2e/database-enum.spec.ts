@@ -9,7 +9,7 @@ import { SETTLE, openPane } from "./helpers";
  * the tall's list over the clipped chips), the options' block (the
  * standard's font, the shared color's palette, the grip's live reorder). */
 
-/** The demo's table over the pane's bridge (the seed's stand). */
+/** The pane's bridge's demo table (the seed's stand). */
 async function bridgeDemoTable(page: Page): Promise<{ id: string; name: string }> {
   let result: { id: string; name: string } | null = null;
   await expect
@@ -23,6 +23,43 @@ async function bridgeDemoTable(page: Page): Promise<{ id: string; name: string }
     }, SETTLE)
     .not.toBeNull();
   return result!;
+}
+
+/** The demo table's column ids by their schema names (the bridge's
+ * schema read — the column ids stand the bridge's allocation, not the
+ * spec's stand). */
+async function demoColumns<K extends string>(
+  page: Page,
+  tableId: string,
+  names: readonly K[]
+): Promise<Record<K, string>> {
+  const ids = await page.evaluate(
+    async ({ tableId, names }) => {
+      const { columns } = await window.__bridge!.describeTable(tableId);
+      return names.map((name) => columns.find((column) => column.name === name)?.id ?? null);
+    },
+    { tableId, names }
+  );
+  const out = {} as Record<K, string>;
+  names.forEach((name, index) => {
+    const id = ids[index]!;
+    if (id === null) throw new Error(`the demo table's "${name}" column stands absent`);
+    out[name] = id;
+  });
+  return out;
+}
+
+/** The statuses' system table's option row id by its label (the enum's
+ * options' catalog read — the option's row IS the option). */
+async function statusOptionId(page: Page, label: string): Promise<string> {
+  const id = await page.evaluate(async (label) => {
+    const snapshot = await window.__bridge!.snapshotTable("table-statuses-enum", {});
+    const nameColumnId = snapshot.columns.find((column) => column.name === "name")?.id ?? null;
+    if (nameColumnId === null) return null;
+    return snapshot.page.rows.find((row) => row.cells[nameColumnId] === label)?.id ?? null;
+  }, label);
+  if (id === null) throw new Error(`the "${label}" option stands absent over the statuses' system table`);
+  return id;
 }
 
 /** Set the database block's column width (the block's `columnWidths`
@@ -58,26 +95,52 @@ test("the enum's picker width stands the clamp (the cell's floor, the option's d
     const demo = await bridgeDemoTable(a);
     // The long's options (the drive over the 220 px's ceiling): the
     // system's table's stand over the bridge (the pk's rows).
-    await a.evaluate(async (tableId) => {
+    const longColId = await a.evaluate(async (tableId) => {
       const bridge = window.__bridge!;
-      const longTableId = await bridge.createTable(`Enum Width ${Math.random().toString(36).slice(2, 6)}`, {
-        system: true,
-      });
-      await bridge.createColumn(longTableId, { id: "name", name: "name", type: "text" });
-      await bridge.createColumn(longTableId, { id: "color", name: "color", type: "text" });
-      await bridge.createColumn(tableId, {
-        id: "longcol",
-        name: "Long",
-        type: "text",
-        refKind: "enum",
-        refTableId: longTableId,
-      });
-      await bridge.insertRows(longTableId, [
-        { name: "Short" },
-        { name: "Implementation details review cycle" },
-        { name: "Medium option" },
-      ]);
+      const ctx = () => ({ operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() });
+      const longTable = await bridge.createTable(
+        { name: `Enum Width ${Math.random().toString(36).slice(2, 6)}`, system: true },
+        ctx()
+      );
+      const longTableId = longTable.result.id;
+      const nameCol = await bridge.createColumn(
+        longTableId,
+        { column: { name: "name", type: "text", position: 0, nullable: true } },
+        ctx()
+      );
+      await bridge.createColumn(
+        longTableId,
+        { column: { name: "color", type: "text", position: 1, nullable: true } },
+        ctx()
+      );
+      const { columns } = await bridge.describeTable(tableId);
+      const longCol = await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Long",
+            type: "text",
+            position: columns.length,
+            nullable: true,
+            reference: { kind: "enum", tableId: longTableId, many: false },
+          },
+        },
+        ctx()
+      );
+      await bridge.batchRows(
+        longTableId,
+        {
+          ops: [
+            { op: "create", row: { [nameCol.result.id]: "Short" }, beforeRowId: null },
+            { op: "create", row: { [nameCol.result.id]: "Implementation details review cycle" }, beforeRowId: null },
+            { op: "create", row: { [nameCol.result.id]: "Medium option" }, beforeRowId: null },
+          ],
+        },
+        ctx()
+      );
+      return longCol.result.id;
     }, demo.id);
+    const { Status: statusColId } = await demoColumns(a, demo.id, ["Status"]);
 
     const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
     const grid = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
@@ -94,7 +157,7 @@ test("the enum's picker width stands the clamp (the cell's floor, the option's d
     // The short's options' stand (the demo's Statuses): the picker's width
     // stands the cell's floor (the trigger's width — the options' labels
     // are narrower than the cell).
-    await openPicker("status");
+    await openPicker(statusColId);
     const statusTrigger = a.locator("[data-slot='docblocks/database-enum-picker-trigger']").first();
     const statusTriggerWidth = await statusTrigger.boundingBox().then((box) => box!.width);
     const statusPopoverWidth = await pickerPopover(a)
@@ -106,7 +169,7 @@ test("the enum's picker width stands the clamp (the cell's floor, the option's d
     // The long's options' stand: the widest label's drive over the
     // 220 px's ceiling (the "Implementation details review cycle's" label
     // + the row's chrome stands over the 220's floor — the ceiling's clamp).
-    await openPicker("longcol");
+    await openPicker(longColId);
     const longPopoverBox = await pickerPopover(a).boundingBox();
     expect(longPopoverBox!.width).toBeLessThanOrEqual(222);
     expect(longPopoverBox!.width).toBeGreaterThan(150);
@@ -129,30 +192,38 @@ test("the picker's rows stand the selection (the current value's highlight; the 
   try {
     await openPane(a, "a", `enum02-select-${Math.random().toString(36).slice(2, 8)}`);
     const demo = await bridgeDemoTable(a);
+    const { Status: statusColId, Title: titleColId } = await demoColumns(a, demo.id, ["Status", "Title"]);
     // The empty's value's row (the clear's highlight's stand): the seed's
     // rows stand filled — the new's row over the missing's status.
-    const emptyRowIndex = await a.evaluate(async (tableId) => {
-      const bridge = window.__bridge!;
-      const page = await bridge.queryRows(tableId, {});
-      const rows = Object.entries(page.rows);
-      const empty = rows.find(([, cells]) => cells.status === null || cells.status === undefined);
-      if (empty !== undefined) return rows.findIndex(([, entry]) => entry === empty[1]);
-      await bridge.insertRow(tableId, { title: "The empty's row" });
-      const fresh = await bridge.queryRows(tableId, {});
-      const ids = Object.keys(fresh.rows);
-      return ids.length - 1;
-    }, demo.id);
+    const emptyRowIndex = await a.evaluate(
+      async ({ tableId, statusColId, titleColId }) => {
+        const bridge = window.__bridge!;
+        const snapshot = await bridge.snapshotTable(tableId, {});
+        const empty = snapshot.page.rows.findIndex((row) => row.cells[statusColId] == null);
+        if (empty !== -1) return empty;
+        await bridge.batchRows(
+          tableId,
+          { ops: [{ op: "create", row: { [titleColId]: "The empty's row" }, beforeRowId: null }] },
+          { operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() }
+        );
+        const fresh = await bridge.snapshotTable(tableId, {});
+        return fresh.page.rows.length - 1;
+      },
+      { tableId: demo.id, statusColId, titleColId }
+    );
+    const todoId = await statusOptionId(a, "todo");
+    const doingId = await statusOptionId(a, "doing");
 
     const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
     const grid = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
     await expect(grid).toBeVisible(SETTLE);
 
     const filledCell = a
-      .locator(`[data-slot='docblocks/database-cell'][data-column-id='status']`)
+      .locator(`[data-slot='docblocks/database-cell'][data-column-id='${statusColId}']`)
       .filter({ hasText: "todo" })
       .first();
     const emptyCell = a
-      .locator(`[data-slot='docblocks/database-cell'][data-column-id='status'][data-row='${emptyRowIndex}']`)
+      .locator(`[data-slot='docblocks/database-cell'][data-column-id='${statusColId}'][data-row='${emptyRowIndex}']`)
       .first();
 
     // The filled's cell: the current value's row stands the selected's
@@ -163,8 +234,8 @@ test("the picker's rows stand the selection (the current value's highlight; the 
       a
         .locator(`[data-slot='docblocks/database-enum-picker-row'][data-option-value='${value}']`)
         .evaluate((el) => getComputedStyle(el).backgroundColor);
-    const selectedBg = await bgOf("todo");
-    const unselectedBg = await bgOf("doing");
+    const selectedBg = await bgOf(todoId);
+    const unselectedBg = await bgOf(doingId);
     expect(selectedBg).not.toBe(unselectedBg);
     await a.keyboard.press("Escape");
     await a.waitForTimeout(200);
@@ -177,7 +248,7 @@ test("the picker's rows stand the selection (the current value's highlight; the 
       .locator("[data-slot='docblocks/database-enum-picker-clear']")
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(clearBg).toBe(selectedBg);
-    const optionBg = await bgOf("todo");
+    const optionBg = await bgOf(todoId);
     expect(optionBg).toBe(unselectedBg);
   } finally {
     await context.close();
@@ -194,38 +265,70 @@ test("the enum's overflow's stand: the single press stands the picker (the clipp
     const demo = await bridgeDemoTable(a);
     // The long's option (the value's display stands over the clip's
     // ellipsis — the single press's trigger's stand).
-    const longPks = await a.evaluate(async (tableId) => {
+    const { longColId, shortId } = await a.evaluate(async (tableId) => {
       const bridge = window.__bridge!;
-      const longTableId = await bridge.createTable(`Enum Overflow ${Math.random().toString(36).slice(2, 6)}`, {
-        system: true,
-      });
-      await bridge.createColumn(longTableId, { id: "name", name: "name", type: "text" });
-      await bridge.createColumn(longTableId, { id: "color", name: "color", type: "text" });
-      await bridge.createColumn(tableId, {
-        id: "longcol",
-        name: "Long",
-        type: "text",
-        refKind: "enum",
-        refTableId: longTableId,
-      });
-      const short = await bridge.insertRow(longTableId, { name: "ok" });
-      const long = await bridge.insertRow(longTableId, { name: "Implementation details review cycle" });
-      const page = await bridge.queryRows(tableId, {});
-      const rowId = Object.keys(page.rows)[0]!;
-      await bridge.updateRow(tableId, rowId, { longcol: long });
-      return [short, long] as [string, string];
+      const ctx = () => ({ operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() });
+      const longTable = await bridge.createTable(
+        { name: `Enum Overflow ${Math.random().toString(36).slice(2, 6)}`, system: true },
+        ctx()
+      );
+      const longTableId = longTable.result.id;
+      const nameCol = await bridge.createColumn(
+        longTableId,
+        { column: { name: "name", type: "text", position: 0, nullable: true } },
+        ctx()
+      );
+      await bridge.createColumn(
+        longTableId,
+        { column: { name: "color", type: "text", position: 1, nullable: true } },
+        ctx()
+      );
+      const { columns } = await bridge.describeTable(tableId);
+      const longCol = await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Long",
+            type: "text",
+            position: columns.length,
+            nullable: true,
+            reference: { kind: "enum", tableId: longTableId, many: false },
+          },
+        },
+        ctx()
+      );
+      const rows = await bridge.batchRows(
+        longTableId,
+        {
+          ops: [
+            { op: "create", row: { [nameCol.result.id]: "ok" }, beforeRowId: null },
+            { op: "create", row: { [nameCol.result.id]: "Implementation details review cycle" }, beforeRowId: null },
+          ],
+        },
+        ctx()
+      );
+      const shortId = rows.result.rows[0]!.id;
+      const longId = rows.result.rows[1]!.id;
+      const page = await bridge.snapshotTable(tableId, {});
+      const rowId = page.page.rows[0]!.id;
+      await bridge.batchRows(
+        tableId,
+        { ops: [{ op: "update", rowId, cells: { [longCol.result.id]: longId } }] },
+        ctx()
+      );
+      return { longColId: longCol.result.id, shortId, longId };
     }, demo.id);
 
     const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
     const grid = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
     await expect(grid).toBeVisible(SETTLE);
 
-    const cell = a.locator(`[data-slot='docblocks/database-cell'][data-column-id='longcol']`).first();
+    const cell = a.locator(`[data-slot='docblocks/database-cell'][data-column-id='${longColId}']`).first();
     const popoverVisible = async () => pickerPopover(a).isVisible();
 
     // The wide's stand: the value's full's line — the single press stands
     // the selection only (the double press is the picker's stand).
-    await setColumnWidth(a, blockId, "longcol", 400);
+    await setColumnWidth(a, blockId, longColId, 400);
     await expect(cell).toContainText("Implementation details review cycle", SETTLE);
     await cell.click();
     await a.waitForTimeout(200);
@@ -238,7 +341,7 @@ test("the enum's overflow's stand: the single press stands the picker (the clipp
 
     // The clipped's stand: the narrow's column (the value's ellipsis) —
     // the single press stands the picker.
-    await setColumnWidth(a, blockId, "longcol", 110);
+    await setColumnWidth(a, blockId, longColId, 110);
     await expect
       .poll(
         async () =>
@@ -253,7 +356,7 @@ test("the enum's overflow's stand: the single press stands the picker (the clipp
     expect(await popoverVisible()).toBe(true);
     // The picked's stand (the regression): the option's row's pick stands
     // the value (the short's option over the long's).
-    const shortRow = a.locator(`[data-slot='docblocks/database-enum-picker-row'][data-option-value='${longPks[0]}']`);
+    const shortRow = a.locator(`[data-slot='docblocks/database-enum-picker-row'][data-option-value='${shortId}']`);
     await shortRow.click();
     await expect(cell).toHaveText("ok", SETTLE);
   } finally {
@@ -271,39 +374,77 @@ test("the multi's overflow stretches the list (the clipped chips' tall's stand; 
     const demo = await bridgeDemoTable(a);
     // The multi-enum's column over the long's system's table (the chips'
     // train stands the clip's fade).
-    await a.evaluate(async (tableId) => {
+    const longtagsColId = await a.evaluate(async (tableId) => {
       const bridge = window.__bridge!;
-      const longTableId = await bridge.createTable(`Enum Tall ${Math.random().toString(36).slice(2, 6)}`, {
-        system: true,
-      });
-      await bridge.createColumn(longTableId, { id: "name", name: "name", type: "text" });
-      await bridge.createColumn(longTableId, { id: "color", name: "color", type: "text" });
-      await bridge.createColumn(tableId, {
-        id: "longcol",
-        name: "Long",
-        type: "text",
-        refKind: "enum",
-        refTableId: longTableId,
-      });
-      await bridge.createColumn(tableId, {
-        id: "longtags",
-        name: "LongTags",
-        type: "text",
-        refKind: "enum",
-        refMany: true,
-        refTableId: longTableId,
-      });
-      const first = await bridge.insertRow(longTableId, { name: "Longer option label one" });
-      const second = await bridge.insertRow(longTableId, { name: "Another longish label" });
-      const page = await bridge.queryRows(tableId, {});
-      const rowId = Object.keys(page.rows)[0]!;
-      await bridge.updateRow(tableId, rowId, { longtags: [first, second] });
+      const ctx = () => ({ operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() });
+      const longTable = await bridge.createTable(
+        { name: `Enum Tall ${Math.random().toString(36).slice(2, 6)}`, system: true },
+        ctx()
+      );
+      const longTableId = longTable.result.id;
+      const nameCol = await bridge.createColumn(
+        longTableId,
+        { column: { name: "name", type: "text", position: 0, nullable: true } },
+        ctx()
+      );
+      await bridge.createColumn(
+        longTableId,
+        { column: { name: "color", type: "text", position: 1, nullable: true } },
+        ctx()
+      );
+      const { columns } = await bridge.describeTable(tableId);
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Long",
+            type: "text",
+            position: columns.length,
+            nullable: true,
+            reference: { kind: "enum", tableId: longTableId, many: false },
+          },
+        },
+        ctx()
+      );
+      const longtagsCol = await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "LongTags",
+            type: "text",
+            position: columns.length + 1,
+            nullable: true,
+            reference: { kind: "enum", tableId: longTableId, many: true },
+          },
+        },
+        ctx()
+      );
+      const rows = await bridge.batchRows(
+        longTableId,
+        {
+          ops: [
+            { op: "create", row: { [nameCol.result.id]: "Longer option label one" }, beforeRowId: null },
+            { op: "create", row: { [nameCol.result.id]: "Another longish label" }, beforeRowId: null },
+          ],
+        },
+        ctx()
+      );
+      const firstId = rows.result.rows[0]!.id;
+      const secondId = rows.result.rows[1]!.id;
+      const page = await bridge.snapshotTable(tableId, {});
+      const rowId = page.page.rows[0]!.id;
+      await bridge.batchRows(
+        tableId,
+        { ops: [{ op: "update", rowId, cells: { [longtagsCol.result.id]: [firstId, secondId] } }] },
+        ctx()
+      );
+      return longtagsCol.result.id;
     }, demo.id);
 
     const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
     const grid = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
     await expect(grid).toBeVisible(SETTLE);
-    const cell = a.locator(`[data-slot='docblocks/database-cell'][data-column-id='longtags']`).first();
+    const cell = a.locator(`[data-slot='docblocks/database-cell'][data-column-id='${longtagsColId}']`).first();
     await expect(cell).toBeVisible(SETTLE);
 
     const maxHeightOf = () =>
@@ -311,7 +452,7 @@ test("the multi's overflow stretches the list (the clipped chips' tall's stand; 
 
     // The wide's stand (the chips' full's train): the compact's list
     // (the 192 px's stand).
-    await setColumnWidth(a, blockId, "longtags", 420);
+    await setColumnWidth(a, blockId, longtagsColId, 420);
     await expect
       .poll(
         async () =>
@@ -330,7 +471,7 @@ test("the multi's overflow stretches the list (the clipped chips' tall's stand; 
     // The clipped's stand (the fade's mask over the train): the tall's
     // list (the 320 px's stand — the values' full's stand over the
     // scroll's inner stand).
-    await setColumnWidth(a, blockId, "longtags", 120);
+    await setColumnWidth(a, blockId, longtagsColId, 120);
     await expect
       .poll(
         async () =>
@@ -434,10 +575,15 @@ test("the options' block stands the standard's font, the shared color's palette 
     await form.locator("[data-slot='docblocks/database-add-column-create']").click();
     await expect(form).toBeHidden(SETTLE);
     const moodOrder = await a.evaluate(async (tableId) => {
-      const schema = await window.__bridge!.describeTable(tableId);
-      const column = schema.columns.find((entry) => entry.name === "Mood")!;
-      const page = await window.__bridge!.queryRows(column.refTableId!, {});
-      return Object.values(page.rows).map((cells) => cells.name);
+      const bridge = window.__bridge!;
+      const schema = await bridge.describeTable(tableId);
+      const column = schema.columns.find((entry) => entry.name === "Mood");
+      const refTableId = column?.reference?.tableId;
+      if (refTableId === undefined) return null;
+      const snapshot = await bridge.snapshotTable(refTableId, {});
+      const nameColumnId = snapshot.columns.find((entry) => entry.name === "name")?.id ?? null;
+      if (nameColumnId === null) return null;
+      return snapshot.page.rows.map((row) => row.cells[nameColumnId]);
     }, demo.id);
     expect(moodOrder).toEqual(["beta", "gamma", "alpha"]);
   } finally {
@@ -453,27 +599,49 @@ test("the picker's contracts stand (the search's autofocus; the filter; the sing
   try {
     await openPane(a, "a", `enum06-contract-${Math.random().toString(36).slice(2, 8)}`);
     const demo = await bridgeDemoTable(a);
-    // The multi-enum's column (the demo's Statuses' dict).
-    await a.evaluate(async (tableId) => {
+    // The multi-enum's column (the demo's Statuses' dict) + the row's
+    // first cell's tags' seed (the option's row id over the column id).
+    const { Status: statusColId, Tags: tagsColId } = await a.evaluate(async (tableId) => {
       const bridge = window.__bridge!;
-      await bridge.createColumn(tableId, {
-        id: "tags",
-        name: "Tags",
-        type: "text",
-        refKind: "enum",
-        refMany: true,
-        refTableId: "table-statuses-enum",
-      });
-      const page = await bridge.queryRows(tableId, {});
-      const rowId = Object.keys(page.rows)[0]!;
-      await bridge.updateRow(tableId, rowId, { tags: ["todo"] });
+      const ctx = () => ({ operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() });
+      const { columns } = await bridge.describeTable(tableId);
+      const statusColId = columns.find((column) => column.name === "Status")?.id ?? null;
+      const tagsCol = await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Tags",
+            type: "text",
+            position: columns.length,
+            nullable: true,
+            reference: { kind: "enum", tableId: "table-statuses-enum", many: true },
+          },
+        },
+        ctx()
+      );
+      const enumSnapshot = await bridge.snapshotTable("table-statuses-enum", {});
+      const nameColumnId = enumSnapshot.columns.find((column) => column.name === "name")?.id ?? null;
+      const todoOption =
+        nameColumnId === null ? undefined : enumSnapshot.page.rows.find((row) => row.cells[nameColumnId] === "todo");
+      if (statusColId === null || todoOption === undefined) {
+        throw new Error("the demo's Status column / the todo option stands absent");
+      }
+      const page = await bridge.snapshotTable(tableId, {});
+      const rowId = page.page.rows[0]!.id;
+      await bridge.batchRows(
+        tableId,
+        { ops: [{ op: "update", rowId, cells: { [tagsCol.result.id]: [todoOption.id] } }] },
+        ctx()
+      );
+      return { Status: statusColId, Tags: tagsCol.result.id };
     }, demo.id);
+    const doingId = await statusOptionId(a, "doing");
 
     const blockId = await a.evaluate((tableId) => window.__paneDocs!.a!.insertBlock("database", { tableId }), demo.id);
     const grid = a.locator(`[data-block-id='${blockId}'] [data-slot='docblocks/database-grid']`);
     await expect(grid).toBeVisible(SETTLE);
 
-    const enumCell = a.locator("[data-slot='docblocks/database-cell'][data-column-id='status']").first();
+    const enumCell = a.locator(`[data-slot='docblocks/database-cell'][data-column-id='${statusColId}']`).first();
 
     // The search's autofocus (the regression): the open stands the input's
     // focus.
@@ -492,12 +660,12 @@ test("the picker's contracts stand (the search's autofocus; the filter; the sing
     // value over the bridge.
     await enumCell.dblclick();
     await a.waitForTimeout(150);
-    await a.locator("[data-slot='docblocks/database-enum-picker-row'][data-option-value='doing']").click();
+    await a.locator(`[data-slot='docblocks/database-enum-picker-row'][data-option-value='${doingId}']`).click();
     await expect(enumCell).toHaveText("doing", SETTLE);
 
     // The multi's toggle (the regression): the row's press stands the
     // checkbox's toggle (the cell's chips' stand).
-    const multiCell = a.locator("[data-slot='docblocks/database-cell'][data-column-id='tags']").first();
+    const multiCell = a.locator(`[data-slot='docblocks/database-cell'][data-column-id='${tagsColId}']`).first();
     await multiCell.dblclick();
     await a.waitForTimeout(150);
     const firstOption = a.locator("[data-slot='docblocks/database-ref-multi-option']").first();

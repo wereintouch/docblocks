@@ -1,40 +1,60 @@
 /**
- * The external-form database data provider: the `useDatabaseTable` hook.
- * Loads the table schema (`describeTable`) and the row pages
- * (`queryRows` with the block's `filter`), subscribes to the table's
- * live events (the refetch on any event — the bridge is the source of
- * truth), and exposes the row / column operations with the optimistic
- * layer (the local apply before the bridge call, the rollback to the
- * pre-operation snapshot + the refetch on a reject) and the
- * FORWARD-ONLY per-block undo stack (the inverse operations: insert →
- * remove, update → update with the old values of the edited cells only
- * (the full old row would clobber a remote edit of another cell — the
- * same-cell conflict stands the undo as the newest write), remove →
- * undelete (when the consumer has soft-delete — otherwise the removal is
- * not undoable and never enters the stack), move → move back, column
- * delete → restore (when the consumer's bridge preserves the deleted
- * column's data over `restoreDeletedColumn` — otherwise the destruction
- * stands not undoable and never enters the stack)). The stacks stand per
- * (bridge, tableId): a relink of the block to another table / bridge
- * drops the previous one's history, and the previous table's op that
- * resolves after the relink (the in-flight stand) stands dropped — the
- * undo never targets a hidden table. The doc-undo does not
- * cover the table rows (they are not in the doc); the hotkey wiring is
- * the consumer UI (the `undo` / `redo` API).
+ * The external-form database data provider over the versioned contract: the
+ * `useDatabaseTable` hook. The bootstrap stands the normative order —
+ * the protocol negotiation (the version / baseline-capability mismatch
+ * stands the `protocol_mismatch`), the `snapshotTable` (the sole initial
+ * read; its `page.asOfSeq` is the `R`), then `subscribeTable` with
+ * `afterSeq: R` (the replay stands the events after `R`, the live stands
+ * the new ones). A `commit` and an `invalidate` envelope both stand the
+ * page REFETCH — the fresh snapshot over the fresh `R` (the in-place cache
+ * refill is not a stand); the live subscription stays alive over the
+ * refetch. The stream's chain is the loss detector: a duplicate /
+ * out-of-order / gapped `seq` (the `prevSeq`'s mismatch) stands the full
+ * rebaseline — the fresh snapshot + the re-subscription over the fresh
+ * `R`.
+ *
+ * Every row / column write goes over the contract's surface (the `batchRows`'s
+ * atomic ops for the rows, the direct calls for the schema), each with a
+ * FRESH `operationId` (the write's context) — a failed write is never
+ * retried with a new id silently; its reconciliation stands the same id
+ * over the bridge's idempotency. The per-block undo stack stands the
+ * forward-only inverse operations (the update's inverse
+ * covers the edited keys only; the remove's inverse is the `undeleteRows`
+ * when the `rowRestore` capability stands, else the removal is not
+ * undoable and never enters the stack; the column delete's inverse is the
+ * `restoreDeletedColumn` when the `columnRestore` capability stands) —
+ * and a FAILED inverse / forward leaves its entry on the stack (the retry
+ * stand). The optimistic layer stands the local apply before the bridge
+ * call, the rollback to the pre-operation snapshot + the refetch on a
+ * reject. The stacks stand per (bridge,
+ * tableId); the doc-undo does not cover the table rows.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
-import type { BridgeColumn, BridgeTableDescription, DatabaseBridge } from "../bridge";
+import type { BridgeColumn, BridgeTableDescription } from "../bridge";
+import { BridgeError, isBridgeError } from "../bridge";
+import type {
+  BridgeErrorCode,
+  Column,
+  DatabaseBridge,
+  ProtocolCapability,
+  SubscriptionHandle,
+  TableDescription,
+  TableSnapshot,
+} from "../bridge";
+import { validateProtocolDescriptor } from "../bridge";
 import { PAGE_SIZE } from "./constants";
 import type { DatabaseTablePhase, DatabaseTableRow, InverseOp, UseDatabaseTable } from "./models";
-import { cellValueEqual } from "./utils";
+import { cellValueEqual, descriptionToGrid, errorCodeOf, newMutationContext } from "./utils";
 
 /**
- * The external-form data provider for one `tableId` (per block instance:
- * each block has its own row store and its own undo stack, even when
- * several blocks reference the same table).
+ * The external-form data provider for one `tableId` (per block
+ * instance: each block has its own row store and its own undo stack, even
+ * when several blocks reference the same table). The `filter` stands the
+ * block's view state (the block's `filter` attr's payload — the contract
+ * filter's input shape).
  */
 function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: DatabaseFilterPayload): UseDatabaseTable {
   const [phase, setPhase] = useState<DatabaseTablePhase>("loading");
@@ -42,23 +62,36 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const [rows, setRows] = useState<DatabaseTableRow[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<BridgeErrorCode | null>(null);
+  const [capabilities, setCapabilities] = useState<readonly ProtocolCapability[]>([]);
   const [loadVersion, setLoadVersion] = useState(0);
   const [, setStackVersion] = useState(0); // a re-render trigger for canUndo / canRedo
 
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
-  // The load token: a refetch superseded by a newer one (two table events
-  // back to back) drops its stale result instead of standing it over the
-  // fresh state.
+  // The wire schema (the reference / number display the column ops'
+  // patches and inverses read the current values from).
+  const descriptionRef = useRef<TableDescription | null>(null);
+  // The row revisions (the CAS's `expectedRevision` stand; the absent
+  // revision stands the LWW default).
+  const revisionsRef = useRef<Map<string, string>>(new Map());
+  // The page's snapshot boundary (the `queryNextPage`'s `asOfSeq` + the
+  // query fingerprint the continuation is bound to).
+  const pageRef = useRef<{ asOfSeq: number; fingerprint: string }>({ asOfSeq: 0, fingerprint: "" });
+  const capabilitiesRef = useRef<readonly ProtocolCapability[]>([]);
+  capabilitiesRef.current = capabilities;
+  // The load token: a snapshot read superseded by a newer one (the event
+  // refetch, the retry, the identity change) drops its stale result
+  // instead of standing it over the fresh state.
   const loadTokenRef = useRef(0);
+  // The subscription's generation: a re-subscription (the rebaseline, the
+  // identity change) invalidates the previous subscription's deliveries.
+  const subGenRef = useRef(0);
   const undoStackRef = useRef<InverseOp[]>([]);
   const redoStackRef = useRef<InverseOp[]>([]);
   // The history's identity: the undo/redo stacks stand PER (bridge,
   // tableId) — a relink of the block to another table / bridge drops the
-  // previous one's history in the render (the ops' closures stand the
-  // previous tableId; an undo over the relink would target a hidden
-  // table). A previous table's op that resolves AFTER the relink (the
-  // in-flight stand) is dropped over the sameHistory guard.
+  // previous one's history in the render (the per-(bridge, tableId) stack stand).
   const historyRef = useRef<{ bridge: DatabaseBridge; tableId: string }>({ bridge, tableId });
   if (historyRef.current.bridge !== bridge || historyRef.current.tableId !== tableId) {
     historyRef.current = { bridge, tableId };
@@ -67,65 +100,142 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   }
   const filterKey = filter === undefined ? "" : JSON.stringify(filter);
 
-  /** Loads the description + the first page; `quiet` = no loading flicker (the refetch). */
-  const load = useCallback(
-    async (quiet: boolean) => {
+  const messageOf = (operationError: unknown): string =>
+    operationError instanceof Error ? operationError.message : String(operationError);
+
+  const noteError = (operationError: unknown) => {
+    setError(messageOf(operationError));
+    setErrorCode(errorCodeOf(operationError));
+  };
+
+  /** The snapshot state's apply. `clearError` = the full-load stand (the
+   *  bootstrap / the retry): the operation's error stands the last-op
+   *  stand and survives the event's refetch + the post-op refresh (the
+   *  structured code is the UI's gate — the flash-then-clear is not a
+   *  stand). */
+  const applySnapshot = (snapshot: TableSnapshot, clearError = false) => {
+    pageRef.current = { asOfSeq: snapshot.page.asOfSeq, fingerprint: snapshot.page.queryFingerprint };
+    descriptionRef.current = {
+      table: { ...snapshot.table },
+      columns: snapshot.columns.map((column) => ({ ...column })),
+      schemaRevision: snapshot.schemaRevision,
+    };
+    revisionsRef.current = new Map(snapshot.page.rows.map((row) => [row.id, row.revision]));
+    setTable(descriptionToGrid(snapshot));
+    setRows(snapshot.page.rows.map((row) => ({ rowId: row.id, cells: { ...row.cells } })));
+    setNextCursor(snapshot.page.nextCursor);
+    if (clearError) {
+      setError(null);
+      setErrorCode(null);
+    }
+    setPhase("ready");
+  };
+
+  // The bootstrap: the protocol negotiation, the snapshot (the `R`), then
+  // the live subscription over `afterSeq: R`. A gapped / out-of-order
+  // chain stands the full rebaseline (the fresh snapshot + the
+  // re-subscription over the fresh `R`).
+  useEffect(() => {
+    let disposed = false;
+    let handle: SubscriptionHandle | null = null;
+    let lastSeenSeq: number | null = null;
+    const seenSeqs = new Set<number>();
+
+    const refetch = async (): Promise<void> => {
+      // The event's page refetch: the fresh snapshot (the schema + the
+      // page over the fresh `R`) — the live subscription is NOT
+      // re-opened over it.
       const token = ++loadTokenRef.current;
-      if (!quiet) setPhase("loading");
       try {
-        const description = await bridge.describeTable(tableId);
-        const page = await bridge.queryRows(tableId, {
-          filter: filter === undefined ? undefined : filter,
-          limit: PAGE_SIZE,
-        });
-        if (token !== loadTokenRef.current) return; // a newer load stands
-        setTable(description);
-        setRows(Object.entries(page.rows).map(([rowId, cells]) => ({ rowId, cells })));
-        setNextCursor(page.nextCursor ?? null);
-        setError(null);
-        setPhase("ready");
-      } catch (loadError) {
-        // A superseded load's failure stands no state (the newer load owns
-        // its own loading / ready / broken stand) — only the newest load
-        // may break the grid.
-        if (token !== loadTokenRef.current) return;
-        if (quiet) return; // a refetch failure keeps the current state
-        setPhase("broken");
-        setError(loadError instanceof Error ? loadError.message : String(loadError));
+        const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
+        if (disposed || token !== loadTokenRef.current) return;
+        applySnapshot(snapshot);
+      } catch {
+        // A refetch failure keeps the current state (the subscription
+        // stands; the next event stands the next refetch).
       }
-    },
+    };
+
+    const bootstrap = async (): Promise<void> => {
+      const myGen = ++subGenRef.current; // the previous subscription's deliveries stand stale
+      const token = ++loadTokenRef.current;
+      handle?.unsubscribe();
+      if (!disposed) setPhase("loading");
+      try {
+        const descriptor = await bridge.describeProtocol();
+        if (disposed || token !== loadTokenRef.current) return;
+        // The version / the baseline-capability mismatch stands the
+        // `protocol_mismatch` — the silent downgrade is not a stand.
+        validateProtocolDescriptor(descriptor);
+        setCapabilities(descriptor.capabilities);
+        const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
+        if (disposed || token !== loadTokenRef.current) return;
+        // The chain's first link: the snapshot's `R` — the first replayed
+        // envelope must chain to it (the loss's detection by the chain,
+        // not by the seq arithmetic; the null prevSeq stands the table's
+        // first envelope over the empty head).
+        lastSeenSeq = snapshot.page.asOfSeq;
+        seenSeqs.clear();
+        applySnapshot(snapshot, true);
+        // The subscription opens only AFTER the snapshot resolves (the
+        // bootstrap's stand).
+        handle = bridge.subscribeTable(
+          tableId,
+          { afterSeq: snapshot.page.asOfSeq },
+          {
+            ready: () => undefined,
+            event: (envelope) => {
+              if (disposed || myGen !== subGenRef.current) return;
+              if (seenSeqs.has(envelope.seq)) return; // the at-least-once dedup
+              const last = lastSeenSeq; // the snapshot's `R` over the first frame
+              if (last === null) return; // the subscription stands before the snapshot (unreachable)
+              const chains = envelope.prevSeq === last || (last === 0 && envelope.prevSeq === null);
+              if (!chains || envelope.seq <= last) {
+                // The chain broke (a loss, an out-of-order frame): the full
+                // rebaseline over the fresh `R`.
+                seenSeqs.clear();
+                void bootstrap();
+                return;
+              }
+              lastSeenSeq = envelope.seq;
+              seenSeqs.add(envelope.seq);
+              // The `commit` and the `invalidate` both stand the page
+              // refetch (the rebaseline is NOT an in-place refill); the
+              // subscription stays alive over it.
+              void refetch();
+            },
+            status: () => undefined,
+            error: (operationError) => {
+              if (disposed || myGen !== subGenRef.current) return;
+              noteError(operationError);
+            },
+            reset: () => {
+              // The forced rebaseline signal (the replay expired, the
+              // permission lost, the gap detected): the fresh snapshot +
+              // the re-subscription over the fresh `R`.
+              if (disposed || myGen !== subGenRef.current) return;
+              void bootstrap();
+            },
+          }
+        );
+      } catch (bootstrapError) {
+        if (disposed || token !== loadTokenRef.current) return;
+        setPhase("broken");
+        noteError(bootstrapError);
+      }
+    };
+
+    void bootstrap();
+    return () => {
+      disposed = true;
+      loadTokenRef.current++;
+      if (handle !== null) handle.unsubscribe();
+    };
     // The filter by its serialized key (the store re-renders with a fresh
     // object reference only when the block's JSON changed).
-    [bridge, tableId, filterKey, loadVersion]
-  );
-
-  // The initial load + the live subscription (the refetch on any event —
-  // the subscription delivers events for ALL rows regardless of the
-  // client's filter / page; the bridge is the source of truth).
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      if (cancelled) return;
-      await load(false);
-    })();
-    const unsubscribe = bridge.subscribeTable(tableId, () => {
-      if (!cancelled) void load(true);
-    });
-    return () => {
-      cancelled = true;
-      unsubscribe();
-      // Invalidate the in-flight load: after the unmount (or the identity
-      // change) its result and error stand no state.
-      loadTokenRef.current++;
-    };
-  }, [load, tableId, bridge]);
+  }, [bridge, tableId, filterKey, loadVersion]);
 
   const bump = useCallback(() => setStackVersion((version) => version + 1), []);
-  // The op's identity (the bridge / tableId the op was captured over):
-  // a relink reset the stacks, and an op that resolves AFTER the relink
-  // (the in-flight stand) is dropped — a late push would put a hidden
-  // table's op over the current table's stack (an undo would target the
-  // previous table).
   const pushUndo = useCallback(
     (op: InverseOp, opBridge: DatabaseBridge, opTableId: string) => {
       if (historyRef.current.bridge !== opBridge || historyRef.current.tableId !== opTableId) return;
@@ -137,37 +247,68 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   );
 
   const refresh = useCallback(() => {
-    void load(true);
-  }, [load]);
+    void (async () => {
+      const token = ++loadTokenRef.current;
+      try {
+        const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
+        if (token !== loadTokenRef.current) return;
+        applySnapshot(snapshot);
+      } catch {
+        // A refetch failure keeps the current state (the same stand as the
+        // subscription's refetch).
+      }
+    })();
+  }, [bridge, tableId, filterKey]);
 
-  const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+  const rowOf = (rowId: string) => revisionsRef.current.get(rowId);
+  // The CAS stand: the known revision selects the compare-and-swap, the
+  // absent one stands the LWW default (the spread keeps the op's literal
+  // shape intact).
+  const casOf = (rowId: string): { expectedRevision?: string } => {
+    const revision = rowOf(rowId);
+    return revision === undefined ? {} : { expectedRevision: revision };
+  };
 
   const insertRow = useCallback(
     async (cells: Record<string, unknown> = {}) => {
-      // The row id is bridge-assigned (the pk value), so the insert waits
-      // for the response (no optimistic row id to reconcile). The identity
-      // cell (the `let` the inverse reads) stands the row the inverse
-      // addresses: the redo re-inserts with a FRESH id (the backend that
-      // always assigns new ids) and updates the cell, so every inverse
-      // stands the row the last forward actually created (a stale id would
-      // make the next undo throw and leave the redo's row orphaned). The
-      // row-link cells of the other tables reference the id by value: a
-      // re-insert over a fresh id stands their dead-row stand (the
-      // display's empty stand) — the links are other tables' data, not
-      // this hook's to rewrite.
+      // The row id is bridge-assigned (the `c-` / `r-` allocation), so the
+      // insert waits for the receipt (no optimistic row id to reconcile).
+      // The identity cell (the `let` the inverse reads) stands the row the
+      // inverse addresses: the redo re-creates with a FRESH id (a fresh
+      // logical operation), so every inverse stands the row the last
+      // forward actually created.
       let liveRowId: string;
       try {
-        liveRowId = await bridge.insertRow(tableId, cells);
+        const receipt = await bridge.batchRows(
+          tableId,
+          { ops: [{ op: "create", row: cells, beforeRowId: null }] },
+          newMutationContext()
+        );
+        const created = receipt.result.rows[0];
+        if (created === undefined) {
+          throw new BridgeError("unavailable", "The insert's receipt carries no created row.");
+        }
+        liveRowId = created.id;
+        for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       } catch (operationError) {
+        noteError(operationError);
         throw new Error(messageOf(operationError), { cause: operationError });
       }
       pushUndo(
         {
           label: `insert row ${liveRowId}`,
           forward: async () => {
-            liveRowId = await bridge.insertRow(tableId, cells);
+            const receipt = await bridge.batchRows(
+              tableId,
+              { ops: [{ op: "create", row: cells, beforeRowId: null }] },
+              newMutationContext()
+            );
+            const created = receipt.result.rows[0];
+            if (created !== undefined) liveRowId = created.id;
           },
-          inverse: async () => bridge.removeRow(tableId, liveRowId),
+          inverse: async () => {
+            await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId: liveRowId }] }, newMutationContext());
+          },
         },
         bridge,
         tableId
@@ -197,26 +338,40 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         rows.map((row) => (row.rowId === rowId ? { ...row, cells: { ...row.cells, ...cleaned } } : row))
       );
       try {
-        await bridge.updateRow(tableId, rowId, cleaned);
+        const receipt = await bridge.batchRows(
+          tableId,
+          { ops: [{ op: "update", rowId, cells: cleaned, ...casOf(rowId) }] },
+          newMutationContext()
+        );
+        for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
         if (current !== undefined) {
           const oldCells = { ...current.cells };
           pushUndo(
             {
               label: `update row ${rowId}`,
-              forward: async () => bridge.updateRow(tableId, rowId, cleaned),
+              forward: async () => {
+                await bridge.batchRows(
+                  tableId,
+                  { ops: [{ op: "update", rowId, cells: cleaned }] },
+                  newMutationContext()
+                );
+              },
               inverse: async () => {
-                // The inverse patch covers the EDITED KEYS ONLY (the full old
-                // row would clobber a remote edit of another cell landed
-                // after the operation): the pre-operation value of each
-                // edited key, the absent-before key over the explicit null
-                // (the merge's removal stand). The same-cell conflict policy:
-                // the undo stands the newest write (the local pre-operation
-                // value over a remote edit of the same cell landed since).
+                // The inverse patch covers the EDITED KEYS ONLY (the full
+                // old row would clobber a remote edit of another cell
+                // landed after the operation): the pre-operation value of
+                // each edited key, the absent-before key over the explicit
+                // null (the merge's removal stand). The same-cell conflict
+                // policy: the undo stands the newest write.
                 const restore: Record<string, unknown> = {};
                 for (const key of Object.keys(cleaned)) {
                   restore[key] = oldCells[key] === undefined ? null : oldCells[key];
                 }
-                await bridge.updateRow(tableId, rowId, restore);
+                await bridge.batchRows(
+                  tableId,
+                  { ops: [{ op: "update", rowId, cells: restore }] },
+                  newMutationContext()
+                );
               },
             },
             bridge,
@@ -226,6 +381,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         refresh();
       } catch (operationError) {
         setRows(snapshot);
+        noteError(operationError);
         refresh();
         throw new Error(messageOf(operationError), { cause: operationError });
       }
@@ -266,10 +422,14 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         })
       );
       try {
-        await bridge.updateRows(
+        const receipt = await bridge.batchRows(
           tableId,
-          cleaned.map(({ rowId, cells }) => ({ rowId, ...cells }))
+          {
+            ops: cleaned.map(({ rowId, cells }) => ({ op: "update", rowId, cells, ...casOf(rowId) })),
+          },
+          newMutationContext()
         );
+        for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
         const restore = cleaned.flatMap(({ rowId, cells }) => {
           const oldCells = before.get(rowId);
           if (oldCells === undefined) return [];
@@ -281,22 +441,28 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
             patch[key] = oldCells[key] === undefined && value !== undefined ? null : oldCells[key];
           }
           if (Object.keys(patch).length === 0) return [];
-          return [{ rowId, ...patch }];
+          return [{ rowId, cells: patch }];
         });
         pushUndo(
           {
             label: `update rows ${updates.map((entry) => entry.rowId).join(", ")}`,
             // The one entry for the whole batch: the inverse restores every
-            // touched row over the single undo, the forward stands the batch
-            // again over the single redo.
-            forward: async () =>
-              bridge.updateRows(
+            // touched row over the single undo, the forward stands the
+            // batch again over the single redo.
+            forward: async () => {
+              await bridge.batchRows(
                 tableId,
-                cleaned.map(({ rowId, cells }) => ({ rowId, ...cells }))
-              ),
+                { ops: cleaned.map(({ rowId, cells }) => ({ op: "update", rowId, cells })) },
+                newMutationContext()
+              );
+            },
             inverse: async () => {
               if (restore.length === 0) return;
-              await bridge.updateRows(tableId, restore);
+              await bridge.batchRows(
+                tableId,
+                { ops: restore.map(({ rowId, cells }) => ({ op: "update", rowId, cells })) },
+                newMutationContext()
+              );
             },
           },
           bridge,
@@ -305,6 +471,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         refresh();
       } catch (operationError) {
         setRows(snapshot);
+        noteError(operationError);
         refresh();
         throw new Error(messageOf(operationError), { cause: operationError });
       }
@@ -318,15 +485,19 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       const row = snapshot.find((entry) => entry.rowId === rowId);
       setRows((rows) => rows.filter((entry) => entry.rowId !== rowId));
       try {
-        await bridge.removeRow(tableId, rowId);
-        // Without soft-delete (no undeleteRows) the removal is NOT
-        // undoable: it never enters the stack.
-        if (row !== undefined && bridge.undeleteRows !== undefined) {
+        await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId, ...casOf(rowId) }] }, newMutationContext());
+        // Without the `rowRestore` capability the removal is NOT undoable:
+        // it never enters the stack (a destructing removal stands no data to restore).
+        if (row !== undefined && capabilitiesRef.current.includes("rowRestore")) {
           pushUndo(
             {
               label: `remove row ${rowId}`,
-              forward: async () => bridge.removeRow(tableId, rowId),
-              inverse: async () => bridge.undeleteRows!(tableId, [rowId]),
+              forward: async () => {
+                await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId }] }, newMutationContext());
+              },
+              inverse: async () => {
+                await bridge.undeleteRows(tableId, { rowIds: [rowId] }, newMutationContext());
+              },
             },
             bridge,
             tableId
@@ -335,6 +506,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         refresh();
       } catch (operationError) {
         setRows(snapshot);
+        noteError(operationError);
         refresh();
         throw new Error(messageOf(operationError), { cause: operationError });
       }
@@ -349,8 +521,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       const from = original.findIndex((row) => row.rowId === rowId);
       if (from === -1) return;
       // The original seat's successors: the rows that stood AFTER the
-      // moved row in the pre-move order (the inverse's anchor stand —
-      // see below).
+      // moved row in the pre-move order (the inverse's anchor stand).
       const successors = original.slice(from + 1).map((row) => row.rowId);
       const ordered = [...original];
       const moved = ordered.splice(from, 1)[0]!;
@@ -358,22 +529,32 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       ordered.splice(beforeRowId === null || at === -1 ? ordered.length : at, 0, moved);
       setRows(ordered);
       try {
-        await bridge.moveRow(tableId, rowId, beforeRowId);
+        await bridge.batchRows(
+          tableId,
+          { ops: [{ op: "move", rowId, beforeRowId, ...casOf(rowId) }] },
+          newMutationContext()
+        );
         pushUndo(
           {
             label: `move row ${rowId}`,
-            forward: async () => bridge.moveRow(tableId, rowId, beforeRowId),
+            forward: async () => {
+              await bridge.batchRows(tableId, { ops: [{ op: "move", rowId, beforeRowId }] }, newMutationContext());
+            },
             inverse: async () => {
-              // The inverse stands the ORIGINAL SEAT: the bridge's moveRow
-              // inserts the row BEFORE the given row (null = the end), so
+              // The inverse stands the ORIGINAL SEAT: the move's anchor
+              // inserts the row BEFORE the given row (null = the tail), so
               // the anchor is the row's pre-move SUCCESSOR, not its
               // predecessor. The anchor stands resolved at the undo's time
               // over the refetched state: a successor a peer removed in the
-              // meantime slides to the next survivor (null = the end when
+              // meantime slides to the next survivor (null = the tail when
               // none survive).
               const current = rowsRef.current;
               const seat = successors.find((id) => current.some((row) => row.rowId === id)) ?? null;
-              await bridge.moveRow(tableId, rowId, seat);
+              await bridge.batchRows(
+                tableId,
+                { ops: [{ op: "move", rowId, beforeRowId: seat }] },
+                newMutationContext()
+              );
             },
           },
           bridge,
@@ -382,6 +563,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         refresh();
       } catch (operationError) {
         setRows(snapshot);
+        noteError(operationError);
         refresh();
         throw new Error(messageOf(operationError), { cause: operationError });
       }
@@ -389,178 +571,354 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     [bridge, tableId, pushUndo, refresh]
   );
 
+  // The grid column's wire spec stand: the fresh id is bridge-assigned (the grid's draft id stands the form's
+  // local stand, never the wire's identity), the
+  // flat reference / number fields map to the wire's nested shapes, a new
+  // column stands nullable (the empty cells stand the nulls).
+  const columnSpecOf = (column: BridgeColumn, position: number): Omit<Column, "id" | "revision"> => {
+    const spec: Omit<Column, "id" | "revision"> = {
+      name: column.name,
+      type: column.type,
+      position,
+      nullable: true,
+      ...(column.operators !== undefined ? { operators: [...column.operators] } : {}),
+    };
+    if (column.refKind !== undefined) {
+      spec.reference = {
+        kind: column.refKind,
+        tableId: column.refTableId ?? "",
+        many: column.refMany === true,
+        ...(column.refDisplayColumn !== undefined ? { displayColumnId: column.refDisplayColumn } : {}),
+      };
+    }
+    const numberDisplay: NonNullable<Column["numberDisplay"]> = {};
+    let hasNumberDisplay = false;
+    if (column.decimals !== undefined) {
+      numberDisplay.decimals = column.decimals;
+      hasNumberDisplay = true;
+    }
+    if (column.thousands !== undefined) {
+      numberDisplay.thousands = column.thousands;
+      hasNumberDisplay = true;
+    }
+    if (column.prefix !== undefined) {
+      numberDisplay.prefix = column.prefix;
+      hasNumberDisplay = true;
+    }
+    if (column.suffix !== undefined) {
+      numberDisplay.suffix = column.suffix;
+      hasNumberDisplay = true;
+    }
+    if (column.allowNegative !== undefined) {
+      numberDisplay.allowNegative = column.allowNegative;
+      hasNumberDisplay = true;
+    }
+    if (hasNumberDisplay) spec.numberDisplay = numberDisplay;
+    return spec;
+  };
+
   const addColumn = useCallback(
     async (column: BridgeColumn, afterColumnId?: string) => {
+      const spec = columnSpecOf(column, descriptionRef.current?.columns.length ?? 0);
+      // The identity cell stands the column the inverse addresses: the
+      // redo re-creates with a FRESH bridge-assigned id (a fresh logical
+      // operation).
+      let liveColumnId: string;
       try {
-        await bridge.createColumn(tableId, column, afterColumnId);
+        const receipt = await bridge.createColumn(
+          tableId,
+          {
+            column: spec,
+            ...(afterColumnId !== undefined ? { afterColumnId } : {}),
+          },
+          newMutationContext()
+        );
+        liveColumnId = receipt.result.id;
+      } catch (operationError) {
+        noteError(operationError);
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+      // Without the `columnRestore` capability the consumer's
+      // `deleteColumn` destroys the column's data — the removal is NOT
+      // undoable and never enters the stack.
+      if (capabilitiesRef.current.includes("columnRestore")) {
         pushUndo(
           {
-            label: `create column ${column.id}`,
-            forward: async () => bridge.createColumn(tableId, column, afterColumnId),
-            inverse: async () => bridge.deleteColumn(tableId, column.id),
+            label: `create column ${liveColumnId}`,
+            forward: async () => {
+              const redoReceipt = await bridge.createColumn(
+                tableId,
+                { column: spec, ...(afterColumnId !== undefined ? { afterColumnId } : {}) },
+                newMutationContext()
+              );
+              liveColumnId = redoReceipt.result.id;
+            },
+            inverse: async () => {
+              await bridge.deleteColumn(tableId, liveColumnId, newMutationContext());
+            },
+          },
+          bridge,
+          tableId
+        );
+      }
+      // The bridge-assigned id stands the caller's view-state stand (the
+      // block's `columnOrder` attr appends the real id, never the draft's
+      // placeholder).
+      return liveColumnId;
+    },
+    [bridge, tableId, pushUndo]
+  );
+
+  // The grid patch's wire stand: the operators stand the override, the
+  // reference fields merge over the current column's reference (the patch
+  // never removes an attribute), the flat number fields merge over the
+  // current `numberDisplay`.
+  const columnPatchOf = (
+    columnId: string,
+    patch: Partial<Omit<BridgeColumn, "id" | "name">>
+  ): Partial<Omit<Column, "id" | "revision">> | null => {
+    const current = descriptionRef.current?.columns.find((entry) => entry.id === columnId);
+    if (current === undefined) return null;
+    const wirePatch: Partial<Omit<Column, "id" | "revision">> = {};
+    if (patch.operators !== undefined) wirePatch.operators = [...patch.operators];
+    if (
+      patch.refKind !== undefined ||
+      patch.refTableId !== undefined ||
+      patch.refMany !== undefined ||
+      patch.refDisplayColumn !== undefined
+    ) {
+      wirePatch.reference = {
+        kind: patch.refKind ?? current.reference?.kind ?? "row",
+        tableId: patch.refTableId ?? current.reference?.tableId ?? "",
+        many: patch.refMany ?? current.reference?.many ?? false,
+        ...(patch.refDisplayColumn !== undefined || current.reference?.displayColumnId !== undefined
+          ? { displayColumnId: patch.refDisplayColumn ?? current.reference?.displayColumnId }
+          : {}),
+      };
+    }
+    const numberDisplay: NonNullable<Column["numberDisplay"]> = { ...current.numberDisplay };
+    let hasNumberPatch = false;
+    if (patch.decimals !== undefined) {
+      numberDisplay.decimals = patch.decimals;
+      hasNumberPatch = true;
+    }
+    if (patch.thousands !== undefined) {
+      numberDisplay.thousands = patch.thousands;
+      hasNumberPatch = true;
+    }
+    if (patch.prefix !== undefined) {
+      numberDisplay.prefix = patch.prefix;
+      hasNumberPatch = true;
+    }
+    if (patch.suffix !== undefined) {
+      numberDisplay.suffix = patch.suffix;
+      hasNumberPatch = true;
+    }
+    if (patch.allowNegative !== undefined) {
+      numberDisplay.allowNegative = patch.allowNegative;
+      hasNumberPatch = true;
+    }
+    if (hasNumberPatch) wirePatch.numberDisplay = numberDisplay;
+    return Object.keys(wirePatch).length > 0 ? wirePatch : null;
+  };
+
+  const updateColumn = useCallback(
+    async (columnId: string, patch: Partial<Omit<BridgeColumn, "id" | "name">>) => {
+      const current = descriptionRef.current?.columns.find((entry) => entry.id === columnId);
+      const wirePatch = columnPatchOf(columnId, patch);
+      if (current === undefined || wirePatch === null) return;
+      // The pre-patch attributes (the inverse's restore — the patched keys
+      // only).
+      const previous: Record<string, unknown> = {
+        ...(current.operators !== undefined ? { operators: [...current.operators] } : {}),
+        ...(current.reference !== undefined ? { reference: { ...current.reference } } : {}),
+        ...(current.numberDisplay !== undefined ? { numberDisplay: { ...current.numberDisplay } } : {}),
+      };
+      try {
+        await bridge.updateColumn(tableId, columnId, wirePatch, newMutationContext());
+        pushUndo(
+          {
+            label: `update column ${columnId}`,
+            forward: async () => {
+              await bridge.updateColumn(tableId, columnId, wirePatch, newMutationContext());
+            },
+            inverse: async () => {
+              const restore: Partial<Omit<Column, "id" | "revision">> = {};
+              for (const key of Object.keys(wirePatch)) {
+                const value = previous[key];
+                if (value !== undefined) (restore as Record<string, unknown>)[key] = value;
+              }
+              await bridge.updateColumn(tableId, columnId, restore, newMutationContext());
+            },
           },
           bridge,
           tableId
         );
       } catch (operationError) {
+        noteError(operationError);
         throw new Error(messageOf(operationError), { cause: operationError });
       }
     },
     [bridge, tableId, pushUndo]
   );
 
-  const updateColumn = useCallback(
-    async (columnId: string, patch: Partial<Omit<BridgeColumn, "id" | "name">>) => {
-      const column = table?.columns.find((entry) => entry.id === columnId);
-      if (column === undefined) return;
-      // The pre-patch attributes (the inverse's restore — the patch's
-      // keys only).
-      const previous = { ...column };
-      try {
-        await bridge.updateColumn(tableId, columnId, patch);
-        pushUndo(
-          {
-            label: `update column ${columnId}`,
-            forward: async () => bridge.updateColumn(tableId, columnId, patch),
-            inverse: async () => {
-              const restore: Record<string, unknown> = {};
-              for (const key of Object.keys(patch)) restore[key] = (previous as Record<string, unknown>)[key];
-              await bridge.updateColumn(tableId, columnId, restore);
-            },
-          },
-          bridge,
-          tableId
-        );
-      } catch (operationError) {
-        throw new Error(messageOf(operationError), { cause: operationError });
-      }
-    },
-    [bridge, tableId, table, pushUndo]
-  );
-
   const deleteColumn = useCallback(
     async (columnId: string) => {
-      if (table?.columns.some((entry) => entry.id === columnId) !== true) return;
+      if (descriptionRef.current?.columns.some((entry) => entry.id === columnId) !== true) return;
       try {
-        await bridge.deleteColumn(tableId, columnId);
-        // Without the reversible delete (no `restoreDeletedColumn`) the
-        // backend destroys the column's data — the removal is NOT
-        // undoable and never enters the stack (the same stand as the row
-        // removal without soft-delete).
-        if (bridge.restoreDeletedColumn !== undefined) {
+        await bridge.deleteColumn(tableId, columnId, newMutationContext());
+        // Without the `columnRestore` capability the removal is NOT
+        // undoable (the same stand as the row removal without the
+        // `rowRestore`).
+        if (capabilitiesRef.current.includes("columnRestore")) {
           pushUndo(
             {
               label: `delete column ${columnId}`,
-              forward: async () => bridge.deleteColumn(tableId, columnId),
-              inverse: async () => bridge.restoreDeletedColumn!(tableId, columnId),
+              forward: async () => {
+                await bridge.deleteColumn(tableId, columnId, newMutationContext());
+              },
+              inverse: async () => {
+                await bridge.restoreDeletedColumn(tableId, columnId, newMutationContext());
+              },
             },
             bridge,
             tableId
           );
         }
       } catch (operationError) {
+        noteError(operationError);
         throw new Error(messageOf(operationError), { cause: operationError });
       }
     },
-    [bridge, tableId, table, pushUndo]
+    [bridge, tableId, pushUndo]
   );
 
   const renameColumn = useCallback(
     async (columnId: string, name: string) => {
-      const column = table?.columns.find((entry) => entry.id === columnId);
-      if (column === undefined || column.name === name) return;
+      const current = descriptionRef.current?.columns.find((entry) => entry.id === columnId);
+      if (current === undefined || current.name === name) return;
       try {
-        await bridge.renameColumn(tableId, columnId, name);
+        await bridge.updateColumn(tableId, columnId, { name }, newMutationContext());
         pushUndo(
           {
             label: `rename column ${columnId}`,
-            forward: async () => bridge.renameColumn(tableId, columnId, name),
-            inverse: async () => bridge.renameColumn(tableId, columnId, column.name),
+            forward: async () => {
+              await bridge.updateColumn(tableId, columnId, { name }, newMutationContext());
+            },
+            inverse: async () => {
+              await bridge.updateColumn(tableId, columnId, { name: current.name }, newMutationContext());
+            },
           },
           bridge,
           tableId
         );
       } catch (operationError) {
+        noteError(operationError);
         throw new Error(messageOf(operationError), { cause: operationError });
       }
     },
-    [bridge, tableId, table, pushUndo]
+    [bridge, tableId, pushUndo]
   );
 
   const renameTable = useCallback(
     async (name: string) => {
-      if (table?.name === name) return;
-      const previous = table?.name;
-      if (previous === undefined) return; // a broken table stands its own retry
+      const previous = descriptionRef.current?.table.name;
+      if (previous === undefined || previous === name) return;
       try {
-        await bridge.renameTable(tableId, name);
+        await bridge.renameTable(tableId, { name }, newMutationContext());
         pushUndo(
           {
             label: `rename table to ${name}`,
-            forward: async () => bridge.renameTable(tableId, name),
-            inverse: async () => bridge.renameTable(tableId, previous),
+            forward: async () => {
+              await bridge.renameTable(tableId, { name }, newMutationContext());
+            },
+            inverse: async () => {
+              await bridge.renameTable(tableId, { name: previous }, newMutationContext());
+            },
           },
           bridge,
           tableId
         );
       } catch (operationError) {
+        noteError(operationError);
         throw new Error(messageOf(operationError), { cause: operationError });
       }
     },
-    [bridge, tableId, table, pushUndo]
+    [bridge, tableId, pushUndo]
   );
 
   const loadMore = useCallback(async () => {
     if (nextCursor === null) return;
-    // The token at the call's time: a full load (the retry, the event
-    // refetch, the identity / filter change's re-load) bumps it, so the
-    // stale page (the previous table's / filter's rows) stands no state
-    // over the fresh one's rows + cursor.
+    // The token at the call's time: a fresh snapshot (the event refetch,
+    // the retry, the rebaseline) bumps it, so the stale page stands no
+    // state over the fresh one's rows + cursor.
     const token = loadTokenRef.current;
+    const { asOfSeq, fingerprint } = pageRef.current;
     try {
-      const page = await bridge.queryRows(tableId, {
-        filter: filter === undefined ? undefined : filter,
+      const page = await bridge.queryNextPage(tableId, {
         cursor: nextCursor,
-        limit: PAGE_SIZE,
+        asOfSeq,
+        queryFingerprint: fingerprint,
       });
-      if (token !== loadTokenRef.current) return; // a newer load stands the rows + cursor
+      if (token !== loadTokenRef.current) return; // a newer snapshot stands the rows + cursor
+      pageRef.current = { asOfSeq: page.asOfSeq, fingerprint: page.queryFingerprint };
+      // The appended rows' revisions stand the CAS (the same stand as the
+      // snapshot's page).
+      for (const row of page.rows) revisionsRef.current.set(row.id, row.revision);
       setRows((rows) => {
         const known = new Set(rows.map((row) => row.rowId));
-        const appended = Object.entries(page.rows)
-          .filter(([rowId]) => !known.has(rowId))
-          .map(([rowId, cells]) => ({ rowId, cells }));
+        const appended = page.rows
+          .filter((row) => !known.has(row.id))
+          .map((row) => ({ rowId: row.id, cells: { ...row.cells } }));
         return [...rows, ...appended];
       });
-      setNextCursor(page.nextCursor ?? null);
+      setNextCursor(page.nextCursor);
     } catch (operationError) {
       if (token !== loadTokenRef.current) return; // a stale failure stands no error
-      setError(messageOf(operationError));
+      // The cursor's snapshot boundary advanced: the stand is the fresh
+      // page (the re-snapshot), not the error.
+      if (isBridgeError(operationError) && operationError.code === "cursor_expired") {
+        refresh();
+        return;
+      }
+      noteError(operationError);
     }
-  }, [bridge, tableId, nextCursor, filterKey]);
+  }, [bridge, tableId, nextCursor, refresh]);
 
   const retry = useCallback(() => setLoadVersion((version) => version + 1), []);
 
   const undo = useCallback(async () => {
-    const op = undoStackRef.current.pop();
+    const ops = undoStackRef.current;
+    const op = ops[ops.length - 1];
     if (op === undefined) return;
     try {
       await op.inverse();
+      ops.pop();
       redoStackRef.current.push(op);
+      setError(null);
+      setErrorCode(null);
     } catch (operationError) {
-      setError(messageOf(operationError));
+      // The failed entry STAYS on the stack (the retry stand): a failed
+      // inverse never drops the operation.
+      noteError(operationError);
     }
     bump();
     refresh();
   }, [bump, refresh]);
 
   const redo = useCallback(async () => {
-    const op = redoStackRef.current.pop();
+    const ops = redoStackRef.current;
+    const op = ops[ops.length - 1];
     if (op === undefined) return;
     try {
       await op.forward();
+      ops.pop();
       undoStackRef.current.push(op);
+      setError(null);
+      setErrorCode(null);
     } catch (operationError) {
-      setError(messageOf(operationError));
+      // The failed entry STAYS on the stack (the retry stand).
+      noteError(operationError);
     }
     bump();
     refresh();
@@ -588,6 +946,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     redo,
     canUndo: undoStackRef.current.length > 0,
     canRedo: redoStackRef.current.length > 0,
+    errorCode,
+    capabilities,
   };
 }
 
