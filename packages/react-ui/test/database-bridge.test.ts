@@ -812,7 +812,9 @@ describe("the enum option — the live reference's guard", () => {
       },
       ctx()
     );
-    const [used, free] = options.result.rows.map((row) => row.id);
+    const optionIds = options.result.rows.map((row) => row.id);
+    const used = optionIds[0]!;
+    const free = optionIds[1]!;
     const main = await bridge.createTable({ name: "Tasks" }, ctx());
     const statusColumn = await bridge.createColumn(
       main.result.id,
@@ -875,7 +877,7 @@ describe("the enum option — the live reference's guard", () => {
 
   it("the in-use delete rolls the mixed batch back (the atomic stand)", async () => {
     const bridge = createMemoryDatabaseBridge();
-    const { dictId, used, free, nameColumnId } = await seedEnum(bridge);
+    const { dictId, used, nameColumnId } = await seedEnum(bridge);
     const before = await bridge.snapshotTable(dictId, { limit: 10 });
     const beforeName = before.page.rows.find((row) => row.id === used)?.cells[nameColumnId];
     const rejected = await bridge

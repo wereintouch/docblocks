@@ -68,7 +68,7 @@ function mermaidBlock(page: Page) {
  *  svg; the diagram stands in its own slot). */
 async function svgState(page: Page) {
   return page.evaluate(() => {
-    const container = document.querySelector('[data-testid="doc-a"] [data-slot="docblocks/mermaid"]');
+    const container = document.querySelector<HTMLElement>('[data-testid="doc-a"] [data-slot="docblocks/mermaid"]');
     if (container === null) return { state: "missing" as const, svg: "" };
     const state = container.dataset.state ?? "unknown";
     const svg = container.querySelector('[data-slot="docblocks/mermaid-diagram"] svg');
