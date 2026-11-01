@@ -1,0 +1,40 @@
+name: Regenerate visual snapshots
+
+# Manual re-shoot of the e2e pixel goldens over the CI runner's own
+# platform: the runner image's font set and the image's versions are the
+# check's source of truth, and a golden regenerated off-runner can drift.
+# The run re-shoots the catalog's goldens with --update-snapshots and
+# uploads the snapshot dir as an artifact; the refreshed goldens are
+# committed from the owner's side (the run's token stays read-only).
+on:
+  workflow_dispatch:
+
+jobs:
+  regenerate:
+    name: regenerate (node 26)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install the E2E browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Build the packages (the playground consumes the dist)
+        run: npm run build
+
+      - name: Re-shoot the linux goldens
+        run: npx playwright test test/e2e/visual.spec.ts --update-snapshots
+
+      - name: Upload the snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-snapshots
+          path: test/e2e/visual.spec.ts-snapshots/
