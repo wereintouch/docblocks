@@ -430,6 +430,69 @@ describe("the table column commands", () => {
     expect(reloaded.toJSON()).toEqual(doc.toJSON());
   });
 
+  it("removeTableColumn stands by the columnId binding (no foreign cell dies over a short row)", () => {
+    const doc = shortRowDoc();
+    // Remove cA (the column without a cell): the positional scan would
+    // remove cells[0] (cellB — a foreign column's cell); the identity stand
+    // skips the row (the column identity dies in the columnOrder).
+    doc.removeTableColumn("t", 0);
+    let tableJson = doc.toJSON().blocks["t"]!;
+    expect(tableJson).toMatchObject({ columnOrder: ["cB", "cC"] });
+    expect(doc.getChildren("r1")).toEqual(["cellB", "cellC"]);
+    // Remove cB (now at position 0): its own cell stands by the binding.
+    doc.removeTableColumn("t", 0);
+    tableJson = doc.toJSON().blocks["t"]!;
+    expect(tableJson).toMatchObject({ columnOrder: ["cC"] });
+    expect(doc.getChildren("r1")).toEqual(["cellC"]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("duplicateTableColumn copies the bound column's own cell (the foreign cell stands put)", () => {
+    const doc = shortRowDoc();
+    // Seed the source cell's content.
+    const para = doc.insertBlock("paragraph", undefined, { parent: "cellB" });
+    doc.insertText(para, 0, "source");
+    // Duplicate cB (position 1): the positional scan would copy cells[1]
+    // (cellC — a foreign column's cell); the identity stand copies cB's
+    // own cell (the copy lands next to it, at the bound position + 1).
+    doc.duplicateTableColumn("t", 1);
+    const tableJson = doc.toJSON().blocks["t"]! as { columnOrder: string[] };
+    const columnOrder = tableJson.columnOrder;
+    expect(columnOrder).toHaveLength(4);
+    expect(columnOrder.slice(0, 2)).toEqual(["cA", "cB"]);
+    expect(columnOrder[3]).toBe("cC");
+    const newColumnId = columnOrder[2]!;
+    expect(newColumnId).not.toBe("cB");
+    const cells = doc.getChildren("r1");
+    expect(cells).toHaveLength(3);
+    // The copy (position 1) re-binds to the fresh column and carries the
+    // source content; cellC stands untouched at its position.
+    const copy = cells[1]!;
+    expect(cellAttrs(doc, copy)).toMatchObject({ columnId: newColumnId });
+    const copyPara = doc.getChildren(copy)[0]!;
+    expect(doc.getText(copyPara)).toBe("source");
+    expect(doc.getChildren("r1")[2]).toBe("cellC");
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("clearTableColumn / setTableColumnColor stand by the columnId binding (over a short row)", () => {
+    const doc = shortRowDoc();
+    // Color cB (position 1): the positional scan would color cells[1]
+    // (cellC — a foreign column's cell); the identity stand colors cB's
+    // own cell.
+    doc.setTableColumnColor("t", 1, "#abcdef");
+    expect(cellAttrs(doc, "cellB")).toMatchObject({ columnColor: "#abcdef" });
+    expect(cellAttrs(doc, "cellC")?.columnColor).toBeUndefined();
+    // Clear cB's content (the foreign cell's content stands intact).
+    const cBPara = doc.insertBlock("paragraph", undefined, { parent: "cellB" });
+    doc.insertText(cBPara, 0, "b");
+    const cCPara = doc.insertBlock("paragraph", undefined, { parent: "cellC" });
+    doc.insertText(cCPara, 0, "c");
+    doc.clearTableColumn("t", 1);
+    expect(doc.getText(cBPara)).toBe("");
+    expect(doc.getText(cCPara)).toBe("c");
+  });
+
   it("duplicateTableColumn deep-copies the cells and the width entry", () => {
     const doc = newDoc();
     const { table, rowIds } = buildTable(doc, 2, 2);
