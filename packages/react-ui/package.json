@@ -10,7 +10,8 @@
     "theme.css"
   ],
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "dist/pdf/index.mjs"
   ],
   "exports": {
     ".": {
@@ -89,7 +90,11 @@
   },
   "scripts": {
     "build": "tsdown && tailwindcss -i ui.entry.css -o dist/.tmp/ui-layer.css && node scripts/assemble-styles.mjs && node scripts/copy-pdf-worker.mjs",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
+  },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   }
 }

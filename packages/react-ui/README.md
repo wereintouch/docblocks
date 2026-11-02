@@ -18,6 +18,9 @@ peers, used only by their subpaths: `framer-motion` (`./motion`), `mermaid`
 (zustand, the Radix primitives, the shared ui runtime set) are declared, so
 a plain `npm i` is the whole install.
 
+The package is ESM-only (`import`, not `require`); it stands Node
+`^22.22.2 || ^24.15.0 || >=26.0.0` (the `engines` field).
+
 ## Quick start
 
 The minimum is a core `Doc` wrapped in an `EditorProvider` and the

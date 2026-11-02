@@ -15,7 +15,8 @@ losses. The only runtime dependencies are `yjs`, `y-protocols`, and `lib0`.
 npm i docblocks-core
 ```
 
-## Quick start
+The package is ESM-only (`import`, not `require`); it stands Node
+`^22.22.2 || ^24.15.0 || >=26.0.0` (the `engines` field).
 
 A document is created, edited with commands, and read back as plain JSON —
 every read returns a **snapshot** (a plain object), never a live Yjs
