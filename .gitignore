@@ -18,5 +18,8 @@ TODO.md
 .playwright-mcp/
 .scratch-probes/
 
+# knowledge graph tooling
+graphify-out/
+
 # agent scratch space
 .tmp/
