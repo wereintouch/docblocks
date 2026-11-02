@@ -434,10 +434,20 @@ describe("mdToBlocks — inline marks", () => {
     expect(textOf(block.runs)).toBe("[text][id]");
   });
 
-  it("the autolink <https://…> and the <mailto:…>", () => {
+  it("the autolink <https://…> stands the link; the <mailto:…> degrades to the literal (the data model's link contract)", () => {
     const block = single("<https://x.com> and <mailto:a@b.c>");
     const linkRuns = block.runs.filter((r) => r.marks.link !== undefined);
-    expect(linkRuns.map((r) => r.marks.link)).toEqual([{ href: "https://x.com" }, { href: "mailto:a@b.c" }]);
+    expect(linkRuns.map((r) => r.marks.link)).toEqual([{ href: "https://x.com" }]);
+    // The mailto's degrade: the text keeps the literal (the core's
+    // InvalidMarkError would abort the paste over the mark).
+    expect(textOf(block.runs)).toBe("https://x.com and <mailto:a@b.c>");
+  });
+
+  it("the link's href over the other scheme (the mailto / the javascript) degrades to the literal (the data model's link contract)", () => {
+    const block = single("[a](mailto:a@b.c) and [b](javascript:alert(1))");
+    const linkRuns = block.runs.filter((r) => r.marks.link !== undefined);
+    expect(linkRuns).toEqual([]);
+    expect(textOf(block.runs)).toBe("[a](mailto:a@b.c) and [b](javascript:alert(1))");
   });
 
   it("the backslash escape keeps the punctuation literal", () => {

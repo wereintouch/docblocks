@@ -7,7 +7,9 @@
  * one undo step, one wire update). Everything outside the inline whitelist
  * contributes its text content only; `style` is kept for the two mapped
  * properties. A link href survives only when it is an `http:`, `https:`,
- * or `mailto:` URL or a same-document `#fragment`. `br` is a soft line
+ * or a same-document `#fragment` (the data model's link contract — the
+ * mailto / the javascript / any custom scheme stands the degrade, the
+ * text without the mark). `br` is a soft line
  * break (the `\n` in the run text); `script`/`style` are metadata, not
  * content; `img` is dropped (the schema's image source is an opaque blob
  * key, not an external URL). The generic wrappers (div/section/...) are
@@ -26,12 +28,14 @@ import { marksEqual } from "../../mark-utils";
 import type { MaterializedBlock } from "../models";
 import { materializePaste } from "./materialize";
 
-/** Whether a link href survives the paste whitelist. */
+/** Whether a link href survives the paste whitelist (the data model's link
+ *  contract — the core's rejection stand: the mailto / the javascript / any
+ *  custom scheme stands the degrade, the text without the mark). */
 function allowedHref(href: string): boolean {
   if (href.startsWith("#")) return true;
   const scheme = /^([a-z][a-z0-9+.-]*):/i.exec(href)?.[1]?.toLowerCase();
   if (scheme === undefined) return false; // no scheme: a relative URL is dropped
-  return scheme === "http" || scheme === "https" || scheme === "mailto";
+  return scheme === "http" || scheme === "https";
 }
 
 /** The hex color the data model's `color` / `highlight` marks accept (`#RRGGBB(AA)`). */

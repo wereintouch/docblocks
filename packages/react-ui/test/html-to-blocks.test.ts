@@ -89,14 +89,14 @@ describe("the block structure → the paste blocks", () => {
     ]);
   });
 
-  it("the a[href] survives only the http/https/mailto and the fragment", () => {
+  it("the a[href] survives only the http/https and the fragment (the mailto / the javascript stand the degrade)", () => {
     const blocks = htmlToBlocks(
-      '<p><a href="https://e.com">ok</a> <a href="javascript:alert(1)">js</a> <a href="/rel">rel</a></p>'
+      '<p><a href="https://e.com">ok</a> <a href="mailto:a@b.c">mail</a> <a href="javascript:alert(1)">js</a> <a href="/rel">rel</a></p>'
     );
     expect(runsOf(blocks[0]!.runs)).toEqual([
       ["ok", { link: { href: "https://e.com" } }],
       // The rejected links keep their text; the plain runs merge.
-      [" js rel", {}],
+      [" mail js rel", {}],
     ]);
   });
 

@@ -30,6 +30,15 @@ function decodeEntities(value: string): string {
   });
 }
 
+/** The data model's link href contract (the core's validator stand — the
+ *  internal check stands the mirror): the http/https URL or the no-scheme
+ *  relative path; the other scheme (the mailto / the javascript / any
+ *  custom) stands the degrade (the literal text), not the mark (the
+ *  core's InvalidMarkError would abort the paste over it). */
+function isLinkHrefOf(href: string): boolean {
+  return href.length > 0 && (/^https?:\/\//i.test(href) || !/^[a-z][a-z0-9+.-]*:/i.test(href));
+}
+
 /** The open tag at `i` of `text` (the name lower-cased; `null` for a bare `<`). */
 function inlineTagAt(
   text: string,
@@ -108,8 +117,12 @@ function parseInline(source: string): TextRun[] {
     if (href === "") return null;
     // A quoted title: `href "title"` → the URL is the first token.
     const space = href.indexOf(" ");
-    if (space !== -1 && href.slice(space + 1).startsWith('"')) return href.slice(0, space);
-    return href;
+    const url = space !== -1 && href.slice(space + 1).startsWith('"') ? href.slice(0, space) : href;
+    // The data model's link contract (the core's rejection stand): the
+    // http/https URL or the no-scheme relative path — the other scheme
+    // (the mailto / the javascript / any custom) stands the degrade (the
+    // literal text), not the mark.
+    return isLinkHrefOf(url) ? url : null;
   };
 
   /** Recurse over a span with the accumulated marks. */
@@ -197,11 +210,13 @@ function parseInline(source: string): TextRun[] {
           continue;
         }
 
-        // The autolink: <https://…> / <mailto:…> (the http/https/mailto schemes only).
+        // The autolink: <https://…> (the http/https schemes — the data
+        // model's link contract; the other scheme (the mailto / any
+        // custom) degrades to the literal text over the core's rejection).
         const end = text.indexOf(">", i + 1);
         if (end !== -1) {
           const href = text.slice(i + 1, end);
-          if (/^(https?:|mailto:)/i.test(href) && !href.includes(" ")) {
+          if (/^https?:/i.test(href) && !href.includes(" ") && isLinkHrefOf(href)) {
             flush();
             push(href, { ...marks, link: { href } });
             i = end + 1;

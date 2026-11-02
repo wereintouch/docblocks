@@ -267,6 +267,26 @@ describe("applyMdPaste: the inline html tags (the unified pass)", () => {
     applyMdPaste(doc, codeId, 0, 0, "<b>не жирный</b>\n<p>не абзац</p>");
     expect(contentOf(doc, codeId)).toBe("<b>не жирный</b>\n<p>не абзац</p>");
   });
+
+  it("the autolink's other scheme (the mailto) degrades to the literal (the paste is not aborted over the core's rejection)", () => {
+    // The repro: the parser's mailto mark stood the core's
+    // InvalidMarkError (the data model's link contract is the http/https
+    // / the relative) — the uncaught rejection aborted the whole paste.
+    // The degrade stand: the literal text lands, the rest of the paste
+    // stands intact (the doc write completes — the no-op stand stands the
+    // empty seat over the rejection).
+    const { doc, seat } = docWithParagraph("");
+    const landing = applyMdPaste(doc, seat, 0, 0, "see <mailto:a@b.c> and <https://x.com>");
+    expect(landing).not.toBeNull();
+    expect(landing!.offset).toBeGreaterThan(0);
+    const seatBlock = doc.getBlock(seat) as unknown as {
+      content: Array<{ text: string; marks: Record<string, unknown> }>;
+    };
+    const text = seatBlock.content.map((run) => run.text).join("");
+    expect(text).toBe("see <mailto:a@b.c> and https://x.com");
+    const linkRuns = seatBlock.content.filter((run) => run.marks.link !== undefined);
+    expect(linkRuns.map((run) => run.marks.link)).toEqual([{ href: "https://x.com" }]);
+  });
 });
 
 describe("applyMdPaste: the demotion (the target-ineligible blocks)", () => {
