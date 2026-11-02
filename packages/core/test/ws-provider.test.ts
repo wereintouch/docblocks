@@ -303,7 +303,7 @@ describe("the connection attempt", () => {
     expect(p2).toBe(p1);
     provider.disconnect();
 
-    await expect(p1).rejects.toThrow("cancelled before open");
+    await expect(p1).rejects.toThrow("was cancelled before the open");
     // The provider stands clean: a fresh connect starts a new attempt.
     const p3 = provider.connect();
     expect(p3).not.toBe(p1);
@@ -319,7 +319,7 @@ describe("the connection attempt", () => {
     const p = provider.connect();
     relay.killSocket(lastSocket(relay));
 
-    await expect(p).rejects.toThrow("closed before open");
+    await expect(p).rejects.toThrow("closed before the open");
     // Reconnect: a fresh attempt over a new socket.
     const p2 = provider.connect();
     expect(p2).not.toBe(p);

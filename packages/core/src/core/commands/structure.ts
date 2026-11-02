@@ -8,12 +8,13 @@ import * as Y from "yjs";
 import { BLOCK_REGISTRY } from "@docblocks-core/schema";
 import type { BlockId, BlockType } from "@docblocks-core/schema";
 
+import { DocBlocksError } from "../errors";
 import { rootBlockIdOf, rootOrderOf } from "../layout";
 
 /** The blocks map of the document (throws on a broken layout). */
 function getBlocks(ydoc: Y.Doc): Y.Map<unknown> {
   const blocks = ydoc.getMap("blocks");
-  if (!(blocks instanceof Y.Map)) throw new Error("docblocks: broken Yjs layout (blocks map missing)");
+  if (!(blocks instanceof Y.Map)) throw new DocBlocksError("docblocks: broken Yjs layout (the blocks map is missing)");
   return blocks;
 }
 

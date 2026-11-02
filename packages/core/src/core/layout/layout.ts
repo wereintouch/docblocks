@@ -3,6 +3,7 @@
  *  the empty-page layout. */
 import * as Y from "yjs";
 
+import { DocBlocksError } from "../errors";
 import type { AnyMap } from "./models";
 import { localOriginOf } from "./origins";
 
@@ -10,7 +11,7 @@ import { localOriginOf } from "./origins";
 function getBlocks(ydoc: Y.Doc): AnyMap {
   const blocks = ydoc.getMap("blocks");
   if (!(blocks instanceof Y.Map)) {
-    throw new Error("docblocks: broken Yjs layout (blocks map missing)");
+    throw new DocBlocksError("docblocks: broken Yjs layout (the blocks map is missing)");
   }
   return blocks;
 }
@@ -19,7 +20,7 @@ function getBlocks(ydoc: Y.Doc): AnyMap {
 function rootOrderOf(ydoc: Y.Doc): Y.Array<string> {
   const rootOrder = ydoc.getArray("rootOrder");
   if (!(rootOrder instanceof Y.Array)) {
-    throw new Error("docblocks: broken Yjs layout (rootOrder array missing)");
+    throw new DocBlocksError("docblocks: broken Yjs layout (the rootOrder array is missing)");
   }
   return rootOrder as Y.Array<string>;
 }
@@ -28,7 +29,7 @@ function rootOrderOf(ydoc: Y.Doc): Y.Array<string> {
 function rootBlockIdOf(ydoc: Y.Doc): string {
   const id = ydoc.getMap("meta").get("id");
   if (typeof id !== "string") {
-    throw new Error("docblocks: broken Yjs layout (meta.id missing)");
+    throw new DocBlocksError("docblocks: broken Yjs layout (the meta.id is missing)");
   }
   return id;
 }

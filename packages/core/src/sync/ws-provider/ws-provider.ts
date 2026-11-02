@@ -7,6 +7,8 @@ import { Awareness, applyAwarenessUpdate, removeAwarenessStates } from "y-protoc
 import * as sync from "y-protocols/sync";
 import * as Y from "yjs";
 
+import { DocBlocksError } from "@docblocks-core/core";
+
 import type { PresenceState, SyncProvider, Unsubscribe } from "../models";
 import {
   MESSAGE_AWARENESS,
@@ -169,7 +171,7 @@ class WsSyncProvider implements SyncProvider {
           this.#connectPromise = null;
           const rejectAttempt = this.#connectReject;
           this.#connectReject = null;
-          if (rejectAttempt !== null) rejectAttempt(new Error("sync connection closed before open"));
+          if (rejectAttempt !== null) rejectAttempt(new DocBlocksError("the sync connection closed before the open"));
         }
       };
       socket.onerror = () => undefined; // transport failures surface via onclose
@@ -195,7 +197,7 @@ class WsSyncProvider implements SyncProvider {
     const cancel = this.#connectReject;
     this.#connectPromise = null;
     this.#connectReject = null;
-    if (cancel !== null) cancel(new Error("sync connection cancelled before open"));
+    if (cancel !== null) cancel(new DocBlocksError("the sync connection was cancelled before the open"));
   }
 
   /**
