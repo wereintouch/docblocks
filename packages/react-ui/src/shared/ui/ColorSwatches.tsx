@@ -112,7 +112,7 @@ function ColorSwatches({
           aria-pressed={noneActive}
           title="No color"
           className={cn(
-            "size-5 overflow-hidden rounded-full border transition-none",
+            "relative size-5 overflow-hidden rounded-full border transition-none",
             noneActive ? "border-2 border-(--primary)" : "border-(--border)"
           )}
           style={{ background: "var(--background, #ffffff)" }}

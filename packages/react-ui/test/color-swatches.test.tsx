@@ -126,8 +126,11 @@ describe("ColorSwatches (the shared palette)", () => {
     expect(none!.getAttribute("aria-label")).toBe("No color");
     expect(none!.getAttribute("aria-pressed")).toBe("true");
     // The theme's background token (light on light, dark on dark) and the
-    // diagonal (the destructive token).
+    // diagonal (the destructive token). The swatch is the diagonal's
+    // positioning context (the `relative` stand — the absolute span stands
+    // over the circle, not a distant ancestor over the block's center).
     expect(none!.style.background).toBe("var(--background, #ffffff)");
+    expect(none!.className).toContain("relative");
     const diagonal = none!.querySelector<HTMLElement>("span[aria-hidden]");
     expect(diagonal).not.toBeNull();
     expect(diagonal!.className).toContain("bg-(--destructive)");
