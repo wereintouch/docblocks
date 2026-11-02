@@ -31,6 +31,7 @@ import type { Block, BlockId, BlockType, TextRun } from "docblocks-core";
 
 import {
   caretOffsetIn,
+  locatePosition,
   logicalTextOf,
   restoreSelection,
   selectionInside,
@@ -90,8 +91,19 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
 
   /** The last store block snapshot applied to the text DOM. */
   const appliedRef = useRef<Block | null>(null);
-  /** A store text change pending for the post-render rebuild (selection inside). */
-  const pendingRef = useRef<{ runs: TextRun[]; restore: { from: number; to: number | null } | null } | null>(null);
+  /**
+   * A store text change pending for the post-render rebuild (the selection
+   * touched the block). `restore`: both endpoints inside (the in-block
+   * selection, rebased); `cross`: one endpoint inside (the cross-block
+   * selection's local end — the rebuild detaches the local end's nodes and
+   * the browser drops the cross selection, the far end's node stands the
+   * re-establish).
+   */
+  const pendingRef = useRef<
+    | { runs: TextRun[]; restore: { from: number; to: number | null } }
+    | { runs: TextRun[]; cross: { startIsLocal: boolean; localOffset: number; farNode: Node; farOffset: number } }
+    | null
+  >(null);
 
   const storeRuns = "content" in block ? (block.content ?? EMPTY_RUNS) : EMPTY_RUNS;
 
@@ -176,16 +188,39 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
       const selection = window.getSelection();
       if (el === null || selection === null || selection.rangeCount === 0) return;
       const range = selection.getRangeAt(0);
-      if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return;
+      const startInside = el.contains(range.startContainer);
+      const endInside = el.contains(range.endContainer);
+      if (!startInside && !endInside) return;
 
       const from = caretOffsetIn(el, range.startContainer, range.startOffset);
       const to = caretOffsetIn(el, range.endContainer, range.endOffset);
+      // The cross end's capture (the far end's node + offset, valid until
+      // the far block's own rebuild): the local end is this block's inside
+      // endpoint, the far end the other's.
+      const crossCapture = (): { startIsLocal: boolean; localOffset: number; farNode: Node; farOffset: number } => ({
+        startIsLocal: startInside,
+        localOffset: startInside ? from : to,
+        farNode: startInside ? range.endContainer : range.startContainer,
+        farOffset: startInside ? range.endOffset : range.startOffset,
+      });
       if (nextText === prevText) {
-        // Mark/attrs-only change: the text stands, the selection is
-        // restored in place (the offsets are valid against the same text).
+        if (startInside && endInside) {
+          // Mark/attrs-only change: the text stands, the selection is
+          // restored in place (the offsets are valid against the same
+          // text).
+          pendingRef.current = {
+            runs: nextBlock !== undefined && "content" in nextBlock ? (nextBlock.content ?? EMPTY_RUNS) : EMPTY_RUNS,
+            restore: { from, to: to === from ? null : to },
+          };
+          return;
+        }
+        // The cross end over a mark/attrs-only change: the runs re-render
+        // in place (the local end's nodes detach — the cross selection
+        // stands the re-establish, the offsets valid against the same
+        // text).
         pendingRef.current = {
           runs: nextBlock !== undefined && "content" in nextBlock ? (nextBlock.content ?? EMPTY_RUNS) : EMPTY_RUNS,
-          restore: { from, to: to === from ? null : to },
+          cross: crossCapture(),
         };
         return;
       }
@@ -196,9 +231,20 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
       const delta = diffTexts(prevText, nextText);
       if (delta === null) return;
       const runs = nextBlock !== undefined && "content" in nextBlock ? (nextBlock.content ?? EMPTY_RUNS) : EMPTY_RUNS;
+      if (startInside && endInside) {
+        pendingRef.current = {
+          runs,
+          restore: { from: rebaseOffset(from, delta), to: to === from ? null : rebaseOffset(to, delta) },
+        };
+        return;
+      }
+      // The cross end over a text change: the local end rebases across the
+      // delta, the far end stands (its block's own change — if any — stands
+      // its own re-establish over the far end's rebuild).
+      const cross = crossCapture();
       pendingRef.current = {
         runs,
-        restore: { from: rebaseOffset(from, delta), to: to === from ? null : rebaseOffset(to, delta) },
+        cross: { ...cross, localOffset: rebaseOffset(cross.localOffset, delta) },
       };
     });
     return unsubscribe;
@@ -219,13 +265,42 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
       pendingRef.current = null;
       renderRunsInto(pending.runs, el);
       appliedRef.current = block;
+      if ("cross" in pending) {
+        // The cross end's re-establish: the rebuild detached the local
+        // end's nodes (the browser drops the cross selection over them). The
+        // far end's node stands unless the far block's own rebuild ran
+        // (its pending then stands the re-establish — this end's far node
+        // is the far's local). The selection may have left the range
+        // between the capture and this commit — the rebuild alone is the
+        // convergence then.
+        const selection = window.getSelection();
+        const stands =
+          selection !== null &&
+          selection.rangeCount > 0 &&
+          (selection.containsNode(pending.cross.farNode, true) || selectionOrphaned());
+        if (stands && document.contains(pending.cross.farNode)) {
+          const local = locatePosition(el, pending.cross.localOffset);
+          const cross = pending.cross;
+          const range = document.createRange();
+          if (cross.startIsLocal) {
+            range.setStart(local.node, local.offset);
+            range.setEnd(cross.farNode, cross.farOffset);
+          } else {
+            range.setStart(cross.farNode, cross.farOffset);
+            range.setEnd(local.node, local.offset);
+          }
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        return;
+      }
       // The selection may have left the block between the capture and
       // this commit — then the rebuild alone is the convergence. An
       // orphaned selection (its containers detached by the rebuild above)
       // still belongs to this block: the restore is the recovery. A
       // local-caret declaration replaces the rebased offsets (the caret
       // is a collapsed point: no range).
-      if (pending.restore !== null && (selectionInside(el) || selectionOrphaned())) {
+      if (selectionInside(el) || selectionOrphaned()) {
         restoreSelection(el, override ?? pending.restore.from, override !== null ? null : pending.restore.to);
       }
       return;
