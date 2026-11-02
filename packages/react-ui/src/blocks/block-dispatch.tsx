@@ -21,6 +21,10 @@ import { TextBlock } from "./TextBlock";
 import { TableBlock } from "./table";
 
 const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;
+/** The wrapper tag of a heading level outside the known set (a future
+ * minor's data): the document stays viewable, the level renders as the
+ * smallest heading (the lenient render posture). */
+const HEADING_FALLBACK_TAG = "h6";
 
 function dispatchBuiltIn(
   id: BlockId,
@@ -60,7 +64,7 @@ function dispatchBuiltIn(
         <TextBlock
           id={id}
           block={block}
-          tag={HEADING_TAGS[block.attrs.level]}
+          tag={HEADING_TAGS[block.attrs.level] ?? HEADING_FALLBACK_TAG}
           nested={nested}
           collapsible={collapsible}
           flat={flat}

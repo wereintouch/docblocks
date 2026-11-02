@@ -331,6 +331,34 @@ describe("the cross-minor reader stand", () => {
     });
   });
 
+  // A NEW enum value on a known attr (a future minor's data): the lenient
+  // load preserves it as-is (the strict validator keeps rejecting it), and
+  // the value survives the round trip.
+  it("the lenient load preserves a new enum value on a known attr", () => {
+    const base = createDoc({ id: "pin" });
+    const heading = base.insertBlock("heading", { level: 1 });
+    const surface = base.insertBlock("surface");
+    const shape = base.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const json = base.toJSON();
+    const headingJson = json.blocks[heading] as { attrs?: { level?: number } };
+    headingJson.attrs!.level = 7;
+    const shapeJson = json.blocks[shape] as { attrs?: { variant?: string } };
+    shapeJson.attrs!.variant = "hexagon";
+    // The lenient boundary accepts the document.
+    expect(validateDoc(json, true)).toEqual([]);
+    // The strict posture rejects both new values.
+    const strictPaths = validateDoc(json).map((error) => error.path);
+    expect(strictPaths).toContain(`blocks.${heading}.attrs.level`);
+    expect(strictPaths).toContain(`blocks.${shape}.attrs.variant`);
+    // The lenient load keeps the values in the export (no data loss).
+    const doc = fromJSON(json);
+    expect(doc.toJSON().blocks[heading]!).toMatchObject({ type: "heading", attrs: { level: 7 } });
+    expect(doc.toJSON().blocks[shape]!).toMatchObject({ type: "shape", attrs: { variant: "hexagon" } });
+    const again = loadDoc(doc.encode());
+    expect(again.toJSON().blocks[heading]!).toMatchObject({ type: "heading", attrs: { level: 7 } });
+    expect(again.toJSON().blocks[shape]!).toMatchObject({ type: "shape", attrs: { variant: "hexagon" } });
+  });
+
   // fromJSON is a reader boundary like the snapshot load: the additive
   // unknowns are tolerated (not rejected), the known data is still validated.
   it("fromJSON accepts the cross-minor stand and the strict validator rejects it", () => {

@@ -65,10 +65,15 @@ function validateAttrValue(
         break;
       }
       if (!(spec.values ?? ([] as readonly unknown[])).includes(value)) {
-        errors.push({
-          path,
-          message: `Attribute "${name}" must be one of ${JSON.stringify(spec.values)} (got ${show(value)}).`,
-        });
+        // Lenient (cross-minor load): a new enum value (a future minor's
+        // data) is preserved as-is, not rejected; the strict posture
+        // rejects it (the writer's stand).
+        if (!lenient) {
+          errors.push({
+            path,
+            message: `Attribute "${name}" must be one of ${JSON.stringify(spec.values)} (got ${show(value)}).`,
+          });
+        }
       }
       break;
     case "object":

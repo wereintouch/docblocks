@@ -16,6 +16,17 @@ import { edgeAnchor } from "./connector";
 function isCanvasSubType(type: BlockType): boolean {
   return CANVAS_SUB_TYPES.includes(type);
 }
+
+/**
+ * A port value from the document data (the connector endpoint's `port` is
+ * wire data — the type stands the v1 set, the value can stand a future
+ * minor's name): the known-set check that keeps the `PORT_NORMAL` /
+ * `edgePointOf` lookups from a live reference.
+ */
+function isKnownPort(value: unknown): value is CanvasPort {
+  return typeof value === "string" && value in PORT_NORMAL;
+}
+
 /**
  * The positioned wrapper style of a canvas element.
  *
@@ -182,7 +193,10 @@ function endpointPointOf(
     // FROZEN direction the line leaves the point at (the last anchor's
     // side, kept while the endpoint stands off the blocks); absent — the
     // zero normal (the line bows out along the segment at render time).
-    const normal = ref.port !== undefined ? PORT_NORMAL[ref.port] : { nx: 0, ny: 0 };
+    // A port outside the known set (a future minor's data) stands absent
+    // (the zero normal) — the lenient render posture, no crash.
+    const normal =
+      ref.port !== undefined && isKnownPort(ref.port) ? PORT_NORMAL[ref.port] : { nx: 0, ny: 0 };
     return { x: ref.x, y: ref.y, nx: normal.nx, ny: normal.ny };
   }
   if (ref.docId !== undefined || ref.blockId === undefined) return null;
@@ -190,9 +204,12 @@ function endpointPointOf(
   const target = blocks[ref.blockId];
   if (target === undefined) return null;
   const box = effectiveGeometry(target);
-  if (ref.port !== undefined) {
+  if (ref.port !== undefined && isKnownPort(ref.port)) {
     // The edge anchor: the side's point at the fractional position
     // (the absent portT stands the midpoint — the port's legacy stand).
+    // A port outside the known set (a future minor's data) stands the
+    // sticky anchor below (the lenient render posture) — the line stays
+    // visible, no crash.
     const point = edgePointOf(box, ref.port, ref.portT);
     const normal = PORT_NORMAL[ref.port];
     return { x: point.x, y: point.y, nx: normal.nx, ny: normal.ny };
