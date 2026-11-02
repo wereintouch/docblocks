@@ -2,7 +2,14 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { BatchOp, DatabaseBridge, MutationContext, TableEvent } from "../src/database/bridge";
+import type {
+  BatchOp,
+  DatabaseBridge,
+  MutationContext,
+  PageQuery,
+  SubscriptionObserver,
+  TableEvent,
+} from "../src/database/bridge";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
 
@@ -71,6 +78,65 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     );
     await waitFor(() => expect(result.current.rows.length).toBe(4));
     expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("Yan");
+  });
+
+  it("the stale duplicate envelope stands the drop (no rebaseline loop over the redelivery)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let snapshotCalls = 0;
+    let subscriptions = 0;
+    let liveObserver: SubscriptionObserver | null = null;
+    let captured: TableEvent | null = null;
+    const wrapped: DatabaseBridge = {
+      ...bridge,
+      snapshotTable: async (tableId: string, query: PageQuery) => {
+        snapshotCalls += 1;
+        return bridge.snapshotTable(tableId, query);
+      },
+      subscribeTable: (tableId: string, input: { afterSeq: number }, observer: SubscriptionObserver) => {
+        subscriptions += 1;
+        liveObserver = observer;
+        return bridge.subscribeTable(
+          tableId,
+          input,
+          {
+            ...observer,
+            event: (envelope) => {
+              captured = envelope;
+              observer.event(envelope);
+            },
+          }
+        );
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    // The peer's write: the envelope stands the refetch (captured for the
+    // redelivery below).
+    await bridge.batchRows(
+      seeded.tableId,
+      { ops: [{ op: "create", row: { [seeded.nameColumnId]: "Late" }, beforeRowId: null }] },
+      ctx()
+    );
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    const envelope = captured;
+    if (envelope === null) throw new Error("the envelope was not captured");
+    // The forced rebaseline (the reset signal): the bootstrap clears the
+    // dedup set (the stand — the redelivery below stands the stale class).
+    const snapshotsAfterBootstrap = snapshotCalls;
+    liveObserver!.reset({ code: "replay_expired" });
+    await waitFor(() => expect(subscriptions).toBe(2));
+    // The at-least-once redelivery of the ALREADY-SEEN envelope (the seq at
+    // the fresh head, absent from the cleared dedup set): the stale
+    // duplicate stands the drop — no rebaseline over the redelivery (the
+    // loop stand) and the page stands intact.
+    const live = liveObserver!;
+    live.event({ ...(envelope as TableEvent) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(subscriptions).toBe(2);
+    expect(snapshotCalls).toBe(snapshotsAfterBootstrap + 1);
+    expect(result.current.phase).toBe("ready");
+    expect(result.current.rows.length).toBe(3);
   });
 
   it("the protocol mismatch stands the broken phase + the structured code (no silent downgrade)", async () => {

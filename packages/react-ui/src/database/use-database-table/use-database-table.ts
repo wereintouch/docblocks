@@ -195,8 +195,17 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
               if (seenSeqs.has(envelope.seq)) return; // the at-least-once dedup
               const last = lastSeenSeq; // the snapshot's `R` over the first frame
               if (last === null) return; // the subscription stands before the snapshot (unreachable)
+              // The stale duplicate (the seq at or below the head, absent
+              // from the dedup set — the set is cleared over the
+              // rebaseline, the at-least-once redelivery stands over the
+              // resubscribe): the drop (the snapshot's `R` stands the state
+              // up to the head) — the rebaseline stand is reserved for the
+              // gap (the envelope chaining past the head with a prevSeq
+              // before it), and the stale redelivery must not loop the
+              // bootstrap.
+              if (envelope.seq <= last) return;
               const chains = envelope.prevSeq === last || (last === 0 && envelope.prevSeq === null);
-              if (!chains || envelope.seq <= last) {
+              if (!chains) {
                 // The chain broke (a loss, an out-of-order frame): the full
                 // rebaseline over the fresh `R`.
                 seenSeqs.clear();
