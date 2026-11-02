@@ -1025,6 +1025,33 @@ function GridBody({
                 />
               </Fragment>
             ))}
+
+            {data.nextCursor !== null && (
+              <div
+                data-slot="docblocks/database-load-more-row"
+                className="flex items-center justify-center"
+                style={{ gridColumn: "1 / -1" }}
+              >
+                <Button
+                  data-slot="docblocks/database-load-more"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    GRID_CHROME_FRAME,
+                    `
+                      h-auto cursor-pointer px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none
+                      select-none
+                    `,
+                    "text-(--docblocks-placeholder-color) hover:bg-transparent",
+                    "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
+                  )}
+                  onClick={() => void data.loadMore()}
+                >
+                  Load more rows
+                </Button>
+              </div>
+            )}
+
           </div>
 
           {rows.length === 0 && (

@@ -2314,6 +2314,40 @@ describe("the number column (the display format + the create form)", () => {
   });
 });
 
+describe("the grid's pagination (the page's cursor stands the Load more stand)", () => {
+  it("the table over the page size stands the affordance; the press stands the continuation (the full page set)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const table = await bridge.createTable({ name: "Big" }, ctx());
+    const title = await bridge.createColumn(
+      table.result.id,
+      { column: { name: "Title", type: "text", position: 0, nullable: true } },
+      ctx()
+    );
+    // The 201 rows stand over the page size (the 200's page set is NOT
+    // the table's stand — the cursor stands the continuation).
+    const ops = Array.from({ length: 201 }, (_, i) => ({
+      op: "create" as const,
+      row: { [title.result.id]: `row-${i}` },
+      beforeRowId: null,
+    }));
+    await bridge.batchRows(table.result.id, { ops }, ctx());
+    renderDoc((d) => d.insertBlock("database", { tableId: table.result.id }), undefined, bridge);
+    await settleGrid();
+    const cellSelector = `[data-slot='docblocks/database-cell'][data-column-id='${title.result.id}']`;
+    const rowCount = () => document.querySelectorAll(cellSelector).length;
+    // The first page stands the 200's bound + the affordance's stand.
+    await until(() => rowCount() === 200, "the first page's rows stand rendered");
+    const loadMore = document.querySelector("[data-slot='docblocks/database-load-more']");
+    expect(loadMore).not.toBeNull();
+    // The press stands the continuation: the fresh page's rows stand
+    // appended (the 201st row lands), the affordance stands gone (the
+    // tail's stand).
+    fireEvent.click(loadMore!);
+    await until(() => rowCount() === 201, "the continuation's rows stand appended");
+    expect(document.querySelector("[data-slot='docblocks/database-load-more']")).toBeNull();
+  });
+});
+
 describe("renderer registry: database", () => {
   it("a consumer renderer for database replaces the built-in", () => {
     renderDoc((doc) => doc.insertBlock("database", { columns: COLUMNS }), {
