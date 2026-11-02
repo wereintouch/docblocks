@@ -377,4 +377,55 @@ describe("the cross-minor reader stand", () => {
     // The strict validator (the writer's stand) rejects the unknown type.
     expect(validateDoc(extended).some((e) => e.message.includes("Unknown block type"))).toBe(true);
   });
+
+  // The database's column types: a future (additive) type cannot have its
+  // value contract checked by this reader — the lenient load skips the
+  // check (the data stands); the known types' checks stand.
+  it("a future database column type survives the lenient load (the value check stands skipped)", () => {
+    const base = createDoc({ id: "pin" });
+    const dbId = base.insertBlock("database", {
+      columns: [{ id: "name", name: "Name", type: "text" }],
+    });
+    const json = base.toJSON();
+    const db = json.blocks[dbId] as {
+      attrs?: { columns?: Array<Record<string, unknown>> };
+      rows?: Record<string, Record<string, unknown>>;
+      rowOrder?: string[];
+    };
+    const columns = [
+      ...((db.attrs?.columns as Array<Record<string, unknown>> | undefined) ?? []),
+      { id: "rating", name: "Rating", type: "future-rating", options: ["good", "bad"] },
+    ];
+    db.attrs = { ...db.attrs, columns };
+    db.rows = { ...db.rows, r1: { rating: "good" } };
+    db.rowOrder = [...(db.rowOrder ?? []), "r1"];
+    const extended = { ...json, blocks: { ...json.blocks, [dbId]: db } } as DocJSON;
+
+    // The lenient reader boundary preserves the future type and its value
+    // (the value check and the options presence stand skipped).
+    const loaded = fromJSON(extended);
+    expect(loaded.toJSON().blocks[dbId]).toEqual(db);
+    // The strict validator (the writer's stand) rejects the unknown type.
+    expect(validateDoc(extended).some((e) => e.message.includes("unknown column type"))).toBe(true);
+  });
+
+  it("the lenient database stand still checks the known column types", () => {
+    const base = createDoc({ id: "pin" });
+    const dbId = base.insertBlock("database", {
+      columns: [{ id: "name", name: "Name", type: "text" }],
+    });
+    const json = base.toJSON();
+    const db = json.blocks[dbId] as {
+      attrs?: { columns?: Array<Record<string, unknown>> };
+      rows?: Record<string, Record<string, unknown>>;
+      rowOrder?: string[];
+    };
+    db.rows = { ...db.rows, r1: { name: 42 } };
+    db.rowOrder = [...(db.rowOrder ?? []), "r1"];
+    const extended = { ...json, blocks: { ...json.blocks, [dbId]: db } } as DocJSON;
+    // A known type's value contract fails the lenient load (the known-data
+    // checks stand over the cross-minor posture).
+    expect(validateDoc(extended, true).some((e) => e.message.includes("must be a non-empty string"))).toBe(true);
+    expect(() => fromJSON(extended)).toThrow(InvalidSnapshotError);
+  });
 });

@@ -332,7 +332,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     if (!spec.rows && "rowOrder" in block) {
       errors.push({ path: `blocks.${id}.rowOrder`, message: `Block type "${blockType}" has no rowOrder.` });
     }
-    if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors);
+    if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors, lenient);
 
     if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors, lenient);
     if (blockType === "shape" || blockType === "connector" || blockType === "group") {
