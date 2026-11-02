@@ -19,6 +19,7 @@ import {
   TextAlignEnd,
   TextAlignStart,
 } from "../shared/ui/icons";
+import { isSafeDownloadHref } from "../shared/utils";
 import { clamp, preventDefault } from "../shared/utils";
 import { BlockCaption, requestBlockCaption } from "./BlockCaption";
 import { BlockContext } from "./block-context";
@@ -127,13 +128,19 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
         >
           <CardContent className="flex items-center justify-center gap-2">
             <ImageIcon className="size-4 shrink-0" />
-            <a
-              href={url}
-              download={meta.name ?? src}
-              className="max-w-60 truncate text-sm underline underline-offset-2"
-            >
-              {meta.name ?? src}
-            </a>
+            {isSafeDownloadHref(url) ? (
+              <a
+                href={url}
+                download={meta.name ?? src}
+                className="max-w-60 truncate text-sm underline underline-offset-2"
+              >
+                {meta.name ?? src}
+              </a>
+            ) : (
+              // The executable-scheme stand (the consumer's hostile url — the
+              // `javascript:` stands no anchor, the name stands the plain text).
+              <span className="max-w-60 truncate text-sm">{meta.name ?? src}</span>
+            )}
           </CardContent>
         </Card>
       );
@@ -165,9 +172,19 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
       >
         <CardContent className="flex items-center justify-center gap-2">
           <ImageIcon className="size-4 shrink-0" />
-          <a href={url} download={meta.name ?? src} className="max-w-60 truncate text-sm underline underline-offset-2">
-            {meta.name ?? src}
-          </a>
+          {isSafeDownloadHref(url) ? (
+            <a
+              href={url}
+              download={meta.name ?? src}
+              className="max-w-60 truncate text-sm underline underline-offset-2"
+            >
+              {meta.name ?? src}
+            </a>
+          ) : (
+            // The executable-scheme stand (the consumer's hostile url stands
+            // no anchor, the name stands the plain text).
+            <span className="max-w-60 truncate text-sm">{meta.name ?? src}</span>
+          )}
         </CardContent>
       </Card>
     );
@@ -444,15 +461,29 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
           onMouseDown={preventDefault}
         >
           <Button variant="ghost" size="icon" asChild className="size-7">
-            <a
-              href={url}
-              download={name ?? block.attrs.src}
-              data-slot="docblocks/image-download"
-              aria-label="Download the image"
-              title="Download"
-            >
-              <Download className="size-4" />
-            </a>
+            {isSafeDownloadHref(url) ? (
+              <a
+                href={url}
+                download={name ?? block.attrs.src}
+                data-slot="docblocks/image-download"
+                aria-label="Download the image"
+                title="Download"
+              >
+                <Download className="size-4" />
+              </a>
+            ) : (
+              // The executable-scheme stand (the consumer's hostile url — the
+              // download stands no anchor, the disabled button stands).
+              <button
+                type="button"
+                disabled
+                data-slot="docblocks/image-download"
+                aria-label="Download the image"
+                title="Download"
+              >
+                <Download className="size-4" />
+              </button>
+            )}
           </Button>
           <Button
             type="button"

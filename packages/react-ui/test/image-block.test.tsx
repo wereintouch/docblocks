@@ -308,3 +308,54 @@ describe("the hover menu (the download, the caption, the align)", () => {
     expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", align: "center" });
   });
 });
+describe("the download href's scheme gate (the hostile consumer's BlobStore url)", () => {
+  // The download cards / the toolbar's download carry the consumer's resolved
+  // url into the anchor's href: the executable schemes stand no anchor (the
+  // `javascript:` runs on the click — the `download` attribute stands no
+  // neutralization), the name stands the plain text / the disabled button.
+  function renderHostileDoc(subtype: "image" | "pdf" | "file") {
+    const doc = createDoc({ id: "doc-hostile", createdAt: CREATED_AT });
+    const imageId = doc.insertBlock("image", { src: "key-1" });
+    const store: BlobStore = {
+      resolve: async () => ({ url: "javascript:alert(1)", meta: { subtype, name: "evil.pdf" } }),
+      upload: async () => "up-1",
+    };
+    render(
+      <EditorProvider doc={doc} blobStore={store}>
+        <Editor />
+      </EditorProvider>
+    );
+    return imageId;
+  }
+
+  it("stands the file card's name over the plain text (no anchor)", async () => {
+    renderHostileDoc("file");
+    await flushResolve();
+    const card = document.querySelector<HTMLElement>('[data-slot="docblocks/image-file"][data-subtype="file"]');
+    expect(card).not.toBeNull();
+    expect(card!.querySelector("a")).toBeNull();
+    expect(card!.textContent).toContain("evil.pdf");
+  });
+
+  it("stands the pdf download card's name over the plain text (no anchor)", async () => {
+    renderHostileDoc("pdf");
+    await flushResolve();
+    const card = document.querySelector<HTMLElement>('[data-slot="docblocks/image-file"][data-subtype="pdf"]');
+    expect(card).not.toBeNull();
+    expect(card!.querySelector("a")).toBeNull();
+    expect(card!.textContent).toContain("evil.pdf");
+    // The iframe stands no mount (the non-embeddable scheme).
+    expect(document.querySelector('[data-slot="docblocks/image-pdf"] iframe')).toBeNull();
+  });
+
+  it("stands the image figure's download over the disabled button (no anchor)", async () => {
+    renderHostileDoc("image");
+    await flushResolve();
+    const figure = document.querySelector<HTMLElement>('[data-slot="docblocks/image-figure"]');
+    expect(figure).not.toBeNull();
+    const download = figure!.querySelector<HTMLElement>('[data-slot="docblocks/image-download"]');
+    expect(download).not.toBeNull();
+    expect(download!.tagName).toBe("BUTTON");
+    expect((download as HTMLButtonElement).disabled).toBe(true);
+  });
+});

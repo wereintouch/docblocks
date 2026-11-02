@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 import type { PdfPreviewProps } from "../editor-provider";
 import { cn } from "../shared/ui/cn";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
+import { isSafeDownloadHref } from "../shared/utils";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "./constants";
 import { WASM_URL } from "./pdf-worker";
 
@@ -142,7 +143,9 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
               border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
             "
           />
-        ) : (
+        ) : // The executable-scheme stand (the consumer's hostile url — the
+        // download stands no anchor, the name stands the plain text).
+        isSafeDownloadHref(url) ? (
           <a
             data-slot="docblocks/image-pdf-download"
             href={url}
@@ -151,6 +154,10 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
           >
             {name ?? "document"}
           </a>
+        ) : (
+          <span data-slot="docblocks/image-pdf-download" className="inline-block text-sm">
+            {name ?? "document"}
+          </span>
         )}
       </div>
     );
