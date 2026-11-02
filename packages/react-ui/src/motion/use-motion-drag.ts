@@ -52,6 +52,10 @@ function useMotionDrag({
   const [layoutSlide, setLayoutSlide] = useState(false);
   const slideTimerRef = useRef<number | null>(null);
   const prevKeysRef = useRef<BlockId[]>(rowKeys);
+  // The entry's sequence container over the drag session (the full-doc scan at the
+  // session's start — the pointermove's seam pass stands the session's stand,
+  // the container is invariant over the drag: no structural commit mid-drag).
+  const entryContainerRef = useRef<{ rootBlockId: BlockId; value: BlockId } | null>(null);
 
   /**
    * Keep the layout slide armed for the settle window after a drag or a
@@ -129,7 +133,9 @@ function useMotionDrag({
     (id: BlockId, pointerY: number): number | null => {
       const root = rootRef.current;
       if (root === null) return null;
-      const containerId = entrySequenceParent(doc, rootBlockId);
+      const session = entryContainerRef.current;
+      const containerId =
+        session !== null && session.rootBlockId === rootBlockId ? session.value : entrySequenceParent(doc, rootBlockId);
       const segment = segmentRange(doc, containerId, id);
       if (segment === null) return null;
       const segmentIds = new Set(doc.getChildren(containerId).slice(segment.start, segment.end));
@@ -166,14 +172,15 @@ function useMotionDrag({
     [doc, nodesById, rootBlockId, rootRef]
   );
 
-  /** The row's drag start: the slide arms, the row lifts (the zIndex). */
+  /** The row's drag start: the slide arms, the row lifts (the zIndex), the entry's container resolves (the session's stand). */
   const onRowDragStart = useCallback(
     (id: BlockId) => {
       armSlide();
       setDraggingKey(id);
       setPreviewIndent(null);
+      entryContainerRef.current = { rootBlockId, value: entrySequenceParent(doc, rootBlockId) };
     },
-    [armSlide]
+    [armSlide, doc, rootBlockId]
   );
 
   /**

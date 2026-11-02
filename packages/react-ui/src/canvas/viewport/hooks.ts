@@ -97,23 +97,31 @@ function unitMembers(doc: Doc, groupId: string): string[] {
  * two). A dragged container's unit members ride the box (no individual
  * indicator — the relative position is invariant).
  */
-function computeDropIndicators(doc: Doc, ids: string[], dx: number, dy: number): DropIndicator[] {
-  const containers = containersOf(doc);
+function computeDropIndicators(
+  types: Record<string, string>,
+  snapshot: MoveSession["snapshot"],
+  containers: MoveSession["containers"],
+  groupMembers: Record<string, string[]>,
+  ids: string[],
+  dx: number,
+  dy: number
+): DropIndicator[] {
   if (containers.length === 0) return [];
   // The dragged containers stand their own membership indicator (the box's
   // delta); their unit's members ride the box (no individual indicator).
-  const draggedGroups = ids.filter((id) => doc.getBlock(id)?.type === "group");
+  const draggedGroups = ids.filter((id) => types[id] === "group");
   const riders = new Set<string>();
-  for (const gid of draggedGroups) for (const mid of unitMembers(doc, gid)) riders.add(mid);
+  for (const gid of draggedGroups) for (const mid of groupMembers[gid] ?? []) riders.add(mid);
   const indicators: DropIndicator[] = [];
   for (const id of ids) {
-    const block = doc.getBlock(id);
-    if (block === null || block.type === "connector") continue;
+    const type = types[id];
+    if (type === undefined || type === "connector") continue;
     if (riders.has(id)) continue; // the unit's member stands the box's delta
     // The membership's scope: the shapes and the containers (the
     // canvas-text / frame stand no membership).
-    if (block.type !== "shape" && block.type !== "group") continue;
-    const base = effectiveGeometry(block);
+    if (type !== "shape" && type !== "group") continue;
+    const base = snapshot[id];
+    if (base === undefined) continue;
     const figure = { x: base.x + dx, y: base.y + dy, w: base.w, h: base.h };
     const owner = containers.find((c) => c.members.includes(id));
     // The target excludes the item's own box (a container's box stands
@@ -489,12 +497,15 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
   const beginMove = useCallback(
     (ids: string[], startClientX: number, startClientY: number) => {
       const snapshot: MoveSession["snapshot"] = {};
+      const types: MoveSession["types"] = {};
+      const groupMembers: MoveSession["groupMembers"] = {};
       const allIds: string[] = [];
       for (const id of ids) {
         const block = doc.getBlock(id);
         // The connector carries no geometry of its own (its endpoints
         // follow the blocks): it is never a move target.
         if (block === null || block.type === "connector") continue;
+        types[id] = block.type;
         if (block.type === "group") {
           // The container moves as a unit:
           // the box and the members stand the one delta (the members keep
@@ -504,7 +515,8 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
           // skipped, not rewritten.
           allIds.push(id);
           snapshot[id] = effectiveGeometry(block);
-          for (const memberId of unitMembers(doc, id)) {
+          groupMembers[id] = unitMembers(doc, id);
+          for (const memberId of groupMembers[id]) {
             const member = doc.getBlock(memberId);
             if (member === null || allIds.includes(memberId)) continue;
             allIds.push(memberId);
@@ -519,7 +531,21 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
         // x/y/w/h patch from it.
         snapshot[id] = effectiveGeometry(block);
       }
-      moveRef.current = { ids: allIds, startClientX, startClientY, snapshot, dragging: false, dx: 0, dy: 0 };
+      // The session stand over the doc reads (the pointermove's indicator
+      // pass is pure — the containers' membership / geometry stand stable
+      // over the drag, the release's commit stands the fresh read).
+      moveRef.current = {
+        ids: allIds,
+        startClientX,
+        startClientY,
+        snapshot,
+        types,
+        containers: containersOf(doc),
+        groupMembers,
+        dragging: false,
+        dx: 0,
+        dy: 0,
+      };
       setMovePreview(null);
       setMoveSession(true);
     },
@@ -539,11 +565,19 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
       session.dy = delta.y;
       setMovePreview({ ids: session.ids, dx: delta.x, dy: delta.y });
       // The drop indicator (the green / red stand): the release commit reads the session's last stand.
-      const indicators = computeDropIndicators(doc, session.ids, delta.x, delta.y);
+      const indicators = computeDropIndicators(
+        session.types,
+        session.snapshot,
+        session.containers,
+        session.groupMembers,
+        session.ids,
+        delta.x,
+        delta.y
+      );
       dropRef.current = indicators;
       setDropIndicators(indicators.length > 0 ? indicators : null);
     },
-    [doc, zoom]
+    [zoom]
   );
 
   const endMove = useCallback(() => {

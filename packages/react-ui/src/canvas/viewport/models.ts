@@ -82,6 +82,12 @@ interface MoveSession {
   startClientX: number;
   startClientY: number;
   snapshot: Record<string, { x: number; y: number; w: number; h: number } | undefined>;
+  /** The block types over the ids (the session stand — the pointermove's indicator pass reads the session, not the doc). */
+  types: Record<string, string>;
+  /** The containers at the session's start (the membership / the geometry stand stable over the drag — the release's commit stands the fresh read). */
+  containers: { id: string; box: Box; members: string[] }[];
+  /** The dragged groups' members (the session stand). */
+  groupMembers: Record<string, string[]>;
   dragging: boolean;
   /** The last committed-candidate delta (canvas px), fed by moveDrag. */
   dx: number;

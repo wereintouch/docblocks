@@ -8,7 +8,6 @@
 import type { BlockId, Doc, SelectionView } from "docblocks-core";
 
 import { editorRootOf, locatePosition, logicalTextOf, restoreSelection } from "../../dom-offset";
-import { findParentId } from "./commands";
 
 /** Run `fn` in the next animation frame (setTimeout where frames do not exist). */
 function afterFrame(fn: () => void): void {
@@ -128,13 +127,21 @@ function restoreSelectionIn(
   scope: ParentNode = document,
   exclude: HTMLElement | null = null
 ): void {
-  const selector = `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`;
+  const selector = `[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`;
   const json = doc.toJSON();
   // A top-level block's doc parent is the root block; in the DOM its parent
   // wrapper is absent, so normalize to null (domParentBlockIdOf's domain).
   // The same normalization stands for a frame: its nested page renders in
-  // its own editor root (no frame wrapper in the DOM).
-  const rawParent = findParentId(doc, blockId);
+  // its own editor root (no frame wrapper in the DOM). One full read stands
+  // the gesture's context (the parent's scan over the same snapshot — no
+  // second toJSON).
+  let rawParent: BlockId | null = null;
+  for (const [parentId, block] of Object.entries(json.blocks)) {
+    if ("children" in block && block.children !== undefined && block.children.includes(blockId)) {
+      rawParent = parentId;
+      break;
+    }
+  }
   const rawParentType = rawParent === null ? null : (json.blocks[rawParent]?.type ?? null);
   const expectedParent = rawParent === null || rawParent === json.id || rawParentType === "frame" ? null : rawParent;
   const blockType = json.blocks[blockId]?.type ?? "";
