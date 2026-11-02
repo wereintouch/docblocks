@@ -77,7 +77,7 @@ function OptionPickerList({
               variant="ghost"
               size="sm"
               className={cn(
-                "w-full cursor-pointer justify-start rounded-(--docblocks-radius) px-2 py-1.5 text-sm font-normal",
+                "w-full cursor-pointer justify-start rounded-lg px-2 py-1.5 text-sm font-normal",
                 "text-muted-foreground",
                 currentEmpty && "bg-muted text-foreground"
               )}
@@ -94,7 +94,7 @@ function OptionPickerList({
               data-state={multi ? (values.includes(option.value) ? "checked" : "unchecked") : undefined}
               role={multi ? undefined : "button"}
               className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-(--docblocks-radius) px-2 py-1.5 text-sm",
+                "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
                 "text-foreground hover:bg-accent",
                 values.includes(option.value) && "bg-muted"
               )}
@@ -112,7 +112,7 @@ function OptionPickerList({
                   option.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined
                 }
                 className={cn(
-                  "max-w-full shrink truncate rounded-(--docblocks-radius) px-2 leading-5",
+                  "max-w-full shrink truncate rounded-lg px-2 leading-5",
                   option.color === undefined && "bg-muted"
                 )}
               >

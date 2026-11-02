@@ -27,7 +27,10 @@ function RefValueChips({ values, options, fade }: { values: string[]; options: R
             data-option-value={value}
             style={option?.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined}
             className={cn(
-              "overflow-hidden rounded-(--docblocks-radius) px-1.5 leading-5 whitespace-nowrap",
+              // The standard token's radius (the portaled stand: the
+              // --docblocks-radius is mapped on the editor's root, absent
+              // over the popper content — the square-corners' stand).
+              "overflow-hidden rounded-lg px-1.5 leading-5 whitespace-nowrap",
               fade ? "shrink-0" : "max-w-full shrink text-ellipsis",
               option?.color === undefined && "bg-muted"
             )}

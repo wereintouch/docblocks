@@ -597,6 +597,14 @@ describe("the grid's header (the table's name, the column menu, the column drag)
 
     // The pick commits to the bridge (one update) over the row's press.
     await open();
+    // The portaled stand: the option's chip / row radii over the standard
+    // token (the --docblocks-radius is mapped on the editor's root, absent
+    // over the popper's content — the square-corners' stand).
+    for (const entry of document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']")) {
+      expect(entry.className).toContain("rounded-lg");
+    }
+    const chip = document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-picker-row'] span");
+    expect(chip?.className).toContain("rounded-lg");
     fireEvent.click(row("done")!);
     await settleGrid();
     expect((await cellsOf(bridge, tableId, rowId))[cols.status]).toBe(options.done);
