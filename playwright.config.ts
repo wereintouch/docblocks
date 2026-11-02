@@ -2,7 +2,14 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./test/e2e",
-  timeout: 30_000,
+  // The per-test budget stands the 5 s convention: the test's logic
+  // stands the 5 s; the async waits
+  // stand the explicit SETTLE (15 s, `test/e2e/helpers.ts`) over the
+  // matcher's timeout option. The tight budget stands the slow-test
+  // regression visible (a stalled settle stands the test red over the 5 s
+  // instead of drifting into the 30 s default — the explicit 30 s stood
+  // the drift masked).
+  timeout: 5_000,
   // The machine stands 16 cores, but the per-test cost is the two context
   // loads (the relay + the panes' boot), not the test logic — higher
   // parallelism loads the dev server and the panes hard enough for the

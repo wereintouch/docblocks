@@ -1,5 +1,4 @@
 import react from "@vitejs/plugin-react";
-import { fileURLToPath } from "node:url";
 import { type Plugin, defineConfig } from "vite";
 
 import { type RelayHandle, startRelay } from "./server/relay.ts";
@@ -50,31 +49,18 @@ export default defineConfig({
   // Fixed at this port: the Playwright webServer probe and the ws relay
   // (5199) are addressed by the e2e specs at exactly these ports.
   server: { port: 5173, strictPort: true },
-  // Dev convenience: resolve docblocks-core from source until a build exists.
-  // Exact match only — deep imports are forbidden by the boundary gate. The
-  // layer aliases mirror packages/core/tsconfig.json (vite does not read
-  // tsconfig paths); they are needed to resolve core's internal imports.
-  //
-  // docblocks-react-ui has no alias: it resolves through the workspace
-  // symlink + exports map to the built dist, the same way a consumer sees
-  // it. That is the only shape where the `./motion` subpath works — a
-  // source alias for the base entry would give the `EditorProvider`
-  // context a second, dist-side copy inside the motion entry, and a
-  // React context is only shared between modules compiled from one file.
+  // The consumer view stands over both packages: neither docblocks-core nor
+  // docblocks-react-ui carries an alias — each resolves through the workspace
+  // symlink + the package.json's exports map to the built dist, the same way
+  // a consumer sees it (run the build after a source change, or the dev
+  // server / the e2e suite stands the stale dist). No source alias:
+  // - the e2e's consumer view covers the core's dist too (a broken dist
+  //   stands the suite red, not only the react-ui's);
+  // - a source alias for the react-ui base entry would give the
+  //   `EditorProvider` context a second, dist-side copy inside the `./motion`
+  //   entry, and a React context is only shared between modules compiled
+  //   from one file.
   resolve: {
-    alias: [
-      {
-        find: /^docblocks-core$/,
-        replacement: fileURLToPath(new URL("../../packages/core/src/index.ts", import.meta.url)),
-      },
-      {
-        find: /^@docblocks-core\/schema$/,
-        replacement: fileURLToPath(new URL("../../packages/core/src/schema/index.ts", import.meta.url)),
-      },
-      {
-        find: /^@docblocks-core\/core$/,
-        replacement: fileURLToPath(new URL("../../packages/core/src/core/index.ts", import.meta.url)),
-      },
-    ],
+    alias: [],
   },
 });
