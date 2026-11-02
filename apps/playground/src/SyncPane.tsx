@@ -382,22 +382,22 @@ function SyncPane({
           theme
           <Button
             type="button"
-            variant="outline"
+            variant={dark ? "default" : "outline"}
             size="sm"
             data-testid={`theme-${client}-dark`}
             aria-pressed={dark}
-            className={cn(TOGGLE_BTN, dark ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}
+            className={TOGGLE_BTN}
             onClick={setDarkTrue}
           >
             dark
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant={!dark ? "default" : "outline"}
             size="sm"
             data-testid={`theme-${client}-light`}
             aria-pressed={!dark}
-            className={cn(TOGGLE_BTN, !dark ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}
+            className={TOGGLE_BTN}
             onClick={setDarkFalse}
           >
             light
