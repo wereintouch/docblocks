@@ -1442,7 +1442,7 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     expect(await value()).toBe("2026-10-01T09:30");
   });
 
-  it("the mid-session value change stands the draft (the in-flight edit wins the commit)", async () => {
+  it("the mid-session peer's commit stands the conflict (the peer's value stands the draft's commit)", async () => {
     const { bridge, tableId, rowId, at, cell, value, segments, openPicker, closeByEscape } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
@@ -1455,7 +1455,71 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     // The draft's date stand: the day's pick over the still-open calendar.
     fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
     await closeByEscape();
-    expect(await value()).toBe("2026-10-05T09:30");
+    // The draft's commit stands the open-time's pinned revision: the peer's
+    // commit advanced the row, so the bridge's conflict rejection stands
+    // the peer's value (the draft's commit is no silent overwrite).
+    expect(await value()).toBe("2026-11-11T08:00");
+    expect(cell().textContent).toContain("11.11.2026 08:00");
+  });
+});
+
+describe("the text cell's draft contract (the open stand over the peer's mid-session commit)", () => {
+  const cellOf = (row: number, col: number) =>
+    document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-row='${row}'][data-col='${col}']`);
+  /** The press's selection stand (the document-level teardown listener stands over it). */
+  const pressSelect = async (cell: HTMLElement) => {
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    await settleGrid();
+  };
+  /** The double press's edit open (the portaled textarea's stand). */
+  const openTextEdit = async (cell: HTMLElement) => {
+    await pressSelect(cell);
+    fireEvent.doubleClick(cell);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-cell-multiline']") !== null,
+      "the edit textarea"
+    );
+  };
+  /** The outside press's teardown stand (the draft's commit path). */
+  const outsidePress = async () => {
+    fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
+    await settleGrid();
+  };
+
+  it("the peer's mid-session commit stands the conflict (the draft's commit is rejected, the peer's value stands)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
+    const cell = cellOf(0, 0)!;
+    await openTextEdit(cell);
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']")!;
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: "typed draft" } });
+    });
+    // The peer's commit over the same cell (the refetch's re-baseline —
+    // the cell's data-empty's flip stands the fresh render over the
+    // session).
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [cols.title]: null } }] }, ctx());
+    await until(() => cell.getAttribute("data-empty") === "true", "the peer's value's render stand");
+    await outsidePress();
+    // The conflict stand: the peer's value stands (the draft's commit is
+    // rejected over the open-time's pinned revision — no silent overwrite).
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title] ?? null).toBeNull();
+    expect(cell.textContent).toBe("");
+  });
+
+  it("the untouched draft over the peer's mid-session commit stands no write (the empty draft's clobber is out)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
+    const cell = cellOf(0, 0)!;
+    await openTextEdit(cell);
+    // The peer's commit while the session stands (the draft is untouched).
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [cols.title]: null } }] }, ctx());
+    await until(() => cell.getAttribute("data-empty") === "true", "the peer's value's render stand");
+    await outsidePress();
+    // The open-time's unchanged stand: no commit (the peer's value stands,
+    // not the open-time's stale value).
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title] ?? null).toBeNull();
+    expect(cell.textContent).toBe("");
   });
 });
 

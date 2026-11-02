@@ -136,6 +136,36 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(result.current.rows.length).toBe(1);
   });
 
+  it("the pinned-revision write over the peer's mid-session commit stands the conflict (the peer's value stands)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const rowId = seeded.rowIds[0]!;
+    // The draft session's open stand: the revision as of the open (the
+    // read's surface).
+    const openRevision = result.current.revisionOf(rowId);
+    expect(openRevision).toBeDefined();
+    // The peer's commit over the same row (the event's refetch re-baselines
+    // the hook's live revision map over the fresh revision).
+    await bridge.batchRows(
+      seeded.tableId,
+      { ops: [{ op: "update", rowId, cells: { [seeded.nameColumnId]: "peer" } }] },
+      ctx()
+    );
+    await waitFor(() => expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("peer"));
+    // The draft session's close commits over the open-time pin: the stale
+    // CAS rejects (the conflict) — the peer's value stands (no silent
+    // overwrite).
+    await expect(result.current.updateRow(rowId, { [seeded.nameColumnId]: "local" }, openRevision)).rejects.toThrow();
+    await waitFor(() => expect(result.current.errorCode).toBe("conflict"));
+    expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("peer");
+    // The un-pinned stand reads the live revision (the LWW's default):
+    // the explicit write commits over it.
+    await result.current.updateRow(rowId, { [seeded.nameColumnId]: "local" });
+    await waitFor(() => expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("local"));
+  });
+
   it("dedups the at-least-once replay and rebaselines on the broken prevSeq chain", async () => {
     const real = createMemoryDatabaseBridge();
     const seeded = await seed(real);

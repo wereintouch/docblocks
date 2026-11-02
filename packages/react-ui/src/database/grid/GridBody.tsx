@@ -554,8 +554,14 @@ function GridBody({
     onSeamPointerDown(seamIndex)(event);
   const columnPointerUp = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerUp>[1]) =>
     onColumnPointerUp(column, event);
-  const cellChange = (row: (typeof rows)[number], column: BridgeColumn) => (value: unknown) =>
-    void data.updateRow(row.rowId, { [column.id]: value });
+  const cellChange =
+    (row: (typeof rows)[number], column: BridgeColumn) => (value: unknown, expectedRevision?: string) => {
+      // The rejection's stand: the error stands the hook's state (the
+      // rollback + the refetch apply over it) — the rethrow is the caller's
+      // contract, not the grid's (the cell's commit has no caller to
+      // handle it).
+      void data.updateRow(row.rowId, { [column.id]: value }, expectedRevision).catch(() => undefined);
+    };
   const cellEditStart = (cellKey: string) => () => setEditingCell(cellKey);
   const cellEditEnd = () => setEditingCell(null);
   const rowMoveUp = (row: (typeof rows)[number]) => () => {
@@ -972,12 +978,16 @@ function GridBody({
               <Fragment key={row.rowId}>
                 {columns.map((column, index) => {
                   const key = cellKeyOf(row.rowId, column.id);
+                  // The row's live revision (the cell's draft session pins
+                  // it at the open — the mid-session's refetch re-baselines
+                  // it over the peer's commit).
                   return (
                     <DatabaseCell
                       key={column.id}
                       rowId={row.rowId}
                       column={column}
                       value={row.cells[column.id]}
+                      revision={data.revisionOf(row.rowId)}
                       rowIndex={rowIndex}
                       colIndex={index}
                       first={index === 0}

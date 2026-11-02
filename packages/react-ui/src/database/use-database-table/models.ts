@@ -6,7 +6,7 @@
  * capabilities the optional paths gate on (the row / column restore, the
  * CAS, the server sort).
  */
-import type { BridgeColumn, BridgeErrorCode, BridgeTableDescription, ProtocolCapability } from "../bridge";
+import type { BridgeColumn, BridgeErrorCode, BridgeTableDescription, ProtocolCapability, Revision } from "../bridge";
 
 /** One loaded row: the row id (the pk value) + the cells. */
 interface DatabaseTableRow {
@@ -32,6 +32,9 @@ interface UseDatabaseTable {
   table: BridgeTableDescription | null;
   /** The loaded rows in the row order. */
   rows: DatabaseTableRow[];
+  /** The row's live revision (the CAS's stand — the draft session's open
+   *  pin reads it at the session's open). */
+  revisionOf(rowId: string): Revision | undefined;
   /** The cursor of the next page; null = the last page is loaded. */
   nextCursor: string | null;
   /** The last operation error (the transient display); cleared on the next load. */
@@ -43,7 +46,10 @@ interface UseDatabaseTable {
    *  row / column restore, the CAS, the server sort stands). */
   capabilities: readonly ProtocolCapability[];
   insertRow(cells?: Record<string, unknown>): Promise<string>;
-  updateRow(rowId: string, cells: Record<string, unknown>): Promise<void>;
+  /** The row's write: the pinned revision (the cell's draft session's
+   *  open stand) selects the compare-and-swap over it; its absence stands
+   *  the live revision (the LWW's default). */
+  updateRow(rowId: string, cells: Record<string, unknown>, expectedRevision?: Revision): Promise<void>;
   /** The batch update: ONE commit (the one bridge call + the one undo
    *  entry — the inverse restores every touched row over the one undo,
    *  so the multi-row clear stands back over a single undo press). */

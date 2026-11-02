@@ -28,6 +28,12 @@
  * call, the rollback to the pre-operation snapshot + the refetch on a
  * reject. The stacks stand per (bridge,
  * tableId); the doc-undo does not cover the table rows.
+ *
+ * The cell's draft session's commit pins the open-time row revision over
+ * `updateRow`'s `expectedRevision`: the mid-session's refetch re-baselines
+ * the live revision map (the peer's commit), so the stale pin's CAS stands
+ * the bridge's `conflict` rejection (the peer's value stands), not a
+ * silent overwrite.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -260,12 +266,15 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     })();
   }, [bridge, tableId, filterKey]);
 
-  const rowOf = (rowId: string) => revisionsRef.current.get(rowId);
+  // The row's live revision (the CAS's stand — the draft session's open
+  // pin reads it at the session's open; the mid-session's refetch
+  // re-baselines the map over the peer's commit).
+  const revisionOf = (rowId: string) => revisionsRef.current.get(rowId);
   // The CAS stand: the known revision selects the compare-and-swap, the
   // absent one stands the LWW default (the spread keeps the op's literal
   // shape intact).
   const casOf = (rowId: string): { expectedRevision?: string } => {
-    const revision = rowOf(rowId);
+    const revision = revisionOf(rowId);
     return revision === undefined ? {} : { expectedRevision: revision };
   };
 
@@ -320,7 +329,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   );
 
   const updateRow = useCallback(
-    async (rowId: string, cells: Record<string, unknown>) => {
+    async (rowId: string, cells: Record<string, unknown>, expectedRevision?: string) => {
       const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
       const current = rowsRef.current.find((row) => row.rowId === rowId);
       const cleaned: Record<string, unknown> = {};
@@ -340,7 +349,18 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       try {
         const receipt = await bridge.batchRows(
           tableId,
-          { ops: [{ op: "update", rowId, cells: cleaned, ...casOf(rowId) }] },
+          // The pinned revision (the draft session's open stand) stands
+          // the CAS over it; the absent pin stands the live revision.
+          {
+            ops: [
+              {
+                op: "update",
+                rowId,
+                cells: cleaned,
+                ...(expectedRevision !== undefined ? { expectedRevision } : casOf(rowId)),
+              },
+            ],
+          },
           newMutationContext()
         );
         for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
@@ -928,6 +948,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     phase,
     table,
     rows,
+    revisionOf,
     nextCursor,
     error,
     insertRow,
