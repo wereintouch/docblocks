@@ -54,6 +54,19 @@ interface UseDatabaseTable {
    *  entry — the inverse restores every touched row over the one undo,
    *  so the multi-row clear stands back over a single undo press). */
   updateRows(updates: Array<{ rowId: string; cells: Record<string, unknown> }>): Promise<void>;
+  /** The mixed paste (the spec's paste batch): the visible rows' updates
+   *  (from the active row down) + the overflow's creates — ONE `batchRows`
+   *  (one transaction, one undo entry; the inverse = the updates' restore
+   *  + the created rows' deletion). The updates stand the optimistic
+   *  apply; the creates stand over the post-commit refresh. Returns the
+   *  created rows' ids. */
+  pasteRows(input: {
+    updates: Array<{ rowId: string; cells: Record<string, unknown> }>;
+    creates: Array<Record<string, unknown>>;
+    /** The created rows' seat: the visible successor of the last updated
+     *  row (null = the table's tail). */
+    beforeRowId: string | null;
+  }): Promise<string[]>;
   removeRow(rowId: string): Promise<void>;
   moveRow(rowId: string, beforeRowId: string | null): Promise<void>;
   /** Creates the column over the bridge → the bridge-assigned column id

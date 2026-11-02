@@ -307,6 +307,54 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("New");
   });
 
+  it("the mixed paste stands the one batch (the updates + the overflow's creates) + the one undo", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge); // Alice, Bob
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const [r1] = seeded.rowIds;
+    // The paste: 3 values over the 2 loaded rows — the 2 updates + the
+    // 1 create (the overflow).
+    const createdIds = await result.current.pasteRows({
+      updates: [
+        { rowId: r1!, cells: { [seeded.nameColumnId]: "№1" } },
+        { rowId: seeded.rowIds[1]!, cells: { [seeded.nameColumnId]: "№2" } },
+      ],
+      creates: [{ [seeded.nameColumnId]: "№3" }],
+      beforeRowId: null,
+    });
+    expect(createdIds).toHaveLength(1);
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    expect(result.current.rows[0]!.cells[seeded.nameColumnId]).toBe("№1");
+    expect(result.current.rows[1]!.cells[seeded.nameColumnId]).toBe("№2");
+    expect(result.current.rows[2]!.cells[seeded.nameColumnId]).toBe("№3");
+    // The one undo: the updates' restore + the created row's deletion.
+    expect(result.current.canUndo).toBe(true);
+    await result.current.undo();
+    await waitFor(() => expect(result.current.rows.length).toBe(2));
+    expect(result.current.rows[0]!.cells[seeded.nameColumnId]).toBe("Alice");
+    expect(result.current.rows[1]!.cells[seeded.nameColumnId]).toBe("Bob");
+    // The redo stands the batch again (the created row over the fresh id).
+    await result.current.redo();
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    expect(result.current.rows[2]!.cells[seeded.nameColumnId]).toBe("№3");
+  });
+
+  it("the all-unchanged paste over no creates stands the no-op (no bridge call, no undo entry)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const [r1] = seeded.rowIds;
+    await result.current.pasteRows({
+      updates: [{ rowId: r1!, cells: { [seeded.nameColumnId]: "Alice" } }], // the same value
+      creates: [],
+      beforeRowId: null,
+    });
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
   it("the failed undo entry stands retryable (the entry stays on the stack)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const seeded = await seed(bridge);

@@ -485,7 +485,7 @@ function GridBody({
 
   const rows = data.rows;
 
-  const { editingCell, setEditingCell, selectedCells, booleanPressRef, onCellPointerDown, onTableKeyDown } =
+  const { editingCell, setEditingCell, selectedCells, booleanPressRef, onCellPointerDown, onTableKeyDown, onTablePaste } =
     useGridCellInteraction({ rows, columns, data, tableRef });
 
   if (data.phase === "loading") {
@@ -765,6 +765,7 @@ function GridBody({
             // editable inputs stand the explicit `select-text`).
             className="grid w-full outline-none select-none"
             onKeyDown={onTableKeyDown}
+            onPaste={onTablePaste}
             // The fixed row track (the standard row height): every row —
             // over any column type mix — stands the one height (the header
             // stands its own auto row; the enum's trigger fits the content

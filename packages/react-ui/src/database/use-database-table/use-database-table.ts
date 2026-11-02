@@ -42,6 +42,7 @@ import type { DatabaseFilterPayload } from "docblocks-core";
 import type { BridgeColumn, BridgeTableDescription } from "../bridge";
 import { BridgeError, isBridgeError } from "../bridge";
 import type {
+  BatchOp,
   BridgeErrorCode,
   Column,
   DatabaseBridge,
@@ -643,6 +644,123 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     [bridge, tableId, pushUndo, refresh]
   );
 
+  /** The mixed paste (the spec's paste batch): the visible rows' updates
+   *  (from the active row down) + the overflow's creates — ONE `batchRows`
+   *  (one transaction, one undo entry). The updates stand the optimistic
+   *  apply (the instant cells); the creates stand no optimistic pre-apply
+   *  (the id is bridge-assigned — the rows stand over the post-commit
+   *  refresh). Returns the created rows' ids. */
+  const pasteRows = useCallback(
+    async (input: {
+      updates: Array<{ rowId: string; cells: Record<string, unknown> }>;
+      creates: Array<Record<string, unknown>>;
+      /** The created rows' seat: the visible successor of the last
+       *  updated row (null = the table's tail). */
+      beforeRowId: string | null;
+    }): Promise<string[]> => {
+      const { updates, creates, beforeRowId } = input;
+      if (updates.length === 0 && creates.length === 0) return [];
+      const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      // The pre-operation cells of the updated rows (the inverse's
+      // restore).
+      const before = new Map(rowsRef.current.map((row) => [row.rowId, row.cells]));
+      const cleaned = updates.map(({ rowId, cells }) => {
+        const patch: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(cells)) if (value !== undefined) patch[key] = value;
+        return { rowId, cells: patch };
+      });
+      // The all-unchanged updates + no creates stands no write (the empty
+      // clipboard's no-op — the same equality guard as the batch update's).
+      const updatesChanged = cleaned.some(({ rowId, cells }) => {
+        const row = rowsRef.current.find((entry) => entry.rowId === rowId);
+        return row === undefined || !Object.entries(cells).every(([key, value]) => cellValueEqual(row.cells[key], value));
+      });
+      if (!updatesChanged && creates.length === 0) return [];
+      if (updatesChanged) {
+        const byId = new Map(cleaned.map((entry) => [entry.rowId, entry.cells]));
+        setRows((rows) =>
+          rows.map((row) => {
+            const patch = byId.get(row.rowId);
+            return patch === undefined ? row : { ...row, cells: { ...row.cells, ...patch } };
+          })
+        );
+      }
+      // The created rows' identity (the inverse's delete + the redo's
+      // fresh-id re-create stand the rows the last commit actually
+      // created).
+      let liveRowIds: string[] = [];
+      try {
+        const ops: BatchOp[] = [
+          ...cleaned.map(({ rowId, cells }) => ({ op: "update" as const, rowId, cells, ...casOf(rowId) })),
+          ...creates.map((row) => ({ op: "create" as const, row, beforeRowId })),
+        ];
+        const receipt = await bridge.batchRows(tableId, { ops }, newMutationContext());
+        // The receipt's `rows` stand the affected rows' post-commit state
+        // (the bridge MAY stand the full affected set over the created
+        // stand) — the created rows are the ones NOT in the update set
+        // (the create's id is fresh; the updated rows keep theirs).
+        const updatedIds = new Set(cleaned.map((entry) => entry.rowId));
+        liveRowIds = receipt.result.rows.filter((row) => !updatedIds.has(row.id)).map((row) => row.id);
+        for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
+        const restore = cleaned.flatMap(({ rowId, cells }) => {
+          const oldCells = before.get(rowId);
+          if (oldCells === undefined) return [];
+          const patch: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(cells)) {
+            // The absent-before key stands the explicit null (the merge's
+            // removal stand — the `undefined` would be skipped by the
+            // bridge's cells' write).
+            patch[key] = oldCells[key] === undefined && value !== undefined ? null : oldCells[key];
+          }
+          if (Object.keys(patch).length === 0) return [];
+          return [{ rowId, cells: patch }];
+        });
+        pushUndo(
+          {
+            label: `paste (${cleaned.length} updates + ${creates.length} creates)`,
+            forward: async () => {
+              const redoReceipt = await bridge.batchRows(
+                tableId,
+                {
+                  ops: [
+                    ...cleaned.map(({ rowId, cells }) => ({ op: "update" as const, rowId, cells })),
+                    ...creates.map((row) => ({ op: "create" as const, row, beforeRowId })),
+                  ],
+                },
+                newMutationContext()
+              );
+              liveRowIds = redoReceipt.result.rows
+                .filter((row) => !updatedIds.has(row.id))
+                .map((row) => row.id);
+            },
+            inverse: async () => {
+              // The inverse: the created rows' deletion + the updates'
+              // restore (the edited keys' pre-operation values) — one
+              // batch (the paste's one-op undo stand).
+              const ops: BatchOp[] = [];
+              if (creates.length > 0) ops.push(...liveRowIds.map((rowId) => ({ op: "delete", rowId } as const)));
+              if (restore.length > 0) {
+                ops.push(...restore.map(({ rowId, cells }) => ({ op: "update", rowId, cells } as const)));
+              }
+              if (ops.length === 0) return;
+              await bridge.batchRows(tableId, { ops }, newMutationContext());
+            },
+          },
+          bridge,
+          tableId
+        );
+        refresh();
+        return liveRowIds;
+      } catch (operationError) {
+        if (updatesChanged) setRows(snapshot);
+        noteError(operationError);
+        refresh();
+        throw new Error(messageOf(operationError), { cause: operationError });
+      }
+    },
+    [bridge, tableId, pushUndo, refresh]
+  );
+
   // The grid column's wire spec stand: the fresh id is bridge-assigned (the grid's draft id stands the form's
   // local stand, never the wire's identity), the
   // flat reference / number fields map to the wire's nested shapes, a new
@@ -1034,6 +1152,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     insertRow,
     updateRow,
     updateRows,
+    pasteRows,
     removeRow,
     moveRow,
     addColumn,

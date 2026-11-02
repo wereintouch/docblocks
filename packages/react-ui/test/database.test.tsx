@@ -1720,6 +1720,111 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     // blocks-selection Delete).
     expect(document.querySelector("[data-slot='docblocks/database-grid']")).not.toBeNull();
   });
+
+  it("the Ctrl+C copies the selection's rectangle as TSV (the paste's round-trip stand)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    // The single cell's copy (the value's flat stand: the tab / the
+    // newline stand the space, the boolean stands its "true" / "false").
+    const cell = cellOf(0, 0)!;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    table!.focus();
+    fireEvent.keyDown(table!, { key: "c", ctrlKey: true, bubbles: true });
+    await settleGrid();
+    expect(writeText).toHaveBeenCalledWith("a");
+    writeText.mockClear();
+    // The region's copy (the 2x2 over the drag): the rows top → bottom,
+    // the cells left → right.
+    const b = cellOf(1, 1)!;
+    const original = document.elementFromPoint;
+    document.elementFromPoint = () => b;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerMove(cell, { clientX: 60, clientY: 60 });
+    fireEvent.pointerUp(cell, { clientX: 60, clientY: 60 });
+    document.elementFromPoint = original;
+    await settleGrid();
+    fireEvent.keyDown(table!, { key: "c", ctrlKey: true, bubbles: true });
+    await settleGrid();
+    expect(writeText).toHaveBeenCalledWith("a\t1\nb\t2");
+    // The no-selection stands no copy.
+    fireEvent.keyDown(table!, { key: "Escape", bubbles: true });
+    await settleGrid();
+    writeText.mockClear();
+    fireEvent.keyDown(table!, { key: "c", ctrlKey: true, bubbles: true });
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("the paste stands the spec's batch (the visible rows' updates + the overflow's creates; the one undo)", async () => {
+    const { bridge, tableId, cols } = await renderGrid(); // 2 rows: a / b
+    // The selection over the (0,0) — the paste's origin.
+    const cell = cellOf(0, 0)!;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    // 3 values over the 2 loaded rows: the 2 updates + the 1 create.
+    fireEvent.paste(table!, { clipboardData: { getData: () => "№1\n№2\n№3" } });
+    await until(async () => (await bridge.snapshotTable(tableId, {})).page.rows.length === 3, "the created row");
+    const page = await bridge.snapshotTable(tableId, {});
+    expect(page.page.rows[0]!.cells[cols.title]).toBe("№1");
+    expect(page.page.rows[1]!.cells[cols.title]).toBe("№2");
+    expect(page.page.rows[2]!.cells[cols.title]).toBe("№3");
+    // The overflow row's other cells stand null (the create's empty stand).
+    expect(page.page.rows[2]!.cells[cols.n] ?? null).toBeNull();
+    // The one undo: the updates' restore + the created row's deletion (the
+    // button's arm stands over the undo entry's render — the bridge's state
+    // stands earlier).
+    await until(
+      () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-undo']")?.hasAttribute("disabled") !== true,
+      "the undo's arm"
+    );
+    const undo = document.querySelector<HTMLElement>("[data-slot='docblocks/database-undo']");
+    fireEvent.click(undo!);
+    await until(async () => (await bridge.snapshotTable(tableId, {})).page.rows.length === 2, "the undo");
+    const restored = (await bridge.snapshotTable(tableId, {})).page.rows;
+    expect(restored[0]!.cells[cols.title]).toBe("a");
+    expect(restored[1]!.cells[cols.title]).toBe("b");
+  });
+
+  it("the paste parses the column's type (the number stands the number, the invalid value stands no cell)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
+    const cell = cellOf(0, 0)!;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    // The 2-column paste (the title + the n): the number's parse stands
+    // the number (not the string); the second row's invalid number stands
+    // no cell (the invalid input is not committed — the title stands).
+    fireEvent.paste(table!, { clipboardData: { getData: () => "t1\t7\nt2\tnot-a-number" } });
+    await until(
+      async () => (await bridge.snapshotTable(tableId, {})).page.rows[0]!.cells[cols.title] === "t1",
+      "the paste's commit"
+    );
+    const page = await bridge.snapshotTable(tableId, {});
+    expect(page.page.rows.length).toBe(2);
+    expect(page.page.rows[0]!.cells[cols.title]).toBe("t1");
+    expect(page.page.rows[0]!.cells[cols.n]).toBe(7);
+    expect(page.page.rows[1]!.cells[cols.title]).toBe("t2");
+    expect(page.page.rows[1]!.cells[cols.n]).toBe(2); // the invalid's stand (no commit)
+  });
+
+  it("the paste over the enum column stands the no-op (the option's id stands not resolvable from the text)", async () => {
+    const { bridge, tableId, cols, options } = await renderGrid();
+    const cell = cellOf(0, 3)!; // the status column (the enum)
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    fireEvent.paste(table!, { clipboardData: { getData: () => "todo\nactive" } });
+    await settleGrid();
+    const page = await bridge.snapshotTable(tableId, {});
+    // No updates, no creates: the option's id stands not resolvable over
+    // the pasted text — the values stand (the original's stand).
+    expect(page.page.rows.length).toBe(2);
+    expect(page.page.rows[0]!.cells[cols.status]).toBe(options.todo);
+    expect(page.page.rows[1]!.cells[cols.status]).toBe(options.active);
+  });
 });
 
 describe("the cell edit's external teardown (the mouse-blur's commit)", () => {

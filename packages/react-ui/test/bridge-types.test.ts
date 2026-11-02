@@ -200,9 +200,13 @@ describe("parseCellValue — the input validation", () => {
     expect(parseCellValue("datetime", "garbage").ok).toBe(false);
   });
 
-  it("passes the text / boolean / ref kinds through", () => {
+  it("passes the text / ref kinds through; the boolean stands the strict parse (the TSV's round-trip)", () => {
     expect(parseCellValue("text", "hello")).toEqual({ ok: true, value: "hello" });
-    expect(parseCellValue("boolean", "true")).toEqual({ ok: true, value: "true" });
+    expect(parseCellValue("boolean", "true")).toEqual({ ok: true, value: true });
+    expect(parseCellValue("boolean", "1")).toEqual({ ok: true, value: true });
+    expect(parseCellValue("boolean", "false")).toEqual({ ok: true, value: false });
+    expect(parseCellValue("boolean", "0")).toEqual({ ok: true, value: false });
+    expect(parseCellValue("boolean", "maybe").ok).toBe(false);
     expect(parseCellValue("enum", "option")).toEqual({ ok: true, value: "option" });
     expect(parseCellValue("row-link", "r-t-1")).toEqual({ ok: true, value: "r-t-1" });
   });

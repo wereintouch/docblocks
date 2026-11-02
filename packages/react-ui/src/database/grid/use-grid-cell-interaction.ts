@@ -11,9 +11,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent, RefObject } from "react";
 
 import type { BridgeColumn } from "../bridge";
+import { columnAnnotation, parseCellValue } from "../bridge";
 import type { UseDatabaseTable } from "../use-database-table";
 import { DRAG_START_THRESHOLD_PX } from "./constants";
-import { cellKeyOf } from "./utils";
+import { cellKeyOf, cellTextOf, parseClipboardTsv } from "./utils";
 
 interface GridCellInteractionDeps {
   /** The live rows (the selection's set + the keyboard's rows count). */
@@ -143,6 +144,35 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
    *  focused input keeps its own character editing — no cell clear). One
    *  `updateRow` per row, the columns are the null cells. */
   const onTableKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    // The clipboard's copy (the TSV's stand — the paste's round-trip):
+    // the selection's rectangle over the grid's own columns, the rows
+    // top → bottom, the cells left → right. The edit's own input keeps its
+    // native text copy; the no-selection stands no copy.
+    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && event.key.toLowerCase() === "c") {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (selectionFrame === null) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rMin = Math.min(selectionFrame.anchorR, selectionFrame.cursorR);
+      const rMax = Math.max(selectionFrame.anchorR, selectionFrame.cursorR);
+      const cMin = Math.min(selectionFrame.anchorC, selectionFrame.cursorC);
+      const cMax = Math.max(selectionFrame.anchorC, selectionFrame.cursorC);
+      const lines: string[] = [];
+      for (let r = rMin; r <= rMax; r += 1) {
+        const cells: string[] = [];
+        for (let c = cMin; c <= cMax; c += 1) {
+          const row = rows[r];
+          const column = columns[c];
+          cells.push(row === undefined || column === undefined ? "" : cellTextOf(row.cells[column.id]));
+        }
+        lines.push(cells.join("\t"));
+      }
+      const tsv = lines.join("\n");
+      if (typeof navigator !== "undefined" && navigator.clipboard !== undefined) {
+        void navigator.clipboard.writeText(tsv).catch(() => undefined);
+      }
+      return;
+    }
     // The undo / redo hotkey over the table's focus: the grid's own stack
     // (the bridge operations — the doc's undo does not cover them). The
     // focused input keeps its own history (the browser's edit commands).
@@ -238,6 +268,60 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
     void data.updateRows([...byRow.entries()].map(([rowId, cells]) => ({ rowId, cells })));
   };
 
+  // The clipboard's paste (the spec's paste batch): the TSV's grid stands
+  // from the selection's anchor cell (the active cell) over the grid's
+  // own columns — the visible rows from the anchor down stand the updates,
+  // the overflow past the last visible row stands the creates (one
+  // `batchRows`, one undo entry). The option-based columns (the enum /
+  // the row-link) stand no paste (the option's id stands not resolvable
+  // from the pasted text — the v1's stand); the unparseable value stands
+  // no cell (the editor's stand: the invalid input is not committed).
+  const onTablePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    // The edit's own control keeps its native paste (the character's
+    // stand — the browser's text insert over the input).
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    const frame = selectionFrame;
+    if (frame === null) return; // no active cell: the paste has no origin
+    const text = event.clipboardData.getData("text/plain");
+    if (text === "") return;
+    event.preventDefault();
+    const grid = parseClipboardTsv(text);
+    if (grid.length === 0 || rows.length === 0 || columns.length === 0) return;
+    const r0 = frame.anchorR;
+    const c0 = frame.anchorC;
+    const updates: Array<{ rowId: string; cells: Record<string, unknown> }> = [];
+    const creates: Array<Record<string, unknown>> = [];
+    for (let i = 0; i < grid.length; i += 1) {
+      const line = grid[i];
+      if (line === undefined) continue;
+      const cells: Record<string, unknown> = {};
+      for (let j = 0; j < line.length; j += 1) {
+        const column = columns[c0 + j];
+        if (column === undefined) continue; // the grid's right edge: the overflow columns stand no stand
+        const input = columnAnnotation(column).valueInput;
+        if (input === "enum" || input === "row-link" || input === "none") continue; // the option's id stands not resolvable over the pasted text
+        const raw = line[j];
+        if (raw === undefined) continue;
+        const parsed = parseCellValue(input, raw);
+        if (!parsed.ok) continue;
+        cells[column.id] = parsed.value;
+      }
+      const rowAt = rows[r0 + i];
+      if (rowAt !== undefined) {
+        updates.push({ rowId: rowAt.rowId, cells });
+      } else {
+        creates.push(cells);
+      }
+    }
+    if (updates.length === 0 && creates.length === 0) return;
+    // The created rows' seat: the visible successor of the last updated
+    // row (the absent one — the paste over the window's tail — stands the
+    // table's tail).
+    const lastUpdatedIndex = r0 + updates.length - 1;
+    const successor = rows[lastUpdatedIndex + 1];
+    void data.pasteRows({ updates, creates, beforeRowId: successor?.rowId ?? null });
+  };
+
   // A press outside the table stands the selection no stand (the view
   // state resets; the edit session closes with it). The press over the
   // grid's own portaled content (the date / datetime pickers, the select
@@ -265,6 +349,7 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
     booleanPressRef,
     onCellPointerDown,
     onTableKeyDown,
+    onTablePaste,
   };
 }
 

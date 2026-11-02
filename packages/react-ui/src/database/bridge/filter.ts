@@ -24,6 +24,12 @@ function parseCellValue(kind: BridgeValueInput, raw: string): CellValueParse {
       const n = Number(raw);
       return Number.isFinite(n) ? { ok: true, value: n } : { ok: false, error: "The value is not a number" };
     }
+    case "boolean":
+      // The TSV's boolean stand (the clipboard's round-trip: the copied
+      // "true" / "false" stands back the stored boolean, never the string).
+      if (raw === "true" || raw === "1") return { ok: true, value: true };
+      if (raw === "false" || raw === "0") return { ok: true, value: false };
+      return { ok: false, error: "The value is not a boolean" };
     case "date":
       return isValidDate(raw) ? { ok: true, value: raw } : { ok: false, error: "The value is not a valid date" };
     case "datetime":

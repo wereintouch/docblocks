@@ -67,6 +67,24 @@ function numberDisplayAttrs(column: BridgeColumn): NumberFormatAttrs {
 }
 /** The cell's selection/editing key (the row id + the column id). */
 const cellKeyOf = (rowId: string, colId: string) => `${rowId}\u0000${colId}`;
+/** The cell's clipboard text: the TSV's flat stand (the tab / the
+ *  newline stand the space — the TSV's shape stands; the row-link's array
+ *  joins over the comma — the label's stand, never the id). */
+function cellTextOf(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (Array.isArray(value)) return value.map((item) => cellTextOf(item)).join(",");
+  return String(value).replace(/[\t\n\r]/g, " ");
+}
+/** The TSV's parse (the clipboard's plain text over the grid's paste):
+ *  the rows over the newline (the carriage return stands the newline),
+ *  the cells over the tab; the trailing empty row stands no stand (the
+ *  clipboard's trailing newline). An empty text stands no grid. */
+function parseClipboardTsv(text: string): string[][] {
+  const lines = text.replace(/\r\n?/g, "\n").split("\n");
+  if (lines.length > 1 && lines[lines.length - 1] === "") lines.pop();
+  if (lines.length === 0 || (lines.length === 1 && lines[0] === "")) return [];
+  return lines.map((line) => line.split("\t"));
+}
 /** The local-calendar day (the year / month / date stand, the time is
  *  dropped) — the picker's draft stand. */
 function dateOnly(value: Date): Date {
@@ -120,6 +138,8 @@ function emptyColumnForm(entry: AddColumnTypeEntry): AddColumnFormDraft {
 
 export {
   cellKeyOf,
+  cellTextOf,
+  parseClipboardTsv,
   dateOnly,
   dateTimeLabel,
   emptyColumnForm,
