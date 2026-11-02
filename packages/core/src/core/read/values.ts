@@ -28,9 +28,14 @@ function dedupeOrder(ids: string[]): string[] {
 
 /**
  * Plain copy of a layout value: nested Y.Map → object, Y.Array → array,
- * primitives as-is. Layout contract: attr values are primitives or nested
- * Y.Maps only (Y.Text lives in meta.title and run text), so this cannot
- * return a live Yjs type.
+ * primitives as-is, and a plain object / array held by reference (the
+ * database's multi-select cell value, the layout's plain stand) over the
+ * deep copy — the Yjs store holds the plain values by reference, so the
+ * snapshot must not alias the store's own copy (a post-read mutation of the
+ * snapshot would corrupt the doc outside any transaction — 0 change events,
+ * persisted through the toJSON). Layout contract: attr values are
+ * primitives, nested Y.Maps, or plain objects / arrays (Y.Text lives in
+ * meta.title and run text), so this cannot return a live Yjs type.
  */
 function readPlainValue(value: unknown): unknown {
   if (value instanceof Y.Map) {
@@ -45,6 +50,9 @@ function readPlainValue(value: unknown): unknown {
   if (value instanceof Y.Array) {
     return value.toArray().map(readPlainValue);
   }
+  // The plain object / array held by reference stands the deep copy (the
+  // aliasing stand); the primitives stand as-is (immutable).
+  if (typeof value === "object" && value !== null) return structuredClone(value);
   return value;
 }
 
