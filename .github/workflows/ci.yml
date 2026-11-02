@@ -17,10 +17,12 @@ jobs:
     name: check (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     env:
-      # The runner stands 2 vCPUs: lower the E2E worker count (the local
-      # default of four is tuned for a 16-core machine) to keep the
-      # sync/presence polls from flaking under load.
-      PLAYWRIGHT_WORKERS: "2"
+      # The runner stands 2 vCPUs: the E2E suite runs single-worker (the
+      # local default of four is tuned for a 16-core machine). At two
+      # workers the keyboard gestures and the sync/presence polls flake
+      # under the runner's load (a different test per run); one worker
+      # leaves the machine the slack the settle polls need.
+      PLAYWRIGHT_WORKERS: "1"
     strategy:
       fail-fast: false
       matrix:
