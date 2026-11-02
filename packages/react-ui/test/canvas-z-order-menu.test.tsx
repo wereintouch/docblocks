@@ -3,12 +3,13 @@
 // trigger over the shape / connector toolbars, the four reorder picks,
 // the disabled edge states, and the applies (one `setZOrder` per pick —
 // one transact, one undo step, the dense indices follow the order).
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
+import { ZOrderMenu } from "../src/canvas/ZOrderMenu";
 import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
@@ -92,6 +93,41 @@ function zIndexOf(doc: TestDoc, id: string): number {
 
 beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
+
+describe("the concurrent deletion's guard (the peer's removal over the open menu)", () => {
+  it("the pick over the detached target stands the no-op (no typed error into the event handler)", async () => {
+    const doc = seededDoc();
+    const caught: string[] = [];
+    const onUncaught = (error: Error) => caught.push(error.message);
+    process.on("uncaughtException", onUncaught);
+    // The menu renders standalone (presentational: the toolbar's selection
+    // state owns its mount — here the stale stand stands, the peer's
+    // deletion does not unmount it).
+    render(
+      <EditorProvider doc={doc}>
+        <ZOrderMenu targetId="m0002" position={0} count={3} label="Arrange shape" />
+      </EditorProvider>
+    );
+    fireEvent.pointerDown(screen.getByLabelText("Arrange shape"));
+    // The peer's deletion lands while the menu is open.
+    act(() => {
+      doc.removeBlock("m0002");
+    });
+    try {
+      fireEvent.click(screen.getByRole("menuitem", { name: "Bring to front" }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      // The guard stands the no-op: the setZOrder's typed rejection (the
+      // UnknownBlockError over the detached block) never runs — no error
+      // over the event dispatch (the unguarded command's throw would
+      // reach the process's uncaught exception handler).
+      expect(caught.filter((message) => message.includes("Unknown block"))).toEqual([]);
+      expect(doc.getBlock("m0002")).toBeNull();
+      expect(validateDoc(doc.toJSON())).toEqual([]);
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
+  });
+});
 
 describe("the shape toolbar's z-order menu", () => {
   it("stands the three-dots trigger for the single shape selection", () => {

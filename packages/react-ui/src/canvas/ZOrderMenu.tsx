@@ -74,10 +74,17 @@ function ZOrderMenu({
   if (count < 2 || position < 0 || position >= count) return null;
   const atTop = position === count - 1;
   const atBottom = position === 0;
-  const bringForward = () => doc.setZOrder(targetId, "forward");
-  const bringToFront = () => doc.setZOrder(targetId, "toFront");
-  const sendBackward = () => doc.setZOrder(targetId, "back");
-  const sendToBack = () => doc.setZOrder(targetId, "toBack");
+  // The pick: the target's concurrent deletion (the peer removed the
+  // element) stands the no-op (the setZOrder over the detached block would
+  // throw the typed error into the event handler).
+  const pick = (action: "forward" | "toFront" | "back" | "toBack") => {
+    if (doc.getBlock(targetId) === null) return;
+    doc.setZOrder(targetId, action);
+  };
+  const bringForward = () => pick("forward");
+  const bringToFront = () => pick("toFront");
+  const sendBackward = () => pick("back");
+  const sendToBack = () => pick("toBack");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

@@ -76,6 +76,10 @@ function ConnectorToolbar({
   const [openSection, setOpenSection] = useState<"stroke" | null>(null);
 
   const apply = (patch: Record<string, unknown>) => {
+    // The target's concurrent deletion (the peer removed the connector):
+    // the block is gone — the gesture stands a no-op (the command over the
+    // detached block would throw the typed error into the event handler).
+    if (doc.getBlock(id) === null) return;
     doc.transact(() => {
       doc.updateBlock(id, patch);
     });

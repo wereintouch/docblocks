@@ -115,6 +115,10 @@ function ShapeText({ id, block, box }: { id: BlockId; block: ShapeBlockView; box
     committedRef.current = true;
     textEdit?.setEditingId(null);
     if (value === text) return;
+    // The shape's concurrent deletion (the peer removed it): the block is
+    // gone — the commit stands a no-op (the update over the detached block
+    // would throw the typed error into the blur / key handler).
+    if (doc.getBlock(id) === null) return;
     doc.transact(() => {
       doc.updateBlock(id, { text: value });
     });

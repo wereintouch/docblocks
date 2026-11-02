@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createDoc, validateDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
+import { ShapeToolbar } from "../src/canvas";
 import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
@@ -404,5 +405,55 @@ describe("the border's controls (the width selector + the style menu)", () => {
     expect(styleOf(shape)).toBe("dash");
     doc.undo();
     expect(styleOf(shape)).toBeUndefined();
+  });
+});
+
+describe("the concurrent deletion's guard (the peer's removal over the open toolbar)", () => {
+  it("the apply over the detached block stands the no-op (no typed error into the event handler)", async () => {
+    const { doc, shape } = seededDoc();
+    const caught: string[] = [];
+    const onUncaught = (error: Error) => caught.push(error.message);
+    process.on("uncaughtException", onUncaught);
+    // The toolbar renders standalone (presentational: the canvas view's
+    // selection state owns its mount — here the stale stand stands, the
+    // peer's deletion does not unmount it).
+    render(
+      <EditorProvider doc={doc}>
+        <ShapeToolbar
+          id={shape}
+          fill={undefined}
+          stroke={undefined}
+          strokeWidth={undefined}
+          strokeStyle={undefined}
+          variant={undefined}
+          text={undefined}
+          fontSize={undefined}
+          fontFamily={undefined}
+          textColor={undefined}
+          textStyle={undefined}
+          textAlign={undefined}
+          zStand={null}
+          style={{}}
+        />
+      </EditorProvider>
+    );
+    fireEvent.pointerDown(screen.getByLabelText("Shape border style"));
+    // The peer's deletion lands while the menu is open.
+    act(() => {
+      doc.removeBlock(shape);
+    });
+    try {
+      fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Dashed" }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      // The guard stands the no-op: the command's typed rejection (the
+      // UnknownBlockError over the detached block) never runs — no error
+      // over the event dispatch (the unguarded command's throw would
+      // reach the process's uncaught exception handler).
+      expect(caught.filter((message) => message.includes("Unknown block"))).toEqual([]);
+      expect(doc.getBlock(shape)).toBeNull();
+      expect(validateDoc(doc.toJSON())).toEqual([]);
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
   });
 });

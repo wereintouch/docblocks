@@ -3,13 +3,14 @@
 // render conditions (the single connector stands it; the multi selection,
 // the non-connector blocks, and the active tool hide it) and the applies
 // (one updateBlock per pick, one undo step; the doc stays valid).
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createDoc, validateDoc } from "docblocks-core";
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
+import { ConnectorToolbar } from "../src/canvas";
 import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
@@ -337,3 +338,47 @@ describe("the style applies", () => {
 
 beforeEach(() => window.localStorage.clear());
 afterEach(cleanup);
+
+describe("the concurrent deletion's guard (the peer's removal over the open toolbar)", () => {
+  it("the apply over the detached block stands the no-op (no typed error into the event handler)", async () => {
+    const { doc, connector } = seededDoc();
+    const caught: string[] = [];
+    const onUncaught = (error: Error) => caught.push(error.message);
+    process.on("uncaughtException", onUncaught);
+    // The toolbar renders standalone (presentational: the canvas view's
+    // selection state owns its mount — here the stale stand stands, the
+    // peer's deletion does not unmount it).
+    render(
+      <EditorProvider doc={doc}>
+        <ConnectorToolbar
+          id={connector}
+          variant={undefined}
+          strokeColor={undefined}
+          strokeWidth={undefined}
+          strokeStyle={undefined}
+          arrowHead={undefined}
+          arrowStart={undefined}
+          zStand={null}
+          style={{}}
+        />
+      </EditorProvider>
+    );
+    // The peer's deletion lands while the toolbar is open.
+    act(() => {
+      doc.removeBlock(connector);
+    });
+    try {
+      fireEvent.click(screen.getByLabelText("Orthogonal line"));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      // The guard stands the no-op: the command's typed rejection (the
+      // UnknownBlockError over the detached block) never runs — no error
+      // over the event dispatch (the unguarded command's throw would
+      // reach the process's uncaught exception handler).
+      expect(caught.filter((message) => message.includes("Unknown block"))).toEqual([]);
+      expect(doc.getBlock(connector)).toBeNull();
+      expect(validateDoc(doc.toJSON())).toEqual([]);
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
+  });
+});

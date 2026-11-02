@@ -109,6 +109,10 @@ function ShapeToolbar({
   const sizeListId = `docblocks-shape-size-${id}`;
 
   const applyAttr = (patch: Record<string, unknown>) => {
+    // The target's concurrent deletion (the peer removed the shape): the
+    // block is gone — the gesture stands a no-op (the command over the
+    // detached block would throw the typed error into the event handler).
+    if (doc.getBlock(id) === null) return;
     doc.transact(() => {
       doc.updateBlock(id, patch);
     });
