@@ -42,7 +42,7 @@ undo step, one wire update. Batch several into a single step with
 
 ```ts
 doc.transact(() => {
-  const h = doc.insertBlock("heading", { level: 1 }, { afterId: para });
+  const h = doc.insertBlock("heading", { level: 1 }, { after: para });
   doc.insertText(h, 0, "Title");
 }); // one undo step, one wire update
 ```

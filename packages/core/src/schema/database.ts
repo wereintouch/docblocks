@@ -35,9 +35,8 @@ interface DatabaseFilterCondition {
   value?: unknown;
 }
 
-/** The recursive and/or filter payload (the `filter` attr and the
- *  `queryRows` filter parameter; the recursion depth is bounded by the
- *  UI). */
+/** The recursive and/or filter payload (the `filter` attr of the
+ *  database's external form; the recursion depth is bounded by the UI). */
 interface DatabaseFilterPayload {
   logic: "and" | "or";
   conditions: DatabaseFilterCondition[];

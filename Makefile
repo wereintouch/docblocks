@@ -83,7 +83,7 @@ dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
 
 check: lint typecheck deprecations ## Quick gate: lint + typecheck + deprecations
 
-full: ## Full local gate: lint -> format -> build -> typecheck -> test -> e2e
+full: ## Full local gate: lint -> format -> build -> typecheck -> deprecations -> test -> packaging -> e2e
 	npm run check
 
 ## Dev and cleanup

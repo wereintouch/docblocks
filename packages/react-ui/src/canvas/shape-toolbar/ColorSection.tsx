@@ -106,8 +106,8 @@ function ColorSection({
         data-slot={`docblocks/shape-${target}-palette`}
         aria-label={label}
         className="w-auto p-2"
-        // The palette suppresses the mousedown default (the house pattern,
-        // the page format palette): the portaled content div is focusable
+        // The palette suppresses the mousedown default (the page format
+        // palette's pattern): the portaled content div is focusable
         // (the radix tabIndex -1) — a padding press would focus it, and a
         // key on that focus (not a form control) would reach the editor
         // root's blocks-selection handling. The hex input opts out via

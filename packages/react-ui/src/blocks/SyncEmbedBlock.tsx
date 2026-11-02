@@ -7,8 +7,8 @@ import { Card } from "../shared/ui/Card";
 import { ScrollArea } from "../shared/ui/ScrollArea";
 
 /**
- * The sync-embed render depth bound (spec: the cycle guards are a
- * visited-set plus a max depth). The visited-set (the ancestor doc chain)
+ * The sync-embed render depth bound (the cycle guards are a visited-set
+ * plus a max depth). The visited-set (the ancestor doc chain)
  * catches a doc that embeds itself one level down — the nested provider's
  * chain carries the doc's own id; the depth bound is the second line of
  * defense for long non-cyclic chains: an embed rendered deeper than this

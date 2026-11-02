@@ -164,17 +164,37 @@ The `database` block has two forms. The **inline** form keeps its columns
 and rows in the document. The **external** form keeps only a `tableId`
 reference; the schema and the rows live in the consumer's database behind
 the `DatabaseBridge` (the `databaseBridge` prop) — all methods are async,
-errors reject, and the package neither swallows nor retries:
+errors reject as the structured `BridgeError` (the closed 20-code `code`
+vocabulary + the `message` + the optional `details`), and the package neither swallows nor
+retries:
 
+- protocol: `describeProtocol` (the version + the capabilities + the
+  limits) — the client negotiates it before any use; a version /
+  baseline-capability mismatch stands the `protocol_mismatch`, not a
+  silent downgrade
 - catalog: `listTables`, `createTable`, `renameTable`, `describeTable`
-- schema: `createColumn`, `updateColumn`, `renameColumn`, `deleteColumn`
-- rows: `queryRows` (cursor pagination), `insertRow(s)`, `updateRow(s)`,
-  `removeRow(s)`, `moveRow`, optional `undeleteRows` (only with soft-delete),
-  `resolveRowDisplay` (the row-link cells' join)
-- live feed: `subscribeTable(tableId, onEvents) → unsubscribe` — the only
-  push channel (WS / SSE / polling with the same event shape: `row.created`
-  / `row.updated` / `row.removed` / `row.moved` / `schema.changed` / …);
-  events arrive for all rows, the client filters.
+- schema: `createColumn`, `updateColumn`, `renameColumn` (the `name` key
+  of `updateColumn`), `deleteColumn`, `restoreDeletedColumn` (the
+  soft-delete posture)
+- reads: `snapshotTable` (the sole initial load: the schema + the first
+  page from one read), `queryNextPage` (the opaque keyset cursor — the
+  cursor is signed by the server), `resolveRowDisplay` (the row-link
+  cells' join)
+- writes: the atomic mixed `batchRows` (the ordered `ops[]` commit as one
+  transaction — the insert / update / remove / move / append stand the
+  op's kinds), `undeleteRows` (one atomic operation, independent of the
+  batch) — every mutation carries the `MutationContext` (the
+  client-issued `operationId` idempotency key + the issue time + the
+  optional CAS `expectedRevision` — its absence selects the LWW default)
+- live feed: `subscribeTable(tableId, { afterSeq }, observer)` → the
+  handle — the push channel (the consumer's transport: WS / SSE /
+  polling); the observer stands the `commit` envelope (one transaction →
+  one `seq` / `prevSeq` over the append-only per-table stream) and the
+  `invalidate` (the table's stream re-anchors — the grid refetches over
+  the alive subscription); the bootstrap's replay covers the
+  snapshot → subscribe gap (the `afterSeq` handoff)
+- reconciliation: `getOperationStatus(operationId)` — the lost-response
+  stand (the committed receipt or the pending)
 
 Without a bridge, the editor uses the shared default in-memory bridge
 (tables and rows stand in the page's JS memory, cleared on reload) — the

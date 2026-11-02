@@ -4,7 +4,7 @@
  * stands the plain editor (the pointer's session — no animation); this
  * variant is provided over the `EnumOptionsMotionSlot`'s context by the
  * `MotionEditor` (the framer's import stands this subpath only — the
- * house's boundary's contract). */
+ * subpath's boundary's contract). */
 import { Reorder, useDragControls } from "framer-motion";
 
 import { useState } from "react";
