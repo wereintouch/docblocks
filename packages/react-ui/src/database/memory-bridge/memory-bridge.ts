@@ -986,20 +986,18 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       if (column === undefined) throw new BridgeError("invalid_column", `The column "${columnId}" is unknown.`);
       const fingerprint = fingerprintOf("updateColumn", { tableId, columnId, patch });
       return idempotent(ctx, fingerprint, () => {
-        // Pre-validate the whole patch before the mutation: an invalid key
-        // stands no partial apply (the patch's all-or-nothing stand).
+        // Pre-validate the whole patch before the mutation: the patch merged
+        // over the current column stands the complete spec (the create's
+        // full validation — the per-key check stood the name / the nullable
+        // / the position only and missed the numberDisplay / the operators
+        // / the reference's contract), and the invalid spec stands no
+        // partial apply (the patch's all-or-nothing stand).
+        const spec: Record<string, unknown> = { ...column };
         for (const [key, value] of Object.entries(patch)) {
           if (value === undefined || key === "id" || key === "revision") continue;
-          if (key === "position" && (typeof value !== "number" || !Number.isInteger(value) || value < 0)) {
-            throw new BridgeError("validation", "The column position must be a non-negative integer.");
-          }
-          if (key === "name" && (typeof value !== "string" || value.trim() === "")) {
-            throw new BridgeError("validation", "The column name must be a non-empty string.");
-          }
-          if (key === "nullable" && typeof value !== "boolean") {
-            throw new BridgeError("validation", "The column nullability must be a boolean.");
-          }
+          spec[key] = value;
         }
+        validateColumnSpec(table, spec as Omit<Column, "id" | "revision">);
         let changed = false;
         for (const [key, value] of Object.entries(patch)) {
           if (
@@ -1013,6 +1011,19 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
           changed = true;
         }
         if (!changed) return noOpReceipt(ctx, table, clone(column));
+        // The position patch stands the move (the reindex rewrites the
+        // positions over the array's order — the patch's value stands the
+        // re-insert at the target index, not the stored number): the
+        // clamped stand (the create's Math.min position over the insert
+        // index stands the move's last-index stand).
+        const at = table.columns.indexOf(column);
+        if (typeof patch.position === "number" && Number.isInteger(patch.position) && patch.position >= 0) {
+          const target = Math.min(patch.position, table.columns.length - 1);
+          if (target !== at) {
+            table.columns.splice(at, 1);
+            table.columns.splice(target, 0, column);
+          }
+        }
         reindexColumns(table);
         table.schemaRevision = nextRevision(table);
         column.revision = nextRevision(table);

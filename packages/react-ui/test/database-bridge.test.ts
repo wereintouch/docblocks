@@ -742,6 +742,54 @@ describe("the row restore — the undeleteRows' stand", () => {
     expect(after.schemaRevision).toBe(before.schemaRevision);
   });
 
+  it("the updateColumn stands the full spec validation (the createColumn's stand)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId, nameColumnId, ageColumnId } = await seedTable(bridge);
+    // The numberDisplay's decimals (the -2 stood the
+    // pass over the per-key check; the merged spec stands the reject).
+    const badDecimals = await bridge
+      .updateColumn(tableId, ageColumnId, { numberDisplay: { decimals: -2 } }, ctx())
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(badDecimals)).toBe("validation");
+    // The reference's contract over the patch (the kind's stand).
+    const badKind = await bridge
+      .updateColumn(
+        tableId,
+        nameColumnId,
+        { reference: { kind: "bogus" as never, tableId, many: false } },
+        ctx()
+      )
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(badKind)).toBe("validation");
+    // The valid patch stands the pass (the finite stand is not the
+    // reject-everything stand).
+    const ok = await bridge.updateColumn(tableId, ageColumnId, { numberDisplay: { decimals: 2 } }, ctx());
+    expect(ok.result.numberDisplay?.decimals).toBe(2);
+  });
+
+  it("the updateColumn's position patch stands the move (the reindex's order)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId, nameColumnId } = await seedTable(bridge);
+    const added = await bridge.createColumn(
+      tableId,
+      { column: { name: "Note", type: "text", position: 2, nullable: true } },
+      ctx()
+    );
+    // The order before the move: Name, Age, Note.
+    let names = (await bridge.snapshotTable(tableId, {})).columns.map((column) => column.name);
+    expect(names).toEqual(["Name", "Age", "Note"]);
+    // The move of Note to the front (the position 0): the column stands
+    // re-inserted at the target index (the reindex stands the order).
+    await bridge.updateColumn(tableId, added.result.id, { position: 0 }, ctx());
+    names = (await bridge.snapshotTable(tableId, {})).columns.map((column) => column.name);
+    expect(names).toEqual(["Note", "Name", "Age"]);
+    // The clamped stand: the position over the last index stands the last
+    // index (not the out-of-range re-insert).
+    await bridge.updateColumn(tableId, nameColumnId, { position: 99 }, ctx());
+    names = (await bridge.snapshotTable(tableId, {})).columns.map((column) => column.name);
+    expect(names).toEqual(["Note", "Age", "Name"]);
+  });
+
   it("the resolveRowDisplay stands the displays and the null over the missing target", async () => {
     const bridge = createMemoryDatabaseBridge();
     const { tableId, rowIds } = await seedTable(bridge);
