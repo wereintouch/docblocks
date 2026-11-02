@@ -143,6 +143,54 @@ describe("built-in renderer: embed", () => {
     expect(iframe!.getAttribute("src")).toBe("https://youtube.com/watch");
     expect(iframe!.getAttribute("title")).toBe("youtube");
   });
+
+  it("stands the unsafe src over the placeholder (the renderer's gate — the iframe stands no mount)", () => {
+    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://example.com/seed" }));
+    const store = context!.store;
+    const state = store.getState();
+    // The legacy / the remote crafted data (the write posture rejects it at
+    // the command / the validator's strict stand) stands the same raw-data
+    // path: the store's snapshot injection.
+    const unsafe: Block = {
+      type: "embed",
+      attrs: { kind: "iframe", src: "javascript:alert(1)" },
+    } as unknown as Block;
+    const dataHtml: Block = {
+      type: "embed",
+      attrs: { kind: "iframe", src: "data:text/html,<script>alert(1)</script>" },
+    } as unknown as Block;
+
+    act(() => {
+      store.setState({
+        blocks: { ...state.blocks, "embed-unsafe": unsafe, "embed-unsafe-data": dataHtml },
+        rootChildren: [...state.rootChildren, "embed-unsafe", "embed-unsafe-data"],
+      });
+    });
+
+    // Both the crafted blocks stand the placeholder, the iframe stands no
+    // mount (the `javascript:` / the foreign `data:` would stand the XSS
+    // over the consumer's sandbox grant / the phishing surface); the safe
+    // seed stands its iframe (the control).
+    for (const id of ["embed-unsafe", "embed-unsafe-data"]) {
+      const wrapper = document.querySelector<HTMLElement>(
+        `[data-slot="docblocks/block"][data-block-type="embed"][data-block-id="${id}"]`
+      );
+      expect(wrapper).not.toBeNull();
+      expect(wrapper!.querySelector('iframe[data-slot="docblocks/embed"]')).toBeNull();
+      expect(wrapper!.querySelector('[data-slot="docblocks/embed-blocked"]')).not.toBeNull();
+    }
+    expect(document.querySelectorAll('iframe[data-slot="docblocks/embed"]').length).toBe(1);
+    expect(document.querySelector('iframe[data-slot="docblocks/embed"]')?.getAttribute("src")).toBe(
+      "https://example.com/seed"
+    );
+  });
+
+  it("stands the html kind's data:text/html snippet (the kind's purpose — the iframe stands)", () => {
+    renderDoc((doc) => doc.insertBlock("embed", { kind: "html", src: "data:text/html,<h1>hi</h1>" }));
+    const iframe = document.querySelector<HTMLIFrameElement>('[data-kind="html"] iframe[data-slot="docblocks/embed"]');
+    expect(iframe).not.toBeNull();
+    expect(iframe!.getAttribute("src")).toBe("data:text/html,<h1>hi</h1>");
+  });
 });
 
 describe("renderer registry: embed", () => {

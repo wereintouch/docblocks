@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { isSafeEmbedSrc } from "docblocks-core";
 import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
@@ -219,19 +220,35 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
       onPointerUp={endPan}
       onPointerCancel={endPan}
     >
-      <iframe
-        data-slot="docblocks/embed"
-        src={src}
-        title={title ?? kind}
-        loading="lazy"
-        sandbox={sandbox ?? undefined}
-        className="block h-full w-full border-0"
-        style={{
-          transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
-          transformOrigin: "0 0",
-          pointerEvents: panModifier ? "none" : "auto",
-        }}
-      />
+      {isSafeEmbedSrc(kind, src) ? (
+        <iframe
+          data-slot="docblocks/embed"
+          src={src}
+          title={title ?? kind}
+          loading="lazy"
+          sandbox={sandbox ?? undefined}
+          className="block h-full w-full border-0"
+          style={{
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+            transformOrigin: "0 0",
+            pointerEvents: panModifier ? "none" : "auto",
+          }}
+        />
+      ) : (
+        // The renderer's gate: the unsafe src (the legacy / the remote
+        // crafted data — the write posture rejects it) stands the
+        // placeholder, the iframe stands no mount (the `javascript:` / the
+        // foreign `data:` would stand the XSS over the consumer's sandbox
+        // grant / the phishing surface).
+        <div
+          data-slot="docblocks/embed-blocked"
+          className="
+            flex h-full w-full items-center justify-center p-4 text-center text-sm text-(--docblocks-muted-text-color)
+          "
+        >
+          {title ?? kind}
+        </div>
+      )}
       {/* The hover / focus reveal (the code header's controls idiom):
           invisible and unclickable unless the wrapper is hovered or a zoom
           control holds the keyboard focus (the wrapper's focus-within). The

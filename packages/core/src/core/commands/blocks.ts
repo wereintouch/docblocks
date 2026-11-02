@@ -5,7 +5,13 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, isReservedId, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import {
+  BLOCK_REGISTRY,
+  isReservedId,
+  isSafeEmbedSrc,
+  validateBlockAttrs,
+  validateCanvasBlock,
+} from "@docblocks-core/schema";
 import type { AttrsFor, BlockId, BlockType, ValidationError } from "@docblocks-core/schema";
 
 import {
@@ -157,6 +163,17 @@ function insertBlock(
     validateCanvasBlock(type, { type, attrs }, "blocks.new", canvasErrors);
     if (canvasErrors.length > 0) {
       throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${formatValidationErrors(canvasErrors)}`);
+    }
+  }
+
+  // The embed's kind x src cross-field rule (the unsafe scheme stands the
+  // XSS over the consumer's sandbox grant / the phishing surface).
+  if (type === "embed" && isPlainObject(tableAttrs) && typeof tableAttrs.src === "string") {
+    const kind = typeof tableAttrs.kind === "string" ? tableAttrs.kind : "iframe";
+    if (!isSafeEmbedSrc(kind, tableAttrs.src)) {
+      throw new InvalidAttrsError(
+        `Invalid attrs for block type "embed": the src is not a safe URL for kind "${kind}" (absolute http/https only; the html kind stands the data:text/html snippet additionally).`
+      );
     }
   }
 

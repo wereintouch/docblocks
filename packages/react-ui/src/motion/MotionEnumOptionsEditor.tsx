@@ -74,9 +74,7 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
             variant="ghost"
             data-color={option.color ?? ""}
             title="Option's color"
-            className="
-              size-4 shrink-0 cursor-pointer rounded-full border border-border p-0 focus-visible:ring-0
-            "
+            className="size-4 shrink-0 cursor-pointer rounded-full border border-border p-0 focus-visible:ring-0"
             style={option.color !== null ? { backgroundColor: option.color } : undefined}
           />
         </PopoverTrigger>

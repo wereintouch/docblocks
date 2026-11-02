@@ -23,14 +23,13 @@
  * boundary never contains its own render's throw. */
 import { useStore } from "zustand";
 
-import { Fragment, memo, useMemo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
-import type { BlockRendererMap } from "./renderers";
 import { BlockErrorBoundary } from "./BlockErrorBoundary";
 import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes } from "./ListRun";
@@ -38,6 +37,7 @@ import { ItemNested, NestedSlot } from "./NestedSlot";
 import { dispatchBuiltIn } from "./block-dispatch";
 import { deriveFlat } from "./flat";
 import type { FlatNode } from "./flat";
+import type { BlockRendererMap } from "./renderers";
 
 /**
  * The block body's renderer dispatch, a child of the render error
@@ -110,16 +110,18 @@ const BlockNodeView = memo(
     // inside itself, the text container's slot) — the built-in text
     // renderers only (a consumer renderer never threads it); the rest stands
     // after the block (the consumer renderer, the non-text built-in).
-    const threaded: ReactNode = hasChildren && !isCustom ? (
-      isListItem ? (
-        <ItemNested id={node.id} nodes={node.children} ownKind={block.attrs.list} renderBlock={renderBlock} />
-      ) : (
+    const threaded: ReactNode =
+      hasChildren && !isCustom ? (
+        isListItem ? (
+          <ItemNested id={node.id} nodes={node.children} ownKind={block.attrs.list} renderBlock={renderBlock} />
+        ) : (
+          <NestedSlot id={node.id} nodes={node.children} renderBlock={renderBlock} />
+        )
+      ) : undefined;
+    const trailing: ReactNode =
+      hasChildren && (isCustom || !builtInText) ? (
         <NestedSlot id={node.id} nodes={node.children} renderBlock={renderBlock} />
-      )
-    ) : undefined;
-    const trailing: ReactNode = hasChildren && (isCustom || !builtInText) ? (
-      <NestedSlot id={node.id} nodes={node.children} renderBlock={renderBlock} />
-    ) : undefined;
+      ) : undefined;
     return (
       <BlockErrorBoundary version={block} type={block.type}>
         <BlockBody

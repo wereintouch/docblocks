@@ -12,7 +12,7 @@ import { CANVAS_ZORDER_TYPES } from "../../z-order";
 import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../constants";
 import type { ValidationError } from "../models";
 import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
-import { isIso8601, isPlainObject, show } from "./common";
+import { isIso8601, isPlainObject, isSafeEmbedSrc, show } from "./common";
 import { validateAttrs, validateContent, validateMarks } from "./content";
 
 function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): void {
@@ -337,6 +337,24 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors, lenient);
     if (blockType === "shape" || blockType === "connector" || blockType === "group") {
       validateCanvasBlock(blockType, block, `blocks.${id}`, errors);
+    }
+    if (blockType === "embed") {
+      // The kind x src cross-field rule (the registry's attrs spec is
+      // per-attr). The strict posture rejects the unsafe scheme (the
+      // `javascript:` / the foreign `data:` — the XSS over the consumer's
+      // sandbox grant, the phishing surface); the lenient load keeps the
+      // value as data (the renderer gates it).
+      if (!lenient) {
+        const attrs = block.attrs as Record<string, unknown> | undefined;
+        const src = attrs?.src;
+        const kind = attrs?.kind;
+        if (typeof src === "string" && src.length > 0 && !isSafeEmbedSrc(kind, src)) {
+          errors.push({
+            path: `blocks.${id}.attrs.src`,
+            message: `The embed's src is not a safe URL for kind "${kind}": absolute http/https only (the html kind stands the data:text/html snippet additionally).`,
+          });
+        }
+      }
     }
 
     validateAttrs(blockType, spec, block.attrs, `blocks.${id}.attrs`, errors, lenient);

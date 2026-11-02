@@ -9,6 +9,8 @@
  */
 import { useEffect, useRef, useState } from "react";
 
+import { isSafeEmbedSrc } from "docblocks-core";
+
 import { BareSelect } from "../../shared/ui/BareSelect";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
@@ -41,6 +43,9 @@ function SlashEmbedForm({
   const commit = () => {
     const trimmed = url.trim();
     if (trimmed.length === 0) return;
+    // The unsafe scheme stands no commit (the core's write posture rejects
+    // it too — the `javascript:` / the foreign `data:`).
+    if (!isSafeEmbedSrc(kind, trimmed)) return;
     onCommit({ kind, src: trimmed });
   };
 
@@ -52,7 +57,13 @@ function SlashEmbedForm({
     if (event.key === "Escape") onCancel();
   };
 
-  const canCommit = url.trim().length > 0;
+  const canCommit = url.trim().length > 0 && isSafeEmbedSrc(kind, url.trim());
+  // The unsafe-scheme hint (the commit stands rejected over the same rule —
+  // the input feedback instead of the silent no-op).
+  const unsafeHint =
+    url.trim().length > 0 && !isSafeEmbedSrc(kind, url.trim())
+      ? "Only absolute https://… (the html kind stands the data:text/html snippet)."
+      : null;
 
   const onUrlKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     stopFormKey(event);
@@ -103,6 +114,11 @@ function SlashEmbedForm({
           <Check className="size-4" />
         </Button>
       </div>
+      {unsafeHint !== null && (
+        <p data-slot="docblocks/slash-embed-hint" className="px-1 text-xs text-destructive">
+          {unsafeHint}
+        </p>
+      )}
     </div>
   );
 }

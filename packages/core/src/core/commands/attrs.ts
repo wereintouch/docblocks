@@ -5,7 +5,13 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, setOwn, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import {
+  BLOCK_REGISTRY,
+  isSafeEmbedSrc,
+  setOwn,
+  validateBlockAttrs,
+  validateCanvasBlock,
+} from "@docblocks-core/schema";
 import type { BlockAttrsPatch, ValidationError } from "@docblocks-core/schema";
 
 import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatValidationErrors } from "../errors";
@@ -48,6 +54,18 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   const errors = validateBlockAttrs(type, merged);
   if (errors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);
+  }
+
+  // The embed's kind x src cross-field rule over the post-patch attrs (the
+  // unsafe scheme stands the XSS over the consumer's sandbox grant / the
+  // phishing surface).
+  if (type === "embed" && typeof merged.src === "string") {
+    const kind = typeof merged.kind === "string" ? merged.kind : "iframe";
+    if (!isSafeEmbedSrc(kind, merged.src)) {
+      throw new InvalidAttrsError(
+        `Invalid attrs for block "${id}": the src is not a safe URL for kind "${kind}" (absolute http/https only; the html kind stands the data:text/html snippet additionally).`
+      );
+    }
   }
 
   // The table's positional columnWidths must mirror the column set (one
