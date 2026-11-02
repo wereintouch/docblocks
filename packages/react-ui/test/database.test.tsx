@@ -2713,6 +2713,44 @@ describe("the slash Database picker (the rework: the create form + the search)",
     expect(slot("slash-database-table", "t-zebra")).toBeNull();
     expect(slot("slash-database-empty")).not.toBeNull();
   });
+
+  it("the unmount over the in-flight create cancels the commit (the block is not inserted over the cancelled gesture)", async () => {
+    // The create resolves after the picker unmounts (the Escape / the
+    // caret's move closed the menu): the commit must not run over the
+    // cancelled gesture (the create's receipt stands the consumer's
+    // orphan, the picker cannot unwind it).
+    let releaseCreate: () => void = () => {};
+    const { bridge, createTable } = mockBridge();
+    const slowBridge: DatabaseBridge = {
+      ...bridge,
+      createTable: async (input: Parameters<typeof createTable>[0]) => {
+        await new Promise<void>((resolve) => {
+          releaseCreate = () => resolve();
+        });
+        return createTable(input);
+      },
+    };
+    const doc = createDoc({ id: "doc-pick", createdAt: CREATED_AT });
+    const onCommit = vi.fn();
+    const result = render(
+      <EditorProvider doc={doc} databaseBridge={slowBridge}>
+        <DatabaseSlashPicker onCommit={onCommit} onCancel={vi.fn()} />
+      </EditorProvider>
+    );
+    await settleGrid();
+    // Open the form, type the name, commit — the create is in flight.
+    fireEvent.click(slot("slash-database-create-new")!);
+    fireEvent.change(slot("slash-database-name")!, { target: { value: "Ghost" } });
+    fireEvent.keyDown(slot("slash-database-name")!, { key: "Enter" });
+    // The picker unmounts over the in-flight create (the Escape's stand).
+    result.unmount();
+    act(() => {
+      releaseCreate();
+    });
+    await settleGrid();
+    expect(createTable).toHaveBeenCalledTimes(1);
+    expect(onCommit).not.toHaveBeenCalled();
+  });
 });
 
 describe("the filter builder — the ref value inputs (the enum's dict options / the row-link's displays)", () => {

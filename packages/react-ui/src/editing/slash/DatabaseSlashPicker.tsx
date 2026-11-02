@@ -32,6 +32,19 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
   const [query, setQuery] = useState("");
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
+  // The picker's lifetime: the create's commit stands only while the
+  // picker stands (the Escape / the caret's move unmounts it — the commit
+  // over the unmount would insert the block over a cancelled gesture; the
+  // create's receipt itself stands the consumer's orphan, the picker
+  // cannot unwind it).
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    []
+  );
+
   // The name input stands focused when the form stands (the keyboard's
   // create flow: the button's click lands the focus, the name types, the
   // Enter / check commits).
@@ -71,10 +84,12 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
     void (async () => {
       try {
         const tableId = (await databaseBridge.createTable({ name: trimmed }, newMutationContext())).result.id;
-        onCommit(tableId);
+        if (mountedRef.current) onCommit(tableId);
       } catch (createError) {
-        setCreating(false);
-        setError(createError instanceof Error ? createError.message : String(createError));
+        if (mountedRef.current) {
+          setCreating(false);
+          setError(createError instanceof Error ? createError.message : String(createError));
+        }
       }
     })();
   };
