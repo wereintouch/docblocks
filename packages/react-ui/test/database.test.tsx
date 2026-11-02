@@ -2622,6 +2622,32 @@ describe("the slash Database picker (the rework: the create form + the search)",
     expect(onCommit).toHaveBeenCalledWith("t-my-board");
   });
 
+  it("the protocol mismatch stands the error line (no list, the create stands blocked)", async () => {
+    const { bridge, createTable } = mockBridge();
+    const descriptor = await bridge.describeProtocol();
+    const badBridge: DatabaseBridge = {
+      ...bridge,
+      describeProtocol: async () => ({ ...descriptor, protocolVersion: 1 as unknown as 2 }),
+    };
+    renderPicker(badBridge);
+    await settleGrid();
+    // The negotiation stand (the useDatabaseTable bootstrap's contract):
+    // the version mismatch stands the protocol_mismatch — the error line,
+    // the list stands not loaded.
+    expect(slot("slash-database-error")).not.toBeNull();
+    expect(slot("slash-database-list")).toBeNull();
+    // The create stands blocked (the unvalidated bridge): the Enter commits
+    // nothing (the createTable is not reached over the failed negotiation).
+    fireEvent.click(slot("slash-database-create-new")!);
+    await settleGrid();
+    const nameInput = slot("slash-database-name")!;
+    fireEvent.change(nameInput, { target: { value: "My Board" } });
+    await settleGrid();
+    fireEvent.keyDown(nameInput, { key: "Enter" });
+    await settleGrid();
+    expect(createTable).not.toHaveBeenCalled();
+  });
+
   it("the check button commits (the same as the Enter)", async () => {
     const { bridge, createTable } = mockBridge();
     const { onCommit } = renderPicker(bridge);

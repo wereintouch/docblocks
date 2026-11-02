@@ -2,7 +2,7 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { DatabaseBridge, MutationContext, TableEvent } from "../src/database/bridge";
+import type { BatchOp, DatabaseBridge, MutationContext, TableEvent } from "../src/database/bridge";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
 
@@ -119,6 +119,55 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     await waitFor(() => expect(result.current.errorCode).toBe("not_found"));
     // The entry stands on the stack (the retry stand).
     expect(result.current.canUndo).toBe(true);
+  });
+
+  it("the CAS stand: the `cas` capability selects the expectedRevision over the live revision", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const calls: Array<{ ops: BatchOp[] }> = [];
+    const spyBridge = {
+      ...bridge,
+      batchRows: (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        calls.push(input);
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(spyBridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.capabilities).toContain("cas");
+    const rowId = seeded.rowIds[0]!;
+    const revision = result.current.revisionOf(rowId);
+    expect(revision).toBeDefined();
+    await result.current.updateRow(rowId, { [seeded.nameColumnId]: "Edited" });
+    expect(calls.at(-1)!.ops[0]!).toMatchObject({ expectedRevision: revision });
+  });
+
+  it("the CAS stand: the absent `cas` capability stands the LWW default (no expectedRevision)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const descriptor = await bridge.describeProtocol();
+    const calls: Array<{ ops: BatchOp[] }> = [];
+    const nonCasBridge = {
+      ...bridge,
+      describeProtocol: async () => ({
+        ...descriptor,
+        capabilities: descriptor.capabilities.filter((capability) => capability !== "cas"),
+      }),
+      batchRows: (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        calls.push(input);
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(nonCasBridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.capabilities).not.toContain("cas");
+    const rowId = seeded.rowIds[0]!;
+    // The live revision is known (the CAS would stand) — the capability's
+    // absence stands the LWW default (the expectedRevision is not sent to
+    // a bridge that does not stand the capability).
+    expect(result.current.revisionOf(rowId)).toBeDefined();
+    await result.current.updateRow(rowId, { [seeded.nameColumnId]: "Edited" });
+    expect(calls.at(-1)!.ops[0]!).not.toHaveProperty("expectedRevision");
   });
 
   it("the failed write stands the optimistic rollback over the pre-op snapshot", async () => {

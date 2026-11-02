@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import type { TableRef } from "../../database";
-import { newMutationContext } from "../../database";
+import { newMutationContext, validateProtocolDescriptor } from "../../database";
 import { useEditorContext } from "../../editor-provider";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
@@ -43,6 +43,12 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
     let cancelled = false;
     void (async () => {
       try {
+        // The negotiation stand (the useDatabaseTable bootstrap's
+        // contract): the version / the baseline-capability mismatch stands
+        // the protocol_mismatch — the list/create stand only over a
+        // validated protocol (the silent downgrade is not a stand).
+        const descriptor = await databaseBridge.describeProtocol();
+        validateProtocolDescriptor(descriptor);
         const refs = await databaseBridge.listTables();
         if (!cancelled) setTables(refs);
       } catch (listError) {
@@ -56,7 +62,10 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
 
   const create = () => {
     const trimmed = name.trim();
-    if (trimmed.length === 0 || creating) return;
+    // The protocol stand: the create stands only over the validated
+    // protocol (the mount effect's negotiation — tables === null is the
+    // loading / the failed-negotiation stand).
+    if (trimmed.length === 0 || creating || tables === null) return;
     setCreating(true);
     setError(null);
     void (async () => {

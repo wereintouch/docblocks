@@ -270,10 +270,15 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   // pin reads it at the session's open; the mid-session's refetch
   // re-baselines the map over the peer's commit).
   const revisionOf = (rowId: string) => revisionsRef.current.get(rowId);
-  // The CAS stand: the known revision selects the compare-and-swap, the
-  // absent one stands the LWW default (the spread keeps the op's literal
-  // shape intact).
+  // The CAS stand: the `cas` capability (negotiated over the bootstrap's
+  // describeProtocol) selects the compare-and-swap, the absent one (a
+  // bridge that does not stand the capability) stands the LWW default —
+  // an expectedRevision over a non-CAS bridge is not a stand (the
+  // contract's optional-capability negotiation). The known revision
+  // selects the swap, the absent one stands the LWW default (the spread
+  // keeps the op's literal shape intact).
   const casOf = (rowId: string): { expectedRevision?: string } => {
+    if (!capabilitiesRef.current.includes("cas")) return {};
     const revision = revisionOf(rowId);
     return revision === undefined ? {} : { expectedRevision: revision };
   };
