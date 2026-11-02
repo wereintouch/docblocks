@@ -218,7 +218,7 @@ async function cellCenter(page: Page, row: number, col: number, cols: number): P
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-/** The right-click on a cell (the menu defers its open a task past the gesture's release — polled). */
+/** The right-click on a cell (the menu stands its open over the gesture's release — polled). */
 async function rightClickCell(page: Page, row: number, col: number, cols: number): Promise<void> {
   const center = await cellCenter(page, row, col, cols);
   await page.mouse.click(center.x, center.y, { button: "right" });

@@ -38,7 +38,7 @@
  * handle's contract). The size stand (the columns × the rows) stands the
  * frame's top-left corner.
  */
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import type { BlockId, TableBlock as TableBlockType } from "docblocks-core";
@@ -101,6 +101,10 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   // The cell context menu (the right-click): the anchor point (frame-relative)
   // and the cell; the menu's content carries the copy/paste/clear items.
   const [ctx, setCtx] = useState<{ x: number; y: number; cellId: BlockId } | null>(null);
+  // The pending release-open (the held right press's open stands the
+  // gesture's pointerup — the listener's cleanup stands here; a fresh
+  // right-click cancels the pending one).
+  const pendingCtxRef = useRef<(() => void) | null>(null);
   // The add chip's drag session + the live count's preview (positive = the
   // ghost rows / columns, negative = the dimmed last ones) — view state:
   // the doc stands the commit on the release only.
@@ -203,26 +207,57 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
 
   /**
    * The right-click on a cell: suppresses the native menu and anchors the
-   * cell's menu (copy / paste / clear) at the pointer (frame-relative —
+   * cell's menu (copy / paste / clear) at the release (frame-relative —
    * the anchor div stands in the frame, not the scrolled content).
    */
   const onTableContextMenu = (event: ReactMouseEvent<HTMLTableElement>) => {
     const cell = (event.target as HTMLElement).closest<HTMLTableCellElement>("td[data-block-id]");
     if (cell === null) return;
-    const frame = frameRef.current;
-    const rect = frame?.getBoundingClientRect();
-    if (rect === undefined) return;
-    event.preventDefault();
-    // The open defers past the right-click's pointerup (the input order is
-    // down → contextmenu → up): a synchronous open puts the first item under
-    // the release point, and a Radix item treats an up without its own down
-    // as a select — the release would "click" the first item and close the
-    // menu. A task later (imperceptible for a context menu) stands clear of
-    // the gesture.
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
     const cellId = cell.dataset.blockId ?? "";
-    window.setTimeout(() => setCtx({ x, y, cellId }), 0);
+    const frame = frameRef.current;
+    if (frame === null) return;
+    event.preventDefault();
+    // A fresh gesture cancels the previous one's pending open (the stale
+    // gesture's release stands no menu at the stale point).
+    if (pendingCtxRef.current !== null) {
+      pendingCtxRef.current();
+      pendingCtxRef.current = null;
+    }
+    const seat = (clientX: number, clientY: number) => {
+      const rect = frameRef.current?.getBoundingClientRect();
+      if (rect === undefined) return;
+      setCtx({ x: clientX - rect.left, y: clientY - rect.top, cellId });
+    };
+    if (event.buttons === 0) {
+      // The release stood (or the gesture holds no press — the synthetic
+      // dispatch / the Menu key): the task's stand.
+      const task = window.setTimeout(() => {
+        pendingCtxRef.current = null;
+        seat(event.clientX, event.clientY);
+      }, 0);
+      pendingCtxRef.current = () => window.clearTimeout(task);
+      return;
+    }
+    // The right button stands held (the real press): the open stands the
+    // gesture's release — an open over the held press puts the first item
+    // under the release point, and the Radix item stands the buttonless up
+    // as a select (the release "clicks" the first item and closes the menu
+    // — the "the menu flashes and stands gone" stand).
+    const onUp = (up: PointerEvent) => {
+      if (up.button !== 2) {
+        // A foreign gesture's release: the gesture's own release stands.
+        window.addEventListener("pointerup", onUp, { once: true });
+        return;
+      }
+      pendingCtxRef.current = null;
+      seat(up.clientX, up.clientY);
+    };
+    window.addEventListener("pointerup", onUp, { once: true });
+    window.addEventListener("pointercancel", onUp, { once: true });
+    pendingCtxRef.current = () => {
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
   };
 
   const cellScope = () => frameRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]') ?? document;
@@ -426,6 +461,15 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   const closeCtx = (open: boolean) => {
     if (!open) setCtx(null);
   };
+
+  // The unmount cancels the pending release-open (the gesture's release
+  // over the dead frame stands no menu).
+  useEffect(() => () => {
+    if (pendingCtxRef.current !== null) {
+      pendingCtxRef.current();
+      pendingCtxRef.current = null;
+    }
+  }, []);
 
   return (
     <div ref={frameRef} data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">

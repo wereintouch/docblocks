@@ -59,9 +59,15 @@ function seam(index: number): HTMLElement {
   return el!;
 }
 
-/** The right-click on the cell (the native menu is suppressed in a cell); false when suppressed. */
+/** The right-click on the cell (the native menu is suppressed in a cell):
+ * the real gesture's sequence (the press with the button held, the
+ * contextmenu, the release) — the open stands the release, so the
+ * synthetic's sequence must stand it. False when suppressed. */
 function rightClick(cell: HTMLElement, x = 40, y = 30): boolean {
-  return fireEvent.contextMenu(cell, { clientX: x, clientY: y, button: 2 });
+  fireEvent.pointerDown(cell, { clientX: x, clientY: y, button: 2, buttons: 2, pointerId: 1 });
+  const result = fireEvent.contextMenu(cell, { clientX: x, clientY: y, button: 2, buttons: 2 });
+  fireEvent.pointerUp(cell, { clientX: x, clientY: y, button: 2, pointerId: 1 });
+  return result;
 }
 
 /** The flush: the frame the store-driven re-render and the async menu actions land on. */
@@ -209,14 +215,41 @@ describe("the cell's right-click menu", () => {
 
     const cell = cellAt(0, 0);
     const result = rightClick(cell);
-    // The open defers a task past the gesture's pointerup (the jsdom flush
-    // stands for the release).
+    // The open stands the gesture's release (the jsdom flush stands for the
+    // re-render frame).
     await flushFrames();
 
     expect(result).toBe(false);
     for (const label of ["Copy", "Paste", "Clear"]) {
       await cellMenuItem(label);
     }
+  });
+
+  it("the held press's open stands the release (no open under the press — the release stands no first-item select)", () => {
+    // The real right-click holds the button between the press and the
+    // release: an open over the held press would put the first item under
+    // the release point, and the Radix item stands the buttonless up as a
+    // select (the release "clicks" the first item, the menu closes — the
+    // "the menu flashes and stands gone" stand).
+    const { doc, tableId } = renderTableDoc();
+    const cellId = cellIdAt(doc, tableId, 0, 0);
+    const p1 = doc.insertBlock("paragraph", undefined, { parent: cellId });
+    doc.insertText(p1, 0, "alpha");
+
+    const cell = cellAt(0, 0);
+    const menu = () => document.querySelector('[data-slot="docblocks/table-cell-menu"]');
+
+    // The press stands the button held: the menu stands no open yet.
+    fireEvent.pointerDown(cell, { clientX: 40, clientY: 30, button: 2, buttons: 2, pointerId: 1 });
+    fireEvent.contextMenu(cell, { clientX: 40, clientY: 30, button: 2, buttons: 2 });
+    expect(menu()).toBeNull();
+    // A foreign gesture's release stands no open.
+    fireEvent.pointerUp(document.body, { clientX: 10, clientY: 10, button: 0, pointerId: 1 });
+    expect(menu()).toBeNull();
+    // The gesture's own release opens the menu.
+    fireEvent.pointerUp(cell, { clientX: 40, clientY: 30, button: 2, pointerId: 1 });
+    expect(menu()).not.toBeNull();
+    expect(menu()!.getAttribute("data-state")).toBe("open");
   });
 
   it("Copy writes the cell's plain text (the blocks joined with \\n)", async () => {
