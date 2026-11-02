@@ -20,7 +20,7 @@ import {
 import { writeAttrValue, writeBlock } from "../../layout";
 import type { WritableBlock } from "../../layout";
 import { readBlock } from "../../read";
-import { blockTypeOf, childrenOf, getBlockMap, getBlocks } from "../structure";
+import { blockTypeOf, childrenOf, findParent, getBlockMap, getBlocks } from "../structure";
 import { changeBlockType } from "../types";
 
 /** The minimum column width (the validator's `columnWidths` item min). */
@@ -258,6 +258,16 @@ function writeSubtreeCopy(
       entry.children = json.children.map((childId) => idMap.get(childId) ?? childId);
     }
     writeBlock(blocks, newIds[i]!, entry);
+    // The owner parent (the single CRDT-resolved ownership stand): the
+    // remapped old parent — a parent inside the copy set stands its fresh
+    // id, the container outside the set (the copy's root over the table /
+    // the row) stands by its id. Without the field the read path falls
+    // back to the array search.
+    const oldParent = findParent(ydoc, oldId);
+    if (oldParent !== null) {
+      const blockMap = blocks.get(newIds[i]!);
+      if (blockMap instanceof Y.Map) blockMap.set("parent", idMap.get(oldParent) ?? oldParent);
+    }
   });
   return newIds[0]!;
 }

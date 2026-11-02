@@ -295,6 +295,8 @@ export type {
   ConnectorBlock,
   FrameBlock,
   Geometry,
+  GroupAttrs,
+  GroupBlock,
   ShapeAttrs,
   ShapeBlock,
   SurfaceAttrs,

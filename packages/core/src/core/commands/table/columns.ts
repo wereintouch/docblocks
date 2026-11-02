@@ -75,6 +75,9 @@ function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: strin
       }
       const cellId = generateId();
       writeBlock(blocks, cellId, { type: "table-cell", attrs: { columnId: newColumnId } });
+      // The owner parent (the single CRDT-resolved ownership stand).
+      const cellMap = blocks.get(cellId);
+      if (cellMap instanceof Y.Map) cellMap.set("parent", rowId);
       for (const existingId of cells.toArray()) {
         const color = readCellColor(ydoc, existingId, "rowColor");
         if (color !== null) {

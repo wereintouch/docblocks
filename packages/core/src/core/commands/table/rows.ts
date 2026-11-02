@@ -66,10 +66,15 @@ function insertTableRow(ydoc: Y.Doc, generateId: () => string, tableId: string, 
     }
     cellIds.forEach((cellId, ci) => {
       writeBlock(blocks, cellId, { type: "table-cell", attrs: { columnId: columnIds[ci]! } });
+      // The owner parent (the single CRDT-resolved ownership stand).
+      const cellMap = blocks.get(cellId);
+      if (cellMap instanceof Y.Map) cellMap.set("parent", rowId);
       const color = columnColors[ci]!;
       if (color !== null) setCellColor(ydoc, cellId, "columnColor", color);
     });
     writeBlock(blocks, rowId, { type: "table-row", children: cellIds });
+    const rowMap = blocks.get(rowId);
+    if (rowMap instanceof Y.Map) rowMap.set("parent", tableId);
     rows.insert(index, [rowId]);
   });
   return rowId;

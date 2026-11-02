@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import * as Y from "yjs";
+
 import {
   DetachedBlockError,
   DocBlocksError,
@@ -124,6 +126,43 @@ describe("the table row commands", () => {
     const cells = cellsOf(doc, row);
     expect(cells).toHaveLength(3);
     for (const cell of cells) expect(doc.getChildren(cell)).toEqual([]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("the new row/cell stand the owner parent (the layout's field, not the array-search fallback)", () => {
+    const doc = newDoc();
+    const { table, rowIds } = buildTable(doc, 3, 1);
+    const blocks = doc.raw.getMap("blocks");
+    const parentOf = (id: string): string | undefined => {
+      const map = blocks.get(id);
+      return map instanceof Y.Map ? (map.get("parent") as string | undefined) : undefined;
+    };
+    // The insertTableRow's row + its cells.
+    const row = doc.insertTableRow(table);
+    expect(parentOf(row)).toBe(table);
+    for (const cell of cellsOf(doc, row)) expect(parentOf(cell)).toBe(row);
+    // The insertTableColumn's cells (every row's new cell).
+    doc.insertTableColumn(table);
+    for (const rowId of doc.getChildren(table)) {
+      const rowCells = cellsOf(doc, rowId);
+      expect(parentOf(rowCells[rowCells.length - 1]!)).toBe(rowId);
+    }
+    // The subtree copies (the row / the column duplicate) stand the parent
+    // over the remapped ids (the copied content's parent is the fresh cell).
+    const sourceRow = rowIds[0]!;
+    seedCell(doc, cellsOf(doc, sourceRow)[0]!, "text");
+    const dupRow = doc.duplicateTableRow(table, sourceRow);
+    expect(parentOf(dupRow)).toBe(table);
+    for (const cell of cellsOf(doc, dupRow)) expect(parentOf(cell)).toBe(dupRow);
+    const sourceCell = cellsOf(doc, sourceRow)[0]!;
+    const contentOf = (id: string): string[] => doc.getChildren(id);
+    expect(parentOf(contentOf(sourceCell)[0]!)).toBe(sourceCell);
+    doc.duplicateTableColumn(table, 0);
+    const dupRowCells = cellsOf(doc, dupRow);
+    for (const cell of dupRowCells) {
+      const children = contentOf(cell);
+      for (const child of children) expect(parentOf(child)).toBe(cell);
+    }
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
