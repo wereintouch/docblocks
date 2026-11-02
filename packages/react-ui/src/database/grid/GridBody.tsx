@@ -20,7 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { cn } from "../../shared/ui/cn";
 import { Plus } from "../../shared/ui/icons";
 import { preventDefault } from "../../shared/utils";
-import type { BridgeColumn } from "../bridge";
+import type { BatchOp, BridgeColumn } from "../bridge";
 import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
 import { newMutationContext, useDatabaseTable } from "../use-database-table";
@@ -315,54 +315,101 @@ function GridBody({
         }));
         const draftOptions = (draft.enumOptions ?? []).filter((option) => option.name.trim() !== "");
         const keptRowIds = new Set<string>();
-        const addedRowIds: string[] = [];
-        for (let i = 0; i < draftOptions.length; i++) {
-          const option = draftOptions[i];
-          if (option === undefined) continue;
-          if (option.rowId === undefined) {
-            const cells: Record<string, unknown> = {};
-            if (nameColumnId !== undefined) cells[nameColumnId] = option.name.trim();
-            if (option.color !== null && colorColumnId !== undefined) cells[colorColumnId] = option.color;
-            const created = await bridge.batchRows(
-              refTableId,
-              { ops: [{ op: "create", row: cells, beforeRowId: null }] },
-              newMutationContext()
-            );
-            addedRowIds.push(created.result.rows[0]!.id);
-            continue;
-          }
-          keptRowIds.add(option.rowId);
-          const before = current.find((entry) => entry.rowId === option.rowId);
-          if (before === undefined) continue;
+        const cellOf = (option: { rowId?: string; name: string; color: string | null }): Record<string, unknown> => {
           const cells: Record<string, unknown> = {};
-          if (before.name !== option.name.trim() && nameColumnId !== undefined)
-            cells[nameColumnId] = option.name.trim();
-          if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
-            cells[colorColumnId] = option.color;
+          if (nameColumnId !== undefined) cells[nameColumnId] = option.name.trim();
+          if (option.color !== null && colorColumnId !== undefined) cells[colorColumnId] = option.color;
+          return cells;
+        };
+        // The mixed-batch stand (the negotiated capability): the creates /
+        // the updates / the deletes stand ONE commit (the atomic stand —
+        // the sequential calls stood the partial commit over the mid-list
+        // failure); the moves stand the second commit (the created ids are
+        // known only over the first receipt — the static batch stands no
+        // reference to them). The absent capability stands the sequential
+        // stand (the legacy's non-atomic stand).
+        let createdIds: string[] = [];
+        if (data.capabilities.includes("mixedBatch")) {
+          const ops: BatchOp[] = [];
+          for (const option of draftOptions) {
+            if (option.rowId === undefined) {
+              ops.push({ op: "create", row: cellOf(option), beforeRowId: null });
+              continue;
+            }
+            keptRowIds.add(option.rowId);
+            const before = current.find((entry) => entry.rowId === option.rowId);
+            if (before === undefined) continue;
+            const cells: Record<string, unknown> = {};
+            if (before.name !== option.name.trim() && nameColumnId !== undefined)
+              cells[nameColumnId] = option.name.trim();
+            if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
+              cells[colorColumnId] = option.color;
+            }
+            if (Object.keys(cells).length > 0) {
+              ops.push({ op: "update", rowId: option.rowId, cells });
+            }
           }
-          if (Object.keys(cells).length > 0) {
-            await bridge.batchRows(
-              refTableId,
-              { ops: [{ op: "update", rowId: option.rowId, cells }] },
-              newMutationContext()
-            );
+          for (const entry of current) {
+            if (!keptRowIds.has(entry.rowId)) ops.push({ op: "delete", rowId: entry.rowId });
           }
+          if (ops.length > 0) {
+            const created = await bridge.batchRows(refTableId, { ops }, newMutationContext());
+            // The receipt's rows stand the created rows over the create
+            // op's order (the draft order over the new options).
+            createdIds = created.result.rows.map((row) => row.id);
+          }
+        } else {
+          const addedRowIds: string[] = [];
+          for (const option of draftOptions) {
+            if (option.rowId === undefined) {
+              const created = await bridge.batchRows(
+                refTableId,
+                { ops: [{ op: "create", row: cellOf(option), beforeRowId: null }] },
+                newMutationContext()
+              );
+              addedRowIds.push(created.result.rows[0]!.id);
+              continue;
+            }
+            keptRowIds.add(option.rowId);
+            const before = current.find((entry) => entry.rowId === option.rowId);
+            if (before === undefined) continue;
+            const cells: Record<string, unknown> = {};
+            if (before.name !== option.name.trim() && nameColumnId !== undefined)
+              cells[nameColumnId] = option.name.trim();
+            if (before.color !== (option.color ?? null) && colorColumnId !== undefined) {
+              cells[colorColumnId] = option.color;
+            }
+            if (Object.keys(cells).length > 0) {
+              await bridge.batchRows(
+                refTableId,
+                { ops: [{ op: "update", rowId: option.rowId, cells }] },
+                newMutationContext()
+              );
+            }
+          }
+          for (const entry of current) {
+            if (!keptRowIds.has(entry.rowId)) {
+              await bridge.batchRows(refTableId, { ops: [{ op: "delete", rowId: entry.rowId }] }, newMutationContext());
+            }
+          }
+          createdIds = addedRowIds;
         }
-        for (const entry of current) {
-          if (!keptRowIds.has(entry.rowId)) {
-            await bridge.batchRows(refTableId, { ops: [{ op: "delete", rowId: entry.rowId }] }, newMutationContext());
-          }
-        }
-        const orderedIds = draftOptions.map((option, i) => option.rowId ?? addedRowIds[i]);
+        // The order's stand (the draft order over the kept + the created):
+        // the single batch's moves (the one commit — the no-op pair stands
+        // the skip over the bridge's stand). The created id's index stands
+        // the new option's own order (the draft's position over the mixed
+        // kept / new list is not the created's index).
+        let addedIndex = 0;
+        const orderedIds = draftOptions.map((option) => option.rowId ?? createdIds[addedIndex++]);
+        const moveOps: BatchOp[] = [];
         for (let i = 0; i < orderedIds.length - 1; i++) {
           const rowId = orderedIds[i];
           const beforeRowId = orderedIds[i + 1];
           if (rowId === undefined || beforeRowId === undefined) continue;
-          await bridge.batchRows(
-            refTableId,
-            { ops: [{ op: "move", rowId, beforeRowId: beforeRowId }] },
-            newMutationContext()
-          );
+          moveOps.push({ op: "move", rowId, beforeRowId });
+        }
+        if (moveOps.length > 0) {
+          await bridge.batchRows(refTableId, { ops: moveOps }, newMutationContext());
         }
         if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
         setColumnFormOpen(false);

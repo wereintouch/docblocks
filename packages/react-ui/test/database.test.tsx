@@ -3027,6 +3027,115 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     expect(optionLabels).toEqual(["gamma", "alfa", "beta"]);
   });
 
+  it("the enum's save stands the mixed batch's atomic stand (the data's commit + the order's; the new option's index over the draft)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    // The enum column over the fresh system table (the created stand).
+    const enumTableId = (await bridge.createTable({ name: "Stage-enum", system: true }, ctx())).result.id;
+    const nameCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_NAME_COLUMN, type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const colorCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_COLOR_COLUMN, type: "text", position: 1, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const optionsReceipt = await bridge.batchRows(
+      enumTableId,
+      {
+        ops: [
+          { op: "create", row: { [nameCol]: "alpha", [colorCol]: "#f7a8a8" }, beforeRowId: null },
+          { op: "create", row: { [nameCol]: "beta" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const stage = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Stage",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "enum", tableId: enumTableId, many: false },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    await settleGrid();
+    // The edit's open (the column menu's "Edit options" entry).
+    const stageHeader = () =>
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-header-cell'][data-column-id='${stage}']`)!;
+    const ellipsis = stageHeader().querySelector<HTMLElement>("[data-slot='docblocks/database-column-menu']")!;
+    fireEvent.pointerDown(ellipsis, { clientX: 10, clientY: 5 });
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-column-edit-options']") !== null,
+      "the edit entry"
+    );
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-column-edit-options']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-enum-options']") !== null, "the editor");
+    const beforeSeq = (await bridge.snapshotTable(enumTableId, {})).page.asOfSeq;
+    // The diff: the rename (alpha → alfa), the option's add (gamma — the
+    // draft's position 1, over the kept option), the delete (beta).
+    const names = () =>
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
+        (input) => input.value
+      );
+    fireEvent.change(document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[0]!, {
+      target: { value: "alfa" },
+    });
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-add']")!);
+    await settleGrid();
+    fireEvent.change(
+      document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[2]!,
+      { target: { value: "gamma" } }
+    );
+    await settleGrid();
+    expect(names()).toEqual(["alfa", "beta", "gamma"]);
+    // The delete of the beta (the draft's row 1 over the pre-add order).
+    const deletes = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-delete']");
+    fireEvent.click(deletes[1]!);
+    await settleGrid();
+    expect(names()).toEqual(["alfa", "gamma"]);
+    // The reorder: the new gamma stands the draft's first position (the
+    // move over the kept option — the move's commit's stand: the create
+    // stands the tail, the move stands the front).
+    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
+    fireEvent.pointerDown(grips[1]!, { clientX: 100, clientY: 400, button: 0 });
+    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 });
+    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 });
+    await settleGrid();
+    expect(names()).toEqual(["gamma", "alfa"]);
+    // The commit.
+    const commitButton = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']");
+    // The commit's button stands the disabled stand over the column name's
+    // empty stand (the edit form's prefill stands the column's name).
+    expect(commitButton).not.toBeNull();
+    fireEvent.click(commitButton!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") === null, "the form's close");
+    // The order's stand: the gamma (the new option) stands the draft's
+    // first position — the created id's index stands the new option's own
+    // order (the draft's mixed position is not the created's index), and
+    // the move stands the real commit (the create's tail stand is not the
+    // draft's order).
+    const afterPage = await bridge.snapshotTable(enumTableId, {});
+    const afterNames = afterPage.page.rows.map((row) => row.cells[nameCol]);
+    expect(afterNames).toEqual(["gamma", "alfa"]);
+    // The atomic stand (the mixed batch over the negotiated capability):
+    // the data (the rename / the add / the delete) stands ONE commit, the
+    // order stands the second — the sequential's partial commits are not
+    // a stand.
+    expect(afterPage.page.asOfSeq - beforeSeq).toBe(2);
+  });
+
   it("the enum cell's chip stands the option's color (the empty stand stands the background only)", async () => {
     const { bridge, tableId, cols } = await renderGrid();
     const enumTableId = (await bridge.createTable({ name: "Color-enum", system: true }, ctx())).result.id;
