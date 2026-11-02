@@ -1132,6 +1132,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
           const events: DomainEvent[] = [];
           const affected: MemoryRow[] = [];
           const touched = new Set<string>();
+          const createdRows: MemoryRow[] = [];
           const touch = (row: MemoryRow) => {
             if (!touched.has(row.id)) {
               touched.add(row.id);
@@ -1160,6 +1161,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
                 };
                 table.rows.push(row);
                 touch(row);
+                createdRows.push(row);
                 events.push({ type: "row.created", payload: { row: rowWireOf(row) } });
                 break;
               }
@@ -1211,7 +1213,12 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
           });
           const revisions: Record<string, string> = {};
           for (const row of affected) revisions[row.id] = row.revision;
-          const result: { rows: RowWire[] } = { rows: affected.map(rowWireOf) };
+          // The receipt's rows stand the CREATED rows over the create op's
+          // order (the caller's created-id read — the single-create
+          // contract's `rows[0]` pin). The updated / the moved rows stand
+          // the envelope's events + the revisions (a no-op contribution
+          // touches no row, so the set is exact).
+          const result: { rows: RowWire[] } = { rows: createdRows.map(rowWireOf) };
           if (events.length === 0) {
             // The all-no-op batch stands the no-op receipt (no envelope, no
             // head advance): the commit sequence stands the table's head.

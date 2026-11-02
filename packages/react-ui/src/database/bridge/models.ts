@@ -447,7 +447,9 @@ interface DatabaseBridge {
   /** The atomic mixed batch: the ordered `ops[]` commit as one
    *  transaction (either the whole batch or none); the failure stands the
    *  first unexecutable operation's index and code and publishes no
-   *  partial envelope. */
+   *  partial envelope. The receipt's `rows` stand the CREATED rows over
+   *  the create op's order (the moved / updated / deleted rows stand the
+   *  envelope's events + the `revisions`, not the `rows`). */
   batchRows(
     tableId: Id,
     input: { ops: BatchOp[] },

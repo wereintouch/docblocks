@@ -697,10 +697,11 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
           ...creates.map((row) => ({ op: "create" as const, row, beforeRowId })),
         ];
         const receipt = await bridge.batchRows(tableId, { ops }, newMutationContext());
-        // The receipt's `rows` stand the affected rows' post-commit state
-        // (the bridge MAY stand the full affected set over the created
-        // stand) — the created rows are the ones NOT in the update set
-        // (the create's id is fresh; the updated rows keep theirs).
+        // The receipt's `rows` stand the created rows over the create
+        // op's order (the contract's stand) — the created rows are the
+        // ones NOT in the update set (the create's id is fresh; the
+        // updated rows keep theirs — the filter stands the guard over
+        // a bridge that would stand the wider set).
         const updatedIds = new Set(cleaned.map((entry) => entry.rowId));
         liveRowIds = receipt.result.rows.filter((row) => !updatedIds.has(row.id)).map((row) => row.id);
         for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
