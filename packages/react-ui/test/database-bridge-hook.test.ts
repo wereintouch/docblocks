@@ -214,6 +214,69 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(unsubscribed).toBe(1);
   });
 
+  it("the re-entrant undo stands the drop (the inverse stands once, not twice)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let batchCalls = 0;
+    const spyBridge = {
+      ...bridge,
+      batchRows: (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        batchCalls += 1;
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(spyBridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await result.current.insertRow({ [seeded.nameColumnId]: "Par" });
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    const beforeUndo = batchCalls;
+    // The parallel undo (the second press over the first's in-flight
+    // inverse): the inverse stands ONCE (the re-entrant call stands the
+    // drop, not the second inverse over the same entry).
+    void result.current.undo();
+    void result.current.undo();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(batchCalls).toBe(beforeUndo + 1);
+    expect(result.current.rows.length).toBe(2);
+  });
+
+  it("the relink over the in-flight inverse stands the drop (the old op stands not carried into the new table's history)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const other = await bridge.createTable({ name: "Other" }, ctx());
+    let calls = 0;
+    let releaseGate: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    const spyBridge = {
+      ...bridge,
+      batchRows: async (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        calls += 1;
+        if (calls === 2) await gate; // the inverse's stand (the insert's undo) holds in flight
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result, rerender } = renderHook((tableId: string) => useDatabaseTable(spyBridge, tableId), {
+      initialProps: seeded.tableId,
+    });
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await result.current.insertRow({ [seeded.nameColumnId]: "Relinked" });
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    const undoPromise = result.current.undo(); // the inverse stands in flight (the gate)
+    // The relink to the other table over the in-flight inverse: the history
+    // stands cleared (the per-(bridge, tableId) stand).
+    rerender(other.result.id);
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    releaseGate!();
+    await undoPromise;
+    // The old op stands NOT carried into the new table's history (the redo
+    // / the undo stand empty over the relink) — the stand is observed over
+    // the settled render (a stale result.current is not a stand).
+    await waitFor(() => expect(result.current.canUndo).toBe(false), { timeout: 1000 });
+    await waitFor(() => expect(result.current.canRedo).toBe(false), { timeout: 1000 });
+  });
+
   it("the protocol mismatch stands the broken phase + the structured code (no silent downgrade)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const seeded = await seed(bridge);

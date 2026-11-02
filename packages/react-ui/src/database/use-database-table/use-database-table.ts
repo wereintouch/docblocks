@@ -95,6 +95,10 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const subGenRef = useRef(0);
   const undoStackRef = useRef<InverseOp[]>([]);
   const redoStackRef = useRef<InverseOp[]>([]);
+  // The history's mutation channel: a single in-flight guard (an undo / a
+  // redo over the same entry in flight stands no second inverse / forward —
+  // the re-entrant call is dropped, not queued).
+  const historyInFlightRef = useRef(false);
   // The history's identity: the undo/redo stacks stand PER (bridge,
   // tableId) — a relink of the block to another table / bridge drops the
   // previous one's history in the render (the per-(bridge, tableId) stack stand).
@@ -956,38 +960,66 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const retry = useCallback(() => setLoadVersion((version) => version + 1), []);
 
   const undo = useCallback(async () => {
+    // The in-flight stand: a re-entrant undo (the second press over the
+    // first's in-flight inverse) stands no second inverse over the same
+    // entry.
+    if (historyInFlightRef.current) return;
     const ops = undoStackRef.current;
     const op = ops[ops.length - 1];
     if (op === undefined) return;
+    // The identity at the call's time: a relink (the bridge / the tableId
+    // change) over the in-flight inverse re-stands the history (the stacks
+    // stand cleared, historyRef stands the new one) — the post-await
+    // commit (the pop / the redo-push) must not carry the old entry into
+    // the new table's history.
+    const identity = { bridge: historyRef.current.bridge, tableId: historyRef.current.tableId };
+    const sameIdentity = () =>
+      historyRef.current.bridge === identity.bridge && historyRef.current.tableId === identity.tableId;
+    historyInFlightRef.current = true;
     try {
       await op.inverse();
+      if (!sameIdentity()) return;
       ops.pop();
       redoStackRef.current.push(op);
       setError(null);
       setErrorCode(null);
     } catch (operationError) {
+      if (!sameIdentity()) return;
       // The failed entry STAYS on the stack (the retry stand): a failed
       // inverse never drops the operation.
       noteError(operationError);
+    } finally {
+      historyInFlightRef.current = false;
     }
+    if (!sameIdentity()) return;
     bump();
     refresh();
   }, [bump, refresh]);
 
   const redo = useCallback(async () => {
+    if (historyInFlightRef.current) return;
     const ops = redoStackRef.current;
     const op = ops[ops.length - 1];
     if (op === undefined) return;
+    const identity = { bridge: historyRef.current.bridge, tableId: historyRef.current.tableId };
+    const sameIdentity = () =>
+      historyRef.current.bridge === identity.bridge && historyRef.current.tableId === identity.tableId;
+    historyInFlightRef.current = true;
     try {
       await op.forward();
+      if (!sameIdentity()) return;
       ops.pop();
       undoStackRef.current.push(op);
       setError(null);
       setErrorCode(null);
     } catch (operationError) {
+      if (!sameIdentity()) return;
       // The failed entry STAYS on the stack (the retry stand).
       noteError(operationError);
+    } finally {
+      historyInFlightRef.current = false;
     }
+    if (!sameIdentity()) return;
     bump();
     refresh();
   }, [bump, refresh]);
