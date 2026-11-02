@@ -82,7 +82,10 @@ function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: strin
           break;
         }
       }
-      cells.insert(index, [cellId]);
+      // The short row's length can stand below the index (the concurrent
+      // row × column race residue): the new cell lands at the end (the
+      // unclamped index would be a Yjs out-of-range op).
+      cells.insert(Math.min(index, cells.length), [cellId]);
     });
   });
 }
@@ -129,11 +132,28 @@ function removeTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
   });
 }
 
+/** The cell's `columnId` binding (null when the cell has no attrs / no binding — the legacy positional stand). */
+function readColumnIdOf(ydoc: Y.Doc, cellId: string): string | null {
+  const cell = getBlockMap(ydoc, cellId);
+  if (cell === null) return null;
+  const attrs = cell.get("attrs");
+  if (!(attrs instanceof Y.Map)) return null;
+  const value = attrs.get("columnId");
+  return typeof value === "string" ? value : null;
+}
+
 /**
  * Moves the column from `fromIndex` to `toIndex` (pre-move index
  * semantics, like moveRow): the column id moves in the `columnOrder` and
  * the cells of EVERY row move with it (the colors ride the cells; the width
  * entry follows the column by id — no width op is needed).
+ *
+ * The cell to move stands by its `columnId` binding (the short row's
+ * residue stands by id, not position — a positional scan would move a
+ * foreign column's cell and shift the bindings). A legacy row (no
+ * columnId bindings) keeps the positional stand. The destination index is
+ * clamped to the row's length (a short row's move lands at the end — the
+ * unclamped index would be a Yjs out-of-range op).
  */
 function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toIndex: number): void {
   const table = tableOf(ydoc, tableId);
@@ -146,6 +166,7 @@ function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toInde
   }
   const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
   const rowIds = rows.toArray();
+  const columnId = columnOrder.toArray()[fromIndex]!;
   localTransact(ydoc, () => {
     for (const rowId of rowIds) {
       const row = getBlockMap(ydoc, rowId);
@@ -153,16 +174,23 @@ function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toInde
       if (row === null || !(cells instanceof Y.Array)) {
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
-      const cellId = cells.toArray()[fromIndex];
-      // A short row (the concurrent row × column race residue) may lack this
-      // position's cell: skip it — the column identity moves in the
+      const cellIds = cells.toArray();
+      // The column's own cell (the binding stands by id); the legacy row
+      // (no bindings at all) falls back to the positional stand.
+      const boundIndex = cellIds.findIndex((cellId) => readColumnIdOf(ydoc, cellId) === columnId);
+      const hasBindings = cellIds.some((cellId) => readColumnIdOf(ydoc, cellId) !== null);
+      let sourceIndex: number | null = null;
+      if (boundIndex !== -1) sourceIndex = boundIndex;
+      else if (!hasBindings && fromIndex < cellIds.length) sourceIndex = fromIndex;
+      // A short row (the concurrent row × column race residue) may lack
+      // this column's cell: skip it — the column identity moves in the
       // columnOrder regardless.
-      if (cellId === undefined) continue;
-      cells.delete(fromIndex, 1);
-      cells.insert(insertAt, [cellId]);
+      if (sourceIndex === null) continue;
+      const movedCellId = cellIds[sourceIndex]!;
+      cells.delete(sourceIndex, 1);
+      cells.insert(Math.min(insertAt, cells.length), [movedCellId]);
     }
     // The column identity moves (element-level).
-    const columnId = columnOrder.toArray()[fromIndex]!;
     columnOrder.delete(fromIndex, 1);
     columnOrder.insert(insertAt, [columnId]);
   });

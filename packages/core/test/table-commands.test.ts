@@ -370,6 +370,66 @@ describe("the table column commands", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
+  /** The short-row doc: the concurrent row × column race residue (a row
+   * with fewer cells than the columnOrder — the leading cell absent), the
+   * cells bound by columnId. */
+  const shortRowDoc = (): Doc => {
+    const json: DocJSON = {
+      v: 1,
+      id: "d1",
+      title: "",
+      createdAt: CREATED_AT,
+      blocks: {
+        d1: { type: "root", children: ["t"] },
+        t: {
+          type: "table",
+          columnOrder: ["cA", "cB", "cC"],
+          attrs: { columnWidths: [100, 100, 100] },
+          children: ["r1"],
+        },
+        r1: { type: "table-row", children: ["cellB", "cellC"] },
+        cellB: { type: "table-cell", attrs: { columnId: "cB" }, content: [], children: [] },
+        cellC: { type: "table-cell", attrs: { columnId: "cC" }, content: [], children: [] },
+      },
+    } as DocJSON;
+    return fromJSON(json);
+  };
+
+  it("moveTableColumn over a short row stands by the columnId binding (no shift, no raw error)", () => {
+    const doc = shortRowDoc();
+    // Moving the column without a cell (cA) to the end: the positional scan
+    // would move the foreign cellB and then hit a Yjs out-of-range op (a
+    // raw "Length exceeded!"); the identity stand skips the row.
+    expect(() => doc.moveTableColumn("t", 0, 3)).not.toThrow();
+    const tableJson = doc.toJSON().blocks["t"]!;
+    expect(tableJson).toMatchObject({ columnOrder: ["cB", "cC", "cA"] });
+    expect(doc.getChildren("r1")).toEqual(["cellB", "cellC"]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+
+    // The append insert stands the clamp the same way (the unclamped
+    // column count would be a Yjs out-of-range op over the short row).
+    expect(() => doc.insertTableColumn("t")).not.toThrow();
+    expect(doc.getChildren("r1")).toHaveLength(3);
+  });
+
+  it("moveTableColumn moves the bound column's own cell (the foreign cell stands put)", () => {
+    const doc = shortRowDoc();
+    // Move cB to the first position: the positional scan would move the
+    // cell at position 0 (cellC's neighbor cellB is at 0 — the leading cell
+    // absence shifts the positions), the identity stand moves cB's own
+    // cell.
+    doc.moveTableColumn("t", 1, 0);
+    const tableJson = doc.toJSON().blocks["t"]!;
+    expect(tableJson).toMatchObject({ columnOrder: ["cB", "cA", "cC"] });
+    expect(doc.getChildren("r1")).toEqual(["cellB", "cellC"]);
+    expect(cellAttrs(doc, "cellC")).toMatchObject({ columnId: "cC" });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    // The round trip keeps the residue valid (the strict validator
+    // tolerates the short row).
+    const reloaded = fromJSON(doc.toJSON());
+    expect(reloaded.toJSON()).toEqual(doc.toJSON());
+  });
+
   it("duplicateTableColumn deep-copies the cells and the width entry", () => {
     const doc = newDoc();
     const { table, rowIds } = buildTable(doc, 2, 2);
