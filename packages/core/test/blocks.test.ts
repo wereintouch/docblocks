@@ -371,6 +371,34 @@ describe("updateBlock", () => {
   it("missing block -> UnknownBlockError", () => {
     expect(() => newDoc().updateBlock("nope", { level: 1 })).toThrow(UnknownBlockError);
   });
+
+  it("the table's positional columnWidths stand identity-keyed (prior widths survive, the read derivation stands)", () => {
+    const doc = newDoc();
+    const table = doc.insertBlock("table", { cols: 3 });
+    const widths = (): number[] => {
+      const block = doc.getBlock(table)!;
+      return block.type === "table" ? block.attrs?.columnWidths ?? [] : [];
+    };
+    // Two explicit widths (the identity-keyed storage), the middle column at the default.
+    doc.setTableColumnWidth(table, 0, 150);
+    doc.setTableColumnWidth(table, 2, 250);
+    expect(widths()).toEqual([150, 100, 250]);
+    // The positional patch maps onto the column ids: the read derivation sees
+    // the new values (a positional Y.Array storage would stand all defaults).
+    doc.updateBlock(table, { columnWidths: [120, 180, 220] });
+    expect(widths()).toEqual([120, 180, 220]);
+    // The storage stays identity-keyed: the per-column command still rides its
+    // column id over the whole set.
+    doc.setTableColumnWidth(table, 1, 300);
+    expect(widths()).toEqual([120, 300, 220]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    const reloaded = fromJSON(doc.toJSON());
+    expect(reloaded.getBlock(table)!).toMatchObject({ type: "table", attrs: { columnWidths: [120, 300, 220] } });
+    // A width count off from the column set is rejected (the strict
+    // validator's one-width-per-column rule, kept live by the command).
+    expect(() => doc.updateBlock(table, { columnWidths: [100, 100] })).toThrow(InvalidAttrsError);
+    expect(widths()).toEqual([120, 300, 220]);
+  });
 });
 
 describe("callout color / icon (the preset + override)", () => {

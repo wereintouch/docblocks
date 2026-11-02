@@ -21,6 +21,11 @@ import {
   indentOfBlock,
   isPageSequence,
 } from "./structure";
+import { columnOrderOf, writeColumnWidthsPatch } from "./table/common";
+
+/** A plain array of numbers (the table's positional columnWidths). */
+const isNumberArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((element) => typeof element === "number");
 
 /** Sets or overwrites the given attrs; other attrs stay, attrs are never removed. */
 function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
@@ -41,6 +46,25 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   const errors = validateBlockAttrs(type, merged);
   if (errors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);
+  }
+
+  // The table's positional columnWidths must mirror the column set (one
+  // width per column — the strict validator's rule at load; the command
+  // keeps the live document valid too). The ids stand for the identity-keyed
+  // write below.
+  let tableColumnIds: string[] | null = null;
+  if (type === "table" && patch.columnWidths !== undefined) {
+    const table = getBlockMap(ydoc, id);
+    if (table === null) throw new UnknownBlockError(`Unknown block "${id}".`);
+    const columnIds = columnOrderOf(table, id)
+      .toArray()
+      .filter((value): value is string => typeof value === "string");
+    if (patch.columnWidths.length !== columnIds.length) {
+      throw new InvalidAttrsError(
+        `Invalid attrs for block "${id}": the table's columnWidths must hold exactly ${columnIds.length} width(s); found ${patch.columnWidths.length}.`
+      );
+    }
+    tableColumnIds = columnIds;
   }
 
   // A database's post-patch columns must keep the strict invariants against
@@ -106,7 +130,16 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
     const existing = block.get("attrs");
     const attrsMap = existing instanceof Y.Map ? existing : new Y.Map<unknown>();
     if (!(existing instanceof Y.Map)) block.set("attrs", attrsMap);
-    for (const [key, value] of entries) writeAttrValue(attrsMap, key, value);
+    for (const [key, value] of entries) {
+      // The table's positional columnWidths stand identity-keyed (columnId →
+      // width): the generic attr writer would leave a positional Y.Array that
+      // the read-time derivation (identity map + columnOrder) cannot see.
+      if (key === "columnWidths" && tableColumnIds !== null && isNumberArray(value)) {
+        writeColumnWidthsPatch(block, tableColumnIds, value);
+        continue;
+      }
+      writeAttrValue(attrsMap, key, value);
+    }
   });
 }
 

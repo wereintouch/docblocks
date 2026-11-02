@@ -36,6 +36,7 @@ import {
   collectSubtree,
   columnOrderOf,
   convertToParagraph,
+  ensureWidthsMap,
   readCellColor,
   rowsOf,
   setCellColor,
@@ -44,23 +45,6 @@ import {
   widthsMap,
   writeSubtreeCopy,
 } from "./common";
-
-/** Ensures the identity-keyed width map exists on the table's attrs (creating the attrs map if absent). */
-function ensureWidthsMap(table: Y.Map<unknown>): Y.Map<unknown> {
-  const existing = widthsMap(table);
-  if (existing !== null) return existing;
-  const attrs = table.get("attrs");
-  if (attrs instanceof Y.Map) {
-    const map = new Y.Map<unknown>();
-    attrs.set("columnWidths", map);
-    return map;
-  }
-  const freshAttrs = new Y.Map<unknown>();
-  const map = new Y.Map<unknown>();
-  freshAttrs.set("columnWidths", map);
-  table.set("attrs", freshAttrs);
-  return map;
-}
 
 /**
  * Inserts an empty column (a fresh column id, the default width, cells
