@@ -1226,6 +1226,34 @@ describe("the grid's cells (the type editors)", () => {
     expect(dbAttrs().columnWidths).toEqual([172, 112, 112, 112]);
   });
 
+  it("the seam release stands the untouched's start measurement (the drag's preview shrink stands no commit)", async () => {
+    // The one-shot stand: over the fresh block (no columnWidths) the drag's
+    // preview stands the flexible (1fr) columns' shrink live; the release
+    // must stand the start's measurement (the pre-drag layout), not the
+    // shrunken stand (the "the rest stand narrowed" stand).
+    const { doc, db } = await renderGrid();
+    const dbAttrs = () => (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
+    const headers = Array.from(
+      document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']")
+    );
+    expect(headers.length).toBe(4);
+    // The jsdom's offsetWidth stands the layout's stand: the 200 px stand
+    // at the press, the preview's shrink stand (100) over the drag.
+    let liveWidth = 200;
+    for (const header of headers) {
+      Object.defineProperty(header, "offsetWidth", { configurable: true, get: () => liveWidth });
+    }
+    const seam = document.querySelector<HTMLElement>("[data-slot='docblocks/database-col-resize'][data-index='0']")!;
+    fireEvent.pointerDown(seam, { clientX: 100, clientY: 5 });
+    fireEvent.pointerMove(seam, { clientX: 160, clientY: 5 }); // the +60 px delta
+    liveWidth = 100; // the flex's columns' shrink over the preview
+    fireEvent.pointerUp(seam, { clientX: 160, clientY: 5 });
+    await settleGrid();
+    // The dragged's stand (the start's 200 + 60), the untouched's start's
+    // stand (200 — not the live's 100).
+    expect(dbAttrs().columnWidths).toEqual([260, 200, 200, 200]);
+  });
+
   it("the datetime cell stands the calendar + the time on the double press (the close commits the ISO date-time)", async () => {
     const { bridge, tableId } = await renderGrid();
     const rowId = await firstRowId(bridge, tableId);

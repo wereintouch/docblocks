@@ -39,12 +39,23 @@ function useGridSeamResize({ columns, columnWidths, updateView }: GridSeamResize
     const header = event.currentTarget.closest<HTMLElement>("[data-slot='docblocks/database-header-cell']");
     const startWidth =
       header !== null && header.offsetWidth > 0 ? header.offsetWidth : DEFAULT_DATABASE_COLUMN_WIDTH_PX;
+    // The untouched columns' widths over the session's START layout (no
+    // preview at the press): the release's WYSIWYG stand reads them — the
+    // drag's preview shrinks the flexible (1fr) columns live, so the
+    // release's measurement over the live DOM would stand the shrunken
+    // stand (the first resize's "the rest stand narrowed").
+    const scope = event.currentTarget.closest<HTMLElement>("[data-slot='docblocks/database']");
+    const cells = Array.from(
+      scope?.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']") ?? []
+    );
+    const widthsAtStart = columns.map((_, i) => cells[i]?.offsetWidth ?? 0);
     resizeSession.current = {
       col,
       startX: event.clientX,
       startWidth,
       width: startWidth,
       visible: columns.map((entry) => entry.id),
+      widthsAtStart,
     };
   };
 
@@ -71,16 +82,14 @@ function useGridSeamResize({ columns, columnWidths, updateView }: GridSeamResize
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     if (session.width === session.startWidth) return;
     if (!columns.map((entry) => entry.id).every((value, i) => session.visible[i] === value)) return;
-    // The measurement's scope stands the grid's own container — the
-    // header cell's query is not document-wide (a page may stand two
-    // grids; the foreign's cells' widths would stand the commit).
-    const scope = event.currentTarget.closest<HTMLElement>("[data-slot='docblocks/database']");
-    const cells = Array.from(
-      scope?.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']") ?? []
-    );
+    // The untouched columns' stand reads the session's start measurement
+    // (the live DOM over the release stands the drag's preview shrink over
+    // the flexible columns — the release stands no commit of it). The
+    // measurement's scope stands the grid's own container (a page may
+    // stand two grids; the foreign's cells' widths stand no stand).
     const next = columns.map((_, i) => {
       if (i === session.col) return session.width;
-      const measured = cells[i]?.offsetWidth ?? 0;
+      const measured = session.widthsAtStart[i] ?? 0;
       const set = columnWidths?.[i];
       const stand = set !== undefined && set > 0 ? set : measured > 0 ? measured : DEFAULT_DATABASE_COLUMN_WIDTH_PX;
       return Math.max(Math.round(stand), MIN_DATABASE_COLUMN_WIDTH_PX);
