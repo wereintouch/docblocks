@@ -15,6 +15,7 @@ function stopPropagation(event: { stopPropagation: () => void }): void {
 }
 
 /** The executable schemes a download href must not carry (a `javascript:` / `vbscript:` href runs on the click — the `download` attribute does not neutralize it). */
+// eslint-disable-next-line no-control-regex -- the C0 prefix is the scheme-detection bypass subject.
 const UNSAFE_DOWNLOAD_SCHEME = /^[\u0000-\u0020]*(javascript|vbscript)\s*:/i;
 
 /**

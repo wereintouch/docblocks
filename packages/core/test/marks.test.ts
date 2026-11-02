@@ -160,10 +160,17 @@ describe("mark command errors", () => {
     // before the scheme detection: the raw string stands no scheme, the
     // browser's does — the check runs over the trimmed form.
     const { doc, id } = markedDoc();
-    for (const href of ["\tjavascript:alert(1)", "\njavascript:alert(1)", "\u0000javascript:alert(1)", "  javascript:alert(1)", "\x1fjavascript:alert(1)"]) {
-      expect(() => doc.setMark(id, 0, 1, { type: "link", href }), `the href ${JSON.stringify(href)} should be rejected`).toThrow(
-        InvalidMarkError
-      );
+    for (const href of [
+      "\tjavascript:alert(1)",
+      "\njavascript:alert(1)",
+      "\u0000javascript:alert(1)",
+      "  javascript:alert(1)",
+      "\x1fjavascript:alert(1)",
+    ]) {
+      expect(
+        () => doc.setMark(id, 0, 1, { type: "link", href }),
+        `the href ${JSON.stringify(href)} should be rejected`
+      ).toThrow(InvalidMarkError);
     }
     // The trim stands the safe stand: a C0-prefixed http URL is the http URL.
     doc.setMark(id, 0, 1, { type: "link", href: "\thttps://example.com" });

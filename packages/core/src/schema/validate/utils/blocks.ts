@@ -6,8 +6,8 @@
  * Run from validateDoc and from the command checks.
  */
 import type { BlockType } from "../../block-union";
-import { isReservedId } from "../../id-safety";
 import { DATABASE_CELL_TYPES } from "../../constants";
+import { isReservedId } from "../../id-safety";
 import { GEOMETRY_FIELDS, MAX_DATABASE_FILTER_DEPTH } from "../constants";
 import type { ValidationError } from "../models";
 import { isPlainObject, show } from "./common";

@@ -673,7 +673,9 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       // clipboard's no-op — the same equality guard as the batch update's).
       const updatesChanged = cleaned.some(({ rowId, cells }) => {
         const row = rowsRef.current.find((entry) => entry.rowId === rowId);
-        return row === undefined || !Object.entries(cells).every(([key, value]) => cellValueEqual(row.cells[key], value));
+        return (
+          row === undefined || !Object.entries(cells).every(([key, value]) => cellValueEqual(row.cells[key], value))
+        );
       });
       if (!updatesChanged && creates.length === 0) return [];
       if (updatesChanged) {
@@ -729,18 +731,16 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
                 },
                 newMutationContext()
               );
-              liveRowIds = redoReceipt.result.rows
-                .filter((row) => !updatedIds.has(row.id))
-                .map((row) => row.id);
+              liveRowIds = redoReceipt.result.rows.filter((row) => !updatedIds.has(row.id)).map((row) => row.id);
             },
             inverse: async () => {
               // The inverse: the created rows' deletion + the updates'
               // restore (the edited keys' pre-operation values) — one
               // batch (the paste's one-op undo stand).
               const ops: BatchOp[] = [];
-              if (creates.length > 0) ops.push(...liveRowIds.map((rowId) => ({ op: "delete", rowId } as const)));
+              if (creates.length > 0) ops.push(...liveRowIds.map((rowId) => ({ op: "delete", rowId }) as const));
               if (restore.length > 0) {
-                ops.push(...restore.map(({ rowId, cells }) => ({ op: "update", rowId, cells } as const)));
+                ops.push(...restore.map(({ rowId, cells }) => ({ op: "update", rowId, cells }) as const));
               }
               if (ops.length === 0) return;
               await bridge.batchRows(tableId, { ops }, newMutationContext());

@@ -171,7 +171,22 @@ const TAILWIND_ENTRY = path.join(import.meta.dirname, "packages", "react-ui", "e
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
-    ignores: ["**/dist/**", "test-results/**", "playwright-report/**", "coverage/**", ".docs/**", ".scratch-probes/**"],
+    // The scratch / the agent's own context files stand out of the lint (the
+    // transient probes are disposable by contract — linting them stands the
+    // dev machine's gate red over the scratch, not the code).
+    ignores: [
+      "**/dist/**",
+      "test-results/**",
+      "playwright-report/**",
+      "coverage/**",
+      ".docs/**",
+      ".scratch-probes/**",
+      ".tmp/**",
+      ".pi/**",
+      ".playwright-mcp/**",
+      "TODO.md",
+      "CLAUDE.md",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

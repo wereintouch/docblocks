@@ -154,7 +154,15 @@ function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
   // order stays deterministic on every peer.
   const extra: Array<[string, unknown]> = [];
   yblock.forEach((value, key) => {
-    if (key === "type" || key === "attrs" || key === "content" || key === "children" || key === "geometry" || key === "parent") return;
+    if (
+      key === "type" ||
+      key === "attrs" ||
+      key === "content" ||
+      key === "children" ||
+      key === "geometry" ||
+      key === "parent"
+    )
+      return;
     extra.push([key, value]);
   });
   extra.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));

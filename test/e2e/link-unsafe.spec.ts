@@ -46,7 +46,9 @@ async function injectUnsafeLink(page: Page, client: "a" | "b", length: number): 
   );
 }
 
-test("the crafted unsafe link href stands the plain text (no <a>, the document stands viewable)", async ({ browser }) => {
+test("the crafted unsafe link href stands the plain text (no <a>, the document stands viewable)", async ({
+  browser,
+}) => {
   const { a, b, close } = await twoPanes(browser, "link-unsafe");
   try {
     await typeText(a, "a");
@@ -58,9 +60,7 @@ test("the crafted unsafe link href stands the plain text (no <a>, the document s
 
     // A: the renderer's gate — the run's text stands, the <a> stands none
     // (the unsafe scheme never renders the link's tag).
-    await expect
-      .poll(async () => a.locator('[data-testid="doc-a"] a').count(), SETTLE)
-      .toBe(0);
+    await expect.poll(async () => a.locator('[data-testid="doc-a"] a').count(), SETTLE).toBe(0);
     await expect(a.locator('[data-testid="doc-a"]').first()).toContainText("hello world");
 
     // B: the same stand over the wire (the remote input's stand — pane b

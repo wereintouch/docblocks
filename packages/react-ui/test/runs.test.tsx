@@ -55,7 +55,12 @@ describe("renderRuns", () => {
     // The remote input is not validated (the CRDT's raw stand): the
     // renderer's gate stands the href — the text renders plain, never the
     // raw <a> (the javascript: / the C0-prefixed bypass's stand).
-    for (const href of ["javascript:alert(1)", "\tjavascript:alert(1)", "\u0000javascript:alert(1)", "data:text/html,x"]) {
+    for (const href of [
+      "javascript:alert(1)",
+      "\tjavascript:alert(1)",
+      "\u0000javascript:alert(1)",
+      "data:text/html,x",
+    ]) {
       const el = renderText([run("site", { link: { href } })]);
       expect(el.querySelector("a"), `the href ${JSON.stringify(href)} should stand no <a>`).toBeNull();
       expect(el.textContent).toBe("site");

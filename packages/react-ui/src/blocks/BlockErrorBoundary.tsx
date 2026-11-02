@@ -22,7 +22,11 @@ import { Card, CardContent } from "../shared/ui/Card";
 /** The placeholder stand of the failed block's render. */
 function RenderErrorPlaceholder({ type }: { type: BlockType }) {
   return (
-    <Card data-slot="docblocks/render-error" data-block-type={type} className="my-(--docblocks-block-spacing) outline-none">
+    <Card
+      data-slot="docblocks/render-error"
+      data-block-type={type}
+      className="my-(--docblocks-block-spacing) outline-none"
+    >
       <CardContent className="flex items-center gap-2">
         <Badge variant="secondary">{type}</Badge>
         <span className="text-xs text-muted-foreground">Could not be rendered</span>
@@ -50,7 +54,12 @@ class BlockErrorBoundary extends Component<
   }
 
   componentDidCatch(error: unknown, info: ErrorInfo): void {
-    console.error("[docblocks] a block renderer threw — the block stands the placeholder stand", this.props.type, info, error);
+    console.error(
+      "[docblocks] a block renderer threw — the block stands the placeholder stand",
+      this.props.type,
+      info,
+      error
+    );
   }
 
   render(): ReactNode {

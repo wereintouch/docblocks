@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { BlockId } from "docblocks-core";
 import { createDoc } from "docblocks-core";
 
-import type { BlockRendererMap } from "../src/blocks";
 import { Editor } from "../src/Editor";
+import type { BlockRendererMap } from "../src/blocks";
 import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
@@ -28,7 +28,8 @@ function docWithParagraphs(): { doc: TestDoc; flagged: BlockId } {
 function throwingParagraphRenderers(): BlockRendererMap {
   return {
     paragraph: ({ id, block }) => {
-      const text = "content" in block ? ((block.content ?? []) as Array<{ text: string }>).map((run) => run.text).join("") : "";
+      const text =
+        "content" in block ? ((block.content ?? []) as Array<{ text: string }>).map((run) => run.text).join("") : "";
       if (text.includes("flag")) throw new Error("the renderer's stand over the anomalous block");
       return <div data-slot="test-renderer" data-block-id={id} />;
     },

@@ -485,8 +485,15 @@ function GridBody({
 
   const rows = data.rows;
 
-  const { editingCell, setEditingCell, selectedCells, booleanPressRef, onCellPointerDown, onTableKeyDown, onTablePaste } =
-    useGridCellInteraction({ rows, columns, data, tableRef });
+  const {
+    editingCell,
+    setEditingCell,
+    selectedCells,
+    booleanPressRef,
+    onCellPointerDown,
+    onTableKeyDown,
+    onTablePaste,
+  } = useGridCellInteraction({ rows, columns, data, tableRef });
 
   if (data.phase === "loading") {
     return (
@@ -1099,7 +1106,6 @@ function GridBody({
                 </Button>
               </div>
             )}
-
           </div>
 
           {rows.length === 0 && (

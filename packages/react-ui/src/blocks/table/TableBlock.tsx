@@ -464,12 +464,15 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
 
   // The unmount cancels the pending release-open (the gesture's release
   // over the dead frame stands no menu).
-  useEffect(() => () => {
-    if (pendingCtxRef.current !== null) {
-      pendingCtxRef.current();
-      pendingCtxRef.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (pendingCtxRef.current !== null) {
+        pendingCtxRef.current();
+        pendingCtxRef.current = null;
+      }
+    },
+    []
+  );
 
   return (
     <div ref={frameRef} data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">

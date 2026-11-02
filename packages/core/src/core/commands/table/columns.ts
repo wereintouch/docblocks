@@ -250,7 +250,9 @@ function duplicateTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: st
       // short row may lack the source column's cell: the copied column
       // stands without a cell there.
       const source = columnCellOfRow(ydoc, rowId, sourceColumnId, index);
-      return source === null ? undefined : { snap: snapshotSubtree(ydoc, generateId, source.cellId), position: source.position };
+      return source === null
+        ? undefined
+        : { snap: snapshotSubtree(ydoc, generateId, source.cellId), position: source.position };
     }
   );
   localTransact(ydoc, () => {

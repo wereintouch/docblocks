@@ -1233,9 +1233,7 @@ describe("the grid's cells (the type editors)", () => {
     // shrunken stand (the "the rest stand narrowed" stand).
     const { doc, db } = await renderGrid();
     const dbAttrs = () => (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
-    const headers = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']")
-    );
+    const headers = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']"));
     expect(headers.length).toBe(4);
     // The jsdom's offsetWidth stands the layout's stand: the 200 px stand
     // at the press, the preview's shrink stand (100) over the drag.
@@ -1758,7 +1756,7 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
   });
 
   it("the Ctrl+C copies the selection's rectangle as TSV (the paste's round-trip stand)", async () => {
-    const { bridge, tableId, cols } = await renderGrid();
+    await renderGrid();
     const writeText = vi.fn().mockResolvedValue(undefined);
     Object.assign(navigator, { clipboard: { writeText } });
     // The single cell's copy (the value's flat stand: the tab / the
@@ -1813,7 +1811,8 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     // button's arm stands over the undo entry's render — the bridge's state
     // stands earlier).
     await until(
-      () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-undo']")?.hasAttribute("disabled") !== true,
+      () =>
+        document.querySelector<HTMLElement>("[data-slot='docblocks/database-undo']")?.hasAttribute("disabled") !== true,
       "the undo's arm"
     );
     const undo = document.querySelector<HTMLElement>("[data-slot='docblocks/database-undo']");
@@ -3232,7 +3231,7 @@ describe("the enum's options' mechanics (the system table; the create / the edit
         ctx()
       )
     ).result.id;
-    const optionsReceipt = await bridge.batchRows(
+    await bridge.batchRows(
       enumTableId,
       {
         ops: [
@@ -3276,9 +3275,12 @@ describe("the enum's options' mechanics (the system table; the create / the edit
       [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
         (input) => input.value
       );
-    fireEvent.change(document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[0]!, {
-      target: { value: "alfa" },
-    });
+    fireEvent.change(
+      document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[0]!,
+      {
+        target: { value: "alfa" },
+      }
+    );
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-add']")!);
     await settleGrid();
     fireEvent.change(
@@ -3307,7 +3309,10 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     // empty stand (the edit form's prefill stands the column's name).
     expect(commitButton).not.toBeNull();
     fireEvent.click(commitButton!);
-    await until(() => document.querySelector("[data-slot='docblocks/database-add-column-form']") === null, "the form's close");
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-add-column-form']") === null,
+      "the form's close"
+    );
     // The order's stand: the gamma (the new option) stands the draft's
     // first position — the created id's index stands the new option's own
     // order (the draft's mixed position is not the created's index), and

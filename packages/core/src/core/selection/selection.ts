@@ -147,9 +147,7 @@ class SelectionView {
   #restoreableSelection(saved: Selection): Selection | null {
     if (saved.kind === "none") return saved;
     const ids =
-      saved.kind === "text"
-        ? [saved.from.blockId, ...(saved.to !== null ? [saved.to.blockId] : [])]
-        : saved.ids;
+      saved.kind === "text" ? [saved.from.blockId, ...(saved.to !== null ? [saved.to.blockId] : [])] : saved.ids;
     if (ids.some((id) => this.#doc.getBlock(id) === null)) return null;
     return saved;
   }

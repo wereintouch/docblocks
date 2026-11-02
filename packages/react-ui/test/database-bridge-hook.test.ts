@@ -97,17 +97,13 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
       subscribeTable: (tableId: string, input: { afterSeq: number }, observer: SubscriptionObserver) => {
         subscriptions += 1;
         liveObserver = observer;
-        return bridge.subscribeTable(
-          tableId,
-          input,
-          {
-            ...observer,
-            event: (envelope) => {
-              captured = envelope;
-              observer.event(envelope);
-            },
-          }
-        );
+        return bridge.subscribeTable(tableId, input, {
+          ...observer,
+          event: (envelope) => {
+            captured = envelope;
+            observer.event(envelope);
+          },
+        });
       },
     } as unknown as DatabaseBridge;
     const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId));
@@ -178,11 +174,13 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
       },
       subscribeTable: (tableId: string, input: { afterSeq: number }, observer: SubscriptionObserver) => {
         liveObserver = observer;
-        const handle = bridge.subscribeTable(
-          tableId,
-          input,
-          { ...observer, ready: (value) => { headSeq = value.headSeq; observer.ready(value); } }
-        );
+        const handle = bridge.subscribeTable(tableId, input, {
+          ...observer,
+          ready: (value) => {
+            headSeq = value.headSeq;
+            observer.ready(value);
+          },
+        });
         return {
           unsubscribe: () => {
             unsubscribed += 1;

@@ -195,8 +195,7 @@ function endpointPointOf(
     // zero normal (the line bows out along the segment at render time).
     // A port outside the known set (a future minor's data) stands absent
     // (the zero normal) — the lenient render posture, no crash.
-    const normal =
-      ref.port !== undefined && isKnownPort(ref.port) ? PORT_NORMAL[ref.port] : { nx: 0, ny: 0 };
+    const normal = ref.port !== undefined && isKnownPort(ref.port) ? PORT_NORMAL[ref.port] : { nx: 0, ny: 0 };
     return { x: ref.x, y: ref.y, nx: normal.nx, ny: normal.ny };
   }
   if (ref.docId !== undefined || ref.blockId === undefined) return null;

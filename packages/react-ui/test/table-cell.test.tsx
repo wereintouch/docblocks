@@ -134,7 +134,7 @@ describe("the empty-cell activation layer", () => {
     // layer's own zero margin), the first input's paragraph stood the
     // block's vertical rhythm — the cell grew by the margins' 2×.
     // The layer stands the same rhythm: no jump over the materialization.
-    const { tableId, firstCellId } = renderTableDoc(true);
+    const { tableId } = renderTableDoc(true);
     const filledParagraph = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/block"][data-block-type="paragraph"]`
     );

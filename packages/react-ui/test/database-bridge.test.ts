@@ -753,12 +753,7 @@ describe("the row restore — the undeleteRows' stand", () => {
     expect(codeOf(badDecimals)).toBe("validation");
     // The reference's contract over the patch (the kind's stand).
     const badKind = await bridge
-      .updateColumn(
-        tableId,
-        nameColumnId,
-        { reference: { kind: "bogus" as never, tableId, many: false } },
-        ctx()
-      )
+      .updateColumn(tableId, nameColumnId, { reference: { kind: "bogus" as never, tableId, many: false } }, ctx())
       .catch((operationError: unknown) => operationError);
     expect(codeOf(badKind)).toBe("validation");
     // The valid patch stands the pass (the finite stand is not the
@@ -855,7 +850,11 @@ describe("the cell's validation", () => {
     expect(codeOf(inArray)).toBe("validation");
     // The finite number stands the pass (the stand is the finiteness, not
     // the type — the contract's type-agnostic stand).
-    await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [column.result.id]: 42 }, beforeRowId: null }] }, ctx());
+    await bridge.batchRows(
+      tableId,
+      { ops: [{ op: "create", row: { [column.result.id]: 42 }, beforeRowId: null }] },
+      ctx()
+    );
   });
 });
 

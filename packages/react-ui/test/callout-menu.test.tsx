@@ -160,9 +160,8 @@ describe("the callout menu (the list-type menu's callout target)", () => {
   });
 
   it("the text/highlight palette's pick stands the palette's close (the picker stands no hanging)", () => {
-    let p: BlockId = "";
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
-    p = doc.insertBlock("paragraph");
+    const p = doc.insertBlock("paragraph");
     doc.insertText(p, 0, "note");
     render(
       <EditorProvider doc={doc}>

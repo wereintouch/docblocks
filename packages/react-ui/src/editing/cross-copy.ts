@@ -1,4 +1,4 @@
-import { isSafeLinkHref, type BlockId, type Doc, type Selection, type TextRun } from "docblocks-core";
+import { type BlockId, type Doc, type Selection, type TextRun, isSafeLinkHref } from "docblocks-core";
 
 /** The HTML-escaped run text. */
 function escapeHtml(text: string): string {

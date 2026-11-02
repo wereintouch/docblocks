@@ -1,4 +1,4 @@
-import { isSafeLinkHref, type TextRun } from "docblocks-core";
+import { type TextRun, isSafeLinkHref } from "docblocks-core";
 
 import { INLINE_CODE_CLASS, LINK_CLASS } from "./runs";
 

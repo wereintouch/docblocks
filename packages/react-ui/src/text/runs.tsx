@@ -1,6 +1,6 @@
 import { type CSSProperties, Fragment, type ReactNode } from "react";
 
-import { isSafeLinkHref, type TextRun } from "docblocks-core";
+import { type TextRun, isSafeLinkHref } from "docblocks-core";
 
 /**
  * Render inline text runs with their marks (lenient reader contract:
@@ -40,7 +40,12 @@ function renderMarked(run: TextRun): ReactNode {
 
   let node: ReactNode = run.text;
   const linkHref = linkHrefOf(run);
-  if (linkHref !== undefined) node = <a href={linkHref} className={LINK_CLASS}>{node}</a>;
+  if (linkHref !== undefined)
+    node = (
+      <a href={linkHref} className={LINK_CLASS}>
+        {node}
+      </a>
+    );
   if (marks.bold === true) node = <strong>{node}</strong>;
   if (marks.italic === true) node = <em>{node}</em>;
   if (marks.strike === true) node = <s>{node}</s>;

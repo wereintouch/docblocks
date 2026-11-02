@@ -377,7 +377,7 @@ describe("updateBlock", () => {
     const table = doc.insertBlock("table", { cols: 3 });
     const widths = (): number[] => {
       const block = doc.getBlock(table)!;
-      return block.type === "table" ? block.attrs?.columnWidths ?? [] : [];
+      return block.type === "table" ? (block.attrs?.columnWidths ?? []) : [];
     };
     // Two explicit widths (the identity-keyed storage), the middle column at the default.
     doc.setTableColumnWidth(table, 0, 150);
