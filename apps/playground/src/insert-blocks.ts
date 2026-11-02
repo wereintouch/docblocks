@@ -31,7 +31,8 @@ type InsertableType = (typeof INSERTABLE_TYPES)[number];
 /** The fixed image key the harness inserts; its src is a small inline SVG. */
 const IMAGE_KEY = "demo-image";
 
-/** The fixed embed src the harness inserts (a one-line html page). */
+/** The fixed embed src the harness inserts (a one-line html page — the
+ * `html` kind's data URL snippet, the write gate's only data-scheme stand). */
 const EMBED_SRC = "data:text/html," + encodeURIComponent("<html><body><p>embedded page</p></body></html>");
 
 /** The seed diagram the harness inserts with a mermaid code block (harness convenience; the user edits it in the block). */
@@ -426,7 +427,7 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
         id = doc.insertBlock("image", { src: IMAGE_KEY });
         break;
       case "embed":
-        id = doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
+        id = doc.insertBlock("embed", { kind: "html", src: EMBED_SRC });
         break;
       case "sync-embed":
         id = doc.insertBlock("sync-embed", { ref: { docId: masterDocId } });

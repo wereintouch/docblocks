@@ -40,12 +40,13 @@ test("an embed inserted in A renders in both panes and reaches the JSON", async 
   ] as const) {
     const doc = pane.locator(`[data-testid="doc-${client}"]`);
 
-    // The plain iframe with the harness's fixed data: URL src...
+    // The plain iframe with the harness's fixed data: URL src (the `html`
+    // kind — the write gate's only data-scheme stand)...
     const iframe = doc.locator('iframe[data-slot="docblocks/embed"]');
     await expect(iframe).toHaveCount(1);
     expect((await iframe.getAttribute("src")) ?? "").toContain("data:text/html");
     // ...and the kind on the wrapper (v1: every kind renders as an iframe).
-    await expect(doc.locator('[data-block-type="embed"][data-kind="iframe"]')).toHaveCount(1);
+    await expect(doc.locator('[data-block-type="embed"][data-kind="html"]')).toHaveCount(1);
     // Not text-editable: the wrapper carries no inner editable.
     expect(await doc.locator('[data-block-type="embed"] [data-slot="docblocks/block-content"]').count()).toBe(0);
   }
@@ -54,7 +55,7 @@ test("an embed inserted in A renders in both panes and reaches the JSON", async 
   const jsonA = a.getByTestId("json-a");
   await expect.poll(async () => (await jsonA.innerText()).includes('"type": "embed"'), SETTLE).toBe(true);
   const jsonText = await jsonA.innerText();
-  expect(jsonText).toContain('"kind": "iframe"');
+  expect(jsonText).toContain('"kind": "html"');
   expect(jsonText).toContain("data:text/html");
 
   await close();
@@ -70,7 +71,7 @@ test("the catalog's embed renders in the motion pane (a non-text reorder target)
   // not a drag source (no gutter handle on the wrapper).
   const embed = page.locator('[data-block-type="embed"]');
   await expect(embed).toHaveCount(1);
-  await expect(embed).toHaveAttribute("data-kind", "iframe");
+  await expect(embed).toHaveAttribute("data-kind", "html");
   await expect(embed.locator('[data-slot="docblocks/embed"]')).toBeVisible();
   expect(await embed.locator('[data-slot="docblocks/gutter"]').count()).toBe(0);
 });
@@ -293,16 +294,20 @@ test("a same-origin embed cannot reach the parent's state (the sandbox stands)",
   });
 
   // Insert an embed pointing at the playground-served same-origin fixture
-  // (Vite's public dir): the embedded content is on the parent's own origin
-  // and attempts to write a marker to the parent's state (the same-origin
-  // attackguards against).
-  const embedId = await page.evaluate(() =>
-    window.__paneDocs!.a!.insertBlock("embed", { kind: "iframe", src: "/sandbox-test-embed.html" })
+  // (Vite's public dir) as an ABSOLUTE http URL (the write gate's stand —
+  // the src must be an absolute http/https; the origin is the page's own,
+  // so the fixture stays on the parent's origin and attempts to write a
+  // marker to the parent's state (the same-origin attack the guards
+  // against)).
+  const fixtureUrl = await page.evaluate(() => new URL("sandbox-test-embed.html", window.location.href).href);
+  const embedId = await page.evaluate(
+    ({ fixtureUrl }) => window.__paneDocs!.a!.insertBlock("embed", { kind: "iframe", src: fixtureUrl }),
+    { fixtureUrl }
   );
 
   const iframe = page.locator(`[data-block-id="${embedId}"] iframe[data-slot="docblocks/embed"]`);
   await expect(iframe).toHaveCount(1, SETTLE);
-  await expect(iframe).toHaveAttribute("src", "/sandbox-test-embed.html", SETTLE);
+  await expect(iframe).toHaveAttribute("src", fixtureUrl, SETTLE);
 
   // The safe default sandbox stands on the iframe: no allow-same-origin, so
   // the embedded content is an opaque origin.

@@ -186,7 +186,7 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   const embed = doc.locator('iframe[data-slot="docblocks/embed"]');
   expect(await embed.count()).toBe(1);
   expect((await embed.getAttribute("src")) ?? "").toContain("data:text/html");
-  expect(await doc.locator('[data-block-type="embed"][data-kind="iframe"]').count()).toBe(1);
+  expect(await doc.locator('[data-block-type="embed"][data-kind="html"]').count()).toBe(1);
 
   // Sync-embed: the resolved master content renders inside the wrapper
   // (the outer JSON carries the ref only, pinned by the JSON golden).

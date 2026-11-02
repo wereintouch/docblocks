@@ -158,8 +158,10 @@ function buildCatalogDoc(doc: Doc): void {
     doc.insertBlock("image", { src: CATALOG_IMAGE_KEY });
     doc.insertBlock("divider");
 
-    // Embed: the fixed harness src (the data: URL renders a tiny inline page).
-    doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
+    // Embed: the fixed harness src (the data: URL renders a tiny inline page
+    // — the `html` kind's snippet; the URL kinds stand the absolute http/https
+    // only over the write gate).
+    doc.insertBlock("embed", { kind: "html", src: EMBED_SRC });
 
     // Sync-embed: the catalog's master (seeded deterministically, fixed id)
     // renders its content inside; the outer JSON carries the ref only.
