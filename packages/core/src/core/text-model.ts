@@ -56,7 +56,11 @@ function markSetToAttrs(marks: MarkSet): Record<string, unknown> {
  * cross-minor stand: an unknown mark name is preserved (its fields pass
  * through as-is, not only the string ones) — the data is not lost on save,
  * the reader/renderer stand the text without it, the strict validator
- * rejects it.
+ * rejects it. A known mark's unknown fields stand the same pass-through
+ * (a future minor's additive field on a known mark, any value shape);
+ * a known field keeps the string stand (a non-string value on a known
+ * field is corrupt data — a future minor cannot change a known field's
+ * contract — and is dropped protectively).
  */
 function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
   const marks = {} as MarkSet;
@@ -66,11 +70,17 @@ function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
       (marks as Record<string, unknown>)[name] = true;
     } else if (typeof value === "object" && value !== null) {
       const attrs: Record<string, unknown> = {};
+      const spec = MARK_REGISTRY[name as MarkName];
+      const fields = spec?.fields;
       for (const [key, attrValue] of Object.entries(value)) {
         if (attrValue === undefined) continue;
-        // Known marks are normalized to their string fields (the writer's
-        // contract); an unknown mark passes its fields through as-is.
-        if (name in MARK_REGISTRY && typeof attrValue !== "string") continue;
+        // A known field stands the string contract (the writer's stand);
+        // an unknown field (a future minor's additive data) passes through
+        // as-is — the data is not lost on save.
+        const knownField =
+          (fields !== undefined && key in fields) ||
+          (fields === undefined && spec !== undefined && key === spec.attr);
+        if (knownField && typeof attrValue !== "string") continue;
         attrs[key] = attrValue;
       }
       (marks as Record<string, unknown>)[name] = attrs;
