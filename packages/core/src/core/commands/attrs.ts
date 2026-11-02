@@ -5,7 +5,7 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, setOwn, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
 import type { BlockAttrsPatch, ValidationError } from "@docblocks-core/schema";
 
 import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatValidationErrors } from "../errors";
@@ -41,8 +41,10 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   const snapshot = readBlock(ydoc, id);
   const current = snapshot !== null && "attrs" in snapshot ? snapshot.attrs : undefined;
   const merged: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(current ?? {})) merged[key] = value;
-  for (const [key, value] of entries) merged[key] = value;
+  // The open keys come from the snapshot / the caller's patch: the
+  // reserved-key stand (the own data key, no prototype reassignment).
+  for (const [key, value] of Object.entries(current ?? {})) setOwn(merged, key, value);
+  for (const [key, value] of entries) setOwn(merged, key, value);
   const errors = validateBlockAttrs(type, merged);
   if (errors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);

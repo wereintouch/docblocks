@@ -5,7 +5,7 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH, setOwn } from "@docblocks-core/schema";
 import type { Block, BlockId, DocJSON, DocMeta, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
 import { derivedZIndex } from "../commands";
@@ -168,10 +168,12 @@ function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
         raw.push({ text: op.insert, marks: attrsToMarkSet(op.attributes) });
       }
       const runs = normalizeRuns(raw);
-      if (runs.length > 0) block[key] = runs;
+      if (runs.length > 0) setOwn(block, key, runs);
       continue;
     }
-    block[key] = readPlainValue(value);
+    // The open key comes from the CRDT (the reserved-key's stand — the
+    // own data key, the prototype untouched).
+    setOwn(block, key, readPlainValue(value));
   }
 
   return block;
@@ -214,7 +216,7 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
       });
       entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
       const plain: Record<string, unknown> = {};
-      for (const [key, value] of entries) plain[key] = value;
+      for (const [key, value] of entries) setOwn(plain, key, value);
       block.attrs = plain;
     }
   }

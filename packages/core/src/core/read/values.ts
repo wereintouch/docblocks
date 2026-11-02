@@ -2,11 +2,11 @@
  *  the plain-value read. */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, setOwn } from "@docblocks-core/schema";
 import type { BlockType } from "@docblocks-core/schema";
 
 function isKnownBlockType(value: unknown): value is BlockType {
-  return typeof value === "string" && value in BLOCK_REGISTRY;
+  return typeof value === "string" && Object.hasOwn(BLOCK_REGISTRY, value);
 }
 
 /**
@@ -36,7 +36,9 @@ function readPlainValue(value: unknown): unknown {
   if (value instanceof Y.Map) {
     const plain: Record<string, unknown> = {};
     value.forEach((entry, key) => {
-      plain[key] = readPlainValue(entry);
+      // The reserved-key stand (the open key comes from the CRDT — the
+      // `__proto__` data key stands own, the prototype stands untouched).
+      setOwn(plain, key, readPlainValue(entry));
     });
     return plain;
   }

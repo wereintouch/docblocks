@@ -108,7 +108,7 @@ function validateSequences(blocks: Record<string, unknown>, errors: ValidationEr
   for (const block of Object.values(blocks)) {
     if (!isPlainObject(block)) continue;
     const type = block.type;
-    if (typeof type !== "string" || !(type in BLOCK_REGISTRY) || !BLOCK_REGISTRY[type as BlockType].sequence) continue;
+    if (typeof type !== "string" || !Object.hasOwn(BLOCK_REGISTRY, type) || !BLOCK_REGISTRY[type as BlockType].sequence) continue;
     if (!Array.isArray(block.children)) continue; // a missing/non-array order is reported above
     let prev = -1; // virtual: before the first block
     block.children.forEach((childId, index) => {
@@ -234,7 +234,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     }
 
     const type = block.type;
-    if (typeof type !== "string" || !(type in BLOCK_REGISTRY)) {
+    if (typeof type !== "string" || !Object.hasOwn(BLOCK_REGISTRY, type)) {
       if (!lenient) {
         errors.push({ path: `blocks.${id}`, message: `Unknown block type ${show(type)}.` });
         continue;
@@ -314,7 +314,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
             firstParent.set(childId, { parentId: id, path: childPath });
           }
           const childBlock = blocks[childId];
-          if (isPlainObject(childBlock) && typeof childBlock.type === "string" && childBlock.type in BLOCK_REGISTRY) {
+          if (isPlainObject(childBlock) && typeof childBlock.type === "string" && Object.hasOwn(BLOCK_REGISTRY, childBlock.type)) {
             if (!allowedChildTypes.includes(childBlock.type as BlockType)) {
               errors.push({
                 path: childPath,

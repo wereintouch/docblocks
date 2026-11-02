@@ -191,7 +191,11 @@ function validateAttrs(
   }
 
   for (const [name, value] of Object.entries(attrs)) {
-    const attrSpec = attrSpecs[name];
+    // The hasOwn stand: an inherited Object.prototype member (the reserved
+    // key or the `toString`-class name) stands no spec — the unknown-attr
+    // branch decides it (a plain `attrSpecs[name]` would read the inherited
+    // member and stand the reserved key "known").
+    const attrSpec = Object.hasOwn(attrSpecs, name) ? attrSpecs[name] : undefined;
     if (!attrSpec) {
       // Lenient (cross-minor load): an unknown attr (a future minor's data)
       // is preserved as-is, not rejected; the known attrs keep their value

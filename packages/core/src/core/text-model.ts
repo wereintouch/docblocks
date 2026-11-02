@@ -12,7 +12,7 @@
  */
 import * as Y from "yjs";
 
-import { MARK_REGISTRY } from "@docblocks-core/schema";
+import { MARK_REGISTRY, setOwn } from "@docblocks-core/schema";
 import type { MarkName, MarkSet } from "@docblocks-core/schema";
 
 /** All registered mark names. */
@@ -40,11 +40,11 @@ function markSetToAttrs(marks: MarkSet): Record<string, unknown> {
     if (typeof value === "object" && value !== null) {
       const nested: Record<string, unknown> = {};
       for (const [key, attrValue] of Object.entries(value)) {
-        if (attrValue !== undefined) nested[key] = attrValue;
+        if (attrValue !== undefined) setOwn(nested, key, attrValue);
       }
-      attrs[name] = nested;
+      setOwn(attrs, name, nested);
     } else {
-      attrs[name] = value;
+      setOwn(attrs, name, value);
     }
   }
   return attrs;
@@ -67,10 +67,10 @@ function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
   if (attributes === null || attributes === undefined) return marks;
   for (const [name, value] of Object.entries(attributes)) {
     if (value === true) {
-      (marks as Record<string, unknown>)[name] = true;
+      setOwn(marks, name, true);
     } else if (typeof value === "object" && value !== null) {
       const attrs: Record<string, unknown> = {};
-      const spec = MARK_REGISTRY[name as MarkName];
+      const spec = Object.hasOwn(MARK_REGISTRY, name) ? MARK_REGISTRY[name as MarkName] : undefined;
       const fields = spec?.fields;
       for (const [key, attrValue] of Object.entries(value)) {
         if (attrValue === undefined) continue;
@@ -78,12 +78,12 @@ function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
         // an unknown field (a future minor's additive data) passes through
         // as-is — the data is not lost on save.
         const knownField =
-          (fields !== undefined && key in fields) ||
+          (fields !== undefined && Object.hasOwn(fields, key)) ||
           (fields === undefined && spec !== undefined && key === spec.attr);
         if (knownField && typeof attrValue !== "string") continue;
-        attrs[key] = attrValue;
+        setOwn(attrs, key, attrValue);
       }
-      (marks as Record<string, unknown>)[name] = attrs;
+      setOwn(marks, name, attrs);
     }
   }
   return marks;
