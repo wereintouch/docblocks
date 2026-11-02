@@ -68,8 +68,14 @@ function EnumOptionsEditor({
   };
 
   const colorOpenChange = (index: number) => (open: boolean) => setColorOpen(open ? index : null);
-  const optionColorSelect = (index: number) => (hex: string) => setOption(index, { color: hex });
-  const optionColorNone = (index: number) => () => setOption(index, { color: null });
+  const optionColorSelect = (index: number) => (hex: string) => {
+    setOption(index, { color: hex });
+    setColorOpen(null); // the pick's stand: the palette's close
+  };
+  const optionColorNone = (index: number) => () => {
+    setOption(index, { color: null });
+    setColorOpen(null);
+  };
   const optionNameChange = (index: number) => (event: React.ChangeEvent<HTMLInputElement>) =>
     setOption(index, { name: event.target.value });
   const optionDelete = (index: number) => () => onChange(options.filter((_, i) => i !== index));

@@ -36,8 +36,14 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
     event.preventDefault();
     dragControls.start(event);
   };
-  const onSelectColor = (hex: string) => onSet({ color: hex });
-  const onSelectNone = () => onSet({ color: null });
+  const onSelectColor = (hex: string) => {
+    onSet({ color: hex });
+    onColorOpen(false); // the pick's stand: the palette's close
+  };
+  const onSelectNone = () => {
+    onSet({ color: null });
+    onColorOpen(false);
+  };
   const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => onSet({ name: event.target.value });
   return (
     <Reorder.Item

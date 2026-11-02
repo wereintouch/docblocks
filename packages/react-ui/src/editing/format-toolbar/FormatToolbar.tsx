@@ -176,8 +176,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     });
   };
 
-  /** Apply the palette target's mark with the value (or clear it). */
+  /** Apply the palette target's mark with the value (or clear it). The
+   *  pick's stand: the palette's close (the apply's commit / the no-op's
+   *  confirm — the picker stands no hanging). */
   const onPaletteValue = (value: string | null): void => {
+    setPaletteOpen(false);
     if (range.kind === "cross") {
       const current = uniformMarkValueRange(doc, range.cross, target);
       if (current === value) return;
@@ -267,11 +270,13 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   };
   const onCalloutColor = (color: string | null): void => {
     if (range.kind !== "single" || single.type !== "callout") return;
+    setCalloutMenuOpen(false); // the pick's stand: the callout menu's close
     if ((single.attrs?.color ?? null) === color) return; // no-op
     doc.updateBlock(range.blockId, { color });
   };
   const onCalloutIcon = (icon: string | null): void => {
     if (range.kind !== "single" || single.type !== "callout") return;
+    setCalloutMenuOpen(false);
     if ((single.attrs?.icon ?? null) === icon) return; // no-op
     doc.updateBlock(range.blockId, { icon });
   };

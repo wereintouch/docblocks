@@ -129,8 +129,10 @@ describe("the callout menu (the list-type menu's callout target)", () => {
     selectRange(co, 0, 4);
     pressCalloutControl(co, 0, 4, '[data-callout-icon-btn="lightbulb"]');
     expect(calloutAttrsOf(doc, co)).toMatchObject({ variant: "danger", icon: "lightbulb" });
-    // The variant stood (the preset identity is kept).
+    // The variant stood (the preset identity is kept). The pick's stand:
+    // the menu closes (the picker stands no hanging over the apply).
     expect(calloutAttrsOf(doc, co)?.variant).toBe("danger");
+    expect(document.querySelector('[data-slot="docblocks/format-callout-menu"]')).toBeNull();
   });
 
   it("the icon preset clears the override (icon: null, the variant stands)", () => {
@@ -153,6 +155,47 @@ describe("the callout menu (the list-type menu's callout target)", () => {
     selectRange(co, 0, 4);
     pressCalloutControl(co, 0, 4, '[data-slot="docblocks/palette-none"]');
     expect(calloutAttrsOf(doc, co)).toMatchObject({ variant: "info", color: null });
+    // The pick's stand: the menu closes over the color's apply.
+    expect(document.querySelector('[data-slot="docblocks/format-callout-menu"]')).toBeNull();
+  });
+
+  it("the text/highlight palette's pick stands the palette's close (the picker stands no hanging)", () => {
+    let p: BlockId = "";
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "note");
+    render(
+      <EditorProvider doc={doc}>
+        <Editor formatPalette={["#ff0000", "#00ff00"]} />
+      </EditorProvider>
+    );
+    selectRange(p, 0, 4);
+    // The palette's popover (the hex's palette — the jsdom's token's
+    // unresolvability stands the hex's entries).
+    const trigger = toolbarOf().querySelector('button[aria-label="Text and background color"]');
+    expect(trigger).not.toBeNull();
+    act(() => {
+      fireEvent.click(trigger as Element);
+    });
+    // The gesture range's re-seat (jsdom's focus() moves the DOM selection
+    // with the roving focus — the trigger's open takes the focus).
+    selectRange(p, 0, 4);
+    const palette = document.querySelector('[data-slot="docblocks/format-palette"]');
+    expect(palette, "the palette's popover should be open").not.toBeNull();
+    // The text's target (the default stands the highlight).
+    const targetBtn = palette!.querySelector('button[data-target-btn="color"]');
+    expect(targetBtn).not.toBeNull();
+    act(() => {
+      targetBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    const swatch = palette!.querySelector('[data-slot="docblocks/palette-swatch"]');
+    expect(swatch).not.toBeNull();
+    act(() => {
+      swatch!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    // The apply stands (the run's mark) + the palette's close.
+    expect(doc.getRuns(p)[0]?.marks.color).toEqual({ value: "#ff0000" });
+    expect(document.querySelector('[data-slot="docblocks/format-palette"]')).toBeNull();
   });
 
   it("stands no write for a no-op type re-pick (the same variant, no override)", () => {

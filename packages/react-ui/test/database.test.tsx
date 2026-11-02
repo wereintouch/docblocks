@@ -3027,6 +3027,9 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     fireEvent.click(paletteButtons.at(-1)!);
     await settleGrid();
     expect(swatch().getAttribute("data-color")).toBe("#f7a8a8");
+    // The pick's stand: the palette's popover closes (the picker stands no
+    // hanging over the apply) — the ported palette's group stands gone.
+    expect(document.querySelector('[role="group"][aria-label="option color"]')).toBeNull();
 
     // The create's commit (the button's press): the system table's creation
     // + the options' rows + the column's reference over the hidden table.
