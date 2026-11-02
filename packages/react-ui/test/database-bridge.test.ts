@@ -368,10 +368,27 @@ describe("the idempotency — the operation id's stand", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     const expired = await bridge.batchRows(tableId, body, ctx(operationId)).catch((error: unknown) => error);
     expect(codeOf(expired)).toBe("idempotency_expired");
+    // The sticky tombstone: a LATER retry of the same id stands the same
+    // stand (the deleted-entry stand would re-execute the operation — a
+    // second effect).
+    const again = await bridge.batchRows(tableId, body, ctx(operationId)).catch((error: unknown) => error);
+    expect(codeOf(again)).toBe("idempotency_expired");
     const snapshot = await bridge.snapshotTable(tableId, {});
     expect(snapshot.page.rows.length).toBe(rowIds.length + 1);
     const unknown = await bridge.getOperationStatus(operationId).catch((error: unknown) => error);
     expect(codeOf(unknown)).toBe("operation_unknown");
+  });
+
+  it("the replay of a committed deleteColumn stands the stored receipt (not the not_found)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId, ageColumnId } = await seedTable(bridge);
+    const operationId = crypto.randomUUID();
+    const first = await bridge.deleteColumn(tableId, ageColumnId, ctx(operationId));
+    // The lost response stand: the replay (the same id, the same body)
+    // returns the stored receipt — the column stands gone, the state
+    // check must not reject the replay with the not_found.
+    const replay = await bridge.deleteColumn(tableId, ageColumnId, ctx(operationId));
+    expect(replay).toEqual(first);
   });
 
   it("the unknown operationId stands the operation_unknown (never a new mutation)", async () => {

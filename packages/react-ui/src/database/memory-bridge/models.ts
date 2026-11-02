@@ -71,12 +71,14 @@ interface MemoryBridgeOptions {
   replayWindow?: number;
 }
 
-/** The idempotency store's entry: the operation id → the committed state. */
+/** The idempotency store's entry: the operation id → the committed state.
+ *  The `receipt: null` stand is the expired tombstone: the id is never
+ *  re-executed past the horizon (the entry stands, the receipt drops). */
 interface MemoryIdempotencyEntry {
   /** The canonical body's hash (the same-id conflict's discriminator). */
   fingerprint: string;
-  /** The commit's receipt (the replay's stand). */
-  receipt: MutationReceipt<unknown>;
+  /** The commit's receipt (the replay's stand; null = the expired tombstone). */
+  receipt: MutationReceipt<unknown> | null;
   /** The commit's timestamp (the retention horizon's key). */
   committedAt: number;
 }

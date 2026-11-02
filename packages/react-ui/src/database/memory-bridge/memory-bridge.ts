@@ -257,8 +257,11 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
   ): MutationReceipt<T> {
     const entry = idempotency.get(ctx.operationId);
     if (entry !== undefined) {
-      if (Date.now() - entry.committedAt > operationRetentionMs) {
-        idempotency.delete(ctx.operationId);
+      // The expiry is sticky (the tombstone stand): an id past the horizon
+      // is never re-executed — the entry stands (a deleted entry would let
+      // a later retry re-execute the operation), the receipt drops.
+      if (entry.receipt === null || Date.now() - entry.committedAt > operationRetentionMs) {
+        entry.receipt = null;
         throw new BridgeError(
           "idempotency_expired",
           `The operation "${ctx.operationId}" is outside the retention horizon and is never re-executed.`
@@ -1019,10 +1022,13 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       ctx: MutationContext
     ): Promise<MutationReceipt<{ columnId: string }>> {
       const table = tableOf(tableId);
-      const at = table.columns.findIndex((column) => column.id === columnId);
-      if (at === -1) throw new BridgeError("not_found", `The column "${columnId}" is unknown or already deleted.`);
       const fingerprint = fingerprintOf("deleteColumn", { tableId, columnId });
+      // The state check stands the fresh execution only (inside the
+      // closure): a replay of the committed delete must stand the stored
+      // receipt, not the not_found of the already-gone column.
       return idempotent(ctx, fingerprint, () => {
+        const at = table.columns.findIndex((column) => column.id === columnId);
+        if (at === -1) throw new BridgeError("not_found", `The column "${columnId}" is unknown or already deleted.`);
         const column = table.columns.splice(at, 1)[0]!;
         reindexColumns(table);
         table.detachedColumns.push(column);
@@ -1291,8 +1297,11 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       if (entry === undefined) {
         throw new BridgeError("operation_unknown", `The operation "${operationId}" is unknown.`);
       }
-      if (Date.now() - entry.committedAt > operationRetentionMs) {
-        idempotency.delete(operationId);
+      // The tombstone stand (the sticky expiry of the write path): an
+      // expired id stands the operation_unknown (the entry is not deleted
+      // — the write path's never-re-execute stand stands on it).
+      if (entry.receipt === null || Date.now() - entry.committedAt > operationRetentionMs) {
+        entry.receipt = null;
         throw new BridgeError("operation_unknown", `The operation "${operationId}" is outside the retention horizon.`);
       }
       return { state: "committed", receipt: entry.receipt };
