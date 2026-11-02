@@ -287,14 +287,18 @@ test("the list markers cycle per indent level", async ({ page }) => {
 
   // A 3-level chain per kind, seeded through the pane's own doc commands
   // (the established harness pattern): the indents 0/1/2 of the flat model.
+  // One transact stands the whole seed (one render, not six) so the rows
+  // settle together.
   const seeded = await page.evaluate(() => {
     const d = window.__paneDocs?.a ?? null;
     if (d === null) return false;
-    for (const list of ["bullet", "number"] as const) {
-      for (let level = 0; level < 3; level++) {
-        d.insertBlock("list-item", { list, ...(level > 0 ? { indent: level } : {}) });
+    d.transact(() => {
+      for (const list of ["bullet", "number"] as const) {
+        for (let level = 0; level < 3; level++) {
+          d.insertBlock("list-item", { list, ...(level > 0 ? { indent: level } : {}) });
+        }
       }
-    }
+    });
     return true;
   });
   expect(seeded, "the pane's doc should be mounted").toBe(true);
