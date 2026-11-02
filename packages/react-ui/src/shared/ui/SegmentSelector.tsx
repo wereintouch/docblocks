@@ -65,7 +65,7 @@ function SegmentSelector<T extends string>({
     const list = listRef.current;
     if (list === null) return;
     const measure = (): void => {
-      const button = list.querySelector<HTMLElement>(`[data-${buttonAttrName}="${value}"]`);
+      const button = list.querySelector<HTMLElement>(`[data-${buttonAttrName}="${CSS.escape(value)}"]`);
       if (button === null) return;
       const listRect = list.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();

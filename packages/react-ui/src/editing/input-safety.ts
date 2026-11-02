@@ -323,7 +323,7 @@ function useBlockInput({
               event.preventDefault();
               view.set({ kind: "blocks", ids: [nextId], anchorId: nextId });
               const root = wrapperRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]');
-              root?.querySelector<HTMLElement>(`[data-block-id="${nextId}"]`)?.focus();
+              root?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(nextId)}"]`)?.focus();
             }
           }
         }

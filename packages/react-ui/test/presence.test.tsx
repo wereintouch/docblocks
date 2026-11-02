@@ -10,6 +10,7 @@ import type { PresenceState, SyncProvider } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
 import { usePresence } from "../src/hooks";
+import { peerBlockIdsOf } from "../src/presence/PresenceCaretOverlay";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -234,5 +235,57 @@ describe("awareness publishing (EditorProvider)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+describe("the presence overlay's stands (the crafted frame, the re-render contract)", () => {
+  it("stands the crafted presence frame over the tree (the CSS.escape sink — no selector crash)", () => {
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "hello");
+    const { provider, emit } = makePublishingProvider();
+
+    render(
+      <EditorProvider doc={doc} provider={provider}>
+        <Editor />
+      </EditorProvider>
+    );
+
+    // The crafted peer: the blockId carries the selector metacharacters (the
+    // unescaped interpolation stands the invalid selector — the querySelector
+    // throws over the effect and the crash takes the whole tree down, the
+    // overlay stands no boundary).
+    const crafted: PresenceState[] = [
+      {
+        peerId: "evil",
+        updatedAt: 1,
+        selection: { blockId: '"] } [contenteditable="x"', offset: 0 },
+      },
+    ];
+    act(() => {
+      emit(crafted);
+    });
+    // The tree stands intact (the crafted frame draws no box — the block
+    // stands absent — the selector stands no throw).
+    expect(document.querySelector(`[data-block-id="${p}"]`)).not.toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/presence-caret"]')).toBeNull();
+  });
+
+  it("derives the peer blocks' ids over the selection's shapes (the precise subscription's input)", () => {
+    expect(
+      peerBlockIdsOf([
+        { peerId: "a", updatedAt: 1, selection: { blockId: "b2", offset: 0 } },
+        {
+          peerId: "b",
+          updatedAt: 1,
+          selection: { from: { blockId: "b1", offset: 0 }, to: { blockId: "b3", offset: 1 } },
+        },
+        {
+          peerId: "c",
+          updatedAt: 1,
+          selection: { from: { blockId: "b1", offset: 0 }, to: { blockId: "b3", offset: 1 }, blocks: ["b4"] },
+        },
+        { peerId: "d", updatedAt: 1, selection: null },
+      ])
+    ).toEqual(["b1", "b2", "b3", "b4"]);
   });
 });

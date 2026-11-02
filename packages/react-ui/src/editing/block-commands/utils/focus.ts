@@ -56,7 +56,7 @@ function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = docu
 function focusCellActivation(cellId: BlockId, scope: ParentNode = document): void {
   afterFrame(() => {
     const root = liveScope(scope);
-    const cell = root.querySelector<HTMLElement>(`[data-slot="docblocks/table-cell"][data-block-id="${cellId}"]`);
+    const cell = root.querySelector<HTMLElement>(`[data-slot="docblocks/table-cell"][data-block-id="${CSS.escape(cellId)}"]`);
     const activation = cell?.querySelector<HTMLElement>('[data-slot="docblocks/cell-activation"]');
     if (activation == null || !activation.isConnected) return;
     activation.focus();
@@ -225,7 +225,7 @@ function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: Bloc
   const domSelection = window.getSelection();
   if (domSelection === null) return;
   const scope = editorRootOf(anchorNode);
-  const el = scope.querySelector<HTMLElement>(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
+  const el = scope.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`);
   if (el === null) return;
   const target = locatePosition(el, offset);
   domSelection.setBaseAndExtent(anchorNode, anchorOffset, target.node, target.offset);

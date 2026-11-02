@@ -12,12 +12,46 @@
  * hue. */
 import { useStore } from "zustand";
 
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties, RefObject } from "react";
+
+import type { Block, BlockId, PresenceSelection, PresenceState } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import type { BoxRect, OverlayBox } from "./models";
 import { caretGeometry, caretPointsOf, peerHue, rangeRects, rangeSegmentsOf } from "./utils";
+
+/**
+ * The block ids a peer's selection references (the caret's block, the
+ * range's endpoints + the chain blocks). The overlay stands no boxes over
+ * the other blocks — those stand out of its subscription.
+ */
+function peerBlockIdsOf(presence: PresenceState[]): BlockId[] {
+  const ids = new Set<BlockId>();
+  for (const peer of presence) {
+    const selection = peer.selection as PresenceSelection | null;
+    if (selection === null) continue;
+    if ("blockId" in selection) ids.add(selection.blockId);
+    else if ("from" in selection) {
+      ids.add(selection.from.blockId);
+      ids.add(selection.to.blockId);
+      for (const id of selection.blocks ?? []) ids.add(id);
+    }
+  }
+  return [...ids].sort();
+}
+
+/** The peer-referenced blocks' snapshots (the absent ones stand dropped). The ids come from the remote presence frames — the open-key stand: `__proto__` stands the own property (no prototype reassignment over the derived map). */
+function peerBlocksOf(presence: PresenceState[], blocks: Record<BlockId, Block>): Record<BlockId, Block> {
+  const next: Record<BlockId, Block> = {};
+  for (const id of peerBlockIdsOf(presence)) {
+    const block = blocks[id];
+    if (block !== undefined) {
+      Object.defineProperty(next, id, { value: block, enumerable: true, writable: true, configurable: true });
+    }
+  }
+  return next;
+}
 
 /**
  * The structural classes of the overlay boxes (the per-peer hue comes
@@ -33,9 +67,38 @@ const RANGE_CLASS =
 function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement | null> }) {
   const { store, doc } = useEditorContext();
   const presence = useStore(store, (state) => state.presence);
-  // The blocks' wide read stands only with peers (the stable sentinel
+  // The wide blocks read stands only with peers (the stable sentinel
   // without them — a doc change with zero peers re-renders nothing here).
-  const blocks = useStore(store, (state) => (state.presence.length === 0 ? null : state.blocks));
+  // The peer's blocks stand the PRECISE read: the overlay's pixels shift
+  // only with the blocks its peers reference, so a local keystroke over an
+  // unpeered block re-renders nothing here (the store's reference stability
+  // stands the per-block identity; the ref-cached selector keeps the
+  // derived map's reference stable over the unchanged peers).
+  const peerIdsKeyRef = useRef("");
+  const peerBlocksCacheRef = useRef<Record<BlockId, Block> | null>(null);
+  const peerBlocks = useStore(store, (state) => {
+    if (state.presence.length === 0) return null;
+    const ids = peerBlockIdsOf(state.presence);
+    const key = ids.join("\u0000");
+    const cache = peerBlocksCacheRef.current;
+    if (key === peerIdsKeyRef.current && cache !== null) {
+      let unchanged = true;
+      for (const id of ids) {
+        if (cache[id] !== state.blocks[id]) {
+          unchanged = false;
+          break;
+        }
+      }
+      if (unchanged) return cache;
+    }
+    // The cache update stands on every derivation (the getSnapshot must be
+    // stable over the repeated reads — a fresh object on the changed path
+    // without the cache update stands the infinite loop).
+    const next = peerBlocksOf(state.presence, state.blocks);
+    peerIdsKeyRef.current = key;
+    peerBlocksCacheRef.current = next;
+    return next;
+  });
   const [boxes, setBoxes] = useState<OverlayBox[]>([]);
 
   useLayoutEffect(() => {
@@ -51,8 +114,8 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
           // non-text block falls back to the wrapper element.
           const block =
             root.querySelector<HTMLElement>(
-              `[data-block-id="${point.blockId}"][data-slot="docblocks/block-content"]`
-            ) ?? root.querySelector<HTMLElement>(`[data-block-id="${point.blockId}"]`);
+              `[data-block-id="${CSS.escape(point.blockId)}"][data-slot="docblocks/block-content"]`
+            ) ?? root.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(point.blockId)}"]`);
           if (block === null) continue;
           next.push({
             key: `${peer.peerId}:caret:${point.blockId}:${point.offset}`,
@@ -61,11 +124,11 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
             ...caretGeometry(root, block, point.offset),
           });
         }
-        for (const segment of rangeSegmentsOf(peer.selection, doc, blocks ?? {})) {
+        for (const segment of rangeSegmentsOf(peer.selection, doc, peerBlocks ?? {})) {
           // A range segment is text: it measures inside the inner editable;
           // a block without one (removed, non-text, unrendered) draws nothing.
           const block = root.querySelector<HTMLElement>(
-            `[data-block-id="${segment.blockId}"][data-slot="docblocks/block-content"]`
+            `[data-block-id="${CSS.escape(segment.blockId)}"][data-slot="docblocks/block-content"]`
           );
           if (block === null) continue;
           const rects = rangeRects(root, block, segment.from, segment.to);
@@ -107,7 +170,7 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
       cancelAnimationFrame(frame);
       window.removeEventListener("resize", scheduleRecompute);
     };
-  }, [presence, blocks, doc, rootRef]);
+  }, [presence, peerBlocks, doc, rootRef]);
 
   return (
     <>
@@ -133,4 +196,4 @@ function PresenceCaretOverlay({ rootRef }: { rootRef: RefObject<HTMLDivElement |
   );
 }
 
-export { PresenceCaretOverlay };
+export { PresenceCaretOverlay, peerBlockIdsOf };
