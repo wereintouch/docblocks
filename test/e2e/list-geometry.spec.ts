@@ -71,6 +71,10 @@ test.describe("the list row's visible geometry", () => {
           token: getComputedStyle(el).getPropertyValue("--muted-foreground").trim(),
           color: getComputedStyle(el).color,
         }));
+      // The harness loads dark by default: the light read pins the light
+      // class state first (the un-pinned read would stand the harness
+      // default's dark values under both reads).
+      await a.evaluate(() => document.documentElement.classList.remove("dark"));
       const light = await read();
       expect(light.color, `the light marker stands the muted token (${light.token})`).toBe(
         light.token !== "" ? light.token : "#57606a"
