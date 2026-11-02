@@ -139,7 +139,7 @@ class InvalidOperationError extends DocBlocksError {
   }
 }
 
-/** CRDT bytes given to loadDoc do not form a complete, valid document state. */
+/** The input to loadDoc/fromJSON does not form a complete, valid document state. */
 class InvalidSnapshotError extends DocBlocksError {
   constructor(message: string) {
     super(message);

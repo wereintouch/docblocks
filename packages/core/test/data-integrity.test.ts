@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import * as Y from "yjs";
 
-import { type Doc, createDoc, fromJSON, loadDoc } from "../src/core";
+import { InvalidSnapshotError, type Doc, createDoc, fromJSON, loadDoc } from "../src/core";
 import { validateDoc } from "../src/schema";
 import type { DocJSON, OpaqueBlock } from "../src/schema";
 
@@ -152,7 +152,8 @@ describe("snapshot and serialization", () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toEqual([{ path: "v", message: "Unsupported schema version 2 (expected 1)." }]);
+    expect(thrown).toBeInstanceOf(InvalidSnapshotError);
+    expect((thrown as Error).message).toContain("Unsupported schema version 2 (expected 1).");
   });
 
   it("the JSON path: a missing schema version is rejected (the strict validator stand)", () => {
@@ -166,7 +167,8 @@ describe("snapshot and serialization", () => {
     } catch (e) {
       thrown = e;
     }
-    expect(Array.isArray(thrown) ? (thrown as Array<{ path: string }>).map((e) => e.path) : []).toContain("v");
+    expect(thrown).toBeInstanceOf(InvalidSnapshotError);
+    expect((thrown as Error).message).toContain('Missing required field "v".');
   });
 
   it("an additive v1 attr survives loading (the lenient load keeps it)", () => {
@@ -216,8 +218,8 @@ describe("the reserved id stand", () => {
     } catch (e) {
       thrown = e;
     }
-    const messages = Array.isArray(thrown) ? (thrown as Array<{ message: string }>).map((e) => e.message) : [];
-    expect(messages.some((m) => m.includes("reserved"))).toBe(true);
+    const message = thrown instanceof Error ? thrown.message : "";
+    expect(message).toContain("reserved");
   });
 
   it("fromJSON rejects a reserved row and column id (the database dictionaries)", () => {

@@ -164,7 +164,11 @@ class Doc {
     // cross-minor (lenient) posture tolerates the additive unknowns (the
     // structural invariants and the known-data checks stand).
     const errors = validateDoc(normalized, true);
-    if (errors.length > 0) throw errors;
+    if (errors.length > 0) {
+      throw new InvalidSnapshotError(
+        `Doc.fromJSON expects a valid v1 document; got invalid data: ${formatValidationErrors(errors)}`
+      );
+    }
     // The legacy nesting form is valid v1 input: normalize it to the flat
     // form on load, so the live document is always flat (and toJSON flat).
     const ydoc = new Y.Doc();
