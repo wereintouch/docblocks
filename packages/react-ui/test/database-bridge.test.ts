@@ -786,6 +786,28 @@ describe("the cell's validation", () => {
       )
       .catch((operationError: unknown) => operationError);
     expect(codeOf(nonScalar)).toBe("validation");
+    // The non-finite number stands the wire's JSON stand (the round-trip
+    // stands the null — the silent corruption): the top-level value and
+    // the array's element stand rejected.
+    const infinity = await bridge
+      .batchRows(tableId, { ops: [{ op: "create", row: { [column.result.id]: Infinity }, beforeRowId: null }] }, ctx())
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(infinity)).toBe("validation");
+    const minusInfinity = await bridge
+      .batchRows(tableId, { ops: [{ op: "create", row: { [column.result.id]: -Infinity }, beforeRowId: null }] }, ctx())
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(minusInfinity)).toBe("validation");
+    const inArray = await bridge
+      .batchRows(
+        tableId,
+        { ops: [{ op: "create", row: { [column.result.id]: ["ok", Infinity] }, beforeRowId: null }] },
+        ctx()
+      )
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(inArray)).toBe("validation");
+    // The finite number stands the pass (the stand is the finiteness, not
+    // the type — the contract's type-agnostic stand).
+    await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [column.result.id]: 42 }, beforeRowId: null }] }, ctx());
   });
 });
 

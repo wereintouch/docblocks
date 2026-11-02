@@ -18,8 +18,11 @@ function parseCellValue(kind: BridgeValueInput, raw: string): CellValueParse {
   if (raw === "") return { ok: true, value: null };
   switch (kind) {
     case "number": {
+      // The finite stand: the wire is JSON (Infinity / -Infinity stand the
+      // null over the round-trip — the silent corruption), so the finite
+      // number is the valid input, not just the parseable one.
       const n = Number(raw);
-      return Number.isNaN(n) ? { ok: false, error: "The value is not a number" } : { ok: true, value: n };
+      return Number.isFinite(n) ? { ok: true, value: n } : { ok: false, error: "The value is not a number" };
     }
     case "date":
       return isValidDate(raw) ? { ok: true, value: raw } : { ok: false, error: "The value is not a valid date" };

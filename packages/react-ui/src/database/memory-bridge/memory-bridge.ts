@@ -627,6 +627,13 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       if (value !== null && typeof value === "object" && !Array.isArray(value)) {
         fail("validation", `The column "${column.name}" holds scalar values (or an id array for a many reference).`);
       }
+      // The wire's JSON stand: a non-finite number stands the null over the
+      // JSON round-trip (the silent corruption) — it is rejected, not
+      // stored (the top-level value or the many-reference array's element).
+      if ((typeof value === "number" && !Number.isFinite(value)) ||
+        (Array.isArray(value) && value.some((element) => typeof element === "number" && !Number.isFinite(element)))) {
+        fail("validation", `The column "${column.name}" holds a non-finite number (the wire's JSON stand).`);
+      }
       if (column.reference !== undefined && column.reference.many && value !== null && !Array.isArray(value)) {
         fail("validation", `The column "${column.name}" is a many reference and holds an id array.`);
       }

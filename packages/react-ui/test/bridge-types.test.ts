@@ -178,6 +178,15 @@ describe("parseCellValue — the input validation", () => {
     expect(parseCellValue("number", "abc").ok).toBe(false);
   });
 
+  it("rejects the non-finite number (the wire's JSON stand — Infinity stands the null over the round-trip)", () => {
+    expect(parseCellValue("number", "Infinity").ok).toBe(false);
+    expect(parseCellValue("number", "-Infinity").ok).toBe(false);
+    expect(parseCellValue("number", "NaN").ok).toBe(false);
+    expect(parseCellValue("number", "1e999").ok).toBe(false);
+    expect(parseCellValue("number", "0")).toEqual({ ok: true, value: 0 });
+    expect(parseCellValue("number", "-7")).toEqual({ ok: true, value: -7 });
+  });
+
   it("treats the empty string as a clear (null) for every kind", () => {
     for (const kind of ["number", "date", "datetime", "text", "boolean", "enum", "row-link"] as const) {
       expect(parseCellValue(kind, "")).toEqual({ ok: true, value: null });
