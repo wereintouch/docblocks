@@ -398,6 +398,69 @@ describe("Backspace: block merge", () => {
     expect(doc.getText(p)).toBe("x");
   });
 
+  it("is a no-op over the container previous (the surface's figures stand — no cascade)", async () => {
+    // The empty-doc canvas: the figure's placement stands the surface,
+    // the tail's guarantee stands the trailing paragraph after it. The
+    // Backspace at the trailing paragraph's offset 0 (the caret's home
+    // over the stand) must not remove the surface (the non-text branch's
+    // cascade would delete the figures with it — the data loss).
+    let surfaceId: BlockId = "";
+    let shapeId: BlockId = "";
+    let p: BlockId = "";
+    const doc = renderDoc((d) => {
+      const a = d.insertBlock("paragraph");
+      d.insertText(a, 0, "page");
+      surfaceId = d.insertBlock("surface");
+      shapeId = d.insertBlock("shape", { variant: "rect" }, { parent: surfaceId });
+      d.setGeometry(shapeId, { x: 0, y: 0, w: 100, h: 60 });
+      p = d.insertBlock("paragraph");
+    });
+
+    // The caret at the empty trailing paragraph's start (no text node —
+    // the element's start position).
+    const emptyInner = innerOf(p);
+    const emptyRange = document.createRange();
+    emptyRange.selectNodeContents(emptyInner);
+    emptyRange.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(emptyRange);
+    const prevented = key(wrapperOf(p), "Backspace");
+
+    // Not suppressed: the gesture found no merge (the browser default on a
+    // collapsed caret at the block start is itself a no-op).
+    expect(prevented).toBe(true);
+    expect(doc.getBlock(surfaceId)).not.toBeNull();
+    expect(doc.getBlock(shapeId)).not.toBeNull();
+    expect(doc.getChildren(surfaceId)).toEqual([shapeId]);
+    expect(doc.getBlock(p)).not.toBeNull();
+  });
+
+  it("the table's previous stands the same stand (the rows survive the Backspace)", async () => {
+    // The container guard is generic: the table over its rows stands the
+    // same no-op (the cascade would delete the rows with the table).
+    let tableId: BlockId = "";
+    let p: BlockId = "";
+    const doc = renderDoc((d) => {
+      const a = d.insertBlock("paragraph");
+      d.insertText(a, 0, "page");
+      tableId = d.insertBlock("table");
+      const row = d.insertBlock("table-row", undefined, { parent: tableId });
+      d.insertBlock("table-cell", undefined, { parent: row });
+      p = d.insertBlock("paragraph");
+    });
+    const tableEmptyInner = innerOf(p);
+    const tableEmptyRange = document.createRange();
+    tableEmptyRange.selectNodeContents(tableEmptyInner);
+    tableEmptyRange.collapse(true);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(tableEmptyRange);
+    const prevented = key(wrapperOf(p), "Backspace");
+
+    expect(prevented).toBe(true);
+    expect(doc.getBlock(tableId)).not.toBeNull();
+    expect(doc.getBlock(p)).not.toBeNull();
+  });
+
   it("is a no-op when the current block is inside the previous block's segment (no data loss)", () => {
     // a / divider / x(indent 1): x sits inside the divider's derived
     // segment (the divider is x's attach parent). The old non-text branch
