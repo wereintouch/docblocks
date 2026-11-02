@@ -125,7 +125,7 @@ function CellContent({ id, block }: { id: BlockId; block: Extract<Block, { type:
       data-slot="docblocks/block-content"
       data-block-id={id}
       className={cn(
-        "m-0 whitespace-pre-wrap outline-none",
+        "my-(--docblocks-block-spacing) whitespace-pre-wrap outline-none",
         align === "center" && "text-center",
         align === "right" && "text-right"
       )}

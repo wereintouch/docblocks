@@ -129,6 +129,27 @@ describe("the empty-cell activation layer", () => {
     expect(table!.querySelectorAll("[data-slot='docblocks/block-content']").length).toBe(1);
   });
 
+  it("the empty cell's footprint stands the materialized paragraph's (the first input grows no padding)", () => {
+    // The v1 stand: the empty cell's caret sat at the top (the activation
+    // layer's own zero margin), the first input's paragraph stood the
+    // block's vertical rhythm — the cell grew by the margins' 2×.
+    // The layer stands the same rhythm: no jump over the materialization.
+    const { tableId, firstCellId } = renderTableDoc(true);
+    const filledParagraph = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/block"][data-block-type="paragraph"]`
+    );
+    expect(filledParagraph).not.toBeNull();
+    expect(filledParagraph!.className).toContain("my-(--docblocks-block-spacing)");
+    // An empty cell's activation layer (the first empty td's one).
+    const emptyTd = document.querySelector(
+      `[data-block-id="${tableId}"] [data-slot="docblocks/table-cell"]:not(:has([data-slot='docblocks/block']))`
+    );
+    expect(emptyTd).not.toBeNull();
+    const activation = emptyTd!.querySelector<HTMLElement>("[data-slot='docblocks/cell-activation']");
+    expect(activation).not.toBeNull();
+    expect(activation!.className).toContain("my-(--docblocks-block-spacing)");
+  });
+
   it("the first input materializes the paragraph with the typed text (one undo step)", () => {
     const { doc, firstCellId } = renderTableDoc(false);
     expect(doc.getChildren(firstCellId)).toEqual([]);
