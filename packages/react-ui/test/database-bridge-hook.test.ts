@@ -10,6 +10,7 @@ import type {
   SubscriptionObserver,
   TableEvent,
 } from "../src/database/bridge";
+import { BridgeError } from "../src/database/bridge";
 import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
 
@@ -137,6 +138,80 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(snapshotCalls).toBe(snapshotsAfterBootstrap + 1);
     expect(result.current.phase).toBe("ready");
     expect(result.current.rows.length).toBe(3);
+  });
+
+  it("the fatal not_found over the bootstrap stands the death (the stale rows stand cleared, the phase broken)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result, rerender } = renderHook((tableId: string) => useDatabaseTable(bridge, tableId), {
+      initialProps: seeded.tableId,
+    });
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.rows.length).toBe(2);
+    // The relink to the dead table (the block's tableId over the deleted
+    // one): the bootstrap's not_found stands the death (the contract's
+    // stand: the operation stops, the sensitive cache stands cleared).
+    rerender("t-dead-table");
+    await waitFor(() => expect(result.current.phase).toBe("broken"));
+    expect(result.current.errorCode).toBe("not_found");
+    // The sensitive cache stands cleared (the stale rows / the cursor /
+    // the revisions of the live table are not a stand over the dead one).
+    expect(result.current.rows).toEqual([]);
+    expect(result.current.nextCursor).toBeNull();
+  });
+
+  it("the fatal not_found over the refetch stands the death (the page cleared, the delivery stopped)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let snapshotCalls = 0;
+    let liveObserver: SubscriptionObserver | null = null;
+    let headSeq = 0;
+    let unsubscribed = 0;
+    const wrapped: DatabaseBridge = {
+      ...bridge,
+      snapshotTable: async (tableId: string, query: PageQuery) => {
+        snapshotCalls += 1;
+        // The second snapshot stands the table's death (the deleted-table
+        // stand — the first one stands the bootstrap).
+        if (snapshotCalls >= 2) throw new BridgeError("not_found", 'The table "t-dead" is unknown.');
+        return bridge.snapshotTable(tableId, query);
+      },
+      subscribeTable: (tableId: string, input: { afterSeq: number }, observer: SubscriptionObserver) => {
+        liveObserver = observer;
+        const handle = bridge.subscribeTable(
+          tableId,
+          input,
+          { ...observer, ready: (value) => { headSeq = value.headSeq; observer.ready(value); } }
+        );
+        return {
+          unsubscribe: () => {
+            unsubscribed += 1;
+            handle.unsubscribe();
+          },
+        };
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.rows.length).toBe(2);
+    // The stream's invalidate stands the refetch — the refetch hits the
+    // dead table (the fatal code): the page stands cleared, the phase
+    // stands broken, the delivery stands stopped (the unsubscribe).
+    liveObserver!.event({
+      tableId: seeded.tableId,
+      seq: headSeq + 1,
+      prevSeq: headSeq,
+      txId: "tx-death",
+      kind: "invalidate",
+      originSessionId: null,
+      operationId: null,
+      receipt: null,
+      events: [],
+    });
+    await waitFor(() => expect(result.current.phase).toBe("broken"));
+    expect(result.current.errorCode).toBe("not_found");
+    expect(result.current.rows).toEqual([]);
+    expect(unsubscribed).toBe(1);
   });
 
   it("the protocol mismatch stands the broken phase + the structured code (no silent downgrade)", async () => {

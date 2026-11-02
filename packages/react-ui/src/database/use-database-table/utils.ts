@@ -76,4 +76,16 @@ function errorCodeOf(error: unknown): BridgeErrorCode | null {
   return isBridgeError(error) ? error.code : null;
 }
 
-export { cellValueEqual, columnToGrid, descriptionToGrid, errorCodeOf, newMutationContext };
+/** The table-level fatal codes (the contract's `not_found` / `forbidden`
+ *  stand): the table is gone for this client (deleted / foreign / the
+ *  permission lost) — the operation stops and the sensitive cache (the
+ *  rows, the cursor, the revisions) stands cleared, the delivery stops.
+ *  The write's `not_found` (the GC'd row / the deleted column residue)
+ *  is the row-level stand — it stands NOT fatal (the table stands alive,
+ *  the failed op stands retryable). */
+function isFatalTableError(error: unknown): boolean {
+  const code = errorCodeOf(error);
+  return code === "not_found" || code === "forbidden";
+}
+
+export { cellValueEqual, columnToGrid, descriptionToGrid, errorCodeOf, isFatalTableError, newMutationContext };

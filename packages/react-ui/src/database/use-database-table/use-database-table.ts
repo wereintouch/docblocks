@@ -53,7 +53,7 @@ import type {
 import { validateProtocolDescriptor } from "../bridge";
 import { PAGE_SIZE } from "./constants";
 import type { DatabaseTablePhase, DatabaseTableRow, InverseOp, UseDatabaseTable } from "./models";
-import { cellValueEqual, descriptionToGrid, errorCodeOf, newMutationContext } from "./utils";
+import { cellValueEqual, descriptionToGrid, errorCodeOf, isFatalTableError, newMutationContext } from "./utils";
 
 /**
  * The external-form data provider for one `tableId` (per block
@@ -147,6 +147,20 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     let lastSeenSeq: number | null = null;
     const seenSeqs = new Set<number>();
 
+    // The table's death stand (the fatal code over the read / the
+    // stream): the sensitive cache stands cleared (the stale rows / the
+    // cursor / the revisions of the dead table are not a stand), the
+    // delivery stands stopped (the subscription's unsubscribe), the
+    // phase stands broken (the grid's error surface over the dead table).
+    const die = (operationError: unknown): void => {
+      setRows([]);
+      setNextCursor(null);
+      revisionsRef.current = new Map();
+      if (handle !== null) handle.unsubscribe();
+      setPhase("broken");
+      noteError(operationError);
+    };
+
     const refetch = async (): Promise<void> => {
       // The event's page refetch: the fresh snapshot (the schema + the
       // page over the fresh `R`) — the live subscription is NOT
@@ -156,9 +170,14 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
         if (disposed || token !== loadTokenRef.current) return;
         applySnapshot(snapshot);
-      } catch {
-        // A refetch failure keeps the current state (the subscription
-        // stands; the next event stands the next refetch).
+      } catch (refetchError) {
+        // The fatal code stands the death (the table gone over the
+        // refetch — the token's stand: a superseded load's failure does
+        // not kill the fresh one). The rest keeps the current state (the
+        // subscription stands; the next event stands the next refetch).
+        if (!disposed && token === loadTokenRef.current && isFatalTableError(refetchError)) {
+          die(refetchError);
+        }
       }
     };
 
@@ -222,6 +241,13 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
             status: () => undefined,
             error: (operationError) => {
               if (disposed || myGen !== subGenRef.current) return;
+              // The fatal code over the stream stands the death (the
+              // table gone / the permission lost — the delivery stops);
+              // the rest stands the transient display.
+              if (isFatalTableError(operationError)) {
+                die(operationError);
+                return;
+              }
               noteError(operationError);
             },
             reset: () => {
@@ -235,6 +261,14 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (bootstrapError) {
         if (disposed || token !== loadTokenRef.current) return;
+        // The fatal code stands the death: the sensitive cache stands
+        // cleared over it (the stale rows of the previous table over the
+        // relink, the lost-permission rebaseline) — not just the broken
+        // phase.
+        if (isFatalTableError(bootstrapError)) {
+          die(bootstrapError);
+          return;
+        }
         setPhase("broken");
         noteError(bootstrapError);
       }
