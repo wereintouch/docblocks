@@ -180,7 +180,7 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       event.preventDefault();
       event.stopPropagation();
-      void (event.shiftKey ? data.redo() : data.undo());
+      void (event.shiftKey ? data.redo() : data.undo()).catch(() => undefined);
       return;
     }
     if (event.key === "Escape") {
@@ -265,7 +265,7 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
     // The whole clear is ONE commit (the batch's one bridge call + the
     // one undo entry): the undo stands every cleared row back, not one
     // per row.
-    void data.updateRows([...byRow.entries()].map(([rowId, cells]) => ({ rowId, cells })));
+    void data.updateRows([...byRow.entries()].map(([rowId, cells]) => ({ rowId, cells }))).catch(() => undefined);
   };
 
   // The clipboard's paste (the spec's paste batch): the TSV's grid stands
@@ -319,7 +319,7 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
     // table's tail).
     const lastUpdatedIndex = r0 + updates.length - 1;
     const successor = rows[lastUpdatedIndex + 1];
-    void data.pasteRows({ updates, creates, beforeRowId: successor?.rowId ?? null });
+    void data.pasteRows({ updates, creates, beforeRowId: successor?.rowId ?? null }).catch(() => undefined);
   };
 
   // A press outside the table stands the selection no stand (the view

@@ -565,7 +565,7 @@ function GridBody({
     // The rename is the bridge's (the table's attribute): every block over
     // the tableId stands the new name over the table event — no doc write,
     // the grid's undo stack covers it.
-    void data.renameTable(trimmed);
+    void data.renameTable(trimmed).catch(() => undefined);
   };
 
   const lastRowId = rows.length > 0 ? rows[rows.length - 1]!.rowId : null;
@@ -577,8 +577,8 @@ function GridBody({
     if (event.key === "Escape") setNameDraft(null);
   };
   const beginNameEdit = () => setNameDraft(displayName);
-  const undoStep = () => void data.undo();
-  const redoStep = () => void data.redo();
+  const undoStep = () => void data.undo().catch(() => undefined);
+  const redoStep = () => void data.redo().catch(() => undefined);
   const onFilterOpenChange = (open: boolean) => {
     setFilterOpen(open);
     if (open) setFilterDraft(filter ?? null);
@@ -590,18 +590,19 @@ function GridBody({
     // open stands a fresh one.
     if (!open) setColumnForm(null);
   };
-  const insertEmptyRow = () => void data.insertRow({});
+  const insertEmptyRow = () => void data.insertRow({}).catch(() => undefined);
   // The header's per-column handlers stand the column / the seam's index
   // over the grid's shared pointer handlers (the map's per-item stand).
   const columnMenuChange = (column: BridgeColumn) => (open: boolean) => setColumnMenu(open ? column.id : null);
-  const columnRename = (column: BridgeColumn) => (renameName: string) => void data.renameColumn(column.id, renameName);
+  const columnRename = (column: BridgeColumn) => (renameName: string) =>
+    void data.renameColumn(column.id, renameName).catch(() => undefined);
   const columnEditOptions = (column: BridgeColumn) =>
     column.refKind === "enum" && column.refTableId !== undefined ? () => openColumnFormEdit(column) : undefined;
   const columnHide = (column: BridgeColumn) => () =>
     updateView({ hiddenColumns: [...(hiddenColumns ?? []), column.id] });
   const columnShow = (column: BridgeColumn) => () =>
     updateView({ hiddenColumns: (hiddenColumns ?? []).filter((entryId) => entryId !== column.id) });
-  const columnDelete = (column: BridgeColumn) => () => void data.deleteColumn(column.id);
+  const columnDelete = (column: BridgeColumn) => () => void data.deleteColumn(column.id).catch(() => undefined);
   const columnPointerDown = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerDown>[1]) =>
     onColumnPointerDown(column, event);
   const seamPointerDownAt = (seamIndex: number) => (event: Parameters<ReturnType<typeof onSeamPointerDown>>[0]) =>
@@ -620,13 +621,14 @@ function GridBody({
   const cellEditEnd = () => setEditingCell(null);
   const rowMoveUp = (row: (typeof rows)[number]) => () => {
     const index = rows.indexOf(row);
-    if (index > 0) void data.moveRow(row.rowId, rows[index - 1]!.rowId);
+    if (index > 0) void data.moveRow(row.rowId, rows[index - 1]!.rowId).catch(() => undefined);
   };
   const rowMoveDown = (row: (typeof rows)[number]) => () => {
     const index = rows.indexOf(row);
-    if (index < rows.length - 1) void data.moveRow(row.rowId, index + 2 < rows.length ? rows[index + 2]!.rowId : null);
+    if (index < rows.length - 1)
+      void data.moveRow(row.rowId, index + 2 < rows.length ? rows[index + 2]!.rowId : null).catch(() => undefined);
   };
-  const rowRemove = (row: (typeof rows)[number]) => () => void data.removeRow(row.rowId);
+  const rowRemove = (row: (typeof rows)[number]) => () => void data.removeRow(row.rowId).catch(() => undefined);
 
   return (
     <Card
@@ -1100,7 +1102,7 @@ function GridBody({
                     "text-(--docblocks-placeholder-color) hover:bg-transparent",
                     "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
                   )}
-                  onClick={() => void data.loadMore()}
+                  onClick={() => void data.loadMore().catch(() => undefined)}
                 >
                   Load more rows
                 </Button>
