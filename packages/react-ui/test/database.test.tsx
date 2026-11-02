@@ -3003,8 +3003,13 @@ describe("the enum's options' mechanics (the system table; the create / the edit
 
     // The color's stand (the palette's popover pick over the swatch): the
     // palette's popover stands portaled (the swatch's buttons stand the
-    // background color's inline stand — the palette's red).
+    // background color's inline stand — the palette's red). The swatch's
+    // zero padding stands the circle's stand (the flex row's min-content
+    // clamp over the Button's default padding would stand the oval).
     const swatch = () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-color']")!;
+    expect(swatch().className).toContain("p-0");
+    expect(swatch().className).toContain("size-4");
+    expect(swatch().className).toContain("rounded-full");
     fireEvent.click(swatch());
     await settleGrid();
     const paletteButtons = [...document.querySelectorAll<HTMLElement>("button")].filter(
