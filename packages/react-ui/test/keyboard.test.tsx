@@ -211,6 +211,44 @@ describe("cross-block arrow navigation", () => {
     expect(caretOffsetIn(innerOf(p2), window.getSelection()!.anchorNode!, window.getSelection()!.anchorOffset)).toBe(0);
   });
 
+  it("navigates across the flat sequence over the indented list item (the render-only nesting is not the data parent)", async () => {
+    // The sublist item renders inside the parent item's derived segment
+    // (the flat model's nesting is render-only): the DOM parent is the
+    // parent item, but the data parent is the root's flat sequence. The
+    // arrows stand the data sequence (the former DOM-parent lookup hit
+    // the parent item's empty children — the dead navigation).
+    let item1: BlockId = "";
+    let item2: BlockId = "";
+    renderDoc((d) => {
+      item1 = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(item1, 0, "parent");
+      item2 = d.insertBlock("list-item", { list: "bullet", indent: 1 });
+      d.insertText(item2, 0, "child");
+    });
+
+    // The child's up edge: the caret lands at the parent item's text end.
+    caretAtFlat(item2, 0);
+    expect(key(wrapperOf(item2), { key: "ArrowUp" })).toBe(false);
+    await flushFrames();
+    const selUp = window.getSelection()!;
+    const inner1 = innerOf(item1);
+    expect(inner1.contains(selUp.anchorNode)).toBe(true);
+    expect(caretOffsetIn(inner1, selUp.anchorNode!, selUp.anchorOffset)).toBe(6);
+    fireSelectionChange();
+    expectCaret(item1, 6);
+
+    // The parent's down edge: the caret lands at the child item's start.
+    caretAtFlat(item1, 6);
+    expect(key(wrapperOf(item1), { key: "ArrowDown" })).toBe(false);
+    await flushFrames();
+    const selDown = window.getSelection()!;
+    const inner2 = innerOf(item2);
+    expect(inner2.contains(selDown.anchorNode)).toBe(true);
+    expect(caretOffsetIn(inner2, selDown.anchorNode!, selDown.anchorOffset)).toBe(0);
+    fireSelectionChange();
+    expectCaret(item2, 0);
+  });
+
   it("is a no-op at the edges and for a mid-block caret", () => {
     let p1: BlockId = "";
     let p2: BlockId = "";

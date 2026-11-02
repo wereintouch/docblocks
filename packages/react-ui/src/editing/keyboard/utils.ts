@@ -53,14 +53,26 @@ function findSiblingTextBlock(
 }
 
 /**
- * The parent of a block element: the nearest block wrapper above it (the
- * nested children render inside the parent's wrapper), or the document
- * root when it stands at the top level.
+ * The data parent of a focused text block (the container whose children
+ * sequence the block stands in): the nearest block ancestor that actually
+ * owns it as a child (the table cell over its content, the surface over
+ * the canvas item). The flat page model's nesting is render-only (the
+ * derived segment's DOM parent — the parent list item — is not the data
+ * parent: the page content is the root's flat sequence), so a block with
+ * no such ancestor stands at the document root.
  */
 function parentBlockIdOf(blockEl: HTMLElement, doc: Doc): BlockId {
-  const wrapper = blockEl.parentElement;
-  const parent = wrapper?.parentElement?.closest<HTMLElement>("[data-block-id]") ?? null;
-  return parent?.dataset.blockId ?? doc.meta.id;
+  const selfId = blockEl.dataset.blockId;
+  if (selfId === undefined) return doc.meta.id;
+  let current = blockEl.parentElement;
+  while (current !== null) {
+    const id = current.dataset.blockId;
+    if (id !== undefined && id !== selfId && doc.getBlock(id) !== null && doc.getChildren(id).includes(selfId)) {
+      return id;
+    }
+    current = current.parentElement;
+  }
+  return doc.meta.id;
 }
 
 /**
