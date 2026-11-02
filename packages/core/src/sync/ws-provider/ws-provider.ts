@@ -28,7 +28,13 @@ import { defaultWebSocketImpl, parseSelection, swallowDecodeError } from "./pars
  * The provider owns an internal Y.Doc: every sent and received update is
  * applied there, so `getLocalStateVector()` is honest with or without an
  * attached app document. App documents receive updates through `onUpdate`
- * (the attach glue applies them).
+ * (the attach glue applies them). A received update stands the app FIRST;
+ * the internal doc mirrors it only if no onUpdate listener threw — a
+ * listener failure keeps the state vector behind, so the next state vector
+ * exchange re-sends the missed bytes (the internal doc never claims state
+ * the app's doc does not hold, or the divergence is unrecoverable for the
+ * connection's life). A listener exception itself stands visible (it is
+ * the app's own failure, not a malformed frame); the socket stands.
  *
  * `connect()` resolves when the socket is open and the step1 handshake is
  * sent; the initial state (step2) arrives through `onUpdate`. The promise
@@ -298,27 +304,60 @@ class WsSyncProvider implements SyncProvider {
     // The client-side frame budget: an oversized message is dropped whole
     // (not decoded or applied) — bounds the per-message decode/apply work.
     if (frame.byteLength > this.#maxFrameBytes) return;
+    const parsed = this.#parseFrame(frame);
+    if (parsed === null) return; // malformed frame: drop the batch, keep the connection
+    const out = concatFrames(parsed.replies);
+    if (out !== null) this.#socket.send(out);
+    // The updates stand the app first; the internal doc follows only if
+    // the app accepted them. A listener exception is the app's own
+    // failure — it stands visible (not swallowed as a malformed frame),
+    // and the internal state vector stays behind, so the next state
+    // vector exchange re-sends the missed bytes (the recovery — the
+    // internal doc must never claim state the app's doc does not hold,
+    // or the divergence is unrecoverable for the connection's life).
+    for (const bytes of parsed.updates) {
+      this.#emitUpdate(bytes);
+      Y.applyUpdate(this.#doc, bytes);
+    }
+  }
+
+  /** The parse phase (null = a malformed frame, dropped whole). The sync
+   *  step2/update bytes are collected, not applied: the apply stands the
+   *  delivery (see #onMessage). The step1 (state vector query) is fully
+   *  handled here — it carries no update bytes, and its reply diff is
+   *  computed over the internal doc's state vector. */
+  #parseFrame(frame: Uint8Array): { replies: Uint8Array[]; updates: Uint8Array[] } | null {
     const decoder = decoding.createDecoder(frame);
     const replies: Uint8Array[] = [];
+    const updates: Uint8Array[] = [];
     try {
       // A socket message may carry several concatenated frames.
       while (decoding.hasContent(decoder)) {
         const type = decoding.readVarUint(decoder);
         if (type === MESSAGE_SYNC) {
-          const syncPos = decoder.pos;
-          const reply = encoding.createEncoder();
-          encoding.writeVarUint(reply, MESSAGE_SYNC);
-          const syncType = sync.readSyncMessage(decoder, reply, this.#doc, this, swallowDecodeError);
-          if (encoding.length(reply) > 1) replies.push(encoding.toUint8Array(reply));
+          const syncMsgPos = decoder.pos; // right after the frame type
+          const syncType = decoding.readVarUint(decoder);
           if (syncType === sync.messageYjsSyncStep2 || syncType === sync.messageYjsUpdate) {
             // The provider holds wire state now: the late attach's
             // accumulated-state delivery stands (the onUpdate contract).
             this.#receivedSync = true;
-            // The app applies the same raw update bytes attach receives.
+            // The app applies the same raw update bytes attach receives;
+            // the internal doc mirrors them after the delivery (above).
+            updates.push(decoding.readVarUint8Array(decoder));
+          } else if (syncType === sync.messageYjsSyncStep1) {
+            const reply = encoding.createEncoder();
+            encoding.writeVarUint(reply, MESSAGE_SYNC);
+            // readSyncMessage reads the sync type itself: the sub-decoder
+            // stands right after the frame type (the shared decoder already
+            // consumed it).
             const sub = decoding.createDecoder(frame);
-            sub.pos = syncPos;
-            decoding.readVarUint(sub); // sync message type
-            this.#emitUpdate(decoding.readVarUint8Array(sub));
+            sub.pos = syncMsgPos;
+            sync.readSyncMessage(sub, reply, this.#doc, this, swallowDecodeError);
+            if (encoding.length(reply) > 1) replies.push(encoding.toUint8Array(reply));
+          } else {
+            // Unknown sync types stand malformed (the standard reader
+            // throws; the batch is dropped, the connection stands).
+            throw new Error(`unknown sync message type ${syncType}`);
           }
         } else if (type === MESSAGE_AWARENESS) {
           applyAwarenessUpdate(this.#awareness, decoding.readVarUint8Array(decoder), null);
@@ -328,10 +367,9 @@ class WsSyncProvider implements SyncProvider {
         // auth and unknown types are ignored (forward compatibility)
       }
     } catch {
-      return; // malformed frame: drop the rest of the batch, keep the connection
+      return null; // malformed frame: drop the rest of the batch, keep the connection
     }
-    const out = concatFrames(replies);
-    if (out !== null) this.#socket.send(out);
+    return { replies, updates };
   }
 
   #onAwarenessUpdate = ({
