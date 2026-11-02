@@ -6,7 +6,7 @@
  */
 import type { MarkSet, TextRun } from "docblocks-core";
 
-import { marksEqual } from "../../mark-utils";
+import { appendRun } from "../../mark-utils";
 import { IMAGE_LINE, STRUCTURAL_TAG_LINE } from "../constants";
 import type { MdParagraphLine, MdPasteBlock } from "../models";
 import { decodeEntities, parseInline } from "./inline";
@@ -44,11 +44,7 @@ function joinParagraphLines(lines: MdParagraphLine[]): TextRun[] {
   });
   // Re-merge the adjacent equal-mark runs the line joins may have split.
   const merged: TextRun[] = [];
-  for (const run of runs) {
-    const last = merged[merged.length - 1];
-    if (last !== undefined && marksEqual(last.marks, run.marks)) last.text += run.text;
-    else merged.push({ ...run });
-  }
+  for (const run of runs) appendRun(merged, run.text, run.marks);
   return merged;
 }
 

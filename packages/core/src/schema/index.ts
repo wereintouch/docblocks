@@ -24,7 +24,7 @@ export {
   validateMarkSet,
 } from "./validate";
 export type { ValidationError } from "./validate";
-export { isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
+export { isHexColor, isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
 export type { AttrsFor, Block, BlockAttrsPatch, BlockType } from "./block-union";
 export type {
   BlockId,

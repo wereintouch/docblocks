@@ -22,9 +22,10 @@
  * — no parsing, no marks.
  */
 import type { BlockId, Doc, MarkSet, TextRun } from "docblocks-core";
+import { isHexColor } from "docblocks-core";
 
 import { LINE_ANCHOR_SLOT } from "../../../text/runs-dom";
-import { marksEqual } from "../../mark-utils";
+import { appendRun, tagEmphasisMarks } from "../../mark-utils";
 import type { MaterializedBlock } from "../models";
 import { materializePaste } from "./materialize";
 
@@ -37,9 +38,6 @@ function allowedHref(href: string): boolean {
   if (scheme === undefined) return false; // no scheme: a relative URL is dropped
   return scheme === "http" || scheme === "https";
 }
-
-/** The hex color the data model's `color` / `highlight` marks accept (`#RRGGBB(AA)`). */
-const HEX_COLOR = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 
 /** The two style properties a span maps to; every other declaration is dropped. */
 function styleMarksOf(style: string | null): { color?: string; highlight?: string } {
@@ -55,7 +53,7 @@ function styleMarksOf(style: string | null): { color?: string; highlight?: strin
     // computed `oklch()` / `rgb()` value (the theme's foreground, not a user-
     // applied mark) — a non-hex value is not a mark and is dropped, so a
     // copy of the editor's own text pastes clean instead of failing the insert.
-    if (!HEX_COLOR.test(value)) continue;
+    if (!isHexColor(value)) continue;
     if (name === "color") result.color = value;
     else if (name === "background-color" || name === "background") result.highlight = value;
   }
@@ -64,19 +62,9 @@ function styleMarksOf(style: string | null): { color?: string; highlight?: strin
 
 /** The mark one whitelisted element adds over its inherited marks; null when it maps to none. */
 function elementMarks(element: Element): MarkSet | null {
+  const simple = tagEmphasisMarks(element.nodeName);
+  if (simple !== null) return simple;
   switch (element.nodeName.toUpperCase()) {
-    case "B":
-    case "STRONG":
-      return { bold: true };
-    case "I":
-    case "EM":
-      return { italic: true };
-    case "U":
-      return { underline: true };
-    case "S":
-    case "STRIKE":
-    case "DEL":
-      return { strike: true };
     case "A": {
       const href = element.getAttribute("href");
       return href !== null && allowedHref(href) ? { link: { href } } : null;
@@ -100,13 +88,7 @@ function isLineAnchor(element: Element): boolean {
 
 /** Appends a run to the list, merging it into the neighbor when the marks are equal. */
 function pushRun(runs: TextRun[], text: string, marks: MarkSet): void {
-  if (text === "") return;
-  const last = runs[runs.length - 1];
-  if (last !== undefined && marksEqual(last.marks, marks)) {
-    last.text += text;
-    return;
-  }
-  runs.push({ text, marks: { ...marks } });
+  appendRun(runs, text, marks);
 }
 
 /**

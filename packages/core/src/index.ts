@@ -58,6 +58,7 @@ export {
   MARK_REGISTRY,
   PAGE_BLOCK_TYPES,
   flattenDoc,
+  isHexColor,
   isSafeEmbedSrc,
   isSafeLinkHref,
   validateBlockAttrs,

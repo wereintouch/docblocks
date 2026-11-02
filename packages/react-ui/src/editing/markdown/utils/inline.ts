@@ -7,7 +7,7 @@
  */
 import type { MarkSet, TextRun } from "docblocks-core";
 
-import { marksEqual } from "../../mark-utils";
+import { appendRun, tagEmphasisMarks } from "../../mark-utils";
 import { ENTITY, MARK_HIGHLIGHT, NAMED_ENTITIES, OPEN_TAG, STRAY_CLOSE_TAG, TAG_HREF } from "../constants";
 
 /**
@@ -51,19 +51,9 @@ function inlineTagAt(
 
 /** The v1 mark an open tag maps to (`null` = the tag drops, content stays plain). */
 function inlineTagMarks(tag: { name: string; attrs: string }): MarkSet | null {
+  const simple = tagEmphasisMarks(tag.name);
+  if (simple !== null) return simple;
   switch (tag.name) {
-    case "b":
-    case "strong":
-      return { bold: true };
-    case "i":
-    case "em":
-      return { italic: true };
-    case "u":
-      return { underline: true };
-    case "s":
-    case "strike":
-    case "del":
-      return { strike: true };
     case "code":
       return { code: true };
     case "mark":
@@ -92,13 +82,7 @@ function parseInline(source: string): TextRun[] {
   const runs: TextRun[] = [];
 
   const push = (text: string, marks: MarkSet): void => {
-    if (text === "") return;
-    const last = runs[runs.length - 1];
-    if (last !== undefined && marksEqual(last.marks, marks)) {
-      last.text += text;
-      return;
-    }
-    runs.push({ text, marks });
+    appendRun(runs, text, marks);
   };
 
   /** Whether `_`-style emphasis may open/close at `at` of `text` (the word boundary; the `_` is a word character). */
