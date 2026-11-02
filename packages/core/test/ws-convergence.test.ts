@@ -45,8 +45,11 @@ interface Side {
 }
 
 /** Run the full interleaved sequence under one chaos mode; return both docs' snapshots. */
-const runScenario = async (chaos: "none" | "duplicate" | "shuffle" | "kill"): Promise<[Snapshot, Snapshot]> => {
-  const relay = new WsRelay(42);
+const runScenario = async (
+  chaos: "none" | "duplicate" | "shuffle" | "kill",
+  seed = 42
+): Promise<[Snapshot, Snapshot]> => {
+  const relay = new WsRelay(seed);
   if (chaos === "duplicate") relay.setDuplicateAll(true);
   if (chaos === "shuffle") relay.setShuffleAll(true);
 
@@ -115,5 +118,21 @@ describe("transport-level convergence", () => {
     expect(killB).toEqual(killA);
     expect(killA).toEqual(plainA);
     expect(killB).toEqual(plainB);
+  });
+
+  it("stands the multi-seed iterations (the random order's permutation set over the one 42)", async () => {
+    // The seed's prng stands the relay's delivery permutations: one seed
+    // is one permutation; the stand runs the full chaos set over the
+    // seed's set, against the base state's identity (the CRDT's
+    // order-independence: the permutation set stands the state).
+    const [baseA, baseB] = await runScenario("none", 42);
+    for (const seed of [137, 999, 2026, 31415]) {
+      for (const chaos of ["none", "duplicate", "shuffle", "kill"] as const) {
+        const [a, b] = await runScenario(chaos, seed);
+        expect(b, `the peers diverge (seed ${seed}, ${chaos})`).toEqual(a);
+        expect(a, `the state drifts over the seed's permutation (seed ${seed}, ${chaos})`).toEqual(baseA);
+        expect(b, `the peer's state drifts (seed ${seed}, ${chaos})`).toEqual(baseB);
+      }
+    }
   });
 });

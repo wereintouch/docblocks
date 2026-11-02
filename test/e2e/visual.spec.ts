@@ -78,7 +78,13 @@ test("the catalog's toJSON matches the committed golden", async ({ page }) => {
   // is a human view.
   const json = await page.evaluate(() => window.__catalogDoc?.toJSON() ?? null);
   expect(json).not.toBeNull();
-  // Deep equality on the full JSON: the deterministic block ids (catalog.ts)
-  // keep it stable across runs, so no id normalization is needed.
-  expect(json).toEqual(JSON.parse(readFileSync(GOLDEN, "utf8")));
+  // Byte-stable serialization against the committed golden (the deep
+  // equality would pass a key-order / the value's drift — the string's
+  // bytes stand the format's own stability). Both sides stand the
+  // stringify's canonical form (the golden's own file formatting is
+  // irrelevant to the comparison); the deterministic block ids
+  // (catalog.ts) keep the bytes stable across runs, so no id
+  // normalization is needed.
+  const golden = JSON.parse(readFileSync(GOLDEN, "utf8"));
+  expect(JSON.stringify(json, null, 2)).toBe(JSON.stringify(golden, null, 2));
 });
