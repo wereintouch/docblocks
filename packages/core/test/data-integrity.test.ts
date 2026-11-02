@@ -297,6 +297,40 @@ describe("the cross-minor reader stand", () => {
     expect("parent" in again.toJSON().blocks[id]!).toBe(false);
   });
 
+  // Additive nested fields (an object attr's fields) and an additive /
+  // legacy geometry field: the lenient (cross-minor) boundary preserves
+  // them as-is (the known fields keep their value checks), the strict
+  // validator (the writer's stand) keeps rejecting them, and the data
+  // survives the round trip.
+  it("the lenient load preserves additive nested attr fields and geometry fields", () => {
+    const base = createDoc({ id: "pin" });
+    const embed = base.insertBlock("sync-embed", { ref: { docId: "other", blockId: "b1" } });
+    const paragraph = base.insertBlock("paragraph");
+    const json = base.toJSON();
+    // The additive nested field on the known object attr, and the legacy
+    // geometry field on a known block.
+    const embedJson = json.blocks[embed] as { attrs?: { ref?: Record<string, unknown> } };
+    embedJson.attrs!.ref!.anchor = "top";
+    const paragraphJson = json.blocks[paragraph] as Record<string, unknown>;
+    paragraphJson.geometry = { x: 0, y: 0, w: 100, h: 40, rotation: 90 };
+    // The lenient boundary accepts the document.
+    expect(validateDoc(json, true)).toEqual([]);
+    // The strict posture rejects both additive fields.
+    const strictPaths = validateDoc(json).map((error) => error.path);
+    expect(strictPaths).toContain(`blocks.${embed}.attrs.ref.anchor`);
+    expect(strictPaths).toContain(`blocks.${paragraph}.geometry.rotation`);
+    // The lenient load keeps the fields in the export (no data loss).
+    const doc = fromJSON(json);
+    expect(doc.toJSON().blocks[embed]!).toMatchObject({
+      type: "sync-embed",
+      attrs: { ref: { docId: "other", blockId: "b1", anchor: "top" } },
+    });
+    expect(doc.toJSON().blocks[paragraph]!).toMatchObject({
+      type: "paragraph",
+      geometry: { x: 0, y: 0, w: 100, h: 40, rotation: 90 },
+    });
+  });
+
   // fromJSON is a reader boundary like the snapshot load: the additive
   // unknowns are tolerated (not rejected), the known data is still validated.
   it("fromJSON accepts the cross-minor stand and the strict validator rejects it", () => {

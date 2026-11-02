@@ -15,7 +15,8 @@ function validateAttrValue(
   spec: AttrSpec,
   value: unknown,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  lenient = false
 ): void {
   switch (spec.kind) {
     case "boolean":
@@ -75,7 +76,7 @@ function validateAttrValue(
         errors.push({ path, message: `Attribute "${name}" must be a plain object (got ${show(value)}).` });
         return;
       }
-      validateObjectFields(name, spec, value, path, errors);
+      validateObjectFields(name, spec, value, path, errors, lenient);
       break;
     case "array": {
       if (!Array.isArray(value)) {
@@ -85,7 +86,7 @@ function validateAttrValue(
       const itemSpec = spec.items;
       if (itemSpec === undefined) break;
       value.forEach((item, index) => {
-        validateAttrValue(name, itemSpec, item, `${path}[${index}]`, errors);
+        validateAttrValue(name, itemSpec, item, `${path}[${index}]`, errors, lenient);
       });
       break;
     }
@@ -94,19 +95,22 @@ function validateAttrValue(
 
 /**
  * The fields of an `object` attr: required fields present, no unknown
- * fields, each field value validated by its own spec (the standard
- * messages apply per field). An `object` attr WITHOUT declared `fields`
- * is a free-form object: the plain-object check already stands (in the
- * `object` case), and the structure is the caller's concern (the database
- * `filter` payload is checked by its recursive branch — the recursion is
- * not expressible in the flat AttrSpec).
+ * fields (the strict posture; the lenient cross-minor load preserves an
+ * additive field as-is — it carries no spec to check), each field value
+ * validated by its own spec (the standard messages apply per field). An
+ * `object` attr WITHOUT declared `fields` is a free-form object: the
+ * plain-object check already stands (in the `object` case), and the
+ * structure is the caller's concern (the database `filter` payload is
+ * checked by its recursive branch — the recursion is not expressible in
+ * the flat AttrSpec).
  */
 function validateObjectFields(
   name: string,
   spec: AttrSpec,
   value: Record<string, unknown>,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  lenient = false
 ): void {
   const fields = spec.fields;
   if (fields === undefined) return; // a free-form object (no declared fields)
@@ -121,13 +125,18 @@ function validateObjectFields(
   for (const [fieldName, fieldValue] of Object.entries(value)) {
     const fieldSpec = fields[fieldName];
     if (fieldSpec === undefined) {
-      errors.push({
-        path: `${path}.${fieldName}`,
-        message: `Unknown field "${fieldName}" for attribute "${name}".`,
-      });
+      // Lenient (cross-minor load): an additive field (a future minor's
+      // data) is preserved as-is, not rejected; the known fields keep
+      // their value checks either way.
+      if (!lenient) {
+        errors.push({
+          path: `${path}.${fieldName}`,
+          message: `Unknown field "${fieldName}" for attribute "${name}".`,
+        });
+      }
       continue;
     }
-    validateAttrValue(fieldName, fieldSpec, fieldValue, `${path}.${fieldName}`, errors);
+    validateAttrValue(fieldName, fieldSpec, fieldValue, `${path}.${fieldName}`, errors, lenient);
   }
 }
 
@@ -187,7 +196,7 @@ function validateAttrs(
       }
       continue;
     }
-    validateAttrValue(name, attrSpec, value, `${path}.${name}`, errors);
+    validateAttrValue(name, attrSpec, value, `${path}.${name}`, errors, lenient);
   }
 }
 

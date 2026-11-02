@@ -14,10 +14,12 @@ import { isPlainObject, show } from "./common";
 /**
  * The strict shape of the optional `geometry` field of ANY block: a plain
  * object with finite x/y and w/h > 0, where x/y/w/h are required and
- * unknown fields are rejected. Runs from validateDoc for every block that
- * carries a geometry field.
+ * unknown fields are rejected (the strict posture; the lenient cross-minor
+ * load preserves an additive / legacy field as-is — the reader and the
+ * renderer ignore it, and the writer keeps it). Runs from validateDoc for
+ * every block that carries a geometry field.
  */
-function validateGeometry(geometry: unknown, path: string, errors: ValidationError[]): void {
+function validateGeometry(geometry: unknown, path: string, errors: ValidationError[], lenient = false): void {
   if (!isPlainObject(geometry)) {
     errors.push({ path, message: `geometry must be a plain object (got ${show(geometry)}).` });
     return;
@@ -40,9 +42,10 @@ function validateGeometry(geometry: unknown, path: string, errors: ValidationErr
     }
   }
   for (const field of Object.keys(geometry)) {
-    if (!(GEOMETRY_FIELDS as readonly string[]).includes(field)) {
-      errors.push({ path: `${path}.${field}`, message: `Unknown field "${field}" for geometry.` });
-    }
+    if ((GEOMETRY_FIELDS as readonly string[]).includes(field)) continue;
+    // Lenient (cross-minor load): an additive or legacy field (a future
+    // minor's data, the pre-release rotation stand) is preserved as-is.
+    if (!lenient) errors.push({ path: `${path}.${field}`, message: `Unknown field "${field}" for geometry.` });
   }
 }
 

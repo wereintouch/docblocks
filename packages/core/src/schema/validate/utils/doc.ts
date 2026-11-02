@@ -181,7 +181,7 @@ function validateOpaqueStructure(
       }
     });
   }
-  if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors);
+  if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors, true);
 }
 
 /**
@@ -334,7 +334,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     }
     if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors);
 
-    if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors);
+    if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors, lenient);
     if (blockType === "shape" || blockType === "connector" || blockType === "group") {
       validateCanvasBlock(blockType, block, `blocks.${id}`, errors);
     }
