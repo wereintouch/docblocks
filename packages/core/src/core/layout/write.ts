@@ -258,6 +258,15 @@ function writeOpaqueBlock(blocks: AnyMap, id: string, block: OpaqueBlock): void 
     yblock.set("children", children);
   }
 
+  // Additive top-level fields of a future minor: written as-is (the generic
+  // storage semantics — primitives as-is, plain objects as nested Y.Maps,
+  // arrays as Y.Arrays) so a save keeps the data the engine does not know.
+  const known = new Set(["type", "attrs", "content", "children", "geometry"]);
+  for (const [key, value] of Object.entries(block)) {
+    if (known.has(key)) continue;
+    writeAttrValue(yblock, key, value);
+  }
+
   blocks.set(id, yblock);
 }
 

@@ -800,8 +800,8 @@ describe("concurrent database row moves keep a single row position", () => {
     b.applyUpdate(aBytes);
   };
   const rowOrderOf = (json: DocJSON, databaseId: string): string[] => {
-    const block = json.blocks[databaseId]!;
-    return ("rowOrder" in block ? block.rowOrder : undefined) ?? [];
+    const block = json.blocks[databaseId]! as { rowOrder?: string[] };
+    return block.rowOrder ?? [];
   };
   /** The read order is well-formed: every rowId exactly once, all rows
    * present, and the JSON loads (the strict validator is clean). */

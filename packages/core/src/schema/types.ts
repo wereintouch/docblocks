@@ -37,6 +37,11 @@ interface DocMeta {
  * `block.type === "<known>"` check narrows away the other known members but
  * keeps this one (the type is unknown), so a specific known type is accessed
  * through a narrowed cast after the check.
+ *
+ * The index signature is the cross-minor stand for additive top-level fields
+ * (a future minor may add fields beyond `attrs`/`content`/`children`/
+ * `geometry`): the read/write opaque paths keep them intact, so a save
+ * never drops data the engine does not know.
  */
 interface OpaqueBlock {
   /** The unknown block type (a name outside the v1 registry). */
@@ -45,6 +50,8 @@ interface OpaqueBlock {
   content?: TextRun[];
   children?: BlockId[];
   geometry?: Record<string, number>;
+  /** Additive top-level fields of a future minor (preserved as-is). */
+  [key: string]: unknown;
 }
 
 /** Document in the public JSON format. */

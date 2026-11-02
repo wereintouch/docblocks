@@ -147,6 +147,33 @@ function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
     if (ids.length > 0) block.children = ids;
   }
 
+  // Additive top-level fields of a future minor: preserved as-is so a save
+  // never drops data the engine does not know (the cross-minor stand). The
+  // layout-only `parent` (the owner field) never reaches the JSON. Sorted
+  // keys: the Y.Map iteration order is process-dependent, so the JSON key
+  // order stays deterministic on every peer.
+  const extra: Array<[string, unknown]> = [];
+  yblock.forEach((value, key) => {
+    if (key === "type" || key === "attrs" || key === "content" || key === "children" || key === "geometry" || key === "parent") return;
+    extra.push([key, value]);
+  });
+  extra.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const [key, value] of extra) {
+    if (value instanceof Y.Text) {
+      // A text field reads like the content: Y.Text -> runs (a plain value
+      // must never leak a live Yjs type).
+      const raw: TextRun[] = [];
+      for (const op of value.toDelta() as TextDeltaOp[]) {
+        if (typeof op.insert !== "string") continue;
+        raw.push({ text: op.insert, marks: attrsToMarkSet(op.attributes) });
+      }
+      const runs = normalizeRuns(raw);
+      if (runs.length > 0) block[key] = runs;
+      continue;
+    }
+    block[key] = readPlainValue(value);
+  }
+
   return block;
 }
 

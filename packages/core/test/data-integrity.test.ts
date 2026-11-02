@@ -269,6 +269,34 @@ describe("the cross-minor reader stand", () => {
     expect(again.getChildren(again.meta.id)).toContain(id);
   });
 
+  // Additive top-level fields beyond attrs/content/children/geometry (a
+  // future minor's data) survive the round trip: the opaque stand keeps them
+  // as-is on read and on write (the data-never-broken contract).
+  it("the opaque stand keeps additive top-level fields across the round trip", () => {
+    const base = createDoc({ id: "pin" });
+    base.insertBlock("paragraph");
+    const json = base.toJSON();
+    const id = "future3";
+    const future: OpaqueBlock = {
+      type: "future-block",
+      attrs: { futureFlag: "preserve-me" },
+      state: { level: 2, tags: ["a", "b"] },
+      order: ["x", "y"],
+      weight: 7,
+      enabled: true,
+    };
+    const root = json.blocks[json.id] as { children?: string[] };
+    root.children = [...(root.children ?? []), id];
+    const doc = fromJSON({ ...json, blocks: { ...json.blocks, [id]: future } });
+    // The export carries the additive fields as-is (exactly these fields).
+    expect(doc.toJSON().blocks[id]).toEqual(future);
+    // The re-save keeps them (no loss on save); the layout-only parent
+    // field never reaches the JSON.
+    const again = loadDoc(doc.encode());
+    expect(again.toJSON().blocks[id]).toEqual(future);
+    expect("parent" in again.toJSON().blocks[id]!).toBe(false);
+  });
+
   // fromJSON is a reader boundary like the snapshot load: the additive
   // unknowns are tolerated (not rejected), the known data is still validated.
   it("fromJSON accepts the cross-minor stand and the strict validator rejects it", () => {
