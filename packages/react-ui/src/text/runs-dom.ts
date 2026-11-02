@@ -1,4 +1,4 @@
-import type { TextRun } from "docblocks-core";
+import { isSafeLinkHref, type TextRun } from "docblocks-core";
 
 import { INLINE_CODE_CLASS, LINK_CLASS } from "./runs";
 
@@ -77,7 +77,10 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
       continue;
     }
     let node: Node = document.createTextNode(run.text);
-    if (run.marks.link !== undefined) node = wrap(node, "a", { href: run.marks.link.href, class: LINK_CLASS });
+    // The link's href is gated over the public contract (the remote input
+    // is not validated — the unsafe scheme stands the plain text).
+    if (run.marks.link !== undefined && isSafeLinkHref(run.marks.link.href))
+      node = wrap(node, "a", { href: run.marks.link.href, class: LINK_CLASS });
     if (run.marks.bold === true) node = wrap(node, "strong");
     if (run.marks.italic === true) node = wrap(node, "em");
     if (run.marks.strike === true) node = wrap(node, "s");

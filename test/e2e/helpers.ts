@@ -45,6 +45,8 @@ interface PaneDoc {
   getChildren(id: string): string[];
   getBlock(id: string): PaneBlock | null;
   getText(id: string): string;
+  /** The CRDT's raw escape hatch (the power-user API; the crafted-update specs drive it). */
+  raw: { getMap: (name: string) => { get: (key: string) => unknown } };
   getRuns(id: string): { text: string; marks: Record<string, unknown> }[];
   insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string; after?: string }): string;
   setTitle(title: string): void;

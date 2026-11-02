@@ -1,4 +1,4 @@
-import type { BlockId, Doc, Selection, TextRun } from "docblocks-core";
+import { isSafeLinkHref, type BlockId, type Doc, type Selection, type TextRun } from "docblocks-core";
 
 /** The HTML-escaped run text. */
 function escapeHtml(text: string): string {
@@ -17,7 +17,8 @@ function wrapRun(text: string, marks: TextRun["marks"]): string {
   if (marks.color !== undefined) out = `<span style="color: ${marks.color.value}">${out}</span>`;
   if (marks.highlight?.value !== undefined)
     out = `<span style="background-color: ${marks.highlight.value}">${out}</span>`;
-  if (marks.link !== undefined) out = `<a href="${escapeHtml(marks.link.href)}">${out}</a>`;
+  if (marks.link !== undefined && isSafeLinkHref(marks.link.href))
+    out = `<a href="${escapeHtml(marks.link.href)}">${out}</a>`;
   if (marks.mention !== undefined) out = `<span data-mention="${marks.mention.kind}">${out}</span>`;
   return out;
 }

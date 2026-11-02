@@ -328,7 +328,17 @@ function validateMarks(
     }
     const attrValue = value[spec.attr ?? ""];
     if (spec.attr === "href") {
-      if (typeof attrValue !== "string" || !isLinkHref(attrValue)) {
+      if (typeof attrValue !== "string") {
+        errors.push({
+          path: markPath,
+          message: `Mark "link" requires a string href (got ${show(attrValue)}).`,
+        });
+      } else if (!lenient && !isLinkHref(attrValue)) {
+        // The writer's stand (the unsafe-scheme rejection). The lenient
+        // (reader) posture preserves the value as data — the reader's
+        // contract is to stand the data, not to judge the scheme (the
+        // renderer's gate stands the href; a rejected snapshot here would
+        // be a persistence DoS over a poisoned document).
         errors.push({
           path: markPath,
           message: `Mark "link" requires an href: http/https URL or relative path (got ${show(attrValue)}).`,
