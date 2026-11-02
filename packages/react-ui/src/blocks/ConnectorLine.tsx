@@ -6,13 +6,14 @@
  * read, the endpoint drag's preview). */
 import { useStore } from "zustand";
 
-import { useContext } from "react";
+import { useContext, useMemo } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import type { Block, BlockId, ConnectorBlock } from "docblocks-core";
 
 import type { Box } from "../canvas";
 import { useEditorContext } from "../editor-provider";
+import { useBlock } from "../hooks";
 import { Link } from "../shared/ui/icons";
 import { useBlockContext } from "./block-context";
 import type { EndpointPoint } from "./canvas-geometry";
@@ -24,6 +25,7 @@ import {
   effectiveGeometry,
   endpointBoxOf,
   endpointPointOf,
+  surfaceChromeKey,
 } from "./canvas-geometry";
 import { SURFACE_BG } from "./canvas-view/constants";
 import { CONNECT_COLOR, HIT_STROKE_WIDTH, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "./connector-constants";
@@ -291,21 +293,31 @@ function connectorLineOf(
  */
 function ConnectorLine({ id, interactive = true }: { id: BlockId; interactive?: boolean }) {
   const { store } = useEditorContext();
-  const blocks = useStore(store, (state) => state.blocks);
+  const block = useBlock(id);
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const context = useBlockContext();
   const session = useContext(CanvasSessionContext);
-  const block = blocks[id];
-  if (block === undefined || block.type !== "connector") return null;
-  const content = connectorLineOf(
-    context.parentId,
-    id,
-    block,
-    context.siblings,
-    blocks,
-    selected,
-    interactive,
-    session
+  // The line's route stands over the siblings' geometry (the obstacles, the
+  // endpoints' boxes): the chrome digest keys the content memo on that data
+  // (the whole-map subscription would stand a re-render over every
+  // keystroke in the doc); a stable digest stands the memo (the geometry
+  // stands, the content element stays — no svg reconciliation).
+  const chromeKey = useStore(store, (state) => surfaceChromeKey(state.blocks, context.siblings));
+  const content = useMemo(
+    () =>
+      block === undefined || block.type !== "connector"
+        ? null
+        : connectorLineOf(
+            context.parentId,
+            id,
+            block,
+            context.siblings,
+            store.getState().blocks,
+            selected,
+            interactive,
+            session
+          ),
+    [block, chromeKey, context.parentId, context.siblings, id, interactive, selected, session, store]
   );
   if (content === null) return null;
   return (

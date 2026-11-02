@@ -24,6 +24,7 @@ export {
   pageCardStyle,
   portOfNormal,
   portsOf,
+  surfaceChromeKey,
 } from "./utils";
 export type { Box, CanvasPort, ConnectorPath, ConnectorVariant, EndpointPoint, Ports, ShapeBlockView } from "./models";
 export type { ConnectorPreviews } from "./utils";

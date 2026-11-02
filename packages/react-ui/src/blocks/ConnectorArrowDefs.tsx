@@ -7,38 +7,51 @@
  * resolve (the lenient skip) stands no def (the line is not drawn). */
 import { useStore } from "zustand";
 
+import { useMemo } from "react";
+
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
-import { endpointOf } from "./canvas-geometry";
+import { endpointOf, surfaceChromeKey } from "./canvas-geometry";
 import { ARROW_SIZE, CIRCLE_ENDPOINT_RADIUS } from "./connector-constants";
 import { arrowDefId, connectorStrokeOf } from "./connector-utils";
 
 function ConnectorArrowDefs({ id }: { id: BlockId }) {
   const { store } = useEditorContext();
-  const blocks = useStore(store, (state) => state.blocks);
   const selection = useStore(store, (state) => state.selection);
   const surface = useBlock(id);
-  if (surface === undefined || surface.type !== "surface") return null;
-  const childIds = surface.children ?? [];
-  const selectedIds = selection.kind === "blocks" ? selection.ids : [];
-  const endFills = new Set<string>();
-  const startFills = new Set<string>();
-  const circleFills = new Set<string>();
-  for (const childId of childIds) {
-    const block = blocks[childId];
-    if (block === undefined || block.type !== "connector" || block.attrs === undefined) continue;
-    // The missing endpoint stands no line (the lenient skip) — the def
-    // would stand unused.
-    if (endpointOf(block.attrs.start, childIds, blocks) === null) continue;
-    if (endpointOf(block.attrs.end, childIds, blocks) === null) continue;
-    const stroke = connectorStrokeOf(block, selectedIds.includes(childId));
-    if ((block.attrs.arrowHead ?? "arrow") === "arrow") endFills.add(stroke);
-    if (block.attrs.arrowStart === "arrow") startFills.add(stroke);
-    if (block.attrs.arrowHead === "circle" || block.attrs.arrowStart === "circle") circleFills.add(stroke);
-  }
-  if (endFills.size === 0 && startFills.size === 0 && circleFills.size === 0) return null;
+  // The defs' fills stand over the connectors' attrs + the selection: the
+  // chrome digest keys the fills memo (the whole-map subscription would
+  // stand a re-render over every keystroke in the doc); a stable digest
+  // stands the memo (the attrs stand, the defs stay).
+  const chromeKey = useStore(store, (state) =>
+    surfaceChromeKey(state.blocks, surface !== undefined && "children" in surface ? (surface.children ?? []) : [])
+  );
+  const fills = useMemo(() => {
+    if (surface === undefined || surface.type !== "surface") return null;
+    const blocks = store.getState().blocks;
+    const childIds = surface.children ?? [];
+    const selectedIds = selection.kind === "blocks" ? selection.ids : [];
+    const endFills = new Set<string>();
+    const startFills = new Set<string>();
+    const circleFills = new Set<string>();
+    for (const childId of childIds) {
+      const block = blocks[childId];
+      if (block === undefined || block.type !== "connector" || block.attrs === undefined) continue;
+      // The missing endpoint stands no line (the lenient skip) — the def
+      // would stand unused.
+      if (endpointOf(block.attrs.start, childIds, blocks) === null) continue;
+      if (endpointOf(block.attrs.end, childIds, blocks) === null) continue;
+      const stroke = connectorStrokeOf(block, selectedIds.includes(childId));
+      if ((block.attrs.arrowHead ?? "arrow") === "arrow") endFills.add(stroke);
+      if (block.attrs.arrowStart === "arrow") startFills.add(stroke);
+      if (block.attrs.arrowHead === "circle" || block.attrs.arrowStart === "circle") circleFills.add(stroke);
+    }
+    if (endFills.size === 0 && startFills.size === 0 && circleFills.size === 0) return null;
+    return { endFills, startFills, circleFills };
+  }, [chromeKey, selection, store, surface]);
+  if (fills === null) return null;
   return (
     <svg
       data-slot="docblocks/connector-defs"
@@ -55,7 +68,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
             stands its tip at the start point (the reversed geometry, the
             refX at the tip), the circle stands centered at the point
             (symmetric — the def serves both sides). */}
-        {[...endFills].map((fill) => (
+        {[...fills.endFills].map((fill) => (
           <marker
             key={`end-${fill}`}
             id={arrowDefId(id, fill)}
@@ -70,7 +83,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
             <path d={`M 0 0 L ${ARROW_SIZE} ${ARROW_SIZE / 2} L 0 ${ARROW_SIZE} Z`} style={{ fill }} />
           </marker>
         ))}
-        {[...startFills].map((fill) => (
+        {[...fills.startFills].map((fill) => (
           <marker
             key={`start-${fill}`}
             id={`${arrowDefId(id, fill)}-s`}
@@ -85,7 +98,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
             <path d={`M ${ARROW_SIZE} 0 L 0 ${ARROW_SIZE / 2} L ${ARROW_SIZE} ${ARROW_SIZE} Z`} style={{ fill }} />
           </marker>
         ))}
-        {[...circleFills].map((fill) => (
+        {[...fills.circleFills].map((fill) => (
           <marker
             key={`circle-${fill}`}
             id={`${arrowDefId(id, fill)}-ci`}

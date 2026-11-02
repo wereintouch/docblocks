@@ -7,7 +7,7 @@
  */
 import type { CSSProperties } from "react";
 
-import type { Block, BlockId, BlockType, CanvasRef } from "docblocks-core";
+import type { Block, BlockId, BlockType, CanvasRef, OpaqueBlock } from "docblocks-core";
 
 import { CANVAS_SUB_TYPES, DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "../constants";
 import type { Box, CanvasPort, EndpointPoint, Ports } from "../models";
@@ -110,6 +110,40 @@ function effectiveGeometry(block: Block): { x: number; y: number; w: number; h: 
   if (geometry !== undefined) return { x: geometry.x, y: geometry.y, w: geometry.w, h: geometry.h };
   const size = block.type === "root" ? DEFAULT_PAGE_SIZE : { w: DEFAULT_CANVAS_ITEM_SIZE, h: DEFAULT_CANVAS_ITEM_SIZE };
   return { x: 0, y: 0, w: size.w, h: size.h };
+}
+
+/**
+ * The surface's chrome digest: a primitive key over the surface's direct
+ * children — every non-connector's full stand (the geometry + the attrs +
+ * the type — the lines' obstacle / endpoint boxes, the port dots' boxes,
+ * the shape toolbar's data) minus the content (the figure's text is the
+ * item's own read, not the chrome's), + the connectors' attrs (the line's
+ * chrome data — the endpoints' refs, the label, the stroke's stand). The
+ * chrome's components subscribe to the key, not the whole blocks map: a
+ * text-only change (a keystroke in a figure's text) stands no chrome
+ * re-render, and a geometry / an attr change stands the chrome's own
+ * re-render only.
+ */
+function surfaceChromeKey(blocks: Record<BlockId, Block | OpaqueBlock>, childIds: readonly BlockId[]): string {
+  let key = "";
+  for (const childId of childIds) {
+    const block = blocks[childId];
+    if (block === undefined) {
+      key += "-;";
+      continue;
+    }
+    if (block.type === "connector") {
+      key += `c${JSON.stringify("attrs" in block ? (block.attrs ?? null) : null)};`;
+      continue;
+    }
+    // The content stands out (the text-only change's stand);
+    // the opaque's remaining fields stand as its whole stand (the digest
+    // needs a stable value only).
+    const rest: Record<string, unknown> = { ...block };
+    if ("content" in rest) delete rest.content;
+    key += JSON.stringify(rest) + ";";
+  }
+  return key;
 }
 
 /**
@@ -246,4 +280,5 @@ export {
   pageCardStyle,
   portOfNormal,
   portsOf,
+  surfaceChromeKey,
 };

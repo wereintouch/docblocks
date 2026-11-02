@@ -22,7 +22,7 @@ import { useBlock } from "../../hooks";
 import { CanvasItem } from "../CanvasItem";
 import { ConnectorArrowDefs } from "../ConnectorArrowDefs";
 import { BlockContext, useBlockContextValue } from "../block-context";
-import { effectiveGeometry, portsOf } from "../canvas-geometry";
+import { effectiveGeometry, portsOf, surfaceChromeKey } from "../canvas-geometry";
 import type { CanvasSession } from "../connector-session-context";
 import { CanvasSessionContext } from "../connector-session-context";
 import { SURFACE_BG } from "./constants";
@@ -107,42 +107,50 @@ function PortDots({
   snapped: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
 }) {
   const { store } = useEditorContext();
-  const blocks = useStore(store, (state) => state.blocks);
   const surface = useBlock(id);
-  if (surface === undefined || surface.type !== "surface") return null;
-  const dots: ReactNode[] = [];
-  for (const childId of surface.children ?? []) {
-    const block = blocks[childId];
-    // The connector stands no ports of its own (its ends are the ports'
-    // users; a line's box would stand phantom squares over its spans);
-    // the group's box is DERIVED (the flat marker) — its default-size box
-    // would stand phantom dots at the surface's center.
-    if (block === undefined || block.type === "connector" || block.type === "group") continue;
-    const box = effectiveGeometry(block);
-    const ports = portsOf(box);
-    for (const port of ["north", "east", "south", "west"] as const) {
-      const p = ports[port];
-      const isSnapped = snapped !== null && snapped.blockId === childId && snapped.port === port;
-      dots.push(
-        <circle
-          key={`${childId}-${port}`}
-          data-canvas-port={port}
-          data-canvas-port-snapped={isSnapped || undefined}
-          cx={p.x}
-          cy={p.y}
-          r={isSnapped ? 3.5 : 2.5}
-          fill={isSnapped ? "var(--docblocks-canvas-connect-color, #16a34a)" : SURFACE_BG}
-          strokeWidth={1}
-          style={{
-            stroke: isSnapped
-              ? "var(--docblocks-canvas-connect-color, #16a34a)"
-              : "var(--docblocks-canvas-selection-border-color)",
-          }}
-          pointerEvents="none"
-        />
-      );
+  // The dots' boxes stand over the children's geometry: the chrome digest
+  // keys the dots memo (a text-only change stands no dots re-render).
+  const chromeKey = useStore(store, (state) =>
+    surfaceChromeKey(state.blocks, surface !== undefined && "children" in surface ? (surface.children ?? []) : [])
+  );
+  const dots: ReactNode[] = useMemo(() => {
+    if (surface === undefined || surface.type !== "surface") return [];
+    const blocks = store.getState().blocks;
+    const next: ReactNode[] = [];
+    for (const childId of surface.children ?? []) {
+      const block = blocks[childId];
+      // The connector stands no ports of its own (its ends are the ports'
+      // users; a line's box would stand phantom squares over its spans);
+      // the group's box is DERIVED (the flat marker) — its default-size box
+      // would stand phantom dots at the surface's center.
+      if (block === undefined || block.type === "connector" || block.type === "group") continue;
+      const box = effectiveGeometry(block);
+      const ports = portsOf(box);
+      for (const port of ["north", "east", "south", "west"] as const) {
+        const p = ports[port];
+        const isSnapped = snapped !== null && snapped.blockId === childId && snapped.port === port;
+        next.push(
+          <circle
+            key={`${childId}-${port}`}
+            data-canvas-port={port}
+            data-canvas-port-snapped={isSnapped || undefined}
+            cx={p.x}
+            cy={p.y}
+            r={isSnapped ? 3.5 : 2.5}
+            fill={isSnapped ? "var(--docblocks-canvas-connect-color, #16a34a)" : SURFACE_BG}
+            strokeWidth={1}
+            style={{
+              stroke: isSnapped
+                ? "var(--docblocks-canvas-connect-color, #16a34a)"
+                : "var(--docblocks-canvas-selection-border-color)",
+            }}
+            pointerEvents="none"
+          />
+        );
+      }
     }
-  }
+    return next;
+  }, [chromeKey, snapped, store, surface]);
   if (dots.length === 0) return null;
   return (
     <svg

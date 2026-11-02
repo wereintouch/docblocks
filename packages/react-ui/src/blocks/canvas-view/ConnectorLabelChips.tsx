@@ -7,11 +7,14 @@
  * div) so the chips stand over the lines (the world's space). */
 import { useStore } from "zustand";
 
+import { useMemo } from "react";
+import type { ReactNode } from "react";
+
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
 import type { ConnectorPreviews } from "../canvas-geometry";
-import { connectorMidpoint } from "../canvas-geometry";
+import { connectorMidpoint, surfaceChromeKey } from "../canvas-geometry";
 import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../connector-constants";
 import { connectorStrokeWidthOf } from "../connector-utils";
 import { ConnectorLabelChip } from "./ConnectorLabelChip";
@@ -37,36 +40,40 @@ function ConnectorLabelChips({
   previews?: ConnectorPreviews;
 }) {
   const { store } = useEditorContext();
-  const blocks = useStore(store, (state) => state.blocks);
-  return (
-    <>
-      {children.flatMap((cid) => {
-        const block = blocks[cid];
-        if (block === undefined || block.type !== "connector" || block.attrs === undefined) return [];
-        const label = block.attrs.label ?? "";
-        if (label === "" || cid === skipId) return [];
-        const mid = connectorMidpoint(cid, children, blocks, previews);
-        if (mid === null) return [];
-        const selected = selectedIds.includes(cid);
-        const stroke = selected
-          ? CONNECTOR_SELECTED_STROKE
-          : block.attrs.strokeColor === undefined || block.attrs.strokeColor === "none"
-            ? CONNECTOR_STROKE
-            : block.attrs.strokeColor;
-        return [
-          <ConnectorLabelChip
-            key={cid}
-            id={cid}
-            mid={mid}
-            stroke={stroke}
-            width={connectorStrokeWidthOf(block.attrs, selected)}
-            lineStyle={block.attrs.strokeStyle ?? "solid"}
-            label={label}
-          />,
-        ];
-      })}
-    </>
-  );
+  // The chips' midpoints stand over the siblings' geometry, the labels / the
+  // strokes over the connectors' own attrs: the chrome digest keys the chips
+  // memo (the whole-map subscription would stand a re-render over every
+  // keystroke in the doc); a stable digest stands the memo.
+  const chromeKey = useStore(store, (state) => surfaceChromeKey(state.blocks, children));
+  const chips: ReactNode[] = useMemo(() => {
+    const blocks = store.getState().blocks;
+    return children.flatMap((cid) => {
+      const block = blocks[cid];
+      if (block === undefined || block.type !== "connector" || block.attrs === undefined) return [];
+      const label = block.attrs.label ?? "";
+      if (label === "" || cid === skipId) return [];
+      const mid = connectorMidpoint(cid, children, blocks, previews);
+      if (mid === null) return [];
+      const selected = selectedIds.includes(cid);
+      const stroke = selected
+        ? CONNECTOR_SELECTED_STROKE
+        : block.attrs.strokeColor === undefined || block.attrs.strokeColor === "none"
+          ? CONNECTOR_STROKE
+          : block.attrs.strokeColor;
+      return [
+        <ConnectorLabelChip
+          key={cid}
+          id={cid}
+          mid={mid}
+          stroke={stroke}
+          width={connectorStrokeWidthOf(block.attrs, selected)}
+          lineStyle={block.attrs.strokeStyle ?? "solid"}
+          label={label}
+        />,
+      ];
+    });
+  }, [chromeKey, children, previews, selectedIds, skipId, store]);
+  return <>{chips}</>;
 }
 
 export { ConnectorLabelChips };

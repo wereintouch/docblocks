@@ -23,7 +23,7 @@
  */
 import { useStore } from "zustand";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   CanvasDock,
@@ -43,7 +43,7 @@ import { Container } from "../../shared/ui/icons";
 import { BlockGroups } from "../BlockView";
 import { ShapeSvg } from "../ShapeSvg";
 import { BlockContext } from "../block-context";
-import { effectiveGeometry, pageCardStyle } from "../canvas-geometry";
+import { effectiveGeometry, pageCardStyle, surfaceChromeKey } from "../canvas-geometry";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
 import { ConnectorLabelChips } from "./ConnectorLabelChips";
 import { ConnectorLabelEdit } from "./ConnectorLabelEdit";
@@ -68,7 +68,29 @@ import { useCanvasWheel } from "./use-canvas-wheel";
 function CanvasView() {
   const { store, doc, rootBlockId, selection } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
-  const blocks = useStore(store, (state) => state.blocks);
+  // The canvas chrome stands over the surfaces' chrome data (the items'
+  // geometry, the connectors' attrs) + the root's own structure: the digest
+  // keys the re-render (the whole-map subscription would stand a re-render
+  // over every keystroke in the doc's page); the hooks' `blocks` input is
+  // the render-time state (a stale map holds the unchanged blocks' own
+  // references — the geometry stands between the digest's changes).
+  const chromeKey = useStore(store, (state) => {
+    let key = "";
+    for (const cid of rootChildren) {
+      const block = state.blocks[cid];
+      if (block === undefined) {
+        key += "-;";
+        continue;
+      }
+      if (block.type === "surface") {
+        key += surfaceChromeKey(state.blocks, block.children ?? []);
+      } else {
+        const g = effectiveGeometry(block);
+        key += `s${block.type}:${g.x},${g.y},${g.w},${g.h};`;
+      }
+    }
+    return key;
+  });
   // The reactive selection (the handles' render condition): the context's
   // `selection` handle is stable, so the store slice drives the re-render.
   const storeSelection = useStore(store, (state) => state.selection);
@@ -77,6 +99,11 @@ function CanvasView() {
   // the restored state (the storage's read, once on mount) over the fit's
   // stand (no stored state — the fit's mount stand below).
   const [storedViewport] = useState(() => readCanvasViewport(doc.meta.id));
+  // The hooks' blocks input (the render-time state, memoized over the
+  // digest: a text-only change stands no new map — the stale map holds the
+  // unchanged blocks' own references, the geometry stands between the
+  // digest's changes).
+  const blocks = useMemo(() => store.getState().blocks, [chromeKey, rootChildren, storeSelection, store]);
   const viewport = useCanvasViewport(doc, storedViewport);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<CanvasPointerSession | null>(null);

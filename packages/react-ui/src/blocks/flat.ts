@@ -149,6 +149,28 @@ function subtreeSegmentOf(blocks: Record<BlockId, Block>, containerId: BlockId, 
  * the map) derives as a non-list block at indent 0 (the renderer renders
  * nothing for it).
  */
+/**
+ * The flat sequence's structure digest: a primitive key over the ids —
+ * the indents + the list kinds (the derivation's only inputs). The
+ * sequence's view subscribes to the key, not the whole blocks map: a
+ * text-only change (a keystroke in a block) stands no re-derivation,
+ * and an indent / a list-kind change stands the derivation's own
+ * re-render only.
+ */
+function flatStructureKey(ids: BlockId[], blocks: Record<BlockId, Block | OpaqueBlock>): string {
+  let key = "";
+  for (const id of ids) {
+    const block = blocks[id];
+    if (block === undefined) {
+      key += "-;";
+      continue;
+    }
+    const kind = block.type === "list-item" ? (block.attrs?.list ?? "") : "";
+    key += `${indentOf(block as Block)}:${kind};`;
+  }
+  return key;
+}
+
 function deriveFlat(ids: BlockId[], blocks: Record<BlockId, Block>, prev?: Map<BlockId, FlatNode>): FlatDerivation {
   /** The fresh nodes in sequence order (interning runs backwards over them). */
   const fresh: FreshNode[] = [];
@@ -311,6 +333,7 @@ function toRoman(n: number): string {
 export {
   deriveFlat,
   entrySequenceParent,
+  flatStructureKey,
   indentOf,
   markerCycle,
   numberMarkerLabel,

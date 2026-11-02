@@ -35,7 +35,7 @@ import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes } from "./ListRun";
 import { ItemNested, NestedSlot } from "./NestedSlot";
 import { dispatchBuiltIn } from "./block-dispatch";
-import { deriveFlat } from "./flat";
+import { deriveFlat, flatStructureKey } from "./flat";
 import type { FlatNode } from "./flat";
 import type { BlockRendererMap } from "./renderers";
 
@@ -162,15 +162,18 @@ const FlatBlockView: FlatBlockRenderer = memo(
  */
 function BlockGroups({ ids }: { ids: BlockId[] }) {
   const { store } = useEditorContext();
-  const blocks = useStore(store, (state) => state.blocks);
+  // The flat sequence stands on the structure only (the indents, the list
+  // kinds): the structure digest keys the derivation (the whole-map
+  // subscription would stand the O(n) re-derivation over every keystroke).
+  const structureKey = useStore(store, (state) => flatStructureKey(ids, state.blocks));
   // The interning cache: the previous derivation's byId stands while the
-  // sequence's data is unchanged (the memo is keyed on the node identity).
+  // sequence's data is unchanged (the memo is keyed on the digest + the ids).
   const prevRef = useRef<Map<string, FlatNode> | null>(null);
   const derivation = useMemo(() => {
-    const result = deriveFlat(ids, blocks, prevRef.current ?? undefined);
+    const result = deriveFlat(ids, store.getState().blocks, prevRef.current ?? undefined);
     prevRef.current = result.byId;
     return result;
-  }, [ids, blocks]);
+  }, [structureKey, ids, store]);
   return <GroupedNodes nodes={derivation.nodes} renderBlock={FlatBlockView} />;
 }
 
