@@ -67,10 +67,16 @@ class SelectionView {
     };
     // Popped = the inverse has committed and the rebase has run: overwrite
     // the rebased selection with the snapshot (restoration wins, then emit).
+    // The snapshot is applied only when its blocks still exist — a redo of
+    // a delete re-deletes the block the caret sat in, and a dangling
+    // snapshot would stand a selection the view cannot seat (the rebase
+    // stands then).
     this.#onStackItemPopped = (event) => {
       const saved = event.stackItem.meta.get(this.#metaKey);
       if (saved === undefined) return; // captured before this view existed: rebase stands
-      this.#state = saved as Selection;
+      const restored = this.#restoreableSelection(saved as Selection);
+      if (restored === null) return;
+      this.#state = restored;
       this.#emit();
       this.#reconcileTracking();
     };
@@ -129,6 +135,23 @@ class SelectionView {
 
   #emit(): void {
     for (const handler of [...this.#listeners]) handler(cloneSelection(this.#state));
+  }
+
+  /**
+   * The undo-caret restoration's staleness check: the snapshot stands only
+   * when every block it references still exists (the inverse can leave
+   * them gone — a redo of a delete re-deletes the block the selection sat
+   * in). Null stands the fallback: the rebased state (the rebase already
+   * ran over the inverse transaction).
+   */
+  #restoreableSelection(saved: Selection): Selection | null {
+    if (saved.kind === "none") return saved;
+    const ids =
+      saved.kind === "text"
+        ? [saved.from.blockId, ...(saved.to !== null ? [saved.to.blockId] : [])]
+        : saved.ids;
+    if (ids.some((id) => this.#doc.getBlock(id) === null)) return null;
+    return saved;
   }
 
   #onDocChange(change: Change): void {
