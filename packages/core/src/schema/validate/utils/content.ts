@@ -167,7 +167,8 @@ function validateAttrs(
   attrs: unknown,
   path: string,
   errors: ValidationError[],
-  lenient = false
+  lenient = false,
+  strictKeys?: ReadonlySet<string>
 ): void {
   const attrSpecs = spec.attrs;
 
@@ -196,16 +197,21 @@ function validateAttrs(
     // branch decides it (a plain `attrSpecs[name]` would read the inherited
     // member and stand the reserved key "known").
     const attrSpec = Object.hasOwn(attrSpecs, name) ? attrSpecs[name] : undefined;
+    // The writer's hybrid stand: the keys the caller's patch touches stand
+    // the strict posture even under the lenient posture (the caller owns
+    // the patch — its unknown key or invalid value is a rejection); the
+    // untouched keys stand the lenient posture (the live document's data).
+    const keyLenient = lenient && !strictKeys?.has(name);
     if (!attrSpec) {
-      // Lenient (cross-minor load): an unknown attr (a future minor's data)
-      // is preserved as-is, not rejected; the known attrs keep their value
-      // checks either way.
-      if (!lenient) {
+      // Lenient (cross-minor load / the writer's untouched keys): an
+      // unknown attr (a future minor's data) is preserved as-is, not
+      // rejected; the known attrs keep their value checks either way.
+      if (!keyLenient) {
         errors.push({ path: `${path}.${name}`, message: `Unknown attribute "${name}" for block type "${type}".` });
       }
       continue;
     }
-    validateAttrValue(name, attrSpec, value, `${path}.${name}`, errors, lenient);
+    validateAttrValue(name, attrSpec, value, `${path}.${name}`, errors, keyLenient);
   }
 }
 

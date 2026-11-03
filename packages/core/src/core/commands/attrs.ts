@@ -43,7 +43,11 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   if (entries.length === 0) return; // no-op
 
   // Validate the post-patch attrs as a whole (current attrs + patch) so the
-  // registry rules and messages are reused as-is.
+  // registry rules and messages are reused as-is. The lenient stand (the
+  // writer's hybrid posture): unknown keys (a future minor's
+  // data over the live sync) stand preserved and un-rejected; a known
+  // attr's value rules — incl. its enum — stand strict either way, so the
+  // post-patch doc keeps the writer's invariants over the keys we own.
   const snapshot = readBlock(ydoc, id);
   const current = snapshot !== null && "attrs" in snapshot ? snapshot.attrs : undefined;
   const merged: Record<string, unknown> = {};
@@ -51,7 +55,12 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   // reserved-key stand (the own data key, no prototype reassignment).
   for (const [key, value] of Object.entries(current ?? {})) setOwn(merged, key, value);
   for (const [key, value] of entries) setOwn(merged, key, value);
-  const errors = validateBlockAttrs(type, merged);
+  // The writer's hybrid stand: the lenient posture over the
+  // post-patch attrs (the live document's unknown keys / the future minor's
+  // enum values stand preserved — the block stays editable over the live
+  // sync), with the caller's patch keys strict (the caller owns the patch —
+  // its unknown key or invalid value is a rejection).
+  const errors = validateBlockAttrs(type, merged, true, new Set(entries.map(([key]) => key)));
   if (errors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);
   }

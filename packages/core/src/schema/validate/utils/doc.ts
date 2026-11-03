@@ -500,10 +500,22 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
  * Validates block attrs against the registry rules of the type: unknown
  * keys, missing required attrs, and value rules. `undefined` is valid only
  * for types without attrs. An empty result means the attrs are valid.
+ * `lenient` (the cross-minor load posture): unknown keys and a new enum
+ * value on a known key stand preserved (not rejected); the known keys' full
+ * rules stand either way. `strictKeys` (the writer's hybrid stand): the keys
+ * the caller's patch touches stand the strict posture even
+ * under `lenient` (the caller owns the patch — its unknown key or invalid
+ * value is a rejection); the untouched keys stand the lenient posture (the
+ * live document's data, which may carry a future minor's additive values).
  */
-function validateBlockAttrs(type: BlockType, attrs: unknown): ValidationError[] {
+function validateBlockAttrs(
+  type: BlockType,
+  attrs: unknown,
+  lenient = false,
+  strictKeys?: ReadonlySet<string>
+): ValidationError[] {
   const errors: ValidationError[] = [];
-  validateAttrs(type, BLOCK_REGISTRY[type], attrs, "attrs", errors);
+  validateAttrs(type, BLOCK_REGISTRY[type], attrs, "attrs", errors, lenient, strictKeys);
   // The database's recursive filter payload is not expressible in the flat
   // AttrSpec (the registry keeps `filter` a plain `object`): the command
   // paths (insertBlock / updateBlock) reject an invalid payload here, like
