@@ -544,8 +544,7 @@ test("the options' block stands the standard's font, the shared color's palette 
     const secondHex = (await swatches.nth(1).getAttribute("data-color"))!;
     await swatches.nth(1).click();
     await expect(colorTrigger).toHaveAttribute("data-color", secondHex, SETTLE);
-    await a.keyboard.press("Escape"); // the palette's popover stands the close (the drag's press stands clear)
-    await a.waitForTimeout(200);
+    await a.waitForTimeout(200); // the palette's popover stands the close on the pick (no Escape — it stands the form's close over the pick's draft)
 
     // The grip's live reorder (the framer's Reorder's stand over the
     // motion's editor — the playground's default): the first's option's

@@ -874,6 +874,20 @@ function GridBody({
                   // interact-outside) and the Escape keep the close (no
                   // create — the commit stands the form's button only).
                   onFocusOutside={preventDefault}
+                  // The nested popovers' portals (the color's palette / the
+                  // select's content) stand outside the form's content (the
+                  // body's portals): an away-click on one of them stands no
+                  // dismiss (the draft's loss over the palette's pick — the
+                  // enum's options' editor's stand; the real outside press
+                  // keeps the close).
+                  onInteractOutside={(event) => {
+                    const target = event.target as HTMLElement | null;
+                    if (
+                      target?.closest('[data-slot="popover-content"], [data-slot="select-content"]')
+                    ) {
+                      event.preventDefault();
+                    }
+                  }}
                 >
                   <div data-slot="docblocks/database-add-column-form" className="flex flex-col gap-2">
                     <Label>
