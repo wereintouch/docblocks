@@ -38,12 +38,16 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
   // create's receipt itself stands the consumer's orphan, the picker
   // cannot unwind it).
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // The StrictMode's dev double-mount re-runs the setup: the reset stands
+    // the guard live after the double-mount (the cleanup-only stand leaves
+    // the ref false over a dev StrictMode, dropping the create's commit —
+    // the table is created, the block is not inserted).
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    []
-  );
+    };
+  }, []);
 
   // The name input stands focused when the form stands (the keyboard's
   // create flow: the button's click lands the focus, the name types, the
