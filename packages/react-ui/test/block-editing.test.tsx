@@ -435,17 +435,21 @@ describe("Backspace: block merge", () => {
     expect(doc.getBlock(p)).not.toBeNull();
   });
 
-  it("the table's previous stands the same stand (the rows survive the Backspace)", async () => {
-    // The container guard is generic: the table over its rows stands the
-    // same no-op (the cascade would delete the rows with the table).
+  it("the table's previous stands deleted (the rows' cascade over the Backspace's explicit deletion)", async () => {
+    // Every block is Backspace-deletable: the table stands removed with
+    // its rows (the core's removeBlock cascades the segment); the canvas
+    // containers keep the no-op (the whole canvas / nested page's
+    // deletion is not a single-Backspace gesture). The caret stands in
+    // the surviving block.
     let tableId: BlockId = "";
+    let rowId: BlockId = "";
     let p: BlockId = "";
     const doc = renderDoc((d) => {
       const a = d.insertBlock("paragraph");
       d.insertText(a, 0, "page");
       tableId = d.insertBlock("table");
-      const row = d.insertBlock("table-row", undefined, { parent: tableId });
-      d.insertBlock("table-cell", undefined, { parent: row });
+      rowId = d.insertBlock("table-row", undefined, { parent: tableId });
+      d.insertBlock("table-cell", undefined, { parent: rowId });
       p = d.insertBlock("paragraph");
     });
     const tableEmptyInner = innerOf(p);
@@ -456,8 +460,11 @@ describe("Backspace: block merge", () => {
     window.getSelection()!.addRange(tableEmptyRange);
     const prevented = key(wrapperOf(p), "Backspace");
 
-    expect(prevented).toBe(true);
-    expect(doc.getBlock(tableId)).not.toBeNull();
+    // Suppressed (dispatchEvent stands false over the preventDefault): the
+    // gesture found the merge (the no-op stand would have returned true).
+    expect(prevented).toBe(false);
+    expect(doc.getBlock(tableId)).toBeNull();
+    expect(doc.getBlock(rowId)).toBeNull();
     expect(doc.getBlock(p)).not.toBeNull();
   });
 
