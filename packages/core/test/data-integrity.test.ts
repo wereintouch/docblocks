@@ -412,7 +412,7 @@ describe("the reserved attr / mark key stand (the prototype pollution boundary)"
     doc.insertText(p, 0, "x");
     // The JSON.parse stand (the object literal's `__proto__` stands the
     // prototype, not an own patch key): the own reserved key reaches the
-     // merge. The writer's hybrid stand keeps the caller's
+    // merge. The writer's hybrid stand keeps the caller's
     // patch keys strict: the reserved key stands no registry spec (the
     // hasOwn stand — no inherited member), and a key the patch touches
     // that the registry does not know is the caller's unknown write — the
@@ -445,9 +445,9 @@ describe("the reserved attr / mark key stand (the prototype pollution boundary)"
     // A known attr's enum violation stands strict (9 is outside the 1–6
     // enum: the runtime rejects what the TS union also rejects — the cast
     // stands the runtime path over the type's).
-    expect(() =>
-      doc.updateBlock(h, { level: 9 } as unknown as Parameters<typeof doc.updateBlock>[1])
-    ).toThrow(/Invalid attrs/);
+    expect(() => doc.updateBlock(h, { level: 9 } as unknown as Parameters<typeof doc.updateBlock>[1])).toThrow(
+      /Invalid attrs/
+    );
   });
 
   it("the reserved attr name stands no registry spec (the validator's hasOwn stand)", () => {

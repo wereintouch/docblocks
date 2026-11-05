@@ -882,9 +882,7 @@ function GridBody({
                   // keeps the close).
                   onInteractOutside={(event) => {
                     const target = event.target as HTMLElement | null;
-                    if (
-                      target?.closest('[data-slot="popover-content"], [data-slot="select-content"]')
-                    ) {
+                    if (target?.closest('[data-slot="popover-content"], [data-slot="select-content"]')) {
                       event.preventDefault();
                     }
                   }}

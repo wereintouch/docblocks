@@ -321,11 +321,7 @@ function mergeWithPrevious(doc: Doc, id: BlockId, contextId: BlockId): { blockId
   const prevSegment = segmentRange(doc, contextId, prevId);
   if (prevSegment !== null && index < prevSegment.end) return null;
   const prevLength = BLOCK_REGISTRY[prev.type].content ? textOf(runsOf(prev)).length : 0;
-  if (
-    !BLOCK_REGISTRY[prev.type].content &&
-    doc.getChildren(prevId).length > 0 &&
-    prev.type !== "table"
-  ) {
+  if (!BLOCK_REGISTRY[prev.type].content && doc.getChildren(prevId).length > 0 && prev.type !== "table") {
     // The canvas containers (the surface over its figures, the frame over
     // its nested page): the removal would cascade the whole canvas / the
     // nested page (the data loss) — the no-op stand (the whole-canvas
