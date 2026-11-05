@@ -10,7 +10,8 @@
  * The contract stands this implementation pins:
  * - `snapshotTable` is the sole initial read; its `page.asOfSeq` is the `R`
  *  both the schema and the page represent. `queryNextPage` only follows the
- *  opaque cursor bound to `R` + the query fingerprint; any commit that
+ *  opaque cursor signed under the instance's key and bound to `R` + the
+ *  query fingerprint; a tampered payload / a foreign key / any commit that
  *  advanced the table's public head after `R` rejects with `cursor_expired`.
  * - the envelope is appended to the outbox BEFORE the live notification —
  *  the subscriber never sees an event it cannot replay.
@@ -83,8 +84,9 @@ import {
   SEMANTICS_TIMEZONE,
   SEMANTICS_VERSION,
 } from "./constants";
+import { queryFingerprintOf, randomKeyBytes, signCursor, verifyCursor } from "./cursor";
 import type { MemoryBridgeOptions, MemoryIdempotencyEntry, MemoryRow, MemoryTable } from "./models";
-import { canonicalJson, decodeCursor, deepEqual, encodeCursor, fnv1aHex, physicalCompare, tableIdFor } from "./utils";
+import { deepEqual, physicalCompare, tableIdFor } from "./utils";
 
 /** The reference bridge's public surface (the contract + the GC test stand). */
 interface MemoryDatabaseBridge extends DatabaseBridge {
@@ -100,6 +102,12 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
   const retryHorizonSeconds = options.retryHorizonSeconds ?? DEFAULT_RETRY_HORIZON_SECONDS;
   const tombstoneRetentionMs = options.tombstoneRetentionMs ?? DEFAULT_TOMBSTONE_RETENTION_MS;
   const replayWindow = options.replayWindow ?? DEFAULT_REPLAY_WINDOW;
+
+  /** The cursor / fingerprint signature's key (the per-instance stand of
+   *  the consumer's server-side secret; the `cursorKey`'s absent stand is
+   *  the fresh CSPRNG key). */
+  const cursorKey: Uint8Array =
+    options.cursorKey !== undefined ? new TextEncoder().encode(options.cursorKey) : randomKeyBytes();
 
   const tables = new Map<string, MemoryTable>();
   const subscribers = new Map<string, Set<SubscriptionObserver>>();
@@ -284,8 +292,11 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
     return receipt;
   }
 
+  /** The idempotency's body fingerprint (the keyed stand — the same
+   *  signature scheme as the query's, the collision stand over the
+   *  same `operationId` + the different body). */
   function fingerprintOf(kind: string, payload: Record<string, unknown>): string {
-    return `fnv1a-${fnv1aHex(canonicalJson({ kind, ...payload }))}`;
+    return queryFingerprintOf(cursorKey, { kind, ...payload });
   }
 
   // ---------- the query validation + evaluation ----------
@@ -432,9 +443,10 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
 
   // ---------- the query fingerprint + the semantics ----------
 
-  /** The server's signed canonical form: the hash of the canonical query
-   *  together with the table, the snapshot boundary, the schema revision
-   *  and the declared semantics (the client never constructs one). */
+  /** The server's signed canonical form: the HMAC over the canonical query
+   *  under the instance's key, together with the table, the snapshot
+   *  boundary, the schema revision and the declared semantics (the client
+   *  never constructs one). */
   function queryFingerprint(
     table: MemoryTable,
     R: number,
@@ -442,22 +454,20 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
     sort: SortInput | undefined,
     limit: number
   ): string {
-    return `fp-${fnv1aHex(
-      canonicalJson({
-        tableId: table.id,
-        R,
-        schemaRevision: table.schemaRevision,
-        filter:
-          filter === undefined
-            ? null
-            : { logic: filter.logic, conditions: filter.conditions, groups: filter.groups ?? [] },
-        sort: sort ?? null,
-        limit,
-        semanticsVersion: SEMANTICS_VERSION,
-        collation: SEMANTICS_COLLATION,
-        nullOrdering: SEMANTICS_NULL_ORDERING,
-      })
-    )}`;
+    return queryFingerprintOf(cursorKey, {
+      tableId: table.id,
+      R,
+      schemaRevision: table.schemaRevision,
+      filter:
+        filter === undefined
+          ? null
+          : { logic: filter.logic, conditions: filter.conditions, groups: filter.groups ?? [] },
+      sort: sort ?? null,
+      limit,
+      semanticsVersion: SEMANTICS_VERSION,
+      collation: SEMANTICS_COLLATION,
+      nullOrdering: SEMANTICS_NULL_ORDERING,
+    });
   }
 
   function semanticsOf(table: MemoryTable): QuerySemantics {
@@ -483,6 +493,9 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
 
   // ---------- the page cursor ----------
 
+  /** The opaque continuation token: the payload signed under the instance's
+   *  key (the `cursor_expired`'s first stand over the tampered / the
+   *  foreign key's token). */
   function buildCursor(
     table: MemoryTable,
     R: number,
@@ -491,7 +504,7 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
     limit: number,
     afterRow: MemoryRow | null
   ): string {
-    return encodeCursor({
+    return signCursor(cursorKey, {
       tableId: table.id,
       R,
       fp: queryFingerprint(table, R, filter, sort, limit),
@@ -890,7 +903,10 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
       input: { cursor: string; asOfSeq: number; queryFingerprint: string }
     ): Promise<PageSnapshot> {
       const table = tableOf(tableId);
-      const cursor = decodeCursor(input.cursor);
+      // The signature stands first: the tampered payload / the foreign key's
+      // token rejects before the expiry / the fingerprint / the boundary
+      // checks (the verified payload is the only trusted input).
+      const cursor = verifyCursor(cursorKey, input.cursor);
       if (
         cursor === null ||
         cursor.tableId !== tableId ||

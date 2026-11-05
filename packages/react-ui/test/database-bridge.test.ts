@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { isBridgeError, isDatabaseBridge } from "../src/database/bridge";
@@ -92,6 +93,27 @@ async function seedTable(bridge: ReturnType<typeof createMemoryDatabaseBridge>) 
 /** The rejected error's code (null = not a bridge error). */
 function codeOf(error: unknown): BridgeErrorCode | null {
   return isBridgeError(error) ? error.code : null;
+}
+
+/** The signed token's shape (the `v3:<body>.<signature>` stand). */
+function signedTokenParts(token: string): { body: string; signature: string } {
+  const rest = token.slice("v3:".length);
+  const separator = rest.lastIndexOf(".");
+  return { body: rest.slice(0, separator), signature: rest.slice(separator + 1) };
+}
+
+/** The base64url signature's hex (the deterministic test's golden stand). */
+function signatureHex(token: string): string {
+  const binary = atob(signedTokenParts(token).signature.replace(/-/g, "+").replace(/_/g, "/"));
+  return Array.from(binary)
+    .map((character) => character.charCodeAt(0).toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** The platform's HMAC-SHA256 (the signature scheme's oracle — the test
+ *  stand for the reference's pure implementation). */
+function hmacSha256Base64Url(key: string, message: string): string {
+  return createHmac("sha256", Buffer.from(key, "utf8")).update(Buffer.from(message, "utf8")).digest("base64url");
 }
 
 describe("the in-memory reference bridge — the protocol's negotiation", () => {
@@ -557,6 +579,136 @@ describe("the page — the keyset cursor + the query's validation", () => {
       })
       .catch((operationError: unknown) => operationError);
     expect(codeOf(wrongR)).toBe("cursor_expired");
+  });
+
+  it("the tampered payload / the forged signature reject with the cursor_expired", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId } = await seedTable(bridge);
+    const snapshot = await bridge.snapshotTable(tableId, { limit: 2 });
+    const token = snapshot.page.nextCursor!;
+    const { body, signature } = signedTokenParts(token);
+    // The forged signature (the public scheme's recomputed stand is the
+    // empty signature — without the key the real one is uncomputable).
+    const forged = await bridge
+      .queryNextPage(tableId, {
+        cursor: `v3:${body}.`,
+        asOfSeq: snapshot.page.asOfSeq,
+        queryFingerprint: snapshot.page.queryFingerprint,
+      })
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(forged)).toBe("cursor_expired");
+    // The tampered payload keeps its original signature (the signature
+    // covers the body — the rewrite breaks it).
+    const tamperedBody = JSON.stringify({ ...JSON.parse(body), limit: 5 });
+    const tampered = await bridge
+      .queryNextPage(tableId, {
+        cursor: `v3:${tamperedBody}.${signature}`,
+        asOfSeq: snapshot.page.asOfSeq,
+        queryFingerprint: snapshot.page.queryFingerprint,
+      })
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(tampered)).toBe("cursor_expired");
+    // The payload's fp stands rewritten against the request (the
+    // coordinated rewrite the keyless scheme let through).
+    const coordinatedBody = JSON.stringify({ ...JSON.parse(body), fp: "fp-other" });
+    const coordinated = await bridge
+      .queryNextPage(tableId, {
+        cursor: `v3:${coordinatedBody}.${signature}`,
+        asOfSeq: snapshot.page.asOfSeq,
+        queryFingerprint: "fp-other",
+      })
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(coordinated)).toBe("cursor_expired");
+    // The signature's tamper stand: the first decoded byte flipped (the
+    // last base64url char's low bits stand padding — a flip there decodes
+    // to the same digest and would still verify).
+    const signatureBytes = atob(signature.replace(/-/g, "+").replace(/_/g, "/"));
+    const flippedFirstByte = (signatureBytes.charCodeAt(0) ^ 1).toString() + signatureBytes.slice(1);
+    const flippedSignature = btoa(flippedFirstByte).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    const flipped = await bridge
+      .queryNextPage(tableId, {
+        cursor: `v3:${body}.${flippedSignature}`,
+        asOfSeq: snapshot.page.asOfSeq,
+        queryFingerprint: snapshot.page.queryFingerprint,
+      })
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(flipped)).toBe("cursor_expired");
+    // The foreign key's token (a different instance's signature).
+    const foreign = createMemoryDatabaseBridge({ cursorKey: "the-foreign-key" });
+    await seedTable(foreign);
+    const foreignSnapshot = await foreign.snapshotTable(tableId, { limit: 2 });
+    const foreignToken = await bridge
+      .queryNextPage(tableId, {
+        cursor: foreignSnapshot.page.nextCursor!,
+        asOfSeq: snapshot.page.asOfSeq,
+        queryFingerprint: snapshot.page.queryFingerprint,
+      })
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(foreignToken)).toBe("cursor_expired");
+    // The legacy unsigned token (the pre-signing scheme's format).
+    const legacyPayload = {
+      v: 2,
+      tableId,
+      R: snapshot.page.asOfSeq,
+      fp: snapshot.page.queryFingerprint,
+      filter: null,
+      sort: null,
+      limit: 2,
+      afterOrderKey: 1,
+      afterRowId: snapshot.page.rows[0]!.id,
+    };
+    const legacyToken = await bridge
+      .queryNextPage(tableId, {
+        cursor: `v2:${encodeURIComponent(JSON.stringify(legacyPayload))}`,
+        asOfSeq: snapshot.page.asOfSeq,
+        queryFingerprint: snapshot.page.queryFingerprint,
+      })
+      .catch((operationError: unknown) => operationError);
+    expect(codeOf(legacyToken)).toBe("cursor_expired");
+  });
+
+  it("the fixed key stands the deterministic signature + the cross-instance agreement", async () => {
+    const key = "the-deterministic-test-key";
+    const bridgeA = createMemoryDatabaseBridge({ cursorKey: key });
+    const { tableId: tableIdA } = await seedTable(bridgeA);
+    const snapshotA = await bridgeA.snapshotTable(tableIdA, { limit: 2 });
+    // The token's shape (the opaque stand — the client stores the string
+    // as is).
+    expect(snapshotA.page.nextCursor!).toMatch(/^v3:.*\..+$/);
+    // The signature stands a genuine HMAC-SHA256 over the token's body
+    // under the declared key (the oracle's recomputation).
+    const { body: tokenBody, signature: tokenSignature } = signedTokenParts(snapshotA.page.nextCursor!);
+    expect(tokenSignature).toBe(hmacSha256Base64Url(key, tokenBody));
+    // The fingerprint stands the same scheme over the query's canonical
+    // body (the oracle's recomputation over the declared fields).
+    const canonicalQuery = {
+      R: snapshotA.page.asOfSeq,
+      collation: snapshotA.page.semantics.collation,
+      filter: null,
+      limit: 2,
+      nullOrdering: snapshotA.page.semantics.nullOrdering,
+      schemaRevision: snapshotA.schemaRevision,
+      semanticsVersion: snapshotA.page.semantics.semanticsVersion,
+      sort: null,
+      tableId: tableIdA,
+    };
+    expect(snapshotA.page.queryFingerprint).toBe(`fp-${hmacSha256Base64Url(key, JSON.stringify(canonicalQuery))}`);
+    // The fixed key's signature stand deterministic (the golden).
+    expect(signatureHex(snapshotA.page.nextCursor!)).toMatch(/^[0-9a-f]{64}$/);
+    const snapshotB = await bridgeA.snapshotTable(tableIdA, { limit: 2 });
+    expect(snapshotB.page.nextCursor).toBe(snapshotA.page.nextCursor);
+    // The same key + the same query stand the same fingerprint across the
+    // instances (the shared-secret's mirror); the foreign key stands a
+    // foreign one.
+    const bridgeB = createMemoryDatabaseBridge({ cursorKey: key });
+    const { tableId: tableIdB } = await seedTable(bridgeB);
+    expect(tableIdB).toBe(tableIdA);
+    const snapshotB2 = await bridgeB.snapshotTable(tableIdB, { limit: 2 });
+    expect(snapshotB2.page.queryFingerprint).toBe(snapshotA.page.queryFingerprint);
+    const foreign = createMemoryDatabaseBridge({ cursorKey: "the-other-key" });
+    await seedTable(foreign);
+    const foreignSnapshot = await foreign.snapshotTable(tableIdA, { limit: 2 });
+    expect(foreignSnapshot.page.queryFingerprint).not.toBe(snapshotA.page.queryFingerprint);
   });
 
   it("the sort stands the server-side ordering (the nulls over the declared stand)", async () => {

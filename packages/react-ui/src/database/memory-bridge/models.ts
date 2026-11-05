@@ -69,6 +69,10 @@ interface MemoryBridgeOptions {
   tombstoneRetentionMs?: number;
   /** The replay window (envelopes behind the head, the default unlimited). */
   replayWindow?: number;
+  /** The cursor / fingerprint signature's key (the default is the fresh
+   *  per-instance CSPRNG key; the fixed stand for the deterministic tests
+   *  and the consumer's shared-secret mirror). */
+  cursorKey?: string;
 }
 
 /** The idempotency store's entry: the operation id → the committed state.
