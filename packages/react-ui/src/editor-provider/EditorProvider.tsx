@@ -7,7 +7,6 @@ import type { Selection } from "docblocks-core";
 
 import { getDefaultBlobStore, legacyBlobStore } from "../blob-store";
 import type { BlobStore } from "../blob-store";
-import { getDefaultDatabaseBridge } from "../database";
 import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
 import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
@@ -207,9 +206,11 @@ function EditorProvider({
   );
 
   // The effective database bridge: the explicit bridge wins, else the
-  // enclosing one, then the shared default in-memory bridge.
-  const effectiveDatabaseBridge = useMemo<DatabaseBridge>(
-    () => databaseBridge ?? parentContext?.databaseBridge ?? getDefaultDatabaseBridge(),
+  // enclosing one; without a bridge the external-form database blocks
+  // render the disconnected placeholder (the inline form stands
+  // unchanged — its data is the document's own).
+  const effectiveDatabaseBridge = useMemo<DatabaseBridge | undefined>(
+    () => databaseBridge ?? parentContext?.databaseBridge,
     [databaseBridge, parentContext]
   );
 

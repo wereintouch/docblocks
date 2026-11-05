@@ -10,11 +10,15 @@ import { isQueryBoundary } from "../phrase";
 import { SLASH_COMMANDS } from "./constants";
 import type { SlashApplyPlan, SlashCommand, SlashDerivation } from "./models";
 
-/** The command list filtered by the query (empty query = the full list). */
-function filterCommands(query: string): SlashCommand[] {
+/** The command list filtered by the query (empty query = the full list).
+ *  The `database` command stands only while a bridge is available — without
+ *  one the external-form blocks render the disconnected placeholder, so the
+ *  command (the table's create / pick over the bridge) is hidden. */
+function filterCommands(query: string, databaseAvailable = true): SlashCommand[] {
   const q = query.toLowerCase();
-  if (q === "") return SLASH_COMMANDS;
-  return SLASH_COMMANDS.filter((command) => command.label.toLowerCase().includes(q));
+  const commands = SLASH_COMMANDS.filter((command) => databaseAvailable || command.type !== "database");
+  if (q === "") return commands;
+  return commands.filter((command) => command.label.toLowerCase().includes(q));
 }
 
 /**

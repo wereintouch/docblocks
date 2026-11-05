@@ -1,7 +1,4 @@
-import { createHmac } from "node:crypto";
-import { describe, expect, it } from "vitest";
-
-import { isBridgeError, isDatabaseBridge } from "../src/database/bridge";
+import { isBridgeError, isDatabaseBridge } from "docblocks-react-ui";
 import type {
   BatchOp,
   BridgeErrorCode,
@@ -9,8 +6,11 @@ import type {
   MutationContext,
   TableEvent,
   TableSnapshot,
-} from "../src/database/bridge";
-import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
+} from "docblocks-react-ui";
+import { createHmac } from "node:crypto";
+import { describe, expect, it } from "vitest";
+
+import { createMemoryDatabaseBridge } from "../src/memory-bridge";
 
 /** The test's write context (a fresh operation id per call). */
 function ctx(operationId?: string): MutationContext {

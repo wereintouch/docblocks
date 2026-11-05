@@ -1,6 +1,6 @@
 /** The in-memory bridge's constants: the defaults, the descriptor
  *  capabilities, and the negotiated limits. */
-import type { ProtocolCapability } from "../bridge";
+import type { ProtocolCapability } from "docblocks-react-ui";
 
 /** The default page size (the `query.limit`'s absent stand). */
 const DEFAULT_LIMIT = 200;

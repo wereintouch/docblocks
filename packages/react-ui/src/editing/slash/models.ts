@@ -79,6 +79,10 @@ interface SlashMenuProps {
   onImageFile: (file: File | null) => void;
   imageClickRef: RefObject<{ open: () => void } | null>;
   databasePick: boolean;
+  /** Whether the `database` command stands (a `databaseBridge` was supplied
+   *  to the editor). The command is hidden when the bridge is absent — the
+   *  external-form blocks would render the disconnected placeholder. */
+  databaseAvailable: boolean;
   onDatabasePickCancel: () => void;
   onDatabaseCommit: (tableId: string) => void;
   embedForm: boolean;

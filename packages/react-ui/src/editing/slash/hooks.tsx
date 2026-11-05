@@ -21,7 +21,11 @@ import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply }
  * tree).
  */
 function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuApi; menuNode: ReactNode } {
-  const { doc, store, blobStore } = useEditorContext();
+  const { doc, store, blobStore, databaseBridge } = useEditorContext();
+  // The `database` slash command stands only while a bridge is available —
+  // without one the external-form blocks render the disconnected placeholder,
+  // so the command (the table's create / pick over the bridge) is hidden.
+  const databaseAvailable = databaseBridge !== undefined;
   const [state, setState] = useState<SlashMenuState | null>(null);
   const stateRef = useRef<SlashMenuState | null>(null);
   stateRef.current = state;
@@ -73,7 +77,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     (delta: 1 | -1) => {
       setState((s) => {
         if (s === null) return s;
-        const items = filterCommands(openDerivation(s.blockId, s.slashOffset).query);
+        const items = filterCommands(openDerivation(s.blockId, s.slashOffset).query, databaseAvailable);
         if (items.length === 0) return s;
         const next = (s.active + delta + items.length) % items.length;
         return { ...s, active: next };
@@ -106,7 +110,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         close();
         return;
       }
-      const items = filterCommands(derivation.query);
+      const items = filterCommands(derivation.query, databaseAvailable);
       // The clamped highlight index (the menu renders the clamped value):
       // a filtered-down list keeps the last item active.
       const command = items.length === 0 ? undefined : items[Math.min(index, items.length - 1)];
@@ -304,7 +308,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         close();
         return false;
       }
-      const items = filterCommands(derivation.query);
+      const items = filterCommands(derivation.query, databaseAvailable);
       // The picker state: the Escape cancels the picker (the menu stands
       // open on the phrase); the picker's input stops its own keys' propagation.
       if (databasePickRef.current) {
@@ -438,6 +442,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         onImageFile={handleImageFile}
         imageClickRef={imageClickRef}
         databasePick={databasePick}
+        databaseAvailable={databaseAvailable}
         onDatabasePickCancel={cancelDatabasePick}
         onDatabaseCommit={commitDatabase}
         embedForm={embedForm}

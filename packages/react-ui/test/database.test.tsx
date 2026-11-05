@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
 import { cleanup, fireEvent, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -22,7 +23,6 @@ import type {
 import { FilterBuilder } from "../src/database/filter-builder";
 import { refEntryKey } from "../src/database/grid/use-ref-tables";
 import type { RefTableDataMap } from "../src/database/grid/use-ref-tables";
-import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { newMutationContext, useDatabaseTable } from "../src/database/use-database-table";
 import { DatabaseSlashPicker } from "../src/editing/slash/DatabaseSlashPicker";
 import { EditorProvider } from "../src/editor-provider";

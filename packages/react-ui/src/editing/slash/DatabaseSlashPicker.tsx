@@ -21,6 +21,11 @@ import { preventDefault } from "../../shared/utils";
 /** The table picker panel (the slash menu's database state). */
 function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: string) => void; onCancel: () => void }) {
   const { databaseBridge } = useEditorContext();
+  // The picker stands only while a bridge is available: the slash menu hides
+  // the `database` command when the bridge is absent, so this guard is the
+  // unreachable stand (the bridge is read before any hook, stably across the
+  // provider's lifetime).
+  if (databaseBridge === undefined) return null;
   const [tables, setTables] = useState<TableRef[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");

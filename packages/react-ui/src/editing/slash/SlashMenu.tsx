@@ -32,6 +32,7 @@ function SlashMenu({
   onImageFile,
   imageClickRef,
   databasePick,
+  databaseAvailable,
   onDatabasePickCancel,
   onDatabaseCommit,
   embedForm,
@@ -69,7 +70,7 @@ function SlashMenu({
     if (derivation.closed) onClose();
   }, [text, state, rootRef, onClose, databasePick, embedForm]);
 
-  const items = derived === null ? [] : filterCommands(derived.query);
+  const items = derived === null ? [] : filterCommands(derived.query, databaseAvailable);
   const visible = items.length > 0 || databasePick || embedForm;
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 

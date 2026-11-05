@@ -3,11 +3,13 @@
  * importers. The bridge contract (the `DatabaseBridge` interface + the
  * ordered row wire + the committed-event envelope + the protocol's
  * negotiation + the structured error + the cell-value helpers + the
- * enum-option palette), the in-memory reference bridge, the filter
- * builder, the table-reading hook, and the grid (the live grid + the
- * enum-options motion slot) stand re-exported here.
+ * enum-option palette), the filter builder, the table-reading hook, and
+ * the grid (the live grid + the enum-options motion slot) stand
+ * re-exported here. The in-memory reference bridge is the harness's
+ * implementation (the consumer's stand) — the package ships the contract
+ * and the UI only; the `databaseBridge` prop stands the consumer's bridge.
  */
-export { columnAnnotation, conditionMatches, parseCellValue, ENUM_OPTION_PALETTE } from "./bridge";
+export { columnAnnotation, conditionMatches, parseCellValue, TEXT_TYPES, ENUM_OPTION_PALETTE } from "./bridge";
 export type {
   BatchOp,
   BridgeColumn,
@@ -58,8 +60,6 @@ export {
   toBridgeError,
   validateProtocolDescriptor,
 } from "./bridge";
-export { createMemoryDatabaseBridge, getDefaultDatabaseBridge } from "./memory-bridge";
-export type { MemoryBridgeOptions } from "./memory-bridge";
 export { emptyFilter, filterIsComplete, FilterBuilder } from "./filter-builder";
 export { cellValueEqual, newMutationContext, useDatabaseTable } from "./use-database-table";
 export type { DatabaseTablePhase, DatabaseTableRow, UseDatabaseTable } from "./use-database-table";

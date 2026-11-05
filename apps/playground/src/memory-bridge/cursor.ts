@@ -5,7 +5,8 @@
  *  integrity check. The HMAC-SHA256 signature under the instance's key
  *  replaces the keyless stand: the cursor and the query fingerprint are
  *  unforgeable without the key. */
-import type { FilterInput, SortInput } from "../bridge";
+import type { FilterInput, SortInput } from "docblocks-react-ui";
+
 import { canonicalJson } from "./utils";
 
 /** The signed cursor's format version (the `v3:` prefix). */

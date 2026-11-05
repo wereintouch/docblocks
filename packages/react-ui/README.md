@@ -196,9 +196,11 @@ retries:
 - reconciliation: `getOperationStatus(operationId)` — the lost-response
   stand (the committed receipt or the pending)
 
-Without a bridge, the editor uses the shared default in-memory bridge
-(tables and rows stand in the page's JS memory, cleared on reload) — the
-dev / demo mode. `createMemoryDatabaseBridge` is exported.
+Without a bridge, external-form database blocks render a "database not
+connected" placeholder and the `/database` slash command is hidden; the
+inline-form database block (columns + rows stored in the document) renders
+and edits without a bridge. Supply your own `DatabaseBridge` implementation
+for external-form tables.
 
 ### Sync-embed
 

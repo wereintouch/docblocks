@@ -8,6 +8,12 @@
  * `bridge.updateRow` per cell (the optimistic layer + the forward-only
  * undo live in the `useDatabaseTable` provider).
  *
+ * Without a bridge the grid renders the disconnected placeholder (the
+ * consumer supplied no `databaseBridge` prop) — the block stands in the
+ * document, the gutter / the selection and the block commands keep
+ * working over it, and the data itself stays in the consumer's own stand
+ * (the document keeps only the `tableId` reference).
+ *
  * The layout is a single CSS grid (the header row and the data rows share
  * the column tracks, so the header and the rows always stand aligned):
  * one `minmax` track per visible column + the row-menu track. The column
@@ -20,7 +26,35 @@
 import type { BlockId, DatabaseBlock as DatabaseBlockType } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
+import { Badge } from "../../shared/ui/Badge";
+import { Card, CardContent } from "../../shared/ui/Card";
 import { GridBody } from "./GridBody";
+
+/** The no-bridge stand: the consumer supplied no `databaseBridge` — the
+ *  block's data lives in the consumer's own stand, and the grid renders
+ *  the disconnected note (the block stays selectable / movable over the
+ *  gutter, the inline form stands unchanged). */
+function DatabaseDisconnected({ name }: { name?: string }) {
+  return (
+    <Card
+      data-slot="docblocks/database-disconnected"
+      className="
+        my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
+        border-(--docblocks-table-border-color) outline-none
+      "
+    >
+      <CardContent
+        data-slot="docblocks/database"
+        className="flex items-center justify-between gap-(--docblocks-block-spacing)"
+      >
+        <span className="font-(--docblocks-heading-font-weight)">{name ?? "Database"}</span>
+        <Badge data-slot="docblocks/database-disconnected-note" variant="secondary" className="shrink-0">
+          database not connected
+        </Badge>
+      </CardContent>
+    </Card>
+  );
+}
 
 function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) {
   const { doc, databaseBridge } = useEditorContext();
@@ -29,6 +63,11 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
     // The inline form: the built-in placeholder card stands (the caller
     // branches); this is the unreachable guard.
     return null;
+  }
+  if (databaseBridge === undefined) {
+    // The consumer supplied no bridge: the disconnected stand (the block
+    // stands in the document, the data stays in the consumer's own stand).
+    return <DatabaseDisconnected name={block.attrs.name} />;
   }
   return (
     <GridBody

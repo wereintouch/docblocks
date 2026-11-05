@@ -67,9 +67,10 @@ interface EditorContextValue {
   /** The effective blob bridge (the consumer's store, the legacy resolver
    *  wrapped, or the shared default in-memory store) — always present. */
   blobStore: BlobStore;
-  /** The effective database bridge (the consumer's implementation or the
-   *  shared default in-memory bridge) — always present. */
-  databaseBridge: DatabaseBridge;
+  /** The effective database bridge (the consumer's implementation);
+   *  undefined when none was supplied — the external-form database blocks
+   *  render the disconnected placeholder. */
+  databaseBridge: DatabaseBridge | undefined;
   /** The sync-embed master-doc resolver; null when none was supplied. */
   syncEmbedResolver: SyncEmbedResolver | null;
   /** The consumer's PDF first-page preview renderer; null when none was supplied (the native iframe stands). */
@@ -131,9 +132,9 @@ interface EditorProviderProps {
    * Optional database bridge: the consumer's implementation of the table
    * operations behind the external-form database blocks (the document
    * keeps only the `tableId` reference; the schema and the rows live in
-   * the consumer's database). Without it the editor uses the shared
-   * default in-memory bridge (the tables and the rows stand in the page's
-   * JS memory; a reload clears them) — the dev / demo mode.
+   * the consumer's database). Without it the external-form blocks render
+   * the disconnected placeholder (the inline form stands unchanged — its
+   * data is the document's own).
    *
    * Like `blobStore`, the value is read per render into the provider
    * context: pass a stable reference. A nested provider that supplies

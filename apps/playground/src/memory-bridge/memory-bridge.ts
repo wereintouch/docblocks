@@ -1,6 +1,7 @@
 /**
- * The in-memory reference bridge: a single-process `DatabaseBridge`
- * that demonstrates the normative contract end to end — the
+ * The in-memory reference bridge: the harness's single-process `DatabaseBridge`
+ * (the consumer-side stand of the normative contract) that demonstrates it
+ * end to end — the
  * snapshot → subscribe(`afterSeq = R`) → replay → live bootstrap, the
  * append-only per-table envelope stream (one committed transaction → one
  * `seq` / `prevSeq`, the replay gap is the envelope's absence), the
@@ -38,9 +39,9 @@
  * - the cell value is the single source of truth: no denormalized display
  *  fields exist in the bridge's state.
  */
-import { TEXT_TYPES, columnAnnotation, conditionMatches } from "../bridge";
-import type { BridgeColumn } from "../bridge";
-import { BridgeError, toBridgeError } from "../bridge";
+import { TEXT_TYPES, columnAnnotation, conditionMatches } from "docblocks-react-ui";
+import type { BridgeColumn } from "docblocks-react-ui";
+import { BridgeError, toBridgeError } from "docblocks-react-ui";
 import type {
   BatchOp,
   BridgeErrorCode,
@@ -64,7 +65,8 @@ import type {
   TableEvent,
   TableRef,
   TableSnapshot,
-} from "../bridge";
+} from "docblocks-react-ui";
+
 import {
   DEFAULT_LIMIT,
   DEFAULT_OPERATION_RETENTION_SECONDS,
@@ -1365,14 +1367,5 @@ function createMemoryDatabaseBridge(options: MemoryBridgeOptions = {}): MemoryDa
   return bridge;
 }
 
-/** The shared per-page default bridge (the `databaseBridge` prop fallback). */
-let defaultBridge: MemoryDatabaseBridge | null = null;
-
-/** The per-page default bridge (created lazily, shared by all the panes of the page). */
-function getDefaultDatabaseBridge(): MemoryDatabaseBridge {
-  if (defaultBridge === null) defaultBridge = createMemoryDatabaseBridge();
-  return defaultBridge;
-}
-
-export { createMemoryDatabaseBridge, getDefaultDatabaseBridge };
+export { createMemoryDatabaseBridge };
 export type { MemoryDatabaseBridge };

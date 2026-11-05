@@ -1,7 +1,7 @@
 /** The in-memory bridge's internal shapes: the table (the schema + the
  *  rows + the envelope outbox), the factory options, and the idempotency
  *  store's entry. */
-import type { Column, MutationReceipt, TableEvent } from "../bridge";
+import type { Column, MutationReceipt, TableEvent } from "docblocks-react-ui";
 
 /** A row entry: the cells (the `cells` map is the single source of truth) +
  *  the order key + the tombstone. The order is NOT the array position — the
