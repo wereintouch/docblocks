@@ -29,4 +29,15 @@ function isSafeDownloadHref(url: unknown): boolean {
   return typeof url === "string" && !UNSAFE_DOWNLOAD_SCHEME.test(url);
 }
 
-export { clamp, isSafeDownloadHref, preventDefault, stopPropagation };
+/**
+ * The exhaustiveness check for a `switch` over a closed union: `value` is
+ * typed `never`, so once every member has a `case` the compiler narrows it
+ * to `never` in the `default` and the call type-checks; a member without a
+ * `case` fails the build. The throw is the runtime backstop for a value that
+ * slipped past the types.
+ */
+function assertNever(value: never): never {
+  throw new Error(`Unhandled value: ${String(value)}`);
+}
+
+export { assertNever, clamp, isSafeDownloadHref, preventDefault, stopPropagation };

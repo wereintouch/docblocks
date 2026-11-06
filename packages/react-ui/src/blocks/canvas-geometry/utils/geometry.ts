@@ -9,6 +9,7 @@ import type { CSSProperties } from "react";
 
 import type { Block, BlockId, BlockType, CanvasRef, OpaqueBlock } from "docblocks-core";
 
+import { assertNever } from "../../../shared/utils";
 import { CANVAS_SUB_TYPES, DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "../constants";
 import type { Box, CanvasPort, EndpointPoint, Ports } from "../models";
 import { edgeAnchor } from "./connector";
@@ -190,6 +191,8 @@ function edgePointOf(box: Box, port: CanvasPort, t: number | undefined): { x: nu
       return { x: box.x + box.w / 2, y: box.y - box.h / 2 + clamped * box.h };
     case "west":
       return { x: box.x - box.w / 2, y: box.y - box.h / 2 + clamped * box.h };
+    default:
+      return assertNever(port);
   }
 }
 

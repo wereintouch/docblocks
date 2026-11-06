@@ -5,6 +5,7 @@
 import type { Block, BlockId, Doc, InsertBlockPosition } from "docblocks-core";
 import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
+import { assertNever } from "../../shared/utils";
 import { focusCaretIn, focusCellActivation } from "../block-commands";
 import { isQueryBoundary } from "../phrase";
 import { SLASH_COMMANDS } from "./constants";
@@ -259,6 +260,8 @@ function applySlashPlan(
       focusCaretIn(blockId, plan.deleteFrom, scope);
       return;
     }
+    default:
+      return assertNever(plan);
   }
 }
 

@@ -9,6 +9,7 @@ import type { Block, Doc } from "docblocks-core";
 
 import { boxContains, effectiveGeometry, endpointPointOf, portOfNormal } from "../../blocks/canvas-geometry";
 import type { CanvasPort } from "../../blocks/canvas-geometry";
+import { assertNever } from "../../shared/utils";
 import {
   findParentSurface,
   firstSurface,
@@ -238,6 +239,8 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
           case "frame":
             placeFrame(doc, point, size);
             break;
+          default:
+            assertNever(tool);
         }
       } catch {
         // A rejected placement: the tool resets, nothing is created.

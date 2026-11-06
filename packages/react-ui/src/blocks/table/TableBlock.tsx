@@ -50,7 +50,7 @@ import { Button } from "../../shared/ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { cn } from "../../shared/ui/cn";
 import { Plus } from "../../shared/ui/icons";
-import { preventDefault } from "../../shared/utils";
+import { assertNever, preventDefault } from "../../shared/utils";
 import { BlockContext, useBlockContextValue } from "../block-context";
 import { useFormatPalette } from "../format-palette-context";
 import { HandleMenu, HandleMenuItems } from "./HandleMenu";
@@ -345,6 +345,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
           }
           break;
         }
+        default:
+          assertNever(action);
       }
     } catch {
       // A rejected command (a concurrent structural change won the race):
