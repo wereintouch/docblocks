@@ -55,11 +55,12 @@ test("the page/canvas view toggle (the DocHeader's switcher — the pane's singl
   // the canvas view.
   await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas"]`)).toHaveCount(0);
 
-  // Switch to the page view: the page flows, the surface renders as the
-  // embedded viewport, and the page card is gone.
+  // Switch to the page view: the page flows, and the surface viewport is
+  // absent (the surface is a canvas layer — its whole rendering stands in
+  // the canvas view only), the page card is gone.
   await switchPaneView(page, "a", "page");
   await expect(card).toBeHidden();
-  await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas"]`)).toBeVisible();
+  await expect(page.locator(`${ROOT} [data-slot="docblocks/canvas"]`)).toHaveCount(0);
 
   // Switch back: the canvas view returns (the toggle is view state — the
   // document data is untouched by the switch) and the layout is intact

@@ -15,7 +15,6 @@ import { EmbedBlock } from "./EmbedBlock";
 import { FrameBlock } from "./FrameBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
-import { SurfaceBlock } from "./SurfaceBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
 import { TextBlock } from "./TextBlock";
 import { TableBlock } from "./table";
@@ -131,7 +130,11 @@ function dispatchBuiltIn(
     case "table":
       return <TableBlock id={id} block={block} />;
     case "surface":
-      return <SurfaceBlock id={id} block={block} />;
+      // A surface renders ONLY in the canvas view (the page view filters it
+      // out of the root sequence — the surface is a canvas layer, not a
+      // page block). A stray one reaching the page dispatch (lenient data)
+      // falls to the placeholder (the unknown-kind posture).
+      return <PlaceholderBlock type={block.type} />;
     case "frame":
       // The frame renders through FrameBlock in every context: inside a
       // surface (the box + the nested provider) and as a provider entry

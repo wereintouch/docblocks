@@ -168,7 +168,7 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
     expect(zIndexOf(doc, "b")).toBe(-1);
   });
 
-  it("the page view stands the same order with the inert line", () => {
+  it("the page view carries no surface (the scene stands in the canvas view only)", () => {
     const d = newDoc();
     const surface = d.insertBlock("surface");
     const a = d.insertBlock("shape", { variant: "rect" }, { parent: surface });
@@ -177,12 +177,16 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
     d.setGeometry(b, { x: 100, y: 0, w: 100, h: 60 });
     d.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
     renderCanvas(d, "page");
-    // The children order's paint stand (the connector on top).
+    // The surface is a canvas layer: the page view's sequence filters it
+    // out, so the scene (the shapes, the connector's line) stands in the
+    // canvas view only.
+    expect(canvasItemIds()).toEqual([]);
+    expect(document.querySelector('[data-connector-id="z0004"]')).toBeNull();
+    // The canvas view stands the same order (the children order's paint
+    // stand — the connector on top).
+    cleanup();
+    renderCanvas(d, "canvas");
     expect(canvasItemIds()).toEqual(["z0002", "z0003", "z0004"]);
-    // The line stands (the display stand), the hit path stands off (the
-    // page view is not selectable — the band must not intercept the
-    // content's clicks).
     expect(document.querySelector('[data-connector-id="z0004"]')).not.toBeNull();
-    expect(document.querySelector('[data-connector-hit="z0004"]')).toBeNull();
   });
 });

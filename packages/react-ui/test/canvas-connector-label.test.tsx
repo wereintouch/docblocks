@@ -121,7 +121,7 @@ describe("the label's chip + the inline edit", () => {
     );
   });
 
-  it("the page view's inert surface keeps the label's chip (the display stand, both views)", () => {
+  it("the page view carries no surface (the chip stands in the canvas view only)", () => {
     const { doc, connector } = seededDoc();
     render(
       <EditorProvider doc={doc}>
@@ -133,8 +133,21 @@ describe("the label's chip + the inline edit", () => {
         doc.updateBlock(connector, { label: "relates to" });
       });
     });
-    // The page view's surface stands the chip (the label is not only a
-    // canvas-view stand).
+    // The surface is a canvas layer: the page view's sequence filters it
+    // out, so the scene (the line, the chip) stands in the canvas view
+    // only.
+    expect(document.querySelector(`[data-connector-label="${connector}"]`)).toBeNull();
+    expect(document.querySelector("[data-connector-id]")).toBeNull();
+  });
+
+  it("the canvas view's label chip (the display stand over the line's midpoint)", () => {
+    const { doc, connector } = seededDoc();
+    renderCanvas(doc);
+    act(() => {
+      doc.transact(() => {
+        doc.updateBlock(connector, { label: "relates to" });
+      });
+    });
     const chip = document.querySelector<HTMLElement>(`[data-connector-label="${connector}"]`);
     expect(chip).not.toBeNull();
     expect(chip!.dataset.slot).toBe("docblocks/connector-label-chip");

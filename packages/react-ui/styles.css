@@ -233,7 +233,6 @@
   --docblocks-sync-embed-max-height: 200px;
 
   /* Canvas (surface). */
-  --docblocks-canvas-height: 500px;
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #afb8c1) 8%, transparent);
   --docblocks-canvas-shape-stroke: currentColor;
   --docblocks-frame-background: var(--card, #ffffff);

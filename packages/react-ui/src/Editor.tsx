@@ -45,6 +45,18 @@ interface EditorProps {
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
   const { store, doc, rootBlockId } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
+  // The page view's sequence: the root's children minus the surfaces (a
+  // surface is a canvas layer, not a page block — its whole surface renders
+  // in the canvas view only; a stray one would otherwise delete its entire
+  // content through the page's Delete path). The filter keys on the
+  // structure inputs (the root's children + the store's stamp) and reads
+  // the blocks map from the store's live state, so a text-only edit stands
+  // no page re-render (the row's own subscription re-renders it).
+  const seqStamp = useStore(store, (state) => state.seqStamp);
+  const pageChildren = useMemo(
+    () => rootChildren.filter((id) => store.getState().blocks[id]?.type !== "surface"),
+    [rootChildren, seqStamp, store]
+  );
   const rootContext = useMemo(
     () => ({ parentId: entrySequenceParent(doc, rootBlockId), siblings: rootChildren }),
     [doc, rootBlockId, rootChildren]
@@ -96,7 +108,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                     data-slot="docblocks/page"
                     className="mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)"
                   >
-                    <BlockGroups ids={rootChildren} />
+                    <BlockGroups ids={pageChildren} />
                   </div>
                 )}
               </BlockContext.Provider>

@@ -2,7 +2,7 @@
 // catalog document (apps/playground/src/catalog.ts) instead of the empty
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE } from "./helpers";
+import { RELAY, SETTLE, switchPaneView } from "./helpers";
 
 async function openCatalogPane(page: Page): Promise<void> {
   const room = `vreg01s-${Math.random().toString(36).slice(2, 8)}`;
@@ -96,14 +96,16 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // Every data-block-type value the catalog carries (table-row / table-cell
   // render as structural <tr>/<td>, not data-block-type elements). The
   // catalog's sync-embed resolves its master (fixed docId, deterministic
-  // seed), so the master's blocks (one h1 + three paragraphs) count too,
-  // and so does the canvas scene (a frame paragraph + a frame heading).
-  // The motion view renders the flat page sequence: the nesting is the row
-  // step (no nested slot), and the list markers stand as rendered row
-  // labels (no list element).
-  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(13);
+  // seed), so the master's blocks (one h1 + three paragraphs) count too.
+  // The canvas scene (the surface + its frame / shapes / canvas-text /
+  // connector) is a canvas layer: the page view carries none of it, so the
+  // frame's paragraph + heading stand out of the counts. The motion view
+  // renders the flat page sequence: the nesting is the row step (no nested
+  // slot), and the list markers stand as rendered row labels (no list
+  // element).
+  expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(12);
   expect(await doc.locator('[data-block-type="quote"]').count()).toBe(2);
-  expect(await doc.locator('[data-block-type="heading"]').count()).toBe(8);
+  expect(await doc.locator('[data-block-type="heading"]').count()).toBe(7);
   expect(await doc.locator('[data-block-type="list-item"]').count()).toBe(17);
   expect(await doc.locator('[data-block-type="callout"]').count()).toBe(4);
   expect(await doc.locator('[data-block-type="code"]').count()).toBe(3);
@@ -125,10 +127,9 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await doc.locator('[data-block-type="embed"]').count()).toBe(1);
   expect(await doc.locator('[data-block-type="divider"]').count()).toBe(1);
 
-  // Headings 1..6 as their own tags; the master's h1 adds a second h1, the
-  // canvas frame's heading a second h2.
+  // Headings 1..6 as their own tags; the master's h1 adds a second h1.
   expect(await doc.locator('h1[data-block-type="heading"]').count()).toBe(2);
-  expect(await doc.locator('h2[data-block-type="heading"]').count()).toBe(2);
+  expect(await doc.locator('h2[data-block-type="heading"]').count()).toBe(1);
   for (const tag of ["h3", "h4", "h5", "h6"]) {
     expect(await doc.locator(`${tag}[data-block-type="heading"]`).count()).toBe(1);
   }
@@ -197,13 +198,14 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await syncEmbed.locator('h1[data-block-type="heading"]').count()).toBe(1);
   expect(await syncEmbed.locator('[data-block-type="paragraph"]').count()).toBe(3);
 
-  // Canvas (v2): the seeded demo scene — the surface viewport, the four
-  // shape SVGs, the frame box, the canvas-text, the connector line.
-  expect(await doc.locator('[data-block-type="surface"]').count()).toBe(1);
-  await expect(doc.locator('[data-slot="docblocks/shape"]')).toHaveCount(4);
-  expect(await doc.locator('[data-slot="docblocks/frame"]').count()).toBe(1);
-  expect(await doc.locator('[data-block-type="canvas-text"]').count()).toBe(1);
-  await expect(doc.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]')).toHaveCount(1);
+  // Canvas (v2): the seeded demo scene is a canvas layer — the page view
+  // carries none of it (no surface viewport, no shapes, no frame, no
+  // canvas-text, no connector line).
+  expect(await doc.locator('[data-block-type="surface"]').count()).toBe(0);
+  expect(await doc.locator('[data-slot="docblocks/shape"]').count()).toBe(0);
+  expect(await doc.locator('[data-slot="docblocks/frame"]').count()).toBe(0);
+  expect(await doc.locator('[data-block-type="canvas-text"]').count()).toBe(0);
+  expect(await doc.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]').count()).toBe(0);
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);
@@ -424,25 +426,16 @@ test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
   await openCatalogPane(page);
   const doc = editor(page).first();
 
-  // The surface viewport (the page-view rendering): the height, the table
-  // border and the clipping tokens.
-  const viewport = doc.locator('[data-slot="docblocks/canvas"]');
-  await expect(viewport).toHaveCount(1);
-  const viewportStyle = await styleProps(viewport, "height", "border-top-width", "border-top-style", "overflow");
-  expect(viewportStyle).toEqual({
-    height: "500px",
-    "border-top-width": "1px",
-    "border-top-style": "solid",
-    overflow: "hidden",
-  });
-  // The viewport background reads the canvas background token (a
-  // color-mix of the standard --muted input — not pinned to a value,
-  // only to the non-transparent).
-  const viewportBackground = await viewport.evaluate((el) => getComputedStyle(el).backgroundColor);
-  expect(viewportBackground).not.toBe("rgba(0, 0, 0, 0)");
+  // The page view carries no canvas layer (the surface is filtered out of
+  // the page sequence — the whole surface renders in the canvas view only),
+  // so the page-view viewport and the frame are both absent there.
+  await expect(doc.locator('[data-slot="docblocks/canvas"]')).toHaveCount(0);
+  await expect(doc.locator('[data-slot="docblocks/frame"]')).toHaveCount(0);
 
-  // The frame: the table border, the radius, and no clipping (the frame
-  // does not clip in v1 — no overflow class, the visible default).
+  // The canvas view: the surface's frame (the table border, the radius,
+  // and no clipping — the frame does not clip in v1, so the overflow
+  // stands the visible default).
+  await switchPaneView(page, "a", "canvas");
   const frame = doc.locator('[data-slot="docblocks/frame"]');
   await expect(frame).toHaveCount(1);
   const frameStyle = await styleProps(frame, "border-top-width", "border-top-style", "overflow");

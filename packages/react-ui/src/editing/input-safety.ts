@@ -318,7 +318,10 @@ function useBlockInput({
           if (selection.ids.length === 1 && selection.ids[0] === id) {
             const siblings = doc.getChildren(context.parentId);
             const index = siblings.indexOf(id);
-            const nextId = event.key === "ArrowUp" ? siblings[index - 1] : siblings[index + 1];
+            let nextId = event.key === "ArrowUp" ? siblings[index - 1] : siblings[index + 1];
+            if (nextId !== undefined && doc.getBlock(nextId)?.type === "surface") {
+              nextId = undefined; // a surface stands no page row (the canvas layer)
+            }
             if (nextId !== undefined) {
               event.preventDefault();
               view.set({ kind: "blocks", ids: [nextId], anchorId: nextId });

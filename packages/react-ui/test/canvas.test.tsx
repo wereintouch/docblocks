@@ -161,8 +161,11 @@ function parsePathPoints(d: string): { x: number; y: number }[] {
 
 describe("canvas scene", () => {
   it("renders the surface container with the elements in z-order (DOM order)", () => {
-    renderScene();
-    expect(document.querySelector('[data-slot="docblocks/canvas"]')).not.toBeNull();
+    renderScene({ view: "canvas" });
+    // The scene renders ONLY in the canvas view (the page view filters the
+    // surface out of the sequence), so the container's stand is the
+    // canvas-view's world.
+    expect(document.querySelector('[data-slot="docblocks/canvas-world"]')).not.toBeNull();
     expect(canvasItemIds()).toEqual([
       IDS.rect,
       IDS.ellipse,
@@ -176,7 +179,7 @@ describe("canvas scene", () => {
   });
 
   it("reorders the elements on a moveBlock within the surface (the z-order change)", () => {
-    const doc = renderScene();
+    const doc = renderScene({ view: "canvas" });
     // Move the rect (index 0) to the end of the surface's children
     // (pre-move index semantics: toIndex = the current last position + 1).
     act(() => {
@@ -195,7 +198,7 @@ describe("canvas scene", () => {
   });
 
   it("positions the elements by geometry (the center-anchor coordinate model)", () => {
-    renderScene();
+    renderScene({ view: "canvas" });
     const rect = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.rect}"]`
     )!;
@@ -210,7 +213,7 @@ describe("canvas scene", () => {
   });
 
   it("renders the shapes as SVGs (the variant figures, the dash style, the fill attr)", () => {
-    renderScene();
+    renderScene({ view: "canvas" });
     const rect = document.querySelector<SVGElement>(`[data-slot="docblocks/shape"][data-block-id="${IDS.rect}"]`)!;
     expect(rect.getAttribute("data-variant")).toBe("rect");
     expect(rect.querySelector("rect")).not.toBeNull();
@@ -226,7 +229,7 @@ describe("canvas scene", () => {
   });
 
   it("renders the canvas-text as an editable block with the font attrs as inline styles", () => {
-    renderScene();
+    renderScene({ view: "canvas" });
     const wrapper = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.text}"]`
     )!;
@@ -308,6 +311,7 @@ describe("canvas scene", () => {
 
   it("renders the connector's stroke style (the data-driven dasharray: dash / dot / the solid default)", () => {
     const doc = renderScene({
+      view: "canvas",
       seed: (d: TestDoc) => {
         d.transact(() => {
           const surface = d.insertBlock("surface");
@@ -354,7 +358,7 @@ describe("canvas scene", () => {
   });
 
   it("renders the variant shapes (the orthogonal elbow and the curved bow)", () => {
-    const doc = renderScene();
+    const doc = renderScene({ view: "canvas" });
 
     // The absent variant stands straight (the default).
     const straight = document.querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
@@ -509,7 +513,7 @@ describe("canvas: the connector's style attrs", () => {
 
 describe("canvas: frame", () => {
   it("renders the nested page blocks through the nested provider (same doc)", () => {
-    renderScene();
+    renderScene({ view: "canvas" });
     const frame = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"]`)!;
     // The nested content: the heading and the paragraph inside the frame box.
     expect(frame.querySelector("h1")!.textContent).toBe("Frame heading");
@@ -522,7 +526,7 @@ describe("canvas: frame", () => {
   });
 
   it("commits an edit inside the frame to the shared doc", () => {
-    const doc = renderScene();
+    const doc = renderScene({ view: "canvas" });
     const length = doc.getTextLength(IDS.frameParagraph);
     act(() => {
       doc.insertText(IDS.frameParagraph, length, " — edited");
@@ -556,7 +560,7 @@ describe("canvas: lenient render", () => {
     });
     render(
       <EditorProvider doc={doc}>
-        <Editor />
+        <Editor view="canvas" />
       </EditorProvider>
     );
     const wrapper = document.querySelector<HTMLElement>("[data-slot='docblocks/canvas-item']")!;
@@ -592,7 +596,7 @@ describe("canvas: shape variants", () => {
     });
     render(
       <EditorProvider doc={doc}>
-        <Editor />
+        <Editor view="canvas" />
       </EditorProvider>
     );
 
@@ -623,7 +627,7 @@ describe("canvas: shape variants", () => {
     });
     render(
       <EditorProvider doc={doc}>
-        <Editor />
+        <Editor view="canvas" />
       </EditorProvider>
     );
 
@@ -656,7 +660,7 @@ describe("canvas: consumer renderer", () => {
       shape: ({ id }) => <span data-custom="shape">{`custom-shape-${id}`}</span>,
       "canvas-text": ({ id }) => <span data-custom="canvas-text">{`custom-text-${id}`}</span>,
     };
-    renderScene({ blockRenderers: renderers });
+    renderScene({ view: "canvas", blockRenderers: renderers });
     // The built-in shape SVGs are gone; the custom ones render in place.
     expect(document.querySelector("[data-slot='docblocks/shape']")).toBeNull();
     expect(document.querySelector("[data-custom='shape']")!.textContent).toBe(`custom-shape-${IDS.rect}`);

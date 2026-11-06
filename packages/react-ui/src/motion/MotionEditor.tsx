@@ -52,6 +52,18 @@ function MotionEditor({
   // subscription, the row list and the rows' framer fibers stand.
   const seqStamp = useStore(store, (state) => state.seqStamp);
   const collapsedIds = useStore(store, (state) => state.collapsedIds);
+  // The page view's sequence: the root's children minus the surfaces (a
+  // surface is a canvas layer, not a page block — its whole surface renders
+  // in the canvas view only; a stray one would otherwise delete its entire
+  // content through the page's Delete path). The filter keys on the
+  // structure inputs (the root's children + the stamp) and reads the
+  // blocks map from the store's live state — the same read the derivation
+  // below does, so the row list's re-render contract stands (a text-only
+  // edit stands nothing here).
+  const pageChildren = useMemo(
+    () => rootChildren.filter((id) => store.getState().blocks[id]?.type !== "surface"),
+    [rootChildren, seqStamp, store]
+  );
   // The gestures' command parent: the entry root's sequence container (a
   // subtree entry root is a page block — structurally childless, so its
   // commands target the container of its sequence, not itself).
@@ -77,16 +89,16 @@ function MotionEditor({
   // fresh whenever the stamp does).
   const prevRef = useRef<Map<string, FlatNode> | null>(null);
   const derivation = useMemo(() => {
-    const result = deriveFlat(rootChildren, store.getState().blocks, prevRef.current ?? undefined);
+    const result = deriveFlat(pageChildren, store.getState().blocks, prevRef.current ?? undefined);
     prevRef.current = result.byId;
     return result;
-  }, [rootChildren, seqStamp, store]);
+  }, [pageChildren, seqStamp, store]);
   // The visible rows: the sequence with every collapsed block's derived
   // segment unmounted (a view-state skip — the rows stand in the
   // data; the local drag order and the commit run over the visible rows).
   const rowKeys = useMemo(
-    () => visibleRows(rootChildren, derivation.byId, collapsedIds),
-    [rootChildren, derivation, collapsedIds]
+    () => visibleRows(pageChildren, derivation.byId, collapsedIds),
+    [pageChildren, derivation, collapsedIds]
   );
   const nodesById = derivation.byId;
 
