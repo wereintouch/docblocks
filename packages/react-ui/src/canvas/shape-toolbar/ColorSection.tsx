@@ -5,7 +5,7 @@
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import { useFormatPalette } from "../../blocks/format-palette-context";
+import { useFormatPalette } from "../../shared/providers/format-palette-context";
 import { Button, Input } from "../../shared/ui";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";

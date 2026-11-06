@@ -25,7 +25,7 @@ import type {
   ShapeAttrs,
 } from "docblocks-core";
 
-import { DEFAULT_CANVAS_ITEM_SIZE, endpointBoxOf, endpointPointOf, portOfNormal } from "../blocks/canvas-geometry";
+import { DEFAULT_CANVAS_ITEM_SIZE, endpointBoxOf, endpointPointOf, portOfNormal } from "./geometry";
 import { findParentSurface } from "./insert";
 import type { CanvasPoint } from "./viewport";
 

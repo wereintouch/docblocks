@@ -1,10 +1,10 @@
 import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../Editor";
+import { BlockGroups } from "../blocks/BlockView";
 import { EditorProvider, useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
-import { BlockGroups } from "./BlockView";
-import { BlockContext, useBlockContextValue } from "./block-context";
+import { BlockContext, useBlockContextValue } from "../shared/providers/block-context";
 
 const EMPTY_IDS: BlockId[] = [];
 

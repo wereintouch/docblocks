@@ -15,7 +15,6 @@ import { useState } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { useCanvasTextEdit } from "../../blocks/canvas-text-edit-context";
 import { useEditorContext } from "../../editor-provider";
 import {
   Button,
@@ -43,6 +42,7 @@ import {
 } from "../../shared/ui/icons";
 import { stopPropagation } from "../../shared/utils";
 import { ZOrderMenu } from "../ZOrderMenu";
+import { useCanvasTextEdit } from "../canvas-text-edit-context";
 import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "../text-fonts";
 import { TOOLTIP_SIDE_OFFSET_PX } from "../viewport/constants";
 import { ColorSection } from "./ColorSection";

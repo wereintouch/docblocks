@@ -7,9 +7,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { Block, Doc } from "docblocks-core";
 
-import { boxContains, effectiveGeometry, endpointPointOf, portOfNormal } from "../../blocks/canvas-geometry";
-import type { CanvasPort } from "../../blocks/canvas-geometry";
 import { assertNever } from "../../shared/utils";
+import { boxContains, effectiveGeometry, endpointPointOf, portOfNormal } from "../geometry";
+import type { CanvasPort } from "../geometry";
 import {
   findParentSurface,
   firstSurface,

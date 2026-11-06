@@ -6,8 +6,10 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 import type { BlockId, ImageBlock as ImageBlockType, TextAlign } from "docblocks-core";
 
 import type { BlobRef } from "../blob-store";
+import { CANVAS_SELECTION_OUTLINE } from "../canvas/canvas-view/constants";
 import { useEditorContext } from "../editor-provider";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "../pdf/constants";
+import { BlockContext } from "../shared/providers/block-context";
 import { Button } from "../shared/ui/Button";
 import { Card, CardContent } from "../shared/ui/Card";
 import { cn } from "../shared/ui/cn";
@@ -22,8 +24,6 @@ import {
 import { isSafeDownloadHref } from "../shared/utils";
 import { clamp, preventDefault } from "../shared/utils";
 import { BlockCaption, requestBlockCaption } from "./BlockCaption";
-import { BlockContext } from "./block-context";
-import { CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
 
 /** The placeholder card's shared classes (the unknown-key and loading states). */
 const PLACEHOLDER_CLASS = `

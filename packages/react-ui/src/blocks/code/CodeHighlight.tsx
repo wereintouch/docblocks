@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from "react";
 
-import { cn } from "../shared/ui/cn";
+import { cn } from "../../shared/ui/cn";
 import { grammarOf, highlightSync, isGrammarLoaded, loadGrammar } from "./code-highlight";
 
 interface CodeHighlightProps {

@@ -5,20 +5,20 @@ import type { CSSProperties, ReactNode } from "react";
 
 import type { BlockId } from "docblocks-core";
 
+import { BlockView } from "../blocks/BlockView";
+import { TextBlock } from "../blocks/TextBlock";
 import type { Box, MovePreview } from "../canvas";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
+import { useBlockContext } from "../shared/providers/block-context";
 import { cn } from "../shared/ui/cn";
-import { BlockView } from "./BlockView";
 import { ConnectorLine } from "./ConnectorLine";
 import { FrameBlock } from "./FrameBlock";
 import { GroupBlock } from "./GroupBlock";
 import { ShapeSvg } from "./ShapeSvg";
 import { ShapeText } from "./ShapeText";
-import { TextBlock } from "./TextBlock";
-import { useBlockContext } from "./block-context";
-import { canvasItemStyle, endpointOf, isCanvasSubType } from "./canvas-geometry";
 import { CANVAS_KB_FOCUS_OUTLINE, CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
+import { canvasItemStyle, endpointOf, isCanvasSubType } from "./geometry";
 
 /** The canvas item's accessible label (the block type's stand; the
  * consumer's renderer's type stands the type's string). */

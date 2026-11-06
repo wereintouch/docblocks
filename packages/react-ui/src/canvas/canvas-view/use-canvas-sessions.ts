@@ -21,7 +21,7 @@ import {
 } from "../../canvas";
 import type { CanvasViewportState, ResizeHandle } from "../../canvas";
 import type { SelectionRef } from "../../editor-provider";
-import { effectiveGeometry, portsOf } from "../canvas-geometry";
+import { effectiveGeometry, portsOf } from "../geometry";
 import { PORT_PICK_RADIUS_PX, SCROLLBAR_GUARD_PX } from "./constants";
 import type { CanvasPointerSession } from "./models";
 import { isPlaceTool, toggleCanvasSelection } from "./utils";

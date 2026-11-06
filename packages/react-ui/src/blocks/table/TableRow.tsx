@@ -5,7 +5,7 @@ import { memo } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useBlock } from "../../hooks";
-import { BlockContext, useBlockContextValue } from "../block-context";
+import { BlockContext, useBlockContextValue } from "../../shared/providers/block-context";
 import { TableCell } from "./TableCell";
 import { DRAG_TRANSITION, EMPTY_IDS } from "./constants";
 

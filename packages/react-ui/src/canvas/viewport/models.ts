@@ -2,7 +2,7 @@
  *  the tool / mode sets, the resize handles, the pen stroke) + the session
  *  shapes (the move / resize / the connector endpoint drag), the rendered
  *  previews, and the `CanvasViewportState` the hook returns. */
-import type { Box, CanvasPort } from "../../blocks/canvas-geometry";
+import type { Box, CanvasPort } from "../geometry";
 
 /** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
 type CanvasTool =

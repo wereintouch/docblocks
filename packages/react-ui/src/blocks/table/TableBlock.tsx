@@ -46,13 +46,13 @@ import { DEFAULT_TABLE_COLUMN_WIDTH } from "docblocks-core";
 
 import { focusCaretIn } from "../../editing/block-commands";
 import { useEditorContext } from "../../editor-provider";
+import { BlockContext, useBlockContextValue } from "../../shared/providers/block-context";
+import { useFormatPalette } from "../../shared/providers/format-palette-context";
 import { Button } from "../../shared/ui";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../../shared/ui/DropdownMenu";
 import { cn } from "../../shared/ui/cn";
 import { Plus } from "../../shared/ui/icons";
 import { assertNever, preventDefault } from "../../shared/utils";
-import { BlockContext, useBlockContextValue } from "../block-context";
-import { useFormatPalette } from "../format-palette-context";
 import { HandleMenu, HandleMenuItems } from "./HandleMenu";
 import { TableRow } from "./TableRow";
 import {

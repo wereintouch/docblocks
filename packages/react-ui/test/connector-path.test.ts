@@ -16,7 +16,7 @@ import {
   endpointPointOf,
   portOfNormal,
   portsOf,
-} from "../src/blocks/canvas-geometry";
+} from "../src/canvas/geometry";
 
 /** The scene boxes (the center-anchor geometry shape). */
 const A = { x: -300, y: -100, w: 200, h: 100 };

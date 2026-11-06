@@ -1,6 +1,6 @@
 import type { BlockId, CodeBlock } from "docblocks-core";
 
-import { BlockCaption, requestBlockCaption } from "./BlockCaption";
+import { BlockCaption, requestBlockCaption } from "../BlockCaption";
 
 /**
  * The code block's caption line: the shared block caption

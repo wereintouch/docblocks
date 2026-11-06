@@ -11,7 +11,7 @@ import { createDoc } from "docblocks-core";
 import type { Block } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
-import { boxContains } from "../src/blocks/canvas-geometry";
+import { boxContains } from "../src/canvas/geometry";
 import { dissolveGroup, makeGroup } from "../src/canvas/insert";
 import { EditorProvider } from "../src/editor-provider";
 

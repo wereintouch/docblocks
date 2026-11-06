@@ -9,14 +9,14 @@ import type { ReactNode } from "react";
 
 import type { Block, BlockId } from "docblocks-core";
 
-import { CodeHeader } from "./CodeHeader";
+import { FrameBlock } from "../canvas/FrameBlock";
 import { DatabaseBlock } from "./DatabaseBlock";
 import { EmbedBlock } from "./EmbedBlock";
-import { FrameBlock } from "./FrameBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
 import { TextBlock } from "./TextBlock";
+import { CodeHeader } from "./code/CodeHeader";
 import { TableBlock } from "./table";
 
 const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;

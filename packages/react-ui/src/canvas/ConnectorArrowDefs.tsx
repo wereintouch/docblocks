@@ -13,9 +13,9 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
-import { endpointOf, surfaceChromeKey } from "./canvas-geometry";
 import { ARROW_SIZE, CIRCLE_ENDPOINT_RADIUS } from "./connector-constants";
 import { arrowDefId, connectorStrokeOf } from "./connector-utils";
+import { endpointOf, surfaceChromeKey } from "./geometry";
 
 function ConnectorArrowDefs({ id }: { id: BlockId }) {
   const { store } = useEditorContext();

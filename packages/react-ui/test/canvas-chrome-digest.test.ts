@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
-import { surfaceChromeKey } from "../src/blocks/canvas-geometry";
 import { flatStructureKey } from "../src/blocks/flat";
+import { surfaceChromeKey } from "../src/canvas/geometry";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 

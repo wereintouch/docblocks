@@ -14,9 +14,14 @@ import type { Block, BlockId, ConnectorBlock } from "docblocks-core";
 import type { Box } from "../canvas";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
+import { useBlockContext } from "../shared/providers/block-context";
 import { Link } from "../shared/ui/icons";
-import { useBlockContext } from "./block-context";
-import type { EndpointPoint } from "./canvas-geometry";
+import { SURFACE_BG } from "./canvas-view/constants";
+import { CONNECT_COLOR, HIT_STROKE_WIDTH, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "./connector-constants";
+import type { CanvasSession } from "./connector-session-context";
+import { CanvasSessionContext } from "./connector-session-context";
+import { arrowDefId, connectorStrokeOf, connectorStrokeWidthOf } from "./connector-utils";
+import type { EndpointPoint } from "./geometry";
 import {
   PORT_NORMAL,
   connectorPath,
@@ -26,12 +31,7 @@ import {
   endpointBoxOf,
   endpointPointOf,
   surfaceChromeKey,
-} from "./canvas-geometry";
-import { SURFACE_BG } from "./canvas-view/constants";
-import { CONNECT_COLOR, HIT_STROKE_WIDTH, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "./connector-constants";
-import type { CanvasSession } from "./connector-session-context";
-import { CanvasSessionContext } from "./connector-session-context";
-import { arrowDefId, connectorStrokeOf, connectorStrokeWidthOf } from "./connector-utils";
+} from "./geometry";
 
 /**
  *

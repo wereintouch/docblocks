@@ -10,7 +10,7 @@ import { createContext } from "react";
 import type { BlockId } from "docblocks-core";
 
 import type { Box, MovePreview } from "../canvas";
-import type { CanvasPort } from "./canvas-geometry";
+import type { CanvasPort } from "./geometry";
 
 interface CanvasSession {
   movePreview: MovePreview | null;

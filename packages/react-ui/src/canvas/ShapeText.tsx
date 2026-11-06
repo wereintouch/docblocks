@@ -5,9 +5,9 @@ import type { BlockId } from "docblocks-core";
 
 import { SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, SHAPE_TEXT_WEIGHTS } from "../canvas";
 import { useEditorContext } from "../editor-provider";
-import type { ShapeBlockView } from "./canvas-geometry";
-import { DEFAULT_CANVAS_ITEM_SIZE } from "./canvas-geometry";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
+import type { ShapeBlockView } from "./geometry";
+import { DEFAULT_CANVAS_ITEM_SIZE } from "./geometry";
 
 /** The shape's narrowed block view (the attrs stand). */
 /** The shape's text padding (the figure's edge inset): the text wraps at

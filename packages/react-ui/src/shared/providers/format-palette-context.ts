@@ -1,6 +1,6 @@
 import { createContext, useContext } from "react";
 
-import { FORMAT_PALETTE } from "../editing/format-toolbar";
+import { FORMAT_PALETTE } from "../../editing/format-toolbar";
 
 /**
  * The editor's format color palette (the shared palette's eight swatches,

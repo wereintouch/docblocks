@@ -6,22 +6,22 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "re
 import type { Block, BlockId } from "docblocks-core";
 
 import { editorRootOf } from "../editing/dom-offset";
+import { insertParagraphAfter } from "../editing/gutter-plus";
 import { useEditorContext } from "../editor-provider";
+import { useBlockContext } from "../shared/providers/block-context";
 import { Button } from "../shared/ui/Button";
 import { Checkbox } from "../shared/ui/Checkbox";
 import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
 import { GripVertical, Plus, TriangleFilled } from "../shared/ui/icons";
-import { CodeCaption } from "./CodeCaption";
-import { CodeHighlight } from "./CodeHighlight";
-import { useBlockContext } from "./block-context";
+import { textOf, useTextInner } from "../text/text-inner";
 import { CALLOUT_ICON_COMPONENTS, calloutIconName } from "./callout-icon";
-import { isHighlightable } from "./code-highlight";
-import { measureCodeLines } from "./code-metrics";
-import type { CodeLineMetric } from "./code-metrics";
+import { CodeCaption } from "./code/CodeCaption";
+import { CodeHighlight } from "./code/CodeHighlight";
+import { isHighlightable } from "./code/code-highlight";
+import { measureCodeLines } from "./code/code-metrics";
+import type { CodeLineMetric } from "./code/code-metrics";
 import { indentOf, markerCycle, numberMarkerLabel } from "./flat";
-import { insertParagraphAfter } from "./gutter-plus";
-import { textOf, useTextInner } from "./text-inner";
 
 /** The text-editable block types (the wrapper tag and data attrs are props). */
 type EditableBlock = Extract<

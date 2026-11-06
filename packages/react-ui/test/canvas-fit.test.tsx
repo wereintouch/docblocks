@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
-import { ZoomControls } from "../src/blocks/canvas-view/ZoomControls";
+import { ZoomControls } from "../src/canvas/canvas-view/ZoomControls";
 import { canvasContentBox, fitView } from "../src/canvas/fit";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";

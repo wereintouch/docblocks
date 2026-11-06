@@ -13,10 +13,10 @@ import type { ReactNode } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
-import type { ConnectorPreviews } from "../canvas-geometry";
-import { connectorMidpoint, surfaceChromeKey } from "../canvas-geometry";
 import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../connector-constants";
 import { connectorStrokeWidthOf } from "../connector-utils";
+import type { ConnectorPreviews } from "../geometry";
+import { connectorMidpoint, surfaceChromeKey } from "../geometry";
 import { ConnectorLabelChip } from "./ConnectorLabelChip";
 
 const EMPTY_SELECTED: BlockId[] = [];

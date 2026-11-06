@@ -43,8 +43,8 @@ import { useMentionMenuApi } from "../editing/mention";
 import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { useEditorContext } from "../editor-provider";
-import { renderRunsInto } from "../text";
-import type { BlockContextValue } from "./block-context";
+import type { BlockContextValue } from "../shared/providers/block-context";
+import { renderRunsInto } from "./runs-dom";
 
 const EMPTY_RUNS: TextRun[] = [];
 

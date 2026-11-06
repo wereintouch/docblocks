@@ -19,12 +19,12 @@ import type { BlockId } from "docblocks-core";
 import type { Box, MovePreview } from "../../canvas";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
+import { BlockContext, useBlockContextValue } from "../../shared/providers/block-context";
 import { CanvasItem } from "../CanvasItem";
 import { ConnectorArrowDefs } from "../ConnectorArrowDefs";
-import { BlockContext, useBlockContextValue } from "../block-context";
-import { effectiveGeometry, portsOf, surfaceChromeKey } from "../canvas-geometry";
 import type { CanvasSession } from "../connector-session-context";
 import { CanvasSessionContext } from "../connector-session-context";
+import { effectiveGeometry, portsOf, surfaceChromeKey } from "../geometry";
 import { SURFACE_BG } from "./constants";
 
 function SurfaceLayer({

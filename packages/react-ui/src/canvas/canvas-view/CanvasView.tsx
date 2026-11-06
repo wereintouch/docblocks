@@ -25,6 +25,7 @@ import { useStore } from "zustand";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { BlockGroups } from "../../blocks/BlockView";
 import {
   CanvasDock,
   ConnectorToolbar,
@@ -37,14 +38,13 @@ import {
 } from "../../canvas";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
+import { BlockContext } from "../../shared/providers/block-context";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
 import { Container } from "../../shared/ui/icons";
-import { BlockGroups } from "../BlockView";
 import { ShapeSvg } from "../ShapeSvg";
-import { BlockContext } from "../block-context";
-import { effectiveGeometry, pageCardStyle, surfaceChromeKey } from "../canvas-geometry";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
+import { effectiveGeometry, pageCardStyle, surfaceChromeKey } from "../geometry";
 import { ConnectorLabelChips } from "./ConnectorLabelChips";
 import { ConnectorLabelEdit } from "./ConnectorLabelEdit";
 import { ConnectorPreviewLine } from "./ConnectorPreviewLine";

@@ -3,18 +3,18 @@ import type { ReactNode } from "react";
 
 import type { BlockId, CodeBlock } from "docblocks-core";
 
-import { useEditorContext } from "../editor-provider";
-import { Button } from "../shared/ui/Button";
+import { useEditorContext } from "../../editor-provider";
+import { Button } from "../../shared/ui/Button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "../shared/ui/DropdownMenu";
-import { Input } from "../shared/ui/Input";
-import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
-import { ScrollArea } from "../shared/ui/ScrollArea";
-import { cn } from "../shared/ui/cn";
+} from "../../shared/ui/DropdownMenu";
+import { Input } from "../../shared/ui/Input";
+import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
+import { ScrollArea } from "../../shared/ui/ScrollArea";
+import { cn } from "../../shared/ui/cn";
 import {
   Captions,
   Check,
@@ -27,10 +27,10 @@ import {
   Hash,
   Search,
   TextWrap,
-} from "../shared/ui/icons";
-import { preventDefault } from "../shared/utils";
+} from "../../shared/ui/icons";
+import { preventDefault } from "../../shared/utils";
+import { textOf } from "../TextBlock";
 import { requestCodeCaption } from "./CodeCaption";
-import { textOf } from "./TextBlock";
 
 /**
  * The code block's header row: the language selector on the left (a

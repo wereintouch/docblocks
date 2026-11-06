@@ -9,10 +9,10 @@ import type { Block, BlockId } from "docblocks-core";
 import { focusCaretIn, focusCellActivation } from "../../editing/block-commands";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
+import { BlockContext, useBlockContext, useBlockContextValue } from "../../shared/providers/block-context";
 import { cn } from "../../shared/ui/cn";
+import { useTextInner } from "../../text/text-inner";
 import { BlockGroups } from "../BlockView";
-import { BlockContext, useBlockContext, useBlockContextValue } from "../block-context";
-import { useTextInner } from "../text-inner";
 import { CellActivation } from "./CellActivation";
 import { DRAG_TRANSITION, EMPTY_IDS } from "./constants";
 
