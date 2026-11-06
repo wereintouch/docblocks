@@ -964,10 +964,15 @@ test("the keyboard path: the handle's focus + the Enter open + the keyboard pick
     await handle.focus();
     await a.keyboard.press("Enter");
     await expect(rowMenu(a)).toBeVisible();
-    // The menu's open auto-focus (the first item) stands async of the mount:
-    // the navigation keys need the focus seated.
-    await a.waitForTimeout(150);
+    // The menu's open auto-focus (the first item — the Background sub-trigger)
+    // stands async of the mount, and the arrow's focus travel is a
+    // setTimeout hop (the roving focus group): a fixed delay is outlasted by
+    // the load-timed mount, and an Enter landed on the Background trigger
+    // opens the color palette instead of picking the item. The seated focus
+    // at each hop is the deterministic pin.
+    await expect(rowMenu(a).getByText("Background", { exact: true })).toBeFocused(SETTLE);
     await a.keyboard.press("ArrowDown"); // to the insert item (past the background sub)
+    await expect(rowMenu(a).getByText("Insert below", { exact: true })).toBeFocused(SETTLE);
     await a.keyboard.press("Enter");
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(3);
     // The pick was the insert-below (the empty row at the handle's side; the
