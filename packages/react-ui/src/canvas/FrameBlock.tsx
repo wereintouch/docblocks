@@ -76,7 +76,9 @@ function FrameBlock({
     backgroundColor: "var(--docblocks-canvas-background)",
     ...frameDotBackground(effective.x - effective.w / 2, effective.y - effective.h / 2),
     boxShadow: `inset 0 0 0 1px ${ringColor}`,
-    outline: selected ? `1px solid ${selectedColor}` : undefined,
+    // The selection's outline (the token's width — the shared stand over
+    // the canvas items' outlines).
+    outline: selected ? `var(--docblocks-canvas-selection-border-width) solid ${selectedColor}` : undefined,
     outlineOffset: 1,
   };
   // The frame-chain's cycle guard: the window's content stands the

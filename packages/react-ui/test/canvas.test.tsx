@@ -528,13 +528,14 @@ describe("canvas: frame (the viewport window)", () => {
     // The canvas's own background: the color + the 24px dot grid (the
     // world grid's phase — the box at (300, -120) 260x200 stands the
     // top-left world corner at (170, -220): the phase 170 mod 24 = 2 →
-    // the origin stands at 24 - 2 = 22; -220's phase 20 → 24 - 20 = 4).
+    // the dot's half-step offset 12 - 2 = 10; -220's phase 20 →
+    // 12 - 20 + 24 = 16).
     expect(box.style.backgroundColor).toBe("var(--docblocks-canvas-background)");
     expect(box.style.backgroundImage).toBe(
       "radial-gradient(circle, var(--docblocks-canvas-view-dot) 1px, transparent 1px)"
     );
     expect(box.style.backgroundSize).toBe("24px 24px");
-    expect(box.style.backgroundPosition).toBe("22px 4px");
+    expect(box.style.backgroundPosition).toBe("10px 16px");
     // The container's thin rounded border: the 1px inset ring (the resting
     // stand over the canvas group's border token).
     expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-group-border-color)");
@@ -569,7 +570,7 @@ describe("canvas: frame (the viewport window)", () => {
     expect(wrapper.getAttribute("data-selected")).toBe("true");
     // The ring stands the selection's color (the wrapper's outline stands
     // the shared selection's stand).
-    expect(box.style.outline).toBe("1px solid var(--docblocks-canvas-selection-border-color)");
+    expect(box.style.outline).toBe("var(--docblocks-canvas-selection-border-width) solid var(--docblocks-canvas-selection-border-color)");
     expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-selection-border-color)");
   });
 

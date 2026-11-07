@@ -120,7 +120,7 @@ describe("the window's render (the offset's stand + the world's parity)", () => 
     // The box's chrome: the canvas's own background + the dot grid's phase
     // over the box's world top-left (-50, -50) + the container's border.
     expect(box.style.backgroundColor).toBe("var(--docblocks-canvas-background)");
-    expect(box.style.backgroundPosition).toBe("2px 2px");
+    expect(box.style.backgroundPosition).toBe("14px 14px");
     expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-group-border-color)");
     expect(box.className).toContain("overflow-hidden");
   });
@@ -161,8 +161,10 @@ describe("the box's width's stand (the row's clip over the frame's center)", () 
     const anchor = content.firstElementChild as HTMLElement | null;
     expect(anchor?.style.left).toBe("0px");
     expect(anchor?.style.top).toBe("50px");
-    // The dot grid's phase re-stands over the clipped top-left (0, -50).
-    expect(box.style.backgroundPosition).toBe("0px 2px");
+    // The dot grid's phase re-stands over the clipped top-left (0, -50):
+    // the origin's phase 0 → the dot's half-step 12; -50's phase 22 →
+    // 12 - 22 + 24 = 14.
+    expect(box.style.backgroundPosition).toBe("12px 14px");
   });
 
   it("stands the frame's width over the wide row (no clip)", () => {

@@ -98,24 +98,30 @@ describe("frameWindowOffset (the window's content's offset)", () => {
 });
 
 describe("frameDotBackground (the dot grid's phase over the world's grid)", () => {
-  it("stands the grid's dot / the step / the world grid's phase", () => {
+  it("stands the grid's dot / the step / the world grid's phase (the dot over the grid line)", () => {
+    // The dot stands at the tile's center over the world's grid line:
+    // the box's top-left at (10, 10) stands the dot at the box-local
+    // (2, 2) — the grid line's (24, 24) over the origin's half-step.
     expect(frameDotBackground(10, 10)).toEqual({
       backgroundImage: "radial-gradient(circle, var(--docblocks-canvas-view-dot) 1px, transparent 1px)",
       backgroundSize: "24px 24px",
-      backgroundPosition: "14px 14px",
+      backgroundPosition: "2px 2px",
     });
   });
 
-  it("stands the grid line over the box's edge (the phase's zero stand)", () => {
-    // The top-left on a grid line: the origin stands at the box's corner.
-    expect(frameDotBackground(0, 0).backgroundPosition).toBe("0px 0px");
-    expect(frameDotBackground(24, -48).backgroundPosition).toBe("0px 0px");
+  it("stands the grid line over the box's edge (the phase's stand)", () => {
+    // The top-left on a grid line: the dot's half-step's phase (the
+    // tile's center stand — the canvas view's percentage position's
+    // parity).
+    expect(frameDotBackground(0, 0).backgroundPosition).toBe("12px 12px");
+    expect(frameDotBackground(24, -48).backgroundPosition).toBe("12px 12px");
   });
 
   it("stands the negative's coordinates (the positive mod's stand)", () => {
-    // The top-left at (-10, -10): the world grid's lines at (…, -24, 0, …)
-    // stand at the box-local (10, 10) — the origin's position (10, 10).
-    expect(frameDotBackground(-10, -10).backgroundPosition).toBe("10px 10px");
+    // The top-left at (-10, -10): the world grid's lines stand at the
+    // box-local (-2, -2) + 24k — the position's 22 (the double positive
+    // mod's stand).
+    expect(frameDotBackground(-10, -10).backgroundPosition).toBe("22px 22px");
   });
 
   it("shares the canvas view's grid step", () => {
