@@ -290,7 +290,13 @@ describe("the frame registry shape (the viewport window)", () => {
     const surfaceSet = [...(BLOCK_REGISTRY.surface.childrenTypes ?? [])];
     expect(surfaceSet.filter((type) => type === "frame")).toEqual(["frame"]);
     expect(surfaceSet).not.toContain("surface");
-    expect(surfaceSet).toEqual([...PAGE_BLOCK_TYPES.filter((type) => type !== "surface"), "shape", "connector", "canvas-text", "group"]);
+    expect(surfaceSet).toEqual([
+      ...PAGE_BLOCK_TYPES.filter((type) => type !== "surface"),
+      "shape",
+      "connector",
+      "canvas-text",
+      "group",
+    ]);
   });
 });
 

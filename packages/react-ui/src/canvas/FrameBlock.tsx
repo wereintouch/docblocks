@@ -25,11 +25,11 @@ import type { BlockId } from "docblocks-core";
 import { PlaceholderBlock } from "../blocks/PlaceholderBlock";
 import { useBlock } from "../hooks";
 import { useBlockContext } from "../shared/providers/block-context";
-import type { MovePreview } from "./viewport";
-import { effectiveGeometry, frameDotBackground, frameWindowOffset } from "./geometry";
-import type { Box } from "./geometry";
 import { CanvasTitleChip } from "./CanvasTitleChip";
 import { FrameWindowContent } from "./FrameWindowContent";
+import { effectiveGeometry, frameDotBackground, frameWindowOffset } from "./geometry";
+import type { Box } from "./geometry";
+import type { MovePreview } from "./viewport";
 
 /** The frame chain's stand of a direct surface child (no window above).
  * The stable module constant stands the default — the memo's identity
@@ -83,7 +83,11 @@ function FrameBlock({
   // surface's children minus the chain ∪ {self}.
   return (
     <div data-slot="docblocks/frame" data-block-id={id} className="h-full w-full">
-      <div data-slot="docblocks/frame-window" className="absolute inset-0 overflow-hidden rounded-(--docblocks-radius)" style={boxStyle}>
+      <div
+        data-slot="docblocks/frame-window"
+        className="absolute inset-0 overflow-hidden rounded-(--docblocks-radius)"
+        style={boxStyle}
+      >
         <FrameWindowContent
           surfaceId={parentId}
           offset={offset}

@@ -594,7 +594,9 @@ describe("canvas: frame (the viewport window)", () => {
     act(() => {
       doc.updateBlock(IDS.frame, { title: "First" });
     });
-    const chip = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"] [data-slot='docblocks/frame-title']`)!;
+    const chip = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"] [data-slot='docblocks/frame-title']`
+    )!;
     fireEvent.dblClick(chip);
     const edit = document.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-edit']")!;
     expect(edit).not.toBeNull();

@@ -112,7 +112,8 @@ function SurfaceLayer({
       <BlockContext.Provider value={contextValue}>
         <CanvasSessionContext.Provider value={session}>
           <div className="pointer-events-none relative" style={{ width: 0, height: 0 }}>
-            {content}</div>
+            {content}
+          </div>
         </CanvasSessionContext.Provider>
       </BlockContext.Provider>
     );

@@ -47,7 +47,11 @@ function seedScene(doc: TestDoc): { surface: string; a: string; frame1: string; 
   doc.setGeometry(frame1, { x: 100, y: 50, w: 300, h: 200 });
   const frame2 = doc.insertBlock("frame", undefined, { parent: surface });
   doc.setGeometry(frame2, { x: 400, y: 50, w: 200, h: 150 });
-  doc.insertBlock("connector", { start: { blockId: a }, end: { blockId: frame2 }, label: "bridge" }, { parent: surface });
+  doc.insertBlock(
+    "connector",
+    { start: { blockId: a }, end: { blockId: frame2 }, label: "bridge" },
+    { parent: surface }
+  );
   return { surface, a, frame1, frame2 };
 }
 
@@ -135,18 +139,14 @@ describe("the window's render (the offset / the content's parity)", () => {
     // anchor's stand — the world's origin parity over the anchor): the
     // shape at (10, 20) stands at calc(50% + 10) / calc(50% + 20) over the
     // zero-size anchor (the 50%'s stand over the zero's box).
-    const copy = content.querySelector<HTMLElement>(
-      `[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`
-    )!;
+    const copy = content.querySelector<HTMLElement>(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)!;
     expect(copy.style.left).toBe("calc(50% + 10px)");
     expect(copy.style.top).toBe("calc(50% + 20px)");
   });
 
   it("stands the move's preview (the window's pan over the still content)", () => {
     const { view, frame1 } = renderScene();
-    const wrapper = view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${frame1}"]`
-    )!;
+    const wrapper = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${frame1}"]`)!;
     const content = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
     const anchor = content.firstElementChild as HTMLElement | null;
     expect(anchor?.style.left).toBe("50px");
