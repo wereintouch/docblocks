@@ -29,6 +29,7 @@ interface PaneBlock {
   rows?: Record<string, Record<string, unknown>>;
   rowOrder?: string[];
   columnOrder?: string[];
+  geometry?: { x: number; y: number; w: number; h: number };
 }
 
 /**

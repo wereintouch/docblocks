@@ -174,7 +174,12 @@ function buildCatalogDoc(doc: Doc): void {
     // Canvas (v2): the harness demo scene (the same seeded surface the
     // insert control offers — the deterministic ids continue the c00xx
     // sequence).
-    seedCanvas(doc);
+    const scene = seedCanvas(doc);
+
+    // The page-frame block (the page context's window): the inline window
+    // into frame A's surface content — the page flow's stand over the
+    // canvas layer (the canvas itself stands in the canvas view only).
+    doc.insertBlock("frame", { frameId: scene.frame });
 
     // The marks paragraph: the fixed run layout, one run at a time.
     const marks = doc.insertBlock("paragraph");

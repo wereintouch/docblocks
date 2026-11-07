@@ -46,6 +46,7 @@
         "c0049",
         "c0050",
         "c0051",
+        "c0060",
         "c0061",
         "c0062",
         "c0063",
@@ -442,14 +443,26 @@
     "c0033": {
       "type": "table",
       "attrs": {
-        "columnWidths": [140, 120]
+        "columnWidths": [
+          140,
+          120
+        ]
       },
-      "children": ["c0036", "c0041"],
-      "columnOrder": ["c0034", "c0035"]
+      "children": [
+        "c0036",
+        "c0041"
+      ],
+      "columnOrder": [
+        "c0034",
+        "c0035"
+      ]
     },
     "c0036": {
       "type": "table-row",
-      "children": ["c0037", "c0039"]
+      "children": [
+        "c0037",
+        "c0039"
+      ]
     },
     "c0037": {
       "type": "table-cell",
@@ -463,7 +476,9 @@
           "marks": {}
         }
       ],
-      "children": ["c0038"]
+      "children": [
+        "c0038"
+      ]
     },
     "c0038": {
       "type": "paragraph",
@@ -482,7 +497,9 @@
         "rowColor": "#10b981"
       },
       "content": [],
-      "children": ["c0040"]
+      "children": [
+        "c0040"
+      ]
     },
     "c0040": {
       "type": "paragraph",
@@ -495,7 +512,10 @@
     },
     "c0041": {
       "type": "table-row",
-      "children": ["c0042", "c0044"]
+      "children": [
+        "c0042",
+        "c0044"
+      ]
     },
     "c0042": {
       "type": "table-cell",
@@ -503,7 +523,9 @@
         "columnId": "c0034"
       },
       "content": [],
-      "children": ["c0043"]
+      "children": [
+        "c0043"
+      ]
     },
     "c0043": {
       "type": "paragraph",
@@ -521,7 +543,9 @@
         "columnId": "c0035"
       },
       "content": [],
-      "children": ["c0045"]
+      "children": [
+        "c0045"
+      ]
     },
     "c0045": {
       "type": "paragraph",
@@ -572,40 +596,42 @@
         "w": 900,
         "h": 500
       },
-      "children": ["c0052", "c0055", "c0056", "c0057", "c0058", "c0059", "c0060"]
+      "children": [
+        "c0052",
+        "c0053",
+        "c0054",
+        "c0055",
+        "c0056",
+        "c0057",
+        "c0058",
+        "c0059"
+      ]
     },
     "c0052": {
       "type": "frame",
-      "geometry": {
-        "x": -180,
-        "y": -100,
-        "w": 280,
-        "h": 160
+      "attrs": {
+        "title": "Frame A"
       },
-      "children": ["c0053", "c0054"]
+      "geometry": {
+        "x": 120,
+        "y": -100,
+        "w": 320,
+        "h": 160
+      }
     },
     "c0053": {
-      "type": "heading",
+      "type": "frame",
       "attrs": {
-        "level": 2
+        "title": "Frame B"
       },
-      "content": [
-        {
-          "text": "Frame heading",
-          "marks": {}
-        }
-      ]
+      "geometry": {
+        "x": 320,
+        "y": 90,
+        "w": 200,
+        "h": 120
+      }
     },
     "c0054": {
-      "type": "paragraph",
-      "content": [
-        {
-          "text": "Frame paragraph on the canvas.",
-          "marks": {}
-        }
-      ]
-    },
-    "c0055": {
       "type": "shape",
       "attrs": {
         "fill": "rgba(9, 105, 218, 0.2)",
@@ -619,7 +645,7 @@
         "h": 80
       }
     },
-    "c0056": {
+    "c0055": {
       "type": "shape",
       "attrs": {
         "variant": "ellipse",
@@ -632,7 +658,7 @@
         "h": 80
       }
     },
-    "c0057": {
+    "c0056": {
       "type": "shape",
       "attrs": {
         "variant": "diamond",
@@ -645,7 +671,7 @@
         "h": 90
       }
     },
-    "c0058": {
+    "c0057": {
       "type": "shape",
       "attrs": {
         "fontFamily": "Inter",
@@ -663,9 +689,11 @@
         "h": 60
       }
     },
-    "c0059": {
+    "c0058": {
       "type": "canvas-text",
       "attrs": {
+        "textColor": "#b45309",
+        "textStyle": "semibold",
         "zIndex": 5
       },
       "geometry": {
@@ -681,17 +709,23 @@
         }
       ]
     },
-    "c0060": {
+    "c0059": {
       "type": "connector",
       "attrs": {
         "end": {
-          "blockId": "c0055"
+          "blockId": "c0054"
         },
         "label": "relates to",
         "start": {
           "blockId": "c0052"
         },
         "zIndex": 6
+      }
+    },
+    "c0060": {
+      "type": "frame",
+      "attrs": {
+        "frameId": "c0052"
       }
     },
     "c0061": {

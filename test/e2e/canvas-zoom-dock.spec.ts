@@ -594,7 +594,7 @@ test.describe("the canvas dock", () => {
     }
   });
 
-  test("the text and the frame land with their defaults (the frame carries the starter paragraph)", async ({
+  test("the text and the frame land with their defaults (the frame is childless — the window's content is the surface's layer, not nested blocks)", async ({
     browser,
   }) => {
     const { a, close } = await twoPanes(browser, "canvas-dock-text-frame");
@@ -615,16 +615,16 @@ test.describe("the canvas dock", () => {
       const frame = Object.entries(blocks).find(([, block]) => block.type === "frame");
       expect(frame).toBeDefined();
       expect(frame![1].geometry).toMatchObject({ x: 100, y: 80, w: 320, h: 240 });
-      const frameDoc = await a.evaluate((frameId) => {
-        const docs = window.__paneDocs;
-        const doc = docs?.a ?? null;
+      // The frame carries no children of its own (the former starter
+      // paragraph's stand is gone over the reworked frame — the window's
+      // content is the surface's layer rendered as inert copies).
+      const frameChildren = await a.evaluate((frameId) => {
+        const doc = window.__paneDocs?.a ?? null;
         if (doc === null) return null;
         const block = doc.getBlock(frameId as string);
-        return block?.type === "frame"
-          ? (doc.getChildren(frameId as string) ?? []).map((childId) => doc.getBlock(childId)?.type)
-          : null;
+        return block?.type === "frame" ? (doc.getChildren(frameId as string) ?? []) : null;
       }, frame![0]);
-      expect(frameDoc).toEqual(["paragraph"]);
+      expect(frameChildren).toEqual([]);
     } finally {
       await close();
     }

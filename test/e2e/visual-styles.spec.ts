@@ -97,12 +97,14 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // render as structural <tr>/<td>, not data-block-type elements). The
   // catalog's sync-embed resolves its master (fixed docId, deterministic
   // seed), so the master's blocks (one h1 + three paragraphs) count too.
-  // The canvas scene (the surface + its frame / shapes / canvas-text /
-  // connector) is a canvas layer: the page view carries none of it, so the
-  // frame's paragraph + heading stand out of the counts. The motion view
-  // renders the flat page sequence: the nesting is the row step (no nested
-  // slot), and the list markers stand as rendered row labels (no list
-  // element).
+  // The canvas scene (the surface + its frames / shapes / canvas-text /
+  // connector) is a canvas layer: the page view carries none of it as page
+  // rows (the frames are childless — the former frame's heading + paragraph
+  // stand out of the counts). The page-frame block (the `frameId` reference
+  // to frame A) is a page row, though: its inline window carries the inert
+  // copies INSIDE the window's slot, never as rows. The motion view renders
+  // the flat page sequence: the nesting is the row step (no nested slot),
+  // and the list markers stand as rendered row labels (no list element).
   expect(await doc.locator('[data-block-type="paragraph"]').count()).toBe(12);
   expect(await doc.locator('[data-block-type="quote"]').count()).toBe(2);
   expect(await doc.locator('[data-block-type="heading"]').count()).toBe(7);
@@ -199,13 +201,44 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await syncEmbed.locator('[data-block-type="paragraph"]').count()).toBe(3);
 
   // Canvas (v2): the seeded demo scene is a canvas layer — the page view
-  // carries none of it (no surface viewport, no shapes, no frame, no
-  // canvas-text, no connector line).
+  // carries none of it as page rows (no surface viewport, no shapes /
+  // canvas-text / connector line as rows). The page-frame block renders its
+  // window over the canvas content instead: the inert copies stand inside
+  // the window's slot (the frame-chain's stand — the referenced frame A
+  // stands out of its own window, and frame B's copy re-renders the
+  // surface's content inside its own window: 8 shape copies = 4 direct + 4
+  // over frame B's window).
   expect(await doc.locator('[data-block-type="surface"]').count()).toBe(0);
-  expect(await doc.locator('[data-slot="docblocks/shape"]').count()).toBe(0);
-  expect(await doc.locator('[data-slot="docblocks/frame"]').count()).toBe(0);
-  expect(await doc.locator('[data-block-type="canvas-text"]').count()).toBe(0);
-  expect(await doc.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]').count()).toBe(0);
+  // The page-frame block's row (the window's wrapper + the box over the
+  // canvas's background; the reference's title stands the box's aria).
+  expect(await doc.locator('[data-block-type="frame"]').count()).toBe(1);
+  expect(await doc.locator('[data-slot="docblocks/frame-page"]').count()).toBe(1);
+  const pageWindow = doc.locator('[data-slot="docblocks/frame-page-window"]');
+  expect(await pageWindow.count()).toBe(1);
+  expect(await pageWindow.getAttribute("aria-label")).toBe("Frame: Frame A");
+  // The window's inert copies (the surface's children over the referenced
+  // frame's region, clipped to the box).
+  expect(await pageWindow.locator('[data-slot="docblocks/shape"]').count()).toBe(8);
+  expect(await pageWindow.locator('[data-slot="docblocks/frame"]').count()).toBe(1);
+  expect(await pageWindow.locator('[data-block-type="canvas-text"]').count()).toBe(2);
+  expect(await pageWindow.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]').count()).toBe(2);
+  expect(await pageWindow.locator('[data-slot="docblocks/connector-label-chip"]').count()).toBe(2);
+  // And the canvas layer stands nowhere OUTSIDE the window (the page rows
+  // carry no canvas element — the copies are the window's content, not
+  // rows).
+  const outsideWindow = (selector: string) =>
+    page.evaluate((sel) => {
+      const elements = Array.from(document.querySelectorAll(sel));
+      return elements.filter((el) => el.closest('[data-slot="docblocks/frame-page-window"]') === null).length;
+    }, selector);
+  for (const selector of [
+    '[data-slot="docblocks/shape"]',
+    '[data-slot="docblocks/frame"]',
+    '[data-block-type="canvas-text"]',
+    '[data-slot="docblocks/connector-layer"] path[data-connector-id]',
+  ]) {
+    expect(await outsideWindow(selector)).toBe(0);
+  }
 
   // Divider.
   expect(await doc.locator('hr[data-slot="docblocks/divider"]').count()).toBe(1);
@@ -366,22 +399,23 @@ test("the callout, divider and table read the zone-2 tokens", async ({ page }) =
     "border-top-style": "solid",
   });
 
-  // The table: the collapsed borders + the cell width/padding tokens.
-  // The frame's (the scroll wrapper's) vertical margins collapse with the
-  // neighbors' — the non-collapsing margin-right pins the margin token
-  // instead; the fixed layout pins the explicit-layout contract.
+  // The table: the collapsed borders + the cell width/padding tokens;
+  // the fixed layout pins the explicit-layout contract.
   const table = doc.locator('table[data-slot="docblocks/table"]');
   await expect(table).toHaveCount(1);
   const tableStyle = await styleProps(table, "border-collapse", "table-layout");
   expect(tableStyle).toEqual({ "border-collapse": "collapse", "table-layout": "fixed" });
-  const frameStyle = await styleProps(
-    doc.locator('[data-slot="docblocks/table-scroll"]'),
-    "margin-top",
-    "margin-right"
-  );
-  expect(frameStyle).toEqual({ "margin-top": "8px", "margin-right": "0px" });
   const cellStyle = await styleProps(table.locator("td").first(), "border-top-width", "padding");
   expect(cellStyle).toEqual({ "border-top-width": "1px", padding: "4px 8px" });
+
+  // The page-frame block's wrapper (the inline window's row): the block's
+  // vertical spacing reads the block-spacing token (the page rows' parity —
+  // the window's own box centers over the row, the wrapper's horizontal
+  // margin stands 0).
+  const pageFrame = doc.locator('[data-slot="docblocks/frame-page"]');
+  await expect(pageFrame).toHaveCount(1);
+  const pageFrameStyle = await styleProps(pageFrame, "margin-top", "margin-bottom", "margin-right");
+  expect(pageFrameStyle).toEqual({ "margin-top": "8px", "margin-bottom": "8px", "margin-right": "0px" });
 });
 
 test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) => {
@@ -427,23 +461,57 @@ test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
   const doc = editor(page).first();
 
   // The page view carries no canvas layer (the surface is filtered out of
-  // the page sequence — the whole surface renders in the canvas view only),
-  // so the page-view viewport and the frame are both absent there.
+  // the page sequence — the whole surface renders in the canvas view only).
+  // The page-frame block's window stands its own slots there: the
+  // `docblocks/frame` slot is the canvas frame's renderer, and the window's
+  // inert copies stand one — the referenced frame A stands out of its own
+  // window (the frame-chain's stand), so the only copy is frame B's.
   await expect(doc.locator('[data-slot="docblocks/canvas"]')).toHaveCount(0);
-  await expect(doc.locator('[data-slot="docblocks/frame"]')).toHaveCount(0);
+  await expect(doc.locator('[data-slot="docblocks/frame"]')).toHaveCount(1);
+  await expect(doc.locator('[data-slot="docblocks/frame-page-window"]')).toHaveCount(1);
 
-  // The canvas view: the surface's frame (the table border, the radius,
-  // and no clipping — the frame does not clip in v1, so the overflow
-  // stands the visible default).
+  // The canvas view: the two seeded frames (the viewport windows) + the
+  // window copies the frame-chain's stand (a frame's window shows the
+  // surface's children minus itself — the other frame stands inside each
+  // window at the world's position, clipped out of the box's region but
+  // present in the DOM: frame B in frame A's window and vice versa) +
+  // frame B's copy over the page card's page-frame window (the page
+  // miniature's window is the same window over the canvas's content).
+  // The window's box reads the canvas's tokens: the true window's
+  // clipping (overflow hidden), the canvas's own background (the seamless
+  // continuation over the hidden content), the container's thin rounded
+  // ring (the inset shadow over the group-border token) and the radius
+  // token — the window reads the canvas's surface tokens, no frame of its
+  // own.
   await switchPaneView(page, "a", "canvas");
   const frame = doc.locator('[data-slot="docblocks/frame"]');
-  await expect(frame).toHaveCount(1);
-  const frameStyle = await styleProps(frame, "border-top-width", "border-top-style", "overflow");
-  expect(frameStyle).toEqual({
-    "border-top-width": "1px",
-    "border-top-style": "solid",
-    overflow: "visible",
-  });
+  await expect(frame).toHaveCount(5);
+  const window = doc.locator('[data-slot="docblocks/frame-window"]').first();
+  const windowStyle = await styleProps(window, "overflow", "background-color", "box-shadow", "border-radius");
+  expect(windowStyle["overflow"]).toBe("hidden");
+  // The token's own value over a probe element INSIDE the editor root
+  // (the --docblocks-* tokens are scoped to the editor's root, not :root —
+  // the body's probe resolves them as unset) — the resolved stand over the
+  // box's own read: the background reads the canvas-background token
+  // as-is, the ring the group-border token as the inset shadow's color.
+  const tokenProbe = (styleName: string, value: string) =>
+    editor(page)
+      .first()
+      .evaluate((el, names) => {
+        const prop = names[0] ?? "";
+        const value = names[1] ?? "";
+        const probe = document.createElement("div");
+        (probe.style as unknown as Record<string, string>)[prop] = value;
+        el.appendChild(probe);
+        const resolved = getComputedStyle(probe).getPropertyValue(prop);
+        probe.remove();
+        return resolved ?? "";
+      }, [styleName, value]);
+  expect(windowStyle["background-color"]).toBe(await tokenProbe("background-color", "var(--docblocks-canvas-background)"));
+  expect(windowStyle["box-shadow"]).toBe(
+    await tokenProbe("box-shadow", "inset 0 0 0 1px var(--docblocks-canvas-group-border-color)")
+  );
+  expect(windowStyle["border-radius"]).toBe(await tokenProbe("border-radius", "var(--docblocks-radius)"));
 });
 
 test("the document canvas view and the page card read the zone-4 tokens", async ({ page }) => {
@@ -505,8 +573,9 @@ test("the document canvas view and the page card read the zone-4 tokens", async 
 
 test("the editor root typography and the block spacing read the tokens", async ({ page }) => {
   await openCatalogPane(page);
-  // The catalog doc carries nested editors (the sync-embed and the frame)
-  // — the pane's own root is the first one in DOM order.
+  // The catalog doc carries one nested editor (the sync-embed — the
+  // page-frame's window is inert content, not an editor) — the pane's own
+  // root is the first one in DOM order.
   const root = editor(page).first();
 
   // The root typography (the old editor-root rule is the root's classes):
