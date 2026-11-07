@@ -81,7 +81,11 @@ function CanvasTextGhost({ point, onClose }: { point: { x: number; y: number }; 
     }
     onClose();
     const scope = ref.current !== null ? editorRootOf(ref.current) : document;
-    focusCaretIn(id!, 0, scope);
+    // The caret re-seats AFTER the committed text (the text's end): the
+    // fast typing's continuation stands over the re-seated caret (a
+    // re-seat at the text's start would prepend the continuation over the
+    // committed stand, scrambling the stand).
+    focusCaretIn(id!, text.length, scope);
   };
 
   /** The compositionend's commit (the CJK's candidate's stand). */
