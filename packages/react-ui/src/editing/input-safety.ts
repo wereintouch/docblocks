@@ -333,6 +333,26 @@ function useBlockInput({
         return;
       }
 
+      // The canvas-text's empty block: the Escape removes the block (no
+      // orphan — the double-click's ghost's cancel's parity; the page-text
+      // stand never runs here, the block's parent is the surface). The
+      // inner blurs and the focus parks on the editor root (the undo
+      // hotkey's reach).
+      if (
+        event.key === "Escape" &&
+        blockType === "canvas-text" &&
+        context.parentType === "surface" &&
+        doc.getTextLength(id) === 0
+      ) {
+        event.preventDefault();
+        doc.transact(() => {
+          doc.removeBlock(id);
+        });
+        innerRef.current?.blur();
+        wrapperRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]')?.focus();
+        return;
+      }
+
       // The slash trigger: a "/" with a collapsed caret in a page text block
       // (paragraph, heading, list-item, callout, quote — code is
       // excluded: a "/" there is plain text) at any position and any indent
@@ -427,6 +447,15 @@ function useBlockInput({
           // The cell context: Enter is a soft line break at every position
           // (the split / exit gestures are the page-level ones — a cell
           // paragraph never splits into a second paragraph).
+          declareLocalCaret(offset + 1);
+          doc.insertText(id, offset, "\n");
+          return;
+        }
+        if (blockType === "canvas-text") {
+          // The canvas context (the block's parent is the surface): no
+          // split (a new block in the surface's children is a BUG) — the
+          // line stands the content's own break (the shape text's parity:
+          // the single block carries its own soft breaks).
           declareLocalCaret(offset + 1);
           doc.insertText(id, offset, "\n");
           return;

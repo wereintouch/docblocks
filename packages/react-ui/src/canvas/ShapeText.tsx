@@ -3,7 +3,7 @@ import { useEffect, useRef } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, SHAPE_TEXT_WEIGHTS } from "../canvas";
+import { SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, textStyleOf } from "../canvas";
 import { useEditorContext } from "../editor-provider";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
 import type { ShapeBlockView } from "./geometry";
@@ -32,20 +32,13 @@ function shapeTextStyle(block: ShapeBlockView, w: number, h: number): CSSPropert
   const padding = SHAPE_TEXT_PADDING[variant] ?? { x: 8, y: 8 };
   const pxX = typeof padding.x === "number" && padding.x < 1 ? w * padding.x : padding.x;
   const pxY = typeof padding.y === "number" && padding.y < 1 ? h * padding.y : padding.y;
-  const style = attrs?.textStyle;
-  const weight =
-    style === "light" || style === "light-italic"
-      ? SHAPE_TEXT_WEIGHTS.light
-      : style === "semibold" || style === "semibold-italic"
-        ? SHAPE_TEXT_WEIGHTS.semibold
-        : SHAPE_TEXT_WEIGHTS.regular;
-  const italic = /italic$/.test(style ?? "");
+  const textStyle = textStyleOf(attrs?.textStyle);
   return {
     fontFamily: attrs?.fontFamily !== undefined ? (SHAPE_FONT_STACKS[attrs.fontFamily] ?? attrs.fontFamily) : undefined,
     fontSize: attrs?.fontSize ?? SHAPE_TEXT_DEFAULT_SIZE,
     color: attrs?.textColor,
-    fontWeight: weight,
-    fontStyle: italic ? "italic" : undefined,
+    fontWeight: textStyle.fontWeight,
+    fontStyle: textStyle.fontStyle,
     textAlign: attrs?.textAlign ?? "center",
     padding: `${pxY}px ${pxX}px`,
     lineHeight: 1.2,

@@ -1,6 +1,10 @@
-/** The shape's floating toolbar segment (the single `shape` selection):
- *  the type picker, the text controls, and the fill / stroke color
- *  sections (the palette swatches, the "none" entry, the custom hex).
- *  Each apply is one `updateBlock` in one transact. */
+/** The canvas's text toolbars' segment (the single-selection floating
+ * toolbars over the canvas items): the shape's color toolbar, the
+ * shared text controls (the shape's and the canvas-text's stand), and
+ * the canvas-text's text toolbar. Each apply is one `updateBlock` in
+ * one transact. */
+export { CanvasTextToolbar } from "./CanvasTextToolbar";
 export { ColorSection } from "./ColorSection";
+export { ShapeTextControls } from "./ShapeTextControls";
+export type { ShapeTextControlsProps } from "./ShapeTextControls";
 export { ShapeToolbar } from "./ShapeToolbar";

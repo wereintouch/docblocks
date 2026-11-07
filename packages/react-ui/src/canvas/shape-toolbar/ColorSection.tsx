@@ -24,6 +24,7 @@ function ColorSection({
   onOpenChange,
   onApply,
   allowNone = true,
+  slotPrefix = "docblocks/shape",
 }: {
   target: "fill" | "stroke" | "text";
   label: string;
@@ -37,6 +38,11 @@ function ColorSection({
   /** The "no color" entry (absent for the text color — the unset stand is
    * the inheritance, and the hex spec rejects the "none" value). */
   allowNone?: boolean;
+  /** The data-slot's namespace base (the shape's `docblocks/shape`, the
+   * canvas-text's `docblocks/canvas-text` — the trigger's slots stand
+   * `${slotPrefix}-toolbar-...`, the palette / hex the
+   * `${slotPrefix}-<target>-...`). */
+  slotPrefix?: string;
 }) {
   const palette = useFormatPalette();
   const [draft, setDraft] = useState("");
@@ -81,7 +87,7 @@ function ColorSection({
         <Button
           variant="ghost"
           size="icon"
-          data-slot={`docblocks/shape-toolbar-${target}`}
+          data-slot={`${slotPrefix}-toolbar-${target}`}
           aria-label={label}
           title={label}
           className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
@@ -103,7 +109,7 @@ function ColorSection({
       <PopoverContent
         align="center"
         sideOffset={TOOLTIP_SIDE_OFFSET_PX}
-        data-slot={`docblocks/shape-${target}-palette`}
+        data-slot={`${slotPrefix}-${target}-palette`}
         aria-label={label}
         className="w-auto p-2"
         // The palette suppresses the mousedown default (the page format
@@ -127,7 +133,7 @@ function ColorSection({
         />
         <Input
           size="sm"
-          data-slot={`docblocks/shape-${target}-hex`}
+          data-slot={`${slotPrefix}-${target}-hex`}
           aria-label={`${label} hex value`}
           className="
             mt-2 h-7 w-full rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)

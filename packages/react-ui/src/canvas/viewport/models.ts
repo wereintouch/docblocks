@@ -222,6 +222,10 @@ interface CanvasViewportState {
   resizeSession: boolean;
   /** The in-flight shape placement's preview (canvas coords, the center anchor); null outside a drag. */
   placePreview: PlacePreview | null;
+  /** The pending ghost text block (the double-click's empty-canvas entry): the world's point (the top-left anchor); null outside a ghost. */
+  pendingText: CanvasPoint | null;
+  /** Sets the pending ghost point (the world's top-left anchor); null closes the ghost. */
+  setPendingText: (point: CanvasPoint | null) => void;
   /** The connector's pending preview (the cursor's point + the end's edge
    * snap — the endpoint drag's parity); null outside a pick. */
   connectorPreview: EndpointPreview | null;

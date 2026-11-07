@@ -11,12 +11,12 @@ import { createDoc, validateDoc } from "docblocks-core";
 
 import { CanvasDock } from "../src/canvas/CanvasDock";
 import { SHAPE_TOOLS } from "../src/canvas/canvas-view/constants";
+import { PLACE_TOOLS } from "../src/canvas/canvas-view/constants";
+import { isPlaceTool, isShapeTool } from "../src/canvas/canvas-view/utils";
 import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport";
 import { placeDragBox } from "../src/canvas/viewport/utils";
-import { PLACE_TOOLS } from "../src/canvas/canvas-view/constants";
-import { isPlaceTool, isShapeTool } from "../src/canvas/canvas-view/utils";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -166,6 +166,8 @@ describe("the dock", () => {
       moveSession: false,
       dropIndicators: null,
       placePreview: null,
+      pendingText: null,
+      setPendingText: noop,
       connectorPreview: null,
       connectorHoverSnap: null,
       connectorEndpoint: null,
@@ -321,16 +323,7 @@ describe("the shape tools' gate (the place session's stand)", () => {
   });
 
   it("the place tools' stand: the shapes + the container + the frame (the drag-to-size's gate)", () => {
-    expect(PLACE_TOOLS).toEqual([
-      "rect",
-      "rounded",
-      "ellipse",
-      "diamond",
-      "cylinder",
-      "cloud",
-      "container",
-      "frame",
-    ]);
+    expect(PLACE_TOOLS).toEqual(["rect", "rounded", "ellipse", "diamond", "cylinder", "cloud", "container", "frame"]);
     expect(isPlaceTool("frame")).toBe(true);
     expect(isPlaceTool("container")).toBe(true);
     expect(isPlaceTool("text")).toBe(false);

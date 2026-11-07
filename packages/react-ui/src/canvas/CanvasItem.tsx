@@ -19,6 +19,7 @@ import { ShapeSvg } from "./ShapeSvg";
 import { ShapeText } from "./ShapeText";
 import { CANVAS_KB_FOCUS_OUTLINE, CANVAS_SELECTION_OUTLINE } from "./canvas-view/constants";
 import { canvasItemStyle, endpointOf, isCanvasSubType } from "./geometry";
+import { SHAPE_FONT_STACKS, textStyleOf } from "./text-fonts";
 
 /** The canvas item's accessible label (the block type's stand; the
  * consumer's renderer's type stands the type's string). */
@@ -115,7 +116,13 @@ const CanvasItem = memo(
         ) : block.type === "canvas-text" ? (
           <TextBlock id={id} block={block} tag="div" />
         ) : block.type === "frame" ? (
-          <FrameBlock id={id} movePreview={movePreview} resizeBox={resizeBox} selected={selected} frameChain={frameChain} />
+          <FrameBlock
+            id={id}
+            movePreview={movePreview}
+            resizeBox={resizeBox}
+            selected={selected}
+            frameChain={frameChain}
+          />
         ) : block.type === "group" ? (
           <GroupBlock id={id} block={block} selected={selected} />
         ) : block.type === "connector" ? (
@@ -148,14 +155,23 @@ const CanvasItem = memo(
       style.transform = parts.join(" ");
     }
     if (block.type === "canvas-text") {
-      const { fontSize, fontFamily, textAlign } = block.attrs ?? {};
-      if (fontSize !== undefined) style.fontSize = fontSize;
-      if (fontFamily !== undefined) style.fontFamily = fontFamily;
-      if (textAlign !== undefined) {
+      // The font attrs are data (not theme): the inline styles stand the
+      // shape's text parity — the family's stack (the raw name's fallback
+      // — the consumer's own font by name), the color (the absent stand
+      // keeps the inherited default), the weight x the slant (the shared
+      // textStyle's mapping).
+      const attrs = block.attrs;
+      if (attrs?.fontSize !== undefined) style.fontSize = attrs.fontSize;
+      if (attrs?.fontFamily !== undefined) style.fontFamily = SHAPE_FONT_STACKS[attrs.fontFamily] ?? attrs.fontFamily;
+      if (attrs?.textAlign !== undefined) {
         // The attr is an open CSS value (the schema keeps it a string); the
         // style type is the closed TextAlign union.
-        style.textAlign = textAlign as CSSProperties["textAlign"];
+        style.textAlign = attrs.textAlign as CSSProperties["textAlign"];
       }
+      if (attrs?.textColor !== undefined) style.color = attrs.textColor;
+      const textStyle = textStyleOf(attrs?.textStyle);
+      style.fontWeight = textStyle.fontWeight;
+      if (textStyle.fontStyle !== undefined) style.fontStyle = textStyle.fontStyle;
     }
 
     return (

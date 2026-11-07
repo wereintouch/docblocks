@@ -23,32 +23,17 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
   FigureBorderSelector,
-  Input,
 } from "../../shared/ui";
-import { Datalist } from "../../shared/ui/Datalist";
 import { Separator } from "../../shared/ui/Separator";
-import { cn } from "../../shared/ui/cn";
-import {
-  Fill,
-  Italic,
-  Minus,
-  Palette,
-  Stroke,
-  TextAlignCenter,
-  TextAlignEnd,
-  TextAlignStart,
-  Type,
-  X,
-} from "../../shared/ui/icons";
-import { stopPropagation } from "../../shared/utils";
+import { Fill, Minus, Stroke, Type, X } from "../../shared/ui/icons";
 import { ZOrderMenu } from "../ZOrderMenu";
 import { useCanvasTextEdit } from "../canvas-text-edit-context";
-import { SHAPE_FONT_OPTIONS, SHAPE_FONT_SIZE_OPTIONS, SHAPE_TEXT_STYLE_OPTIONS } from "../text-fonts";
 import { TOOLTIP_SIDE_OFFSET_PX } from "../viewport/constants";
 import { ColorSection } from "./ColorSection";
-import { ACTIVE_ITEM_CLASS, BORDER_WIDTH_POINTS, SHAPE_VARIANTS } from "./constants";
+import { ShapeTextControls } from "./ShapeTextControls";
+import { BORDER_WIDTH_POINTS, SHAPE_VARIANTS } from "./constants";
 import type { ShapeVariantId } from "./models";
-import { borderWidthIndex, variantIcon } from "./utils";
+import { borderWidthIndex, onToolbarBodyMouseDown, variantIcon } from "./utils";
 
 function ShapeToolbar({
   id,
@@ -92,8 +77,6 @@ function ShapeToolbar({
   // non-modal popover does not close on an outside click, so a
   // per-section state would let both palettes stand open at once).
   const [openSection, setOpenSection] = useState<"fill" | "stroke" | "text" | null>(null);
-  // The size field's draft (the typed stand; the attr stands the commit).
-  const [sizeDraft, setSizeDraft] = useState("");
   const hasText = (text ?? "").length > 0;
   const borderNone = stroke === "none";
   // The border-style's picks (the uncheck stands the no-op — the check's
@@ -106,7 +89,6 @@ function ShapeToolbar({
     if (checked !== true) return;
     applyAttr({ stroke: "none" });
   };
-  const sizeListId = `docblocks-shape-size-${id}`;
 
   const applyAttr = (patch: Record<string, unknown>) => {
     // The target's concurrent deletion (the peer removed the shape): the
@@ -126,51 +108,21 @@ function ShapeToolbar({
     applyAttr({ variant: next });
   };
 
-  const commitSize = () => {
-    const value = Number.parseInt(sizeDraft, 10);
-    setSizeDraft("");
-    if (Number.isNaN(value)) return; // the invalid draft is ignored (the input keeps its text)
-    const clamped = Math.min(512, Math.max(8, value));
-    if (clamped === fontSize) return;
-    applyAttr({ fontSize: clamped });
-  };
-
-  // The press on the toolbar body (the trigger buttons) keeps the canvas
-  // container's focus (the keyboard context). A press on the portaled
-  // palette content (the fiber path crosses this wrapper, the target is
-  // not contained in it) is NOT guarded: the hex input must receive the
-  // mousedown default (the focus transfer).
-  const onBodyMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
-    if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
-      event.preventDefault();
-    }
-  };
   const applyVariantAt = (variantId: ShapeVariantId) => () => applyVariant(variantId);
-  const applyFontFamily = (fontFamilyId: string) => () => applyAttr({ fontFamily: fontFamilyId });
-  const applyTextStyle = (textStyleId: string) => () => applyAttr({ textStyle: textStyleId });
   const openTextSection = (open: boolean) => setOpenSection(open ? "text" : null);
-  const applyTextColor = (value: string | null) => applyAttr({ textColor: value });
-  const onSizeChange = (event: React.ChangeEvent<HTMLInputElement>) => setSizeDraft(event.target.value);
-  const onSizeKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commitSize();
-    }
-  };
-  const applyAlign = (value: string) => () => applyAttr({ textAlign: value });
-  const beginTextEdit = () => textEdit?.setEditingId(id);
   const openFillSection = (open: boolean) => setOpenSection(open ? "fill" : null);
   const applyFill = (value: string | null) => applyAttr({ fill: value });
   const openStrokeSection = (open: boolean) => setOpenSection(open ? "stroke" : null);
   const applyStroke = (value: string | null) => applyAttr({ stroke: value });
   const applyStrokeWidth = (index: number) => applyAttr({ strokeWidth: BORDER_WIDTH_POINTS[index] });
+  const beginTextEdit = () => textEdit?.setEditingId(id);
 
   return (
     <div
       data-slot="docblocks/canvas-chrome"
       className="absolute z-50"
       style={{ ...style, transform: "translate(-50%, -100%)" }}
-      onMouseDown={onBodyMouseDown}
+      onMouseDown={onToolbarBodyMouseDown}
     >
       <div
         data-slot="docblocks/shape-toolbar"
@@ -210,128 +162,20 @@ function ShapeToolbar({
         </DropdownMenu>
         <Separator orientation="vertical" className="h-5" />
         {hasText ? (
-          <>
-            {/* The font family (the self-hosted set; an unrecognized name
-                stands the raw name — the consumer's own font by name). */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  data-slot="docblocks/shape-toolbar-font-family"
-                  aria-label="Text font family"
-                  title="Text font family"
-                >
-                  <Type className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Text font family">
-                {SHAPE_FONT_OPTIONS.map((option) => (
-                  <DropdownMenuCheckboxItem
-                    key={option.id}
-                    aria-label={option.label}
-                    data-font={option.id}
-                    checked={fontFamily === option.id}
-                    onSelect={applyFontFamily(option.id)}
-                  >
-                    <span className="w-16 truncate text-xs" style={{ fontFamily: option.stack }}>
-                      {option.label}
-                    </span>
-                    {option.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <ColorSection
-              target="text"
-              label="Text color"
-              current={textColor}
-              chipStyle={{ background: textColor ?? "transparent" }}
-              icon={<Palette className="size-4" />}
-              open={openSection === "text"}
-              onOpenChange={openTextSection}
-              onApply={applyTextColor}
-              allowNone={false}
-            />
-            {/* The text style (the weight x the slant). */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  data-slot="docblocks/shape-toolbar-text-style"
-                  aria-label="Text style"
-                  title="Text style"
-                >
-                  <Italic className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Text style">
-                {SHAPE_TEXT_STYLE_OPTIONS.map((option) => (
-                  <DropdownMenuCheckboxItem
-                    key={option.id}
-                    aria-label={option.label}
-                    data-style={option.id}
-                    checked={textStyle === option.id}
-                    onSelect={applyTextStyle(option.id)}
-                  >
-                    {option.label}
-                  </DropdownMenuCheckboxItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            {/* The font size (the numeric field: any 8–512 stand, the
-                list the hints). */}
-            <div className="relative" data-slot="docblocks/shape-toolbar-font-size-wrap">
-              <Datalist id={sizeListId}>
-                {SHAPE_FONT_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size} />
-                ))}
-              </Datalist>
-              <Input
-                size="sm"
-                type="number"
-                min={8}
-                max={512}
-                step="1"
-                list={sizeListId}
-                data-slot="docblocks/shape-toolbar-font-size"
-                aria-label="Text font size"
-                title="Text font size"
-                placeholder={String(fontSize ?? 16)}
-                value={sizeDraft}
-                className="
-                  h-7 w-12 rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
-                  bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color)
-                  dark:bg-(--docblocks-editor-background)
-                "
-                onMouseDown={stopPropagation}
-                onChange={onSizeChange}
-                onKeyDown={onSizeKeyDown}
-                onBlur={commitSize}
-              />
-            </div>
-            {/* The text alignment. */}
-            {[
-              { value: "left", icon: TextAlignStart, label: "Align left" },
-              { value: "center", icon: TextAlignCenter, label: "Align center" },
-              { value: "right", icon: TextAlignEnd, label: "Align right" },
-            ].map(({ value, icon: AlignIcon, label }) => (
-              <Button
-                key={value}
-                variant="ghost"
-                size="icon"
-                data-slot={`docblocks/shape-toolbar-align-${value}`}
-                aria-label={label}
-                title={label}
-                aria-pressed={textAlign === value}
-                className={cn("size-7", textAlign === value && ACTIVE_ITEM_CLASS)}
-                onClick={applyAlign(value)}
-              >
-                <AlignIcon className="size-4" />
-              </Button>
-            ))}
-          </>
+          // The text controls (the shape's slot namespace — the shared
+          // stand over the canvas-text's toolbar).
+          <ShapeTextControls
+            slotPrefix="docblocks/shape-toolbar"
+            sizeListId={`docblocks-shape-size-${id}`}
+            fontFamily={fontFamily}
+            textColor={textColor}
+            textStyle={textStyle}
+            fontSize={fontSize}
+            textAlign={textAlign}
+            textColorOpen={openSection === "text"}
+            onTextColorOpenChange={openTextSection}
+            onApply={applyAttr}
+          />
         ) : (
           <Button
             variant="ghost"

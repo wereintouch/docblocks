@@ -114,6 +114,30 @@ function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, root
     };
   })();
 
+  // The text toolbar's target: a single `canvas-text` selection (the
+  // font / color / style / size / align attrs + the z-order stand); absent
+  // for the other canvas types, the multi selection, an active tool, or an
+  // in-flight session (the shape toolbar's parity).
+  const textToolbarTarget = (() => {
+    if (handleTarget === null || viewport.activeTool !== null) return null;
+    if (viewport.movePreview !== null || viewport.resizePreview !== null) return null;
+    const block = blocks[handleTarget.id];
+    if (block === undefined || block.type !== "canvas-text") return null;
+    // The z-order stand (the canvas-text's explicit zIndex over the
+    // surface's canvas elements — the arrange menu's parity).
+    const surface = surfaces.find((entry) => entry.children.includes(handleTarget.id));
+    const zStand = surface !== undefined ? zPositionOf(surface.children, blocks, handleTarget.id) : null;
+    return {
+      id: handleTarget.id,
+      fontFamily: block.attrs?.fontFamily,
+      textColor: block.attrs?.textColor,
+      textStyle: block.attrs?.textStyle,
+      fontSize: block.attrs?.fontSize,
+      textAlign: block.attrs?.textAlign,
+      zStand,
+    };
+  })();
+
   // The connector type toolbar's target: a single `connector` selection
   // whose endpoints resolve within the surface (the toolbar seats at the
   // line's midpoint; absent for the multi selection, an active tool, or
@@ -238,6 +262,7 @@ function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, root
     displayBox,
     multiSelectionBox,
     shapeToolbarTarget,
+    textToolbarTarget,
     connectorToolbarTarget,
     connectorLabelTarget,
     selectedConnectorHandles,

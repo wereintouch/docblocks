@@ -118,9 +118,9 @@ function computeDropIndicators(
     const type = types[id];
     if (type === undefined || type === "connector") continue;
     if (riders.has(id)) continue; // the unit's member stands the box's delta
-    // The membership's scope: the shapes and the containers (the
-    // canvas-text / frame stand no membership).
-    if (type !== "shape" && type !== "group") continue;
+    // The membership's scope: the shapes, the canvas-text, and the
+    // containers (the frame stands no membership).
+    if (type !== "shape" && type !== "canvas-text" && type !== "group") continue;
     const base = snapshot[id];
     if (base === undefined) continue;
     const figure = { x: base.x + dx, y: base.y + dy, w: base.w, h: base.h };
@@ -158,6 +158,10 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
   const [moveSession, setMoveSession] = useState(false);
   const [dropIndicators, setDropIndicators] = useState<DropIndicator[] | null>(null);
   const [placePreview, setPlacePreview] = useState<PlacePreview | null>(null);
+  // The pending ghost text block (the double-click's empty-canvas entry):
+  // the world's point (the top-left anchor) — pure view state until the
+  // first input's commit (the ghost's component owns it).
+  const [pendingText, setPendingText] = useState<CanvasPoint | null>(null);
   const [connectorPreview, setConnectorPreview] = useState<EndpointPreview | null>(null);
   const [connectorHoverSnap, setConnectorHoverSnap] = useState<EndpointSnap | null>(null);
   const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
@@ -613,8 +617,9 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
           h: snap.h,
         });
       }
-      // The drop's membership (the shapes AND the containers): each
-      // dragged shape / container's membership
+      // The drop's membership (the shapes, the canvas-text, AND the
+      // containers; the frame stands no membership): each dragged
+      // figure's membership
       // stands its RELEASE position (the recompute, not the indicator — the
       // release's truth is the final box). The fully-containing container
       // is the home (the item joins it, leaving any previous owner); no
@@ -631,7 +636,7 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
         const block = doc.getBlock(id);
         if (block === null || block.type === "connector") continue;
         if (riders.has(id)) continue;
-        if (block.type !== "shape" && block.type !== "group") continue;
+        if (block.type !== "shape" && block.type !== "canvas-text" && block.type !== "group") continue;
         const snap = session.snapshot[id];
         if (snap === undefined) continue;
         const finalBox = { x: snap.x + session.dx, y: snap.y + session.dy, w: snap.w, h: snap.h };
@@ -768,6 +773,8 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
     resizePreview,
     resizeSession,
     placePreview,
+    pendingText,
+    setPendingText,
     connectorPreview,
     connectorHoverSnap,
     connectorEndpoint,

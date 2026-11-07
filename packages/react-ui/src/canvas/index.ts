@@ -12,8 +12,14 @@ export { ConnectorToolbar } from "./ConnectorToolbar";
 export { canvasContentBox, fitView } from "./fit";
 export { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "./insert";
 export { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "./nudge";
-export { ShapeToolbar } from "./shape-toolbar";
-export { SHAPE_FONT_OPTIONS, SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, SHAPE_TEXT_WEIGHTS } from "./text-fonts";
+export { ShapeToolbar, CanvasTextToolbar, ShapeTextControls } from "./shape-toolbar";
+export {
+  SHAPE_FONT_OPTIONS,
+  SHAPE_FONT_STACKS,
+  SHAPE_TEXT_DEFAULT_SIZE,
+  SHAPE_TEXT_WEIGHTS,
+  textStyleOf,
+} from "./text-fonts";
 export { zPositionOf } from "./ZOrderMenu";
 export {
   MOVE_THRESHOLD_PX,

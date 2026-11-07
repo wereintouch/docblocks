@@ -26,6 +26,9 @@ import { PORT_PICK_RADIUS_PX, SCROLLBAR_GUARD_PX } from "./constants";
 import type { CanvasPointerSession } from "./models";
 import { isPlaceTool, isShapeTool, toggleCanvasSelection } from "./utils";
 
+/** The container's / the frame's TITLE chip (the inline edit's dblclick's target). */
+const TITLE_CHIP_SELECTOR = "[data-slot='docblocks/group-title'], [data-slot='docblocks/frame-title']";
+
 interface CanvasSessionsDeps {
   containerRef: RefObject<HTMLDivElement | null>;
   sessionRef: RefObject<CanvasPointerSession | null>;
@@ -59,7 +62,7 @@ function useCanvasSessions({
   surfaces,
   handleTarget,
 }: CanvasSessionsDeps) {
-  const centerRelativePoint = (event: ReactPointerEvent<HTMLDivElement>) => {
+  const centerRelativePoint = (event: { clientX: number; clientY: number }) => {
     const container = containerRef.current;
     if (container === null) return { x: 0, y: 0 };
     const rect = container.getBoundingClientRect();
@@ -268,21 +271,43 @@ function useCanvasSessions({
     }
 
     if (isEditingSurface(event.target)) {
-      // The editing surfaces outside the page miniature (the frame's
-      // content, the canvas-text's inner) keep the plain caret press;
-      // the page miniature's content stands the two-click contract: the
-      // first press selects the card (the root's one-item selection +
-      // the move session, like an item press — the caret stands only on
-      // the second press, the card already selected).
-      if (!isPageCard(event.target) || event.shiftKey) return;
-      const sel = selection.view?.get();
-      if (sel?.kind === "blocks" && sel.ids.includes(rootBlockId)) return; // the caret
-      event.preventDefault();
-      containerRef.current?.focus();
-      selection.view?.set({ kind: "blocks", ids: [rootBlockId], anchorId: rootBlockId });
-      viewport.beginMove([rootBlockId], event.clientX, event.clientY);
-      cardPressRef.current = true;
-      event.currentTarget.setPointerCapture?.(event.pointerId);
+      // The editing surfaces outside the page miniature keep the plain
+      // caret press (the frame's content, the shape's inline text edit);
+      // the page miniature's content and the canvas-text's inner stand the
+      // two-click contract: the first press selects the block (the
+      // one-item selection + the move session — the drag moves it, the
+      // content stands still, the caret stands only on the second press,
+      // the block already selected).
+      const canvasTextItem =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]')
+          : null;
+      const canvasTextId = canvasTextItem?.getAttribute("data-block-id") ?? null;
+      if (canvasTextId !== null && blocks[canvasTextId]?.type === "canvas-text") {
+        // The canvas-text's two-click stand (the page-card's parity): the
+        // shift press and the selected block keep the plain caret.
+        if (event.shiftKey) return;
+        const sel = selection.view?.get();
+        if (sel?.kind === "blocks" && sel.ids.includes(canvasTextId)) return; // the caret
+        event.preventDefault();
+        containerRef.current?.focus();
+        selection.view?.set({ kind: "blocks", ids: [canvasTextId], anchorId: canvasTextId });
+        viewport.beginMove([canvasTextId], event.clientX, event.clientY);
+        cardPressRef.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        return;
+      }
+      if (isPageCard(event.target) && !event.shiftKey) {
+        const sel = selection.view?.get();
+        if (sel?.kind === "blocks" && sel.ids.includes(rootBlockId)) return; // the caret
+        event.preventDefault();
+        containerRef.current?.focus();
+        selection.view?.set({ kind: "blocks", ids: [rootBlockId], anchorId: rootBlockId });
+        viewport.beginMove([rootBlockId], event.clientX, event.clientY);
+        cardPressRef.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        return;
+      }
       return;
     }
 
@@ -666,14 +691,48 @@ function useCanvasSessions({
     }
   };
 
-  // The canvas content's double-click: the shape's text inline edit (the press's pointer
+  // The canvas content's double-click: the ghost text block (the empty
+  // canvas's default-mode entry), the shape's text inline edit (the press's pointer
   // capture retargets the dblclick to THIS container — the event's target
   // is the container, not the shape — the shape stands the point's
-  // element, the hit test through the world's transform) and the
+  // element, the hit test through the world's transform), and the
   // connector's LABEL inline edit (the line's press keeps no capture —
   // the hit path is the dblclick's target; the page's inert surfaces
   // stand no container handler — the read-only stand there).
   const onContentDoubleClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    // The ghost text block's entry (the double-click on the EMPTY canvas —
+    // the default mode with no active tool): the focused contenteditable
+    // stands at the point (the world's space — the ghost's component's
+    // render) with the blinking caret; nothing is written until the
+    // first input. The point's element stands the capture-retargeting
+    // (the dblclick's target may be the container) and the guards: the
+    // canvas's own content with no stand of its own (no page card, no
+    // item, no line's hit path, no title chip), no chrome, no ghost
+    // re-entry.
+    if (viewport.mode === "default" && viewport.activeTool === null) {
+      // The point's element (elementFromPoint) with the event's target as
+      // the fallback (elementFromPoint stands null where it cannot resolve
+      // the point — the jsdom / the inert surface's stand; the event's
+      // target is the press's element then).
+      const dblElement =
+        (typeof document.elementFromPoint === "function"
+          ? document.elementFromPoint(event.clientX, event.clientY)
+          : null) ?? (event.target instanceof Element ? event.target : null);
+      if (
+        dblElement instanceof Element &&
+        event.currentTarget.contains(dblElement) &&
+        dblElement.closest('[data-slot="docblocks/canvas-chrome"]') === null &&
+        dblElement.closest('[data-slot="docblocks/canvas-text-ghost"]') === null &&
+        dblElement.closest('[data-slot="docblocks/canvas-item"]') === null &&
+        dblElement.closest('[data-slot="docblocks/page-card"]') === null &&
+        dblElement.closest("[data-connector-hit]") === null &&
+        dblElement.closest(TITLE_CHIP_SELECTOR) === null
+      ) {
+        event.preventDefault();
+        viewport.setPendingText(screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan));
+        return;
+      }
+    }
     // The line's double-click stands the label's edit (the hit path is
     // the target's element; a capture-retargeted event — the target IS
     // the container — falls to the point's element, the hit test through
@@ -689,7 +748,6 @@ function useCanvasSessions({
     // — the press's pointer capture retargets the dblclick to THIS
     // container, so the chip is found through the point's element (the
     // chip's item id stands the inline-edit id).
-    const TITLE_CHIP_SELECTOR = "[data-slot='docblocks/group-title'], [data-slot='docblocks/frame-title']";
     const titleChipFromTarget =
       event.target instanceof Element ? event.target.closest<HTMLElement>(TITLE_CHIP_SELECTOR) : null;
     let titleChip = titleChipFromTarget;
@@ -698,7 +756,8 @@ function useCanvasSessions({
       titleChip = element instanceof Element ? element.closest<HTMLElement>(TITLE_CHIP_SELECTOR) : null;
     }
     if (titleChip !== null) {
-      const itemId = titleChip.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ?? null;
+      const itemId =
+        titleChip.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ?? null;
       if (itemId !== null) viewport.setShapeTextEditing(itemId);
       return;
     }

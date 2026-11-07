@@ -28,6 +28,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BlockGroups } from "../../blocks/BlockView";
 import {
   CanvasDock,
+  CanvasTextToolbar,
   ConnectorToolbar,
   ShapeToolbar,
   canvasContentBox,
@@ -44,7 +45,8 @@ import { cn } from "../../shared/ui/cn";
 import { Container } from "../../shared/ui/icons";
 import { ShapeSvg } from "../ShapeSvg";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
-import { effectiveGeometry, pageCardStyle, surfaceChromeKey, DOT_GRID_STEP_PX } from "../geometry";
+import { DOT_GRID_STEP_PX, effectiveGeometry, pageCardStyle, surfaceChromeKey } from "../geometry";
+import { CanvasTextGhost } from "./CanvasTextGhost";
 import { ConnectorLabelChips } from "./ConnectorLabelChips";
 import { ConnectorLabelEdit } from "./ConnectorLabelEdit";
 import { ConnectorPreviewLine } from "./ConnectorPreviewLine";
@@ -107,9 +109,10 @@ function CanvasView() {
   const viewport = useCanvasViewport(doc, storedViewport);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const sessionRef = useRef<CanvasPointerSession | null>(null);
-  // The page miniature's first press stands the card's move session over
-  // the page's content (the two-click contract) — the flag drops the
-  // compatibility mousedown's default (the caret / the focus move).
+  // The editing surfaces' first press stands the move session over the
+  // content (the two-click contract — the page miniature's card and the
+  // canvas-text's inner): the flag drops the compatibility mousedown's
+  // default (the caret / the focus move).
   const cardPressRef = useRef(false);
   // The connector's press point (screen px): the press-drag's release
   // threshold (a sub-threshold press-release cancels the stand instead of
@@ -168,6 +171,7 @@ function CanvasView() {
     displayBox,
     multiSelectionBox,
     shapeToolbarTarget,
+    textToolbarTarget,
     connectorToolbarTarget,
     connectorLabelTarget,
     selectedConnectorHandles,
@@ -483,6 +487,13 @@ function CanvasView() {
               />
             </svg>
           )}
+          {viewport.pendingText !== null && (
+            // The ghost text block (the double-click's empty-canvas entry):
+            // the world's space, so it scales with the zoom — over the
+            // world's content (the surfaces), under the screen-space
+            // toolbars (the DOM order's paint stand).
+            <CanvasTextGhost point={viewport.pendingText} onClose={() => viewport.setPendingText(null)} />
+          )}
         </div>
         {multiSelectionBox !== null && viewport.movePreview === null && (
           // The multi-selection's summary rectangle (the union of the
@@ -674,6 +685,26 @@ function CanvasView() {
             textStyle={shapeToolbarTarget.textStyle}
             textAlign={shapeToolbarTarget.textAlign}
             zStand={shapeToolbarTarget.zStand}
+            style={{
+              left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
+              top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y - (displayBox.h / 2) * viewport.zoom - TOOLBAR_OFFSET_PX}px)`,
+            }}
+          />
+        )}
+        {textToolbarTarget !== null && displayBox !== null && (
+          // The canvas-text's text toolbar (the single `canvas-text`
+          // selection): the text controls + the z-order menu above the box
+          // top edge (the shape toolbar's position's stand). Hidden for the
+          // non-text blocks, the multi selection, an active tool, and the
+          // in-flight sessions (the box is stale then).
+          <CanvasTextToolbar
+            id={textToolbarTarget.id}
+            fontFamily={textToolbarTarget.fontFamily}
+            textColor={textToolbarTarget.textColor}
+            textStyle={textToolbarTarget.textStyle}
+            fontSize={textToolbarTarget.fontSize}
+            textAlign={textToolbarTarget.textAlign}
+            zStand={textToolbarTarget.zStand}
             style={{
               left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
               top: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).y - (displayBox.h / 2) * viewport.zoom - TOOLBAR_OFFSET_PX}px)`,
