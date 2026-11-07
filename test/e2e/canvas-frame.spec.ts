@@ -16,7 +16,7 @@
 // placeholder).
 import { type Page, expect, test } from "@playwright/test";
 
-import { canvasCenter, canvasView, SETTLE, screenAt, toCanvas, twoPanes } from "./helpers";
+import { SETTLE, canvasCenter, canvasView, screenAt, toCanvas, twoPanes } from "./helpers";
 
 const dock = (page: Page, client: "a" | "b") => canvasView(page, client).getByRole("toolbar", { name: "Canvas tools" });
 
@@ -92,7 +92,10 @@ async function originalAndCopyBoxes(
   client: "a" | "b",
   blockId: string,
   frame: string
-): Promise<{ original: { x: number; y: number; w: number; h: number }; copy: { x: number; y: number; w: number; h: number } }> {
+): Promise<{
+  original: { x: number; y: number; w: number; h: number };
+  copy: { x: number; y: number; w: number; h: number };
+}> {
   return page.evaluate(
     ({ client, blockId, frame }) => {
       const view = document.querySelector(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
@@ -106,7 +109,9 @@ async function originalAndCopyBoxes(
       );
       const original = items.find((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null);
       const copyHost = items.find((el) =>
-        el.closest(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`)
+        el.closest(
+          `[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`
+        )
       );
       if (original === undefined || copyHost === undefined) {
         throw new Error("the original's / the copy's stand is missing");
@@ -120,7 +125,9 @@ async function originalAndCopyBoxes(
 }
 
 test.describe("the canvas frame (the viewport window)", () => {
-  test("the dock's Frame tool: the click's default-size place over the wire (the childless box)", async ({ browser }) => {
+  test("the dock's Frame tool: the click's default-size place over the wire (the childless box)", async ({
+    browser,
+  }) => {
     const { a, b, close } = await twoPanes(browser, "frame-place");
     try {
       await toCanvas(a, "a");
@@ -131,7 +138,10 @@ test.describe("the canvas frame (the viewport window)", () => {
       const center = await canvasCenter(a, "a");
       await a.mouse.click(center.x + 10, center.y - 10);
       await expect
-        .poll(async () => Object.values(await docBlocks(b, "b")).filter((block) => block.type === "frame").length, SETTLE)
+        .poll(
+          async () => Object.values(await docBlocks(b, "b")).filter((block) => block.type === "frame").length,
+          SETTLE
+        )
         .toBe(1);
       const blocksB = await docBlocks(b, "b");
       const frame = Object.values(blocksB).find((block) => block.type === "frame")!;
@@ -161,7 +171,10 @@ test.describe("the canvas frame (the viewport window)", () => {
       await a.mouse.move(to.x, to.y, { steps: 4 });
       await a.mouse.up();
       await expect
-        .poll(async () => Object.values(await docBlocks(b, "b")).filter((block) => block.type === "frame").length, SETTLE)
+        .poll(
+          async () => Object.values(await docBlocks(b, "b")).filter((block) => block.type === "frame").length,
+          SETTLE
+        )
         .toBe(1);
       const blocksB = await docBlocks(b, "b");
       const frame = Object.values(blocksB).find((block) => block.type === "frame")!;
@@ -205,9 +218,7 @@ test.describe("the canvas frame (the viewport window)", () => {
           const view = document.querySelector(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
           if (view === null) return [];
           return Array.from(
-            view.querySelectorAll<HTMLElement>(
-              `[data-slot="docblocks/canvas-item"]:not([data-block-id="${frame}"])`
-            )
+            view.querySelectorAll<HTMLElement>(`[data-slot="docblocks/canvas-item"]:not([data-block-id="${frame}"])`)
           )
             .filter((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null)
             .map((el) => el.dataset.blockId as string)
@@ -268,7 +279,9 @@ test.describe("the canvas frame (the viewport window)", () => {
           if (el === null) return null;
           const item = el.closest(`[data-slot="docblocks/canvas-item"][data-block-id="${rect}"]`);
           if (item === null) return null;
-          const inWindow = item.closest(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`);
+          const inWindow = item.closest(
+            `[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`
+          );
           return inWindow === null ? "original" : "copy";
         },
         {
@@ -288,7 +301,9 @@ test.describe("the canvas frame (the viewport window)", () => {
           if (el === null) return null;
           const item = el.closest(`[data-slot="docblocks/canvas-item"][data-block-id="${rect}"]`);
           if (item === null) return null;
-          const inWindow = item.closest(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`);
+          const inWindow = item.closest(
+            `[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`
+          );
           return inWindow === null ? "original" : "copy";
         },
         {
@@ -332,9 +347,7 @@ test.describe("the canvas frame (the viewport window)", () => {
       // …and the figures' geometries STAND (the move pans the window — the
       // content does not ride the box's slide).
       for (const id of [rect, ellipse]) {
-        await expect
-          .poll(async () => (await docBlocks(b, "b"))[id]?.geometry, SETTLE)
-          .toEqual(before[id]!.geometry);
+        await expect.poll(async () => (await docBlocks(b, "b"))[id]?.geometry, SETTLE).toEqual(before[id]!.geometry);
       }
       // The committed stand: the window's content re-stands over the
       // committed offset (the world's parity — the copy's box stands the
@@ -532,23 +545,20 @@ test.describe("the page-frame block (the slash /frame command)", () => {
       // page-frame block's read (the frameId's stand — the canvas frame's
       // title's read stands out of the page sequence's read).
       await expect
-        .poll(
-          async () => {
-            const blocksB = await docBlocks(b, "b");
-            const frameBlockB = Object.entries(blocksB).find(
-              ([, block]) => block.type === "frame" && block.attrs?.frameId !== undefined
-            );
-            if (frameBlockB === undefined) return null;
-            const rootB = await rootChildren(b, "b");
-            return {
-              frameId: frameBlockB[1].attrs?.frameId,
-              frameAt: frameBlockB[0],
-              trailing: rootB[rootB.length - 1],
-              trailingType: blocksB[rootB[rootB.length - 1]!]?.type,
-            };
-          },
-          SETTLE
-        )
+        .poll(async () => {
+          const blocksB = await docBlocks(b, "b");
+          const frameBlockB = Object.entries(blocksB).find(
+            ([, block]) => block.type === "frame" && block.attrs?.frameId !== undefined
+          );
+          if (frameBlockB === undefined) return null;
+          const rootB = await rootChildren(b, "b");
+          return {
+            frameId: frameBlockB[1].attrs?.frameId,
+            frameAt: frameBlockB[0],
+            trailing: rootB[rootB.length - 1],
+            trailingType: blocksB[rootB[rootB.length - 1]!]?.type,
+          };
+        }, SETTLE)
         .toEqual({
           frameId: frame,
           frameAt: frameBlock![0],
@@ -569,7 +579,10 @@ test.describe("the page-frame block (the slash /frame command)", () => {
       const inner = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
       await inner.click();
       await a.keyboard.type("/frame");
-      await a.locator('[data-slot="docblocks/slash-menu"]').getByRole("menuitem", { name: "Frame", exact: true }).click();
+      await a
+        .locator('[data-slot="docblocks/slash-menu"]')
+        .getByRole("menuitem", { name: "Frame", exact: true })
+        .click();
       await a
         .locator('[data-slot="docblocks/slash-frame-list"]')
         .locator('[data-slot="docblocks/slash-frame-option"]')

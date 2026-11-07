@@ -15,7 +15,7 @@
 // the card; the card's content keeps the page's two-click contract).
 import { type Page, expect, test } from "@playwright/test";
 
-import { canvasCenter, canvasView, openPane, screenAtZoom, SETTLE, toCanvas, twoPanes, outCount } from "./helpers";
+import { SETTLE, canvasCenter, canvasView, openPane, outCount, screenAtZoom, toCanvas, twoPanes } from "./helpers";
 
 /** The zoom toolbar (scoped to the pane's canvas view). */
 const zoomToolbar = (page: Page, client: "a" | "b") =>
@@ -33,11 +33,14 @@ async function zoomOut50(page: Page, client: "a" | "b"): Promise<number> {
 
 /** The pane's doc's JSON (the no-write invariant's read). */
 async function docJson(page: Page, client: "a" | "b") {
-  return page.evaluate(({ client }) => {
-    const docs = window.__paneDocs;
-    const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
-    return doc === null ? null : doc.toJSON();
-  }, { client });
+  return page.evaluate(
+    ({ client }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      return doc === null ? null : doc.toJSON();
+    },
+    { client }
+  );
 }
 
 /** The selection's stand: the selected canvas items + the handles' count. */
@@ -55,7 +58,9 @@ async function selectionStand(page: Page, client: "a" | "b"): Promise<{ items: n
 }
 
 /** The ghost's stand (the wrapper's box + the focused inner's parity). */
-async function ghostStand(page: Page): Promise<{ count: number; focused: boolean; box: { x: number; y: number; w: number; h: number } | null }> {
+async function ghostStand(
+  page: Page
+): Promise<{ count: number; focused: boolean; box: { x: number; y: number; w: number; h: number } | null }> {
   return page.evaluate(() => {
     const ghost = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-text-ghost"]');
     const inner = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-text-ghost-inner"]');
@@ -142,16 +147,13 @@ test.describe("the canvas empty-area double-click (the ghost text block's entry)
 
       // Pane B stands the block over the wire (the geometry + the content).
       await expect
-        .poll(
-          async () => {
-            const blocksB = await docJson(b, "b");
-            const textB = Object.values(blocksB!.blocks).find((block) => block.type === "canvas-text");
-            return textB === undefined
-              ? null
-              : { text: textB.content?.map((run) => run.text).join(""), geometry: textB.geometry };
-          },
-          SETTLE
-        )
+        .poll(async () => {
+          const blocksB = await docJson(b, "b");
+          const textB = Object.values(blocksB!.blocks).find((block) => block.type === "canvas-text");
+          return textB === undefined
+            ? null
+            : { text: textB.content?.map((run) => run.text).join(""), geometry: textB.geometry };
+        }, SETTLE)
         .toEqual({ text: "Hi there", geometry: { x: 550, y: 320, w: 200, h: 40 } });
 
       // The caret seats into the real block (the inner's focus, the block's

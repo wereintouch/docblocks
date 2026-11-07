@@ -17,7 +17,7 @@
 // wire — + the z-order menu's reorder's apply).
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
-import { canvasCenter, canvasView, screenAt, SETTLE, toCanvas, twoPanes } from "./helpers";
+import { SETTLE, canvasCenter, canvasView, screenAt, toCanvas, twoPanes } from "./helpers";
 
 interface CanvasBlock {
   type: string;
@@ -453,7 +453,8 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       const orderBefore = await surfaceChildren(b, "b");
       await zMenu.click();
       await a.getByRole("menuitem", { name: "Bring forward", exact: true }).click();
-      await expect.poll(async () => (await surfaceChildren(b, "b")).indexOf(idA) > orderBefore.indexOf(idA), SETTLE)
+      await expect
+        .poll(async () => (await surfaceChildren(b, "b")).indexOf(idA) > orderBefore.indexOf(idA), SETTLE)
         .toBe(true);
     } finally {
       await close();

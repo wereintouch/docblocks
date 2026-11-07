@@ -443,26 +443,14 @@
     "c0033": {
       "type": "table",
       "attrs": {
-        "columnWidths": [
-          140,
-          120
-        ]
+        "columnWidths": [140, 120]
       },
-      "children": [
-        "c0036",
-        "c0041"
-      ],
-      "columnOrder": [
-        "c0034",
-        "c0035"
-      ]
+      "children": ["c0036", "c0041"],
+      "columnOrder": ["c0034", "c0035"]
     },
     "c0036": {
       "type": "table-row",
-      "children": [
-        "c0037",
-        "c0039"
-      ]
+      "children": ["c0037", "c0039"]
     },
     "c0037": {
       "type": "table-cell",
@@ -476,9 +464,7 @@
           "marks": {}
         }
       ],
-      "children": [
-        "c0038"
-      ]
+      "children": ["c0038"]
     },
     "c0038": {
       "type": "paragraph",
@@ -497,9 +483,7 @@
         "rowColor": "#10b981"
       },
       "content": [],
-      "children": [
-        "c0040"
-      ]
+      "children": ["c0040"]
     },
     "c0040": {
       "type": "paragraph",
@@ -512,10 +496,7 @@
     },
     "c0041": {
       "type": "table-row",
-      "children": [
-        "c0042",
-        "c0044"
-      ]
+      "children": ["c0042", "c0044"]
     },
     "c0042": {
       "type": "table-cell",
@@ -523,9 +504,7 @@
         "columnId": "c0034"
       },
       "content": [],
-      "children": [
-        "c0043"
-      ]
+      "children": ["c0043"]
     },
     "c0043": {
       "type": "paragraph",
@@ -543,9 +522,7 @@
         "columnId": "c0035"
       },
       "content": [],
-      "children": [
-        "c0045"
-      ]
+      "children": ["c0045"]
     },
     "c0045": {
       "type": "paragraph",
@@ -596,16 +573,7 @@
         "w": 900,
         "h": 500
       },
-      "children": [
-        "c0052",
-        "c0053",
-        "c0054",
-        "c0055",
-        "c0056",
-        "c0057",
-        "c0058",
-        "c0059"
-      ]
+      "children": ["c0052", "c0053", "c0054", "c0055", "c0056", "c0057", "c0058", "c0059"]
     },
     "c0052": {
       "type": "frame",

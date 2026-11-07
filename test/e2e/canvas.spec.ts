@@ -83,11 +83,17 @@ async function childByStand(
  * wrapper outside any window's content): the item's text content + the
  * rendered rect (nulls when the direct wrapper is absent or unrendered).
  */
-async function directItemStand(page: Page, client: "a" | "b", id: string): Promise<{ text: string | null; width: number; height: number }> {
+async function directItemStand(
+  page: Page,
+  client: "a" | "b",
+  id: string
+): Promise<{ text: string | null; width: number; height: number }> {
   return page.evaluate(
     ({ client, id }) => {
       const items = Array.from(
-        document.querySelectorAll<HTMLElement>(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-item"][data-block-id="${id}"]`)
+        document.querySelectorAll<HTMLElement>(
+          `[data-testid="doc-${client}"] [data-slot="docblocks/canvas-item"][data-block-id="${id}"]`
+        )
       );
       const direct = items.find((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null);
       if (direct === undefined || direct === null) return { text: null, width: 0, height: 0 };
@@ -116,10 +122,11 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
       // The four seeded shapes render as SVGs (the DIRECT wrappers' stand —
       // the window's copies' renders stand inside the frames' items, out
       // of the order's read).
-      const directShapes = await pane.evaluate(() =>
-        Array.from(document.querySelectorAll<HTMLElement>('[data-slot="docblocks/shape"]'))
-          .filter((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null)
-          .length
+      const directShapes = await pane.evaluate(
+        () =>
+          Array.from(document.querySelectorAll<HTMLElement>('[data-slot="docblocks/shape"]')).filter(
+            (el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null
+          ).length
       );
       await expect.poll(async () => directShapes, SETTLE).toBe(4);
       // The frames' titles stand (the chip over the window box — the
@@ -130,10 +137,16 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
       expect(frameA).not.toBeNull();
       expect(frameB).not.toBeNull();
       await expect
-        .poll(async () => (await directItemStand(pane, client, frameA as string)).text?.includes("Frame A") ?? false, SETTLE)
+        .poll(
+          async () => (await directItemStand(pane, client, frameA as string)).text?.includes("Frame A") ?? false,
+          SETTLE
+        )
         .toBe(true);
       await expect
-        .poll(async () => (await directItemStand(pane, client, frameB as string)).text?.includes("Frame B") ?? false, SETTLE)
+        .poll(
+          async () => (await directItemStand(pane, client, frameB as string)).text?.includes("Frame B") ?? false,
+          SETTLE
+        )
         .toBe(true);
       // The frame's window's content stands the surface's layer as inert
       // copies (the frame A's window over the rounded shape + the note —
@@ -147,36 +160,31 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
         .first();
       await expect
         .poll(
-          async () => (await windowContent.evaluate((el) => el.textContent?.includes("Canvas note") ?? false)),
+          async () => await windowContent.evaluate((el) => el.textContent?.includes("Canvas note") ?? false),
           SETTLE
         )
         .toBe(true);
       await expect
-        .poll(
-          async () => (await windowContent.evaluate((el) => el.textContent?.includes("Shape text") ?? false)),
-          SETTLE
-        )
+        .poll(async () => await windowContent.evaluate((el) => el.textContent?.includes("Shape text") ?? false), SETTLE)
         .toBe(true);
       // The originals stand outside the window too (the note's direct
       // wrapper over the layer — the stand's read excludes the copies).
       const note = await childByStand(pane, client, { type: "canvas-text" });
       expect(note).not.toBeNull();
       await expect
-        .poll(
-          async () => {
-            const stand = await directItemStand(pane, client, note as string);
-            return stand.width > 0 && stand.height > 0 && stand.text?.includes("Canvas note") === true;
-          },
-          SETTLE
-        )
+        .poll(async () => {
+          const stand = await directItemStand(pane, client, note as string);
+          return stand.width > 0 && stand.height > 0 && stand.text?.includes("Canvas note") === true;
+        }, SETTLE)
         .toBe(true);
       // The connector line is present (both endpoints resolve within the
       // surface — the DIRECT layer's stand; the window's copies' lines
       // stand inside the frames' items).
-      const directConnectors = await pane.evaluate(() =>
-        Array.from(document.querySelectorAll<SVGPathElement>('[data-slot="docblocks/connector-layer"] path[data-connector-id]'))
-          .filter((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null)
-          .length
+      const directConnectors = await pane.evaluate(
+        () =>
+          Array.from(
+            document.querySelectorAll<SVGPathElement>('[data-slot="docblocks/connector-layer"] path[data-connector-id]')
+          ).filter((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null).length
       );
       await expect.poll(async () => directConnectors, SETTLE).toBe(1);
       // The DOM order of the direct wrappers is the scene's z-order (the
@@ -231,7 +239,7 @@ test("the frame's window copies are inert (the layer stands pointer-transparent)
 
     // The note's copy stands inside pane A's window before the edit.
     await expect
-      .poll(async () => (await windowContent.evaluate((el) => el.textContent?.includes("Canvas note") ?? false)))
+      .poll(async () => await windowContent.evaluate((el) => el.textContent?.includes("Canvas note") ?? false))
       .toBe(true);
 
     // Edit the note directly over pane A's doc (the command API) — the
@@ -248,7 +256,7 @@ test("the frame's window copies are inert (the layer stands pointer-transparent)
     );
     await expect(canvas(b, "b").getByText("Canvas note edited").first()).toBeVisible();
     await expect
-      .poll(async () => (await windowContent.evaluate((el) => el.textContent?.includes("Canvas note edited") ?? false)))
+      .poll(async () => await windowContent.evaluate((el) => el.textContent?.includes("Canvas note edited") ?? false))
       .toBe(true);
     // …and pane B's JSON carries the edit (the wire's parity).
     await expect
@@ -332,7 +340,9 @@ test("a setGeometry on a shape updates pane B's wrapper position (the geometry s
               )
             );
             const world = document.querySelector('[data-testid="doc-b"] [data-slot="docblocks/canvas-world"]');
-            const el = items.find((candidate) => candidate.closest('[data-slot="docblocks/frame-window-content"]') === null);
+            const el = items.find(
+              (candidate) => candidate.closest('[data-slot="docblocks/frame-window-content"]') === null
+            );
             if (world === null || world === undefined || el === null || el === undefined) return null;
             return {
               left: parseFloat(getComputedStyle(el).left),

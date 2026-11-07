@@ -497,17 +497,22 @@ test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
   const tokenProbe = (styleName: string, value: string) =>
     editor(page)
       .first()
-      .evaluate((el, names) => {
-        const prop = names[0] ?? "";
-        const value = names[1] ?? "";
-        const probe = document.createElement("div");
-        (probe.style as unknown as Record<string, string>)[prop] = value;
-        el.appendChild(probe);
-        const resolved = getComputedStyle(probe).getPropertyValue(prop);
-        probe.remove();
-        return resolved ?? "";
-      }, [styleName, value]);
-  expect(windowStyle["background-color"]).toBe(await tokenProbe("background-color", "var(--docblocks-canvas-background)"));
+      .evaluate(
+        (el, names) => {
+          const prop = names[0] ?? "";
+          const value = names[1] ?? "";
+          const probe = document.createElement("div");
+          (probe.style as unknown as Record<string, string>)[prop] = value;
+          el.appendChild(probe);
+          const resolved = getComputedStyle(probe).getPropertyValue(prop);
+          probe.remove();
+          return resolved ?? "";
+        },
+        [styleName, value]
+      );
+  expect(windowStyle["background-color"]).toBe(
+    await tokenProbe("background-color", "var(--docblocks-canvas-background)")
+  );
   expect(windowStyle["box-shadow"]).toBe(
     await tokenProbe("box-shadow", "inset 0 0 0 1px var(--docblocks-canvas-group-border-color)")
   );
