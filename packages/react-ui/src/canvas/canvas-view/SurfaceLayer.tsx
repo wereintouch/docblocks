@@ -84,8 +84,22 @@ function SurfaceLayer({
   );
   // The layer's rendered children (the excluded's stand off — the window's
   // cycle guard); the siblings' context keeps the full list (the endpoint
-  // resolution's stand).
-  const rendered = excludedIds !== undefined ? children.filter((childId) => !excludedIds.includes(childId)) : children;
+  // resolution's stand). The frame stands the view BACK: it is a window
+  // into the surface's content, not a figure — it renders behind every
+  // other item (the stable sort keeps the frames' own order and the
+  // figures' z-order within their runs). The data's zIndex keeps its slot
+  // (the arrangement's contract); the render's pin stands the window's
+  // parity (the figures always stand over the window's border).
+  const { store } = useEditorContext();
+  const rendered = useMemo(() => {
+    const ordered = excludedIds !== undefined ? children.filter((childId) => !excludedIds.includes(childId)) : children;
+    const blocks = store.getState().blocks;
+    return [...ordered].sort((a, b) => {
+      const aFrame = blocks[a]?.type === "frame" ? 1 : 0;
+      const bFrame = blocks[b]?.type === "frame" ? 1 : 0;
+      return bFrame - aFrame;
+    });
+  }, [children, excludedIds, store]);
   const content = (
     <>
       <ConnectorArrowDefs id={id} />

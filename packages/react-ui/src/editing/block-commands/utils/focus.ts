@@ -34,11 +34,35 @@ function liveScope(scope: ParentNode): ParentNode {
  */
 function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = document): void {
   afterFrame(() => {
-    const el = liveScope(scope).querySelector<HTMLElement>(
-      `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
-    );
-    // The gesture outlived its editor: a stale restore would clobber the live selection.
+    // The original's inner stands the id's query (the frame's window's
+    // inert copy stands the same id over the copy — the frame's view-back
+    // order stands it first in the DOM); the window-content's exclusion
+    // picks the original. The gesture outlived its editor: a stale
+    // restore would clobber the live selection.
+    const el =
+      Array.from(
+        liveScope(scope).querySelectorAll<HTMLElement>(
+          `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
+        )
+      ).find((candidate) => !candidate.closest('[data-slot="docblocks/frame-window-content"]')) ?? null;
     if (el === null || !el.isConnected) return;
+    el.focus();
+    restoreSelection(el, offset, null);
+  });
+}
+
+/**
+ * The caret's seat into the EXACT editable element at the flat offset
+ * (the focusCaretIn's parity — the frame waits the caller's re-render's
+ * commit). The exact element's stand over the id's query: the canvas's
+ * frame windows render the block's inert copies over the same id (the
+ * query stands the copy — the frame's view-back order stands it first in
+ * the DOM), so the caller passes the hit's element (the elementFromPoint's
+ * resolution — the pointer-events-none's copy stands no hit).
+ */
+function focusCaretInElement(el: HTMLElement, offset: number): void {
+  afterFrame(() => {
+    if (!el.isConnected) return;
     el.focus();
     restoreSelection(el, offset, null);
   });
@@ -242,4 +266,11 @@ function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: Bloc
   domSelection.setBaseAndExtent(anchorNode, anchorOffset, target.node, target.offset);
 }
 
-export { extendSelectionTo, focusCaretIn, focusCellActivation, reseatHistorySelection, restoreSelectionIn };
+export {
+  extendSelectionTo,
+  focusCaretIn,
+  focusCaretInElement,
+  focusCellActivation,
+  reseatHistorySelection,
+  restoreSelectionIn,
+};

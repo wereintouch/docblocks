@@ -1,20 +1,17 @@
 // The canvas-text (the reworked interaction): the ghost's stands (the
 // blur's cancel over the empty ghost — the creation's commit stands in
-// the canvas-empty-dblclick's spec, no duplicate coverage), the
-// two-click press's stands (the first press over the unselected block:
-// the press's selection stands over the move session, the release's
-// caret's stand wins over the settle (the cross-drag's release's seat +
-// the selectionchange's mapping's clobber) — the typing lands in the
-// block; the second press over the standing caret: the press's selection
-// stands over the settle (the release's seat is a no-op over the standing
-// DOM caret) — the typing stands off), the first-press's drag (the move's
-// geometry's delta over the wire, the release's caret's stand over the
-// moved block), the Escape over the empty real block (the removeBlock's
-// no-orphan's stand), the container's membership (the drag-in / drag-out's
-// indicators' stand, the release's commit over the wire), and the text
-// toolbar (the single selection's "Text options" stand, the font family /
-// color / style / size / align's applies — one updateBlock each over the
-// wire — + the z-order menu's reorder's apply).
+// the canvas-empty-dblclick's spec, no duplicate coverage), the press
+// contract (the shape's parity — the single press over the block: the
+// press's selection stands (the move session — the typing stands off),
+// the release's selection's stand over the moved block; the double-click
+// the caret's stand — the typing lands in the block over the wire), the
+// press's drag (the move's geometry's delta over the wire), the Escape
+// over the empty real block (the removeBlock's no-orphan's stand), the
+// container's membership (the drag-in / drag-out's indicators' stand, the
+// release's commit over the wire), and the text toolbar (the single
+// selection's "Text options" stand, the font family / color / style /
+// size / align's applies — one updateBlock each over the wire — + the
+// z-order menu's reorder's apply).
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, canvasCenter, canvasView, screenAt, toCanvas, twoPanes } from "./helpers";
@@ -171,10 +168,10 @@ test.describe("the canvas-text (the reworked interaction)", () => {
     }
   });
 
-  test("the two-click press: the first click's caret's stand (the typing lands in the block over the wire, the canvas selection stands no stand over the settle), the second click's selection's stand (the typing stands off)", async ({
+  test("the single click's selection's stand (the shape's press parity: the selection stands over the move session, the caret stands off — the typing stands off; the drag moves the block over the wire; the release's selection stands over the moved block)", async ({
     browser,
   }) => {
-    const { a, b, close } = await twoPanes(browser, "text-two-click");
+    const { a, b, close } = await twoPanes(browser, "text-press-select");
     try {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
@@ -184,71 +181,27 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       // The block's center (the geometry's center anchor at the world's
       // origin — the view's center).
       const point = screenAt(center, 0, 0);
-
-      // The first press (unselected): the press's selection stands over the
-      // move session, and the release's caret's stand wins over it (the
-      // cross-drag's release's stand + the selectionchange's mapping's
-      // clobber — the blocks' view stands over the editable's caret). The
-      // settle's stand: the caret in the block, the canvas selection's no
-      // stand. The wait pins the release's seat's settle (the DOM caret's
-      // stand in the block's inner — the clobber's settle stands in the
-      // same event's stand; the press's transient selection stands no
-      // settle stand over the fast click's batched renders, so the
-      // settle's read stands on the DOM stand, not on the attribute).
-      await a.mouse.click(point.x, point.y);
-      await caretIn(a, id);
       const item = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
-      await expect(item).not.toHaveAttribute("data-selected");
-      const caretStand = await activeStand(a);
-      expect(caretStand.slot).toBe("docblocks/block-content");
-      expect(caretStand.blockId).toBe(id);
-      expect(caretStand.editable).toBe(true);
-      // The typing lands in the block (over the wire to pane B).
-      await a.keyboard.type("X");
-      expect(textOf((await docBlocks(a, "a"))[id])).toBe("noteX");
-      await expect.poll(async () => textOf((await docBlocks(b, "b"))[id]), SETTLE).toBe("noteX");
 
-      // The second press (the caret's stand over the block): the press's
-      // selection stands (the move session's select) and stands over the
-      // settle (the release's caret's stand is a no-op over the standing
-      // DOM caret — no selectionchange, the blocks' view stands; the
-      // retry stands the press's focus's move's spurious clobber — the
-      // same-point's press over the settled stand re-stands it). The
-      // focus's park stands on the container (the typing stands off the
-      // block — the doc stands).
+      // The press (the shape's parity): the selection stands (the press's
+      // preventDefault's stand + the focus's park on the container — the
+      // caret stands off, the typing stands off the block; the retry
+      // stands the press's focus's move's spurious clobber).
       await pressForSelection(a, item, point.x, point.y);
-      const secondStand = await activeStand(a);
-      expect(secondStand.editable).toBe(false);
-      expect(secondStand.blockId).not.toBe(id);
+      const stand = await activeStand(a);
+      expect(stand.editable).toBe(false);
+      expect(stand.blockId).not.toBe(id);
       await a.keyboard.type("Y");
-      expect(textOf((await docBlocks(a, "a"))[id])).toBe("noteX");
-      expect(textOf((await docBlocks(b, "b"))[id])).toBe("noteX");
-    } finally {
-      await close();
-    }
-  });
+      expect(textOf((await docBlocks(a, "a"))[id])).toBe("note");
+      expect(textOf((await docBlocks(b, "b"))[id])).toBe("note");
 
-  test("the first-press's drag = the move (the geometry's delta over the wire; the release's caret's stand over the moved block)", async ({
-    browser,
-  }) => {
-    const { a, b, close } = await twoPanes(browser, "text-press-drag");
-    try {
-      await toCanvas(a, "a");
-      await toCanvas(b, "b");
-      const id = await seedText(a, "a", "move me");
-      await wireSynced(b, "b", id);
+      // The drag = the move (the geometry's delta over the wire to pane B
+      // — the text stands, the move's parity).
       const before = await docBlocks(a, "a");
-      const center = await canvasCenter(a, "a");
-      // The first press (unselected) starts the move session (the press's
-      // select + the drag's commit — a press-drag from the unselected's
-      // stand, the selected's second press's caret's stand stands off).
-      const start = screenAt(center, 0, 0);
-      await a.mouse.move(start.x, start.y);
+      await a.mouse.move(point.x, point.y);
       await a.mouse.down();
-      await a.mouse.move(start.x + 30, start.y + 15, { steps: 4 });
+      await a.mouse.move(point.x + 30, point.y + 15, { steps: 4 });
       await a.mouse.up();
-      // The geometry's delta stands the +30/+15 (over the wire to pane B)
-      // — the text stands (the move's parity).
       await expect
         .poll(async () => (await docBlocks(b, "b"))[id]?.geometry, SETTLE)
         .toEqual({
@@ -257,17 +210,44 @@ test.describe("the canvas-text (the reworked interaction)", () => {
           w: before[id]!.geometry!.w,
           h: before[id]!.geometry!.h,
         });
-      expect(textOf((await docBlocks(a, "a"))[id])).toBe("move me");
-      // The release's stand: the caret stands in the moved block (the
-      // cross-drag's release's seat over the drag's endpoints — the
-      // selectionchange's mapping's clobber stands the canvas selection
-      // off).
-      const item = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
-      expect(await item.getAttribute("data-selected")).toBeNull();
+      expect(textOf((await docBlocks(a, "a"))[id])).toBe("note");
+
+      // The release's stand: the selection stands over the moved block
+      // (the press's contract — no caret, the focus's park on the
+      // container).
+      await expect(item).toHaveAttribute("data-selected", "true");
+      const releaseStand = await activeStand(a);
+      expect(releaseStand.editable).toBe(false);
+      expect(releaseStand.blockId).not.toBe(id);
+    } finally {
+      await close();
+    }
+  });
+
+  test("the double-click's caret's stand (the shape's text entry's parity: the caret in the block, the typing lands over the wire)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "text-dblclick-caret");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+      const id = await seedText(a, "a", "note");
+      await wireSynced(b, "b", id);
+      const center = await canvasCenter(a, "a");
+      const point = screenAt(center, 0, 0);
+
+      // The double-click enters the edit: the caret stands in the block's
+      // inner (the point's offset — the caret-position API's stand), the
+      // typing lands in the block (over the wire to pane B).
+      await a.mouse.dblclick(point.x, point.y);
+      await caretIn(a, id);
       const stand = await activeStand(a);
       expect(stand.slot).toBe("docblocks/block-content");
       expect(stand.blockId).toBe(id);
       expect(stand.editable).toBe(true);
+      await a.keyboard.type("X");
+      expect(textOf((await docBlocks(a, "a"))[id])).toBe("noteX");
+      await expect.poll(async () => textOf((await docBlocks(b, "b"))[id]), SETTLE).toBe("noteX");
     } finally {
       await close();
     }
@@ -283,12 +263,10 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       const id = await seedText(a, "a", "");
       await wireSynced(b, "b", id);
       const center = await canvasCenter(a, "a");
-      // The single click's caret's stand (the release's seat over the
-      // block — the caret's stand in the block's inner's settle: the
-      // clobber stands in the same event's stand, the canvas selection
-      // stands off). The press-drag's stand stands off (the sub-threshold's
-      // click — the move session's no-op).
-      await a.mouse.click(center.x, center.y);
+      // The double-click's caret's stand (the press's contract — the single
+      // click stands the selection, no caret): the caret stands in the
+      // empty block's inner's settle.
+      await a.mouse.dblclick(center.x, center.y);
       await caretIn(a, id);
       const caretStand = await activeStand(a);
       expect(caretStand.slot).toBe("docblocks/block-content");
@@ -352,10 +330,10 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       expect(blocksA[text]?.geometry).toEqual({ x: 200, y: -20, w: 200, h: 40 });
 
       // The drag-out: the figure's box fully outside — the red indicator's
-      // stand, the release leaves the container (over the wire). The press
-      // stands over the UNSELECTED block (the selected block's press stands
-      // the caret — the two-click's contract), so the empty canvas's click
-      // clears the selection first.
+      // stand, the release leaves the container (over the wire). The
+      // press stands over the block's selection (the shape's parity — the
+      // selected block's press starts the move session too), so the empty
+      // canvas's click clears the selection first.
       await a.mouse.click(screenAt(center, 0, 200).x, screenAt(center, 0, 200).y);
       const outStart = screenAt(center, 200, -20);
       await a.mouse.move(outStart.x, outStart.y);
@@ -388,20 +366,19 @@ test.describe("the canvas-text (the reworked interaction)", () => {
       await wireSynced(b, "b", idA);
       await wireSynced(b, "b", idB);
       const center = await canvasCenter(a, "a");
-      // The two-click's selection's stand (the first click's caret's stand
-      // over the settle — the caret's stand in the block's inner — the
-      // second click's selection's stand over the settled stand): the
-      // toolbar's single selection's stand.
+      // The press's selection's stand (the shape's parity — the single
+      // press selects the block over the move session; the retry stands
+      // the press's focus's move's spurious clobber): the toolbar's single
+      // selection's stand.
       const point = screenAt(center, 0, -60);
       const itemA = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${idA}"]`);
-      await a.mouse.click(point.x, point.y);
-      await caretIn(a, idA);
       await pressForSelection(a, itemA, point.x, point.y);
-      // The leftover DOM caret's stand off (the first click's seat): the
-      // selectionchange's mapping's clobber stands the blocks' view over
-      // the editable's caret — the clear's stand keeps the selection over
-      // the toolbar's applies' focus roundtrips (the empty selection's
-      // stand: no clobber).
+      // The leftover DOM selection's stand off (the press's focus's move
+      // can stand a spurious caret over the settle): the selectionchange's
+      // mapping's clobber stands the blocks' view over the editable's
+      // caret — the clear's stand keeps the selection over the toolbar's
+      // applies' focus roundtrips (the empty selection's stand: no
+      // clobber).
       await a.evaluate(() => {
         window.getSelection()?.removeAllRanges();
         (document.activeElement as HTMLElement | null)?.blur?.();

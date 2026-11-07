@@ -5,6 +5,7 @@ import type { CSSProperties, MouseEvent as ReactMouseEvent, ReactNode } from "re
 
 import type { Block, BlockId } from "docblocks-core";
 
+import { useCanvasTextEdit } from "../canvas/canvas-text-edit-context";
 import { editorRootOf } from "../editing/dom-offset";
 import { insertParagraphAfter } from "../editing/gutter-plus";
 import { useEditorContext } from "../editor-provider";
@@ -157,10 +158,22 @@ function TextBlock({
   // slash-command hint do not stand in a cell.
   const inCell = blockContext.parentType === "table-cell";
   // The quick-insert plus is a page-sequence affordance: a canvas item's
-  // surface context stands the grip (the selection-only stand) but not the
-  // plus — its click would write a page paragraph into the surface's
+  // surface context stands neither the plus nor the grip — the canvas-text
+  // is moved by the drag over its own body (the shape's parity, no grip),
+  // and the plus's click would write a page paragraph into the surface's
   // z-ordered children.
   const onSurface = blockContext.parentType === "surface";
+  // The canvas-text's edit session (the canvas view's state): the inner
+  // stands contentEditable ONLY while the session stands (the press's
+  // contract — the single click stands the selection over the move
+  // session, no caret; the double-click opens the session and seats the
+  // caret; the inert inner stands no stray focus, no native text
+  // selection over the drag). The page view stands no session (the
+  // context's null stand) — the canvas-text is a canvas type.
+  const canvasTextEdit = useCanvasTextEdit();
+  const canvasTextEditing =
+    block.type === "canvas-text" && canvasTextEdit !== null && canvasTextEdit.canvasTextEditingId === id;
+  const innerIsEditable = block.type !== "canvas-text" || canvasTextEditing;
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
   // The marker's cycle index (1|2|3) from the block's indent — the
@@ -366,8 +379,11 @@ function TextBlock({
   // layered utility before this migration).
   const wrapperClass = cn(
     "relative outline-none",
-    tag !== "li" && "my-(--docblocks-block-spacing)",
-    selected && "bg-(--docblocks-selected-background)",
+    tag !== "li" && !onSurface && "my-(--docblocks-block-spacing)",
+    // The selection's background (the page's selected-row tint): the
+    // canvas's selection stand is the canvas-item's outline + background
+    // only — the wrapper's tint stands a second patch over the content.
+    selected && !onSurface && "bg-(--docblocks-selected-background)",
     block.type === "heading" && "font-(--docblocks-heading-font-weight)",
     headingSize,
     block.type === "callout" &&
@@ -420,18 +436,47 @@ function TextBlock({
   const innerEditable = (
     <div
       ref={innerRef}
-      contentEditable
+      // The canvas-text's edit session's stand: the inner stands
+      // contentEditable ONLY while the session stands (the press's
+      // contract — the single click stands the selection over the move
+      // session, no caret; the double-click opens the session and seats
+      // the caret; the inert inner stands no stray focus, no native text
+      // selection over the drag).
+      contentEditable={innerIsEditable}
       suppressContentEditableWarning
       spellCheck={false}
       data-slot="docblocks/block-content"
       data-block-id={id}
       // The empty-block hint names the slash command menu — code keeps the
-      // "/" as plain text (the menu never opens there), and the cell
-      // paragraphs stand without the hint (the cell keeps no row chrome).
-      data-placeholder={block.type === "code" || inCell ? undefined : commandPalettePlaceholder}
+      // "/" as plain text (the menu never opens there), the cell
+      // paragraphs stand without the hint (the cell keeps no row chrome),
+      // and the canvas's box stands no hint either (the ghost's hint is
+      // the entry affordance; a placed empty box is removed on the
+      // caret's loss, not filled in).
+      data-placeholder={
+        block.type === "code" || inCell || block.type === "canvas-text" ? undefined : commandPalettePlaceholder
+      }
       className={innerClass}
       onInput={commitDomDelta}
       onPaste={onPaste}
+      onBlur={
+        block.type === "canvas-text"
+          ? () => {
+              // The edit session's close (the inner's editable's stand off
+              // — the next press stands the selection again) + the empty
+              // block's removal (no orphan empty boxes on the canvas —
+              // the Esc-empty removal's parity; a block with text keeps
+              // its box). A removed block's late blur stands the
+              // getBlock's null (no double removal).
+              canvasTextEdit?.setCanvasTextEditingId(null);
+              if (doc.getBlock(id) !== null && doc.getTextLength(id) === 0) {
+                doc.transact(() => {
+                  doc.removeBlock(id);
+                });
+              }
+            }
+          : undefined
+      }
     />
   );
   const codeBody = isCode ? (
@@ -563,7 +608,7 @@ function TextBlock({
         onKeyDown={onKeydown}
       >
         {header}
-        {!inCell && (
+        {!inCell && !onSurface && (
           <Button
             type="button"
             data-slot="docblocks/gutter"

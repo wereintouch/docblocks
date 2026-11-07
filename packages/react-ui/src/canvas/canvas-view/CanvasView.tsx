@@ -277,7 +277,12 @@ function CanvasView() {
   };
 
   return (
-    <CanvasTextEditProvider editingId={viewport.shapeTextEditing} setEditingId={viewport.setShapeTextEditing}>
+    <CanvasTextEditProvider
+      editingId={viewport.shapeTextEditing}
+      setEditingId={viewport.setShapeTextEditing}
+      canvasTextEditingId={viewport.canvasTextEditing}
+      setCanvasTextEditingId={viewport.setCanvasTextEditing}
+    >
       <div
         data-slot="docblocks/canvas-view"
         ref={containerRef}
@@ -492,7 +497,11 @@ function CanvasView() {
             // the world's space, so it scales with the zoom — over the
             // world's content (the surfaces), under the screen-space
             // toolbars (the DOM order's paint stand).
-            <CanvasTextGhost point={viewport.pendingText} onClose={() => viewport.setPendingText(null)} />
+            <CanvasTextGhost
+              point={viewport.pendingText}
+              onClose={() => viewport.setPendingText(null)}
+              onEdit={(id) => viewport.setCanvasTextEditing(id)}
+            />
           )}
         </div>
         {multiSelectionBox !== null && viewport.movePreview === null && (

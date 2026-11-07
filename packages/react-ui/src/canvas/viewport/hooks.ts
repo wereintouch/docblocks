@@ -167,6 +167,7 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
   const [connectorEndpoint, setConnectorEndpoint] = useState<EndpointDrag | null>(null);
   const [connectorEndpointPreview, setConnectorEndpointPreview] = useState<EndpointPreview | null>(null);
   const [shapeTextEditing, setShapeTextEditing] = useState<string | null>(null);
+  const [canvasTextEditing, setCanvasTextEditing] = useState<string | null>(null);
   const [connectorLabelEditing, setConnectorLabelEditing] = useState<string | null>(null);
   // The canvas items' keyboard focus (the container focus's arrows' stand
   // over the selection's absence; the Enter selects it).
@@ -781,6 +782,8 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
     connectorEndpointPreview,
     shapeTextEditing,
     setShapeTextEditing,
+    canvasTextEditing,
+    setCanvasTextEditing,
     connectorLabelEditing,
     setConnectorLabelEditing,
     kbFocusId,

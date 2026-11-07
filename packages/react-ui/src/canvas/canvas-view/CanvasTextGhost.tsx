@@ -22,7 +22,17 @@ import { editorRootOf } from "../../editing/dom-offset";
 import { useEditorContext } from "../../editor-provider";
 import { TOOL_SIZES } from "../viewport";
 
-function CanvasTextGhost({ point, onClose }: { point: { x: number; y: number }; onClose: () => void }) {
+function CanvasTextGhost({
+  point,
+  onClose,
+  onEdit,
+}: {
+  point: { x: number; y: number };
+  onClose: () => void;
+  /** Opens the real block's edit session (the inner's contentEditable's
+   * stand) on the commit's success — the caret's seat over the editable. */
+  onEdit: (id: BlockId) => void;
+}) {
   const { doc } = useEditorContext();
   // The text tool's default box (the committed block's size — the
   // geometry's center stands it over the top-left's point).
@@ -80,11 +90,17 @@ function CanvasTextGhost({ point, onClose }: { point: { x: number; y: number }; 
       return;
     }
     onClose();
+    // The edit session's open (the inner's contentEditable's stand — the
+    // committed block is the editable, not the ghost anymore).
+    onEdit(id!);
     const scope = ref.current !== null ? editorRootOf(ref.current) : document;
     // The caret re-seats AFTER the committed text (the text's end): the
     // fast typing's continuation stands over the re-seated caret (a
     // re-seat at the text's start would prepend the continuation over the
-    // committed stand, scrambling the stand).
+    // committed stand, scrambling the stand). The seat stands the
+    // original's inner (the frame's window's inert copy stands the same
+    // id — the window-content's exclusion), the after-frame's stand over
+    // the committed render.
     focusCaretIn(id!, text.length, scope);
   };
 

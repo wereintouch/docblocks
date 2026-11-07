@@ -78,16 +78,18 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
     expect(zIndexOf(doc, a)).toBe(1);
     expect(zIndexOf(doc, b)).toBe(2);
     expect(zIndexOf(doc, "z0003")).toBe(-1);
-    expect(canvasItemIds()).toEqual([a, "z0003", b]);
+    // The frame stands the view back (the window's parity — it renders
+    // behind the figures; its zIndex's data slot stands no paint role).
+    expect(canvasItemIds()).toEqual(["z0003", a, b]);
 
     act(() => {
       doc.setZOrder(a, "toFront");
     });
     // a stands on top: the paint order (the DOM order) reorders with it,
     // the indices re-densify over the canvas elements (the frame stands
-    // no index), the frame's position stands.
+    // no index), the frame's view-back position stands.
     expect(doc.getChildren(surface)).toEqual([b, "z0003", a]);
-    expect(canvasItemIds()).toEqual([b, "z0003", a]);
+    expect(canvasItemIds()).toEqual(["z0003", b, a]);
     expect(zIndexOf(doc, a)).toBe(2);
     expect(zIndexOf(doc, b)).toBe(1);
     expect(zIndexOf(doc, "z0003")).toBe(-1);

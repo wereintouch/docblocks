@@ -267,7 +267,7 @@ test("the frame's window copies are inert (the layer stands pointer-transparent)
   }
 });
 
-test("a moveBlock to the front of the surface's children reorders pane B's DOM (the z-order over the wire)", async ({
+test("a moveBlock to the front of the surface's children reorders pane B's DOM (the z-order over the wire; the frames' view-back stand)", async ({
   browser,
 }) => {
   const { a, b, close } = await twoPanes(browser, "ext05-zorder");
@@ -276,6 +276,8 @@ test("a moveBlock to the front of the surface's children reorders pane B's DOM (
     await toCanvas(a, "a");
     await toCanvas(b, "b");
     const rectId = await childByStand(a, "a", { type: "shape", variant: "rect" });
+    const frameA = await childByStand(a, "a", { type: "frame", title: "Frame A" });
+    const frameB = await childByStand(a, "a", { type: "frame", title: "Frame B" });
     expect(rectId).not.toBeNull();
     // The scene's sync to pane B (the direct order carries the rect).
     await expect.poll(async () => (await canvasItemOrder(b, "b")).includes(rectId!), SETTLE).toBe(true);
@@ -291,9 +293,23 @@ test("a moveBlock to the front of the surface's children reorders pane B's DOM (
       { surfaceId, rectId }
     );
 
-    // Pane B's direct DOM order of the surface's children wrappers
-    // changes: the moved wrapper is first.
-    await expect.poll(async () => (await canvasItemOrder(b, "b"))[0], SETTLE).toBe(rectId);
+    // The frames' view-back stand: the frames (the window's parity — they
+    // render behind every figure) stand first in the DOM over the data
+    // order's stand; the figures' DOM order follows the data's z-order —
+    // the moved rect leads them.
+    await expect
+      .poll(async () => {
+        const order = await canvasItemOrder(b, "b");
+        const figures = order.filter((id) => id !== frameA && id !== frameB);
+        return figures[0];
+      }, SETTLE)
+      .toBe(rectId);
+    // The frames' DOM's stand over the figures (the view-back's paint's
+    // stand — the data's children order's stand stands the frames' slot
+    // only).
+    const bDom = await canvasItemOrder(b, "b");
+    const figuresOnly = bDom.filter((id) => id !== frameA && id !== frameB);
+    expect(figuresOnly.indexOf(rectId!)).toBe(0);
     // …and pane B's JSON children order matches (the moved block first,
     // the rest shifted by one).
     const bAfter = await surfaceInfo(b, "b");

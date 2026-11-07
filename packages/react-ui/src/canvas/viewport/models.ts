@@ -240,6 +240,12 @@ interface CanvasViewportState {
   connectorEndpointPreview: EndpointPreview | null;
   /** The shape in the inline text edit (the double-click's target); null outside an edit. */
   shapeTextEditing: string | null;
+  /** The canvas-text in the edit session (the double-click's target / the
+   * ghost's commit): the inner is contentEditable ONLY while the session
+   * stands (the press's contract — the single click stands the selection,
+   * no caret; the browser's stray focus over the inert inner stands no
+   * more). Null outside an edit. */
+  canvasTextEditing: string | null;
   /** The connector in the label's inline edit (the line's double-click); null outside an edit. */
   connectorLabelEditing: string | null;
   /** The canvas items' keyboard focus (the container focus's arrows move
@@ -249,6 +255,9 @@ interface CanvasViewportState {
   /** Opens / closes the shape's inline text edit (the double-click, the
    * toolbar's add-text button, the edit's blur / Escape close). */
   setShapeTextEditing: (id: string | null) => void;
+  /** Opens / closes the canvas-text's edit session (the double-click, the
+   * ghost's commit; the inner's blur and the block's removal close it). */
+  setCanvasTextEditing: (id: string | null) => void;
   /** Opens / closes the connector's label inline edit (the line's
    * double-click; the edit's blur / Escape close). */
   setConnectorLabelEditing: (id: string | null) => void;

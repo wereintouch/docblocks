@@ -165,13 +165,16 @@ describe("canvas scene", () => {
     // surface out of the sequence), so the container's stand is the
     // canvas-view's world.
     expect(document.querySelector('[data-slot="docblocks/canvas-world"]')).not.toBeNull();
+    // The frame stands the view back (the window's parity — it renders
+    // behind every other item; the z-order's data slot keeps its role for
+    // the figures).
     expect(canvasItemIds()).toEqual([
+      IDS.frame,
       IDS.rect,
       IDS.ellipse,
       IDS.text,
       IDS.connector,
       IDS.brokenConnector,
-      IDS.frame,
       IDS.docIdConnector,
       IDS.pointsConnector,
     ]);
@@ -184,12 +187,14 @@ describe("canvas scene", () => {
     act(() => {
       doc.moveBlock(IDS.rect, IDS.surface, 8);
     });
+    // The frame's view-back stand: it stands first (behind the figures),
+    // the figures' z-order within their run.
     expect(canvasItemIds()).toEqual([
+      IDS.frame,
       IDS.ellipse,
       IDS.text,
       IDS.connector,
       IDS.brokenConnector,
-      IDS.frame,
       IDS.docIdConnector,
       IDS.pointsConnector,
       IDS.rect,
@@ -239,12 +244,15 @@ describe("canvas scene", () => {
     expect(wrapper.style.fontSize).toBe("20px");
     expect(wrapper.style.textAlign).toBe("center");
     // The text stands twice (the original + the frame's window's copy —
-    // the inert's copy's stand).
+    // the inert's copy's stand). The inner's stand is the inert's rest
+    // (the edit session's open over the double-click's entry stands the
+    // editable — the press's contract: the single click stands the
+    // selection, no caret).
     expect(screen.getAllByText("Canvas text").length).toBe(2);
     const editable = wrapper.querySelector<HTMLElement>(
       `[data-slot="docblocks/block-content"][data-block-id="${IDS.text}"]`
     )!;
-    expect(editable.getAttribute("contenteditable")).toBe("true");
+    expect(editable.getAttribute("contenteditable")).toBe("false");
   });
 
   it("renders the connector line between the resolved EDGES and skips the broken one (data-missing)", () => {
@@ -570,7 +578,9 @@ describe("canvas: frame (the viewport window)", () => {
     expect(wrapper.getAttribute("data-selected")).toBe("true");
     // The ring stands the selection's color (the wrapper's outline stands
     // the shared selection's stand).
-    expect(box.style.outline).toBe("var(--docblocks-canvas-selection-border-width) solid var(--docblocks-canvas-selection-border-color)");
+    expect(box.style.outline).toBe(
+      "var(--docblocks-canvas-selection-border-width) solid var(--docblocks-canvas-selection-border-color)"
+    );
     expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-selection-border-color)");
   });
 

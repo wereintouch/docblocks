@@ -2,11 +2,12 @@
 // The canvas-text's contracts: the ghost text block (the double-click's
 // empty-canvas entry — the focused ghost stands nothing until the first
 // input's single-transact commit; the Escape / the blur's cancel), the
-// two-click press (the first press selects + the move session, the
-// second press the caret), the empty block's Escape removal (the
-// non-empty's Escape stands), the Enter's soft break (no split — the
-// surface's children stand), the selection's outline stand, and the font
-// attrs' render (the family's stack, the color, the weight x the slant).
+// press contract (the shape's parity — the single press selects + the
+// move session, the double-click the caret), the empty block's removal
+// (the Escape / the caret's loss over the empty block; the non-empty
+// stands), the Enter's soft break (no split — the surface's children
+// stand), the selection's outline stand, and the font attrs' render (the
+// family's stack, the color, the weight x the slant).
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -205,7 +206,7 @@ describe("the ghost text block (the double-click's empty-canvas entry)", () => {
   });
 });
 
-describe("the two-click press (the page-card's parity)", () => {
+describe("the press contract (the shape's parity — the single press selects + moves, the dblclick's caret)", () => {
   it("the first press selects the block (the outline stands; the doc stands)", () => {
     const r = renderCanvas("seed");
     const before = r.doc.toJSON();
@@ -238,32 +239,57 @@ describe("the two-click press (the page-card's parity)", () => {
     expect(validateDoc(r.doc.toJSON())).toEqual([]);
   });
 
-  it("the second press (the block already selected) stands no move session (a drag writes nothing)", () => {
+  it("the second press (the block already selected) starts the move session (the drag's parity)", () => {
     const r = renderCanvas("seed");
-    const before = r.doc.toJSON();
+    const geometryBefore = r.doc.getBlock(r.text)?.geometry;
 
     // The first press selects the block.
     fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1 });
     fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 1 });
     expect(r.item().hasAttribute("data-selected")).toBe(true);
 
-    // The second press: the caret path (no session) — a drag stands no
-    // commit (the native text gesture owns the drag).
+    // The second press: the same press's stand (the block's selection +
+    // the move session — the shape's parity, the drag moves it).
     fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 2 });
     fireEvent.pointerMove(r.view, { clientX: 70, clientY: 50, buttons: 1, pointerId: 2 });
     fireEvent.pointerUp(r.view, { clientX: 70, clientY: 50, pointerId: 2 });
 
-    expect(r.doc.toJSON()).toEqual(before);
+    expect(r.doc.getBlock(r.text)?.geometry).toEqual({
+      x: (geometryBefore?.x ?? 0) + 60,
+      y: (geometryBefore?.y ?? 0) + 40,
+      w: geometryBefore?.w,
+      h: geometryBefore?.h,
+    });
+  });
+
+  it("the shift press toggles the block's selection (the item's parity)", () => {
+    const r = renderCanvas("seed");
+
+    // The shift press selects the block.
+    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 1, shiftKey: true });
+    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 1 });
+    expect(r.item().hasAttribute("data-selected")).toBe(true);
+
+    // The shift press over the selected block deselects it.
+    fireEvent.pointerDown(r.inner(), { clientX: 10, clientY: 10, button: 0, buttons: 1, pointerId: 2, shiftKey: true });
+    fireEvent.pointerUp(r.view, { clientX: 10, clientY: 10, pointerId: 2 });
+    expect(r.item().hasAttribute("data-selected")).toBe(false);
   });
 });
 
-describe("the empty block's Escape removal (the non-empty's Escape stands)", () => {
-  it("the Escape over the empty block removes it (no orphan)", () => {
+describe("the empty block's removal (the Escape / the caret's loss; the non-empty's stand)", () => {
+  it("the Escape over the empty block removes it (no orphan)", async () => {
     const r = renderCanvas();
-    // The caret stands in the empty inner (the text-kind selection — the
-    // blocks-selection's Escape stand is the separate contract). The key
-    // stands on the inner (the focused element — the block's own wrapper
-    // handler owns it, the canvas's keys stand off over the inner).
+    // The edit session's open (the double-click's entry — the inner's
+    // editable's stand over the inert's rest): the key stands on the
+    // inner (the focused element — the block's own wrapper's handler
+    // owns it, the canvas's keys stand off over the inner). jsdom's
+    // elementFromPoint stands null — the event's target (the inner) is
+    // the point's stand.
+    fireEvent.doubleClick(r.inner(), { clientX: 10, clientY: 10 });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     r.inner().focus();
 
     let suppressed = true;
@@ -282,6 +308,30 @@ describe("the empty block's Escape removal (the non-empty's Escape stands)", () 
     // The removal stands a single undo step.
     r.doc.undo();
     expect(r.doc.getBlock(r.text)).not.toBeNull();
+  });
+
+  it("the caret's loss over the empty block removes it (no orphan; the non-empty stands)", () => {
+    const r = renderCanvas();
+    // The empty block's inner holds the caret; a press on the canvas
+    // container blurs it (the press's focus move).
+    r.inner().focus();
+    fireEvent.blur(r.inner());
+
+    expect(r.doc.getBlock(r.text)).toBeNull();
+    expect(canvasTextChildren(r.doc, r.surface).length).toBe(0);
+    expect(validateDoc(r.doc.toJSON())).toEqual([]);
+    r.doc.undo();
+    expect(r.doc.getBlock(r.text)).not.toBeNull();
+  });
+
+  it("the caret's loss over the non-empty block stands (the block keeps its box)", () => {
+    const r = renderCanvas("seed");
+    const before = r.doc.toJSON();
+    r.inner().focus();
+    fireEvent.blur(r.inner());
+
+    expect(r.doc.toJSON()).toEqual(before);
+    expect(textOf(r.doc, r.text)).toBe("seed");
   });
 
   it("the Escape over the non-empty block stands (the block stands)", () => {
@@ -318,10 +368,17 @@ describe("the empty block's Escape removal (the non-empty's Escape stands)", () 
 });
 
 describe("the Enter's soft break (no split)", () => {
-  it("Enter inserts a soft break at the caret (the surface's children stand)", () => {
+  it("Enter inserts a soft break at the caret (the surface's children stand)", async () => {
     const r = renderCanvas("ab");
     const before = canvasTextChildren(r.doc, r.surface);
 
+    // The edit session's open (the double-click's entry — the inner's
+    // editable's stand over the inert's rest): the caret's seat over the
+    // settled render, then the caret's re-seat at offset 1.
+    fireEvent.doubleClick(r.inner(), { clientX: 10, clientY: 10 });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
     caretAtFlat(r.inner(), 1);
     act(() => {
       r.inner().dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));

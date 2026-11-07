@@ -10,7 +10,7 @@
  * `docblocks/canvas-text-toolbar-*`).
  */
 import type { ChangeEvent, KeyboardEvent } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import {
   Button,
@@ -65,6 +65,18 @@ function ShapeTextControls({
   const colorSlotPrefix = slotPrefix.replace(/-toolbar$/, "");
   // The size field's draft (the typed stand; the attr stands the commit).
   const [sizeDraft, setSizeDraft] = useState("");
+
+  // The font list's preload (the menu's lag stand): the toolbar's mount
+  // (the selection's moment — before the font menu's open) fetches the
+  // faces; the first open otherwise waits for the network round-trip
+  // (the visible jank), and the menu's rows reflow as the face lands
+  // (the swap).
+  useEffect(() => {
+    if (typeof document === "undefined" || typeof document.fonts?.load !== "function") return;
+    for (const option of SHAPE_FONT_OPTIONS) {
+      void document.fonts.load(`400 16px "${option.id}"`).catch(() => undefined);
+    }
+  }, []);
 
   const applyFontFamily = (fontFamilyId: string) => () => onApply({ fontFamily: fontFamilyId });
   const applyTextStyle = (textStyleId: string) => () => onApply({ textStyle: textStyleId });
@@ -179,7 +191,7 @@ function ShapeTextControls({
           placeholder={String(fontSize ?? 16)}
           value={sizeDraft}
           className="
-            h-7 w-12 rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
+            h-7 w-16 rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
             bg-(--docblocks-editor-background) px-2 text-center text-xs text-(--docblocks-text-color)
             dark:bg-(--docblocks-editor-background)
           "

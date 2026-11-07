@@ -20,6 +20,7 @@ import {
   snapAnySurfaceEdge,
 } from "../../canvas";
 import type { CanvasViewportState, ResizeHandle } from "../../canvas";
+import { focusCaretInElement } from "../../editing/block-commands";
 import type { SelectionRef } from "../../editor-provider";
 import { effectiveGeometry, portsOf } from "../geometry";
 import { PORT_PICK_RADIUS_PX, SCROLLBAR_GUARD_PX } from "./constants";
@@ -273,26 +274,34 @@ function useCanvasSessions({
     if (isEditingSurface(event.target)) {
       // The editing surfaces outside the page miniature keep the plain
       // caret press (the frame's content, the shape's inline text edit);
-      // the page miniature's content and the canvas-text's inner stand the
-      // two-click contract: the first press selects the block (the
-      // one-item selection + the move session — the drag moves it, the
-      // content stands still, the caret stands only on the second press,
-      // the block already selected).
+      // the page miniature's content and the canvas-text's inner stand
+      // their own contracts. The canvas-text stands the SHAPE's press
+      // contract (the drag-to-move's parity): the single press selects
+      // the block (the one-item selection + the move session — the drag
+      // moves it, no caret — the caret stands only on the double-click),
+      // the shift press toggles the additive selection.
       const canvasTextItem =
         event.target instanceof Element
           ? event.target.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]')
           : null;
       const canvasTextId = canvasTextItem?.getAttribute("data-block-id") ?? null;
       if (canvasTextId !== null && blocks[canvasTextId]?.type === "canvas-text") {
-        // The canvas-text's two-click stand (the page-card's parity): the
-        // shift press and the selected block keep the plain caret.
-        if (event.shiftKey) return;
+        if (event.shiftKey) {
+          // The shift toggle (the item's parity — no move session):
+          // the focus parks on the container (the keys reach the view).
+          containerRef.current?.focus();
+          if (selection.view !== null) toggleCanvasSelection(selection.view, canvasTextId);
+          return;
+        }
         const sel = selection.view?.get();
-        if (sel?.kind === "blocks" && sel.ids.includes(canvasTextId)) return; // the caret
+        const ids = sel?.kind === "blocks" && sel.ids.includes(canvasTextId) ? sel.ids : [canvasTextId];
         event.preventDefault();
         containerRef.current?.focus();
-        selection.view?.set({ kind: "blocks", ids: [canvasTextId], anchorId: canvasTextId });
-        viewport.beginMove([canvasTextId], event.clientX, event.clientY);
+        selection.view?.set({ kind: "blocks", ids, anchorId: canvasTextId });
+        viewport.beginMove(ids, event.clientX, event.clientY);
+        // The compatibility mousedown's preventDefault's stand (the press
+        // suppresses the mousedown's default — the caret / the native text
+        // selection stand off over the press).
         cardPressRef.current = true;
         event.currentTarget.setPointerCapture?.(event.pointerId);
         return;
@@ -732,6 +741,60 @@ function useCanvasSessions({
         viewport.setPendingText(screenToCanvas(centerRelativePoint(event), viewport.zoom, viewport.pan));
         return;
       }
+    }
+    // The canvas-text's double-click (the shape's text entry's parity):
+    // the single press stands the selection (no caret — the press's
+    // contract), the dblclick enters the edit: the item's selection +
+    // the caret at the point's offset (the caret-position API's offset
+    // over the inner, the start stand over the unresolved point). The
+    // capture-retargeting stand: the press's pointer capture retargets
+    // the dblclick to THIS container, so the item stands the point's
+    // element (the target's element as the fallback — the inert stand).
+    const canvasTextDblElement =
+      (typeof document.elementFromPoint === "function"
+        ? document.elementFromPoint(event.clientX, event.clientY)
+        : null) ?? (event.target instanceof Element ? event.target : null);
+    const canvasTextDblItem =
+      canvasTextDblElement instanceof Element
+        ? canvasTextDblElement.closest<HTMLElement>('[data-slot="docblocks/canvas-item"]')
+        : null;
+    const canvasTextDblId = canvasTextDblItem?.getAttribute("data-block-id") ?? null;
+    if (canvasTextDblId !== null && blocks[canvasTextDblId]?.type === "canvas-text") {
+      event.preventDefault();
+      const sel = selection.view?.get();
+      const ids = sel?.kind === "blocks" && sel.ids.includes(canvasTextDblId) ? sel.ids : [canvasTextDblId];
+      selection.view?.set({ kind: "blocks", ids, anchorId: canvasTextDblId });
+      const inner = canvasTextDblItem?.querySelector<HTMLElement>("[data-slot='docblocks/block-content']") ?? null;
+      let offset = 0;
+      if (inner !== null) {
+        // The caret-position API's stand (the jsdom's null stand — the
+        // caret's start over the unresolved point; the nullish check
+        // stands the jsdom's undefined stand over the method).
+        const pointCaret = document.caretPositionFromPoint?.(event.clientX, event.clientY);
+        if (pointCaret != null && inner.contains(pointCaret.offsetNode)) {
+          offset = pointCaret.offset;
+        } else {
+          const range = document.caretRangeFromPoint?.(event.clientX, event.clientY); // deprecation-allow: the Firefox caret-offset fallback (Chrome/Safari stand caretPositionFromPoint)
+          if (range != null && inner.contains(range.startContainer)) {
+            const pre = document.createRange();
+            pre.selectNodeContents(inner);
+            pre.setEnd(range.startContainer, range.startOffset);
+            offset = pre.toString().length;
+          }
+        }
+      }
+      // The edit session's open (the inner's contentEditable's stand —
+      // the stray focus's stand over the inert inner), then the caret's
+      // seat over the EXACT inner (the elementFromPoint's hit — the
+      // frame's window's inert copy stands the same id over the id's
+      // query, the pointer-events-none's copy stands no hit). The
+      // session's re-render commits before the frame's focus (the inner's
+      // editable's stand by the seat's moment).
+      viewport.setCanvasTextEditing(canvasTextDblId);
+      if (inner !== null) {
+        focusCaretInElement(inner, offset);
+      }
+      return;
     }
     // The line's double-click stands the label's edit (the hit path is
     // the target's element; a capture-retargeted event — the target IS
