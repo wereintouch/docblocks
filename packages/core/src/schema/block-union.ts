@@ -11,6 +11,7 @@ import type {
   CanvasTextBlock,
   ConnectorAttrs,
   ConnectorBlock,
+  FrameAttrs,
   FrameBlock,
   GroupAttrs,
   GroupBlock,
@@ -96,6 +97,7 @@ type BlockAttrsPatch = Partial<
     Omit<ShapeAttrs, "variant"> &
     Omit<ConnectorAttrs, "variant"> &
     CanvasTextAttrs &
+    FrameAttrs &
     GroupAttrs & {
       variant?:
         | "info"

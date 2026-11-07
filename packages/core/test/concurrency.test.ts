@@ -497,36 +497,35 @@ describe("concurrent moves keep a single owner", () => {
       .filter(([, block]) => ((block as { children?: readonly string[] }).children ?? []).includes(blockId))
       .map(([parentId]) => parentId);
 
-  const twoFrames = (a: Doc, surface: string) => {
-    const frameA = a.insertBlock("frame", undefined, { parent: surface });
-    const frameB = a.insertBlock("frame", undefined, { parent: surface });
-    return { frameA, frameB };
+  /** The two sibling container ids (surfaces: the page-set containers a page block can move into). */
+  const twoSurfaces = (a: Doc) => {
+    const surfaceA = a.insertBlock("surface");
+    const surfaceB = a.insertBlock("surface");
+    return { surfaceA, surfaceB };
   };
 
   it("a block has exactly one owner after two concurrent moves", () => {
     const { a, blockId } = seed("f02-single");
-    const surface = a.insertBlock("surface");
-    const { frameA, frameB } = twoFrames(a, surface);
+    const { surfaceA, surfaceB } = twoSurfaces(a);
     const b = fork(a);
-    a.moveBlock(blockId, frameA, 0);
-    b.moveBlock(blockId, frameB, 0);
+    a.moveBlock(blockId, surfaceA, 0);
+    b.moveBlock(blockId, surfaceB, 0);
     exchange(a, b);
     const owners = ownersOf(a.toJSON(), blockId);
     expect(owners).toHaveLength(1);
-    expect([frameA, frameB]).toContain(owners[0]!);
+    expect([surfaceA, surfaceB]).toContain(owners[0]!);
     expect(validateDoc(a.toJSON())).toEqual([]);
   });
 
   it("deleting the losing container preserves the block and its text", () => {
     const { a, blockId } = seed("f02-keep");
-    const surface = a.insertBlock("surface");
-    const { frameA, frameB } = twoFrames(a, surface);
+    const { surfaceA, surfaceB } = twoSurfaces(a);
     const b = fork(a);
-    a.moveBlock(blockId, frameA, 0);
-    b.moveBlock(blockId, frameB, 0);
+    a.moveBlock(blockId, surfaceA, 0);
+    b.moveBlock(blockId, surfaceB, 0);
     exchange(a, b);
     const owner = ownersOf(a.toJSON(), blockId)[0]!;
-    const loser = owner === frameA ? frameB : frameA;
+    const loser = owner === surfaceA ? surfaceB : surfaceA;
     a.removeBlock(loser);
     expect(a.getBlock(blockId)).not.toBeNull();
     expect(a.getText(blockId)).toBe("moved block");
@@ -535,11 +534,10 @@ describe("concurrent moves keep a single owner", () => {
 
   it("deleting the winning container removes the block", () => {
     const { a, blockId } = seed("f02-drop");
-    const surface = a.insertBlock("surface");
-    const { frameA, frameB } = twoFrames(a, surface);
+    const { surfaceA, surfaceB } = twoSurfaces(a);
     const b = fork(a);
-    a.moveBlock(blockId, frameA, 0);
-    b.moveBlock(blockId, frameB, 0);
+    a.moveBlock(blockId, surfaceA, 0);
+    b.moveBlock(blockId, surfaceB, 0);
     exchange(a, b);
     const owner = ownersOf(a.toJSON(), blockId)[0]!;
     a.removeBlock(owner);
@@ -549,10 +547,9 @@ describe("concurrent moves keep a single owner", () => {
 
   it("undo of a move restores the block to its original container", () => {
     const { a, blockId } = seed("f02-undo");
-    const surface = a.insertBlock("surface");
-    const frameA = a.insertBlock("frame", undefined, { parent: surface });
-    a.moveBlock(blockId, frameA, 0);
-    expect(ownersOf(a.toJSON(), blockId)).toEqual([frameA]);
+    const surfaceA = a.insertBlock("surface");
+    a.moveBlock(blockId, surfaceA, 0);
+    expect(ownersOf(a.toJSON(), blockId)).toEqual([surfaceA]);
     a.undo();
     // Back at the top level: the root (id === the doc id) lists it.
     expect(ownersOf(a.toJSON(), blockId)).toEqual([a.toJSON().id]);
@@ -561,11 +558,10 @@ describe("concurrent moves keep a single owner", () => {
 
   it("the merged state reloads as a valid snapshot with one owner", () => {
     const { a, blockId } = seed("f02-reload");
-    const surface = a.insertBlock("surface");
-    const { frameA, frameB } = twoFrames(a, surface);
+    const { surfaceA, surfaceB } = twoSurfaces(a);
     const b = fork(a);
-    a.moveBlock(blockId, frameA, 0);
-    b.moveBlock(blockId, frameB, 0);
+    a.moveBlock(blockId, surfaceA, 0);
+    b.moveBlock(blockId, surfaceB, 0);
     exchange(a, b);
     const reloaded = loadDoc(a.encode());
     const json = reloaded.toJSON();

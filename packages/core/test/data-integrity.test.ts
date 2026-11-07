@@ -71,12 +71,11 @@ describe("concurrent text and block edits keep the data valid", () => {
 
   it("concurrent moves of one block keep a single owner", () => {
     const { a, id } = seedParagraph();
-    const surface = a.insertBlock("surface");
-    const frameA = a.insertBlock("frame", undefined, { parent: surface });
-    const frameB = a.insertBlock("frame", undefined, { parent: surface });
+    const surfaceA = a.insertBlock("surface");
+    const surfaceB = a.insertBlock("surface");
     const b = fork(a);
-    a.moveBlock(id, frameA, 0);
-    b.moveBlock(id, frameB, 0);
+    a.moveBlock(id, surfaceA, 0);
+    b.moveBlock(id, surfaceB, 0);
     merge(a, b);
     expect(validateDoc(a.toJSON())).toEqual([]);
   });

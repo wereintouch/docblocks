@@ -69,7 +69,7 @@ describe("flattenDoc — the page sequences", () => {
     expect(validateDoc(flat)).toEqual([]);
   });
 
-  it("the cell mini-doc and the frame nested page flatten within their own sequences", () => {
+  it("the cell mini-doc flattens within its own sequence; the legacy frame's children link is dropped", () => {
     const input = doc({
       r: { type: "root", children: ["t", "s"] },
       t: { type: "table", columnOrder: ["col0", "col1"], children: ["row"] },
@@ -80,7 +80,7 @@ describe("flattenDoc — the page sequences", () => {
       b: { type: "paragraph", content: text("b") },
       c2: { type: "table-cell", attrs: { columnId: "col1" }, content: [] },
       s: { type: "surface", children: ["f", "sh"] },
-      f: { type: "frame", children: ["f1", "f2"] },
+      f: { type: "frame", children: ["f1", "f2"], geometry: { x: -80, y: -40, w: 200, h: 100 } },
       f1: { type: "paragraph", content: text("f1") },
       f2: { type: "paragraph", content: text("f2"), children: ["f3"] },
       f3: { type: "paragraph", content: text("f3") },
@@ -90,12 +90,21 @@ describe("flattenDoc — the page sequences", () => {
     // The cell sequence: a, its child, then b — within the cell.
     expect(flat.blocks.c1).toEqual({ type: "table-cell", attrs: { columnId: "col0" }, children: ["a", "a1", "b"] });
     expect((flat.blocks.a1 as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
-    // The frame's nested page: f1, f2, its child — within the frame.
-    expect(flat.blocks.f).toEqual({ type: "frame", children: ["f1", "f2", "f3"] });
-    expect((flat.blocks.f3 as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    // The legacy frame (the pre-rework nested page): the children link is
+    // dropped from the frame entry (the window is childless), NOT inlined
+    // into the parent's sequence — the child blocks keep standing as
+    // entries (the raw layer keeps them; the strict validator flags the
+    // orphaned entries). f2's own legacy nesting field is dropped too (the
+    // inlining runs over the emitted sequences only; nothing emits the
+    // frame's dropped sequence), so f3 stands orphaned as well.
+    expect(flat.blocks.f).toEqual({ type: "frame", geometry: { x: -80, y: -40, w: 200, h: 100 } });
+    expect("children" in (flat.blocks.f as object)).toBe(false);
+    expect(flat.blocks.f1).toEqual({ type: "paragraph", content: text("f1") });
+    expect(flat.blocks.f2).toEqual({ type: "paragraph", content: text("f2") });
+    expect(flat.blocks.f3).toEqual({ type: "paragraph", content: text("f3") });
     // The surface z-order keeps its entries (the shape untouched).
     expect(flat.blocks.s).toEqual({ type: "surface", children: ["f", "sh"] });
-    expect(validateDoc(flat)).toEqual([]);
+    expect(validateDoc(flat).some((e) => e.message.includes('Orphan block "f1"'))).toBe(true);
   });
 
   it("a legacy subtree inside a surface z-order inlines after its parent entry there", () => {

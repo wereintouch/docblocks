@@ -3,7 +3,7 @@
  *
  * A cross-block range spans the reading-order chain between its endpoint
  * blocks (a contiguous page-sequence segment for page content, the
- * structural descent for cells and frames — the chain the selection
+ * structural descent for cells — the chain the selection
  * engine maintains). The range is
  * resolved per block: the from block's tail [from.offset, end), every block
  * strictly between (a text block in full, a non-text block removed whole),

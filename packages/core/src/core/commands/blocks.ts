@@ -526,7 +526,7 @@ function removeBlock(ydoc: Y.Doc, id: string): void {
   // the contiguous stretch to the first block with an indent <= its own —
   // removed with the block, like structural children. Extended BEFORE the
   // structural walk so the segment members' own structural descendants
-  // (a table's rows/cells, a frame's page) are collected too.
+  // (a table's rows/cells) are collected too.
   const segment: string[] = [];
   if (parentId !== null && isPageSequence(ydoc, parentId)) {
     const seq = childrenOf(ydoc, parentId);

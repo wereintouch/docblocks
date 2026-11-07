@@ -97,6 +97,7 @@ export type {
   DividerBlock,
   EmbedAttrs,
   EmbedBlock,
+  FrameAttrs,
   FrameBlock,
   Geometry,
   GroupAttrs,

@@ -7,6 +7,7 @@ import type {
   BlockType,
   CalloutAttrs,
   CanvasRef,
+  CanvasTextAttrs,
   CodeAttrs,
   ConnectorAttrs,
   DatabaseAttrs,
@@ -15,6 +16,7 @@ import type {
   DatabaseColumn,
   DividerAttrs,
   EmbedAttrs,
+  FrameAttrs,
   Geometry,
   HeadingAttrs,
   ImageAttrs,
@@ -68,10 +70,11 @@ describe("block registry", () => {
     }
     expect(BLOCK_REGISTRY["list-item"].children).toBe(false);
     expect([...(BLOCK_REGISTRY["list-item"].legacyChildrenTypes ?? [])].sort()).toEqual(["list-item"]);
-    // The flat page sequences (the indent-jump rule contexts).
+    // The flat page sequences (the indent-jump rule contexts). The frame is
+    // a viewport window (no children, no nested page) — not a sequence.
     expect(BLOCK_REGISTRY.root.sequence).toBe(true);
     expect(BLOCK_REGISTRY["table-cell"].sequence).toBe(true);
-    expect(BLOCK_REGISTRY.frame.sequence).toBe(true);
+    expect(BLOCK_REGISTRY.frame.sequence, "the frame is not a page sequence (the window is childless)").toBeFalsy();
     for (const type of ["table", "table-row", "surface", "list-item"] as const) {
       expect(BLOCK_REGISTRY[type].sequence, `${type} is not a page sequence`).toBeFalsy();
     }
@@ -92,6 +95,7 @@ describe("block registry", () => {
       "divider",
       "database",
       "surface",
+      "frame",
     ] as const) {
       expect(BLOCK_REGISTRY[type].attrs?.indent, `indent on ${type}`).toEqual({
         kind: "number",
@@ -99,7 +103,7 @@ describe("block registry", () => {
         min: 0,
       });
     }
-    for (const type of ["table-row", "table-cell", "shape", "connector", "frame", "canvas-text"] as const) {
+    for (const type of ["table-row", "table-cell", "shape", "connector", "canvas-text"] as const) {
       expect(BLOCK_REGISTRY[type].attrs?.indent, `no indent on ${type}`).toBeUndefined();
     }
   });
@@ -117,7 +121,7 @@ describe("block registry", () => {
     );
   });
 
-  it("pins the canvas child sets: surface (no nested surface), frame (page blocks only)", () => {
+  it("pins the canvas child sets: the surface (no nested surface, the frame with the page set); the frame is childless", () => {
     expect([...(BLOCK_REGISTRY.surface.childrenTypes ?? [])].sort()).toEqual([
       "callout",
       "canvas-text",
@@ -137,29 +141,22 @@ describe("block registry", () => {
       "sync-embed",
       "table",
     ]);
-    expect([...(BLOCK_REGISTRY.frame.childrenTypes ?? [])].sort()).toEqual([
-      "callout",
-      "code",
-      "database",
-      "divider",
-      "embed",
-      "heading",
-      "image",
-      "list-item",
-      "paragraph",
-      "quote",
-      "sync-embed",
-      "table",
-    ]);
+    // The frame is a viewport window: no children, no nested page, no
+    // sequence — the two contexts (the canvas frame, the page-frame block)
+    // stand in the parent's element set (the frame's attrs spec and the
+    // canvas-text's text style attrs are pinned in blocks.test.ts).
+    expect(BLOCK_REGISTRY.frame.children).toBe(false);
+    expect(BLOCK_REGISTRY.frame.childrenTypes).toBeUndefined();
   });
 
-  it("keeps table internals out of the top level (the root accepts the surface)", () => {
+  it("keeps table internals out of the top level (the root accepts the surface and the page-frame block)", () => {
     expect([...(BLOCK_REGISTRY.root.childrenTypes ?? [])].sort()).toEqual([
       "callout",
       "code",
       "database",
       "divider",
       "embed",
+      "frame",
       "heading",
       "image",
       "list-item",
@@ -271,10 +268,27 @@ describe("type shapes", () => {
     // Extract keeps working per member and carries the geometry.
     type Shape = Extract<Block, { type: "shape" }>;
     expectTypeOf<Shape["geometry"]>().toEqualTypeOf<Geometry | undefined>();
-    // The flat page model: the surface (a page-sequence type) carries the
-    // optional indent; the frame (structural context) has no attrs.
+    // The flat page model: the surface and the frame (page-sequence types)
+    // carry the optional indent.
     expectTypeOf<AttrsFor<"surface">>().toEqualTypeOf<SurfaceAttrs | undefined>();
-    expectTypeOf<AttrsFor<"frame">>().toEqualTypeOf<undefined>();
+    expectTypeOf<AttrsFor<"frame">>().toEqualTypeOf<FrameAttrs | undefined>();
+  });
+
+  it("frame attrs: the two-context window (the canvas frame's title, the page frame's frameId)", () => {
+    expectTypeOf<FrameAttrs["title"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<FrameAttrs["frameId"]>().toEqualTypeOf<string | undefined>();
+    // The frame is a viewport window: no children, no content — the block
+    // type stands exactly the discriminator, the attrs, and the geometry.
+    type Frame = Extract<Block, { type: "frame" }>;
+    expectTypeOf<keyof Frame>().toEqualTypeOf<"type" | "attrs" | "geometry">();
+  });
+
+  it("canvas-text attrs: the text style attrs (the shape's text parity)", () => {
+    expectTypeOf<CanvasTextAttrs["textColor"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<CanvasTextAttrs["textStyle"]>().toEqualTypeOf<
+      "regular" | "semibold" | "light" | "light-italic" | "italic" | "semibold-italic" | undefined
+    >();
+    expectTypeOf<AttrsFor<"canvas-text">>().toEqualTypeOf<CanvasTextAttrs | undefined>();
   });
 
   it("shape attrs: required variant enum, the optional paint attrs, the freehand points", () => {
@@ -320,6 +334,7 @@ describe("type shapes", () => {
     expectTypeOf<DividerAttrs["indent"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<DatabaseAttrs["indent"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<SurfaceAttrs["indent"]>().toEqualTypeOf<number | undefined>();
+    expectTypeOf<FrameAttrs["indent"]>().toEqualTypeOf<number | undefined>();
   });
 
   it("sync-embed attrs: required ref with required docId, optional blockId", () => {

@@ -27,14 +27,17 @@ const canvasDoc = (): DocJSON => ({
   title: "",
   createdAt: CREATED_AT,
   blocks: {
-    d1: { type: "root", children: ["s1", "p1"] },
+    d1: { type: "root", children: ["s1", "p1", "pf1"] },
     // A page block with a geometry (the double mode: the block flows in the
     // page view, the geometry is ignored there).
     p1: { type: "paragraph", geometry: { x: 5, y: -5, w: 100, h: 40 }, content: [{ text: "page", marks: {} }] },
+    // The page-frame block (a root child): the inline window into the
+    // canvas frame f1 (the required frameId weak reference; no title).
+    pf1: { type: "frame", attrs: { frameId: "f1" } },
     s1: { type: "surface", children: ["f1", "sh1", "sh2", "c1", "t1", "e1"] },
-    f1: { type: "frame", children: ["fh1", "fp1"], geometry: { x: -80, y: -40, w: 200, h: 100 } },
-    fh1: { type: "heading", attrs: { level: 2 }, content: [{ text: "frame", marks: {} }] },
-    fp1: { type: "paragraph", content: [{ text: "inside the frame", marks: {} }] },
+    // The canvas frame: the viewport window into the surface's content
+    // (the optional title label; no children, no z-order index).
+    f1: { type: "frame", attrs: { title: "Frame" }, geometry: { x: -80, y: -40, w: 200, h: 100 } },
     sh1: {
       type: "shape",
       attrs: {
@@ -319,7 +322,7 @@ describe("strict validation (validateDoc)", () => {
     expect(onShape).toEqual([]);
   });
 
-  it("enforces the child-type rules: no canvas types at the page root, no nested surface, no frame-in-frame, no canvas types in cells", () => {
+  it("enforces the child-type rules: no canvas-only types at the page root (the frame is the page exception), no nested surface, no children on the frame, no canvas types in cells", () => {
     const scene = canvasDoc();
 
     const shapeAtRoot = validateDoc({
@@ -342,25 +345,13 @@ describe("strict validation (validateDoc)", () => {
     });
     expect(nestedSurface.some((e) => e.path === "blocks.s1.children[6]")).toBe(true);
 
-    const frameInFrame = validateDoc({
-      ...scene,
-      blocks: {
-        ...scene.blocks,
-        f1: { type: "frame", children: ["fh1", "fp1", "f2"], geometry: { x: -80, y: -40, w: 200, h: 100 } },
-        f2: { type: "frame", children: [] },
-      },
-    });
-    expect(frameInFrame.some((e) => e.path === "blocks.f1.children[2]")).toBe(true);
-
-    const surfaceInFrame = validateDoc({
-      ...scene,
-      blocks: {
-        ...scene.blocks,
-        f1: { type: "frame", children: ["fh1", "fp1", "s2"] },
-        s2: { type: "surface", children: [] },
-      },
-    });
-    expect(surfaceInFrame.some((e) => e.path === "blocks.f1.children[2]")).toBe(true);
+    // The frame is a viewport window (no children): the field is a
+    // structural error (the strict posture; the lenient load drops the
+    // link — the legacy read below).
+    const frameChildren = validateDoc(
+      withBlock("f1", { type: "frame", children: ["sh1"], geometry: { x: -80, y: -40, w: 200, h: 100 } })
+    );
+    expect(frameChildren.some((e) => e.message.includes('Block type "frame" has no children'))).toBe(true);
 
     const tableScene: DocJSON = {
       v: 1,
@@ -398,15 +389,22 @@ describe("structure (commands)", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("removeBlock cascades the whole canvas subtree (the frame's page blocks included)", () => {
+  it("removeBlock cascades the canvas subtree; the frame removal is a plain removal (no children to cascade)", () => {
     const doc = newDoc();
     const surface = doc.insertBlock("surface");
-    const frame = doc.insertBlock("frame", undefined, { parent: surface });
-    const heading = doc.insertBlock("heading", { level: 1 }, { parent: frame });
+    const frame = doc.insertBlock("frame", { title: "Frame" }, { parent: surface });
     const shape = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
 
+    // The frame is a viewport window: its removal is a plain single-block
+    // removal (no nested page to cascade).
+    doc.removeBlock(frame);
+    expect(doc.getBlock(frame)).toBeNull();
+    expect(doc.getChildren(surface)).toEqual([shape]);
+
+    // The surface removal cascades the canvas elements.
     doc.removeBlock(surface);
-    for (const id of [surface, frame, heading, shape]) expect(doc.getBlock(id)).toBeNull();
+    expect(doc.getBlock(surface)).toBeNull();
+    expect(doc.getBlock(shape)).toBeNull();
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
@@ -424,18 +422,41 @@ describe("structure (commands)", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("the frame holds page blocks (the nesting is the indent attr)", () => {
+  it("the frame is a viewport window: the context attrs, the geometry, no children, no zIndex", () => {
     const doc = newDoc();
     const surface = doc.insertBlock("surface");
-    const frame = doc.insertBlock("frame", undefined, { parent: surface });
-    const item = doc.insertBlock("list-item", { list: "bullet" }, { parent: frame });
-    const nested = doc.insertBlock("list-item", { list: "bullet" }, { parent: frame });
-    doc.updateBlock(nested, { indent: 1 }); // the frame's nested page is a flat sequence
-    doc.insertText(item, 0, "item");
-    doc.insertText(nested, 0, "nested");
+    const frame = doc.insertBlock("frame", { title: "Camera" }, { parent: surface });
+    doc.setGeometry(frame, { x: -80, y: -40, w: 320, h: 240 });
 
-    expect(doc.getChildren(frame)).toEqual([item, nested]);
-    expect((doc.getBlock(nested) as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
+    // The canvas frame: the title label + the geometry; no children (the
+    // window content is the surface's own) and no z-order index (the paint
+    // position is the surface's children order).
+    expect(doc.getChildren(frame)).toEqual([]);
+    expect(doc.getBlock(frame)).toEqual({
+      type: "frame",
+      attrs: { title: "Camera" },
+      geometry: { x: -80, y: -40, w: 320, h: 240 },
+    });
+
+    // The page-frame block: a root child with the frameId reference to the
+    // canvas frame (no title in the page context).
+    const pageFrame = doc.insertBlock("frame", { frameId: frame });
+    expect(doc.getChildren("r")).toContain(pageFrame);
+    expect(doc.getBlock(pageFrame)).toEqual({ type: "frame", attrs: { frameId: frame } });
+
+    // The attrs are editable per context (updateBlock).
+    doc.updateBlock(frame, { title: "Camera 2" });
+    doc.updateBlock(pageFrame, { frameId: frame });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("inserting into a frame is rejected (the frame carries no children)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const frame = doc.insertBlock("frame", { title: "Camera" }, { parent: surface });
+
+    expect(() => doc.insertBlock("paragraph", undefined, { parent: frame })).toThrow(InvalidChildError);
+    expect(doc.getChildren(frame)).toEqual([]);
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 });
@@ -703,5 +724,56 @@ describe("lenient reader (newer-minor data)", () => {
     // The normalized read stands clean under the strict validator (the
     // boolean never stands in the JSON; only the raw Yjs layer keeps it).
     expect(validateDoc(target.toJSON()).some((e) => e.path.includes("arrowStart"))).toBe(false);
+  });
+});
+
+describe("legacy frame (the pre-rework nested page)", () => {
+  /** The legacy shape: the frame carried its nested page in `children`. */
+  const legacyFrameDoc = (): DocJSON => ({
+    v: 1,
+    id: "d1",
+    title: "",
+    createdAt: CREATED_AT,
+    blocks: {
+      d1: { type: "root", children: ["s1"] },
+      s1: { type: "surface", children: ["f1", "sh1"] },
+      f1: { type: "frame", children: ["fh1", "fp1"], geometry: { x: -80, y: -40, w: 200, h: 100 } },
+      fh1: { type: "heading", attrs: { level: 2 }, content: [{ text: "frame", marks: {} }] },
+      fp1: { type: "paragraph", content: [{ text: "inside the frame", marks: {} }] },
+      sh1: { type: "shape", attrs: { variant: "rect" } },
+    },
+  });
+
+  it("the strict validator flags the frame's children (the structural rule)", () => {
+    const errors = validateDoc(legacyFrameDoc());
+    expect(errors.some((e) => e.path === "blocks.f1.children")).toBe(true);
+    expect(errors.some((e) => e.message.includes('Block type "frame" has no children'))).toBe(true);
+  });
+
+  it("reads a legacy frame doc leniently: the link is dropped, the blocks keep standing in the raw layer; the read is stable", () => {
+    // The lenient read (the fromJSON import boundary) does not crash: the
+    // children link is dropped on the read path, the child blocks keep
+    // standing in the raw layer (the same posture as the dangling order
+    // ids — the strict validator flags the state, the read stands it).
+    const doc = fromJSON(legacyFrameDoc());
+    expect(doc.getChildren("f1")).toEqual([]);
+    expect(doc.getBlock("fh1")).not.toBeNull();
+    expect(doc.getBlock("fp1")).not.toBeNull();
+    expect(doc.getChildren("s1")).toEqual(["f1", "sh1"]);
+
+    // The export is flat: the frame entry carries no children field, the
+    // orphaned child blocks stand in the blocks map; the re-read is
+    // byte-identical (the read is deterministic).
+    const exported = doc.toJSON();
+    expect((exported.blocks.f1 as { children?: unknown }).children).toBeUndefined();
+    expect(exported.blocks.fh1).toBeDefined();
+    expect(exported.blocks.fp1).toBeDefined();
+    expect(fromJSON(exported).toJSON()).toEqual(exported);
+  });
+
+  it("the legacy frame's malformed children (not an array) is rejected on the lenient import too", () => {
+    const malformed = legacyFrameDoc();
+    (malformed.blocks.f1 as { children?: unknown }).children = "not-an-array";
+    expect(() => fromJSON(malformed)).toThrow();
   });
 });

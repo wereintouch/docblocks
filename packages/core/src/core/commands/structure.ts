@@ -69,7 +69,7 @@ function indentOfBlock(ydoc: Y.Doc, id: string): number {
   return typeof indent === "number" && Number.isInteger(indent) ? indent : 0;
 }
 
-/** True when the block is a page-sequence container (root / cell / frame). */
+/** True when the block is a page-sequence container (root / cell). */
 function isPageSequence(ydoc: Y.Doc, id: string): boolean {
   const type = blockTypeOf(ydoc, id);
   return type !== null && BLOCK_REGISTRY[type].sequence === true;
