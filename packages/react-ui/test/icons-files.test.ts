@@ -44,6 +44,7 @@ const ICON_SET = [
   "Eye",
   "Fill",
   "Flag",
+  "Frame",
   "GripVertical",
   "Hand",
   "Hash",

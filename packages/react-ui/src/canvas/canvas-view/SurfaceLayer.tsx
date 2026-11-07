@@ -38,6 +38,9 @@ function SurfaceLayer({
   showPorts,
   endpointSnap,
   kbFocusId = null,
+  inert = false,
+  excludedIds,
+  frameChain,
 }: {
   id: BlockId;
   children: BlockId[];
@@ -57,6 +60,19 @@ function SurfaceLayer({
   endpointSnap: { blockId: string; port: "north" | "east" | "south" | "west"; t: number } | null;
   /** The keyboard focus's item (the canvas view's arrow navigation). */
   kbFocusId?: string | null;
+  /** The inert stand (the frame window's copy): the whole layer stands
+   *  pointer-transparent (the copies' stand is the render only — the
+   *  interaction stands on the originals) and the ports' dots stand off.
+   *  The layer's content stand at the world's origin (the zero-size box
+   *  anchor — the caller's window's offset places the origin). */
+  inert?: boolean;
+  /** The children the layer does not render (the frame chain's cycle
+   *  guard — the chain's frames + the window's own frame). The siblings'
+   *  context keeps them (the endpoint's resolution stands the full list). */
+  excludedIds?: readonly BlockId[];
+  /** The frames this layer renders inside of (the window's cycle guard —
+   *  the frame's renderer carries the chain's stand over its window). */
+  frameChain?: ReadonlySet<BlockId>;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
   // The session's referential identity stands on the four inputs (a
@@ -66,22 +82,44 @@ function SurfaceLayer({
     () => ({ movePreview, resizePreview, endpointDrag, endpointPreview }),
     [movePreview, resizePreview, endpointDrag, endpointPreview]
   );
+  // The layer's rendered children (the excluded's stand off — the window's
+  // cycle guard); the siblings' context keeps the full list (the endpoint
+  // resolution's stand).
+  const rendered = excludedIds !== undefined ? children.filter((childId) => !excludedIds.includes(childId)) : children;
+  const content = (
+    <>
+      <ConnectorArrowDefs id={id} />
+      {rendered.map((childId) => (
+        <CanvasItem
+          key={childId}
+          id={childId}
+          pendingConnector={pendingConnector}
+          movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
+          resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
+          kbFocused={kbFocusId === childId}
+          frameChain={frameChain}
+        />
+      ))}
+      {showPorts && <PortDots id={id} snapped={endpointSnap} />}
+    </>
+  );
+  if (inert) {
+    // The inert stand (the frame window's copy): the zero-size anchor (the
+    // world's origin — the caller's window's offset places it) + the whole
+    // layer's pointer-transparent (the copies never stand the press); the
+    // ports' dots stand off (the tool's chrome is not the copy's stand).
+    return (
+      <BlockContext.Provider value={contextValue}>
+        <CanvasSessionContext.Provider value={session}>
+          <div className="pointer-events-none relative" style={{ width: 0, height: 0 }}>
+            {content}</div>
+        </CanvasSessionContext.Provider>
+      </BlockContext.Provider>
+    );
+  }
   return (
     <BlockContext.Provider value={contextValue}>
-      <CanvasSessionContext.Provider value={session}>
-        <ConnectorArrowDefs id={id} />
-        {children.map((childId) => (
-          <CanvasItem
-            key={childId}
-            id={childId}
-            pendingConnector={pendingConnector}
-            movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
-            resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
-            kbFocused={kbFocusId === childId}
-          />
-        ))}
-        {showPorts && <PortDots id={id} snapped={endpointSnap} />}
-      </CanvasSessionContext.Provider>
+      <CanvasSessionContext.Provider value={session}>{content}</CanvasSessionContext.Provider>
     </BlockContext.Provider>
   );
 }

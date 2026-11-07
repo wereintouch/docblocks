@@ -22,6 +22,10 @@ const PORT_NORMAL: Record<CanvasPort, { nx: number; ny: number }> = {
   west: { nx: -1, ny: 0 },
 };
 
+/** The canvas dot grid's world step (canvas px): the canvas view's grid
+ * and the frame window's background grid share the one phase. */
+const DOT_GRID_STEP_PX = 24;
+
 const ORTHO_STUB_PX = 12;
 /** The orthogonal detour's offset beyond the endpoints' span (canvas px). */
 const ORTHO_DETOUR_PX = 24;
@@ -35,6 +39,7 @@ const ROUTE_EPS = 0.5;
 export {
   CANVAS_SUB_TYPES,
   DEFAULT_CANVAS_ITEM_SIZE,
+  DOT_GRID_STEP_PX,
   DEFAULT_PAGE_SIZE,
   ORTHO_AVOID_MARGIN_PX,
   ORTHO_DETOUR_PX,

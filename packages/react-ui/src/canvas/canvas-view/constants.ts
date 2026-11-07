@@ -77,7 +77,7 @@ const WHEEL_ZOOM_DELTA = 100;
 const SHAPE_TOOLS: readonly ShapeTool[] = ["rect", "rounded", "ellipse", "diamond", "cylinder", "cloud"];
 
 /** The place tools' id list (the drag-to-size session's gate). */
-const PLACE_TOOLS: readonly PlaceTool[] = [...SHAPE_TOOLS, "container"];
+const PLACE_TOOLS: readonly PlaceTool[] = [...SHAPE_TOOLS, "container", "frame"];
 
 /** The page-card scrollbar-strip guard width (the native thin bar's reach). */
 const SCROLLBAR_GUARD_PX = 12;

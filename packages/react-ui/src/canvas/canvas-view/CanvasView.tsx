@@ -44,7 +44,7 @@ import { cn } from "../../shared/ui/cn";
 import { Container } from "../../shared/ui/icons";
 import { ShapeSvg } from "../ShapeSvg";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
-import { effectiveGeometry, pageCardStyle, surfaceChromeKey } from "../geometry";
+import { effectiveGeometry, pageCardStyle, surfaceChromeKey, DOT_GRID_STEP_PX } from "../geometry";
 import { ConnectorLabelChips } from "./ConnectorLabelChips";
 import { ConnectorLabelEdit } from "./ConnectorLabelEdit";
 import { ConnectorPreviewLine } from "./ConnectorPreviewLine";
@@ -294,7 +294,7 @@ function CanvasView() {
           // container center offset by the pan, the cell is the grid step
           // scaled by the zoom).
           backgroundPosition: `calc(50% + ${viewport.pan.x}px) calc(50% + ${viewport.pan.y}px)`,
-          backgroundSize: `${24 * viewport.zoom}px ${24 * viewport.zoom}px`,
+          backgroundSize: `${DOT_GRID_STEP_PX * viewport.zoom}px ${DOT_GRID_STEP_PX * viewport.zoom}px`,
         }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

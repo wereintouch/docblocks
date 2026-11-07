@@ -28,6 +28,7 @@ import type { CanvasViewportState } from "../../canvas";
 import type { SelectionRef } from "../../editor-provider";
 import type { EditorStore } from "../../state";
 import type { CanvasPointerSession } from "./models";
+import { isShapeTool } from "./utils";
 
 interface CanvasKeysDeps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -89,9 +90,11 @@ function useCanvasKeys({
       const session = sessionRef.current;
       if (session !== null && session.kind === "place") {
         const box = placeDragBox(session.start, session.lastPoint, event.shiftKey);
+        // The container's and the frame's preview stand the dashed box
+        // (the container's visual parity).
         viewport.setPlacePreview({
-          kind: session.tool === "container" ? "container" : "shape",
-          variant: session.tool === "container" ? "rect" : session.tool,
+          kind: isShapeTool(session.tool) ? "shape" : "container",
+          variant: isShapeTool(session.tool) ? session.tool : "rect",
           ...box,
         });
       }
@@ -339,9 +342,11 @@ function useCanvasKeys({
       const session = sessionRef.current;
       if (session !== null && session.kind === "place") {
         const box = placeDragBox(session.start, session.lastPoint, event.shiftKey);
+        // The container's and the frame's preview stand the dashed box
+        // (the container's visual parity).
         viewport.setPlacePreview({
-          kind: session.tool === "container" ? "container" : "shape",
-          variant: session.tool === "container" ? "rect" : session.tool,
+          kind: isShapeTool(session.tool) ? "shape" : "container",
+          variant: isShapeTool(session.tool) ? session.tool : "rect",
           ...box,
         });
       }

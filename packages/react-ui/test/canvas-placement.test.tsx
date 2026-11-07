@@ -11,11 +11,12 @@ import { createDoc, validateDoc } from "docblocks-core";
 
 import { CanvasDock } from "../src/canvas/CanvasDock";
 import { SHAPE_TOOLS } from "../src/canvas/canvas-view/constants";
-import { isShapeTool } from "../src/canvas/canvas-view/utils";
 import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport";
 import { placeDragBox } from "../src/canvas/viewport/utils";
+import { PLACE_TOOLS } from "../src/canvas/canvas-view/constants";
+import { isPlaceTool, isShapeTool } from "../src/canvas/canvas-view/utils";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -69,15 +70,15 @@ describe("placeCanvasText", () => {
 });
 
 describe("placeFrame", () => {
-  it("lands the frame with a starter paragraph (one transact)", () => {
+  it("lands the childless frame (one transact — the window's content stands on the surface)", () => {
     const doc = newDoc();
     const id = placeFrame(doc, { x: -40, y: 10 }, { w: 320, h: 240 });
     const frame = doc.getBlock(id);
     expect(frame?.type).toBe("frame");
     expect(frame?.geometry).toEqual({ x: -40, y: 10, w: 320, h: 240 });
-    const children = doc.getChildren(id);
-    expect(children).toHaveLength(1);
-    expect(doc.getBlock(children[0]!)?.type).toBe("paragraph");
+    // The frame is childless (the starter-paragraph's stand is gone — the
+    // window's content stands on the frame's own surface).
+    expect(doc.getChildren(id)).toEqual([]);
     doc.undo();
     expect(doc.getBlock(id)).toBeNull();
     expect(validateDoc(doc.toJSON())).toEqual([]);
@@ -317,6 +318,23 @@ describe("the shape tools' gate (the place session's stand)", () => {
     expect(isShapeTool("frame")).toBe(false);
     expect(isShapeTool("connector")).toBe(false);
     expect(isShapeTool("pen")).toBe(false);
+  });
+
+  it("the place tools' stand: the shapes + the container + the frame (the drag-to-size's gate)", () => {
+    expect(PLACE_TOOLS).toEqual([
+      "rect",
+      "rounded",
+      "ellipse",
+      "diamond",
+      "cylinder",
+      "cloud",
+      "container",
+      "frame",
+    ]);
+    expect(isPlaceTool("frame")).toBe(true);
+    expect(isPlaceTool("container")).toBe(true);
+    expect(isPlaceTool("text")).toBe(false);
+    expect(isPlaceTool("connector")).toBe(false);
   });
 });
 

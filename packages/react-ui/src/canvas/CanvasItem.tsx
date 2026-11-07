@@ -13,7 +13,7 @@ import { useBlock } from "../hooks";
 import { useBlockContext } from "../shared/providers/block-context";
 import { cn } from "../shared/ui/cn";
 import { ConnectorLine } from "./ConnectorLine";
-import { FrameBlock } from "./FrameBlock";
+import { EMPTY_FRAME_CHAIN, FrameBlock } from "./FrameBlock";
 import { GroupBlock } from "./GroupBlock";
 import { ShapeSvg } from "./ShapeSvg";
 import { ShapeText } from "./ShapeText";
@@ -56,6 +56,7 @@ const CanvasItem = memo(
     resizeBox = null,
     interactive = true,
     kbFocused = false,
+    frameChain = EMPTY_FRAME_CHAIN,
   }: {
     id: BlockId;
     pendingConnector?: string | null;
@@ -69,6 +70,10 @@ const CanvasItem = memo(
     /** The keyboard focus's stand (the canvas view's arrow navigation —
      *  the dashed outline over the selection's solid one). */
     kbFocused?: boolean;
+    /** The frames this item renders inside of (the frame's window's cycle
+     *  guard — the frame's renderer carries the chain's stand over its
+     *  window's content). */
+    frameChain?: ReadonlySet<BlockId>;
   }) {
     const { store, renderers } = useEditorContext();
     const { siblings } = useBlockContext();
@@ -110,7 +115,7 @@ const CanvasItem = memo(
         ) : block.type === "canvas-text" ? (
           <TextBlock id={id} block={block} tag="div" />
         ) : block.type === "frame" ? (
-          <FrameBlock id={id} />
+          <FrameBlock id={id} movePreview={movePreview} resizeBox={resizeBox} selected={selected} frameChain={frameChain} />
         ) : block.type === "group" ? (
           <GroupBlock id={id} block={block} selected={selected} />
         ) : block.type === "connector" ? (
@@ -196,7 +201,8 @@ const CanvasItem = memo(
     prev.movePreview === next.movePreview &&
     prev.resizeBox === next.resizeBox &&
     prev.interactive === next.interactive &&
-    prev.kbFocused === next.kbFocused
+    prev.kbFocused === next.kbFocused &&
+    prev.frameChain === next.frameChain
 );
 
 export { CanvasItem };

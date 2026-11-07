@@ -37,6 +37,7 @@ export { EllipsisVertical } from "./EllipsisVertical";
 export { Eye } from "./Eye";
 export { Fill } from "./Fill";
 export { Flag } from "./Flag";
+export { Frame } from "./Frame";
 export { GripVertical } from "./GripVertical";
 export { Hand } from "./Hand";
 export { Hash } from "./Hash";

@@ -35,11 +35,15 @@ function renderCanvas(doc: TestDoc, view: "page" | "canvas" = "canvas") {
   return doc;
 }
 
-/** The canvas-item wrappers in DOM order (the paint order pin). */
+/** The canvas-item wrappers over the world's DIRECT children in DOM order
+ * (the paint order pin — the frame's window's copies stand inside the
+ * frame's wrapper and stand out of the list). */
 function canvasItemIds(): string[] {
-  return Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item']")).map(
-    (el) => el.dataset.blockId as string
-  );
+  const world = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-world"]');
+  if (world === null) return [];
+  return Array.from(world.children)
+    .filter((el): el is HTMLElement => el instanceof HTMLElement && el.dataset.slot === "docblocks/canvas-item")
+    .map((el) => el.dataset.blockId as string);
 }
 
 /** The block's `zIndex` stand (-1 when absent). */

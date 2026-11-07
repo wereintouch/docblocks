@@ -6,9 +6,9 @@ import type { CanvasPoint, CanvasTool } from "../../canvas";
 type ShapeTool = Extract<CanvasTool, "rect" | "rounded" | "ellipse" | "diamond" | "cylinder" | "cloud">;
 
 /** The placement tools with the drag-to-size gesture (the shape variants
- * + the container —; the container's box is
- * its own free geometry, like the shapes). */
-type PlaceTool = ShapeTool | "container";
+ * + the container + the frame —; the container's and
+ * the frame's box is its own free geometry, like the shapes). */
+type PlaceTool = ShapeTool | "container" | "frame";
 
 /** The in-flight canvas pointer session (the primary button only). */
 type CanvasPointerSession =

@@ -17,12 +17,12 @@ import {
   Container,
   Cylinder,
   Diamond,
+  Frame,
   Hand,
   MousePointer2,
   Pen,
   Square,
   SquareRounded,
-  SquareSplitVertical,
   Type,
 } from "../shared/ui/icons";
 import { preventDefault } from "../shared/utils";
@@ -54,7 +54,7 @@ const SHAPE_IDS: CanvasTool[] = SHAPE_TOOLS.map((tool) => tool.id);
 /** The dock's tool groups, in display order (the Separators between the groups). */
 const TOOL_GROUPS: DockTool[][] = [
   [{ id: "text", label: "Text", icon: Type }],
-  [{ id: "frame", label: "Frame", icon: SquareSplitVertical }],
+  [{ id: "frame", label: "Frame", icon: Frame }],
   [{ id: "container", label: "Container", icon: Container }],
   [{ id: "connector", label: "Connector", icon: ArrowRight }],
   [{ id: "pen", label: "Pen", icon: Pen }],

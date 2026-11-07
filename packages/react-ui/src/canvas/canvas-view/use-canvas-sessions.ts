@@ -24,7 +24,7 @@ import type { SelectionRef } from "../../editor-provider";
 import { effectiveGeometry, portsOf } from "../geometry";
 import { PORT_PICK_RADIUS_PX, SCROLLBAR_GUARD_PX } from "./constants";
 import type { CanvasPointerSession } from "./models";
-import { isPlaceTool, toggleCanvasSelection } from "./utils";
+import { isPlaceTool, isShapeTool, toggleCanvasSelection } from "./utils";
 
 interface CanvasSessionsDeps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -183,8 +183,9 @@ function useCanvasSessions({
         event.currentTarget.setPointerCapture?.(event.pointerId);
         return;
       }
-      // The click-to-place tools (text / frame): the block lands at the
-      // click point (the center anchor), the tool resets.
+      // The click-to-place tools (the text — the non-place tools): the
+      // block lands at the click point (the center anchor), the tool
+      // resets.
       viewport.onPlace(screenToCanvas(point, viewport.zoom, viewport.pan));
       return;
     }
@@ -503,14 +504,15 @@ function useCanvasSessions({
       // The drag-to-size preview: the box is the drag's extent (the
       // marquee's math), the center anchor is the drag's midpoint; the shift
       // stands the 1:1 square (the live constraint — the release's commit
-      // stands the same box, the preview's stand is the commit's stand).
+      // stands the same box, the preview's stand is the commit's stand). The
+      // The container's and the frame's preview stand the dashed box (the
+      // container's visual parity).
       const current = screenToCanvas(point, viewport.zoom, viewport.pan);
       session.lastPoint = current;
       const box = placeDragBox(session.start, current, event.shiftKey);
-      const isContainer = session.tool === "container";
       viewport.setPlacePreview({
-        kind: isContainer ? "container" : "shape",
-        variant: session.tool === "container" ? "rect" : session.tool,
+        kind: isShapeTool(session.tool) ? "shape" : "container",
+        variant: isShapeTool(session.tool) ? session.tool : "rect",
         ...box,
       });
     } else if (session.kind === "pen") {
@@ -682,22 +684,22 @@ function useCanvasSessions({
       if (id !== null) viewport.setConnectorLabelEditing(id);
       return;
     }
-    // The container's TITLE inline edit (the chip's double-click): the same
-    // capture-retargeting stand as the shape's text — the press's pointer
-    // capture retargets the dblclick to THIS container, so the chip is found
-    // through the point's element (the group's id stands the inline-edit id).
-    const groupTitleFromTarget =
-      event.target instanceof Element ? event.target.closest<HTMLElement>("[data-slot='docblocks/group-title']") : null;
-    let groupTitle = groupTitleFromTarget;
-    if (groupTitle === null && typeof document.elementFromPoint === "function") {
+    // The container's / the frame's TITLE inline edit (the chip's
+    // double-click): the same capture-retargeting stand as the shape's text
+    // — the press's pointer capture retargets the dblclick to THIS
+    // container, so the chip is found through the point's element (the
+    // chip's item id stands the inline-edit id).
+    const TITLE_CHIP_SELECTOR = "[data-slot='docblocks/group-title'], [data-slot='docblocks/frame-title']";
+    const titleChipFromTarget =
+      event.target instanceof Element ? event.target.closest<HTMLElement>(TITLE_CHIP_SELECTOR) : null;
+    let titleChip = titleChipFromTarget;
+    if (titleChip === null && typeof document.elementFromPoint === "function") {
       const element = document.elementFromPoint(event.clientX, event.clientY);
-      groupTitle =
-        element instanceof Element ? element.closest<HTMLElement>("[data-slot='docblocks/group-title']") : null;
+      titleChip = element instanceof Element ? element.closest<HTMLElement>(TITLE_CHIP_SELECTOR) : null;
     }
-    if (groupTitle !== null) {
-      const groupId =
-        groupTitle.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ?? null;
-      if (groupId !== null) viewport.setShapeTextEditing(groupId);
+    if (titleChip !== null) {
+      const itemId = titleChip.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ?? null;
+      if (itemId !== null) viewport.setShapeTextEditing(itemId);
       return;
     }
     // The page miniature's blank body (no block under the point): a

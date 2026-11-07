@@ -269,6 +269,9 @@ function useCanvasViewport(doc: Doc, initialViewport?: PersistedViewport | null)
           case "container":
             placeContainer(doc, point, size);
             break;
+          case "frame":
+            placeFrame(doc, point, size);
+            break;
         }
       } catch {
         // A rejected placement (the size against a validator bound):
