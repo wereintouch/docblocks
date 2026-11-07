@@ -58,13 +58,20 @@
  * stripped), the table picker stands over the open menu (the existing
  * tables + the create-new form), and the block lands after the caret block
  * in one transact once a table is picked — the doc holds only the `tableId`
- * reference; a cancelled pick commits nothing. Externally referenced types
- * (embed, sync-embed, the canvas types) are not offered; they stay
- * command-API inserts.
+ * reference; a cancelled pick commits nothing. The frame is a picker insert
+ * (no gate — the canvas frames are the doc's own data, no bridge is
+ * required): the caret block stands (the trigger phrase stripped), the
+ * frame picker stands over the open menu (the document's canvas frames
+ * over a name search), and the page-frame block (the `frameId` weak
+ * reference) lands after the caret block in one transact once a frame is
+ * picked; a cancelled pick commits nothing. Externally referenced types
+ * (sync-embed, the canvas types) are not offered; they stay command-API
+ * inserts.
  */
 export { SlashMenuContext, useSlashMenuApi } from "./context";
 export { useSlashMenu } from "./use-slash-menu";
 export { COMMAND_PALETTE_PLACEHOLDER, SLASH_COMMANDS } from "./constants";
 export { deriveSlash, filterCommands, planSlashApply } from "./utils";
 export { DatabaseSlashPicker } from "./DatabaseSlashPicker";
+export { FrameSlashPicker } from "./FrameSlashPicker";
 export { SlashEmbedForm } from "./SlashEmbedForm";

@@ -275,15 +275,16 @@ function splitAt(doc: Doc, id: BlockId, contextId: BlockId, offset: number): Blo
  * Returns the surviving block and the caret offset (the join point); null
  * for a no-op (no previous block, the block has a non-empty derived
  * segment — merging a container would swallow its nested content — the
- * previous is a canvas container (the surface over its figures, the frame
- * over its nested page): the removal would cascade the whole canvas / the
- * nested page (the data loss — the whole-canvas deletion is not a
- * single-Backspace gesture; the explicit gutter-select + the Delete key
- * stands it) — or the block sits inside the previous block's derived
- * segment — the previous's segment removal would swallow it; the caret
- * stands, nothing is deleted, not a v1 gesture). The table is not among
- * the no-op's containers: its rows are the block's own data, and the
- * explicit deletion (the Backspace's gesture over the table) is the
+ * previous is the surface (the canvas layer over its figures) or the
+ * page-frame block (the window over the canvas frame's content — the
+ * frame is childless, so its stand is unconditional, like the surface's):
+ * the removal is not a single-Backspace gesture (the data loss — the
+ * whole-canvas / the window's removal is the core API's / the explicit
+ * selection's Delete) — or the block sits inside the previous block's
+ * derived segment — the previous's segment removal would swallow it; the
+ * caret stands, nothing is deleted, not a v1 gesture). The table is not
+ * among the no-op's containers: its rows are the block's own data, and
+ * the explicit deletion (the Backspace's gesture over the table) is the
  * documented removal — the rows' cascade over the core's removeBlock.
  */
 function mergeWithPrevious(doc: Doc, id: BlockId, contextId: BlockId): { blockId: BlockId; offset: number } | null {
@@ -326,18 +327,19 @@ function mergeWithPrevious(doc: Doc, id: BlockId, contextId: BlockId): { blockId
   const prevSegment = segmentRange(doc, contextId, prevId);
   if (prevSegment !== null && index < prevSegment.end) return null;
   const prevLength = BLOCK_REGISTRY[prev.type].content ? textOf(runsOf(prev)).length : 0;
-  // The canvas containers (the surface over its figures, the frame over
-  // its nested page): the removal would cascade the whole canvas / the
-  // nested page (the data loss) — the no-op stand (the whole-canvas
-  // deletion is the explicit gutter-select + Delete, not a single
-  // Backspace). The surface stands the no-op even when empty — the canvas
-  // layer's removal is the core API's, not a page gesture's. The table is
-  // excluded: its rows are the block's own data, and the removal is the
-  // explicit deletion (the core's removeBlock cascades the rows' segment),
-  // the caret's re-seat + the caret row's zero-duration projection stand
-  // the exit (the motion's bounds' pin over the tall table's slide).
+  // The surface (the canvas layer over its figures — the canvas layer's
+  // removal is the core API's, not a page gesture's) and the page-frame
+  // block (the window over the canvas frame's content — the frame is
+  // childless, so the stand is unconditional, the surface's stand): the
+  // removal is not a single-Backspace gesture (the data loss — the
+  // explicit selection's Delete stands it). The table is excluded: its
+  // rows are the block's own data, and the removal is the explicit
+  // deletion (the core's removeBlock cascades the rows' segment), the
+  // caret's re-seat + the caret row's zero-duration projection stand the
+  // exit (the motion's bounds' pin over the tall table's slide).
   if (
     prev.type === "surface" ||
+    prev.type === "frame" ||
     (!BLOCK_REGISTRY[prev.type].content && doc.getChildren(prevId).length > 0 && prev.type !== "table")
   ) {
     return null;

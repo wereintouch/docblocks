@@ -22,6 +22,7 @@ type SlashCommand =
   | { label: string; icon: SlashIcon; type: "image" }
   | { label: string; icon: SlashIcon; type: "embed" }
   | { label: string; icon: SlashIcon; type: "database" }
+  | { label: string; icon: SlashIcon; type: "frame" }
   | { label: string; icon: SlashIcon; type: "table" };
 
 /** The live derivation of the menu state from the block text (the doc is the source of truth). */
@@ -85,6 +86,12 @@ interface SlashMenuProps {
   databaseAvailable: boolean;
   onDatabasePickCancel: () => void;
   onDatabaseCommit: (tableId: string) => void;
+  /** The `frame` picker's open flag (the frame command's pick stands the
+   *  picker over the phrase — the pick commits the page-frame block's
+   *  weak reference). */
+  framePick: boolean;
+  onFramePickCancel: () => void;
+  onFrameCommit: (frameId: string) => void;
   embedForm: boolean;
   onEmbedCancel: () => void;
   onEmbedCommit: (input: { kind: EmbedKind; src: string }) => void;

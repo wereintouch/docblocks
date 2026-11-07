@@ -41,6 +41,14 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const databasePickRef = useRef(false);
   databasePickRef.current = databasePick;
   const pendingDatabaseRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
+  // The slash Frame picker: the open flag (the menu panel stands the
+  // picker over the phrase) + the pending pick context, committed on the
+  // frame pick (the page-frame block's weak reference — no gate: the
+  // frames are the doc's own canvas data, no bridge is required).
+  const [framePick, setFramePick] = useState(false);
+  const framePickRef = useRef(false);
+  framePickRef.current = framePick;
+  const pendingFrameRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
   // The slash Embed form: the open flag (the menu panel stands the form over
   // the phrase) + the pending form context, committed on the form's commit.
   const [embedForm, setEmbedForm] = useState(false);
@@ -51,6 +59,8 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
     setDatabasePick(false);
     pendingDatabaseRef.current = null;
+    setFramePick(false);
+    pendingFrameRef.current = null;
     setEmbedForm(false);
     pendingEmbedRef.current = null;
     setState({ blockId, parentId, slashOffset, active: 0 });
@@ -59,6 +69,8 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const close = useCallback(() => {
     setDatabasePick(false);
     pendingDatabaseRef.current = null;
+    setFramePick(false);
+    pendingFrameRef.current = null;
     setEmbedForm(false);
     pendingEmbedRef.current = null;
     setState(null);
@@ -129,6 +141,16 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       if (command.type === "database") {
         pendingDatabaseRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
         setDatabasePick(true);
+        return;
+      }
+      // The frame is a picker insert (no gate — unlike the database's
+      // bridge gate, the frames are the doc's own canvas data): the menu
+      // stands open (the phrase stays intact, the derivation stays live)
+      // while the picker stands; the commit (phrase strip + the insert of
+      // the page-frame block's weak reference) lands on the frame pick.
+      if (command.type === "frame") {
+        pendingFrameRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
+        setFramePick(true);
         return;
       }
       // The embed is a form insert: the menu stands open (the phrase stays
@@ -256,6 +278,53 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     [close, doc, rootRef]
   );
 
+  /**
+   * The frame pick of the slash Frame command: one transact — the
+   * trigger phrase strip (when it still stands at its anchor) + the
+   * page-frame block's insert (the `frameId` weak reference) after the
+   * caret block, a trailing empty paragraph when the block takes the
+   * sequence's end (the caret seats there), and the caret re-seat. A
+   * cancelled pick commits nothing (the menu stands open on the phrase).
+   */
+  const commitFrame = useCallback(
+    (frameId: string) => {
+      const pending = pendingFrameRef.current;
+      pendingFrameRef.current = null;
+      setFramePick(false);
+      if (pending === null) return;
+      const { blockId, parentId, slashOffset } = pending;
+      if (doc.getBlock(blockId) === null) return;
+      const scope = rootRef.current ?? document;
+      try {
+        doc.transact(() => {
+          const current = doc.getBlock(blockId);
+          if (current === null) return;
+          const indent = indentOf(current);
+          const ind = indent !== 0 ? { indent } : {};
+          const text = blockTextOf(current);
+          if (text.charAt(slashOffset) === "/") {
+            let queryEnd = slashOffset + 1;
+            while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
+            doc.deleteText(blockId, slashOffset, queryEnd);
+          }
+          const frameBlockId = doc.insertBlock("frame", { frameId, ...ind }, { parent: parentId, after: blockId });
+          const sequence = doc.getChildren(parentId);
+          if (sequence[sequence.length - 1] === frameBlockId) {
+            const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: frameBlockId });
+            focusCaretIn(trailingId, 0, scope);
+          } else {
+            focusCaretIn(blockId, slashOffset, scope);
+          }
+        });
+      } catch (error) {
+        if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
+        throw error;
+      }
+      close();
+    },
+    [close, doc, rootRef]
+  );
+
   const commitEmbed = useCallback(
     (input: { kind: EmbedKind; src: string }) => {
       const pending = pendingEmbedRef.current;
@@ -315,6 +384,14 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         if (key.key === "Escape") {
           setDatabasePick(false);
           pendingDatabaseRef.current = null;
+          return true;
+        }
+        return false;
+      }
+      if (framePickRef.current) {
+        if (key.key === "Escape") {
+          setFramePick(false);
+          pendingFrameRef.current = null;
           return true;
         }
         return false;
@@ -400,7 +477,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       if (s === null) return;
       // The picker / form is standing (the input's focus is expected — the
       // menu stays open over the phrase until it commits or cancels).
-      if (databasePickRef.current || embedFormRef.current) return;
+      if (databasePickRef.current || framePickRef.current || embedFormRef.current) return;
       const el = blockInnerOf(rootRef, s.blockId);
       if (el === null) {
         setState(null);
@@ -425,6 +502,10 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     setDatabasePick(false);
     pendingDatabaseRef.current = null;
   };
+  const cancelFramePick = () => {
+    setFramePick(false);
+    pendingFrameRef.current = null;
+  };
   const cancelEmbedForm = () => {
     setEmbedForm(false);
     pendingEmbedRef.current = null;
@@ -445,6 +526,9 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         databaseAvailable={databaseAvailable}
         onDatabasePickCancel={cancelDatabasePick}
         onDatabaseCommit={commitDatabase}
+        framePick={framePick}
+        onFramePickCancel={cancelFramePick}
+        onFrameCommit={commitFrame}
         embedForm={embedForm}
         onEmbedCancel={cancelEmbedForm}
         onEmbedCommit={commitEmbed}

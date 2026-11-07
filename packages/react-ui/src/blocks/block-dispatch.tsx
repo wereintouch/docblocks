@@ -9,9 +9,9 @@ import type { ReactNode } from "react";
 
 import type { Block, BlockId } from "docblocks-core";
 
-import { FrameBlock } from "../canvas/FrameBlock";
 import { DatabaseBlock } from "./DatabaseBlock";
 import { EmbedBlock } from "./EmbedBlock";
+import { FramePageBlock } from "./FramePageBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
@@ -136,12 +136,13 @@ function dispatchBuiltIn(
       // falls to the placeholder (the unknown-kind posture).
       return <PlaceholderBlock type={block.type} />;
     case "frame":
-      // The frame renders through FrameBlock in every context: inside a
-      // surface (the box + the nested provider) and as a provider entry
-      // root (its own nested provider renders the content). A stray one
-      // at the page root (lenient data) renders its content in place
-      // (the container posture, like a stray table).
-      return <FrameBlock id={id} />;
+      // The page-frame block (the root's child): the inline window into
+      // the referenced canvas frame (the FramePageBlock's lenient stand
+      // covers the dangling reference — a canvas frame at the root is
+      // invalid data, its window is its own placeholder). The canvas-frame
+      // context (the surface's child) renders through the CanvasItem's
+      // dispatch, never here.
+      return <FramePageBlock id={id} />;
     case "shape":
     case "connector":
     case "canvas-text":

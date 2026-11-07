@@ -3,6 +3,7 @@
 import {
   CodeXml,
   Database,
+  Frame,
   Heading1,
   Heading2,
   Heading3,
@@ -43,6 +44,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Image", icon: ImageIcon, type: "image" },
   { label: "Embed", icon: Link, type: "embed" },
   { label: "Database", icon: Database, type: "database" },
+  { label: "Frame", icon: Frame, type: "frame" },
   { label: "Table", icon: Table, type: "table" },
 ];
 
