@@ -1,5 +1,12 @@
 # docblocks-react-ui
 
+## 0.1.1
+
+### Patch Changes
+
+- The README stands the `styles.css`'s import's ambient `*.css` declaration's
+  note and the `DocHeader`'s stand over the `viewer`'s level.
+
 ## 0.1.0
 
 ### Added

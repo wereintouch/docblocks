@@ -1,5 +1,12 @@
 # docblocks-core
 
+## 0.1.1
+
+### Patch Changes
+
+- The README's `createDoc`'s contract stands the actual initial state (only
+  the root block — no auto first paragraph).
+
 ## 0.1.0
 
 ### Added
