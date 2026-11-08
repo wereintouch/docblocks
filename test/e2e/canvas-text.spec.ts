@@ -381,6 +381,11 @@ test.describe("the canvas-text (the reworked interaction)", () => {
   test("the toolbar: the single selection's 'Text options' stand; the font family / color / style / size / align's applies over the wire (one updateBlock each); the z-order menu's reorder's apply", async ({
     browser,
   }) => {
+    // The suite's heaviest spec (the two's seeds + the wire's settle + the
+    // font's loads + the applies' over the wire): the per-test budget stands
+    // doubled over the 30 s's baseline — the 2 vCPU's runner's load overruns
+    // the baseline even without a logic stall.
+    test.setTimeout(60_000);
     const { a, b, close } = await twoPanes(browser, "text-toolbar");
     try {
       await toCanvas(a, "a");
