@@ -35,9 +35,20 @@ import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes } from "./ListRun";
 import { ItemNested, NestedSlot } from "./NestedSlot";
 import { dispatchBuiltIn } from "./block-dispatch";
-import { deriveFlat, flatStructureKey } from "./flat";
+import { collapseEmptyTextChains, deriveFlat, flatStructureKey } from "./flat";
 import type { FlatNode } from "./flat";
 import type { BlockRendererMap } from "./renderers";
+
+/** The text types over the empty chain's collapse (the empty's stand: the
+ *  zero text's length + no children). */
+const EMPTY_CHAIN_TYPES = new Set(["paragraph", "heading", "quote", "callout", "list-item", "code"]);
+
+/** The block's empty's stand (a text type with the zero text's length). */
+function isEmptyChainText(block: unknown): boolean {
+  if (block === null || block === undefined) return false;
+  const candidate = block as { type: string; content?: readonly { text: string }[] };
+  return EMPTY_CHAIN_TYPES.has(candidate.type) && (candidate.content ?? []).every((run) => run.text === "");
+}
 
 /**
  * The block body's renderer dispatch, a child of the render error
@@ -161,11 +172,25 @@ const FlatBlockView: FlatBlockRenderer = memo(
  * sublist, a text container's nested slot).
  */
 function BlockGroups({ ids }: { ids: BlockId[] }) {
-  const { store } = useEditorContext();
+  const { store, viewMode } = useEditorContext();
   // The flat sequence stands on the structure only (the indents, the list
   // kinds): the structure digest keys the derivation (the whole-map
   // subscription would stand the O(n) re-derivation over every keystroke).
   const structureKey = useStore(store, (state) => flatStructureKey(ids, state.blocks));
+  // The read-only stand's digest: the text blocks' emptiness (the chain's
+  // collapse's input — a peer's write over the live's view stand flips the
+  // empty's state). The edit's mode stands no digest (the collapse's
+  // stand is off).
+  const emptyKey = useStore(store, (state) =>
+    viewMode
+      ? ids
+          .map((id) => {
+            const block = state.blocks[id];
+            return isEmptyChainText(block) ? "o" : block === undefined ? "-" : ".";
+          })
+          .join("")
+      : ""
+  );
   // The interning cache: the previous derivation's byId stands while the
   // sequence's data is unchanged (the memo is keyed on the digest + the ids).
   const prevRef = useRef<Map<string, FlatNode> | null>(null);
@@ -174,7 +199,15 @@ function BlockGroups({ ids }: { ids: BlockId[] }) {
     prevRef.current = result.byId;
     return result;
   }, [structureKey, ids, store]);
-  return <GroupedNodes nodes={derivation.nodes} renderBlock={FlatBlockView} />;
+  // The read-only stand (view / published): the consecutive empty text
+  // blocks' chain (the one indent, the zero text, no children) stands
+  // rendered as one (the chain's first block) — the data stands untouched.
+  const nodes = useMemo(() => {
+    if (!viewMode) return derivation.nodes;
+    const blocks = store.getState().blocks;
+    return collapseEmptyTextChains(derivation.nodes, (id) => isEmptyChainText(blocks[id]));
+  }, [derivation.nodes, viewMode, emptyKey, store]);
+  return <GroupedNodes nodes={nodes} renderBlock={FlatBlockView} />;
 }
 
 /**
