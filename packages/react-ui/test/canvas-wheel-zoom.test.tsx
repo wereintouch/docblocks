@@ -156,15 +156,16 @@ describe("the M key's mode switch", () => {
     expect(screen.getByLabelText("Switch to the pan mode")).toBeTruthy();
   });
 
-  it("wins over the editing surface (the m is not typed, the mode switches)", () => {
+  it("stands off over the editing surface (the m is typed, the mode stands)", () => {
     const r = renderCanvas();
     // The pan mode first.
     fireEvent.click(screen.getByLabelText("Switch to the pan mode"));
     expect(screen.getByLabelText("Switch to the select mode")).toBeTruthy();
 
-    // The M key from the page's text (the editing surface): the default
-    // action stands prevented (no "m" character) and the mode switches
-    // to the select.
+    // The M key from the page's text (the editing surface): the letter's
+    // default stands (the "m" is typed) and the mode stands the pan
+    // (the letters stand no hotkey over the text — the typed character
+    // must land).
     const text = r.pageText();
     // The window's bubble listener stands last in the propagation (after
     // the React root's handler) — the defaultPrevented is the handler's
@@ -176,7 +177,7 @@ describe("the M key's mode switch", () => {
     window.addEventListener("keydown", listener);
     fireEvent.keyDown(text, { key: "m" });
     window.removeEventListener("keydown", listener);
-    expect(prevented).toBe(true);
-    expect(screen.getByLabelText("Switch to the pan mode")).toBeTruthy();
+    expect(prevented).toBe(false);
+    expect(screen.getByLabelText("Switch to the select mode")).toBeTruthy();
   });
 });

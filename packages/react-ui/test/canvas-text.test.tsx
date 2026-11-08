@@ -392,6 +392,73 @@ describe("the Enter's soft break (no split)", () => {
   });
 });
 
+describe("the keys' editing surface's guard (the letters stand no hotkey over the text)", () => {
+  it("the m over the edit stands the character (the mode switch stands off; the focus and the doc stand)", async () => {
+    const r = renderCanvas("seed");
+    // The edit session's open (the double-click's entry — the inner's
+    // editable's stand): the key stands on the inner (the focused element
+    // — the letter's default must stand over the canvas's keys).
+    fireEvent.doubleClick(r.inner(), { clientX: 10, clientY: 10 });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    r.inner().focus();
+    expect(r.inner().getAttribute("contenteditable")).toBe("true");
+
+    let stopped = false;
+    act(() => {
+      stopped = r.inner().dispatchEvent(new KeyboardEvent("keydown", { key: "m", bubbles: true, cancelable: true }));
+    });
+
+    // The canvas's keys stand off over the edit surface: the letter's
+    // default stands (not suppressed — the character lands over the text),
+    // the focus stays on the inner (no blur), the doc stands.
+    expect(stopped).toBe(true);
+    expect(document.activeElement).toBe(r.inner());
+    expect(textOf(r.doc, r.text)).toBe("seed");
+  });
+
+  it("the M over the container's own focus stands the select mode (the dock's hand's stand)", () => {
+    const r = renderCanvas("seed");
+    // The hand's toggle (the pan mode's stand — the M's switch-back's
+    // target).
+    const hand = r.view.querySelector<HTMLElement>('[aria-label="Switch to the pan mode"]');
+    expect(hand).not.toBeNull();
+    fireEvent.click(hand!);
+    expect(r.view.querySelector<HTMLElement>('[aria-label="Switch to the select mode"]')).not.toBeNull();
+
+    // The container's own focus (the hotkey's context — the view's own
+    // control, not the edit surface) + the M: the mode re-stands the
+    // select.
+    r.view.focus();
+    act(() => {
+      r.view.dispatchEvent(new KeyboardEvent("keydown", { key: "m", bubbles: true, cancelable: true }));
+    });
+    expect(r.view.querySelector<HTMLElement>('[aria-label="Switch to the pan mode"]')).not.toBeNull();
+  });
+});
+
+describe("the box's text centering (the selection's frame's parity)", () => {
+  it("the canvas-text stands the box's vertical center (the wrapper's flex stand)", () => {
+    const r = renderCanvas("seed");
+    const wrapper = r.item().querySelector<HTMLElement>('[data-slot="docblocks/block"]');
+    expect(wrapper).not.toBeNull();
+    // The wrapper fills the item's box and centers the inner vertically
+    // (the shape-text's parity — the selection's frame is the box).
+    expect(wrapper!.className).toContain("justify-center");
+    expect(wrapper!.className).toContain("flex-col");
+    expect(wrapper!.className).toContain("h-full");
+  });
+
+  it("the ghost's inner stands the same vertical center (the caret's parity over the commit)", async () => {
+    const r = renderCanvas("seed");
+    fireEvent.doubleClick(r.view, { clientX: 100, clientY: 80 });
+    const ghost = document.querySelector<HTMLElement>("[data-slot='docblocks/canvas-text-ghost-inner']");
+    expect(ghost).not.toBeNull();
+    expect(ghost!.className).toContain("items-center");
+  });
+});
+
 describe("the container's membership (the shape's parity)", () => {
   /** The scene: a group (the container) + a canvas-text outside its box. */
   function renderMembership(): {

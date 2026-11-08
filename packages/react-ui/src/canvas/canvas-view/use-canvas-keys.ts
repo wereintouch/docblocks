@@ -3,9 +3,9 @@
  * the arrow-key nudge, the canvas items' keyboard navigation (the arrows
  * over the selection's absence) + the Enter's selection, the canvas items'
  * delete (Delete/Backspace), the tools' cancel (Escape), and the held
- * space (the temporary pan). The
- * app-level hotkeys win over the editing surfaces (the isEditingSurface
- * guard keeps the text's own shortcuts). */
+ * space (the temporary pan). The editing surfaces keep every hotkey
+ * (the isEditingSurface's guard — the letters stand no mode switch over
+ * the text; the text's own shortcuts stand). */
 import type { KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
 
 import type { BlockId, Doc } from "docblocks-core";
@@ -65,23 +65,20 @@ function useCanvasKeys({
     // -1) reaches this handler with a target the container does not
     // contain — and would delete the selection (Delete / Backspace).
     if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
+    // The editing surfaces keep every key (the letters stand no hotkey over
+    // the text — the canvas-text's inner, the shape's inline text edit, the
+    // label's input, the page miniature's content): the typed character
+    // lands, the mode / the selection / the focus stand untouched.
+    if (isEditingSurface(event.target)) return;
     // The M key: the select mode (the mode's keyboard switch — the dock's
-    // button icon shows the current mode, the hand is the pan). The app
-    // level hotkey wins over the editing surfaces (the "m" stands no
-    // character over the text); the live caret (the editing state) stands
-    // the view — the focus parks on the container (the undo hotkey reach).
+    // button icon shows the current mode, the hand is the pan). The key
+    // stands over the container's own focus (the mode's hotkey's context —
+    // the view's own controls keep their own M).
     if (event.key.toLowerCase() === "m") {
       event.preventDefault();
-      const active = document.activeElement;
-      if (active instanceof HTMLElement && active.isContentEditable) {
-        window.getSelection()?.removeAllRanges();
-        active.blur();
-        containerRef.current?.focus();
-      }
       viewport.setMode("default");
       return;
     }
-    if (isEditingSurface(event.target)) return;
     // The place session's shift: the 1:1 constraint's live toggle (the
     // preview re-stands from the session's last point over the new shift
     // state — the constraint stands / drops without a mouse move; the

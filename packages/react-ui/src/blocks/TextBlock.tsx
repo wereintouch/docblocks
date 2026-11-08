@@ -379,6 +379,12 @@ function TextBlock({
   // layered utility before this migration).
   const wrapperClass = cn(
     "relative outline-none",
+    // The canvas-text stands the box's vertical centering (the selection's
+    // frame is the box — the text stands centered over it, the shape-text's
+    // parity): the wrapper fills the item's box and centers the inner
+    // vertically (the flex column's stretch keeps the inner's full width —
+    // the wrap's stand).
+    block.type === "canvas-text" && "flex h-full w-full flex-col justify-center",
     tag !== "li" && !onSurface && "my-(--docblocks-block-spacing)",
     // The selection's background (the page's selected-row tint): the
     // canvas's selection stand is the canvas-item's outline + background

@@ -146,14 +146,16 @@ function CanvasTextGhost({
     >
       {/* The editor's default text stand (the inherited font / color /
           size — the canvas-text's inner's resting style, the committed
-          block's continuity). */}
+          block's continuity). The flex's vertical centering stands the
+          committed block's parity (the caret's seat matches the commit's
+          re-seat over the centered box). */}
       <div
         ref={ref}
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
         data-slot="docblocks/canvas-text-ghost-inner"
-        className="h-full w-full whitespace-pre-wrap outline-none"
+        className="flex h-full w-full items-center whitespace-pre-wrap outline-none"
         onInput={(event) => {
           // The composing input stands no commit (the CJK's
           // compositionend's stand — the same single-transact's path).

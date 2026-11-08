@@ -165,6 +165,12 @@ describe("canvas scene", () => {
     // surface out of the sequence), so the container's stand is the
     // canvas-view's world.
     expect(document.querySelector('[data-slot="docblocks/canvas-world"]')).not.toBeNull();
+    // The container's focus is the hotkey's parking stand (the keys'
+    // reach) — it stands no visible ring of its own (a canvas-wide focus
+    // frame is noise; the items' own outlines stand the feedback).
+    const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
+    expect(view).not.toBeNull();
+    expect(view!.className).not.toContain("focus-visible:ring");
     // The frame stands the view back (the window's parity — it renders
     // behind every other item; the z-order's data slot keeps its role for
     // the figures).

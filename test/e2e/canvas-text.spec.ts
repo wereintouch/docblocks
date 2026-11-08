@@ -253,6 +253,32 @@ test.describe("the canvas-text (the reworked interaction)", () => {
     }
   });
 
+  test("the letters stand no hotkey over the edit (the m's typing's stand: the character lands, the caret stands, the mode stands)", async ({
+    browser,
+  }) => {
+    const { a, close } = await twoPanes(browser, "text-m-letter");
+    try {
+      await toCanvas(a, "a");
+      const id = await seedText(a, "a", "note");
+      const center = await canvasCenter(a, "a");
+      // The double-click's edit's entry (the caret's stand over the inner).
+      await a.mouse.dblclick(center.x, center.y);
+      await caretIn(a, id);
+
+      // The m over the edit: the character lands (the hotkey stands off —
+      // no mode switch, no blur, no canvas-wide stand), the caret stands
+      // in the block.
+      await a.keyboard.type("m");
+      const stand = await activeStand(a);
+      expect(stand.slot).toBe("docblocks/block-content");
+      expect(stand.blockId).toBe(id);
+      expect(stand.editable).toBe(true);
+      expect(textOf((await docBlocks(a, "a"))[id])).toContain("m");
+    } finally {
+      await close();
+    }
+  });
+
   test("the Escape over the empty real block (the text's deletion's stand) removes the block (over the wire)", async ({
     browser,
   }) => {

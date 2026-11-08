@@ -277,7 +277,9 @@ test.describe("the wheel's gesture", () => {
     }
   });
 
-  test("the M key over the live caret stands the view (no m character, the focus parks)", async ({ browser }) => {
+  test("the M key over the live caret stands the letter (no hotkey over the text — the caret stands, the mode stands)", async ({
+    browser,
+  }) => {
     const { a, close } = await twoPanes(browser, "canvas-wheel-m-caret");
     try {
       await toCanvas(a, "a");
@@ -287,7 +289,7 @@ test.describe("the wheel's gesture", () => {
       for (let i = 0; i < 8; i += 1) await zoomToolbar(a, "a").getByLabel("Zoom out").click();
       await a.waitForTimeout(300);
       // Seed the paragraph and stand the caret over it (the two-click
-      // contract's second press).
+      // contract's second press — the select mode's press's stand).
       const pid = await a.evaluate(() => {
         const doc = window.__paneDocs?.a;
         if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
@@ -306,22 +308,27 @@ test.describe("the wheel's gesture", () => {
       expect(await a.evaluate(() => (document.activeElement as HTMLElement | null)?.isContentEditable ?? false)).toBe(
         true
       );
+      // The hand's toggle over the live caret (the pan mode's stand — the
+      // mode's switch keeps the caret; the M's switch-back's target).
+      await dock(a, "a").getByLabel("Switch to the pan mode").click();
 
-      // The M key from the editing state: the caret drops (the focus
-      // parks on the canvas view, the selection clears), the "m" stands
-      // no character, and the mode stands the select.
+      // The M key from the editing state: the letter lands (the hotkeys
+      // stand off over the text), the caret stands (no blur), and the
+      // mode stands the pan (no switch). The caret's seat (the click's
+      // point) stands the m over it — the line's length stands +1.
       await a.keyboard.press("m");
       const state = await a.evaluate(() => ({
         editable: (document.activeElement as HTMLElement | null)?.isContentEditable ?? false,
         focus: document.activeElement?.getAttribute("data-slot") ?? null,
-        ranges: document.getSelection()?.rangeCount ?? 0,
       }));
-      expect(state).toEqual({ editable: false, focus: "docblocks/canvas-view", ranges: 0 });
+      expect(state).toEqual({ editable: true, focus: "docblocks/block-content" });
+      expect(await dock(a, "a").getByLabel("Switch to the select mode").count()).toBe(1);
       const value = await a.evaluate((id) => {
         const block = window.__paneDocs?.a?.getBlock(id) as { content?: { text: string }[] } | null | undefined;
         return (block?.content ?? []).map((r) => r.text).join("");
       }, pid);
-      expect(value).toBe("the line");
+      expect(value).toHaveLength(9);
+      expect(value).toContain("m");
     } finally {
       await close();
     }

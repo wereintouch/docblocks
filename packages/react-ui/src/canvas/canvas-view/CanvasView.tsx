@@ -294,7 +294,7 @@ function CanvasView() {
             relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background)
             bg-[radial-gradient(circle,var(--docblocks-canvas-view-dot)_1px,transparent_1px)]
             focus:outline-none
-            focus-visible:ring-2 focus-visible:ring-ring
+            focus-visible:outline-none
           `,
           cursor
         )}
