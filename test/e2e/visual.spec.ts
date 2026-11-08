@@ -45,6 +45,10 @@ async function clearFocus(page: Page): Promise<void> {
 }
 
 test("the catalog renders the light and dark goldens", async ({ page }) => {
+  // The pixel goldens stand the darwin's render (the font's rasterization
+  // differs per OS — the linux's runner stands no match): the shot stands
+  // the darwin's runs only (the local's machine, the macos's runner).
+  test.skip(process.platform !== "darwin", "the goldens stand the darwin's render");
   await openCatalogPane(page);
   // The harness loads dark by default; the light golden clears the `.dark`
   // class first (the dark shot below re-adds it).
