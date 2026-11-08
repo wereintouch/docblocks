@@ -57,6 +57,12 @@ interface SelectionRef {
   view: SelectionView | null;
 }
 
+/** The consumer's user access level: the available document modes. "viewer" is locked to the published's view (the current state is never rendered); "editor" (the default) may edit and view. Session state — not document data, never on the wire. */
+type AccessLevel = "viewer" | "editor";
+
+/** The document's mode (consumer-controlled view state, like the page/canvas `view`): "edit" (the default) is the live document editable; "view" is the live document read-only (the current state, still syncing); "published" is the `publishedDoc`'s snapshot read-only (static). */
+type EditorMode = "edit" | "view" | "published";
+
 /** Per-instance editor context: the store, the doc, the selection handle, and the customization values. */
 interface EditorContextValue {
   store: EditorStore;
@@ -87,11 +93,41 @@ interface EditorContextValue {
   embedDepth: number;
   /** The empty-block hint text (the default points at the slash command palette). */
   commandPalettePlaceholder: string;
+  /** The consumer's access level (the effective stand: the own prop, else the enclosing one, else "editor"). */
+  accessLevel: AccessLevel;
+  /** The effective document mode (resolved: a viewer stands "published" over any stand; a nested provider without its own `mode` inherits the enclosing one). */
+  mode: EditorMode;
+  /** True over the non-edit modes ("view" / "published"): every editing surface gates off (the read-only stand). */
+  viewMode: boolean;
 }
 
 interface EditorProviderProps {
   /** The headless document to render and edit; must not change after mount. */
   doc: Doc;
+  /**
+   * Optional user access level: "viewer" locks the render to the
+   * published's view (the `mode`'s stand is ignored — the current state is
+   * never rendered for a reader); "editor" (the default) may edit and
+   * view. Session state supplied by the consumer — never document data.
+   */
+  accessLevel?: AccessLevel;
+  /**
+   * Optional document mode (consumer-controlled, like the page/canvas
+   * `view`): "edit" (the default) renders the live document editable,
+   * "view" renders it read-only (the current state, the doc keeps
+   * syncing), "published" renders the `publishedDoc`'s snapshot read-only.
+   * A viewer stands "published" over every stand. A nested provider
+   * without its own `mode` inherits the enclosing one.
+   */
+  mode?: EditorMode;
+  /**
+   * Optional published snapshot (a hydrated `Doc`, the consumer's
+   * `loadDoc` / `fromJSON` over its own stored state): rendered
+   * read-only over the "published" mode (a static stand — no sync
+   * transport). Must not change after mount (like `doc`): a new
+   * snapshot is a consumer remount over a `key` change.
+   */
+  publishedDoc?: Doc | null;
   /** Optional sync transport for presence (awareness); the doc's own changes are always tracked. */
   provider?: SyncProvider;
   /**
@@ -202,7 +238,9 @@ interface EditorProviderProps {
 }
 
 export type {
+  AccessLevel,
   EditorContextValue,
+  EditorMode,
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,

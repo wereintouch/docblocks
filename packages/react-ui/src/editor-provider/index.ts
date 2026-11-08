@@ -3,7 +3,9 @@ export { EditorProvider } from "./EditorProvider";
 export { DEFAULT_EMBED_SANDBOX } from "./constants";
 export { useEditorContext } from "./context";
 export type {
+  AccessLevel,
   EditorContextValue,
+  EditorMode,
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,

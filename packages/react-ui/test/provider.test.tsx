@@ -340,3 +340,68 @@ describe("the editor frame and the empty-block hint", () => {
     expect(inners[0]?.getAttribute("data-placeholder")).toBe("Outer hint");
   });
 });
+
+describe("the access level and the mode (the effective-mode's resolution)", () => {
+  afterEach(cleanup);
+
+  /** The provider's context stand (the mode's effective's read). */
+  const captureRef = { current: null as null | { accessLevel: string; mode: string; viewMode: boolean } };
+  function ContextProbe() {
+    const ctx = useEditorContext();
+    captureRef.current = { accessLevel: ctx.accessLevel, mode: ctx.mode, viewMode: ctx.viewMode };
+    return null;
+  }
+
+  it("stands the defaults (the editor's editable live doc)", () => {
+    const doc = createDoc({ id: "doc-access-1", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc}>
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "edit", viewMode: false });
+  });
+
+  it("stands the view's read-only over the mode's stand", () => {
+    const doc = createDoc({ id: "doc-access-2", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc} mode="view">
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "view", viewMode: true });
+  });
+
+  it("stands the published's read-only over the mode's stand", () => {
+    const doc = createDoc({ id: "doc-access-3", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc} mode="published">
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "published", viewMode: true });
+  });
+
+  it("the viewer stands the published over any mode (the current state's stand off)", () => {
+    const doc = createDoc({ id: "doc-access-4", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc} accessLevel="viewer" mode="edit">
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "viewer", mode: "published", viewMode: true });
+  });
+
+  it("a nested provider without its own mode inherits the enclosing's (the sync-embed's parity)", () => {
+    const doc = createDoc({ id: "doc-access-5", createdAt: CREATED_AT });
+    const b = doc.insertBlock("paragraph");
+    render(
+      <EditorProvider doc={doc} mode="view">
+        <EditorProvider doc={doc} rootBlockId={b}>
+          <ContextProbe />
+        </EditorProvider>
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "view", viewMode: true });
+  });
+});

@@ -13,7 +13,7 @@ import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
 import { createEditorStore } from "../state";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
-import type { EditorProviderProps, SelectionRef } from "./models";
+import type { EditorMode, EditorProviderProps, SelectionRef } from "./models";
 
 /**
  * Owns the per-instance editor lifecycle: the zustand store (projection of
@@ -39,6 +39,8 @@ function EditorProvider({
   embedSandbox,
   rootBlockId,
   commandPalettePlaceholder,
+  accessLevel,
+  mode,
   children,
 }: EditorProviderProps) {
   const rootId = rootBlockId ?? doc.meta.id;
@@ -49,6 +51,13 @@ function EditorProvider({
   // The raw enclosing context (nullable): the inheritance source for the
   // renderers, resolvers, and the cycle-guard chain/depth.
   const parentContext = useContext(EditorContext);
+  // The effective access stand: the own prop, else the enclosing one, else
+  // the default editor. The effective mode: a viewer stands "published" over
+  // any stand (the current state is never rendered for a reader); an editor
+  // stands the own `mode`, else the enclosing one, else the default "edit".
+  const effectiveAccessLevel = accessLevel ?? parentContext?.accessLevel ?? "editor";
+  const effectiveMode: EditorMode =
+    effectiveAccessLevel === "viewer" ? "published" : (mode ?? parentContext?.mode ?? "edit");
 
   useEffect(() => {
     if (docRef.current !== doc) {
@@ -232,6 +241,9 @@ function EditorProvider({
       embedDepth: parent === null ? 0 : parent.embedDepth + 1,
       commandPalettePlaceholder:
         commandPalettePlaceholder ?? parent?.commandPalettePlaceholder ?? COMMAND_PALETTE_PLACEHOLDER,
+      accessLevel: effectiveAccessLevel,
+      mode: effectiveMode,
+      viewMode: effectiveMode !== "edit",
     };
   }, [
     store,
@@ -246,6 +258,8 @@ function EditorProvider({
     pdfPreview,
     mentionProvider,
     embedSandbox,
+    effectiveAccessLevel,
+    effectiveMode,
   ]);
 
   return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;

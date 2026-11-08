@@ -10,7 +10,9 @@ export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
 export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./editor-provider";
 export type {
+  AccessLevel,
   EditorContextValue,
+  EditorMode,
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,
