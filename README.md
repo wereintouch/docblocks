@@ -105,11 +105,13 @@ build. To reuse an already-running dev server locally, set
 
 ## Continuous integration
 
-GitHub Actions runs the full local gate (`npm run check`) on pushes to the
-main branches and on pull requests, over the supported Node versions (the
-`engines` floor of each major plus the current major). Releases are a
-separate job: a changesets Version PR on `main`, publishing behind the
-protected `npm` environment with minimal permissions.
+GitHub Actions runs the local gate on pushes to the main branches and on
+pull requests: the static, unit and packaging gates over the supported Node
+versions (the `engines` floor of each major plus the current major), the E2E
+step over the Node 22 job (the browser tests stand the product, not the
+runner's Node). Releases are a separate job: a changesets Version PR on
+`main`, publishing behind the protected `npm` environment with minimal
+permissions.
 
 ## Boundaries (enforced by ESLint)
 
