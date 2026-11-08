@@ -4,7 +4,7 @@
  * block type, the mark set rules, and the runs content array.
  */
 import type { BlockType } from "../../block-union";
-import { MARK_REGISTRY } from "../../registry";
+import { MARK_REGISTRY, isRegisteredMarkName } from "../../registry";
 import type { AttrSpec, BlockSpec, MarkFieldSpec } from "../../registry";
 import type { MarkName } from "../../text";
 import type { ValidationError } from "../models";
@@ -292,14 +292,13 @@ function validateMarks(
     // A future minor's mark on a code block: the cross-minor stand — the
     // marks are not the engine's data to judge (only the known-mark shape
     // rules stand); the strict posture rejects any mark on a code run.
-    if (!lenient || names.some((name) => name in MARK_REGISTRY)) {
+    if (!lenient || names.some((name) => isRegisteredMarkName(name))) {
       errors.push({ path, message: "Runs in a code block must not carry marks." });
     }
   }
 
   for (const name of names) {
-    const spec = MARK_REGISTRY[name as MarkName];
-    if (!spec) {
+    if (!isRegisteredMarkName(name)) {
       // Lenient (cross-minor load): an unknown mark (a future minor's data)
       // is preserved as-is (the text stands without it); the strict posture
       // rejects it.
@@ -308,6 +307,7 @@ function validateMarks(
       }
       continue;
     }
+    const spec = MARK_REGISTRY[name];
     const markPath = `${path}.${name}`;
     const value = marks[name];
 
@@ -368,7 +368,7 @@ function validateMarks(
     }
   }
 
-  const exclusive = names.find((name) => MARK_REGISTRY[name as MarkName]?.exclusive);
+  const exclusive = names.find((name) => isRegisteredMarkName(name) && MARK_REGISTRY[name].exclusive);
   if (exclusive && names.length > 1) {
     errors.push({ path, message: `A run with exclusive mark "${exclusive}" must not carry other marks.` });
   }

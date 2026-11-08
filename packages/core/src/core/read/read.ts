@@ -122,7 +122,10 @@ function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
     attrs.forEach((value, key) => entries.push([key, readPlainValue(value)]));
     entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const plain: Record<string, unknown> = {};
-    for (const [key, value] of entries) plain[key] = value;
+    // The own-property stand: the reserved key (`__proto__`) becomes an own
+    // data key, not the prototype's reassignment (the data survives the
+    // export, the snapshot's prototype stands untouched).
+    for (const [key, value] of entries) setOwn(plain, key, value);
     block.attrs = plain;
   }
 

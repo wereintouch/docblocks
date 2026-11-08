@@ -3,7 +3,7 @@
  *  opaque block write (the cross-minor stand). */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, isRegisteredBlockType } from "@docblocks-core/schema";
 import type { Block, DocJSON, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
 import { markSetToAttrs } from "../text-model";
@@ -200,8 +200,10 @@ function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
       }
       // The cross-minor stand: a known type stands the registry writer; an
       // unknown type (a future minor's data, the lenient load) is written as
-      // opaque data (the fields as-is), so a save keeps it intact.
-      if (writable.type in BLOCK_REGISTRY) writeBlock(blocks, id, writable);
+      // opaque data (the fields as-is), so a save keeps it intact. The
+      // membership check is the own-property stand: the reserved type key
+      // (the Object.prototype name) stands unknown, never the registry's.
+      if (isRegisteredBlockType(writable.type)) writeBlock(blocks, id, writable);
       else writeOpaqueBlock(blocks, id, block as OpaqueBlock);
     }
     setParents(json, blocks);

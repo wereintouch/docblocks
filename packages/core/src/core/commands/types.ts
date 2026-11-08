@@ -5,7 +5,7 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, isRegisteredBlockType, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
 import type { AttrsFor, BlockId, BlockType, ValidationError } from "@docblocks-core/schema";
 
 import {
@@ -53,7 +53,7 @@ function changeBlockType(
   const currentType = blockTypeOf(ydoc, id);
   if (currentType === null) throw new UnknownBlockError(`Unknown block "${id}".`);
   if (currentType === "root") throw new InvalidOperationError("The root block's type cannot be changed.");
-  if (!(type in BLOCK_REGISTRY)) throw new UnknownBlockTypeError(`Unknown block type "${String(type)}".`);
+  if (!isRegisteredBlockType(type)) throw new UnknownBlockTypeError(`Unknown block type "${String(type)}".`);
   if (type === currentType) throw new InvalidOperationError(`Block "${id}" is already of type "${type}".`);
 
   const from = BLOCK_REGISTRY[currentType];

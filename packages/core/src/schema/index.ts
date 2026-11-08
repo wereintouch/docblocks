@@ -9,6 +9,8 @@ export {
   LEAF_BLOCK_TYPES,
   MARK_REGISTRY,
   PAGE_BLOCK_TYPES,
+  isRegisteredBlockType,
+  isRegisteredMarkName,
 } from "./registry";
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
 export { flattenDoc } from "./flatten";

@@ -7,6 +7,7 @@ import * as Y from "yjs";
 
 import {
   BLOCK_REGISTRY,
+  isRegisteredBlockType,
   isReservedId,
   isSafeEmbedSrc,
   validateBlockAttrs,
@@ -120,7 +121,7 @@ function insertBlock(
   attrs: unknown,
   at?: InsertBlockPosition
 ): BlockId {
-  if (!(type in BLOCK_REGISTRY)) throw new UnknownBlockTypeError(`Unknown block type "${String(type)}".`);
+  if (!isRegisteredBlockType(type)) throw new UnknownBlockTypeError(`Unknown block type "${String(type)}".`);
   if (type === "root") throw new InvalidOperationError("The root block already exists and cannot be inserted.");
 
   // An explicit id must be fresh (a deterministic concurrent insert — the

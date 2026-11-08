@@ -5,7 +5,7 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, isRegisteredBlockType } from "@docblocks-core/schema";
 import type { BlockId, BlockType } from "@docblocks-core/schema";
 
 import { DocBlocksError } from "../errors";
@@ -29,7 +29,7 @@ function blockTypeOf(ydoc: Y.Doc, id: string): BlockType | null {
   const block = getBlockMap(ydoc, id);
   if (!block) return null;
   const type = block.get("type");
-  return typeof type === "string" && type in BLOCK_REGISTRY ? (type as BlockType) : null;
+  return isRegisteredBlockType(type) ? type : null;
 }
 
 /**
@@ -105,7 +105,7 @@ function findParentInArrays(ydoc: Y.Doc, id: string): BlockId | null {
   blocks.forEach((block, blockId) => {
     if (parent !== null || !(block instanceof Y.Map)) return;
     const type = block.get("type");
-    if (typeof type !== "string" || !(type in BLOCK_REGISTRY) || !BLOCK_REGISTRY[type as BlockType].children) return;
+    if (!isRegisteredBlockType(type) || !BLOCK_REGISTRY[type].children) return;
     const children = block.get("children");
     if (children instanceof Y.Array && (children as Y.Array<string>).toArray().includes(id)) parent = blockId;
   });

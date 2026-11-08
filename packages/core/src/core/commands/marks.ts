@@ -8,7 +8,7 @@
  */
 import type * as Y from "yjs";
 
-import { MARK_REGISTRY, validateMarkSet } from "@docblocks-core/schema";
+import { MARK_REGISTRY, isRegisteredMarkName, validateMarkSet } from "@docblocks-core/schema";
 import type { MarkName, MarkSet, MentionKind } from "@docblocks-core/schema";
 
 import { InvalidMarkError, InvalidOperationError, InvalidRangeError, formatValidationErrors } from "../errors";
@@ -96,7 +96,7 @@ function setMark(ydoc: Y.Doc, blockId: string, from: number, to: number, mark: M
 
 /** Removes `name` from the marks of the characters in [from, to); other marks stay. */
 function unsetMark(ydoc: Y.Doc, blockId: string, from: number, to: number, name: MarkName): void {
-  if (!(name in MARK_REGISTRY)) {
+  if (!isRegisteredMarkName(name)) {
     throw new InvalidMarkError(`Unknown mark "${String(name)}".`);
   }
   const { content } = requireTextBlock(ydoc, blockId);

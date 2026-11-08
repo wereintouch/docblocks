@@ -2,11 +2,11 @@
  *  the plain-value read. */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, setOwn } from "@docblocks-core/schema";
+import { isRegisteredBlockType, setOwn } from "@docblocks-core/schema";
 import type { BlockType } from "@docblocks-core/schema";
 
 function isKnownBlockType(value: unknown): value is BlockType {
-  return typeof value === "string" && Object.hasOwn(BLOCK_REGISTRY, value);
+  return isRegisteredBlockType(value);
 }
 
 /**

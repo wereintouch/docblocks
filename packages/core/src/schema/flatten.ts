@@ -23,8 +23,8 @@
  * input). Unchanged leaf entries share their object with the input; the
  * document, the order arrays, and every rewritten entry are new.
  */
-import type { Block, BlockType } from "./block-union";
-import { BLOCK_REGISTRY } from "./registry";
+import type { Block } from "./block-union";
+import { BLOCK_REGISTRY, isRegisteredBlockType } from "./registry";
 import type { BlockId, DocJSON } from "./types";
 import { indentOf, isPlainObject } from "./utils";
 
@@ -41,8 +41,8 @@ type BlockMap = Record<string, unknown>;
 function legacyChildrenOf(block: Record<string, unknown>): unknown[] | null {
   if (!Array.isArray(block.children)) return null;
   const type = block.type;
-  if (typeof type !== "string" || !(type in BLOCK_REGISTRY)) return null;
-  return BLOCK_REGISTRY[type as BlockType].legacyChildrenTypes !== undefined ? (block.children as unknown[]) : null;
+  if (!isRegisteredBlockType(type)) return null;
+  return BLOCK_REGISTRY[type].legacyChildrenTypes !== undefined ? (block.children as unknown[]) : null;
 }
 
 interface FlattenState {
@@ -114,7 +114,7 @@ function projectBlock(block: unknown, id: BlockId, input: BlockMap, state: Flatt
     return withIndent(block, id, state) as unknown as Block;
   }
   const type = block.type;
-  const spec = typeof type === "string" && type in BLOCK_REGISTRY ? BLOCK_REGISTRY[type as BlockType] : undefined;
+  const spec = isRegisteredBlockType(type) ? BLOCK_REGISTRY[type] : undefined;
   if (spec === undefined) {
     return withIndent(block, id, state) as unknown as Block; // an unknown type (the validator reports it)
   }
