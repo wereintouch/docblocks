@@ -113,7 +113,7 @@ interface CodeHeaderProps {
 }
 
 function CodeHeader({ id, block, center }: CodeHeaderProps) {
-  const { doc, store } = useEditorContext();
+  const { doc, store, viewMode } = useEditorContext();
   const [languageOpen, setLanguageOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -213,68 +213,81 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
       onMouseDown={preventDefault}
     >
       <div className={cn("flex items-center gap-1.5", controlClass)}>
-        <Popover modal={false} open={languageOpen} onOpenChange={setLanguageOpen}>
-          <PopoverTrigger asChild>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              data-slot="docblocks/code-language"
-              aria-label="Choose the code language"
-              className="h-7 max-w-45 gap-1 px-2 text-[length:inherit]"
-            >
-              <span className="truncate">{languageLabel(language)}</span>
-              <ChevronDown className="size-3.5 shrink-0" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            align="start"
-            sideOffset={6}
-            data-slot="docblocks/code-language-menu"
+        {viewMode ? (
+          // The read-only stand (the view / published's modes): the
+          // language stands display-only (the picker's entry stands off —
+          // the attr's write's stand is no).
+          <span
+            data-slot="docblocks/code-language"
             aria-label="Code language"
-            className="flex w-56 flex-col gap-2"
+            className="flex h-7 max-w-45 items-center gap-1 px-2 text-[length:inherit]"
           >
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
+            <span className="truncate">{languageLabel(language)}</span>
+          </span>
+        ) : (
+          <Popover modal={false} open={languageOpen} onOpenChange={setLanguageOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
                 size="sm"
-                data-slot="docblocks/code-language-search"
-                type="text"
-                value={query}
-                onChange={onQueryChange}
-                onKeyDown={onQueryKeyDown}
-                placeholder="Search language…"
-                aria-label="Search language"
-                className="pr-2 pl-7 focus:border-ring"
-              />
-            </div>
-            <ScrollArea role="listbox" aria-label="Languages" className="max-h-64 overflow-x-hidden py-0.5">
-              {matches.length === 0 ? (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
-              ) : (
-                matches.map((lang) => {
-                  const selected = (language ?? "") === lang.value;
-                  return (
-                    <div
-                      key={lang.value || "plain"}
-                      role="option"
-                      aria-selected={selected}
-                      data-lang-value={lang.value || "plain"}
-                      onClick={pick(lang.value)}
-                      className="
-                        flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm
-                        hover:bg-accent hover:text-accent-foreground
-                      "
-                    >
-                      <span className="truncate">{lang.label}</span>
-                      {selected && <Check className="size-4 shrink-0" />}
-                    </div>
-                  );
-                })
-              )}
-            </ScrollArea>
-          </PopoverContent>
-        </Popover>
+                data-slot="docblocks/code-language"
+                aria-label="Choose the code language"
+                className="h-7 max-w-45 gap-1 px-2 text-[length:inherit]"
+              >
+                <span className="truncate">{languageLabel(language)}</span>
+                <ChevronDown className="size-3.5 shrink-0" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              align="start"
+              sideOffset={6}
+              data-slot="docblocks/code-language-menu"
+              aria-label="Code language"
+              className="flex w-56 flex-col gap-2"
+            >
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  size="sm"
+                  data-slot="docblocks/code-language-search"
+                  type="text"
+                  value={query}
+                  onChange={onQueryChange}
+                  onKeyDown={onQueryKeyDown}
+                  placeholder="Search language…"
+                  aria-label="Search language"
+                  className="pr-2 pl-7 focus:border-ring"
+                />
+              </div>
+              <ScrollArea role="listbox" aria-label="Languages" className="max-h-64 overflow-x-hidden py-0.5">
+                {matches.length === 0 ? (
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
+                ) : (
+                  matches.map((lang) => {
+                    const selected = (language ?? "") === lang.value;
+                    return (
+                      <div
+                        key={lang.value || "plain"}
+                        role="option"
+                        aria-selected={selected}
+                        data-lang-value={lang.value || "plain"}
+                        onClick={pick(lang.value)}
+                        className="
+                          flex cursor-default items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm
+                          hover:bg-accent hover:text-accent-foreground
+                        "
+                      >
+                        <span className="truncate">{lang.label}</span>
+                        {selected && <Check className="size-4 shrink-0" />}
+                      </div>
+                    );
+                  })
+                )}
+              </ScrollArea>
+            </PopoverContent>
+          </Popover>
+        )}
         {center}
       </div>
       <div data-slot="docblocks/code-header-actions" className={cn("flex items-center gap-0.5", controlClass)}>
@@ -291,67 +304,75 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
         >
           {copied ? <CircleCheck className="size-4" /> : <Copy className="size-4" />}
         </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          data-slot="docblocks/code-collapse"
-          aria-label={collapsed ? "Expand the code" : "Collapse the code"}
-          aria-expanded={!collapsed}
-          title={collapsed ? "Expand" : "Collapse"}
-          className="size-7 text-[length:inherit]"
-          // Disabled (not hidden) while the block fits in the clamp and is
-          // not already collapsed (a collapsed block always expands).
-          disabled={!collapsed && lineCount <= 5}
-          onClick={toggleCollapsed}
-        >
-          {collapsed ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          data-slot="docblocks/code-caption-toggle"
-          aria-label={block.attrs?.caption ? "Edit the caption" : "Add a caption"}
-          title="Caption"
-          className="size-7 text-[length:inherit]"
-          onClick={requestCaption}
-        >
-          <Captions className="size-4" />
-        </Button>
-        <DropdownMenu modal={false} open={moreOpen} onOpenChange={setMoreOpen}>
-          <DropdownMenuTrigger asChild>
+        {viewMode ? null : (
+          <>
             <Button
               type="button"
               variant="ghost"
               size="icon"
-              data-slot="docblocks/code-more"
-              aria-label="Code options"
-              title="More options"
-              className="
-                size-7 text-[length:inherit]
-                data-[state=open]:bg-accent data-[state=open]:text-accent-foreground
-              "
+              data-slot="docblocks/code-collapse"
+              aria-label={collapsed ? "Expand the code" : "Collapse the code"}
+              aria-expanded={!collapsed}
+              title={collapsed ? "Expand" : "Collapse"}
+              className="size-7 text-[length:inherit]"
+              // Disabled (not hidden) while the block fits in the clamp and is
+              // not already collapsed (a collapsed block always expands).
+              disabled={!collapsed && lineCount <= 5}
+              onClick={toggleCollapsed}
             >
-              <EllipsisVertical className="size-4" />
+              {collapsed ? <ChevronsDownUp className="size-4" /> : <ChevronsUpDown className="size-4" />}
             </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            sideOffset={6}
-            data-slot="docblocks/code-more-menu"
-            aria-label="Code options"
-          >
-            <DropdownMenuCheckboxItem checked={lineNumbers} data-code-option="lineNumbers" onSelect={toggleLineNumbers}>
-              <Hash className="size-4" />
-              Line numbers
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={wrap} data-code-option="wrap" onSelect={toggleWrap}>
-              <TextWrap className="size-4" />
-              Wrap long lines
-            </DropdownMenuCheckboxItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              data-slot="docblocks/code-caption-toggle"
+              aria-label={block.attrs?.caption ? "Edit the caption" : "Add a caption"}
+              title="Caption"
+              className="size-7 text-[length:inherit]"
+              onClick={requestCaption}
+            >
+              <Captions className="size-4" />
+            </Button>
+            <DropdownMenu modal={false} open={moreOpen} onOpenChange={setMoreOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  data-slot="docblocks/code-more"
+                  aria-label="Code options"
+                  title="More options"
+                  className="
+                    size-7 text-[length:inherit]
+                    data-[state=open]:bg-accent data-[state=open]:text-accent-foreground
+                  "
+                >
+                  <EllipsisVertical className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                sideOffset={6}
+                data-slot="docblocks/code-more-menu"
+                aria-label="Code options"
+              >
+                <DropdownMenuCheckboxItem
+                  checked={lineNumbers}
+                  data-code-option="lineNumbers"
+                  onSelect={toggleLineNumbers}
+                >
+                  <Hash className="size-4" />
+                  Line numbers
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={wrap} data-code-option="wrap" onSelect={toggleWrap}>
+                  <TextWrap className="size-4" />
+                  Wrap long lines
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </>
+        )}
       </div>
     </div>
   );

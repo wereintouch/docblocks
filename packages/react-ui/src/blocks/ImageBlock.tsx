@@ -218,7 +218,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
  * (`updateBlock({ align })` — "left" restores the absent attr).
  */
 function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockType; url: string; name?: string }) {
-  const { doc, store, selection: selectionRef } = useEditorContext();
+  const { doc, store, selection: selectionRef, viewMode } = useEditorContext();
   const blockContext = useContext(BlockContext);
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const align = block.attrs.align ?? "left";
@@ -485,37 +485,41 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
               </button>
             )}
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            data-slot="docblocks/image-caption-toggle"
-            aria-label={block.attrs.caption ? "Edit the caption" : "Add a caption"}
-            title="Caption"
-            className="size-7"
-            onClick={requestCaption}
-          >
-            <Captions className="size-4" />
-          </Button>
-          <span aria-hidden className="mx-0.5 h-4 w-px bg-(--docblocks-table-border-color)" />
-          {IMAGE_ALIGNS.map(({ align: value, title, icon: Icon }) => (
-            <Button
-              key={value}
-              type="button"
-              variant="ghost"
-              size="icon"
-              data-slot="docblocks/image-align"
-              data-align={value}
-              data-active={align === value ? "true" : undefined}
-              aria-label={title}
-              title={title}
-              aria-pressed={align === value}
-              className={cn("size-7", align === value && "bg-accent text-accent-foreground")}
-              onClick={pickAlign(value)}
-            >
-              <Icon className="size-4" />
-            </Button>
-          ))}
+          {viewMode ? null : (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                data-slot="docblocks/image-caption-toggle"
+                aria-label={block.attrs.caption ? "Edit the caption" : "Add a caption"}
+                title="Caption"
+                className="size-7"
+                onClick={requestCaption}
+              >
+                <Captions className="size-4" />
+              </Button>
+              <span aria-hidden className="mx-0.5 h-4 w-px bg-(--docblocks-table-border-color)" />
+              {IMAGE_ALIGNS.map(({ align: value, title, icon: Icon }) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  data-slot="docblocks/image-align"
+                  data-align={value}
+                  data-active={align === value ? "true" : undefined}
+                  aria-label={title}
+                  title={title}
+                  aria-pressed={align === value}
+                  className={cn("size-7", align === value && "bg-accent text-accent-foreground")}
+                  onClick={pickAlign(value)}
+                >
+                  <Icon className="size-4" />
+                </Button>
+              ))}
+            </>
+          )}
         </div>
       </div>
       <BlockCaption
