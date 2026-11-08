@@ -3,12 +3,15 @@
 // localStorage — the e2e's contexts are isolated, so the handoff copies the
 // stand from the editor's context to the viewer's context — the consumer's
 // persistence's stand is the consumer's concern, the harness's stand is the
-// localStorage). The viewer's pane stands no mode switcher (the published's
-// forced stand), the placeholder over the absent snapshot (the live's state
-// never renders to the reader), the snapshot's stand static over the live's
-// edits, the snapshot's meta over the header (the live's meta stands off),
-// and the editor's published's switcher (the snapshot's subtree's read-only's
-// stand + the empty chains' collapse's parity).
+// localStorage). The security's stand: the viewer's pane holds NO live
+// document (the reader's browser never gets the current state — the pane
+// stands the published snapshot's stand read-only, the security's pin over
+// the harness's __paneDocs' absent stand), the switcher's stand off (the
+// published's forced stand), the placeholder over the absent snapshot (the
+// reader stands no state at all), the snapshot's stand static over the
+// live's edits, the snapshot's meta over the header (the live's meta stands
+// off), and the editor's published's switcher (the snapshot's subtree's
+// read-only's stand + the empty chains' collapse's parity).
 import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, twoPanes } from "./helpers";
@@ -72,6 +75,9 @@ test("the viewer's pane stands the snapshot over the publish's handoff (the swit
     await handoffPublished(a, b);
     // B: the snapshot's stand — the published's content renders read-only.
     const bDoc = b.locator('[data-testid="doc-b"]');
+    // The security's stand: the viewer's pane holds no live document (the
+    // reader's browser never gets the current state).
+    expect(await b.evaluate(() => window.__paneDocs?.b)).toBeNull();
     await expect(bDoc.locator('[data-slot="docblocks/page"]').first()).toContainText("the published text", SETTLE);
     await expect(bDoc.locator('[data-slot="docblocks/editor"]').first()).toHaveAttribute("data-readonly", "true");
     // B's header: the mode switcher's stand off (the viewer's gate) and the
@@ -97,6 +103,9 @@ test("the viewer's pane stands the placeholder over the absent snapshot (the liv
     });
     await expect(a.locator('[data-slot="docblocks/page"]').first()).toContainText("the live secret", SETTLE);
     const bDoc = b.locator('[data-testid="doc-b"]');
+    // The security's stand: the viewer's pane holds no doc at all (the
+    // reader's browser stands nothing — not even the live's skeleton).
+    expect(await b.evaluate(() => window.__paneDocs?.b)).toBeNull();
     // The placeholder's stand: the not-published's card, the live's content
     // stands no render.
     await expect(bDoc.locator('[data-slot="docblocks/not-published"]')).toBeVisible(SETTLE);
@@ -142,9 +151,8 @@ test("the published's snapshot stands static over the live's edits (the reader s
 test("the editor's published's switcher stands the snapshot (the read-only's stand + the snapshot's meta + the collapse's parity)", async ({
   browser,
 }) => {
-  const { a: page, b, close } = await twoPanes(browser, "pub-editor-switch", { viewerB: true });
+  const { a: page, close } = await twoPanes(browser, "pub-editor-switch");
   try {
-    void b;
     // A: the live's content (the title + the text's block over the empties'
     // chain) — the publish, then the live's title's edit (the meta's
     // divergence).
