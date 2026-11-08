@@ -13,6 +13,7 @@ import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
 import { createEditorStore } from "../state";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
+import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import type { EditorMode, EditorProviderProps, SelectionRef } from "./models";
 
 /**
@@ -41,6 +42,7 @@ function EditorProvider({
   commandPalettePlaceholder,
   accessLevel,
   mode,
+  publishedDoc,
   children,
 }: EditorProviderProps) {
   const rootId = rootBlockId ?? doc.meta.id;
@@ -58,6 +60,12 @@ function EditorProvider({
   const effectiveAccessLevel = accessLevel ?? parentContext?.accessLevel ?? "editor";
   const effectiveMode: EditorMode =
     effectiveAccessLevel === "viewer" ? "published" : (mode ?? parentContext?.mode ?? "edit");
+  // The editing stand over the mount (the guarantee's write gate): a
+  // read-only stand (view / published) never runs the tail guarantee's
+  // write — the published's snapshot stands static over the render and a
+  // read-only subtree must not write into its own doc (the embedded's
+  // master over the published's stand is read-only too).
+  const editingStandRef = useRef(effectiveMode === "edit");
 
   useEffect(() => {
     if (docRef.current !== doc) {
@@ -80,8 +88,9 @@ function EditorProvider({
     // (the starter's seeder owns the empty room, the empty hint owns the
     // empty editor), the text tail stands no write (no no-op transact —
     // a mount with nothing to stand must not stamp the doc), and the
-    // subtree providers' sequence ends are the consumer's stand.
-    if (rootBlockId === undefined) {
+    // subtree providers' sequence ends are the consumer's stand. A
+    // read-only stand skips the write (the snapshot's stand above).
+    if (rootBlockId === undefined && editingStandRef.current) {
       const sequence = doc.getChildren(doc.meta.id);
       const lastId = sequence[sequence.length - 1];
       const last = lastId === undefined ? null : doc.getBlock(lastId);
@@ -104,7 +113,7 @@ function EditorProvider({
     // the remote transaction would stand the remote origin and the
     // origin guard would keep it off the wire.
     let unsubscribeTail: (() => void) | null = null;
-    if (rootBlockId === undefined) {
+    if (rootBlockId === undefined && editingStandRef.current) {
       unsubscribeTail = doc.onRemoteChange(() => {
         void queueMicrotask(() => {
           ensureTrailingParagraph(doc, doc.meta.id);
@@ -262,7 +271,30 @@ function EditorProvider({
     effectiveMode,
   ]);
 
-  return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
+  // The published's stand: a read-only nested provider over the consumer's
+  // snapshot (its own store and selection, no sync transport — the snapshot
+  // stands static over the render; the resolvers and the rootBlockId inherit
+  // over the enclosing's stand — the snapshot carries the same block ids),
+  // or the not-published's placeholder over the stand without a snapshot.
+  // A provider that INHERITS the published stand (the nested snapshot's
+  // provider itself, the sync-embed over the published's stand) carries the
+  // read-only stand over the context and renders its children over its own
+  // doc — it never re-stands the stand.
+  const inheritedPublishedStand = parentContext !== null && parentContext.mode === "published";
+  const rendered =
+    effectiveMode === "published"
+      ? publishedDoc !== undefined && publishedDoc !== null ? (
+          <EditorProvider key="published" doc={publishedDoc}>
+            {children}
+          </EditorProvider>
+        ) : inheritedPublishedStand ? (
+          children
+        ) : (
+          <NotPublishedPlaceholder />
+        )
+      : children;
+
+  return <EditorContext.Provider value={value}>{rendered}</EditorContext.Provider>;
 }
 
 export { EditorProvider };
