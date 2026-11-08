@@ -21,7 +21,10 @@ Dependency budget of `docblocks-core`: `yjs` + `y-protocols` + `lib0`
 only. `docblocks-react-ui` peers: `docblocks-core`, `react`,
 `react-dom`; optional peers used only by their subpaths (`framer-motion`,
 `mermaid`, `pdfjs-dist`). The consumer-facing contracts of the React layer
-are documented in `packages/react-ui/README.md`.
+are documented in `packages/react-ui/README.md`. The notable changes are
+recorded in the per-package changelogs (`packages/core/CHANGELOG.md`,
+`packages/react-ui/CHANGELOG.md`); the versions are managed by
+changesets.
 
 ## Requirements
 
