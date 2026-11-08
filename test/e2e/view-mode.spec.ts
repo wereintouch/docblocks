@@ -8,7 +8,7 @@
 // read-only's stand.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, canvasCenter, insertBlockType, openPane, seedShape } from "./helpers";
+import { RELAY, SETTLE, canvasCenter, insertBlockType, openPane, seedShape, twoPanes } from "./helpers";
 
 interface PaneJson {
   meta: { title: string; avatar: string | null };
@@ -158,6 +158,38 @@ test("the empty text chains collapse over the view's modes (the edit's mode stan
     await expect(pageRows(page, "a")).toHaveCount(paragraphs, SETTLE);
   } finally {
     await context.close();
+  }
+});
+
+test("the presence's overlay stands off over the view's mode (the peer's caret stands no render)", async ({
+  browser,
+}: {
+  browser: Browser;
+}) => {
+  const { a, b, close } = await twoPanes(browser, "vm-presence");
+  try {
+    // A: the live's content + the real's caret (the peer's selection's
+    // stand over the wire's awareness).
+    await a.evaluate(() => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane's doc is not mounted");
+      const id = doc.insertBlock("paragraph");
+      doc.insertText(id, 0, "presence source");
+    });
+    await expect(a.locator('[data-slot="docblocks/page"]').first()).toContainText("presence source", SETTLE);
+    await a.locator('[data-slot="docblocks/block-content"]').first().click();
+    // The edit's parity: the peer's caret renders over B (the presence's
+    // feed's live stand over the edit's mode).
+    await expect
+      .poll(async () => b.locator('[data-slot="docblocks/presence-caret"]').count(), SETTLE)
+      .toBeGreaterThanOrEqual(1);
+    // B: the view's mode — the peer's caret stands no render over the
+    // read-only's stand.
+    await modeOption(b, "View mode").click();
+    await expect(b.locator('[data-slot="docblocks/editor"]').first()).toHaveAttribute("data-readonly", "true");
+    await expect(b.locator('[data-slot="docblocks/presence-caret"]')).toHaveCount(0);
+  } finally {
+    await close();
   }
 });
 
