@@ -450,6 +450,30 @@ describe("mdToBlocks — inline marks", () => {
     expect(textOf(block.runs)).toBe("[a](mailto:a@b.c) and [b](javascript:alert(1))");
   });
 
+  it("the inline <a> tag's href stands the link contract (the safe href's mark, the unsafe's degrade)", () => {
+    // The safe href stands the mark (the tag drops, the content keeps it).
+    const safe = single('visit <a href="https://x.com">site</a> now');
+    const safeLink = safe.runs.filter((r) => r.marks.link !== undefined);
+    expect(safeLink.map((r) => [textOf([r]), r.marks.link])).toEqual([["site", { href: "https://x.com" }]]);
+    expect(textOf(safe.runs)).toBe("visit site now");
+    // The unsafe scheme stands the degrade (the content stays plain — the
+    // mark would abort the paste over the core's strict rejection).
+    const unsafe = single('mail <a href="mailto:a@b.c">me</a> now');
+    expect(unsafe.runs.filter((r) => r.marks.link !== undefined)).toEqual([]);
+    expect(textOf(unsafe.runs)).toBe("mail me now");
+  });
+
+  it("the href's entity decode re-stands the link contract (the exposed scheme degrades the run)", () => {
+    // The raw stand does not see the scheme (the entity hides it); the
+    // decoded value exposes it — the re-gate over the decode's run pass
+    // degrades the run to plain text instead of the core's paste abort
+    // (the link syntax cuts at the first `)`: the trailing one stays the
+    // literal's residue).
+    const block = single("[x](jav&#x61;script:alert(1))");
+    expect(block.runs.filter((r) => r.marks.link !== undefined)).toEqual([]);
+    expect(textOf(block.runs)).toBe("x)");
+  });
+
   it("the backslash escape keeps the punctuation literal", () => {
     const block = single("\\*star\\* and \\#hash");
     expect(textOf(block.runs)).toBe("*star* and #hash");

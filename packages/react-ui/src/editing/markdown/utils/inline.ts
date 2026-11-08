@@ -63,8 +63,12 @@ function inlineTagMarks(tag: { name: string; attrs: string }): MarkSet | null {
       if (m === null) return null;
       let href = m[1]!;
       if (href.startsWith('"') || href.startsWith("'")) href = href.slice(1, -1);
-      // The entities decode once, at the run-level pass (the single-pass rule).
-      return href !== "" ? { link: { href } } : null;
+      // The entities decode once, at the run-level pass (the single-pass
+      // rule); the unsafe scheme stands the degrade (the content stays
+      // plain) — the gate mirrors the [t](url) / the autolink's stand, and
+      // the decoded value re-stands it over the decode's run pass.
+      if (href === "" || !isLinkHrefOf(href)) return null;
+      return { link: { href } };
     }
     default:
       return null;
@@ -277,4 +281,4 @@ function parseInline(source: string): TextRun[] {
   return runs;
 }
 
-export { decodeEntities, inlineTagAt, inlineTagMarks, parseInline };
+export { decodeEntities, inlineTagAt, inlineTagMarks, isLinkHrefOf, parseInline };

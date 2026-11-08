@@ -9,7 +9,7 @@ import type { MarkSet, TextRun } from "docblocks-core";
 import { appendRun } from "../../mark-utils";
 import { IMAGE_LINE, STRUCTURAL_TAG_LINE } from "../constants";
 import type { MdParagraphLine, MdPasteBlock } from "../models";
-import { decodeEntities, parseInline } from "./inline";
+import { decodeEntities, isLinkHrefOf, parseInline } from "./inline";
 
 /** Whether a line is a GFM table separator row (`| --- | :---: |` shapes). */
 function isTableSeparator(line: string): boolean {
@@ -257,7 +257,15 @@ function mdToBlocks(markdown: string): MdPasteBlock[] {
 function decodeRuns(runs: TextRun[]): TextRun[] {
   return runs.map((run) => {
     const marks: MarkSet = { ...run.marks };
-    if (marks.link !== undefined) marks.link = { href: decodeEntities(marks.link.href) };
+    if (marks.link !== undefined) {
+      // The decoded value re-stands the link contract (the entities could
+      // expose a scheme the raw stand did not see — the unsafe href degrades
+      // the run to plain text instead of aborting the paste over the
+      // core's strict mark rejection).
+      const href = decodeEntities(marks.link.href);
+      if (isLinkHrefOf(href)) marks.link = { href };
+      else delete marks.link;
+    }
     return { text: decodeEntities(run.text), marks };
   });
 }

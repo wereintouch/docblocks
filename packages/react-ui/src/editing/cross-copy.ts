@@ -14,12 +14,16 @@ function wrapRun(text: string, marks: TextRun["marks"]): string {
   if (marks.italic === true) out = `<em>${out}</em>`;
   if (marks.bold === true) out = `<strong>${out}</strong>`;
   if (marks.code === true) out = `<code>${out}</code>`;
-  if (marks.color !== undefined) out = `<span style="color: ${marks.color.value}">${out}</span>`;
+  if (marks.color !== undefined) out = `<span style="color: ${escapeHtml(marks.color.value)}">${out}</span>`;
   if (marks.highlight?.value !== undefined)
-    out = `<span style="background-color: ${marks.highlight.value}">${out}</span>`;
+    out = `<span style="background-color: ${escapeHtml(marks.highlight.value)}">${out}</span>`;
   if (marks.link !== undefined && isSafeLinkHref(marks.link.href))
     out = `<a href="${escapeHtml(marks.link.href)}">${out}</a>`;
-  if (marks.mention !== undefined) out = `<span data-mention="${marks.mention.kind}">${out}</span>`;
+  // The mark's values escape too: a value written over the CRDT's raw
+  // (no command's validation) can break the clipboard HTML's attributes
+  // — the escape closes the third-party paste target (the local paste
+  // re-parses through the whitelist).
+  if (marks.mention !== undefined) out = `<span data-mention="${escapeHtml(marks.mention.kind)}">${out}</span>`;
   return out;
 }
 
