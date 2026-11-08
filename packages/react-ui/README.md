@@ -49,6 +49,10 @@ function App() {
 }
 ```
 
+The `styles.css` side-effect import stands the standard bundler's ambient
+`*.css` module declaration (shipped with the Vite / CRA / Next.js templates);
+a bare `tsc`-only setup needs a one-line `declare module "*.css"` shim.
+
 - `EditorProvider` owns the per-instance editor state (the store projection
   of the doc, the selection view, the subscriptions). Multiple providers may
   coexist, each with its own doc.
@@ -199,6 +203,9 @@ document data, never on the wire):
   external database form's rows live in the consumer's table (they are not
   part of the snapshot — the inline form is document data and is). A new
   snapshot is a remount (pass it under a changing `key`).
+- The `DocHeader` stands over the viewer's stand too: pass the snapshot as
+  its `doc` (the viewer's switcher stays off — the `accessLevel` stands no
+  `mode` stand over the `viewer` level).
 
 ### Sync and presence
 

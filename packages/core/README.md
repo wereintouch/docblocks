@@ -56,8 +56,9 @@ silently.
 
 ## The Doc
 
-`createDoc(options?)` builds a document with a root block and an empty,
-editable first paragraph. The other entry points:
+`createDoc(options?)` builds a document with only the root block (an empty
+page — no auto first paragraph; the react-ui editor guarantees the trailing
+editable paragraph). The other entry points:
 
 - `fromJSON(json)` — build a `Doc` from a JSON snapshot.
 - `loadDoc(bytes)` — build a `Doc` from an encoded full state (a base
