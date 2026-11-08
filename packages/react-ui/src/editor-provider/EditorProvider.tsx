@@ -11,9 +11,9 @@ import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
 import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
 import { createEditorStore } from "../state";
+import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
-import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import type { EditorMode, EditorProviderProps, SelectionRef } from "./models";
 
 /**
@@ -282,17 +282,19 @@ function EditorProvider({
   // doc — it never re-stands the stand.
   const inheritedPublishedStand = parentContext !== null && parentContext.mode === "published";
   const rendered =
-    effectiveMode === "published"
-      ? publishedDoc !== undefined && publishedDoc !== null ? (
-          <EditorProvider key="published" doc={publishedDoc}>
-            {children}
-          </EditorProvider>
-        ) : inheritedPublishedStand ? (
-          children
-        ) : (
-          <NotPublishedPlaceholder />
-        )
-      : children;
+    effectiveMode === "published" ? (
+      publishedDoc !== undefined && publishedDoc !== null ? (
+        <EditorProvider key="published" doc={publishedDoc}>
+          {children}
+        </EditorProvider>
+      ) : inheritedPublishedStand ? (
+        children
+      ) : (
+        <NotPublishedPlaceholder />
+      )
+    ) : (
+      children
+    );
 
   return <EditorContext.Provider value={value}>{rendered}</EditorContext.Provider>;
 }
