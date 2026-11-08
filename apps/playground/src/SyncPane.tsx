@@ -1,4 +1,12 @@
-import { type BlockRendererMap, Button, DocHeader, EditorProvider, type EditorView, cn } from "docblocks-react-ui";
+import {
+  type BlockRendererMap,
+  Button,
+  DocHeader,
+  type EditorMode,
+  EditorProvider,
+  type EditorView,
+  cn,
+} from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
 import { MotionEditor } from "docblocks-react-ui/motion";
@@ -23,6 +31,7 @@ import type { MasterRuntime } from "./master";
 import { mentionProvider } from "./mention-provider";
 import { currentBlockOf, readBlocks } from "./pane-blocks";
 import type { PaneBlock } from "./pane-blocks";
+import { loadPublishedSnapshot, publishSnapshot } from "./publish";
 import { useBlockLabels } from "./useBlockLabels";
 
 /** The wire log keeps the last N events. */
@@ -38,6 +47,8 @@ declare global {
     __masterDocs?: { a: Doc | null; b: Doc | null };
     /** Harness-only: inserts a v1 block of `type` into the pane's doc with the harness attrs (see insert-blocks.ts) and returns its id (null if the pane is not mounted); the e2e suite's insert path in place of the removed insert controls. */
     __insertBlock?: (client: "a" | "b", type: string) => string | null;
+    /** Harness-only: re-reads the room's published snapshot from the shared stand (the publish.ts's localStorage) and applies it to the pane's published stand (the e2e's A/B flow: the editor's pane publishes, the viewer's pane re-reads); true when a stand was applied. */
+    __reloadPublished?: (client: "a" | "b") => boolean;
   }
 }
 
@@ -91,12 +102,14 @@ function SyncPane({
   catalog,
   canvas,
   cycle,
+  role,
 }: {
   client: "a" | "b";
   syncUrl: string;
   catalog: boolean;
   canvas: boolean;
   cycle: boolean;
+  role: "editor" | "viewer";
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
@@ -111,6 +124,12 @@ function SyncPane({
   const [tab, setTab] = useState<InspectTab>("json");
   /** The view mode (page / canvas): view state only — switching writes nothing to the doc. */
   const [view, setView] = useState<EditorView>(canvas ? "canvas" : "page");
+  /** The consumer's document mode: the editor's mode is controlled; the viewer's mode is forced to published (the package's resolution — the harness stands the editor's controlled stand). */
+  const [mode, setMode] = useState<EditorMode>("edit");
+  /** The published snapshot (the consumer's publish stand: the room's shared localStorage stand, the publish.ts); null over the absent stand. */
+  const [publishedDoc, setPublishedDoc] = useState<Doc | null>(() =>
+    loadPublishedSnapshot(syncUrl.split("/").pop() ?? syncUrl)
+  );
   /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
   const [dark, setDark] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
@@ -303,6 +322,33 @@ function SyncPane({
   // The harness runs exactly two clients, so a remote peer is the other one.
   const peerLetter = client === "a" ? "b" : "a";
 
+  // The consumer's publish stand (the harness's own storage — the package
+  // owns no publish state): the room's state becomes the published
+  // snapshot (the shared localStorage stand — the peer's pane reads the
+  // same stand over its reload / re-read).
+  const onPublish = () => {
+    const doc = docRef.current;
+    if (doc === null || runtime === null) return;
+    const roomName = syncUrl.split("/").pop() ?? syncUrl;
+    publishSnapshot(roomName, doc);
+    setPublishedDoc(loadPublishedSnapshot(roomName));
+  };
+  // The e2e's re-read path: the viewer's pane re-reads the room's published
+  // stand after the editor's pane published (the shared localStorage stand
+  // is the consumer's persistence — the panes are the same consumer).
+  useEffect(() => {
+    window.__reloadPublished = (letter) => {
+      if (letter !== client) return true;
+      const roomName = syncUrl.split("/").pop() ?? syncUrl;
+      const snapshot = loadPublishedSnapshot(roomName);
+      setPublishedDoc(snapshot);
+      return snapshot !== null;
+    };
+    return () => {
+      window.__reloadPublished = undefined;
+    };
+  }, [client, syncUrl]);
+
   const TOGGLE_BTN = "h-auto gap-0 rounded-md px-2.5 py-0.5 text-[13px] font-normal shadow-none";
   const TAB_BTN = "h-auto gap-0 rounded px-2 py-0.5 text-xs font-normal shadow-none";
   const setDarkTrue = () => setDark(true);
@@ -357,7 +403,31 @@ function SyncPane({
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — {client}</h1>
-          {runtime !== null && <DocHeader doc={runtime.doc} view={view} onViewChange={setView} />}
+          {runtime !== null && (
+            <>
+              {role === "editor" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid={`publish-${client}`}
+                  className={TOGGLE_BTN}
+                  onClick={onPublish}
+                >
+                  publish
+                </Button>
+              )}
+              <DocHeader
+                doc={runtime.doc}
+                view={view}
+                onViewChange={setView}
+                accessLevel={role}
+                mode={mode}
+                onModeChange={setMode}
+                publishedDoc={publishedDoc}
+              />
+            </>
+          )}
         </header>
         <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
           {runtime !== null && (
@@ -370,6 +440,9 @@ function SyncPane({
               syncEmbedResolver={syncEmbedResolver}
               pdfPreview={PdfFirstPage}
               mentionProvider={mentionProvider}
+              accessLevel={role}
+              mode={mode}
+              publishedDoc={publishedDoc}
             >
               <MotionEditor view={view} />
             </EditorProvider>
