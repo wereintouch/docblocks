@@ -1,17 +1,24 @@
 /**
  * The document's header panel — a consumer-placed component (outside the
  * editor, so it takes the core `Doc` directly, not the editor context). It
- * stands the page/canvas mode switcher (left), the page avatar, and the
- * document title. It reads the doc's meta and re-renders on the meta
- * changes (the onChange feed). The title is inline-editable: a click opens
- * the edit (the caret seats at the end — no select-all), the blur / the
- * Enter commit (one command — one undo step, one wire update), the Escape
- * cancels without a write; a commit of the current value is the no-op stand
- * (nothing is written). The avatar is a popover picker: a click opens the
- * emoji grid (a portaled standard-token surface), a pick commits
- * `setAvatar` (one write) and closes, the clear option removes it. The mode
- * switcher is controlled (the `view` + the `onViewChange` — the consumer
- * owns the editor's view).
+ * stands the page/canvas mode switcher (left), the document mode's
+ * switcher (the Edit / View / Published's stand — the consumer-controlled
+ * `mode` over the `onModeChange`, gated over the "editor"'s access level;
+ * a "viewer" stands no switcher — the published's mode is forced), the
+ * page avatar, and the document title. It reads the doc's meta and
+ * re-renders on the meta changes (the onChange feed); over the published's
+ * stand the meta stands from the `publishedDoc`'s snapshot (the live's
+ * meta stands off — the reader stands the published's state). The title is
+ * inline-editable over the edit's mode only (a click opens the edit, the
+ * caret seats at the end — no select-all, the blur / the Enter commit —
+ * one command, the Escape cancels without a write; the read-only's stand
+ * shows the title display-only). The avatar is a popover picker over the
+ * edit's mode only (a click opens the emoji grid — a portaled
+ * standard-token surface, a pick commits `setAvatar` — one write — and
+ * closes, the clear option removes it; the read-only's stand shows the
+ * avatar display-only). The mode switchers are controlled (the `view` +
+ * the `onViewChange`, the `mode` + the `onModeChange` — the consumer owns
+ * the editor's view and the document's mode).
  *
  * The panel stands the standard theme tokens (not the `--docblocks-*` ones):
  * it renders in the consumer's chrome, outside the editor root where the
@@ -22,13 +29,14 @@ import { useEffect, useRef, useState } from "react";
 import type { Doc } from "docblocks-core";
 
 import type { EditorView } from "./Editor";
+import type { AccessLevel, EditorMode } from "./editor-provider";
 import { Button } from "./shared/ui/Button";
 import { EmojiPicker } from "./shared/ui/EmojiPicker";
 import { Input } from "./shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "./shared/ui/Popover";
 import { SegmentSelector } from "./shared/ui/SegmentSelector";
 import { cn } from "./shared/ui/cn";
-import { Network, SquareText } from "./shared/ui/icons";
+import { BookOpen, Eye, Network, Pen, SquareText } from "./shared/ui/icons";
 import { preventDefault } from "./shared/utils";
 
 /** The inline edit's input: the focus with the caret seated at the end (no select-all) on mount, the commit on the blur / the Enter (one write), the Escape cancels without a write. */
@@ -94,11 +102,32 @@ function DocHeader({
   doc,
   view,
   onViewChange,
+  accessLevel = "editor",
+  mode = "edit",
+  onModeChange,
+  publishedDoc,
 }: {
   doc: Doc;
   view: EditorView;
   onViewChange: (view: EditorView) => void;
+  /** The consumer's user access level (the switcher's gate): a "viewer" stands the published's mode forced (the switcher stands no stand); an "editor" (the default) may switch the modes. */
+  accessLevel?: AccessLevel;
+  /** The current document mode (consumer-controlled, like `view`): the switcher's value over the "editor"'s level. */
+  mode?: EditorMode;
+  /** The mode's change (the consumer owns the state, like `onViewChange`): the switcher's entry stands only over the callback's presence. */
+  onModeChange?: (mode: EditorMode) => void;
+  /** The published snapshot (the meta's source over the published's stand; the "Published"'s option stands disabled over its absence). */
+  publishedDoc?: Doc | null;
 }) {
+  // The effective mode: the viewer's published's forced stand (the current
+  // state is never the viewer's stand).
+  const effectiveMode: EditorMode = accessLevel === "viewer" ? "published" : mode;
+  const viewMode = effectiveMode !== "edit";
+  // The meta's source: the snapshot's meta over the published's stand (the
+  // reader stands the published's state, the live's meta stands off);
+  // the live's meta over the edit's / the view's stands (the view's mode
+  // stands the current's state live).
+  const snapshot = effectiveMode === "published" ? (publishedDoc ?? null) : null;
   const [meta, setMeta] = useState(() => doc.meta);
   const [titleEditing, setTitleEditing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
@@ -134,6 +163,17 @@ function DocHeader({
     if (next !== view) onViewChange(next);
   };
 
+  // The mode's switcher (the consumer's stand over the editor's level +
+  // the callback's presence): the three modes, the "Published"'s option
+  // stands disabled over the snapshot's absence (there is no published's
+  // state to stand).
+  const showModeSwitcher = accessLevel === "editor" && onModeChange !== undefined;
+  const switchMode = (next: EditorMode) => {
+    if (next !== effectiveMode) onModeChange?.(next);
+  };
+  // The display's meta (the source's stand over the effective mode).
+  const displayMeta = snapshot !== null ? snapshot.meta : meta;
+
   return (
     <div data-slot="docblocks/doc-header" className="flex items-center gap-3">
       <SegmentSelector
@@ -148,28 +188,63 @@ function DocHeader({
         pillSlot="docblocks/doc-header-view-pill"
         buttonAttrName="doc-header-view-button"
       />
-      <Popover open={avatarOpen} onOpenChange={setAvatarOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            data-slot="docblocks/doc-header-avatar"
-            aria-label="Edit the document avatar"
-            title="Edit the avatar"
-            className={cn(
-              "size-8 shrink-0 overflow-hidden rounded-full text-base font-normal",
-              meta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
-            )}
-          >
-            {meta.avatar ? meta.avatar : "+"}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} onOpenAutoFocus={preventDefault} className="w-auto p-2.5">
-          <EmojiPicker selected={meta.avatar ?? null} onPick={pickAvatar} onClear={clearAvatar} />
-        </PopoverContent>
-      </Popover>
-      {titleEditing ? (
+      {showModeSwitcher ? (
+        <SegmentSelector
+          options={[
+            { value: "edit", label: "Edit mode", icon: <Pen className="size-4" /> },
+            { value: "view", label: "View mode", icon: <Eye className="size-4" /> },
+            {
+              value: "published",
+              label: "Published",
+              icon: <BookOpen className="size-4" />,
+              disabled: publishedDoc === null || publishedDoc === undefined,
+            },
+          ]}
+          value={effectiveMode}
+          onChange={switchMode}
+          ariaLabel="Document mode"
+          slot="docblocks/doc-header-mode"
+          pillSlot="docblocks/doc-header-mode-pill"
+          buttonAttrName="doc-header-mode-button"
+        />
+      ) : null}
+      {viewMode ? (
+        // The read-only stand (the view / published's modes): the avatar
+        // stands display-only (the picker's entry is off).
+        <span
+          data-slot="docblocks/doc-header-avatar"
+          aria-label="Document avatar"
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-base font-normal",
+            displayMeta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
+          )}
+        >
+          {displayMeta.avatar ?? ""}
+        </span>
+      ) : (
+        <Popover open={avatarOpen} onOpenChange={setAvatarOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              data-slot="docblocks/doc-header-avatar"
+              aria-label="Edit the document avatar"
+              title="Edit the avatar"
+              className={cn(
+                "size-8 shrink-0 overflow-hidden rounded-full text-base font-normal",
+                meta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
+              )}
+            >
+              {meta.avatar ? meta.avatar : "+"}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="start" sideOffset={6} onOpenAutoFocus={preventDefault} className="w-auto p-2.5">
+            <EmojiPicker selected={meta.avatar ?? null} onPick={pickAvatar} onClear={clearAvatar} />
+          </PopoverContent>
+        </Popover>
+      )}
+      {titleEditing && !viewMode ? (
         <InlineEditInput
           initial={meta.title}
           ariaLabel="Document title"
@@ -182,6 +257,16 @@ function DocHeader({
           onCommit={commitTitleEdit}
           onCancel={cancelTitleEdit}
         />
+      ) : viewMode ? (
+        // The read-only stand (the view / published's modes): the title
+        // stands display-only (the inline edit's entry is off).
+        <span
+          data-slot="docblocks/doc-header-title"
+          aria-label="Document title"
+          className="min-w-0 flex-1 truncate text-left text-lg font-semibold"
+        >
+          {displayMeta.title || <span className="text-muted-foreground">Untitled</span>}
+        </span>
       ) : (
         <Button
           type="button"
