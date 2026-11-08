@@ -379,17 +379,26 @@ describe("the document mode's switcher (the access level's gate)", () => {
     expect(document.querySelector('[data-slot="docblocks/doc-header-title-edit"]')).toBeNull();
   });
 
+  it("the viewer's stand reads the meta from the doc (the doc IS the snapshot — the only stand the consumer passes)", () => {
+    const snapshot = newDoc();
+    snapshot.setTitle("PUBLISHED META");
+    snapshot.setAvatar("📘");
+    const { container } = render(<DocHeader doc={snapshot} view="page" onViewChange={() => {}} accessLevel="viewer" />);
+    expect(container.querySelector('[data-slot="docblocks/doc-header-title"]')?.textContent).toBe("PUBLISHED META");
+    expect(container.querySelector('[data-slot="docblocks/doc-header-avatar"]')?.textContent).toBe("📘");
+  });
+
   it("the no-snapshot's published's stand stands the neutral's meta (the live's meta stands no leak)", () => {
-    // The viewer (the forced published's stand) and the editor over the
-    // published's mode: no snapshot → the header stands the neutral's
-    // stand (the Untitled's placeholder, the absent avatar) — the live's
-    // title stands no render (the reader never stands the unpublished's
-    // meta).
-    for (const props of [{ accessLevel: "viewer" as const }, { mode: "published" as const, onModeChange: () => {} }]) {
-      const doc = newDoc();
-      doc.setTitle("LIVE LEAK");
-      doc.setAvatar("🦊");
-      const { container, unmount } = render(<DocHeader doc={doc} view="page" onViewChange={() => {}} {...props} />);
+    // The editor over the published's mode: no snapshot → the header
+    // stands the neutral's stand (the Untitled's placeholder, the absent
+    // avatar). The viewer over the absent's stand (no doc at all — the
+    // reader's browser holds nothing) stands the same neutral's stand.
+    const cases: Array<Record<string, unknown>> = [
+      { mode: "published" as const, onModeChange: () => {}, doc: undefined },
+      { accessLevel: "viewer" as const, doc: undefined },
+    ];
+    for (const props of cases) {
+      const { container, unmount } = render(<DocHeader view="page" onViewChange={() => {}} {...props} />);
       expect(container.querySelector('[data-slot="docblocks/doc-header-title"]')?.textContent).toBe("Untitled");
       expect(container.querySelector('[data-slot="docblocks/doc-header-avatar"]')?.textContent).toBe("");
       unmount();

@@ -107,7 +107,8 @@ function DocHeader({
   onModeChange,
   publishedDoc,
 }: {
-  doc: Doc;
+  /** The headless document (the consumer's own stand: the live doc over the editor's stand, the published snapshot over the viewer's stand — the reader's browser never holds the live document). */
+  doc?: Doc;
   view: EditorView;
   onViewChange: (view: EditorView) => void;
   /** The consumer's user access level (the switcher's gate): a "viewer" stands the published's mode forced (the switcher stands no stand); an "editor" (the default) may switch the modes. */
@@ -124,17 +125,24 @@ function DocHeader({
   const effectiveMode: EditorMode = accessLevel === "viewer" ? "published" : mode;
   const viewMode = effectiveMode !== "edit";
   // The meta's source: the snapshot's meta over the published's stand (the
-  // reader stands the published's state, the live's meta stands off);
-  // the live's meta over the edit's / the view's stands (the view's mode
-  // stands the current's state live).
-  const snapshot = effectiveMode === "published" ? (publishedDoc ?? null) : null;
-  const [meta, setMeta] = useState(() => doc.meta);
+  // reader stands the published's state, the live's meta stands off); over
+  // the viewer's stand the doc IS the snapshot (its meta is the published's
+  // stand — the only stand the consumer passes); the live's meta over the
+  // edit's / the view's stands (the view's mode stands the current's state
+  // live).
+  const snapshot =
+    effectiveMode === "published" ? (accessLevel === "viewer" ? (doc ?? null) : (publishedDoc ?? null)) : null;
+  const [meta, setMeta] = useState<DocMeta | null>(() => (doc !== undefined ? doc.meta : null));
   const [titleEditing, setTitleEditing] = useState(false);
   const [avatarOpen, setAvatarOpen] = useState(false);
 
   // Re-render on the meta changes (the title / the avatar) — the doc's own
-  // read (the peer's concurrent edit is not clobbered by a stale snapshot).
+  // read (the peer's concurrent edit is not clobbered by a stale
+  // snapshot). A doc stand change re-seeds the feed (the re-publish's
+  // snapshot stand).
   useEffect(() => {
+    if (doc === undefined) return;
+    setMeta(doc.meta);
     const off = doc.onChange((change) => {
       if (change.metaChanged) setMeta(doc.meta);
     });
@@ -142,17 +150,21 @@ function DocHeader({
   }, [doc]);
 
   // The core's setAvatar no-ops on the standing value (no write, no undo
-  // step) — the pick commits one command otherwise.
+  // step) — the pick commits one command otherwise. The writes stand only
+  // over the doc's presence (the editor's stand).
   const pickAvatar = (emoji: string) => {
+    if (doc === undefined) return;
     doc.setAvatar(emoji);
     setAvatarOpen(false);
   };
   const clearAvatar = () => {
+    if (doc === undefined) return;
     doc.setAvatar(null);
     setAvatarOpen(false);
   };
   const commitTitleEdit = (value: string) => {
     setTitleEditing(false);
+    if (doc === undefined) return;
     if (value === doc.meta.title) return; // the no-op stand (the doc's own read)
     doc.setTitle(value);
   };
@@ -180,7 +192,12 @@ function DocHeader({
   // stand must not render the live's title); the live's meta over the
   // edit's / the view's stands.
   const NEUTRAL_META: DocMeta = { v: 1, id: "", title: "", createdAt: "" };
-  const displayMeta: DocMeta = snapshot !== null ? snapshot.meta : effectiveMode === "published" ? NEUTRAL_META : meta;
+  // The live's meta's stand (the editable stand's read): the doc's meta or
+  // the neutral's stand over the doc's absence (the viewer's placeholder's
+  // stand — the editable stand stands off there anyway).
+  const liveMeta: DocMeta = meta ?? NEUTRAL_META;
+  const displayMeta: DocMeta =
+    snapshot !== null ? snapshot.meta : effectiveMode === "published" ? NEUTRAL_META : liveMeta;
 
   return (
     <div data-slot="docblocks/doc-header" className="flex items-center gap-3">
@@ -241,20 +258,20 @@ function DocHeader({
               title="Edit the avatar"
               className={cn(
                 "size-8 shrink-0 overflow-hidden rounded-full text-base font-normal",
-                meta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
+                liveMeta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
               )}
             >
-              {meta.avatar ? meta.avatar : "+"}
+              {liveMeta.avatar ? liveMeta.avatar : "+"}
             </Button>
           </PopoverTrigger>
           <PopoverContent align="start" sideOffset={6} onOpenAutoFocus={preventDefault} className="w-auto p-2.5">
-            <EmojiPicker selected={meta.avatar ?? null} onPick={pickAvatar} onClear={clearAvatar} />
+            <EmojiPicker selected={liveMeta.avatar ?? null} onPick={pickAvatar} onClear={clearAvatar} />
           </PopoverContent>
         </Popover>
       )}
       {titleEditing && !viewMode ? (
         <InlineEditInput
-          initial={meta.title}
+          initial={liveMeta.title}
           ariaLabel="Document title"
           slot="docblocks/doc-header-title-edit"
           className="
@@ -285,7 +302,7 @@ function DocHeader({
           onClick={beginTitleEdit}
           className="h-auto min-w-0 flex-1 truncate text-left text-lg font-semibold"
         >
-          {meta.title || <span className="text-muted-foreground">Untitled</span>}
+          {liveMeta.title || <span className="text-muted-foreground">Untitled</span>}
         </Button>
       )}
     </div>

@@ -68,13 +68,15 @@ describe("the page's read-only stand (the view / published's modes)", () => {
     expect(doc.getTextLength(doc.getChildren(doc.meta.id)[0]!)).toBe("live text".length);
   });
 
-  it("the viewer's stand is the same read-only stand (the access level's gate)", () => {
-    const { doc } = makeDoc("doc-readonly-4");
+  it("the viewer's stand is the same read-only stand (the access level's gate — the doc IS the snapshot)", () => {
+    // The security's stand: the viewer's doc is the published snapshot (the
+    // consumer passes only the stand the reader may see — no live doc, no
+    // separate snapshot prop).
     const snapshot = createDoc({ id: "doc-readonly-4", createdAt: CREATED_AT });
     const snapshotId: BlockId = snapshot.insertBlock("paragraph");
     snapshot.insertText(snapshotId, 0, "published text");
     const { container } = render(
-      <EditorProvider doc={doc} accessLevel="viewer" publishedDoc={snapshot}>
+      <EditorProvider doc={snapshot} accessLevel="viewer">
         <Editor />
       </EditorProvider>
     );

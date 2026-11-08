@@ -35,17 +35,17 @@ function publishedStandKey(doc: Doc): string {
 }
 
 /**
- * Owns the per-instance editor lifecycle: the zustand store (projection of
- * the doc), the selection view, and the subscriptions that keep them in
- * sync, and the per-instance customization context (consumer block
- * renderers, blob and sync-embed resolvers, the entry-list root). Multiple
- * providers may coexist, each with its own doc and state; a nested provider
- * inherits the enclosing renderers, resolvers, and the ancestor-doc chain
- * (the sync-embed cycle guards) when it supplies none of its own. Safe
- * under StrictMode double-mount: the cleanup detaches every subscription
- * and destroys the view between the two mounts.
+ * The stand: owns the per-instance editor lifecycle — the zustand store
+ * (projection of the doc), the selection view, and the subscriptions that
+ * keep them in sync, and the per-instance customization context (consumer
+ * block renderers, blob and sync-embed resolvers, the entry-list root).
+ * Multiple providers may coexist, each with its own doc and state; a nested
+ * provider inherits the enclosing renderers, resolvers, and the
+ * ancestor-doc chain (the sync-embed cycle guards) when it supplies none of
+ * its own. Safe under StrictMode double-mount: the cleanup detaches every
+ * subscription and destroys the view between the two mounts.
  */
-function EditorProvider({
+function EditorProviderStand({
   doc,
   provider,
   blockRenderers,
@@ -62,7 +62,7 @@ function EditorProvider({
   mode,
   publishedDoc,
   children,
-}: EditorProviderProps) {
+}: EditorProviderProps & { doc: Doc }) {
   const rootId = rootBlockId ?? doc.meta.id;
   const [store] = useState(() => createEditorStore(doc, rootId));
   const docRef = useRef(doc);
@@ -294,27 +294,56 @@ function EditorProvider({
   // stands static over the render; the resolvers and the rootBlockId inherit
   // over the enclosing's stand — the snapshot carries the same block ids),
   // or the not-published's placeholder over the stand without a snapshot.
+  // The top-level viewer's stand renders its own doc read-only, directly:
+  // the doc IS the published snapshot (the security stand — the reader's
+  // browser never holds the live document, and no separate snapshot prop).
   // A provider that INHERITS the published stand (the nested snapshot's
   // provider itself, the sync-embed over the published's stand) carries the
   // read-only stand over the context and renders its children over its own
   // doc — it never re-stands the stand.
   const inheritedPublishedStand = parentContext !== null && parentContext.mode === "published";
-  const rendered =
-    effectiveMode === "published" ? (
-      publishedDoc !== undefined && publishedDoc !== null ? (
-        <EditorProvider key={publishedStandKey(publishedDoc)} doc={publishedDoc} rootBlockId={rootId}>
-          {children}
-        </EditorProvider>
-      ) : inheritedPublishedStand ? (
-        children
-      ) : (
-        <NotPublishedPlaceholder />
-      )
-    ) : (
+  const viewerStand = effectiveAccessLevel === "viewer" && parentContext === null;
+  const rendered = viewerStand ? (
+    children
+  ) : effectiveMode === "published" ? (
+    publishedDoc !== undefined && publishedDoc !== null ? (
+      <EditorProvider key={publishedStandKey(publishedDoc)} doc={publishedDoc} rootBlockId={rootId}>
+        {children}
+      </EditorProvider>
+    ) : inheritedPublishedStand ? (
       children
-    );
+    ) : (
+      <NotPublishedPlaceholder />
+    )
+  ) : (
+    children
+  );
 
   return <EditorContext.Provider value={value}>{rendered}</EditorContext.Provider>;
+}
+
+/**
+ * The provider's entry: resolves the viewer's top-level stand before the
+ * stand's hooks (the security stand — the reader's browser never holds the
+ * live document: over the `viewer`'s level the `doc` is the published
+ * snapshot, the only stand the consumer passes, and an absent stand stands
+ * the not-published placeholder — the document was never published). The
+ * editor's stand requires the doc (an explicit throw over the absent
+ * stand).
+ */
+function EditorProvider(props: EditorProviderProps) {
+  const parentContext = useContext(EditorContext);
+  const accessLevel = props.accessLevel ?? parentContext?.accessLevel ?? "editor";
+  if (accessLevel === "viewer" && parentContext === null) {
+    if (props.doc === undefined) return <NotPublishedPlaceholder />;
+    return <EditorProviderStand {...props} doc={props.doc} />;
+  }
+  if (props.doc === undefined) {
+    throw new Error(
+      "EditorProvider: the doc stand is required over the editor's stand (the viewer's stand stands the placeholder over the absent stand)"
+    );
+  }
+  return <EditorProviderStand {...props} doc={props.doc} />;
 }
 
 export { EditorProvider };

@@ -102,13 +102,21 @@ interface EditorContextValue {
 }
 
 interface EditorProviderProps {
-  /** The headless document to render and edit; must not change after mount. */
-  doc: Doc;
+  /**
+   * The headless document to render and edit; must not change after mount.
+   * Required over the editor's stand. Over the `viewer`'s stand the doc IS
+   * the published snapshot — the consumer passes only the stand the reader
+   * may see (the live document never reaches the reader's browser); an
+   * absent stand over the viewer renders the not-published placeholder.
+   */
+  doc?: Doc;
   /**
    * Optional user access level: "viewer" locks the render to the
    * published's view (the `mode`'s stand is ignored — the current state is
    * never rendered for a reader); "editor" (the default) may edit and
-   * view. Session state supplied by the consumer — never document data.
+   * view. Over the viewer's stand the `doc` is the published snapshot and
+   * the `publishedDoc` prop is not consulted (the doc IS the snapshot).
+   * Session state supplied by the consumer — never document data.
    */
   accessLevel?: AccessLevel;
   /**

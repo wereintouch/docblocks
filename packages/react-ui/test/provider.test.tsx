@@ -428,18 +428,43 @@ describe("the published's stand (the snapshot's render + the placeholder)", () =
     expect(container.textContent).not.toContain("LIVE");
   });
 
-  it("stands the not-published's placeholder over the null's stand (no live's content)", () => {
-    const live = createDoc({ id: "doc-pub-2", createdAt: CREATED_AT });
-    live.insertText(live.insertBlock("paragraph"), 0, "DRAFT");
+  it("stands the not-published's placeholder over the absent's stand (the viewer holds no doc at all)", () => {
     const { container } = render(
-      <EditorProvider doc={live} accessLevel="viewer">
+      <EditorProvider accessLevel="viewer">
         <Editor />
       </EditorProvider>
     );
     expect(container.querySelector('[data-slot="docblocks/not-published"]')).not.toBeNull();
     expect(container.textContent).toContain("not been published");
-    expect(container.textContent).not.toContain("DRAFT");
+    expect(container.querySelector('[data-slot="docblocks/editor"]')).toBeNull();
     expect(container.querySelector('[data-slot="docblocks/block-content"]')).toBeNull();
+  });
+
+  it("the viewer's stand renders the snapshot's doc read-only, directly (the security stand — no live doc, no nested stand)", () => {
+    // The doc the consumer passes IS the published snapshot (the reader's
+    // browser never holds the live document): a doc the viewer may see,
+    // nothing else.
+    const snapshot = createDoc({ id: "doc-pub-5", createdAt: CREATED_AT });
+    snapshot.insertText(snapshot.insertBlock("paragraph"), 0, "PUBLISHED");
+    snapshot.insertBlock("divider"); // a non-text tail: the guarantee's write target
+    const before = snapshot.toJSON();
+    const { container } = render(
+      <EditorProvider doc={snapshot} accessLevel="viewer">
+        <Editor />
+      </EditorProvider>
+    );
+    expect(container.textContent).toContain("PUBLISHED");
+    // The render stands directly over the doc (no nested provider's stand
+    // — a single editor root).
+    expect(container.querySelectorAll('[data-slot="docblocks/editor"]').length).toBe(1);
+    expect(container.querySelector('[data-slot="docblocks/editor"]')?.getAttribute("data-readonly")).toBe("true");
+    const blockId = snapshot.getChildren(snapshot.meta.id)[0]!;
+    const inner = container.querySelector(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
+    expect(inner?.getAttribute("contenteditable")).toBe("false");
+    expect(container.querySelector('[data-slot="docblocks/gutter"]')).toBeNull();
+    // The read-only stand never writes into its own doc (the tail's
+    // guarantee stands off over the viewer's stand).
+    expect(snapshot.toJSON()).toEqual(before);
   });
 
   it("the editor's published's mode stands the same stand over an unpublished doc", () => {
