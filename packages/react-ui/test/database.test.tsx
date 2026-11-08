@@ -2588,6 +2588,86 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
     expect(c2[t] ?? null).toBeNull();
   });
 
+  it("the undo's in-flight inverse stands the history's identity stand (the fresh write's entry stands no drop)", async () => {
+    // The race stand: the user's forward write lands on the undo stack
+    // while the first undo's inverse is in flight (the bridge's call
+    // held over the gate). The removal stands by identity — the blind
+    // position's pop would drop the FRESH entry (its inverse never runs)
+    // and leave the inverted entry for a duplicate inverse.
+    const base = createMemoryDatabaseBridge();
+    const tableId = (await base.createTable({ name: "Race" }, ctx())).result.id;
+    const t = (
+      await base.createColumn(tableId, { column: { name: "T", type: "text", position: 0, nullable: true } }, ctx())
+    ).result.id;
+    const receipt = await base.batchRows(
+      tableId,
+      {
+        ops: [
+          { op: "create", row: { [t]: "a" }, beforeRowId: null },
+          { op: "create", row: { [t]: "b" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const r1 = receipt.result.rows[0]!.id;
+    const r2 = receipt.result.rows[1]!.id;
+    // The gate over the bridge's batchRows: the FIRST call is the first
+    // update's forward write (passes), the SECOND is the undo's inverse
+    // (held until the test releases it — the fresh write's window).
+    let releaseInverse: (() => void) | null = null;
+    const inverseGate = new Promise<void>((resolve) => {
+      releaseInverse = resolve;
+    });
+    let batchCalls = 0;
+    const bridge: DatabaseBridge = {
+      ...base,
+      batchRows: (id: string, payload: Parameters<DatabaseBridge["batchRows"]>[1], mctx: MutationContext) => {
+        batchCalls += 1;
+        if (batchCalls === 2) return inverseGate.then(() => base.batchRows(id, payload, mctx));
+        return base.batchRows(id, payload, mctx);
+      },
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
+    await until(() => result.current.phase === "ready", "the load");
+    // Op1: the r1's clear (the forward write #1).
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r1, cells: { [t]: null } }]);
+    });
+    expect(result.current.canUndo).toBe(true);
+    // The undo's inverse reaches the gate (synchronously — the inverse's
+    // bridge call stands the undo's first await).
+    const undoPromise = result.current.undo();
+    expect(batchCalls).toBe(2);
+    // The forward write over the in-flight inverse (the r2's clear — the
+    // fresh entry stands on the stack).
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r2, cells: { [t]: null } }]);
+    });
+    // The release: the inverse lands (the r1's restore).
+    await act(async () => {
+      releaseInverse!();
+      await undoPromise;
+    });
+    expect((await cellsOf(base, tableId, r1))[t]).toBe("a");
+    // The FRESH entry stands on the undo stack (the identity stand): the
+    // second undo restores the r2 — not a duplicate over the r1.
+    expect(result.current.canUndo).toBe(true);
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect((await cellsOf(base, tableId, r2))[t]).toBe("b");
+    // The redo walks the stack back (the LIFO stand: the r2's clear first,
+    // then the r1's — the fresh entry stands in the history, not dropped).
+    await act(async () => {
+      await result.current.redo();
+    });
+    expect((await cellsOf(base, tableId, r2))[t] ?? null).toBeNull();
+    await act(async () => {
+      await result.current.redo();
+    });
+    expect((await cellsOf(base, tableId, r1))[t] ?? null).toBeNull();
+  });
+
   it("a superseded load's reject keeps the retried ready grid (the stale error stands no state)", async () => {
     const base = createMemoryDatabaseBridge();
     const tableId = (await base.createTable({ name: "Stale" }, ctx())).result.id;

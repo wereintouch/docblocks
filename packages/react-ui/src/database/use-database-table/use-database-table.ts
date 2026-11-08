@@ -15,9 +15,12 @@
  *
  * Every row / column write goes over the contract's surface (the `batchRows`'s
  * atomic ops for the rows, the direct calls for the schema), each with a
- * FRESH `operationId` (the write's context) — a failed write is never
- * retried with a new id silently; its reconciliation stands the same id
- * over the bridge's idempotency. The per-block undo stack stands the
+ * FRESH `operationId` (the write's context) — the id is never reused across
+ * logical operations. The lost response's reconciliation (the write's fate
+ * query) is the consumer's stand over the bridge's `getOperationStatus`;
+ * the UI's surface stands no status poll — its convergence is the
+ * rebaseline (the next snapshot / the envelope stream). The per-block undo
+ * stack stands the
  * forward-only inverse operations (the update's inverse
  * covers the edited keys only; the remove's inverse is the `undeleteRows`
  * when the `rowRestore` capability stands, else the removal is not
@@ -644,12 +647,12 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     [bridge, tableId, pushUndo, refresh]
   );
 
-  /** The mixed paste (the spec's paste batch): the visible rows' updates
-   *  (from the active row down) + the overflow's creates — ONE `batchRows`
-   *  (one transaction, one undo entry). The updates stand the optimistic
-   *  apply (the instant cells); the creates stand no optimistic pre-apply
-   *  (the id is bridge-assigned — the rows stand over the post-commit
-   *  refresh). Returns the created rows' ids. */
+  /** The mixed paste: the visible rows' updates (from the active row down)
+   *  + the overflow's creates — ONE `batchRows` (one transaction, one undo
+   *  entry). The updates stand the optimistic apply (the instant cells);
+   *  the creates stand no optimistic pre-apply (the id is bridge-assigned
+   *  — the rows stand over the post-commit refresh). Returns the created
+   *  rows' ids. */
   const pasteRows = useCallback(
     async (input: {
       updates: Array<{ rowId: string; cells: Record<string, unknown> }>;
@@ -1098,8 +1101,18 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     try {
       await op.inverse();
       if (!sameIdentity()) return;
-      ops.pop();
-      redoStackRef.current.push(op);
+      // The identity stand over the in-flight window: the user's forward
+      // write may have grown the stack since the call (the push over the
+      // same array) — the removal stands by identity (the top's pop, the
+      // grown stand's splice out of position), never by blind position
+      // (a foreign top's pop would drop the fresh entry from the history
+      // and the redo's re-commit would stand a duplicate over the bridge).
+      const index = ops.lastIndexOf(op);
+      if (index !== -1) {
+        if (index === ops.length - 1) ops.pop();
+        else ops.splice(index, 1);
+        redoStackRef.current.push(op);
+      }
       setError(null);
       setErrorCode(null);
     } catch (operationError) {
@@ -1127,8 +1140,15 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     try {
       await op.forward();
       if (!sameIdentity()) return;
-      ops.pop();
-      undoStackRef.current.push(op);
+      // The symmetric identity stand (the redo's stack stands stable over
+      // the in-flight window — the history's in-flight guard — the identity
+      // check stands the stand anyway).
+      const index = ops.lastIndexOf(op);
+      if (index !== -1) {
+        if (index === ops.length - 1) ops.pop();
+        else ops.splice(index, 1);
+        undoStackRef.current.push(op);
+      }
       setError(null);
       setErrorCode(null);
     } catch (operationError) {

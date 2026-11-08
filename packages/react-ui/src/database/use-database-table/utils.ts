@@ -64,8 +64,9 @@ function descriptionToGrid(description: TableDescription): BridgeTableDescriptio
 /** The write's context: the fresh client-issued operation id (a UUID,
  *  unique within the retention) + the issue time. Every user action stands
  *  a fresh `operationId` — the id is never reused across logical
- *  operations, and a failed write is reconciled by the SAME id (the
- *  bridge's idempotency), never a silent new one. */
+ *  operations. The lost response's reconciliation (the write's fate) is
+ *  the consumer's stand over the bridge's `getOperationStatus`; the UI's
+ *  convergence is the rebaseline (the next snapshot / the envelope). */
 function newMutationContext(): MutationContext {
   return { operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() };
 }

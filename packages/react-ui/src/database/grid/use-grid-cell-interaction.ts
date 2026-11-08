@@ -277,7 +277,7 @@ function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = fals
     void data.updateRows([...byRow.entries()].map(([rowId, cells]) => ({ rowId, cells }))).catch(() => undefined);
   };
 
-  // The clipboard's paste (the spec's paste batch): the TSV's grid stands
+  // The clipboard's paste (the mixed batch): the TSV's grid stands
   // from the selection's anchor cell (the active cell) over the grid's
   // own columns — the visible rows from the anchor down stand the updates,
   // the overflow past the last visible row stands the creates (one
