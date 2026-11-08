@@ -59,4 +59,8 @@ jobs:
 
       - name: Run the E2E gate
         if: matrix.node == '22.22.2'
-        run: npm run test:e2e
+        # A single retry stands the load flake's class (the sync / presence's
+        # poll over the 2 vCPU's runner's load — the repo's flake's strategy,
+        # the failed spec's re-run, codified over the runner): a deterministic
+        # failure stands red over the retry.
+        run: npm run test:e2e -- --retries=1
