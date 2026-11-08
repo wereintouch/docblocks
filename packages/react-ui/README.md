@@ -57,9 +57,16 @@ function App() {
   elements on the canvas.
 - `DocHeader` is a consumer-placed panel rendered in the consumer's chrome
   (outside the editor, so it takes the core `Doc` directly): the
-  page/canvas switcher, the avatar, and the title — inline-editable, the
+  page/canvas switcher, the document mode's switcher (Edit / View /
+  Published — consumer-controlled over the `mode` + `onModeChange` props,
+  rendered over the `editor`'s access level and the callback's presence;
+  the `Published` option is disabled while the `publishedDoc` prop is
+  absent), the avatar, and the title — inline-editable in the edit mode
+  only (the read-only modes stand the title/avatar display-only), the
   title/avatar commits are one core command each (one undo step each),
-  the Escape cancels without a write. It stands the standard theme tokens
+  the Escape cancels without a write. Over the published's stand the
+  header stands the snapshot's meta (the live's meta stands off). It
+  stands the standard theme tokens
   (not the `--docblocks-*` ones), since it renders outside the editor root.
 
 ## The consumer contract
@@ -69,19 +76,22 @@ Everything the editor needs from the consumer is injected as an
 package ships a working default for most of them (the defaults are the dev / demo mode —
 session-only, cleared on reload). The full props list:
 
-| Prop                         | Contract                                                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `doc` (required)             | The core `Doc` to render and edit. Must not change after mount (a throw on change is the contract).                                  |
-| `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs). |
-| `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                             |
-| `blobStore?`                 | The blob bridge for image / pdf / file blocks (see below).                                                                           |
-| `blobResolver?`              | Legacy view-only resolver (key → src string). Wrapped as a store: no upload, subtype `image`. Prefer `blobStore`.                    |
-| `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                               |
-| `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                          |
-| `pdfPreview?`                | A first-page preview component for `pdf`-subtype image blocks (see below).                                                           |
-| `mentionProvider?`           | The `@` mention picker's search catalog (see below).                                                                                 |
-| `rootBlockId?`               | Render the entry list of this block instead of the document root (the subtree view). Must not change after mount.                    |
-| `commandPalettePlaceholder?` | The empty-block hint text (default `Type '/' for commands`).                                                                         |
+| Prop                         | Contract                                                                                                                                                                            |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `doc` (required)             | The core `Doc` to render and edit. Must not change after mount (a throw on change is the contract).                                                                                 |
+| `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs).                                                |
+| `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                                                                            |
+| `blobStore?`                 | The blob bridge for image / pdf / file blocks (see below).                                                                                                                          |
+| `blobResolver?`              | Legacy view-only resolver (key → src string). Wrapped as a store: no upload, subtype `image`. Prefer `blobStore`.                                                                   |
+| `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                              |
+| `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                         |
+| `pdfPreview?`                | A first-page preview component for `pdf`-subtype image blocks (see below).                                                                                                          |
+| `mentionProvider?`           | The `@` mention picker's search catalog (see below).                                                                                                                                |
+| `rootBlockId?`               | Render the entry list of this block instead of the document root (the subtree view). Must not change after mount.                                                                   |
+| `commandPalettePlaceholder?` | The empty-block hint text (default `Type '/' for commands`).                                                                                                                        |
+| `accessLevel?`               | The consumer's user access level (default `editor`): `viewer` forces the `published` mode (the current state is never rendered to a reader).                                        |
+| `mode?`                      | The document mode (default `edit`): `view` is a read-only live document; `published` renders the `publishedDoc` snapshot read-only.                                                 |
+| `publishedDoc?`              | The published snapshot (a hydrated core `Doc`; must not change after mount — remount over `key` for a new snapshot). The consumer owns the publish action and the snapshot storage. |
 
 Two rules for the optional props:
 
@@ -93,6 +103,44 @@ Two rules for the optional props:
   enclosing renderers, resolvers, and bridges when it supplies none of its
   own — a sync-embed's nested editor resolves its own content against the
   enclosing catalog.
+
+### Access modes and publishing
+
+The access level and the document mode are consumer session state (never
+document data, never on the wire):
+
+```tsx
+<EditorProvider doc={doc} mode={mode} accessLevel={role} publishedDoc={snapshot}>
+  <Editor />
+</EditorProvider>
+```
+
+- `accessLevel: "viewer" | "editor"` (default `editor`) decides which
+  modes are available: a `viewer` is always in the `published` mode (the
+  current state is never rendered to a reader); an `editor` switches
+  freely.
+- `mode: "edit" | "view" | "published"` (default `edit`): `edit` is the
+  full editor over the live document; `view` is a read-only render of the
+  live document (it keeps syncing — the state stays current); `published`
+  renders the `publishedDoc` snapshot read-only (a nested read-only editor
+  over the snapshot: its own selection, no sync transport, the snapshot
+  stands static over the live edits).
+- A published mode without a `publishedDoc` renders the
+  "not published yet" placeholder in place of the content (the current
+  state is not shown).
+- Over the read-only modes the editing surfaces are off (the text inners
+  are not editable, the gutter / drag / hotkeys / format toolbar / the
+  table and database editing chrome / the canvas sessions and dock stand
+  off); the read-only gestures keep (scroll, the embed pan / zoom, the
+  canvas wheel zoom / pan). Consecutive empty text blocks render as one
+  over the read-only modes (the document data is untouched).
+- Publishing is a consumer action: snapshot the doc state (`doc.encode()`
+  or `doc.toJSON()`), persist it where the reader loads it from, and
+  hydrate it (`loadDoc` / `fromJSON`) into the `publishedDoc` prop. The
+  package ships no publish API and stores no publish state; the external
+  database form's rows live in the consumer's table (they are not part of
+  the snapshot — the inline form is document data and is). A new snapshot
+  is a remount (pass it under a changing `key`).
 
 ### Sync and presence
 
