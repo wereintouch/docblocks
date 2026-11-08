@@ -7,7 +7,8 @@
   "files": [
     "dist",
     "!dist/.tmp",
-    "theme.css"
+    "theme.css",
+    "CHANGELOG.md"
   ],
   "sideEffects": [
     "**/*.css",

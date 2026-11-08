@@ -87,7 +87,9 @@ The commands translate into `Y.Doc` mutations inside a transaction:
   width commands, and `setTableRowColor`.
 
 Reads: `getBlock(id)`, `getChildren(id)`, `getRuns(id)`, `getText(id)`,
-`getTextLength(id)`.
+`getTextLength(id)`. History: `undo()` / `redo()` (with `canUndo()` /
+`canRedo()`) — one `transact` is one undo step, and a command batched
+into a `transact` is one step across the batch.
 
 ## Sync
 
@@ -130,6 +132,15 @@ The JSON format is `v: 1`: `meta` (the doc `id`, `title`, the optional
 `children: [blockId]`; nesting (lists, table cells) is `children`. The text
 of a text block is `content: [{ text, marks }]` runs. JSON ↔ Yjs is
 isomorphic — every JSON field has exactly one Yjs image.
+
+The v1 registry covers the page types (`paragraph`, `quote`, `heading`,
+`list-item`, `callout`, `code`, `divider`, `image`, `embed`, `table` /
+`table-row` / `table-cell`, `database`), the five canvas types (`surface`,
+`shape`, `connector`, `frame`, `canvas-text`), and `root`; the v1 marks
+are `bold`, `italic`, `strike`, `underline`, `code` (exclusive), `link`,
+`color`, `highlight`, and `mention`. The type lists stand exported
+(`PAGE_BLOCK_TYPES`, `LEAF_BLOCK_TYPES`, `BLOCK_REGISTRY`,
+`MARK_REGISTRY`, `CALLOUT_ICONS`).
 
 The block and mark registries are the extension point. Adding a block type
 or mark is additive (a minor): the registry entry plus a renderer; the

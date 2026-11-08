@@ -70,13 +70,21 @@ function App() {
   the neutral meta, never the live one). It
   stands the standard theme tokens
   (not the `--docblocks-*` ones), since it renders outside the editor root.
+- The `Doc` holds the document state, and the package holds no
+  persistence — how to store and restore it: the Persistence section
+  below.
 
 ## The consumer contract
 
 Everything the editor needs from the consumer is injected as an
-`EditorProvider` prop; every prop except `doc` is optional, and the
-package ships a working default for most of them (the defaults are the dev / demo mode —
-session-only, cleared on reload). The full props list:
+`EditorProvider` prop; every prop except `doc` is optional. The only
+built-in default is the blob store (a shared in-memory stand — the
+uploads resolve as data urls for the JS session, cleared on reload); the
+other props degrade gracefully over their absence (the external-form
+database block stands the not-connected placeholder and the `/database`
+slash command is hidden without a bridge; the `sync-embed` block stands
+its broken state without a resolver; the `@` stays plain text without a
+mention catalog). The full props list:
 
 | Prop                         | Contract                                                                                                                                                                                                                                                                                                                               |
 | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -105,6 +113,39 @@ Two rules for the optional props:
   enclosing renderers, resolvers, and bridges when it supplies none of its
   own — a sync-embed's nested editor resolves its own content against the
   enclosing catalog.
+
+### Persistence
+
+The package holds no persistence — the document state lives in the core
+`Doc`, and the snapshot / update storage is a consumer-side concern (the
+non-goal list in the core README). The canonical loop: restore the doc
+from your stored state, and save it on every transaction:
+
+```tsx
+import { useEffect, useState } from "react";
+
+import { loadDoc } from "docblocks-core";
+
+function useDocument(id: string) {
+  // Restore: loadDoc over your stored encoded state (fromJSON over a
+  // stored JSON snapshot).
+  const [doc] = useState(() => loadDoc(readStoredState(id)));
+  useEffect(() => {
+    // onChange fires for every transaction (local and remote) — encode
+    // the full state after each and hand it to your storage.
+    const off = doc.onChange(() => {
+      writeStoredState(id, doc.encode());
+    });
+    return off;
+  }, [doc]);
+  return doc;
+}
+```
+
+(`doc.toJSON()` / `fromJSON` is the JSON path, `doc.encode()` /
+`loadDoc` the encoded path — the core README's Doc section; a consumer
+that stores incremental updates can encode them with
+`doc.encodeUpdate(stateVector)`.)
 
 ### Access modes and publishing
 
@@ -165,18 +206,30 @@ The transport is a core concern: create the doc, build a provider, attach
 them, and pass both to the provider:
 
 ```tsx
-import { Editor, EditorProvider, usePresence } from "docblocks-react-ui";
+import { Editor, EditorProvider } from "docblocks-react-ui";
+
+import { useEffect, useMemo } from "react";
 
 import { WsSyncProvider, attach, createDoc } from "docblocks-core";
 
-const doc = createDoc({ id: "room-1" });
-const provider = new WsSyncProvider("ws://my-server:5199/room-1");
-await provider.connect();
-const session = attach(doc, provider); // session.detach() on unmount
+const doc = createDoc({ id: "room-1" }); // or restore it (the Persistence section)
 
-<EditorProvider doc={doc} provider={provider}>
-  <Editor />
-</EditorProvider>;
+function App() {
+  const provider = useMemo(() => new WsSyncProvider("ws://my-server:5199/room-1"), []);
+  useEffect(() => {
+    void provider.connect();
+    const session = attach(doc, provider);
+    return () => {
+      session.detach(); // detach before the transport closes
+      provider.disconnect();
+    };
+  }, [doc, provider]);
+  return (
+    <EditorProvider doc={doc} provider={provider}>
+      <Editor />
+    </EditorProvider>
+  );
+}
 ```
 
 - `attach` bootstraps the session (it sends the full local state first,
@@ -229,8 +282,9 @@ The `database` block has two forms. The **inline** form keeps its columns
 and rows in the document. The **external** form keeps only a `tableId`
 reference; the schema and the rows live in the consumer's database behind
 the `DatabaseBridge` (the `databaseBridge` prop) — all methods are async,
-errors reject as the structured `BridgeError` (the closed 20-code `code`
-vocabulary + the `message` + the optional `details`), and the package neither swallows nor
+errors reject as the structured `BridgeError` (the closed `code`
+vocabulary — `BRIDGE_ERROR_CODES` — + the `message` + the optional
+`details`), and the package neither swallows nor
 retries:
 
 - protocol: `describeProtocol` (the version + the capabilities + the
@@ -265,7 +319,13 @@ Without a bridge, external-form database blocks render a "database not
 connected" placeholder and the `/database` slash command is hidden; the
 inline-form database block (columns + rows stored in the document) renders
 and edits without a bridge. Supply your own `DatabaseBridge` implementation
-for external-form tables.
+for external-form tables. The bridge-side helpers are exported from the
+package root: `BridgeError` (the structured error type) with
+`toBridgeError` / `isBridgeError` / `isBridgeErrorCode`, `newMutationContext`
+(the client-issued `operationId` per op), `PROTOCOL_VERSION` /
+`BASELINE_CAPABILITIES` / `validateProtocolDescriptor` (the negotiation),
+`isDatabaseBridge`, and `useDatabaseTable(bridge, tableId, filter?)` — the
+grid controller for a consumer-owned grid over the bridge.
 
 ### Sync-embed
 
@@ -354,6 +414,17 @@ non-editable chip; copying it stands the `@label` plain text. Without the
 prop the `@` is plain text (no picker). The mark is non-exclusive (it
 composes with the other marks).
 
+### Canvas
+
+`view: "canvas"` renders the page miniature plus the document's
+root-level `surface` blocks — the shapes, the connectors, the frames,
+and the canvas texts. The canvas content is document data (the `surface`
+block with its child elements, each optionally carrying the `geometry`
+— `x` / `y` / `w` / `h`), created in the editor (the bottom dock's
+insert menu, the drag / resize / nudge / fit / draw sessions) or
+programmatically through the core's block commands. The viewport's zoom
+and pan are view state — they never reach the document.
+
 ### Subtree view
 
 `rootBlockId` renders the entry list of one block instead of the document
@@ -365,6 +436,29 @@ subtree as its own page:
   <Editor />
 </EditorProvider>
 ```
+
+### Hooks
+
+The editor state is read through the hooks over the nearest
+`EditorProvider`; every hook re-renders its consumer only when the read
+value actually changes (the store's reference-stability contract):
+
+- `useDoc()` — the core `Doc`.
+- `useBlock(id)` — the block snapshot (`undefined` when the block is
+  missing, e.g. removed by a peer).
+- `useText(id)` — the block's flattened text.
+- `useSelection()` — the local view selection (the caret / range / block
+  selection).
+- `useSelectionView()` — the selection view (set the selection, read the
+  local state; `null` before the mount effect ran and after unmount).
+- `usePresence()` — the remote peers' ephemeral state (the selection +
+  the `updatedAt` per peer).
+- `useMeta()` — the document meta (the reference is replaced only when
+  the title changed).
+- `useEditorContext()` — the whole provider context (the store, the
+  resolvers, the access stand).
+- `useDatabaseTable(bridge, tableId, filter?)` — the external database
+  block's grid controller (a consumer-owned grid over the bridge).
 
 ### The `Editor` props
 
