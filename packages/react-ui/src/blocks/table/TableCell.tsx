@@ -27,6 +27,9 @@ const TableCell = memo(function TableCell({
   dragShifted: boolean;
 }) {
   const cell = useBlock(id);
+  // The read-only stand (view / published): the cell's activation layer's
+  // stand is off (the cell is not editable there).
+  const { viewMode } = useEditorContext();
   const children = cell !== undefined && cell.type === "table-cell" ? (cell.children ?? EMPTY_IDS) : EMPTY_IDS;
   const contextValue = useBlockContextValue(id, children, "table-cell");
   if (cell === undefined || cell.type !== "table-cell") return null;
@@ -60,7 +63,13 @@ const TableCell = memo(function TableCell({
     >
       <BlockContext.Provider value={contextValue}>
         {hasOwnText ? <CellContent id={id} block={cell} /> : null}
-        {children.length === 0 && !hasOwnText ? <CellActivation cellId={id} /> : <BlockGroups ids={children} />}
+        // The cell's activation layer (the empty cell's caret's seat): the // read-only stand (view / published) stands
+        no layer (the cell is // not editable there).
+        {children.length === 0 && !hasOwnText && !viewMode ? (
+          <CellActivation cellId={id} />
+        ) : (
+          <BlockGroups ids={children} />
+        )}
       </BlockContext.Provider>
     </td>
   );
@@ -75,7 +84,7 @@ const TableCell = memo(function TableCell({
  */
 function CellContent({ id, block }: { id: BlockId; block: Extract<Block, { type: "table-cell" }> }) {
   const context = useBlockContext();
-  const { doc } = useEditorContext();
+  const { doc, viewMode } = useEditorContext();
   const { innerRef, onInput, onPaste, onKeydown } = useTextInner({
     id,
     block,
@@ -119,7 +128,9 @@ function CellContent({ id, block }: { id: BlockId; block: Extract<Block, { type:
   return (
     <div
       ref={innerRef}
-      contentEditable
+      // The read-only stand (view / published): the layer stands
+      // contenteditable=false (the cell's editing's path is off).
+      contentEditable={!viewMode}
       suppressContentEditableWarning
       spellCheck={false}
       data-slot="docblocks/block-content"

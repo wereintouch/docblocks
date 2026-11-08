@@ -73,6 +73,8 @@ interface GridBodyProps {
   columnOrder?: string[];
   hiddenColumns?: string[];
   columnWidths?: number[];
+  /** The read-only stand (the view / published's modes): the grid's data stands rendered, every editing's path (the cells' selection / edit, the rows / columns' operations, the view's attrs, the bridge's writes) stands off. */
+  readOnly?: boolean;
 }
 function GridBody({
   id,
@@ -84,6 +86,7 @@ function GridBody({
   columnOrder,
   hiddenColumns,
   columnWidths,
+  readOnly = false,
 }: GridBodyProps) {
   const data = useDatabaseTable(bridge, tableId, filter);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -493,7 +496,7 @@ function GridBody({
     onCellPointerDown,
     onTableKeyDown,
     onTablePaste,
-  } = useGridCellInteraction({ rows, columns, data, tableRef });
+  } = useGridCellInteraction({ rows, columns, data, tableRef, readOnly });
 
   if (data.phase === "loading") {
     return (
@@ -603,10 +606,18 @@ function GridBody({
   const columnShow = (column: BridgeColumn) => () =>
     updateView({ hiddenColumns: (hiddenColumns ?? []).filter((entryId) => entryId !== column.id) });
   const columnDelete = (column: BridgeColumn) => () => void data.deleteColumn(column.id).catch(() => undefined);
-  const columnPointerDown = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerDown>[1]) =>
+  const columnPointerDown = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerDown>[1]) => {
+    // The read-only stand (view / published): the column's drag's session is
+    // off (the order's write stands no write).
+    if (readOnly) return;
     onColumnPointerDown(column, event);
-  const seamPointerDownAt = (seamIndex: number) => (event: Parameters<ReturnType<typeof onSeamPointerDown>>[0]) =>
+  };
+  const seamPointerDownAt = (seamIndex: number) => (event: Parameters<ReturnType<typeof onSeamPointerDown>>[0]) => {
+    // The read-only stand (view / published): the seam's resize's session is
+    // off (the width's write stands no write).
+    if (readOnly) return;
     onSeamPointerDown(seamIndex)(event);
+  };
   const columnPointerUp = (column: BridgeColumn) => (event: Parameters<typeof onColumnPointerUp>[1]) =>
     onColumnPointerUp(column, event);
   const cellChange =
@@ -617,7 +628,12 @@ function GridBody({
       // handle it).
       void data.updateRow(row.rowId, { [column.id]: value }, expectedRevision).catch(() => undefined);
     };
-  const cellEditStart = (cellKey: string) => () => setEditingCell(cellKey);
+  const cellEditStart = (cellKey: string) => () => {
+    // The read-only stand (view / published): the edit's session's entry is
+    // off (the double press stands no stand).
+    if (readOnly) return;
+    setEditingCell(cellKey);
+  };
   const cellEditEnd = () => setEditingCell(null);
   const rowMoveUp = (row: (typeof rows)[number]) => () => {
     const index = rows.indexOf(row);
@@ -660,6 +676,12 @@ function GridBody({
               onBlur={onNameBlur}
               onKeyDown={onNameKeyDown}
             />
+          ) : readOnly ? (
+            // The read-only stand (view / published): the name's display is
+            // plain (the rename's entry is off).
+            <span data-slot="docblocks/database-name" className="font-(--docblocks-heading-font-weight)">
+              {displayName}
+            </span>
           ) : (
             <Button
               data-slot="docblocks/database-name"
@@ -682,85 +704,91 @@ function GridBody({
             {rows.length} {rows.length === 1 ? "row" : "rows"}
           </Badge>
           <div className="ml-auto flex items-center gap-2">
-            <Button
-              data-slot="docblocks/database-undo"
-              variant="outline"
-              size="sm"
-              data-disabled={data.canUndo ? undefined : true}
-              className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
-              disabled={!data.canUndo}
-              onClick={undoStep}
-            >
-              Undo
-            </Button>
-            <Button
-              data-slot="docblocks/database-redo"
-              variant="outline"
-              size="sm"
-              data-disabled={data.canRedo ? undefined : true}
-              className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
-              disabled={!data.canRedo}
-              onClick={redoStep}
-            >
-              Redo
-            </Button>
-            <Popover open={filterOpen} onOpenChange={onFilterOpenChange}>
-              <PopoverTrigger asChild>
+            {readOnly ? null : (
+              <>
                 <Button
-                  data-slot="docblocks/database-filter"
+                  data-slot="docblocks/database-undo"
                   variant="outline"
                   size="sm"
-                  data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
-                  className={cn(
-                    GRID_CHROME_FRAME,
-                    GRID_BUTTON_HOVER,
-                    "h-auto px-2 py-0.5 text-xs font-normal shadow-none"
-                  )}
+                  data-disabled={data.canUndo ? undefined : true}
+                  className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
+                  disabled={!data.canUndo}
+                  onClick={undoStep}
                 >
-                  Filter{filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
+                  Undo
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent align="end" className="w-96">
-                <div className="flex flex-col gap-(--docblocks-block-spacing)">
-                  <FilterBuilder
-                    value={filterDraft}
-                    columns={data.table.columns}
-                    onChange={setFilterDraft}
-                    refTableData={refTableData}
-                  />
-                  <div className="flex items-center justify-between gap-2">
-                    <Button
-                      data-slot="docblocks/filter-clear"
-                      variant="outline"
-                      size="sm"
-                      className="
-                        cursor-pointer bg-transparent px-2 py-1 text-xs font-normal shadow-none
-                        hover:bg-transparent hover:opacity-70
-                        dark:bg-transparent
-                        dark:hover:bg-transparent
-                      "
-                      onClick={resetFilterDraft}
-                    >
-                      Clear
-                    </Button>
-                    <Button
-                      data-slot="docblocks/filter-apply"
-                      variant="outline"
-                      size="sm"
-                      disabled={!filterIsComplete(filterDraft, data.table.columns)}
-                      className="
-                        cursor-pointer bg-accent px-2 py-1 text-xs font-normal
-                        hover:opacity-70
-                        disabled:cursor-default disabled:opacity-40
-                      "
-                      onClick={applyFilter}
-                    >
-                      Apply
-                    </Button>
+                <Button
+                  data-slot="docblocks/database-redo"
+                  variant="outline"
+                  size="sm"
+                  data-disabled={data.canRedo ? undefined : true}
+                  className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
+                  disabled={!data.canRedo}
+                  onClick={redoStep}
+                >
+                  Redo
+                </Button>
+              </>
+            )}
+            {readOnly ? null : (
+              <Popover open={filterOpen} onOpenChange={onFilterOpenChange}>
+                <PopoverTrigger asChild>
+                  <Button
+                    data-slot="docblocks/database-filter"
+                    variant="outline"
+                    size="sm"
+                    data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
+                    className={cn(
+                      GRID_CHROME_FRAME,
+                      GRID_BUTTON_HOVER,
+                      "h-auto px-2 py-0.5 text-xs font-normal shadow-none"
+                    )}
+                  >
+                    Filter{filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-96">
+                  <div className="flex flex-col gap-(--docblocks-block-spacing)">
+                    <FilterBuilder
+                      value={filterDraft}
+                      columns={data.table.columns}
+                      onChange={setFilterDraft}
+                      refTableData={refTableData}
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <Button
+                        data-slot="docblocks/filter-clear"
+                        variant="outline"
+                        size="sm"
+                        className="
+                          cursor-pointer bg-transparent px-2 py-1 text-xs font-normal shadow-none
+                          hover:bg-transparent hover:opacity-70
+                          dark:bg-transparent
+                          dark:hover:bg-transparent
+                        "
+                        onClick={resetFilterDraft}
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        data-slot="docblocks/filter-apply"
+                        variant="outline"
+                        size="sm"
+                        disabled={!filterIsComplete(filterDraft, data.table.columns)}
+                        className="
+                          cursor-pointer bg-accent px-2 py-1 text-xs font-normal
+                          hover:opacity-70
+                          disabled:cursor-default disabled:opacity-40
+                        "
+                        onClick={applyFilter}
+                      >
+                        Apply
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </PopoverContent>
-            </Popover>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         </div>
 
@@ -803,7 +831,10 @@ function GridBody({
                 dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
                 dragShifted={drag !== null && drag.id !== column.id}
                 menuOpen={columnMenu === column.id}
-                onMenuChange={columnMenuChange(column)}
+                // The read-only stand (view / published): the column's menu
+                // stands locked off (the rename / the options' / the
+                // hide / show / the delete's paths stand no write).
+                onMenuChange={readOnly ? () => undefined : columnMenuChange(column)}
                 onRename={columnRename(column)}
                 onEditOptions={columnEditOptions(column)}
                 onHide={columnHide(column)}
@@ -826,37 +857,45 @@ function GridBody({
                 border-(--docblocks-table-border-color)
               "
             >
-              <DropdownMenu modal={false} open={addingColumn} onOpenChange={setAddingColumn}>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    data-slot="docblocks/database-add-column-trigger"
-                    variant="ghost"
-                    size="icon"
-                    className={cn(
-                      GRID_CHROME_FRAME,
-                      "size-6 cursor-pointer p-1 text-(--docblocks-placeholder-color) hover:bg-transparent",
-                      "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-                    )}
-                  >
-                    <Plus className="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="min-w-32">
-                  {ADD_COLUMN_TYPES.map((entry) => {
-                    const EntryIcon = columnTypeIcon(entry.type, entry.refKind, entry.refMany);
-                    return (
-                      <DropdownMenuItem
-                        key={entry.key}
-                        data-column-entry={entry.key}
-                        onClick={() => openCreateForm(entry)}
-                      >
-                        <EntryIcon className="size-4 shrink-0 text-muted-foreground" />
-                        {entry.label}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {readOnly ? (
+                // The read-only stand (view / published): the column's
+                // addition's entry is off (the plus stands inert).
+                <span className="flex size-6 items-center justify-center text-(--docblocks-placeholder-color)">
+                  <Plus className="size-4" />
+                </span>
+              ) : (
+                <DropdownMenu modal={false} open={addingColumn} onOpenChange={setAddingColumn}>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      data-slot="docblocks/database-add-column-trigger"
+                      variant="ghost"
+                      size="icon"
+                      className={cn(
+                        GRID_CHROME_FRAME,
+                        "size-6 cursor-pointer p-1 text-(--docblocks-placeholder-color) hover:bg-transparent",
+                        "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
+                      )}
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-32">
+                    {ADD_COLUMN_TYPES.map((entry) => {
+                      const EntryIcon = columnTypeIcon(entry.type, entry.refKind, entry.refMany);
+                      return (
+                        <DropdownMenuItem
+                          key={entry.key}
+                          data-column-entry={entry.key}
+                          onClick={() => openCreateForm(entry)}
+                        >
+                          <EntryIcon className="size-4 shrink-0 text-muted-foreground" />
+                          {entry.label}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
               {/* The create form (every menu entry opens it: the name
                   input + the type-specific attributes — the number's
                   display attributes stand the bridge's column data). */}
@@ -1081,17 +1120,32 @@ function GridBody({
                     />
                   );
                 })}
-                <RowMenuCell
-                  row={row}
-                  rowMenu={rowMenu}
-                  setRowMenu={setRowMenu}
-                  canMoveUp={rows.indexOf(row) > 0}
-                  canMoveDown={rows.indexOf(row) < rows.length - 1}
-                  onMoveUp={rowMoveUp(row)}
-                  onMoveDown={rowMoveDown(row)}
-                  onRemove={rowRemove(row)}
-                  lastRow={row.rowId === lastRowId}
-                />
+                {readOnly ? (
+                  // The read-only stand (view / published): the row's menu's
+                  // stand is off (the track stands the empty's stand).
+                  <div
+                    data-slot="docblocks/database-row-menu"
+                    className={cn(
+                      `
+                        flex w-10 items-center justify-center border-l-(length:--docblocks-table-border-width)
+                        border-(--docblocks-table-border-color)
+                      `,
+                      row.rowId !== lastRowId && "border-b-(length:--docblocks-table-border-width)"
+                    )}
+                  />
+                ) : (
+                  <RowMenuCell
+                    row={row}
+                    rowMenu={rowMenu}
+                    setRowMenu={setRowMenu}
+                    canMoveUp={rows.indexOf(row) > 0}
+                    canMoveDown={rows.indexOf(row) < rows.length - 1}
+                    onMoveUp={rowMoveUp(row)}
+                    onMoveDown={rowMoveDown(row)}
+                    onRemove={rowRemove(row)}
+                    lastRow={row.rowId === lastRowId}
+                  />
+                )}
               </Fragment>
             ))}
 
@@ -1135,23 +1189,25 @@ function GridBody({
           )}
         </ScrollArea>
 
-        <Button
-          data-slot="docblocks/database-add-row"
-          variant="outline"
-          size="sm"
-          className={cn(
-            GRID_CHROME_FRAME,
-            `
-              h-auto cursor-pointer self-start px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none
-              select-none
-            `,
-            "text-(--docblocks-placeholder-color) hover:bg-transparent",
-            "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
-          )}
-          onClick={insertEmptyRow}
-        >
-          + Add row
-        </Button>
+        {readOnly ? null : (
+          <Button
+            data-slot="docblocks/database-add-row"
+            variant="outline"
+            size="sm"
+            className={cn(
+              GRID_CHROME_FRAME,
+              `
+                h-auto cursor-pointer self-start px-2 py-1 text-(length:--docblocks-font-size) font-normal shadow-none
+                select-none
+              `,
+              "text-(--docblocks-placeholder-color) hover:bg-transparent",
+              "hover:text-(--docblocks-text-color) dark:hover:bg-transparent"
+            )}
+            onClick={insertEmptyRow}
+          >
+            + Add row
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

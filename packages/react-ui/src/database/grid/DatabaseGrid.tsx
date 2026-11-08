@@ -57,7 +57,7 @@ function DatabaseDisconnected({ name }: { name?: string }) {
 }
 
 function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) {
-  const { doc, databaseBridge } = useEditorContext();
+  const { doc, databaseBridge, viewMode } = useEditorContext();
   const tableId = block.attrs.tableId;
   if (tableId === undefined) {
     // The inline form: the built-in placeholder card stands (the caller
@@ -80,6 +80,9 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
       columnOrder={block.attrs.columnOrder}
       hiddenColumns={block.attrs.hiddenColumns}
       columnWidths={block.attrs.columnWidths}
+      // The read-only stand (view / published): the grid's data stands
+      // rendered, the editing's paths stand off.
+      readOnly={viewMode}
     />
   );
 }

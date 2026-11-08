@@ -25,9 +25,11 @@ interface GridCellInteractionDeps {
   data: UseDatabaseTable;
   /** The table element (the focus's seat + the press-outside's teardown). */
   tableRef: RefObject<HTMLDivElement | null>;
+  /** The read-only stand (the view / published's modes): the cells' selection / edit and the keyboard's / the paste's paths stand off (the data stands rendered, the editing's paths do not). */
+  readOnly?: boolean;
 }
 
-function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInteractionDeps) {
+function useGridCellInteraction({ rows, columns, data, tableRef, readOnly = false }: GridCellInteractionDeps) {
   const [selectionFrame, setSelectionFrame] = useState<{
     anchorR: number;
     anchorC: number;
@@ -77,6 +79,9 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
    *  is never captured). */
   const onCellPointerDown =
     (rowId: string, colId: string, r: number, c: number) => (event: ReactPointerEvent<HTMLDivElement>) => {
+      // The read-only stand (view / published): the cells' selection's
+      // path is off (the press stands no stand).
+      if (readOnly) return;
       if (event.button !== 0) return;
       // The press inside the edit's own control (the number's input, the
       // text's 6-row textarea) is the edit's interaction (the caret's
@@ -144,6 +149,10 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
    *  focused input keeps its own character editing — no cell clear). One
    *  `updateRow` per row, the columns are the null cells. */
   const onTableKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    // The read-only stand (view / published): the keyboard's selection's
+    // stand and the clipboard's copy / clear's commits stand off (the
+    // selection stands no stand there).
+    if (readOnly) return;
     // The clipboard's copy (the TSV's stand — the paste's round-trip):
     // the selection's rectangle over the grid's own columns, the rows
     // top → bottom, the cells left → right. The edit's own input keeps its
@@ -277,6 +286,9 @@ function useGridCellInteraction({ rows, columns, data, tableRef }: GridCellInter
   // from the pasted text — the v1's stand); the unparseable value stands
   // no cell (the editor's stand: the invalid input is not committed).
   const onTablePaste = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    // The read-only stand (view / published): the paste's batch's commit is
+    // off (the selection's anchor stands no stand there).
+    if (readOnly) return;
     // The edit's own control keeps its native paste (the character's
     // stand — the browser's text insert over the input).
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;

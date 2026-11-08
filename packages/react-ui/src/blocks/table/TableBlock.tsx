@@ -70,7 +70,7 @@ import { useTableSeamResize } from "./use-table-seam-resize";
 import { cellPlainText, pasteCellText, readClipboardText } from "./utils";
 
 function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
-  const { doc } = useEditorContext();
+  const { doc, viewMode } = useEditorContext();
   const palette = useFormatPalette();
   const rows = block.children ?? EMPTY_IDS;
   const contextValue = useBlockContextValue(id, rows, "table");
@@ -211,6 +211,10 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
    * the anchor div stands in the frame, not the scrolled content).
    */
   const onTableContextMenu = (event: ReactMouseEvent<HTMLTableElement>) => {
+    // The read-only stand (view / published): the cell's context menu's
+    // stand is off (the copy/paste/clear's items are the cell's editing's
+    // paths).
+    if (viewMode) return;
     const cell = (event.target as HTMLElement).closest<HTMLTableCellElement>("td[data-block-id]");
     if (cell === null) return;
     const cellId = cell.dataset.blockId ?? "";
@@ -526,84 +530,91 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
               </BlockContext.Provider>
             </tbody>
           </table>
-          {widths.map((_, index) => (
-            <HandleMenu
-              key={`col-${index}`}
-              kind="column"
-              index={index}
-              visible={
-                isPreview("column", index) ||
-                hover?.col === index ||
-                (menu !== null && menu.kind === "column" && menu.index === index)
-              }
-              left={columnCenters[index]! - HANDLE_SIZE / 2}
-              top={0}
-              open={menu !== null && menu.kind === "column" && menu.index === index}
-              onOpenChange={closeMenu}
-              dragging={isPreview("column", index)}
-              dragDx={columnDragTransformOf(index).dx}
-              dragTransition={columnDragTransformOf(index).shifted}
-              dragDy={0}
-              onPointerDown={onHandlePointerDown("column", index)}
-              onPointerMove={onHandlePointerMove}
-              onPointerUp={onHandlePointerUp}
-              onPointerCancel={onHandlePointerCancel}
-              onOpen={openHandleMenu("column")(index)}
-            >
-              <HandleMenuItems
-                tableId={id}
+          {/* The read-only stand (view / published): the table's editing
+              chrome (the handles, the seams, the add chips, the cell's
+              context menu) stands no stand — the grid stands read-only. */}
+          {!viewMode &&
+            widths.map((_, index) => (
+              <HandleMenu
+                key={`col-${index}`}
                 kind="column"
                 index={index}
-                palette={palette}
-                atStart={index === 0}
-                atEnd={index === widths.length - 1}
-                onAction={onColumnHandleAction(index)}
-                onColor={onColumnHandleColor(index)}
-              />
-            </HandleMenu>
-          ))}
-          {rows.map((_, rowIndex) => (
-            <HandleMenu
-              key={`row-${rows[rowIndex] ?? rowIndex}`}
-              kind="row"
-              index={rowIndex}
-              visible={
-                isPreview("row", rowIndex) ||
-                hover?.row === rowIndex ||
-                (menu !== null && menu.kind === "row" && menu.index === rowIndex)
-              }
-              left={0}
-              top={
-                HANDLE_ZONE +
-                (rowMetrics[rowIndex]?.top ?? 0) +
-                (rowMetrics[rowIndex]?.height ?? 0) / 2 -
-                HANDLE_SIZE / 2
-              }
-              open={menu !== null && menu.kind === "row" && menu.index === rowIndex}
-              onOpenChange={closeMenu}
-              dragging={isPreview("row", rowIndex)}
-              dragDx={0}
-              dragDy={rowDragTransformOf(rowIndex).dy}
-              dragTransition={rowDragTransformOf(rowIndex).shifted}
-              onPointerDown={onHandlePointerDown("row", rowIndex)}
-              onPointerMove={onHandlePointerMove}
-              onPointerUp={onHandlePointerUp}
-              onPointerCancel={onHandlePointerCancel}
-              onOpen={openHandleMenu("row")(rowIndex)}
-            >
-              <HandleMenuItems
-                tableId={id}
+                visible={
+                  isPreview("column", index) ||
+                  hover?.col === index ||
+                  (menu !== null && menu.kind === "column" && menu.index === index)
+                }
+                left={columnCenters[index]! - HANDLE_SIZE / 2}
+                top={0}
+                open={menu !== null && menu.kind === "column" && menu.index === index}
+                onOpenChange={closeMenu}
+                dragging={isPreview("column", index)}
+                dragDx={columnDragTransformOf(index).dx}
+                dragTransition={columnDragTransformOf(index).shifted}
+                dragDy={0}
+                onPointerDown={onHandlePointerDown("column", index)}
+                onPointerMove={onHandlePointerMove}
+                onPointerUp={onHandlePointerUp}
+                onPointerCancel={onHandlePointerCancel}
+                onOpen={openHandleMenu("column")(index)}
+              >
+                <HandleMenuItems
+                  tableId={id}
+                  kind="column"
+                  index={index}
+                  palette={palette}
+                  atStart={index === 0}
+                  atEnd={index === widths.length - 1}
+                  onAction={onColumnHandleAction(index)}
+                  onColor={onColumnHandleColor(index)}
+                />
+              </HandleMenu>
+            ))}
+          {rows.map((_, rowIndex) =>
+            viewMode ? null : (
+              <HandleMenu
+                key={`row-${rows[rowIndex] ?? rowIndex}`}
                 kind="row"
                 index={rowIndex}
-                palette={palette}
-                atStart={rowIndex === 0}
-                atEnd={rowIndex === rows.length - 1}
-                onAction={onRowHandleAction(rowIndex)}
-                onColor={onRowHandleColor(rowIndex)}
-              />
-            </HandleMenu>
-          ))}
+                visible={
+                  isPreview("row", rowIndex) ||
+                  hover?.row === rowIndex ||
+                  (menu !== null && menu.kind === "row" && menu.index === rowIndex)
+                }
+                left={0}
+                top={
+                  HANDLE_ZONE +
+                  (rowMetrics[rowIndex]?.top ?? 0) +
+                  (rowMetrics[rowIndex]?.height ?? 0) / 2 -
+                  HANDLE_SIZE / 2
+                }
+                open={menu !== null && menu.kind === "row" && menu.index === rowIndex}
+                onOpenChange={closeMenu}
+                dragging={isPreview("row", rowIndex)}
+                dragDx={0}
+                dragDy={rowDragTransformOf(rowIndex).dy}
+                dragTransition={rowDragTransformOf(rowIndex).shifted}
+                onPointerDown={onHandlePointerDown("row", rowIndex)}
+                onPointerMove={onHandlePointerMove}
+                onPointerUp={onHandlePointerUp}
+                onPointerCancel={onHandlePointerCancel}
+                onOpen={openHandleMenu("row")(rowIndex)}
+              >
+                <HandleMenuItems
+                  tableId={id}
+                  kind="row"
+                  index={rowIndex}
+                  palette={palette}
+                  atStart={rowIndex === 0}
+                  atEnd={rowIndex === rows.length - 1}
+                  onAction={onRowHandleAction(rowIndex)}
+                  onColor={onRowHandleColor(rowIndex)}
+                />
+              </HandleMenu>
+            )
+          )}
           {widths.map((_, col) => {
+            if (viewMode) return null;
             // The seam stands at the column's RIGHT edge (the interior
             // boundary, or the table's right edge for the last column —
             // the last column resizes there too).
@@ -673,48 +684,52 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 );
               })
             : null}
-          <Button
-            type="button"
-            data-slot="docblocks/table-add-column"
-            aria-label="Add column"
-            variant="ghost"
-            size="icon"
-            onClick={insertTableColumn}
-            onPointerDown={onAddChipPointerDown("column")}
-            onPointerMove={onAddChipPointerMove}
-            onPointerUp={onAddChipPointerUp}
-            onPointerCancel={onAddChipPointerCancel}
-            className={cn(ADD_BUTTON_CLASSES, "absolute size-6 -translate-x-1/2 -translate-y-1/2 rounded-full")}
-            style={{
-              left:
-                HANDLE_ZONE +
-                tableWidth +
-                (addPreview !== null && addPreview.kind === "column" && addPreview.count > 0
-                  ? addPreview.count * DEFAULT_TABLE_COLUMN_WIDTH
-                  : 0),
-              top: HANDLE_ZONE + tableHeight / 2,
-            }}
-          >
-            <Plus />
-          </Button>
+          {!viewMode && (
+            <Button
+              type="button"
+              data-slot="docblocks/table-add-column"
+              aria-label="Add column"
+              variant="ghost"
+              size="icon"
+              onClick={insertTableColumn}
+              onPointerDown={onAddChipPointerDown("column")}
+              onPointerMove={onAddChipPointerMove}
+              onPointerUp={onAddChipPointerUp}
+              onPointerCancel={onAddChipPointerCancel}
+              className={cn(ADD_BUTTON_CLASSES, "absolute size-6 -translate-x-1/2 -translate-y-1/2 rounded-full")}
+              style={{
+                left:
+                  HANDLE_ZONE +
+                  tableWidth +
+                  (addPreview !== null && addPreview.kind === "column" && addPreview.count > 0
+                    ? addPreview.count * DEFAULT_TABLE_COLUMN_WIDTH
+                    : 0),
+                top: HANDLE_ZONE + tableHeight / 2,
+              }}
+            >
+              <Plus />
+            </Button>
+          )}
         </div>
       </div>
-      <Button
-        type="button"
-        data-slot="docblocks/table-add-row"
-        aria-label="Add row"
-        variant="ghost"
-        size="icon"
-        onClick={insertTableRow}
-        onPointerDown={onAddChipPointerDown("row")}
-        onPointerMove={onAddChipPointerMove}
-        onPointerUp={onAddChipPointerUp}
-        onPointerCancel={onAddChipPointerCancel}
-        className={cn(ADD_BUTTON_CLASSES, "absolute top-full size-6 -translate-y-1/2 rounded-full")}
-        style={{ left: rowButtonLeft }}
-      >
-        <Plus />
-      </Button>
+      {!viewMode && (
+        <Button
+          type="button"
+          data-slot="docblocks/table-add-row"
+          aria-label="Add row"
+          variant="ghost"
+          size="icon"
+          onClick={insertTableRow}
+          onPointerDown={onAddChipPointerDown("row")}
+          onPointerMove={onAddChipPointerMove}
+          onPointerUp={onAddChipPointerUp}
+          onPointerCancel={onAddChipPointerCancel}
+          className={cn(ADD_BUTTON_CLASSES, "absolute top-full size-6 -translate-y-1/2 rounded-full")}
+          style={{ left: rowButtonLeft }}
+        >
+          <Plus />
+        </Button>
+      )}
       {/* The table's size stand (the columns x the rows' RESULTING size):
           stands only during the add chips' drag (the add / remove's
           preview — the count stands nonzero), the frame's top-left
