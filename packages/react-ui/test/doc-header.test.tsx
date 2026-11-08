@@ -378,4 +378,21 @@ describe("the document mode's switcher (the access level's gate)", () => {
     fireEvent.click(title as HTMLElement);
     expect(document.querySelector('[data-slot="docblocks/doc-header-title-edit"]')).toBeNull();
   });
+
+  it("the no-snapshot's published's stand stands the neutral's meta (the live's meta stands no leak)", () => {
+    // The viewer (the forced published's stand) and the editor over the
+    // published's mode: no snapshot → the header stands the neutral's
+    // stand (the Untitled's placeholder, the absent avatar) — the live's
+    // title stands no render (the reader never stands the unpublished's
+    // meta).
+    for (const props of [{ accessLevel: "viewer" as const }, { mode: "published" as const, onModeChange: () => {} }]) {
+      const doc = newDoc();
+      doc.setTitle("LIVE LEAK");
+      doc.setAvatar("🦊");
+      const { container, unmount } = render(<DocHeader doc={doc} view="page" onViewChange={() => {}} {...props} />);
+      expect(container.querySelector('[data-slot="docblocks/doc-header-title"]')?.textContent).toBe("Untitled");
+      expect(container.querySelector('[data-slot="docblocks/doc-header-avatar"]')?.textContent).toBe("");
+      unmount();
+    }
+  });
 });

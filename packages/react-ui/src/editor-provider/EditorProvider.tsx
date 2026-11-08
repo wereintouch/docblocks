@@ -3,7 +3,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { BLOCK_REGISTRY, createSelection, presenceSelectionOf } from "docblocks-core";
-import type { Selection } from "docblocks-core";
+import type { Doc, Selection } from "docblocks-core";
 
 import { getDefaultBlobStore, legacyBlobStore } from "../blob-store";
 import type { BlobStore } from "../blob-store";
@@ -15,6 +15,24 @@ import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
 import type { EditorMode, EditorProviderProps, SelectionRef } from "./models";
+
+// The published snapshot's stand key (a module stand, one seq per snapshot
+// instance): the nested published provider remounts over a NEW snapshot
+// (the doc's stand must not change over a mounted provider — the doc's
+// stand guard) and keeps its stand over the same snapshot (no re-mount
+// over the re-render).
+const SNAPSHOT_KEYS = new WeakMap<object, number>();
+let SNAPSHOT_KEY_SEQ = 0;
+
+function publishedStandKey(doc: Doc): string {
+  let key = SNAPSHOT_KEYS.get(doc);
+  if (key === undefined) {
+    key = SNAPSHOT_KEY_SEQ;
+    SNAPSHOT_KEY_SEQ += 1;
+    SNAPSHOT_KEYS.set(doc, key);
+  }
+  return `published-${key}`;
+}
 
 /**
  * Owns the per-instance editor lifecycle: the zustand store (projection of
@@ -284,7 +302,7 @@ function EditorProvider({
   const rendered =
     effectiveMode === "published" ? (
       publishedDoc !== undefined && publishedDoc !== null ? (
-        <EditorProvider key="published" doc={publishedDoc}>
+        <EditorProvider key={publishedStandKey(publishedDoc)} doc={publishedDoc} rootBlockId={rootId}>
           {children}
         </EditorProvider>
       ) : inheritedPublishedStand ? (

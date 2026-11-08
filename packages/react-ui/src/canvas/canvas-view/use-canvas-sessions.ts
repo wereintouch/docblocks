@@ -161,9 +161,10 @@ function useCanvasSessions({
     if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
     if (isChrome(event.target)) return;
     // The read-only stand (view / published): the sessions' stands off
-    // (the selection / move / resize / place / connector's paths) — the
-    // pan's gesture keeps (the view's gesture over the read-only's
-    // stand: the wheel's pan / the space's hold's parity).
+    // (the selection / move / resize / place / connector's paths — the
+    // pan's mode's and the space's hold's entries stand off with the
+    // dock's / the hotkey's stands; the wheel's pan / zoom keep their
+    // own parity over the read-only's stand).
     if (viewMode && !(viewport.mode === "pan" || spacePan)) return;
     const point = centerRelativePoint(event);
 

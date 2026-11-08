@@ -63,8 +63,9 @@ const TableCell = memo(function TableCell({
     >
       <BlockContext.Provider value={contextValue}>
         {hasOwnText ? <CellContent id={id} block={cell} /> : null}
-        // The cell's activation layer (the empty cell's caret's seat): the // read-only stand (view / published) stands
-        no layer (the cell is // not editable there).
+        {/* The cell's activation layer (the empty cell's caret's seat):
+            the read-only stand (view / published) stands no layer (the
+            cell is not editable there). */}
         {children.length === 0 && !hasOwnText && !viewMode ? (
           <CellActivation cellId={id} />
         ) : (

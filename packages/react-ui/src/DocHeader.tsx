@@ -26,7 +26,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-import type { Doc } from "docblocks-core";
+import type { Doc, DocMeta } from "docblocks-core";
 
 import type { EditorView } from "./Editor";
 import type { AccessLevel, EditorMode } from "./editor-provider";
@@ -171,8 +171,16 @@ function DocHeader({
   const switchMode = (next: EditorMode) => {
     if (next !== effectiveMode) onModeChange?.(next);
   };
-  // The display's meta (the source's stand over the effective mode).
-  const displayMeta = snapshot !== null ? snapshot.meta : meta;
+  // The display's meta (the source's stand over the effective mode):
+  // the snapshot's meta over the published's stand with a snapshot;
+  // a NEUTRAL stand (the absent title's placeholder, the absent avatar)
+  // over the published's stand WITHOUT a snapshot (the current's state
+  // stands no leak — the reader never stands the unpublished's meta;
+  // the placeholder's card stands the content's stand, the header's
+  // stand must not render the live's title); the live's meta over the
+  // edit's / the view's stands.
+  const NEUTRAL_META: DocMeta = { v: 1, id: "", title: "", createdAt: "" };
+  const displayMeta: DocMeta = snapshot !== null ? snapshot.meta : effectiveMode === "published" ? NEUTRAL_META : meta;
 
   return (
     <div data-slot="docblocks/doc-header" className="flex items-center gap-3">

@@ -73,9 +73,10 @@ function useCanvasKeys({
     // label's input, the page miniature's content): the typed character
     // lands, the mode / the selection / the focus stand untouched.
     if (isEditingSurface(event.target)) return;
-    // The held space: the temporary pan (Miro's hand) — the view's gesture
-    // (no data): it keeps over the read-only's stand (the pan's parity),
-    // the hotkeys' path stands off with the view's mode.
+    // The held space: the temporary pan (Miro's hand) — the editing's
+    // gesture (the session's path): it stands off over the read-only's
+    // stand (the wheel's pan / the zoom's toolbar keep their own
+    // parity), the hotkeys' path stands off with the view's mode too.
     if (event.key === " ") {
       if (!event.repeat && !viewMode) setSpacePan(true);
       return;

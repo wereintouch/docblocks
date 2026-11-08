@@ -206,14 +206,14 @@ function MotionEditor({
                       />
                     </div>
                   )}
-                  <PresenceCaretOverlay rootRef={rootRef} />
+                  {viewMode ? null : <PresenceCaretOverlay rootRef={rootRef} />}
                 </BlockContext.Provider>
               </FormatPaletteContext.Provider>
             </SlashMenuContext.Provider>
           </MentionMenuContext.Provider>
           {slash.menuNode}
           {mention.menuNode}
-          {format.toolbarNode}
+          {viewMode ? null : format.toolbarNode}
         </div>
       </EnumOptionsMotionSlot.Provider>
     </Card>

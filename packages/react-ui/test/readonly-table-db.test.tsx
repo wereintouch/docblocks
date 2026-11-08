@@ -85,6 +85,23 @@ describe("the table's read-only stand (the view / published's modes)", () => {
     expect(inner, "the cell's paragraph's inner should render").not.toBeNull();
     expect(inner?.getAttribute("contenteditable")).toBe("false");
   });
+
+  it("stands no comment's text over the cell's render (the JSX text's regression pin, all the modes)", () => {
+    const doc = createDoc({ id: "doc-rt-4", createdAt: CREATED_AT });
+    doc.insertBlock("table", { cols: 2 });
+    for (const mode of [undefined, "view" as const]) {
+      const { container, unmount } = render(
+        <EditorProvider doc={doc} mode={mode}>
+          <Editor />
+        </EditorProvider>
+      );
+      for (const cell of container.querySelectorAll<HTMLElement>("[data-slot='docblocks/table-cell']")) {
+        expect(cell.textContent ?? "").not.toContain("//");
+        expect(cell.textContent ?? "").not.toContain("The cell's activation layer");
+      }
+      unmount();
+    }
+  });
 });
 
 describe("the database's grid read-only stand (the view's mode)", () => {
