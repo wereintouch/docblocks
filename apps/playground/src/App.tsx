@@ -16,14 +16,14 @@ const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
  * empty seed; `?canvas=1` seeds the canvas demo (the page + a surface with
  * shapes, a canvas text, and a connector — see canvas-seed.ts) and starts
  * in the canvas view; `?role=viewer` stands the pane's viewer's access
- * level (the published's forced stand — the document's mode switcher is
- * the consumer's chrome, the published's state stands from the room's
- * published snapshot stand, the publish.ts's stand); `?cycle=1` seeds the
- * pane's master doc with a sync-embed referencing the outer doc (the
- * cycle-guard e2e case); `?ds=1` renders the design system preview instead
- * of a pane (DsPanel.tsx — the shared/ui primitives outside any editor
- * root, the visual gate for the compiled utility CSS, no relay/doc
- * involved). Each pane renders
+ * level (the security stand — the pane holds no live document and no
+ * relay: the pane renders the room's published snapshot stand read-only,
+ * the publish.ts's stand; the absent stand stands the not-published's
+ * placeholder; `?cycle=1` seeds the pane's master doc with a sync-embed
+ * referencing the outer doc (the cycle-guard e2e case); `?ds=1` renders the
+ * design system preview instead of a pane (DsPanel.tsx — the shared/ui
+ * primitives outside any editor root, the visual gate for the compiled
+ * utility CSS, no relay/doc involved). Each pane renders
  * the two-pane layout: the editor (page or canvas) on the left and the
  * system panel (status, the relay's per-room chaos controls, the live
  * JSON / wire / presence inspectors) on the right.

@@ -65,7 +65,12 @@ const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
 const TABS = ["json", "wire", "presence", "bridge"] as const;
 type InspectTab = (typeof TABS)[number];
 
-/** The pane's live doc + provider pair; null before the mount effect ran. */
+/**
+ * The pane's live doc + provider pair; null before the mount effect ran.
+ * The viewer's pane stands no runtime (the security stand — the reader's
+ * browser never holds the live document and its transport: the pane
+ * renders the published snapshot stand read-only).
+ */
 interface Runtime {
   doc: Doc;
   provider: WsSyncProvider;
@@ -130,6 +135,8 @@ function SyncPane({
   const [publishedDoc, setPublishedDoc] = useState<Doc | null>(() =>
     loadPublishedSnapshot(syncUrl.split("/").pop() ?? syncUrl)
   );
+  /** The snapshot stand's seq (a fresh instance per load — the viewer's provider remounts over the new stand: the doc instance must not change over a mounted provider). */
+  const [publishedSeq, setPublishedSeq] = useState(0);
   /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
   const [dark, setDark] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
@@ -158,6 +165,31 @@ function SyncPane({
   // instance's bytes are only buffered (the socket opens after cleanup) and
   // are dropped by destroy() before reaching the wire.
   useEffect(() => {
+    // The viewer's stand (the security stand — the reader's browser never
+    // holds the live document): no doc, no relay, no master — the pane
+    // stands the published snapshot stand (the `publishedDoc`'s state, the
+    // publish.ts's shared stand) read-only. The live stand is never
+    // mounted (the fixture pins the absent stand over
+    // window.__paneDocs).
+    if (role === "viewer") {
+      window.__paneDocs = {
+        a: client === "a" ? null : (window.__paneDocs?.a ?? null),
+        b: client === "b" ? null : (window.__paneDocs?.b ?? null),
+      };
+      // The bridge stands over the viewer too (the snapshot's database's
+      // blocks stand the grid over the bridge's read path).
+      window.__bridge = databaseBridge;
+      // The stand is ready (no relay — the snapshot's stand, the consumer's
+      // persistence).
+      setConnected(true);
+      return () => {
+        window.__paneDocs = {
+          a: client === "a" ? null : (window.__paneDocs?.a ?? null),
+          b: client === "b" ? null : (window.__paneDocs?.b ?? null),
+        };
+        setConnected(false);
+      };
+    }
     // One seeder per room (the pane doc convention): client a seeds the
     // deterministic canvas doc, client b joins empty.
     const doc = canvas ? createCanvasDoc(client === "a") : seedPaneDoc(catalog);
@@ -285,7 +317,7 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog, canvas, cycle, masterDocId, client]);
+  }, [syncUrl, catalog, canvas, cycle, masterDocId, client, role]);
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
@@ -332,6 +364,7 @@ function SyncPane({
     const roomName = syncUrl.split("/").pop() ?? syncUrl;
     publishSnapshot(roomName, doc);
     setPublishedDoc(loadPublishedSnapshot(roomName));
+    setPublishedSeq((seq) => seq + 1);
   };
   // The e2e's re-read path: the viewer's pane re-reads the room's published
   // stand after the editor's pane published (the shared localStorage stand
@@ -342,6 +375,7 @@ function SyncPane({
       const roomName = syncUrl.split("/").pop() ?? syncUrl;
       const snapshot = loadPublishedSnapshot(roomName);
       setPublishedDoc(snapshot);
+      if (snapshot !== null) setPublishedSeq((seq) => seq + 1);
       return snapshot !== null;
     };
     return () => {
@@ -403,7 +437,7 @@ function SyncPane({
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — {client}</h1>
-          {runtime !== null && (
+          {(role === "viewer" || runtime !== null) && (
             <>
               {role === "editor" && (
                 <Button
@@ -418,34 +452,59 @@ function SyncPane({
                 </Button>
               )}
               <DocHeader
-                doc={runtime.doc}
+                // The viewer's stand: the doc is the published snapshot (the
+                // only stand the consumer passes — the live's doc stands no
+                // stand; the absent stand stands the header's neutral's
+                // stand over the placeholder's card).
+                doc={role === "viewer" ? (publishedDoc ?? undefined) : runtime?.doc}
                 view={view}
                 onViewChange={setView}
                 accessLevel={role}
                 mode={mode}
                 onModeChange={setMode}
-                publishedDoc={publishedDoc}
+                publishedDoc={role === "viewer" ? null : publishedDoc}
               />
             </>
           )}
         </header>
         <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
-          {runtime !== null && (
+          {role === "viewer" ? (
+            // The viewer's security stand: the published snapshot is the
+            // doc (the live document never reaches the reader's browser);
+            // an absent snapshot renders the provider's not-published
+            // placeholder. Each load yields a fresh doc instance, so the
+            // key forces a provider remount on swap (the doc instance
+            // must not change over a mounted provider).
             <EditorProvider
-              doc={runtime.doc}
-              provider={runtime.provider}
+              key={publishedSeq}
+              doc={publishedDoc ?? undefined}
               blobStore={blobStore}
               databaseBridge={databaseBridge}
               blockRenderers={BLOCK_RENDERERS}
-              syncEmbedResolver={syncEmbedResolver}
               pdfPreview={PdfFirstPage}
               mentionProvider={mentionProvider}
-              accessLevel={role}
-              mode={mode}
-              publishedDoc={publishedDoc}
+              accessLevel="viewer"
             >
               <MotionEditor view={view} />
             </EditorProvider>
+          ) : (
+            runtime !== null && (
+              <EditorProvider
+                doc={runtime.doc}
+                provider={runtime.provider}
+                blobStore={blobStore}
+                databaseBridge={databaseBridge}
+                blockRenderers={BLOCK_RENDERERS}
+                syncEmbedResolver={syncEmbedResolver}
+                pdfPreview={PdfFirstPage}
+                mentionProvider={mentionProvider}
+                accessLevel={role}
+                mode={mode}
+                publishedDoc={publishedDoc}
+              >
+                <MotionEditor view={view} />
+              </EditorProvider>
+            )
           )}
         </div>
       </section>
@@ -489,7 +548,7 @@ function SyncPane({
             reconnect
           </Button>
         </div>
-        <ChaosBar syncUrl={syncUrl} />
+        {role !== "viewer" && <ChaosBar syncUrl={syncUrl} />}
         {runtime !== null && (
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", gap: 4 }}>
