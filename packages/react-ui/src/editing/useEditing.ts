@@ -32,11 +32,14 @@ interface EditingHandle {
  * so a render-time value would be a stale null.
  */
 function useEditing(): EditingHandle {
-  const { doc, rootBlockId, selection: selectionRef } = useEditorContext();
+  const { doc, rootBlockId, selection: selectionRef, viewMode } = useEditorContext();
   const rootRef = useRef<HTMLDivElement | null>(null);
   const crossDrag = useCrossDrag(rootRef, doc);
 
   useEffect(() => {
+    // The read-only stand (view / published): the DOM selection stands no
+    // stand (the user-select's none) — the mapping is skipped.
+    if (viewMode) return;
     const onSelectionChange = () => {
       const root = rootRef.current;
       const view = selectionRef.view;
@@ -62,9 +65,13 @@ function useEditing(): EditingHandle {
     };
     document.addEventListener("selectionchange", onSelectionChange);
     return () => document.removeEventListener("selectionchange", onSelectionChange);
-  }, [doc, selectionRef]);
+  }, [doc, selectionRef, viewMode]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    // The read-only stand (view / published): the hotkeys stand no
+    // stand (the undo/redo's path and the blocks selection's delete are
+    // editing's paths).
+    if (viewMode) return;
     // Keys typed inside a nested editor (a sync-embed) bubble up to this
     // root; that editor's own hotkeys handle them, so this root must not
     // double-fire undo/redo.
@@ -153,6 +160,9 @@ function useEditing(): EditingHandle {
   };
 
   const onCopy = (event: ClipboardEvent<HTMLDivElement>) => {
+    // The read-only stand (view / published): the cross-range's copy is
+    // off (the selection stands no stand there).
+    if (viewMode) return;
     // A copy from a nested editor (a sync-embed) bubbles up to this root;
     // that editor's own copy handler owns its payload.
     const root = rootRef.current;
@@ -204,7 +214,17 @@ function useEditing(): EditingHandle {
     event.clipboardData.setData("text/html", payload.html);
   };
 
-  return { rootRef, onKeyDown, onCopy, ...crossDrag };
+  return {
+    rootRef,
+    onKeyDown,
+    onCopy,
+    // The read-only stand (view / published): the cross-drag's session is
+    // off (the selection's gesture is an editing's path).
+    onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
+      if (viewMode) return;
+      crossDrag.onPointerDown(event);
+    },
+  };
 }
 
 export { useEditing };

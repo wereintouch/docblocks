@@ -151,7 +151,7 @@ function TextBlock({
   header,
   codeBodyHidden = false,
 }: TextBlockProps) {
-  const { doc, store, selection: selectionRef, commandPalettePlaceholder } = useEditorContext();
+  const { doc, store, selection: selectionRef, commandPalettePlaceholder, viewMode } = useEditorContext();
   const blockContext = useBlockContext();
   // The cell context (the block's parent is a table cell): the block
   // keeps its text path, but the row chrome (the drag grip) and the
@@ -170,10 +170,18 @@ function TextBlock({
   // caret; the inert inner stands no stray focus, no native text
   // selection over the drag). The page view stands no session (the
   // context's null stand) — the canvas-text is a canvas type.
+  // The canvas-text's edit session's stand: the inner stands
+  // contentEditable ONLY while the session stands (the press's
+  // contract — the single click stands the selection over the move
+  // session, no caret; the double-click opens the session and seats
+  // the caret; the inert inner stands no stray focus, no native text
+  // selection over the drag). The read-only stand (view / published
+  // modes) is inert over every text type (the caret is impossible, the
+  // edit's path stands no path).
   const canvasTextEdit = useCanvasTextEdit();
   const canvasTextEditing =
     block.type === "canvas-text" && canvasTextEdit !== null && canvasTextEdit.canvasTextEditingId === id;
-  const innerIsEditable = block.type !== "canvas-text" || canvasTextEditing;
+  const innerIsEditable = !viewMode && (block.type !== "canvas-text" || canvasTextEditing);
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
   const collapsed = useStore(store, (state) => state.collapsedIds.includes(id));
   // The marker's cycle index (1|2|3) from the block's indent — the
@@ -614,7 +622,7 @@ function TextBlock({
         onKeyDown={onKeydown}
       >
         {header}
-        {!inCell && !onSurface && (
+        {!inCell && !onSurface && !viewMode && (
           <Button
             type="button"
             data-slot="docblocks/gutter"
@@ -629,7 +637,7 @@ function TextBlock({
             <GripVertical />
           </Button>
         )}
-        {!inCell && !onSurface && (
+        {!inCell && !onSurface && !viewMode && (
           <Button
             type="button"
             data-slot="docblocks/gutter-plus"
@@ -648,6 +656,7 @@ function TextBlock({
           <Checkbox
             data-slot="docblocks/checkbox"
             checked={block.attrs.checked === true}
+            disabled={viewMode}
             aria-label={block.attrs.checked ? "Mark task as not done" : "Mark task as done"}
             // One command is its own transaction: one undo step, one wire update.
             onCheckedChange={(checked) => {

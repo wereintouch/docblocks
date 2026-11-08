@@ -43,7 +43,7 @@ interface EditorProps {
  * palette.
  */
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
-  const { store, doc, rootBlockId } = useEditorContext();
+  const { store, doc, rootBlockId, viewMode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   // The page view's sequence: the root's children minus the surfaces (a
   // surface is a canvas layer, not a page block — its whole surface renders
@@ -77,6 +77,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
         ref={rootRef}
         data-slot="docblocks/editor"
         data-view={view}
+        data-readonly={viewMode ? "true" : undefined}
         tabIndex={-1}
         className={cn(
           "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",
@@ -115,10 +116,10 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
             </FormatPaletteContext.Provider>
           </MentionMenuContext.Provider>
         </SlashMenuContext.Provider>
-        <PresenceCaretOverlay rootRef={rootRef} />
+        {!viewMode && <PresenceCaretOverlay rootRef={rootRef} />}
         {slash.menuNode}
         {mention.menuNode}
-        {format.toolbarNode}
+        {!viewMode && format.toolbarNode}
       </div>
     </Card>
   );

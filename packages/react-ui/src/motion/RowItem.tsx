@@ -41,7 +41,7 @@ const RowItem = memo(
   }: RowItemProps) {
     const dragControls = useDragControls();
     const rowRef = useRef<HTMLDivElement | null>(null);
-    const { doc, store, selection: selectionRef } = useEditorContext();
+    const { doc, store, selection: selectionRef, viewMode } = useEditorContext();
     const blockContext = useBlockContext();
     const isList = node.kind !== undefined;
     const block = useBlock(node.id);
@@ -64,7 +64,7 @@ const RowItem = memo(
     // (the text rows' handle stands inside their own wrapper). The gutter
     // column follows the indent steps only — a list row's marker zone stands
     // in the row's content, so every row of one indent shares the columns.
-    const needsRowGutter = block !== undefined && !TEXT_ROW_TYPES.has(block.type);
+    const needsRowGutter = block !== undefined && !TEXT_ROW_TYPES.has(block.type) && !viewMode;
 
     /** The gutter handle's pointerdown starts this row's framer drag. */
     const onRowPointerDown = useCallback(

@@ -56,7 +56,7 @@
  * docblocks/format-palette),
  * plus the per-block elements;
  * + `data-block-type` / `data-list` / `data-depth` / `data-variant` / `data-checked`
- * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
+ * / `data-kind` / `data-selected` / `data-state` / `data-doc-id` / `data-readonly`.
  */
 
 /*
@@ -347,6 +347,17 @@
  */
 [data-slot="docblocks/canvas-view"] {
   overscroll-behavior: contain;
+}
+
+/*
+ * The read-only stand (view / published modes): the editor's content is
+ * read-only — the text selection stands no stand (the native range's
+ * gesture is an editing's affordance). The caret is already impossible
+ * (the inners stand contenteditable="false"), this keeps the
+ * selection's gesture off over the whole content.
+ */
+[data-slot="docblocks/editor"][data-readonly="true"] {
+  user-select: none;
 }
 
 /*
