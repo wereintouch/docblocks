@@ -68,7 +68,7 @@ import { useCanvasTargets } from "./use-canvas-targets";
 import { useCanvasWheel } from "./use-canvas-wheel";
 
 function CanvasView() {
-  const { store, doc, rootBlockId, selection } = useEditorContext();
+  const { store, doc, rootBlockId, selection, viewMode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   // The canvas chrome stands over the surfaces' chrome data (the items'
   // geometry, the connectors' attrs) + the root's own structure: the digest
@@ -212,6 +212,7 @@ function CanvasView() {
     isEditingSurface,
     surfaces,
     handleTarget,
+    viewMode,
   });
 
   const { onKeyDown, onKeyUp } = useCanvasKeys({
@@ -225,6 +226,7 @@ function CanvasView() {
     setSpacePan,
     rootBlockId,
     isEditingSurface,
+    viewMode,
   });
 
   const cursor =
@@ -721,7 +723,10 @@ function CanvasView() {
           />
         )}
         <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={resetViewportZoom} onFit={onFit} />
-        <CanvasDock viewport={viewport} />
+        {/* The read-only stand (view / published): the dock's placement's
+            tools' stand is off — the view's gestures keep (the wheel's
+            zoom / pan, the zoom's controls' fit / step / reset). */}
+        {viewMode ? null : <CanvasDock viewport={viewport} />}
       </div>
     </CanvasTextEditProvider>
   );

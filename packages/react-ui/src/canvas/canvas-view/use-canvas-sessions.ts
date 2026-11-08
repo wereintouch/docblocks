@@ -45,6 +45,8 @@ interface CanvasSessionsDeps {
   isEditingSurface: (target: EventTarget | null) => boolean;
   surfaces: { id: BlockId; children: BlockId[] }[];
   handleTarget: { id: BlockId; box: { x: number; y: number; w: number; h: number } } | null;
+  /** The read-only stand (the view / published's modes): the selection's / the move's / the resize's / the placement's / the connector's sessions stand off — the pan's gesture keeps (the view's gesture, no data). */
+  viewMode: boolean;
 }
 
 function useCanvasSessions({
@@ -62,6 +64,7 @@ function useCanvasSessions({
   isEditingSurface,
   surfaces,
   handleTarget,
+  viewMode,
 }: CanvasSessionsDeps) {
   const centerRelativePoint = (event: { clientX: number; clientY: number }) => {
     const container = containerRef.current;
@@ -157,6 +160,11 @@ function useCanvasSessions({
     // DOM subtree belongs to the portal content, not to the canvas.
     if (!(event.target instanceof Node) || !event.currentTarget.contains(event.target)) return;
     if (isChrome(event.target)) return;
+    // The read-only stand (view / published): the sessions' stands off
+    // (the selection / move / resize / place / connector's paths) — the
+    // pan's gesture keeps (the view's gesture over the read-only's
+    // stand: the wheel's pan / the space's hold's parity).
+    if (viewMode && !(viewport.mode === "pan" || spacePan)) return;
     const point = centerRelativePoint(event);
 
     // The active tool wins over the surface it lands on (the explicit
@@ -709,6 +717,10 @@ function useCanvasSessions({
   // the hit path is the dblclick's target; the page's inert surfaces
   // stand no container handler — the read-only stand there).
   const onContentDoubleClick = (event: ReactMouseEvent<HTMLDivElement>): void => {
+    // The read-only stand (view / published): the double press's entry's
+    // stand (the ghost's text's, the canvas-text's edit's, the shape's
+    // text's, the label's) stands off.
+    if (viewMode) return;
     // The ghost text block's entry (the double-click on the EMPTY canvas —
     // the default mode with no active tool): the focused contenteditable
     // stands at the point (the world's space — the ghost's component's

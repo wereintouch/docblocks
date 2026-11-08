@@ -41,6 +41,8 @@ interface CanvasKeysDeps {
   setSpacePan: (value: boolean) => void;
   rootBlockId: BlockId;
   isEditingSurface: (target: EventTarget | null) => boolean;
+  /** The read-only stand (the view / published's modes): the hotkeys' stands off — the held space's pan's gesture keeps (the view's gesture, no data). */
+  viewMode: boolean;
 }
 
 function useCanvasKeys({
@@ -54,6 +56,7 @@ function useCanvasKeys({
   setSpacePan,
   rootBlockId,
   isEditingSurface,
+  viewMode,
 }: CanvasKeysDeps): {
   onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
   onKeyUp: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
@@ -70,6 +73,18 @@ function useCanvasKeys({
     // label's input, the page miniature's content): the typed character
     // lands, the mode / the selection / the focus stand untouched.
     if (isEditingSurface(event.target)) return;
+    // The held space: the temporary pan (Miro's hand) — the view's gesture
+    // (no data): it keeps over the read-only's stand (the pan's parity),
+    // the hotkeys' path stands off with the view's mode.
+    if (event.key === " ") {
+      if (!event.repeat && !viewMode) setSpacePan(true);
+      return;
+    }
+    // The read-only stand (view / published): the hotkeys stand no stand
+    // (the mode's switch / the nudge's / the clipboard's / the delete's /
+    // the selection's / the tools' cancel's paths are the editing's
+    // paths).
+    if (viewMode) return;
     // The M key: the select mode (the mode's keyboard switch — the dock's
     // button icon shows the current mode, the hand is the pan). The key
     // stands over the container's own focus (the mode's hotkey's context —
@@ -296,10 +311,6 @@ function useCanvasKeys({
       event.stopPropagation();
       viewport.cancelResize();
       return;
-    }
-    if (event.key === " " && !event.repeat) {
-      // The held space: the temporary pan (Miro's hand).
-      setSpacePan(true);
     }
   };
 
