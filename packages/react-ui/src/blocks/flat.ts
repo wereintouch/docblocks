@@ -338,6 +338,17 @@ function toRoman(n: number): string {
  * block stands the chain; the rest stand no stand). A non-empty node, a
  * node with children, or an indent's change breaks the chain.
  */
+/** The text types over the empty chain's collapse (the empty's stand: the
+ *  zero text's length + no children). */
+const EMPTY_CHAIN_TYPES = new Set(["paragraph", "heading", "quote", "callout", "list-item", "code"]);
+
+/** The block's empty's stand (a text type with the zero text's length). */
+function isEmptyChainText(block: unknown): boolean {
+  if (block === null || block === undefined) return false;
+  const candidate = block as { type: string; content?: readonly { text: string }[] };
+  return EMPTY_CHAIN_TYPES.has(candidate.type) && (candidate.content ?? []).every((run) => run.text === "");
+}
+
 function collapseEmptyTextChains(nodes: FlatNode[], isEmptyText: (id: BlockId) => boolean): FlatNode[] {
   const result: FlatNode[] = [];
   let chainIndent = -1;
@@ -363,6 +374,7 @@ export {
   entrySequenceParent,
   flatStructureKey,
   indentOf,
+  isEmptyChainText,
   markerCycle,
   numberMarkerLabel,
   sequenceContainerOf,

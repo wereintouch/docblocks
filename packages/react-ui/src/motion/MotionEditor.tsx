@@ -18,8 +18,10 @@ import {
   BlockContext,
   CanvasView,
   FormatPaletteContext,
+  collapseEmptyTextChains,
   deriveFlat,
   entrySequenceParent,
+  isEmptyChainText,
   visibleRows,
 } from "../blocks";
 import type { FlatNode } from "../blocks";
@@ -45,7 +47,7 @@ function MotionEditor({
   view?: EditorView;
   formatPalette?: readonly string[];
 }) {
-  const { doc, store, rootBlockId } = useEditorContext();
+  const { doc, store, rootBlockId, viewMode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   // The sequence-structure stamp (the derivation's key): a text-only edit
   // stands nothing here — the edited row re-renders through its own
@@ -101,9 +103,35 @@ function MotionEditor({
     [pageChildren, derivation, collapsedIds]
   );
   const nodesById = derivation.byId;
+  // The read-only stand (the view / published's modes): the consecutive
+  // empty text blocks' chain stands rendered as one (the chain's first
+  // block) — the data stands untouched (the motion path's parity over the
+  // base's BlockGroups stand). The digest stands the remote's empty's
+  // flip (the view's stand reads the live's doc — the peer's write's stand
+  // is the collapse's input). The edit's mode stands no digest (the
+  // collapse's stand is off).
+  const emptyKey = useStore(store, (state) =>
+    viewMode
+      ? pageChildren
+          .map((id) => {
+            const block = state.blocks[id];
+            return isEmptyChainText(block) ? "o" : block === undefined ? "-" : ".";
+          })
+          .join("")
+      : ""
+  );
+  const collapsedRowKeys = useMemo(() => {
+    if (!viewMode) return rowKeys;
+    const nodes: FlatNode[] = [];
+    for (const id of rowKeys) {
+      const node = nodesById.get(id);
+      if (node !== undefined) nodes.push(node);
+    }
+    return collapseEmptyTextChains(nodes, (id) => isEmptyChainText(store.getState().blocks[id])).map((node) => node.id);
+  }, [rowKeys, viewMode, emptyKey, nodesById, store]);
 
   const { order, draggingKey, previewIndent, layoutSlide, onRowDragStart, onRowDragMove, onRowDragEnd, onRowReorder } =
-    useMotionDrag({ doc, rootBlockId, store, rootRef, rowKeys, nodesById });
+    useMotionDrag({ doc, rootBlockId, store, rootRef, rowKeys: collapsedRowKeys, nodesById });
 
   // The cross-drag selection session owns the root's pointerdown (the
   // rows' drag start is the gutter handle's pointerdown — a text inner
@@ -129,6 +157,7 @@ function MotionEditor({
           data-slot="docblocks/editor"
           data-docblocks-motion=""
           data-view={view}
+          data-readonly={viewMode ? "true" : undefined}
           tabIndex={-1}
           className={cn(
             "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",

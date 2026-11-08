@@ -13,7 +13,16 @@ export { BlockGroups, BlockNodeView, BlockView, childrenSlot, FlatBlockView } fr
 export { BlockContext, useBlockContext } from "../shared/providers/block-context";
 export type { BlockContextValue } from "../shared/providers/block-context";
 export { CanvasView } from "../canvas/canvas-view";
-export { deriveFlat, entrySequenceParent, indentOf, sequenceContainerOf, subtreeSegmentOf, visibleRows } from "./flat";
+export {
+  collapseEmptyTextChains,
+  deriveFlat,
+  entrySequenceParent,
+  indentOf,
+  isEmptyChainText,
+  sequenceContainerOf,
+  subtreeSegmentOf,
+  visibleRows,
+} from "./flat";
 export type { FlatNode } from "./flat";
 export { FormatPaletteContext, useFormatPalette } from "../shared/providers/format-palette-context";
 export { insertParagraphAfter } from "../editing/gutter-plus";

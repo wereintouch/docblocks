@@ -35,23 +35,11 @@ import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes } from "./ListRun";
 import { ItemNested, NestedSlot } from "./NestedSlot";
 import { dispatchBuiltIn } from "./block-dispatch";
-import { collapseEmptyTextChains, deriveFlat, flatStructureKey } from "./flat";
+import { collapseEmptyTextChains, deriveFlat, flatStructureKey, isEmptyChainText } from "./flat";
 import type { FlatNode } from "./flat";
 import type { BlockRendererMap } from "./renderers";
 
-/** The text types over the empty chain's collapse (the empty's stand: the
- *  zero text's length + no children). */
-const EMPTY_CHAIN_TYPES = new Set(["paragraph", "heading", "quote", "callout", "list-item", "code"]);
-
-/** The block's empty's stand (a text type with the zero text's length). */
-function isEmptyChainText(block: unknown): boolean {
-  if (block === null || block === undefined) return false;
-  const candidate = block as { type: string; content?: readonly { text: string }[] };
-  return EMPTY_CHAIN_TYPES.has(candidate.type) && (candidate.content ?? []).every((run) => run.text === "");
-}
-
-/**
- * The block body's renderer dispatch, a child of the render error
+/** The block body's renderer dispatch, a child of the render error
  * boundary: the dispatch (the consumer renderer's call, the built-in
  * dispatch) throws during this component's render, so the boundary above
  * it contains the throw.
