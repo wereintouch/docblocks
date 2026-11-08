@@ -67,8 +67,13 @@ test("the image's figure + menu stand over the keyboard (the focus's selection, 
     const menu = a.locator('[data-slot="docblocks/image-menu"]');
 
     // At rest (no hover, no focus): the menu's opacity's "0" (the reveal's
-    // absent).
-    expect(await opacityOf(a, menu)).toBe("0");
+    // absent). The upload's last click parks the mouse over the figure (the
+    // group-hover's reveal stands active) and the caret's focus stands the
+    // focus-within: park both off for the premise. Polled — the instant's
+    // sampling stands the fade-out's transition mid-way over the runner's load.
+    await a.mouse.move(5, 5);
+    await a.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect.poll(async () => opacityOf(a, menu), SETTLE).toBe("0");
 
     // The keyboard's focus seats the selection (the ports' stand) + stands the
     // menu's reveal (the focus-within's — the hover-only reveal kept the menu
@@ -131,8 +136,14 @@ test("the embed's toolbar stands over the keyboard (the focus's reveal, the zoom
 
     // The toolbar's reveal (the focus-within's stand): at rest the opacity's
     // "0" (the display:none's stand kept the controls out of the Tab's path);
-    // the focus on a zoom control's stands the reveal.
-    expect(await opacityOf(a, toolbar)).toBe("0");
+    // the focus on a zoom control's stands the reveal. The insert's last click
+    // parks the mouse over the wrapper (the group-hover's reveal stands
+    // active) and the caret's focus stands the focus-within: park both off
+    // for the premise. Polled — the instant's sampling stands the fade-out's
+    // transition mid-way over the runner's load.
+    await a.mouse.move(5, 5);
+    await a.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect.poll(async () => opacityOf(a, toolbar), SETTLE).toBe("0");
     await zoomIn.focus();
     await expect.poll(async () => opacityOf(a, toolbar), SETTLE).toBe("1");
 
