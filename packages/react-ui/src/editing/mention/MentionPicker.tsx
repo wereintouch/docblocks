@@ -2,6 +2,8 @@
  *  documents) over the consumer's mention provider, anchored at the `@`
  *  character. A plain absolutely-positioned div inside the editor root
  *  (the root is the positioning context), like the slash menu. */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { MentionEntry } from "../../editor-provider";
@@ -21,6 +23,7 @@ const SEARCH_DEBOUNCE_MS = 120;
 type MentionResult = { users: MentionEntry[]; docs: MentionEntry[] };
 
 function MentionPicker(props: MentionMenuProps) {
+  const { t } = useTranslation("editor");
   const { rootRef, state, provider, active, onItemsChange, onHover, onPick, onClose } = props;
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
@@ -189,19 +192,19 @@ function MentionPicker(props: MentionMenuProps) {
     >
       {loading && items.length === 0 ? (
         <div data-slot="docblocks/mention-loading" className="px-2 py-1.5 text-sm text-muted-foreground">
-          Searching…
+          {t("mention.searching")}
         </div>
       ) : (
         <>
           {result.users.length > 0 && (
             <div data-slot="docblocks/mention-users" className="p-1">
-              <div className="px-2 py-1 text-xs text-muted-foreground select-none">People</div>
+              <div className="px-2 py-1 text-xs text-muted-foreground select-none">{t("mention.people")}</div>
               {result.users.map((u, i) => renderItem({ kind: "user", id: u.id, label: u.label }, i))}
             </div>
           )}
           {result.docs.length > 0 && (
             <div data-slot="docblocks/mention-docs" className="p-1">
-              <div className="px-2 py-1 text-xs text-muted-foreground select-none">Documents</div>
+              <div className="px-2 py-1 text-xs text-muted-foreground select-none">{t("mention.documents")}</div>
               {result.docs.map((d, i) => renderItem({ kind: "doc", id: d.id, label: d.label }, usersCount + i))}
             </div>
           )}
@@ -210,7 +213,7 @@ function MentionPicker(props: MentionMenuProps) {
               data-slot="docblocks/mention-error"
               className="flex items-center justify-between gap-2 px-2 py-1.5 text-sm text-muted-foreground"
             >
-              <span className="min-w-0 truncate">Couldn't load mention results.</span>
+              <span className="min-w-0 truncate">{t("mention.error")}</span>
               <Button
                 data-slot="docblocks/mention-retry"
                 variant="link"
@@ -218,13 +221,13 @@ function MentionPicker(props: MentionMenuProps) {
                 className="h-auto shrink-0 px-0 py-0 text-sm"
                 onClick={retrySearch}
               >
-                Retry
+                {t("mention.retry")}
               </Button>
             </div>
           ) : (
             items.length === 0 && (
               <div data-slot="docblocks/mention-empty" className="px-2 py-1.5 text-sm text-muted-foreground">
-                No matches
+                {t("common:noMatches")}
               </div>
             )
           )}

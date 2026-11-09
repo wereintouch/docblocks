@@ -17,6 +17,7 @@
  * snapshots — a surface child's geometry / attr change re-stands the copy
  * without the block's own re-render).
  */
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -54,6 +55,7 @@ function surfaceOfFrame(
 }
 
 function FramePageBlock({ id }: { id: BlockId }) {
+  const { t } = useTranslation("frame");
   const { store } = useEditorContext();
   const block = useBlock(id);
   // The weak reference (the absent / empty stand is the dangling's
@@ -80,7 +82,7 @@ function FramePageBlock({ id }: { id: BlockId }) {
         "
       >
         <CardContent className="flex items-center justify-center text-sm text-muted-foreground">
-          Frame not found
+          {t("page.missing")}
         </CardContent>
       </Card>
     );
@@ -105,6 +107,7 @@ function FramePageWindow({
   surfaceId: BlockId;
   referenced: FrameBlock;
 }) {
+  const { t } = useTranslation("frame");
   const [rowWidth, setRowWidth] = useState(0);
   const rowRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -164,7 +167,7 @@ function FramePageWindow({
       <div
         data-slot="docblocks/frame-page-window"
         role="img"
-        aria-label={title !== "" ? `Frame: ${title}` : "Frame"}
+        aria-label={title !== "" ? t("page.windowTitle", { title }) : t("page.windowLabel")}
         className="relative mx-auto overflow-hidden rounded-(--docblocks-radius)"
         style={boxStyle}
       >

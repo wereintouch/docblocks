@@ -8,6 +8,8 @@
  * toolbar is canvas chrome (its own pointers; a press on it starts no
  * canvas session).
  */
+import { useTranslation } from "react-i18next";
+
 import type { CSSProperties } from "react";
 import { useState } from "react";
 
@@ -40,6 +42,7 @@ function CanvasTextToolbar({
   zStand: { position: number; count: number } | null;
   style: CSSProperties;
 }) {
+  const { t } = useTranslation("canvas");
   const { doc } = useEditorContext();
   // The text color section's open state (the non-modal popover's parity —
   // the single section stands its own stand).
@@ -66,7 +69,7 @@ function CanvasTextToolbar({
       <div
         data-slot="docblocks/canvas-text-toolbar"
         role="toolbar"
-        aria-label="Text options"
+        aria-label={t("text.toolbar")}
         className="
           flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
           bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
@@ -86,7 +89,7 @@ function CanvasTextToolbar({
         />
         <Separator orientation="vertical" className="h-5" />
         {zStand !== null && (
-          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label="Arrange text" />
+          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label={t("text.arrange")} />
         )}
       </div>
     </div>

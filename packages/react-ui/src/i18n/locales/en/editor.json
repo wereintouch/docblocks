@@ -1,0 +1,74 @@
+{
+  "docHeader": {
+    "pageView": "Page view",
+    "canvasView": "Canvas view",
+    "documentViewAria": "Document view",
+    "editMode": "Edit mode",
+    "viewMode": "View mode",
+    "published": "Published",
+    "documentModeAria": "Document mode",
+    "documentAvatarAria": "Document avatar",
+    "editAvatarAria": "Edit the document avatar",
+    "editAvatar": "Edit the avatar",
+    "documentTitleAria": "Document title",
+    "editTitleAria": "Edit the document title",
+    "editTitle": "Edit the title"
+  },
+  "formatToolbar": {
+    "aria": "Text formatting",
+    "marks": {
+      "bold": "Bold",
+      "code": "Monospace",
+      "italic": "Italic",
+      "underline": "Underline",
+      "strike": "Strikethrough"
+    },
+    "align": {
+      "left": "Align left",
+      "center": "Align center",
+      "right": "Align right"
+    },
+    "listType": "List type",
+    "lists": {
+      "bullet": "Bullet list",
+      "number": "Numbered list",
+      "task": "To-do list",
+      "quote": "Quote",
+      "paragraph": "Text"
+    },
+    "callout": {
+      "trigger": "Callout",
+      "typeAria": "Callout type",
+      "variant": "{variant} callout",
+      "iconAria": "Callout icon",
+      "presetIcon": "Preset icon",
+      "preset": "Preset"
+    },
+    "color": {
+      "trigger": "Text and background color",
+      "targetGroupAria": "Color target",
+      "highlightAria": "Highlight the background",
+      "textAria": "Color the text",
+      "highlightLabel": "bg",
+      "textLabel": "text"
+    },
+    "palette": {
+      "callout": "callout",
+      "highlight": "highlight",
+      "text": "text"
+    }
+  },
+  "mention": {
+    "searching": "Searching…",
+    "people": "People",
+    "documents": "Documents",
+    "error": "Couldn't load mention results.",
+    "retry": "Retry"
+  },
+  "shared": {
+    "swatch": "{label} color {index}",
+    "emojiPickerGroup": "Avatar emoji",
+    "removeAvatar": "Remove avatar",
+    "clearTime": "Clear the time"
+  }
+}

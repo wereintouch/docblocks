@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -113,6 +115,7 @@ interface CodeHeaderProps {
 }
 
 function CodeHeader({ id, block, center }: CodeHeaderProps) {
+  const { t } = useTranslation("blocks");
   const { doc, store, viewMode } = useEditorContext();
   const [languageOpen, setLanguageOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -219,7 +222,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
           // the attr's write's stand is no).
           <span
             data-slot="docblocks/code-language"
-            aria-label="Code language"
+            aria-label={t("code.language")}
             className="flex h-7 max-w-45 items-center gap-1 px-2 text-[length:inherit]"
           >
             <span className="truncate">{languageLabel(language)}</span>
@@ -232,7 +235,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                 variant="ghost"
                 size="sm"
                 data-slot="docblocks/code-language"
-                aria-label="Choose the code language"
+                aria-label={t("code.chooseLanguage")}
                 className="h-7 max-w-45 gap-1 px-2 text-[length:inherit]"
               >
                 <span className="truncate">{languageLabel(language)}</span>
@@ -243,7 +246,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
               align="start"
               sideOffset={6}
               data-slot="docblocks/code-language-menu"
-              aria-label="Code language"
+              aria-label={t("code.language")}
               className="flex w-56 flex-col gap-2"
             >
               <div className="relative">
@@ -255,14 +258,14 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                   value={query}
                   onChange={onQueryChange}
                   onKeyDown={onQueryKeyDown}
-                  placeholder="Search language…"
-                  aria-label="Search language"
+                  placeholder={t("code.searchPlaceholder")}
+                  aria-label={t("code.searchAria")}
                   className="pr-2 pl-7 focus:border-ring"
                 />
               </div>
-              <ScrollArea role="listbox" aria-label="Languages" className="max-h-64 overflow-x-hidden py-0.5">
+              <ScrollArea role="listbox" aria-label={t("code.languages")} className="max-h-64 overflow-x-hidden py-0.5">
                 {matches.length === 0 ? (
-                  <div className="px-2 py-1.5 text-sm text-muted-foreground">No matches</div>
+                  <div className="px-2 py-1.5 text-sm text-muted-foreground">{t("common:noMatches")}</div>
                 ) : (
                   matches.map((lang) => {
                     const selected = (language ?? "") === lang.value;
@@ -297,8 +300,8 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
           size="icon"
           data-slot="docblocks/code-copy"
           data-copied={copied ? "true" : undefined}
-          aria-label="Copy the code"
-          title="Copy"
+          aria-label={t("code.copy")}
+          title={t("common:copy")}
           className="size-7 text-[length:inherit]"
           onClick={onCopy}
         >
@@ -311,9 +314,9 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
               variant="ghost"
               size="icon"
               data-slot="docblocks/code-collapse"
-              aria-label={collapsed ? "Expand the code" : "Collapse the code"}
+              aria-label={collapsed ? t("code.expand") : t("code.collapse")}
               aria-expanded={!collapsed}
-              title={collapsed ? "Expand" : "Collapse"}
+              title={collapsed ? t("code.expandTitle") : t("code.collapseTitle")}
               className="size-7 text-[length:inherit]"
               // Disabled (not hidden) while the block fits in the clamp and is
               // not already collapsed (a collapsed block always expands).
@@ -327,8 +330,8 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
               variant="ghost"
               size="icon"
               data-slot="docblocks/code-caption-toggle"
-              aria-label={block.attrs?.caption ? "Edit the caption" : "Add a caption"}
-              title="Caption"
+              aria-label={block.attrs?.caption ? t("caption.edit") : t("caption.add")}
+              title={t("caption.aria")}
               className="size-7 text-[length:inherit]"
               onClick={requestCaption}
             >
@@ -341,8 +344,8 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                   variant="ghost"
                   size="icon"
                   data-slot="docblocks/code-more"
-                  aria-label="Code options"
-                  title="More options"
+                  aria-label={t("code.options")}
+                  title={t("common:moreOptions")}
                   className="
                     size-7 text-[length:inherit]
                     data-[state=open]:bg-accent data-[state=open]:text-accent-foreground
@@ -355,7 +358,7 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                 align="end"
                 sideOffset={6}
                 data-slot="docblocks/code-more-menu"
-                aria-label="Code options"
+                aria-label={t("code.options")}
               >
                 <DropdownMenuCheckboxItem
                   checked={lineNumbers}
@@ -363,11 +366,11 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
                   onSelect={toggleLineNumbers}
                 >
                   <Hash className="size-4" />
-                  Line numbers
+                  {t("code.lineNumbers")}
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem checked={wrap} data-code-option="wrap" onSelect={toggleWrap}>
                   <TextWrap className="size-4" />
-                  Wrap long lines
+                  {t("code.wrap")}
                 </DropdownMenuCheckboxItem>
               </DropdownMenuContent>
             </DropdownMenu>

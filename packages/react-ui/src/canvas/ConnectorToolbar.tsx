@@ -16,6 +16,8 @@
  * toolbar control: the line's
  * double-click stands the label's inline edit.
  */
+import { useTranslation } from "react-i18next";
+
 import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 
@@ -41,10 +43,11 @@ const WIDTH_POINTS = BORDER_WIDTH_POINTS;
 /** The absent width's stand (the registry's default). */
 const DEFAULT_WIDTH = 1;
 
-const ARROW_HEADS: readonly { value: "none" | "arrow" | "circle"; label: string; icon: ReactNode }[] = [
-  { value: "arrow", label: "Arrow", icon: <ArrowRight className="size-4" /> },
-  { value: "circle", label: "Circle", icon: <Circle className="size-4" /> },
-  { value: "none", label: "None", icon: <Minus className="size-4" /> },
+/** The arrowhead's figures (the label's i18n key — the `canvas` namespace's `connector.arrowhead*`). */
+const ARROW_HEADS: readonly { value: "none" | "arrow" | "circle"; labelKey: string; icon: ReactNode }[] = [
+  { value: "arrow", labelKey: "connector.arrowheadArrow", icon: <ArrowRight className="size-4" /> },
+  { value: "circle", labelKey: "connector.arrowheadCircle", icon: <Circle className="size-4" /> },
+  { value: "none", labelKey: "connector.arrowheadNone", icon: <Minus className="size-4" /> },
 ];
 
 function ConnectorToolbar({
@@ -71,6 +74,7 @@ function ConnectorToolbar({
   /** The positioned style (the left/top at the line's midpoint). */
   style: CSSProperties;
 }) {
+  const { t } = useTranslation("canvas");
   const { doc } = useEditorContext();
   // The palette section's open state (the toolbar's single section).
   const [openSection, setOpenSection] = useState<"stroke" | null>(null);
@@ -123,28 +127,28 @@ function ConnectorToolbar({
   const openStrokeSection = (open: boolean) => setOpenSection(open ? "stroke" : null);
   const applyStrokeColor = (value: string | null) => apply({ strokeColor: value });
 
-  const styleOption = (next: "solid" | "dash", label: string, icon: ReactNode) => (
+  const styleOption = (next: "solid" | "dash", labelKey: string, icon: ReactNode) => (
     <Button
       variant="ghost"
       size="icon"
       data-slot={`docblocks/connector-toolbar-${next}`}
-      aria-label={label}
+      aria-label={t(labelKey)}
       aria-pressed={currentStyle === next}
-      title={label}
+      title={t(labelKey)}
       onClick={applyStyleAt(next)}
     >
       {icon}
     </Button>
   );
 
-  const option = (next: "straight" | "orthogonal" | "curved", label: string, icon: ReactNode) => (
+  const option = (next: "straight" | "orthogonal" | "curved", labelKey: string, icon: ReactNode) => (
     <Button
       variant="ghost"
       size="icon"
       data-slot={`docblocks/connector-toolbar-${next}`}
-      aria-label={label}
+      aria-label={t(labelKey)}
       aria-pressed={variant === next}
-      title={label}
+      title={t(labelKey)}
       onClick={applyVariantAt(next)}
     >
       {icon}
@@ -160,7 +164,7 @@ function ConnectorToolbar({
     effective: "none" | "arrow" | "circle",
     pick: (value: "none" | "arrow" | "circle") => void
   ) => {
-    const label = `${which === "start" ? "Start" : "End"} arrowhead`;
+    const label = which === "start" ? t("connector.arrowheadStart") : t("connector.arrowheadEnd");
     // The figure's pick: the current figure's press is the no-op stand
     // (it writes nothing).
     const pickArrowHead = (value: "none" | "arrow" | "circle") => () => {
@@ -183,17 +187,17 @@ function ConnectorToolbar({
         <DropdownMenuContent
           align="end"
           sideOffset={TOOLTIP_SIDE_OFFSET_PX}
-          aria-label={`${which === "start" ? "Start" : "End"} arrowheads`}
+          aria-label={which === "start" ? t("connector.arrowheadsStart") : t("connector.arrowheadsEnd")}
         >
-          {ARROW_HEADS.map(({ value, label: headLabel, icon }) => (
+          {ARROW_HEADS.map(({ value, labelKey, icon }) => (
             <DropdownMenuCheckboxItem
               key={value}
-              aria-label={headLabel}
+              aria-label={t(labelKey)}
               checked={effective === value}
               onSelect={pickArrowHead(value)}
             >
               {icon}
-              {headLabel}
+              {t(labelKey)}
             </DropdownMenuCheckboxItem>
           ))}
         </DropdownMenuContent>
@@ -219,21 +223,21 @@ function ConnectorToolbar({
       <div
         data-slot="docblocks/connector-toolbar"
         role="toolbar"
-        aria-label="Connector options"
+        aria-label={t("connector.toolbar")}
         className="
           flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
           bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
         "
       >
-        {option("straight", "Straight line", <Diagonal className="size-4" />)}
-        {option("orthogonal", "Orthogonal line", <Elbow className="size-4" />)}
-        {option("curved", "Curved line", <Curve className="size-4" />)}
+        {option("straight", "connector.straight", <Diagonal className="size-4" />)}
+        {option("orthogonal", "connector.orthogonal", <Elbow className="size-4" />)}
+        {option("curved", "connector.curved", <Curve className="size-4" />)}
         <Separator orientation="vertical" className="h-5" />
         {/* The stroke color (the palette + the custom hex + the none
             entry — the absent stand is the theme's token). */}
         <ColorSection
           target="stroke"
-          label="Line color"
+          label={t("connector.lineColor")}
           current={strokeColor}
           chipStyle={{ border: `2px solid ${strokeColor ?? "currentColor"}` }}
           icon={<Stroke className="size-4" />}
@@ -248,16 +252,16 @@ function ConnectorToolbar({
           points={WIDTH_POINTS.length}
           value={widthIndex < 0 ? 0 : widthIndex}
           onChange={applyWidth}
-          label="Line width"
-          title="Line width (1–4 px)"
+          label={t("connector.lineWidth")}
+          title={t("connector.lineWidthTitle")}
           className="mr-0.5"
         />
         <Separator orientation="vertical" className="h-5" />
         {/* The line's stroke style (the solid / the dashed stand — the
             dot data renders but stands no pick; a re-pick of the current
             style is the no-op stand). */}
-        {styleOption("solid", "Solid line", <Minus className="size-4" />)}
-        {styleOption("dash", "Dashed line", <Dashed className="size-4" />)}
+        {styleOption("solid", "connector.solid", <Minus className="size-4" />)}
+        {styleOption("dash", "connector.dashed", <Dashed className="size-4" />)}
         <Separator orientation="vertical" className="h-5" />
         {/* The two arrowheads' figures (the:
             the start first, then the end — the two equal three-way menus,
@@ -270,7 +274,7 @@ function ConnectorToolbar({
         {/* The z-order menu (the explicit zIndex): the three-dots button,
             the four reorder picks. */}
         {zStand !== null && (
-          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label="Arrange line" />
+          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label={t("connector.arrange")} />
         )}
       </div>
     </div>

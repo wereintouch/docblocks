@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import { useContext, useEffect, useRef, useState } from "react";
@@ -41,10 +42,10 @@ const COMMIT_THRESHOLD_PX = 2;
 const IMAGE_KEYBOARD_RESIZE_STEP_PX = 10;
 
 /** The image's align controls, in display order (the format toolbar's set). */
-const IMAGE_ALIGNS: { align: TextAlign; title: string; icon: typeof TextAlignStart }[] = [
-  { align: "left", title: "Align left", icon: TextAlignStart },
-  { align: "center", title: "Align center", icon: TextAlignCenter },
-  { align: "right", title: "Align right", icon: TextAlignEnd },
+const IMAGE_ALIGNS: { align: TextAlign; labelKey: string; icon: typeof TextAlignStart }[] = [
+  { align: "left", labelKey: "align.left", icon: TextAlignStart },
+  { align: "center", labelKey: "align.center", icon: TextAlignCenter },
+  { align: "right", labelKey: "align.right", icon: TextAlignEnd },
 ];
 
 /** The corner port's corner (the resize session's drag anchor). */
@@ -67,6 +68,7 @@ const IMAGE_PORT_CORNERS: { corner: ImagePortCorner; cursor: string }[] = [
  * a structural placeholder card instead of a broken <img>.
  */
 function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
+  const { t } = useTranslation("blocks");
   const { blobStore, pdfPreview } = useEditorContext();
   const src = block.attrs.src;
   const [ref, setRef] = useState<BlobRef | null>(null);
@@ -99,7 +101,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
       >
         <CardContent className="flex flex-col items-center gap-2 text-center">
           <ImageIcon className="size-6" />
-          image
+          {t("image.placeholder")}
         </CardContent>
       </Card>
     );
@@ -153,7 +155,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
         data-subtype="pdf"
         sandbox={PDF_VIEWER_SANDBOX}
         src={url}
-        title={meta.name ?? "document"}
+        title={meta.name ?? t("image.document")}
         className="
           my-(--docblocks-block-spacing) block aspect-video w-full rounded-(--docblocks-image-radius)
           border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
@@ -218,6 +220,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
  * (`updateBlock({ align })` — "left" restores the absent attr).
  */
 function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockType; url: string; name?: string }) {
+  const { t } = useTranslation("blocks");
   const { doc, store, selection: selectionRef, viewMode } = useEditorContext();
   const blockContext = useContext(BlockContext);
   const selected = useStore(store, (state) => state.selection.kind === "blocks" && state.selection.ids.includes(id));
@@ -413,7 +416,7 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
               type="button"
               data-slot="docblocks/image-port"
               data-corner={corner}
-              aria-label="Resize the image"
+              aria-label={t("image.resize")}
               className={cn(
                 "pointer-events-auto absolute z-10 size-2.5 rounded-full",
                 "border border-(--docblocks-formatbar-border-color) bg-(--docblocks-canvas-selection-border-color)",
@@ -466,8 +469,8 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
                 href={url}
                 download={name ?? block.attrs.src}
                 data-slot="docblocks/image-download"
-                aria-label="Download the image"
-                title="Download"
+                aria-label={t("image.download")}
+                title={t("image.downloadTitle")}
               >
                 <Download className="size-4" />
               </a>
@@ -478,8 +481,8 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
                 type="button"
                 disabled
                 data-slot="docblocks/image-download"
-                aria-label="Download the image"
-                title="Download"
+                aria-label={t("image.download")}
+                title={t("image.downloadTitle")}
               >
                 <Download className="size-4" />
               </button>
@@ -492,32 +495,35 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
                 variant="ghost"
                 size="icon"
                 data-slot="docblocks/image-caption-toggle"
-                aria-label={block.attrs.caption ? "Edit the caption" : "Add a caption"}
-                title="Caption"
+                aria-label={block.attrs.caption ? t("caption.edit") : t("caption.add")}
+                title={t("caption.aria")}
                 className="size-7"
                 onClick={requestCaption}
               >
                 <Captions className="size-4" />
               </Button>
               <span aria-hidden className="mx-0.5 h-4 w-px bg-(--docblocks-table-border-color)" />
-              {IMAGE_ALIGNS.map(({ align: value, title, icon: Icon }) => (
-                <Button
-                  key={value}
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  data-slot="docblocks/image-align"
-                  data-align={value}
-                  data-active={align === value ? "true" : undefined}
-                  aria-label={title}
-                  title={title}
-                  aria-pressed={align === value}
-                  className={cn("size-7", align === value && "bg-accent text-accent-foreground")}
-                  onClick={pickAlign(value)}
-                >
-                  <Icon className="size-4" />
-                </Button>
-              ))}
+              {IMAGE_ALIGNS.map(({ align: value, labelKey, icon: Icon }) => {
+                const label = t(labelKey);
+                return (
+                  <Button
+                    key={value}
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    data-slot="docblocks/image-align"
+                    data-align={value}
+                    data-active={align === value ? "true" : undefined}
+                    aria-label={label}
+                    title={label}
+                    aria-pressed={align === value}
+                    className={cn("size-7", align === value && "bg-accent text-accent-foreground")}
+                    onClick={pickAlign(value)}
+                  >
+                    <Icon className="size-4" />
+                  </Button>
+                );
+              })}
             </>
           )}
         </div>
@@ -526,8 +532,8 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
         id={id}
         caption={block.attrs.caption ?? ""}
         slot="docblocks/image-caption"
-        ariaLabel="Image caption"
-        placeholder="Write a caption…"
+        ariaLabel={t("caption.imageAria")}
+        placeholder={t("caption.placeholder")}
       />
     </>
   );

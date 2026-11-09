@@ -1,6 +1,8 @@
 /** The shared option picker's list (the single's / the multi's): the
  *  search's row, the empty's option, and the options over the configured's
  *  order. */
+import { useTranslation } from "react-i18next";
+
 import { useState } from "react";
 
 import { Button } from "../../../shared/ui/Button";
@@ -37,6 +39,7 @@ function OptionPickerList({
   onClear?: () => void;
   onEditEnd: () => void;
 }) {
+  const { t } = useTranslation("database");
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const filtered = needle === "" ? options : options.filter((option) => option.label.toLowerCase().includes(needle));
@@ -61,7 +64,7 @@ function OptionPickerList({
         type="search"
         data-slot="docblocks/database-enum-picker-search"
         autoFocus
-        placeholder="Search options"
+        placeholder={t("picker.searchOptions")}
         className="h-7 cursor-text text-xs focus:bg-muted/40"
         value={query}
         onChange={onQueryChange}
@@ -120,7 +123,9 @@ function OptionPickerList({
               </span>
             </div>
           ))}
-          {filtered.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No options.</div>}
+          {filtered.length === 0 && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">{t("common:noOptions")}</div>
+          )}
         </div>
       </div>
     </div>

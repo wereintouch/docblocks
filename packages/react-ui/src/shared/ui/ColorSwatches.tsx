@@ -13,23 +13,16 @@
  * reports `onSelectNone`) and the custom swatch (a rainbow circle that
  * reports `onCustom`; the full picker it opens is built on first use).
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useState } from "react";
 
+import { DocblocksI18nProvider } from "../../i18n";
 import { Button } from "./Button";
 import { cn } from "./cn";
 import { normalizeHex, resolveColorToHex } from "./color-utils";
 
-function ColorSwatches({
-  colors,
-  current,
-  onSelect,
-  label,
-  allowNone = false,
-  noneActive = false,
-  onSelectNone,
-  allowCustom = false,
-  onCustom,
-}: {
+interface ColorSwatchesProps {
   /** The swatch entries, in display order (a theme token `var(--…)` or a hex). */
   colors: readonly string[];
   /** The current color value (a hex); undefined / null when no color stands. */
@@ -48,7 +41,31 @@ function ColorSwatches({
   allowCustom?: boolean;
   /** Report the custom swatch's press (the picker opens — built on first use). */
   onCustom?: () => void;
-}) {
+}
+
+/** The palette's i18n scope: the package's instance stands the provider's
+ *  seat over the palette (the primitive stands also outside the editor's
+ *  scope). */
+function ColorSwatches(props: ColorSwatchesProps) {
+  return (
+    <DocblocksI18nProvider>
+      <ColorSwatchesInner {...props} />
+    </DocblocksI18nProvider>
+  );
+}
+
+function ColorSwatchesInner({
+  colors,
+  current,
+  onSelect,
+  label,
+  allowNone = false,
+  noneActive = false,
+  onSelectNone,
+  allowCustom = false,
+  onCustom,
+}: ColorSwatchesProps) {
+  const { t } = useTranslation("editor");
   // The resolved hex per entry (the selected state compares the current
   // value against it). Hex entries resolve synchronously (no DOM); the var
   // entries resolve against the active theme (a detached probe reads the
@@ -89,7 +106,7 @@ function ColorSwatches({
             size="icon"
             data-slot="docblocks/palette-swatch"
             data-color={entry}
-            aria-label={`${label} color ${index + 1}`}
+            aria-label={t("shared.swatch", { label, index: index + 1 })}
             aria-pressed={selected}
             title={entry}
             className={cn(
@@ -108,9 +125,9 @@ function ColorSwatches({
           size="icon"
           data-slot="docblocks/palette-none"
           data-color="none"
-          aria-label="No color"
+          aria-label={t("common:color.none")}
           aria-pressed={noneActive}
-          title="No color"
+          title={t("common:color.none")}
           className={cn(
             "relative size-5 overflow-hidden rounded-full border transition-none",
             noneActive ? "border-2 border-(--primary)" : "border-(--border)"
@@ -133,8 +150,8 @@ function ColorSwatches({
           size="icon"
           data-slot="docblocks/palette-custom"
           data-color="custom"
-          aria-label="Custom color"
-          title="Custom color"
+          aria-label={t("common:color.custom")}
+          title={t("common:color.custom")}
           className="size-5 rounded-full border border-(--border) transition-none"
           style={{
             background: "conic-gradient(red, orange, yellow, green, cyan, blue, magenta, red)",

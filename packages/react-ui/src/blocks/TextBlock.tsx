@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -152,6 +153,7 @@ function TextBlock({
   header,
   codeBodyHidden = false,
 }: TextBlockProps) {
+  const { t } = useTranslation("blocks");
   const { doc, store, selection: selectionRef, commandPalettePlaceholder, viewMode } = useEditorContext();
   const deleteBlock = useDeleteBlock();
   const blockContext = useBlockContext();
@@ -628,7 +630,7 @@ function TextBlock({
           <Button
             type="button"
             data-slot="docblocks/gutter"
-            aria-label="Select block"
+            aria-label={t("row.selectBlock")}
             variant="ghost"
             size="icon"
             onClick={onGutterClick}
@@ -643,7 +645,7 @@ function TextBlock({
           <Button
             type="button"
             data-slot="docblocks/gutter-plus"
-            aria-label="Add block below"
+            aria-label={t("row.addBlockBelow")}
             variant="ghost"
             size="icon"
             onClick={onGutterPlusClick}
@@ -662,13 +664,13 @@ function TextBlock({
           <Button
             type="button"
             data-slot="docblocks/gutter-delete"
-            aria-label="Delete block"
+            aria-label={t("row.deleteBlock")}
             variant="ghost"
             size="icon"
             onClick={(event) => deleteBlock(event.currentTarget, id)}
             onMouseDown={onControlMouseDown}
             className={cn(
-              "absolute right-0 top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)]",
+              "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)] right-0",
               "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
               "text-(--docblocks-gutter-color)",
               "size-5",
@@ -683,7 +685,7 @@ function TextBlock({
             data-slot="docblocks/checkbox"
             checked={block.attrs.checked === true}
             disabled={viewMode}
-            aria-label={block.attrs.checked ? "Mark task as not done" : "Mark task as done"}
+            aria-label={block.attrs.checked ? t("task.markNotDone") : t("task.markDone")}
             // One command is its own transaction: one undo step, one wire update.
             onCheckedChange={(checked) => {
               doc.updateBlock(id, { checked: checked === true });
@@ -727,7 +729,7 @@ function TextBlock({
           <Button
             type="button"
             data-slot="docblocks/collapse"
-            aria-label={collapsed ? "Expand children" : "Collapse children"}
+            aria-label={collapsed ? t("collapse.expand") : t("collapse.collapse")}
             aria-expanded={!collapsed}
             variant="ghost"
             // A view-state flip (no doc command, no wire update, not in the

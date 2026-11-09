@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 
 import { isSafeEmbedSrc } from "docblocks-core";
@@ -80,6 +82,7 @@ function zoomAtPoint(view: EmbedView, cx: number, cy: number, nextScale: number)
 }
 
 function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
+  const { t } = useTranslation("blocks");
   const { kind, src, title } = block.attrs;
   // The embed's sandbox: the policy (the consumer's or the safe default) maps
   // the src to the `sandbox` value; `null` stands no sandbox (a fully trusted
@@ -269,7 +272,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           data-slot="docblocks/embed-zoom-out"
           variant="ghost"
           size="icon"
-          aria-label="Zoom out"
+          aria-label={t("embed.zoomOut")}
           className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={view.scale <= EMBED_MIN_SCALE}
           onMouseDown={preventDefault}
@@ -287,7 +290,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           data-slot="docblocks/embed-zoom-in"
           variant="ghost"
           size="icon"
-          aria-label="Zoom in"
+          aria-label={t("embed.zoomIn")}
           className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={view.scale >= EMBED_MAX_SCALE}
           onMouseDown={preventDefault}
@@ -299,7 +302,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           data-slot="docblocks/embed-zoom-reset"
           variant="ghost"
           size="icon"
-          aria-label="Reset zoom"
+          aria-label={t("embed.zoomReset")}
           className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={atIdentity}
           onMouseDown={preventDefault}

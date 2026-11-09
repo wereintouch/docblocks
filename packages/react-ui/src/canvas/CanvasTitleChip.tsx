@@ -10,6 +10,8 @@
  * prefix stands the data hooks' identity (the group's slots stand the
  * container's, the frame's stand their own).
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 
 import type { BlockId } from "docblocks-core";
@@ -50,7 +52,8 @@ function CanvasTitleChip({
   title: string;
   selected: boolean;
   slot: TitleSlot;
-  /** The chip's input's accessible name (the caller's block type's stand). */
+  /** The chip's input's accessible name (the caller's block type's stand,
+   * translated — the caller's i18n lookup). */
   ariaLabel: string;
   /** The chip's frame's resting color (the selected's stand is the
    *  selection's border). */
@@ -182,6 +185,7 @@ function TitleMenu({
   onOpenChange: (open: boolean) => void;
   onCommit: (value: string) => void;
 }) {
+  const { t } = useTranslation("canvas");
   const [draft, setDraft] = useState("");
   const toggleOpen = () => onOpenChange(!open);
   const onTitleChange = (event: React.ChangeEvent<HTMLInputElement>) => setDraft(event.target.value);
@@ -210,7 +214,7 @@ function TitleMenu({
         data-slot={`docblocks/${slot}-title-menu`}
         variant="ghost"
         size="sm"
-        aria-label={slot === "group" ? "Set container title" : "Set frame title"}
+        aria-label={slot === "group" ? t("titleChip.setContainerTitle") : t("titleChip.setFrameTitle")}
         aria-expanded={open}
         className="
           h-auto rounded-(--docblocks-radius) border border-(--docblocks-table-border-color)
@@ -221,7 +225,7 @@ function TitleMenu({
         "
         onClick={toggleOpen}
       >
-        Title
+        {t("titleChip.button")}
       </Button>
       {open && (
         <Input

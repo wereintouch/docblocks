@@ -435,6 +435,25 @@ insert menu, the drag / resize / nudge / fit / draw sessions) or
 programmatically through the core's block commands. The viewport's zoom
 and pan are view state — they never reach the document.
 
+### Localization
+
+The editor's UI strings ship localized (en + ru). The language is
+consumer-driven — the package reads the `<html lang>` attribute (the `ru*`
+prefix stands the Russian stand; the absent / unknown language falls back
+to English) and follows the attribute's change at runtime (the editor
+re-renders over the flip). There is no `locale` prop — the document's
+language is the consumer's, set on `<html>`.
+
+The package runs its **own** `i18next` instance (the shipped catalogs,
+`i18next` + `react-i18next` are runtime dependencies) under the
+`EditorProvider`'s subtree — a consumer's global `i18next` singleton stands
+untouched, and the editor's `useTranslation` never leaks into (or out of)
+the consumer's setup.
+
+Not localized (the technical stand): the code language names, the font
+family / weight names, the avatar emoji picker's accessible names, and the
+technical glyphs.
+
 ### Subtree view
 
 `rootBlockId` renders the entry list of one block instead of the document

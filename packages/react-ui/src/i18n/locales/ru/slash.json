@@ -1,0 +1,42 @@
+{
+  "blocks": {
+    "text": "Текст",
+    "heading1": "Заголовок 1",
+    "heading2": "Заголовок 2",
+    "heading3": "Заголовок 3",
+    "quote": "Цитата",
+    "callout": "Выноска",
+    "code": "Блок кода",
+    "codeMermaid": "Блок кода (mermaid)",
+    "divider": "Разделитель",
+    "image": "Изображение",
+    "embed": "Встраивание",
+    "database": "База данных",
+    "frame": "Фрейм",
+    "table": "Таблица"
+  },
+  "lists": {
+    "bulleted": "Маркированный список",
+    "numbered": "Нумерованный список",
+    "task": "Список задач"
+  },
+  "database": {
+    "newTable": "Новая таблица",
+    "namePlaceholder": "Название таблицы",
+    "searchPlaceholder": "Поиск таблиц…",
+    "loading": "Загрузка таблиц…",
+    "noMatch": "Таблицы не найдены",
+    "empty": "Таблиц пока нет — создайте новую выше."
+  },
+  "frame": {
+    "fallback": "Фрейм",
+    "searchAria": "Поиск фреймов",
+    "searchPlaceholder": "Поиск фреймов…",
+    "noMatch": "Фреймы не найдены",
+    "empty": "На холсте пока нет фреймов"
+  },
+  "embed": {
+    "urlPlaceholder": "URL встраивания (https://…)",
+    "unsafeHint": "Только абсолютный https://… (вид html принимает сниппет data:text/html)."
+  }
+}

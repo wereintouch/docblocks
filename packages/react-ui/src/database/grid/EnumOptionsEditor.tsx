@@ -5,6 +5,8 @@
  * stands the data; the name's input; the delete's control) + the
  * add-option's entry. The row's pitch stands the drag's index math
  * (the 32 px row + the 4 px gap = the 36 px pitch). */
+import { useTranslation } from "react-i18next";
+
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
@@ -23,6 +25,7 @@ function EnumOptionsEditor({
   options: EnumOptionDraft[];
   onChange: (next: EnumOptionDraft[]) => void;
 }) {
+  const { t } = useTranslation("database");
   const [colorOpen, setColorOpen] = useState<number | null>(null);
 
   const setOption = (index: number, patch: Partial<EnumOptionDraft>) => {
@@ -83,7 +86,7 @@ function EnumOptionsEditor({
 
   return (
     <div data-slot="docblocks/database-enum-options" className="flex flex-col gap-1">
-      <div className="text-sm text-foreground">Options</div>
+      <div className="text-sm text-foreground">{t("enum.options")}</div>
       {options.map((option, index) => (
         <div
           key={option.rowId ?? option.uid ?? `draft-${index}`}
@@ -106,7 +109,7 @@ function EnumOptionsEditor({
                 data-slot="docblocks/database-enum-option-color"
                 variant="ghost"
                 data-color={option.color ?? ""}
-                title="Option's color"
+                title={t("enum.optionColor")}
                 className="size-4 shrink-0 cursor-pointer rounded-full border border-border p-0 focus-visible:ring-0"
                 style={option.color !== null ? { backgroundColor: option.color } : undefined}
               />
@@ -119,7 +122,7 @@ function EnumOptionsEditor({
               <ColorSwatches
                 colors={ENUM_OPTION_PALETTE}
                 current={option.color ?? undefined}
-                label="option color"
+                label={t("enum.optionColorAria")}
                 allowNone
                 noneActive={option.color === null}
                 onSelect={optionColorSelect(index)}
@@ -131,7 +134,7 @@ function EnumOptionsEditor({
             size="sm"
             type="text"
             data-slot="docblocks/database-enum-option-name"
-            placeholder="Option"
+            placeholder={t("enum.optionPlaceholder")}
             className="min-w-0 flex-1 cursor-text text-foreground focus:bg-muted/60"
             value={option.name}
             onChange={optionNameChange(index)}
@@ -158,7 +161,7 @@ function EnumOptionsEditor({
         className="h-auto cursor-pointer self-start rounded-sm px-1 py-0.5 font-normal text-muted-foreground"
         onClick={addOption}
       >
-        + Add option
+        {t("enum.addOption")}
       </Button>
     </div>
   );

@@ -1,6 +1,7 @@
 /** The row / column handle's chip + the portaled menu content (the
  * background palette with the conditional remove, the insert / move /
  * duplicate / clear / delete items). */
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode, PointerEvent as ReactPointerEvent } from "react";
@@ -71,6 +72,7 @@ function HandleMenu({
   onOpen: () => void;
   children: ReactNode;
 }) {
+  const { t } = useTranslation("table");
   // The keyboard's open: the controlled state stand (Radix's trigger's
   // toggle is a no-op against the controlled open — the pointer's open
   // stands the drag hook's release, so the press itself opens nothing).
@@ -85,7 +87,11 @@ function HandleMenu({
           variant="ghost"
           data-slot={kind === "column" ? "docblocks/table-col-handle" : "docblocks/table-row-handle"}
           data-index={index}
-          aria-label={kind === "column" ? `Column ${index + 1} options` : `Row ${index + 1} options`}
+          aria-label={
+            kind === "column"
+              ? t("handle.columnOptions", { index: index + 1 })
+              : t("handle.rowOptions", { index: index + 1 })
+          }
           className={cn(handleClasses(visible, dragging), "p-0")}
           style={{
             left: left + dragDx,
@@ -103,7 +109,7 @@ function HandleMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent
         data-slot={kind === "column" ? "docblocks/table-col-menu" : "docblocks/table-row-menu"}
-        aria-label={kind === "column" ? "Column options" : "Row options"}
+        aria-label={kind === "column" ? t("handle.columnMenu") : t("handle.rowMenu")}
         sideOffset={6}
       >
         {children}
@@ -137,6 +143,7 @@ function HandleMenuItems({
   onAction: (action: HandleAction) => void;
   onColor: (color: string | null) => void;
 }) {
+  const { t } = useTranslation("table");
   const { store } = useEditorContext();
   // The color is stored in the row/column's cell attrs (not the table or the
   // row block): the row scans its own cells, the column scans the column's
@@ -194,7 +201,7 @@ function HandleMenuItems({
             className="size-3.5 shrink-0 rounded-sm border border-border"
             style={{ background: color ?? "transparent" }}
           />
-          Background
+          {t("menu.background")}
         </DropdownMenuSubTrigger>
         <DropdownMenuSubContent className="grid w-max grid-cols-3 gap-1 p-2">
           {palette.map((swatch) => (
@@ -205,7 +212,7 @@ function HandleMenuItems({
               size="icon"
               data-slot="docblocks/table-swatch"
               data-color={swatch}
-              aria-label={`Background ${swatch}`}
+              aria-label={t("menu.backgroundSwatch", { color: swatch })}
               title={swatch}
               className="size-6"
               style={{ background: swatch }}
@@ -216,20 +223,24 @@ function HandleMenuItems({
       </DropdownMenuSub>
       {color !== undefined && (
         <DropdownMenuItem data-slot="docblocks/table-remove-color" onSelect={clearColor}>
-          Remove background
+          {t("menu.removeBackground")}
         </DropdownMenuItem>
       )}
-      <DropdownMenuItem onSelect={selectInsertAfter}>{column ? "Insert right" : "Insert below"}</DropdownMenuItem>
-      <DropdownMenuItem onSelect={selectInsertBefore}>{column ? "Insert left" : "Insert above"}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectInsertAfter}>
+        {column ? t("menu.insertRight") : t("menu.insertBelow")}
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectInsertBefore}>
+        {column ? t("menu.insertLeft") : t("menu.insertAbove")}
+      </DropdownMenuItem>
       <DropdownMenuItem disabled={atEnd} onSelect={selectMoveNext}>
-        {column ? "Move right" : "Move down"}
+        {column ? t("menu.moveRight") : t("menu.moveDown")}
       </DropdownMenuItem>
       <DropdownMenuItem disabled={atStart} onSelect={selectMovePrev}>
-        {column ? "Move left" : "Move up"}
+        {column ? t("menu.moveLeft") : t("menu.moveUp")}
       </DropdownMenuItem>
-      <DropdownMenuItem onSelect={selectDuplicate}>Duplicate</DropdownMenuItem>
-      <DropdownMenuItem onSelect={selectClear}>Clear content</DropdownMenuItem>
-      <DropdownMenuItem onSelect={selectRemove}>Delete</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectDuplicate}>{t("common:duplicate")}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectClear}>{t("menu.clearContent")}</DropdownMenuItem>
+      <DropdownMenuItem onSelect={selectRemove}>{t("common:delete")}</DropdownMenuItem>
     </>
   );
 }

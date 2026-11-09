@@ -1,0 +1,104 @@
+{
+  "view": {
+    "label": "Холст"
+  },
+  "dock": {
+    "toolbar": "Инструменты холста",
+    "modeSelect": "Переключиться в режим выделения",
+    "modePan": "Переключиться в режим перемещения",
+    "shapes": "Фигуры",
+    "shapesMenu": "Меню фигур",
+    "text": "Текст",
+    "frame": "Фрейм",
+    "container": "Контейнер",
+    "connector": "Соединитель",
+    "pen": "Ручка"
+  },
+  "shapes": {
+    "rect": "Прямоугольник",
+    "rounded": "Скруглённый прямоугольник",
+    "ellipse": "Эллипс",
+    "diamond": "Ромб",
+    "cylinder": "Цилиндр",
+    "cloud": "Облако"
+  },
+  "item": {
+    "shape": "Фигура",
+    "text": "Текст",
+    "frame": "Фрейм",
+    "group": "Группа",
+    "connector": "Соединитель",
+    "other": "Блок {type}"
+  },
+  "zoom": {
+    "toolbar": "Масштаб холста",
+    "fit": "Вписать в экран",
+    "out": "Уменьшить масштаб",
+    "in": "Увеличить масштаб",
+    "reset": "Сбросить масштаб"
+  },
+  "connector": {
+    "toolbar": "Настройки соединителя",
+    "labelEdit": "Подпись соединителя",
+    "straight": "Прямая линия",
+    "orthogonal": "Ортогональная линия",
+    "curved": "Кривая линия",
+    "lineColor": "Цвет линии",
+    "lineWidth": "Толщина линии",
+    "lineWidthTitle": "Толщина линии (1–4 px)",
+    "solid": "Сплошная линия",
+    "dashed": "Пунктирная линия",
+    "arrowheadStart": "Стрелка начала",
+    "arrowheadEnd": "Стрелка конца",
+    "arrowheadsStart": "Стрелки начала",
+    "arrowheadsEnd": "Стрелки конца",
+    "arrowheadArrow": "Стрела",
+    "arrowheadCircle": "Круг",
+    "arrowheadNone": "Нет",
+    "arrange": "Упорядочить линию"
+  },
+  "shape": {
+    "toolbar": "Настройки фигуры",
+    "type": "Тип фигуры",
+    "types": "Типы фигур",
+    "addText": "Добавить текст",
+    "addTextTitle": "Добавить текст (или двойной клик по фигуре)",
+    "fillColor": "Цвет заливки фигуры",
+    "strokeColor": "Цвет обводки фигуры",
+    "borderWidth": "Толщина рамки фигуры",
+    "borderWidthTitle": "Толщина рамки (1–4 px)",
+    "borderStyle": "Стиль рамки фигуры",
+    "borderStyleTitle": "Стиль рамки",
+    "borderStyles": "Стили рамки",
+    "solid": "Сплошная линия",
+    "dashed": "Пунктир",
+    "borderNone": "Без рамки",
+    "arrange": "Упорядочить фигуру"
+  },
+  "zorder": {
+    "title": "Порядок (z-order)",
+    "bringForward": "Выше",
+    "bringToFront": "На передний план",
+    "sendBackward": "Ниже",
+    "sendToBack": "На задний план"
+  },
+  "text": {
+    "toolbar": "Настройки текста",
+    "arrange": "Упорядочить текст",
+    "fontFamily": "Шрифт текста",
+    "color": "Цвет текста",
+    "style": "Стиль текста",
+    "fontSize": "Размер шрифта",
+    "alignLeft": "Выровнять по левому краю",
+    "alignCenter": "Выровнять по центру",
+    "alignRight": "Выровнять по правому краю"
+  },
+  "titleChip": {
+    "button": "Заголовок",
+    "setContainerTitle": "Установить заголовок контейнера",
+    "setFrameTitle": "Установить заголовок фрейма",
+    "containerTitle": "Заголовок контейнера",
+    "frameTitle": "Заголовок фрейма"
+  },
+  "colorHex": "{label} — HEX-значение"
+}

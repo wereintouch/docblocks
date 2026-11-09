@@ -1,5 +1,7 @@
 /** The slash menu's owner hook: the editor-level state + the auto-close +
  *  the pick / image / database commit paths. */
+import { useTranslation } from "react-i18next";
+
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -21,6 +23,7 @@ import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply }
  * tree).
  */
 function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuApi; menuNode: ReactNode } {
+  const { t } = useTranslation("slash");
   const { doc, store, blobStore, databaseBridge } = useEditorContext();
   // The `database` slash command stands only while a bridge is available —
   // without one the external-form blocks render the disconnected placeholder,
@@ -89,13 +92,13 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     (delta: 1 | -1) => {
       setState((s) => {
         if (s === null) return s;
-        const items = filterCommands(openDerivation(s.blockId, s.slashOffset).query, databaseAvailable);
+        const items = filterCommands(openDerivation(s.blockId, s.slashOffset).query, databaseAvailable, t);
         if (items.length === 0) return s;
         const next = (s.active + delta + items.length) % items.length;
         return { ...s, active: next };
       });
     },
-    [openDerivation]
+    [openDerivation, t]
   );
 
   const hover = useCallback((index: number) => {
@@ -122,7 +125,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         close();
         return;
       }
-      const items = filterCommands(derivation.query, databaseAvailable);
+      const items = filterCommands(derivation.query, databaseAvailable, t);
       // The clamped highlight index (the menu renders the clamped value):
       // a filtered-down list keeps the last item active.
       const command = items.length === 0 ? undefined : items[Math.min(index, items.length - 1)];
@@ -167,7 +170,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       const plan = planSlashApply(command, block, text, s.slashOffset, hasFollowers);
       applySlashPlan(doc, plan, command, s.blockId, s.parentId, indentOf(block), rootRef.current ?? document);
     },
-    [close, doc, openDerivation, rootRef]
+    [close, doc, openDerivation, rootRef, t]
   );
 
   /**
@@ -377,7 +380,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         close();
         return false;
       }
-      const items = filterCommands(derivation.query, databaseAvailable);
+      const items = filterCommands(derivation.query, databaseAvailable, t);
       // The picker state: the Escape cancels the picker (the menu stands
       // open on the phrase); the picker's input stops its own keys' propagation.
       if (databasePickRef.current) {
@@ -430,7 +433,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
           return false;
       }
     },
-    [close, move, openDerivation, pick]
+    [close, move, openDerivation, pick, t]
   );
 
   /** The open-menu key handling on the block's react event (consumes it). */

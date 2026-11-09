@@ -1,0 +1,23 @@
+{
+  "copy": "Copy",
+  "delete": "Delete",
+  "rename": "Rename",
+  "clear": "Clear",
+  "duplicate": "Duplicate",
+  "paste": "Paste",
+  "options": "Options",
+  "moreOptions": "More options",
+  "untitled": "Untitled",
+  "noMatches": "No matches",
+  "noOptions": "No options.",
+  "newTable": "New table…",
+  "search": "Search…",
+  "color": {
+    "custom": "Custom color",
+    "none": "No color"
+  },
+  "access": {
+    "notPublished": "This document has not been published yet.",
+    "notPublishedHint": "Readers see the document only after it has been published."
+  }
+}

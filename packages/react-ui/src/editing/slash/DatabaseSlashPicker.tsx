@@ -8,6 +8,8 @@
  * create / list failure stands the error line (the block is not inserted);
  * the cancel keeps the command list on the phrase.
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 
 import type { TableRef } from "../../database";
@@ -20,6 +22,7 @@ import { preventDefault } from "../../shared/utils";
 
 /** The table picker panel (the slash menu's database state). */
 function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: string) => void; onCancel: () => void }) {
+  const { t } = useTranslation("slash");
   const { databaseBridge } = useEditorContext();
   // The picker stands only while a bridge is available: the slash menu hides
   // the `database` command when the bridge is absent, so this guard is the
@@ -136,7 +139,7 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
             type="text"
             data-slot="docblocks/slash-database-name"
             className="rounded-sm"
-            placeholder="New table name"
+            placeholder={t("database.namePlaceholder")}
             value={name}
             onKeyDown={onNameKeyDown}
             onChange={onNameChange}
@@ -163,7 +166,7 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
           onClick={openCreate}
         >
           <Plus className="size-4" />
-          New table
+          {t("database.newTable")}
         </Button>
       )}
       {error !== null && (
@@ -176,20 +179,20 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
         type="text"
         data-slot="docblocks/slash-database-search"
         className="rounded-sm"
-        placeholder="Search tables…"
+        placeholder={t("database.searchPlaceholder")}
         value={query}
         onKeyDown={stopPickerKey}
         onChange={onQueryChange}
       />
       {tables === null ? (
         <div data-slot="docblocks/slash-database-loading" className="px-2 py-1 text-sm text-muted-foreground">
-          Loading the tables…
+          {t("database.loading")}
         </div>
       ) : (
         <div data-slot="docblocks/slash-database-list" className="max-h-40 overflow-y-auto">
           {filtered.length === 0 && (
             <div data-slot="docblocks/slash-database-empty" className="px-2 py-1 text-sm text-muted-foreground">
-              {query.trim().length > 0 ? "No tables match" : "No tables yet — create one above."}
+              {query.trim().length > 0 ? t("database.noMatch") : t("database.empty")}
             </div>
           )}
           {filtered.map((ref) => (

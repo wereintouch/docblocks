@@ -1,0 +1,7 @@
+{
+  "page": {
+    "missing": "Frame not found",
+    "windowLabel": "Frame",
+    "windowTitle": "Frame: {title}"
+  }
+}

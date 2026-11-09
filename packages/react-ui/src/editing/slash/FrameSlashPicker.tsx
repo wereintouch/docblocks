@@ -1,8 +1,9 @@
 /**
  * The slash `Frame` picker: the search row + the list of the document's
  * canvas frames (the walk: the root's surfaces over their direct `frame`
- * children; the name is the frame's `title`, the absent / empty stand is
- * "Frame"). The menu stands open over the phrase while the picker stands;
+ * children; the name is the frame's `title` — the absent / empty stand
+ * falls back to the localized "Frame" label at render time). The menu
+ * stands open over the phrase while the picker stands;
  * the pick commits the phrase strip + the `insertBlock('frame', { frameId
  * })` (the page-frame block's weak reference) in the caller's transact.
  * The frames stand live over the doc's changes (the digest's subscription
@@ -12,6 +13,7 @@
  * frames are the doc's own canvas data — the picker stands always (the
  * empty stand is the "no frames yet" line).
  */
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,7 +25,8 @@ import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
 import { preventDefault } from "../../shared/utils";
 
-/** The picker's frame stand: the weak reference + the display name. */
+/** The picker's frame stand: the weak reference + the frame's title
+ *  (the empty stand is the localized fallback, applied at render time). */
 interface CanvasFrameOption {
   id: BlockId;
   name: string;
@@ -43,13 +46,14 @@ function canvasFrames(rootChildren: readonly BlockId[], blocks: Readonly<Record<
       const grand = blocks[grandId];
       if (grand === undefined || grand.type !== "frame") continue;
       const title = grand.attrs?.title ?? "";
-      frames.push({ id: grandId, name: title !== "" ? title : "Frame" });
+      frames.push({ id: grandId, name: title });
     }
   }
   return frames;
 }
 
 function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) => void; onCancel: () => void }) {
+  const { t } = useTranslation("slash");
   const { store } = useEditorContext();
   // The frames' digest (the surfaces' frame children + their titles): the
   // primitive's stand memoizes the walk — the list re-renders over the
@@ -60,13 +64,17 @@ function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) 
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement | null>(null);
 
+  // The display name: the frame's title, the localized fallback over the
+  // absent / empty stand.
+  const nameOf = (frame: CanvasFrameOption): string => (frame.name !== "" ? frame.name : t("frame.fallback"));
+
   // The search stands focused on the open (the keyboard's flow: the type
   // filters the list, the pick commits).
   useEffect(() => {
     searchRef.current?.focus();
   }, []);
 
-  const filtered = frames.filter((frame) => frame.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const filtered = frames.filter((frame) => nameOf(frame).toLowerCase().includes(query.trim().toLowerCase()));
 
   // The picker's own keys are not the slash query's: stop the propagation
   // (the block's key handler would move the highlight and re-derive the
@@ -87,8 +95,8 @@ function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) 
         type="text"
         data-slot="docblocks/slash-frame-search"
         className="rounded-sm"
-        aria-label="Search frames"
-        placeholder="Search frames..."
+        aria-label={t("frame.searchAria")}
+        placeholder={t("frame.searchPlaceholder")}
         value={query}
         onKeyDown={stopPickerKey}
         onChange={onQueryChange}
@@ -96,7 +104,7 @@ function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) 
       <div data-slot="docblocks/slash-frame-list" className="max-h-40 overflow-y-auto">
         {filtered.length === 0 && (
           <div data-slot="docblocks/slash-frame-empty" className="px-2 py-1 text-sm text-muted-foreground">
-            {frames.length === 0 ? "No frames on the canvas yet" : "No frames match"}
+            {frames.length === 0 ? t("frame.empty") : t("frame.noMatch")}
           </div>
         )}
         {filtered.map((frame) => (
@@ -113,7 +121,7 @@ function FrameSlashPicker({ onCommit, onCancel }: { onCommit: (frameId: string) 
             onMouseDown={preventDefault}
             onClick={commitFrameAt(frame.id)}
           >
-            {frame.name}
+            {nameOf(frame)}
           </Button>
         ))}
       </div>

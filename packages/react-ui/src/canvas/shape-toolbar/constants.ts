@@ -6,14 +6,15 @@ import { Circle, Cloud, Cylinder, Diamond, Square, SquareRounded } from "../../s
 // The border's width stand (the FigureBorderSelector's dots, the px).
 const BORDER_WIDTH_POINTS: readonly number[] = [1, 2, 3, 4];
 
-/** The shape types (the dock's shapes menu and the toolbar's type picker). */
+/** The shape types (the dock's shapes menu and the toolbar's type picker;
+ * the label's i18n key — the `canvas` namespace's `shapes.*`). */
 const SHAPE_VARIANTS = [
-  { id: "rect", label: "Rectangle", icon: Square },
-  { id: "rounded", label: "Rounded Rectangle", icon: SquareRounded },
-  { id: "ellipse", label: "Ellipse", icon: Circle },
-  { id: "diamond", label: "Diamond", icon: Diamond },
-  { id: "cylinder", label: "Cylinder", icon: Cylinder },
-  { id: "cloud", label: "Cloud", icon: Cloud },
+  { id: "rect", labelKey: "shapes.rect", icon: Square },
+  { id: "rounded", labelKey: "shapes.rounded", icon: SquareRounded },
+  { id: "ellipse", labelKey: "shapes.ellipse", icon: Circle },
+  { id: "diamond", labelKey: "shapes.diamond", icon: Diamond },
+  { id: "cylinder", labelKey: "shapes.cylinder", icon: Cylinder },
+  { id: "cloud", labelKey: "shapes.cloud", icon: Cloud },
 ] as const;
 
 /** The hex input's accepted form (3 or 6 digits, the `#` optional). */

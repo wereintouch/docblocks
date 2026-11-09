@@ -2,6 +2,8 @@
  * open state is the toolbar's (the sections are mutually exclusive — the
  * non-modal popover does not close on an outside click, so a per-section
  * state would let both palettes stand open at once). */
+import { useTranslation } from "react-i18next";
+
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
@@ -27,6 +29,7 @@ function ColorSection({
   slotPrefix = "docblocks/shape",
 }: {
   target: "fill" | "stroke" | "text";
+  /** The section's accessible label (translated — the caller's i18n lookup). */
   label: string;
   current: string | undefined;
   /** The button's chip style (the current value's preview). */
@@ -44,6 +47,7 @@ function ColorSection({
    * `${slotPrefix}-<target>-...`). */
   slotPrefix?: string;
 }) {
+  const { t } = useTranslation("canvas");
   const palette = useFormatPalette();
   const [draft, setDraft] = useState("");
   const none = allowNone && (current === undefined || current === "none");
@@ -134,7 +138,7 @@ function ColorSection({
         <Input
           size="sm"
           data-slot={`${slotPrefix}-${target}-hex`}
-          aria-label={`${label} hex value`}
+          aria-label={t("colorHex", { label })}
           className="
             mt-2 h-7 w-full rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
             bg-(--docblocks-editor-background) px-2 font-mono text-xs text-(--docblocks-text-color)

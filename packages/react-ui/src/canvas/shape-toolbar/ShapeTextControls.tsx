@@ -9,6 +9,8 @@
  * `docblocks/shape-toolbar-*`, the canvas-text's
  * `docblocks/canvas-text-toolbar-*`).
  */
+import { useTranslation } from "react-i18next";
+
 import type { ChangeEvent, KeyboardEvent } from "react";
 import { useEffect, useState } from "react";
 
@@ -59,6 +61,7 @@ function ShapeTextControls({
   onTextColorOpenChange,
   onApply,
 }: ShapeTextControlsProps) {
+  const { t } = useTranslation("canvas");
   // The color section's namespace (the palette / the hex's base — the
   // toolbar prefix minus its "-toolbar" tail: the shape's `docblocks/shape`,
   // the canvas-text's `docblocks/canvas-text`).
@@ -108,13 +111,13 @@ function ShapeTextControls({
             variant="ghost"
             size="icon"
             data-slot={`${slotPrefix}-font-family`}
-            aria-label="Text font family"
-            title="Text font family"
+            aria-label={t("text.fontFamily")}
+            title={t("text.fontFamily")}
           >
             <Type className="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Text font family">
+        <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label={t("text.fontFamily")}>
           {SHAPE_FONT_OPTIONS.map((option) => (
             <DropdownMenuCheckboxItem
               key={option.id}
@@ -133,7 +136,7 @@ function ShapeTextControls({
       </DropdownMenu>
       <ColorSection
         target="text"
-        label="Text color"
+        label={t("text.color")}
         current={textColor}
         chipStyle={{ background: textColor ?? "transparent" }}
         icon={<Palette className="size-4" />}
@@ -150,13 +153,13 @@ function ShapeTextControls({
             variant="ghost"
             size="icon"
             data-slot={`${slotPrefix}-text-style`}
-            aria-label="Text style"
-            title="Text style"
+            aria-label={t("text.style")}
+            title={t("text.style")}
           >
             <Italic className="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Text style">
+        <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label={t("text.style")}>
           {SHAPE_TEXT_STYLE_OPTIONS.map((option) => (
             <DropdownMenuCheckboxItem
               key={option.id}
@@ -186,8 +189,8 @@ function ShapeTextControls({
           step="1"
           list={sizeListId}
           data-slot={`${slotPrefix}-font-size`}
-          aria-label="Text font size"
-          title="Text font size"
+          aria-label={t("text.fontSize")}
+          title={t("text.fontSize")}
           placeholder={String(fontSize ?? 16)}
           value={sizeDraft}
           className="
@@ -203,17 +206,17 @@ function ShapeTextControls({
       </div>
       {/* The text alignment. */}
       {[
-        { value: "left", icon: TextAlignStart, label: "Align left" },
-        { value: "center", icon: TextAlignCenter, label: "Align center" },
-        { value: "right", icon: TextAlignEnd, label: "Align right" },
-      ].map(({ value, icon: AlignIcon, label }) => (
+        { value: "left", icon: TextAlignStart, labelKey: "text.alignLeft" },
+        { value: "center", icon: TextAlignCenter, labelKey: "text.alignCenter" },
+        { value: "right", icon: TextAlignEnd, labelKey: "text.alignRight" },
+      ].map(({ value, icon: AlignIcon, labelKey }) => (
         <Button
           key={value}
           variant="ghost"
           size="icon"
           data-slot={`${slotPrefix}-align-${value}`}
-          aria-label={label}
-          title={label}
+          aria-label={t(labelKey)}
+          title={t(labelKey)}
           aria-pressed={textAlign === value}
           className={cn("size-7", textAlign === value && ACTIVE_ITEM_CLASS)}
           onClick={applyAlign(value)}

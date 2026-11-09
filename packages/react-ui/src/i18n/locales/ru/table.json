@@ -1,0 +1,32 @@
+{
+  "handle": {
+    "columnOptions": "Настройки столбца {index}",
+    "rowOptions": "Настройки строки {index}",
+    "columnMenu": "Настройки столбца",
+    "rowMenu": "Настройки строки"
+  },
+  "menu": {
+    "background": "Фон",
+    "backgroundSwatch": "Фон {color}",
+    "removeBackground": "Убрать фон",
+    "insertRight": "Вставить справа",
+    "insertLeft": "Вставить слева",
+    "insertBelow": "Вставить ниже",
+    "insertAbove": "Вставить выше",
+    "moveRight": "Переместить вправо",
+    "moveLeft": "Переместить влево",
+    "moveDown": "Переместить вниз",
+    "moveUp": "Переместить вверх",
+    "clearContent": "Очистить содержимое"
+  },
+  "resize": {
+    "column": "Изменить ширину столбца {index}"
+  },
+  "add": {
+    "column": "Добавить столбец",
+    "row": "Добавить строку"
+  },
+  "cell": {
+    "options": "Настройки ячейки"
+  }
+}

@@ -14,14 +14,16 @@ are 0.x pre-release.
 | Workspace           | npm name             | Purpose                                                                                                                                     |
 | ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/core`     | `docblocks-core`     | Headless engine: `schema` (format/types/validator), `core` (`Doc`, commands, transactions, undo, reactivity), `sync` (providers, `attach`). |
-| `packages/react-ui` | `docblocks-react-ui` | React rendering + editing layer: provider + hooks, block renderers, caret/selection, keyboard, clipboard, presence.                         |
+| `packages/react-ui` | `docblocks-react-ui` | React rendering + editing layer: provider + hooks, block renderers, caret/selection, keyboard, clipboard, presence, localization (en/ru).   |
 | `apps/playground`   | (private)            | Dev harness for visual and sync testing: A/B clients on a local ws relay, inspectors, chaos controls.                                       |
 
 Dependency budget of `docblocks-core`: `yjs` + `y-protocols` + `lib0`
 only. `docblocks-react-ui` peers: `docblocks-core`, `react`, `react-dom`,
 and the required peers `framer-motion` (the Editor's page view is the
 motion row layer), `mermaid` (the `./mermaid` subpath), `pdfjs-dist` (the
-`./pdf` subpath). The consumer-facing contracts of the React layer
+`./pdf` subpath); its runtime dependencies are `zustand`, the shared/ui
+runtime set, and `i18next` + `react-i18next` (the package's own localized
+UI — the language over the consumer's `<html lang>` attribute, en + ru). The consumer-facing contracts of the React layer
 are documented in `packages/react-ui/README.md`. The notable changes are
 recorded in the per-package changelogs (`packages/core/CHANGELOG.md`,
 `packages/react-ui/CHANGELOG.md`); the versions are managed by

@@ -10,20 +10,29 @@ type SlashIcon = ComponentType<SVGProps<SVGSVGElement>>;
 /** The embed's kind (a renderer hint — all kinds render as an iframe in v1). */
 type EmbedKind = "iframe" | "github" | "figma" | "loom" | "html";
 
+/** One slash command's stable fields: the en display label (the filter's
+ *  canonical text), its i18n key (the `slash` namespace — the menu renders
+ *  the localized label), and the menu glyph. */
+interface SlashCommandBase {
+  label: string;
+  labelKey: string;
+  icon: SlashIcon;
+}
+
 /** One slash command: the block type, its default attrs, and the menu glyph. */
 type SlashCommand =
-  | { label: string; icon: SlashIcon; type: "paragraph" }
-  | { label: string; icon: SlashIcon; type: "heading"; attrs: { level: 1 | 2 | 3 } }
-  | { label: string; icon: SlashIcon; type: "list-item"; attrs: { list: "bullet" | "number" | "task" } }
-  | { label: string; icon: SlashIcon; type: "quote" }
-  | { label: string; icon: SlashIcon; type: "callout" }
-  | { label: string; icon: SlashIcon; type: "code"; attrs?: { language?: string } }
-  | { label: string; icon: SlashIcon; type: "divider" }
-  | { label: string; icon: SlashIcon; type: "image" }
-  | { label: string; icon: SlashIcon; type: "embed" }
-  | { label: string; icon: SlashIcon; type: "database" }
-  | { label: string; icon: SlashIcon; type: "frame" }
-  | { label: string; icon: SlashIcon; type: "table" };
+  | (SlashCommandBase & { type: "paragraph" })
+  | (SlashCommandBase & { type: "heading"; attrs: { level: 1 | 2 | 3 } })
+  | (SlashCommandBase & { type: "list-item"; attrs: { list: "bullet" | "number" | "task" } })
+  | (SlashCommandBase & { type: "quote" })
+  | (SlashCommandBase & { type: "callout" })
+  | (SlashCommandBase & { type: "code"; attrs?: { language?: string } })
+  | (SlashCommandBase & { type: "divider" })
+  | (SlashCommandBase & { type: "image" })
+  | (SlashCommandBase & { type: "embed" })
+  | (SlashCommandBase & { type: "database" })
+  | (SlashCommandBase & { type: "frame" })
+  | (SlashCommandBase & { type: "table" });
 
 /** The live derivation of the menu state from the block text (the doc is the source of truth). */
 interface SlashDerivation {

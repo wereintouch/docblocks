@@ -11,6 +11,8 @@
  * resets and the render retries. A healthy block's version change is a
  * plain prop update (no reset, no remount — the block's DOM state, the
  * caret included, stands). */
+import { useTranslation } from "react-i18next";
+
 import { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 
@@ -21,6 +23,7 @@ import { Card, CardContent } from "../shared/ui/Card";
 
 /** The placeholder stand of the failed block's render. */
 function RenderErrorPlaceholder({ type }: { type: BlockType }) {
+  const { t } = useTranslation("blocks");
   return (
     <Card
       data-slot="docblocks/render-error"
@@ -29,7 +32,7 @@ function RenderErrorPlaceholder({ type }: { type: BlockType }) {
     >
       <CardContent className="flex items-center gap-2">
         <Badge variant="secondary">{type}</Badge>
-        <span className="text-xs text-muted-foreground">Could not be rendered</span>
+        <span className="text-xs text-muted-foreground">{t("error.render")}</span>
       </CardContent>
     </Card>
   );

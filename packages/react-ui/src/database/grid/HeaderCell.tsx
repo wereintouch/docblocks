@@ -1,5 +1,7 @@
 /** The grid's header cell (the column's name + the press menu + the
  * right-edge resize seam). */
+import { useTranslation } from "react-i18next";
+
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
@@ -68,6 +70,7 @@ function HeaderCell({
   onResizePointerUp,
   onResizePointerCancel,
 }: HeaderCellProps) {
+  const { t } = useTranslation("database");
   const [nameDraft, setNameDraft] = useState(column.name);
   // The header's name stands next to the type's icon (the uniform gap over
   // all the column's types — the align's stand is the value's, the header's
@@ -178,14 +181,14 @@ function HeaderCell({
             <Separator />
             {onEditOptions !== undefined && (
               <DropdownMenuItem data-slot="docblocks/database-column-edit-options" onClick={onEditOptionsPress}>
-                Edit options
+                {t("header.editOptions")}
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={hidden ? onShow : onHide}>
-              {hidden ? "Show column" : "Hide column"}
+              {hidden ? t("header.show") : t("header.hide")}
             </DropdownMenuItem>
             <DropdownMenuItem data-destructive onClick={onDeletePress}>
-              Delete column
+              {t("header.delete")}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

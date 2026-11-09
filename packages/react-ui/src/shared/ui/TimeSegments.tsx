@@ -1,5 +1,8 @@
+import { useTranslation } from "react-i18next";
+
 import * as React from "react";
 
+import { DocblocksI18nProvider } from "../../i18n";
 import { Button } from "./Button";
 import { TimeSegment, type TimeSegmentType } from "./TimeSegment";
 import { cn } from "./cn";
@@ -60,7 +63,18 @@ interface TimeSegmentsOptions {
  * typing. When the focus leaves the group, the draft syncs from the
  * current `value`, so the external change lands on the next render.
  */
-function TimeSegments({ id, value, onChange, disabled, clearable, className }: TimeSegmentsOptions) {
+/** The control's i18n scope: the package's instance stands the provider's
+ *  seat over the control (it stands also outside the editor's scope). */
+function TimeSegments(props: TimeSegmentsOptions) {
+  return (
+    <DocblocksI18nProvider>
+      <TimeSegmentsInner {...props} />
+    </DocblocksI18nProvider>
+  );
+}
+
+function TimeSegmentsInner({ id, value, onChange, disabled, clearable, className }: TimeSegmentsOptions) {
+  const { t } = useTranslation("editor");
   const [seg, setSeg] = React.useState<Segments>(() => toSegments(value));
   // Whether a segment holds the focus: while the group is typed the
   // draft stands (the external `value` change stands no draft change);
@@ -144,7 +158,7 @@ function TimeSegments({ id, value, onChange, disabled, clearable, className }: T
           type="button"
           variant="ghost"
           tabIndex={-1}
-          aria-label="Clear the time"
+          aria-label={t("shared.clearTime")}
           disabled={disabled}
           onClick={handleClear}
           className="

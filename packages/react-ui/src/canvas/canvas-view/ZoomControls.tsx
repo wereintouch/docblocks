@@ -2,6 +2,8 @@
  * current / zoom-in buttons. The zoom stands in the view state only — no
  * data, no awareness. `onMouseDown` keeps the default out (a click on the
  * chrome must not steal the pointer into a canvas session). */
+import { useTranslation } from "react-i18next";
+
 import { memo } from "react";
 
 import { Button } from "../../shared/ui";
@@ -22,6 +24,7 @@ const ZoomControls = memo(
     onReset: () => void;
     onFit: () => void;
   }) {
+    const { t } = useTranslation("canvas");
     const stepOut = () => onStep(-1);
     const stepIn = () => onStep(1);
     return (
@@ -29,7 +32,7 @@ const ZoomControls = memo(
         <div
           data-slot="docblocks/zoom-controls"
           role="toolbar"
-          aria-label="Canvas zoom"
+          aria-label={t("zoom.toolbar")}
           className="
             flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
             bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color)
@@ -37,13 +40,13 @@ const ZoomControls = memo(
           "
           onMouseDown={preventDefault}
         >
-          <Button variant="ghost" size="icon" aria-label="Fit to screen" onClick={onFit}>
+          <Button variant="ghost" size="icon" aria-label={t("zoom.fit")} onClick={onFit}>
             <Scan className="size-4" />
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={stepOut}>
+          <Button variant="ghost" size="icon" aria-label={t("zoom.out")} onClick={stepOut}>
             <Minus className="size-4" />
           </Button>
-          <Button variant="ghost" size="sm" aria-label="Reset zoom" onClick={onReset}>
+          <Button variant="ghost" size="sm" aria-label={t("zoom.reset")} onClick={onReset}>
             {/* The fixed-width display (the widest stand — the 3 digits
               + the % — the zoom's 25–400% range stands no 4-digit
               value): the percentage's change never reflows the row —
@@ -53,7 +56,7 @@ const ZoomControls = memo(
               stand scales it without a reflow. */}
             <span className="w-[5ch] text-center tabular-nums">{Math.round(zoom * 100)}%</span>
           </Button>
-          <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={stepIn}>
+          <Button variant="ghost" size="icon" aria-label={t("zoom.in")} onClick={stepIn}>
             <Plus className="size-4" />
           </Button>
         </div>

@@ -2,6 +2,8 @@
  *  div inside the editor root (the root is the positioning context),
  *  anchored at the "/" character (below the line, or above it on the
  *  viewport-bottom flip). */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useBlock } from "../../hooks";
@@ -43,6 +45,7 @@ function SlashMenu({
   onEmbedCancel,
   onEmbedCommit,
 }: SlashMenuProps) {
+  const { t } = useTranslation("slash");
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
 
@@ -74,7 +77,7 @@ function SlashMenu({
     if (derivation.closed) onClose();
   }, [text, state, rootRef, onClose, databasePick, framePick, embedForm]);
 
-  const items = derived === null ? [] : filterCommands(derived.query, databaseAvailable);
+  const items = derived === null ? [] : filterCommands(derived.query, databaseAvailable, t);
   const visible = items.length > 0 || databasePick || framePick || embedForm;
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 
@@ -189,7 +192,7 @@ function SlashMenu({
               onClick={pickAt(index)}
             >
               <command.icon className="size-4" />
-              {command.label}
+              {t(command.labelKey)}
             </div>
           ))}
         </>

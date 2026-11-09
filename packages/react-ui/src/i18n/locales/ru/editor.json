@@ -1,0 +1,74 @@
+{
+  "docHeader": {
+    "pageView": "Вид страницы",
+    "canvasView": "Вид холста",
+    "documentViewAria": "Вид документа",
+    "editMode": "Режим редактирования",
+    "viewMode": "Режим просмотра",
+    "published": "Опубликовано",
+    "documentModeAria": "Режим документа",
+    "documentAvatarAria": "Аватар документа",
+    "editAvatarAria": "Изменить аватар документа",
+    "editAvatar": "Изменить аватар",
+    "documentTitleAria": "Заголовок документа",
+    "editTitleAria": "Изменить заголовок документа",
+    "editTitle": "Изменить заголовок"
+  },
+  "formatToolbar": {
+    "aria": "Форматирование текста",
+    "marks": {
+      "bold": "Жирный",
+      "code": "Моноширинный",
+      "italic": "Курсив",
+      "underline": "Подчёркнутый",
+      "strike": "Зачёркнутый"
+    },
+    "align": {
+      "left": "Выровнять по левому краю",
+      "center": "Выровнять по центру",
+      "right": "Выровнять по правому краю"
+    },
+    "listType": "Тип списка",
+    "lists": {
+      "bullet": "Маркированный список",
+      "number": "Нумерованный список",
+      "task": "Список задач",
+      "quote": "Цитата",
+      "paragraph": "Текст"
+    },
+    "callout": {
+      "trigger": "Выноска",
+      "typeAria": "Тип выноски",
+      "variant": "Выноска: {variant}",
+      "iconAria": "Иконка выноски",
+      "presetIcon": "Иконка по умолчанию",
+      "preset": "По умолчанию"
+    },
+    "color": {
+      "trigger": "Цвет текста и фона",
+      "targetGroupAria": "Объект изменения цвета",
+      "highlightAria": "Выделить фон",
+      "textAria": "Окрасить текст",
+      "highlightLabel": "фон",
+      "textLabel": "текст"
+    },
+    "palette": {
+      "callout": "выноска",
+      "highlight": "выделение",
+      "text": "текст"
+    }
+  },
+  "mention": {
+    "searching": "Поиск…",
+    "people": "Люди",
+    "documents": "Документы",
+    "error": "Не удалось загрузить результаты упоминаний.",
+    "retry": "Повторить"
+  },
+  "shared": {
+    "swatch": "{label}: цвет {index}",
+    "emojiPickerGroup": "Эмодзи аватара",
+    "removeAvatar": "Удалить аватар",
+    "clearTime": "Очистить время"
+  }
+}

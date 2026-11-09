@@ -1,0 +1,86 @@
+{
+  "state": {
+    "loading": "Loading the table…",
+    "notFound": "Table not found",
+    "unknownTable": "The table \"{tableId}\" is unknown to the bridge.",
+    "retry": "Retry"
+  },
+  "rowCount_one": "row",
+  "rowCount_few": "rows",
+  "rowCount_many": "rows",
+  "rowCount_other": "rows",
+  "toolbar": {
+    "undo": "Undo",
+    "redo": "Redo",
+    "filter": "Filter",
+    "apply": "Apply"
+  },
+  "columnTypes": {
+    "text": "Text",
+    "integer": "Integer",
+    "decimal": "Decimal",
+    "checkbox": "Checkbox",
+    "date": "Date",
+    "datetime": "Date & time",
+    "enum": "Enum",
+    "multiEnum": "Multi-enum",
+    "rowLink": "Row link",
+    "rowLinks": "Row links"
+  },
+  "form": {
+    "name": "Name",
+    "decimals": "Decimals",
+    "thousandsSeparator": "Thousands' separator",
+    "prefix": "Prefix",
+    "suffix": "Suffix",
+    "allowNegative": "Allow negative",
+    "table": "Table",
+    "selectTable": "— Select a table —",
+    "newTableName": "New table name",
+    "save": "Save",
+    "addColumn": "Add column"
+  },
+  "enum": {
+    "options": "Options",
+    "optionColor": "Option's color",
+    "optionColorAria": "option color",
+    "optionPlaceholder": "Option",
+    "addOption": "+ Add option"
+  },
+  "header": {
+    "editOptions": "Edit options",
+    "show": "Show column",
+    "hide": "Hide column",
+    "delete": "Delete column"
+  },
+  "row": {
+    "moveUp": "Move up",
+    "moveDown": "Move down",
+    "delete": "Delete row"
+  },
+  "rows": {
+    "loadMore": "Load more rows",
+    "none": "No rows.",
+    "noneFiltered": "No rows match the filter.",
+    "add": "+ Add row"
+  },
+  "filter": {
+    "empty": "No columns to filter on.",
+    "logic": "Filter logic",
+    "matchAll": "match all of the conditions",
+    "matchAny": "match any of the conditions",
+    "nestedGroup": "{logic} nested group",
+    "removeGroup": "Remove group",
+    "condition": "+ Condition",
+    "group": "+ Group",
+    "valuePlaceholder": "value, value"
+  },
+  "picker": {
+    "searchOptions": "Search options",
+    "searchRows": "Search rows"
+  },
+  "disconnected": {
+    "name": "Database",
+    "note": "database not connected"
+  }
+}

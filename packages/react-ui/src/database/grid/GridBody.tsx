@@ -3,6 +3,8 @@
  * the add-column chip + the create form (the name input + the
  * type-specific attributes)), the data rows and the cell selection / the
  * column drag / the column resize sessions. */
+import { useTranslation } from "react-i18next";
+
 import { Fragment, useMemo, useRef, useState } from "react";
 
 import type { BlockId, DatabaseFilterPayload } from "docblocks-core";
@@ -88,6 +90,7 @@ function GridBody({
   columnWidths,
   readOnly = false,
 }: GridBodyProps) {
+  const { t } = useTranslation("database");
   const data = useDatabaseTable(bridge, tableId, filter);
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterDraft, setFilterDraft] = useState<DatabaseFilterPayload | null>(filter ?? null);
@@ -526,7 +529,7 @@ function GridBody({
       <Card data-slot="docblocks/block" data-block-type="database" data-block-id={id}>
         <CardContent data-slot="docblocks/database" data-state="loading" className="p-(--docblocks-block-spacing)">
           <span className="text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color)">
-            Loading the table…
+            {t("state.loading")}
           </span>
         </CardContent>
       </Card>
@@ -556,10 +559,10 @@ function GridBody({
               data-slot="docblocks/database-broken"
               className="text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
             >
-              Table not found
+              {t("state.notFound")}
             </span>
             <span className="text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color)">
-              {data.error ?? `The table "${tableId}" is unknown to the bridge.`}
+              {data.error ?? t("state.unknownTable", { tableId })}
             </span>
           </div>
           <Button
@@ -573,7 +576,7 @@ function GridBody({
             )}
             onClick={retryLoad}
           >
-            Retry
+            {t("state.retry")}
           </Button>
         </CardContent>
       </Card>
@@ -710,7 +713,7 @@ function GridBody({
               data-slot="docblocks/database-name"
               variant="ghost"
               size="sm"
-              title="Rename"
+              title={t("common:rename")}
               className={
                 // The frame-less stand (the look's own: no border) — the
                 // primitive's chrome frame stands off.
@@ -724,7 +727,7 @@ function GridBody({
             </Button>
           )}
           <Badge data-slot="docblocks/database-count" variant="secondary">
-            {rows.length} {rows.length === 1 ? "row" : "rows"}
+            {rows.length} {t("rowCount", { count: rows.length })}
           </Badge>
           <div className="ml-auto flex items-center gap-2">
             {readOnly ? null : (
@@ -738,7 +741,7 @@ function GridBody({
                   disabled={!data.canUndo}
                   onClick={undoStep}
                 >
-                  Undo
+                  {t("toolbar.undo")}
                 </Button>
                 <Button
                   data-slot="docblocks/database-redo"
@@ -749,7 +752,7 @@ function GridBody({
                   disabled={!data.canRedo}
                   onClick={redoStep}
                 >
-                  Redo
+                  {t("toolbar.redo")}
                 </Button>
               </>
             )}
@@ -767,7 +770,8 @@ function GridBody({
                       "h-auto px-2 py-0.5 text-xs font-normal shadow-none"
                     )}
                   >
-                    Filter{filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
+                    {t("toolbar.filter")}
+                    {filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-96">
@@ -791,7 +795,7 @@ function GridBody({
                         "
                         onClick={resetFilterDraft}
                       >
-                        Clear
+                        {t("common:clear")}
                       </Button>
                       <Button
                         data-slot="docblocks/filter-apply"
@@ -805,7 +809,7 @@ function GridBody({
                         "
                         onClick={applyFilter}
                       >
-                        Apply
+                        {t("toolbar.apply")}
                       </Button>
                     </div>
                   </div>
@@ -912,7 +916,7 @@ function GridBody({
                           onClick={() => openCreateForm(entry)}
                         >
                           <EntryIcon className="size-4 shrink-0 text-muted-foreground" />
-                          {entry.label}
+                          {t(entry.labelKey)}
                         </DropdownMenuItem>
                       );
                     })}
@@ -951,7 +955,7 @@ function GridBody({
                 >
                   <div data-slot="docblocks/database-add-column-form" className="flex flex-col gap-2">
                     <Label>
-                      Name
+                      {t("form.name")}
                       <Input
                         size="sm"
                         type="text"
@@ -965,7 +969,7 @@ function GridBody({
                       <>
                         {columnForm?.numberKind === "decimal" && (
                           <Label>
-                            Decimals
+                            {t("form.decimals")}
                             <Input
                               size="sm"
                               type="number"
@@ -984,10 +988,10 @@ function GridBody({
                             checked={columnForm?.thousands ?? false}
                             onCheckedChange={onColumnThousandsChange}
                           />
-                          Thousands' separator
+                          {t("form.thousandsSeparator")}
                         </Label>
                         <Label>
-                          Prefix
+                          {t("form.prefix")}
                           <Input
                             size="sm"
                             type="text"
@@ -998,7 +1002,7 @@ function GridBody({
                           />
                         </Label>
                         <Label>
-                          Suffix
+                          {t("form.suffix")}
                           <Input
                             size="sm"
                             type="text"
@@ -1014,7 +1018,7 @@ function GridBody({
                             checked={columnForm?.allowNegative ?? true}
                             onCheckedChange={onColumnAllowNegativeChange}
                           />
-                          Allow negative
+                          {t("form.allowNegative")}
                         </Label>
                       </>
                     )}
@@ -1038,7 +1042,7 @@ function GridBody({
                             tokens (the --docblocks-* do not reach the
                             body). */}
                         <Label>
-                          Table
+                          {t("form.table")}
                           <Select
                             value={
                               columnForm === null || columnForm.refPick === "" ? REF_NONE_PICK : columnForm.refPick
@@ -1052,24 +1056,24 @@ function GridBody({
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent align="start" sideOffset={PICKER_SIDE_OFFSET_PX}>
-                              <SelectItem value={REF_NONE_PICK}>— Select a table —</SelectItem>
+                              <SelectItem value={REF_NONE_PICK}>{t("form.selectTable")}</SelectItem>
                               {bridgeTables.map((table) => (
                                 <SelectItem key={table.id} value={table.id}>
                                   {table.name}
                                 </SelectItem>
                               ))}
-                              <SelectItem value={NEW_TABLE_PICK}>New table…</SelectItem>
+                              <SelectItem value={NEW_TABLE_PICK}>{t("common:newTable")}</SelectItem>
                             </SelectContent>
                           </Select>
                         </Label>
                         {(columnForm?.refPick ?? "") === NEW_TABLE_PICK && (
                           <Label>
-                            Name
+                            {t("form.name")}
                             <Input
                               size="sm"
                               type="text"
                               data-slot="docblocks/database-add-column-ref-new"
-                              placeholder="New table name"
+                              placeholder={t("form.newTableName")}
                               className="cursor-text focus:bg-muted/60"
                               value={columnForm?.newTableName ?? ""}
                               onChange={onColumnNewTableNameChange}
@@ -1098,7 +1102,7 @@ function GridBody({
                       className="bg-accent px-2 py-1 hover:opacity-70"
                       onClick={commitColumnForm}
                     >
-                      {columnForm?.editColumnId !== undefined ? "Save" : "Add column"}
+                      {columnForm?.editColumnId !== undefined ? t("form.save") : t("form.addColumn")}
                     </Button>
                   </div>
                 </PopoverContent>
@@ -1193,7 +1197,7 @@ function GridBody({
                   )}
                   onClick={() => void data.loadMore().catch(() => undefined)}
                 >
-                  Load more rows
+                  {t("rows.loadMore")}
                 </Button>
               </div>
             )}
@@ -1207,7 +1211,7 @@ function GridBody({
                 text-(--docblocks-placeholder-color) select-none
               "
             >
-              No rows{filter !== undefined ? " match the filter" : ""}.
+              {filter !== undefined ? t("rows.noneFiltered") : t("rows.none")}
             </div>
           )}
         </ScrollArea>
@@ -1228,7 +1232,7 @@ function GridBody({
             )}
             onClick={insertEmptyRow}
           >
-            + Add row
+            {t("rows.add")}
           </Button>
         )}
       </CardContent>

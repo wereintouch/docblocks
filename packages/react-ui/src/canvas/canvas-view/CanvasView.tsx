@@ -21,6 +21,7 @@
  * miniature's content) keep their own pointer handling (the caret), and
  * the floating chrome (the zoom controls, the dock) handles its own.
  */
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -68,6 +69,7 @@ import { useCanvasTargets } from "./use-canvas-targets";
 import { useCanvasWheel } from "./use-canvas-wheel";
 
 function CanvasView() {
+  const { t } = useTranslation("canvas");
   const { store, doc, rootBlockId, selection, viewMode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   // The canvas chrome stands over the surfaces' chrome data (the items'
@@ -290,7 +292,7 @@ function CanvasView() {
         ref={containerRef}
         tabIndex={0}
         role="application"
-        aria-label="Canvas"
+        aria-label={t("view.label")}
         className={cn(
           `
             relative h-(--docblocks-canvas-view-height) overflow-hidden bg-(--docblocks-canvas-background)

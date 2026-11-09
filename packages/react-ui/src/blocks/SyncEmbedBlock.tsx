@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useState } from "react";
 
 import type { BlockId, Doc, SyncEmbedBlock as SyncEmbedBlockType } from "docblocks-core";
@@ -45,6 +47,7 @@ function SyncEmbedContent({ master, blockId }: { master: Doc; blockId?: BlockId 
 
 /** The broken and cycle placeholders (no cascade: the block stays in its own doc). */
 function SyncEmbedPlaceholder({ state }: { state: Exclude<SyncEmbedState, "resolved"> }) {
+  const { t } = useTranslation("blocks");
   return (
     <Alert
       data-slot="docblocks/sync-embed-placeholder"
@@ -52,9 +55,7 @@ function SyncEmbedPlaceholder({ state }: { state: Exclude<SyncEmbedState, "resol
       variant={state === "broken" ? "destructive" : "default"}
     >
       <AlertTitle className="line-clamp-none">
-        {state === "broken"
-          ? "The master document for this synced block is unavailable."
-          : "Circular synced block reference."}
+        {state === "broken" ? t("syncEmbed.broken") : t("syncEmbed.cycle")}
       </AlertTitle>
     </Alert>
   );

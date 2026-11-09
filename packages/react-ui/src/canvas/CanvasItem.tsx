@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
 import { memo } from "react";
@@ -21,14 +22,15 @@ import { CANVAS_KB_FOCUS_OUTLINE, CANVAS_SELECTION_OUTLINE } from "./canvas-view
 import { canvasItemStyle, endpointOf, isCanvasSubType } from "./geometry";
 import { SHAPE_FONT_STACKS, textStyleOf } from "./text-fonts";
 
-/** The canvas item's accessible label (the block type's stand; the
- * consumer's renderer's type stands the type's string). */
-const CANVAS_ITEM_LABELS: Record<string, string> = {
-  shape: "Shape",
-  "canvas-text": "Text",
-  frame: "Frame",
-  group: "Group",
-  connector: "Connector",
+/** The canvas item's accessible label's i18n key (the block type's stand
+ * — the `canvas` namespace's `item.*`; the consumer's renderer's type
+ * stands the type's string over the `item.other`'s interpolation). */
+const CANVAS_ITEM_LABEL_KEYS: Record<string, string> = {
+  shape: "item.shape",
+  "canvas-text": "item.text",
+  frame: "item.frame",
+  group: "item.group",
+  connector: "item.connector",
 };
 
 /**
@@ -76,6 +78,7 @@ const CanvasItem = memo(
      *  window's content). */
     frameChain?: ReadonlySet<BlockId>;
   }) {
+    const { t } = useTranslation("canvas");
     const { store, renderers } = useEditorContext();
     const { siblings } = useBlockContext();
     const block = useBlock(id);
@@ -133,6 +136,7 @@ const CanvasItem = memo(
     }
 
     const style = canvasItemStyle(block);
+    const itemLabelKey = CANVAS_ITEM_LABEL_KEYS[block.type];
     // The connector's body is the line (pointer-events: none over the
     // svg root, the hit path re-enables the stroke): the wrapper is a
     // box standing at the origin — it must not catch pointers (the press
@@ -194,7 +198,7 @@ const CanvasItem = memo(
         // items are not individually operable, so the pressed's stand is
         // out of their contract).
         role="img"
-        aria-label={`${CANVAS_ITEM_LABELS[block.type] ?? block.type} block`}
+        aria-label={itemLabelKey !== undefined ? t(itemLabelKey) : t("item.other", { type: block.type })}
         className={cn(
           selected &&
             block.type !== "connector" &&

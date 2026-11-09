@@ -1,5 +1,7 @@
 /** The row-link cell's picker: the ref table's rows over the search (the
  *  client-side filter over the loaded page). */
+import { useTranslation } from "react-i18next";
+
 import { useState } from "react";
 
 import { Button } from "../../../shared/ui/Button";
@@ -31,6 +33,7 @@ function RowLinkPickerList({
   onClear,
   onEditEnd,
 }: Omit<RowLinkPickerProps, "current" | "open">) {
+  const { t } = useTranslation("database");
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   // The picker's press stands the edit end (the clear's entry, the row's
@@ -59,7 +62,7 @@ function RowLinkPickerList({
         type="search"
         data-slot="docblocks/database-row-picker-search"
         autoFocus
-        placeholder="Search rows"
+        placeholder={t("picker.searchRows")}
         className="h-7 cursor-text text-xs focus:bg-muted/40"
         value={query}
         onChange={onQueryChange}

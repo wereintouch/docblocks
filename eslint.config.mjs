@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import betterTailwindcss from "eslint-plugin-better-tailwindcss";
+import i18nextPlugin from "eslint-plugin-i18next";
 import tailwindCanonicalClasses from "eslint-plugin-tailwind-canonical-classes";
 import path from "node:path";
 import tseslint from "typescript-eslint";
@@ -343,6 +344,105 @@ const eslintConfig = tseslint.config(
       "@typescript-eslint/no-restricted-imports": ["error", peerSubpathRestrictions(subpath)],
     },
   })),
+  // The user-facing strings' guard over the react-ui's source: a literal
+  // string in the JSX's text must come from the i18n catalog's `t()`
+  // (the "forgotten literal's" stand). The allowlist's stand (the technical
+  // strings: the code language's names, the font family's / weight's
+  // names, the avatar emoji's accessible names, the technical glyphs)
+  // stands the rest as-is.
+  {
+    files: ["packages/react-ui/src/**/*.{ts,tsx}"],
+    plugins: { i18next: i18nextPlugin },
+    rules: {
+      "i18next/no-literal-string": [
+        "warn",
+        {
+          mode: "jsx-text-only",
+          words: {
+            exclude: [
+              // the technical placeholders (the color input's hex, the empty's stand)
+              "#rrggbb",
+              // the code language's names (the technical stand — not translated; the
+              // entries stand the full-match regexes — the metachars escaped)
+              "Bash",
+              "C",
+              "C#",
+              "C\\+\\+",
+              "CSS",
+              "Go",
+              "Java",
+              "JavaScript",
+              "JSON",
+              "Kotlin",
+              "Markdown",
+              "Mermaid",
+              "PHP",
+              "Plain Text",
+              "Python",
+              "Rust",
+              "SQL",
+              "Swift",
+              "TOML",
+              "TypeScript",
+              "XML / HTML",
+              // the font family's names + the weight/style's labels (the technical stand)
+              "Inter",
+              "PT Sans",
+              "PT Serif",
+              "JetBrains Mono",
+              "Regular",
+              "Bold",
+              "Semibold",
+              "Italic",
+              "Semibold Italic",
+              // the avatar emoji catalog's accessible names (the emoji's proper nouns —
+              // the v1's stand, the e2e's pin)
+              "Fox",
+              "Cat",
+              "Dog",
+              "Panda",
+              "Unicorn",
+              "Frog",
+              "Owl",
+              "Turtle",
+              "Bee",
+              "Butterfly",
+              "Sun",
+              "Moon",
+              "Star",
+              "Sparkles",
+              "Rainbow",
+              "Fire",
+              "Gem",
+              "Bolt",
+              "Red heart",
+              "Blue heart",
+              "Green heart",
+              "Yellow heart",
+              "Pencil",
+              "Books",
+              "Target",
+              "Rocket",
+              "Palette",
+              "Coffee",
+              "Clover",
+              "Trophy",
+              // the technical glyphs (the zoom's percent, the time segments'
+              // colon, the required mark's asterisk, the clear's / the "any's"
+              // dash, the boolean's stand)
+              "%",
+              ":",
+              "\\*",
+              "×",
+              "—",
+              "true",
+              "false",
+            ],
+          },
+        },
+      ],
+    },
+  },
   // Tailwind class hygiene for react-ui: order + line wrapping (auto-fixable),
   // canonical forms, and correctness (typos / conflicting classes).
   {

@@ -18,6 +18,8 @@
  * window's content (the chain grows strictly down the nesting — the
  * recursion is finite, no depth limit needed).
  */
+import { useTranslation } from "react-i18next";
+
 import type { CSSProperties } from "react";
 import { useMemo } from "react";
 
@@ -53,6 +55,7 @@ function FrameBlock({
   /** The frames this frame renders inside of (the window's cycle guard). */
   frameChain?: ReadonlySet<BlockId>;
 }) {
+  const { t } = useTranslation("canvas");
   const { parentId, parentType } = useBlockContext();
   const block = useBlock(id);
   if (parentType !== "surface" || block === undefined || block.type !== "frame") {
@@ -108,7 +111,7 @@ function FrameBlock({
         title={block.attrs?.title ?? ""}
         selected={selected}
         slot="frame"
-        ariaLabel="Frame title"
+        ariaLabel={t("titleChip.frameTitle")}
         restBorderColor="var(--docblocks-canvas-group-border-color)"
       />
     </div>

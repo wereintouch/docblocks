@@ -11,6 +11,8 @@
  * the line's own color — {@link ConnectorLabelChip}); the input stands the
  * draft inside it. Pure view state: the doc writes on the commit only.
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef } from "react";
 
 import type { BlockId } from "docblocks-core";
@@ -45,6 +47,7 @@ function ConnectorLabelEdit({
   onClose: () => void;
 }) {
   const { doc } = useEditorContext();
+  const { t } = useTranslation("canvas");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const committedRef = useRef(false);
 
@@ -96,7 +99,7 @@ function ConnectorLabelEdit({
       ref={inputRef}
       type="text"
       data-slot="docblocks/connector-label-edit"
-      aria-label="Connector label"
+      aria-label={t("connector.labelEdit")}
       defaultValue={label}
       // The chip's stand stands the inline style (the look's full set);
       // the className drops the field base's what the chip owns (the

@@ -10,6 +10,7 @@ import type { BlobStore } from "../blob-store";
 import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
 import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
+import { DocblocksI18nProvider } from "../i18n";
 import { createEditorStore } from "../state";
 import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
@@ -319,7 +320,11 @@ function EditorProviderStand({
     children
   );
 
-  return <EditorContext.Provider value={value}>{rendered}</EditorContext.Provider>;
+  return (
+    <DocblocksI18nProvider>
+      <EditorContext.Provider value={value}>{rendered}</EditorContext.Provider>
+    </DocblocksI18nProvider>
+  );
 }
 
 /**
@@ -335,7 +340,12 @@ function EditorProvider(props: EditorProviderProps) {
   const parentContext = useContext(EditorContext);
   const accessLevel = props.accessLevel ?? parentContext?.accessLevel ?? "editor";
   if (accessLevel === "viewer" && parentContext === null) {
-    if (props.doc === undefined) return <NotPublishedPlaceholder />;
+    if (props.doc === undefined)
+      return (
+        <DocblocksI18nProvider>
+          <NotPublishedPlaceholder />
+        </DocblocksI18nProvider>
+      );
     return <EditorProviderStand {...props} doc={props.doc} />;
   }
   if (props.doc === undefined) {

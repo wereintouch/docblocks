@@ -23,6 +23,8 @@
  * one wire update; a stale drop (a peer restructured the columns) issues
  * nothing.
  */
+import { useTranslation } from "react-i18next";
+
 import type { BlockId, DatabaseBlock as DatabaseBlockType } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
@@ -35,6 +37,7 @@ import { GridBody } from "./GridBody";
  *  the disconnected note (the block stays selectable / movable over the
  *  gutter, the inline form stands unchanged). */
 function DatabaseDisconnected({ name }: { name?: string }) {
+  const { t } = useTranslation("database");
   return (
     <Card
       data-slot="docblocks/database-disconnected"
@@ -47,9 +50,9 @@ function DatabaseDisconnected({ name }: { name?: string }) {
         data-slot="docblocks/database"
         className="flex items-center justify-between gap-(--docblocks-block-spacing)"
       >
-        <span className="font-(--docblocks-heading-font-weight)">{name ?? "Database"}</span>
+        <span className="font-(--docblocks-heading-font-weight)">{name ?? t("disconnected.name")}</span>
         <Badge data-slot="docblocks/database-disconnected-note" variant="secondary" className="shrink-0">
-          database not connected
+          {t("disconnected.note")}
         </Badge>
       </CardContent>
     </Card>

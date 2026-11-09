@@ -38,6 +38,8 @@
  * handle's contract). The size stand (the columns × the rows) stands the
  * frame's top-left corner.
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
@@ -70,6 +72,7 @@ import { useTableSeamResize } from "./use-table-seam-resize";
 import { cellPlainText, pasteCellText, readClipboardText } from "./utils";
 
 function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
+  const { t } = useTranslation("table");
   const { doc, viewMode } = useEditorContext();
   const palette = useFormatPalette();
   const rows = block.children ?? EMPTY_IDS;
@@ -628,7 +631,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
                 data-index={col}
                 role="separator"
                 aria-orientation="vertical"
-                aria-label={`Resize column ${col + 1}`}
+                aria-label={t("resize.column", { index: col + 1 })}
                 tabIndex={0}
                 className={cn(
                   `
@@ -688,7 +691,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
             <Button
               type="button"
               data-slot="docblocks/table-add-column"
-              aria-label="Add column"
+              aria-label={t("add.column")}
               variant="ghost"
               size="icon"
               onClick={insertTableColumn}
@@ -716,7 +719,7 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         <Button
           type="button"
           data-slot="docblocks/table-add-row"
-          aria-label="Add row"
+          aria-label={t("add.row")}
           variant="ghost"
           size="icon"
           onClick={insertTableRow}
@@ -758,13 +761,13 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
         </DropdownMenuTrigger>
         <DropdownMenuContent
           data-slot="docblocks/table-cell-menu"
-          aria-label="Cell options"
+          aria-label={t("cell.options")}
           sideOffset={4}
           onFocusOutside={preventDefault}
         >
-          <DropdownMenuItem onSelect={onCellCopy}>Copy</DropdownMenuItem>
-          <DropdownMenuItem onSelect={onCellPaste}>Paste</DropdownMenuItem>
-          <DropdownMenuItem onSelect={onCellClear}>Clear</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onCellCopy}>{t("common:copy")}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onCellPaste}>{t("common:paste")}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={onCellClear}>{t("common:clear")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

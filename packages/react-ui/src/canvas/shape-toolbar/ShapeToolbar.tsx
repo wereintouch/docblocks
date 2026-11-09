@@ -10,6 +10,8 @@
  * toolbar is canvas chrome (its own pointers; a press on it starts no
  * canvas session).
  */
+import { useTranslation } from "react-i18next";
+
 import type { CSSProperties } from "react";
 import { useState } from "react";
 
@@ -70,6 +72,7 @@ function ShapeToolbar({
   zStand: { position: number; count: number } | null;
   style: CSSProperties;
 }) {
+  const { t } = useTranslation("canvas");
   const { doc } = useEditorContext();
   const textEdit = useCanvasTextEdit();
   const VariantIcon = variantIcon(variant);
@@ -127,7 +130,7 @@ function ShapeToolbar({
       <div
         data-slot="docblocks/shape-toolbar"
         role="toolbar"
-        aria-label="Shape options"
+        aria-label={t("shape.toolbar")}
         className="
           flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
           bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color) shadow-(--docblocks-formatbar-shadow)
@@ -139,23 +142,23 @@ function ShapeToolbar({
               variant="ghost"
               size="icon"
               data-slot="docblocks/shape-toolbar-variant"
-              aria-label="Shape type"
-              title="Shape type"
+              aria-label={t("shape.type")}
+              title={t("shape.type")}
             >
               <VariantIcon className="size-4" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Shape types">
-            {SHAPE_VARIANTS.map(({ id: variantId, label, icon: Icon }) => (
+          <DropdownMenuContent align="start" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label={t("shape.types")}>
+            {SHAPE_VARIANTS.map(({ id: variantId, labelKey, icon: Icon }) => (
               <DropdownMenuCheckboxItem
                 key={variantId}
-                aria-label={label}
+                aria-label={t(labelKey)}
                 data-variant={variantId}
                 checked={variant === variantId}
                 onSelect={applyVariantAt(variantId)}
               >
                 <Icon />
-                {label}
+                {t(labelKey)}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -181,8 +184,8 @@ function ShapeToolbar({
             variant="ghost"
             size="icon"
             data-slot="docblocks/shape-toolbar-add-text"
-            aria-label="Add text"
-            title="Add text (or double-click the shape)"
+            aria-label={t("shape.addText")}
+            title={t("shape.addTextTitle")}
             onClick={beginTextEdit}
           >
             <Type className="size-4" />
@@ -191,7 +194,7 @@ function ShapeToolbar({
         <Separator orientation="vertical" className="h-5" />
         <ColorSection
           target="fill"
-          label="Shape fill color"
+          label={t("shape.fillColor")}
           current={fill}
           chipStyle={{ background: fill ?? "transparent" }}
           icon={<Fill className="size-4" />}
@@ -201,7 +204,7 @@ function ShapeToolbar({
         />
         <ColorSection
           target="stroke"
-          label="Shape stroke color"
+          label={t("shape.strokeColor")}
           current={stroke}
           chipStyle={{ border: `2px solid ${stroke ?? "currentColor"}` }}
           icon={<Stroke className="size-4" />}
@@ -215,8 +218,8 @@ function ShapeToolbar({
           points={BORDER_WIDTH_POINTS.length}
           value={borderWidthIndex(strokeWidth)}
           onChange={applyStrokeWidth}
-          label="Shape border width"
-          title="Border width (1–4 px)"
+          label={t("shape.borderWidth")}
+          title={t("shape.borderWidthTitle")}
           className="mr-0.5"
         />
         <DropdownMenu>
@@ -225,27 +228,27 @@ function ShapeToolbar({
               variant="ghost"
               size="icon"
               data-slot="docblocks/shape-toolbar-border-style"
-              aria-label="Shape border style"
-              title="Border style"
+              aria-label={t("shape.borderStyle")}
+              title={t("shape.borderStyleTitle")}
             >
               {borderNone ? <X className="size-4" /> : <Minus className="size-4" />}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label="Border styles">
+          <DropdownMenuContent align="end" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label={t("shape.borderStyles")}>
             <DropdownMenuCheckboxItem
               checked={!borderNone && (strokeStyle ?? "solid") === "solid"}
               onCheckedChange={pickBorderStyle("solid")}
             >
-              Solid line
+              {t("shape.solid")}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               checked={!borderNone && strokeStyle === "dash"}
               onCheckedChange={pickBorderStyle("dash")}
             >
-              Dashed
+              {t("shape.dashed")}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem checked={borderNone} onCheckedChange={pickBorderNone}>
-              No border
+              {t("shape.borderNone")}
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -253,7 +256,7 @@ function ShapeToolbar({
         {/* The z-order menu (the explicit zIndex): the three-dots button,
             the four reorder picks. */}
         {zStand !== null && (
-          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label="Arrange shape" />
+          <ZOrderMenu targetId={id} position={zStand.position} count={zStand.count} label={t("shape.arrange")} />
         )}
       </div>
     </div>

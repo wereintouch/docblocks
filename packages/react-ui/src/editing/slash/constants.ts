@@ -27,25 +27,39 @@ import type { SlashCommand } from "./models";
  */
 const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
 
-/** The v1 command list (filterable by the typed query). */
+/** The v1 command list (filterable by the typed query). The `label` is the
+ *  command's canonical en identity (the filter's primary text); the
+ *  `labelKey` is the menu's display label over the current language. */
 const SLASH_COMMANDS: SlashCommand[] = [
-  { label: "Text", icon: Pilcrow, type: "paragraph" },
-  { label: "Heading 1", icon: Heading1, type: "heading", attrs: { level: 1 } },
-  { label: "Heading 2", icon: Heading2, type: "heading", attrs: { level: 2 } },
-  { label: "Heading 3", icon: Heading3, type: "heading", attrs: { level: 3 } },
-  { label: "Bulleted list", icon: List, type: "list-item", attrs: { list: "bullet" } },
-  { label: "Numbered list", icon: ListOrdered, type: "list-item", attrs: { list: "number" } },
-  { label: "Task list", icon: SquareCheck, type: "list-item", attrs: { list: "task" } },
-  { label: "Quote", icon: Quote, type: "quote" },
-  { label: "Callout", icon: TextQuote, type: "callout" },
-  { label: "Code block", icon: CodeXml, type: "code" },
-  { label: "Code block (mermaid)", icon: CodeXml, type: "code", attrs: { language: "mermaid" } },
-  { label: "Divider", icon: SquareSplitVertical, type: "divider" },
-  { label: "Image", icon: ImageIcon, type: "image" },
-  { label: "Embed", icon: Link, type: "embed" },
-  { label: "Database", icon: Database, type: "database" },
-  { label: "Frame", icon: Frame, type: "frame" },
-  { label: "Table", icon: Table, type: "table" },
+  { label: "Text", labelKey: "blocks.text", icon: Pilcrow, type: "paragraph" },
+  { label: "Heading 1", labelKey: "blocks.heading1", icon: Heading1, type: "heading", attrs: { level: 1 } },
+  { label: "Heading 2", labelKey: "blocks.heading2", icon: Heading2, type: "heading", attrs: { level: 2 } },
+  { label: "Heading 3", labelKey: "blocks.heading3", icon: Heading3, type: "heading", attrs: { level: 3 } },
+  { label: "Bulleted list", labelKey: "lists.bulleted", icon: List, type: "list-item", attrs: { list: "bullet" } },
+  {
+    label: "Numbered list",
+    labelKey: "lists.numbered",
+    icon: ListOrdered,
+    type: "list-item",
+    attrs: { list: "number" },
+  },
+  { label: "Task list", labelKey: "lists.task", icon: SquareCheck, type: "list-item", attrs: { list: "task" } },
+  { label: "Quote", labelKey: "blocks.quote", icon: Quote, type: "quote" },
+  { label: "Callout", labelKey: "blocks.callout", icon: TextQuote, type: "callout" },
+  { label: "Code block", labelKey: "blocks.code", icon: CodeXml, type: "code" },
+  {
+    label: "Code block (mermaid)",
+    labelKey: "blocks.codeMermaid",
+    icon: CodeXml,
+    type: "code",
+    attrs: { language: "mermaid" },
+  },
+  { label: "Divider", labelKey: "blocks.divider", icon: SquareSplitVertical, type: "divider" },
+  { label: "Image", labelKey: "blocks.image", icon: ImageIcon, type: "image" },
+  { label: "Embed", labelKey: "blocks.embed", icon: Link, type: "embed" },
+  { label: "Database", labelKey: "blocks.database", icon: Database, type: "database" },
+  { label: "Frame", labelKey: "blocks.frame", icon: Frame, type: "frame" },
+  { label: "Table", labelKey: "blocks.table", icon: Table, type: "table" },
 ];
 
 export { COMMAND_PALETTE_PLACEHOLDER, SLASH_COMMANDS };

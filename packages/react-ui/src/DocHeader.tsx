@@ -24,12 +24,15 @@
  * it renders in the consumer's chrome, outside the editor root where the
  * `--docblocks-*` tokens are not mapped.
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 
 import type { Doc, DocMeta } from "docblocks-core";
 
 import type { EditorView } from "./Editor";
 import type { AccessLevel, EditorMode } from "./editor-provider";
+import { DocblocksI18nProvider } from "./i18n";
 import { Button } from "./shared/ui/Button";
 import { EmojiPicker } from "./shared/ui/EmojiPicker";
 import { Input } from "./shared/ui/Input";
@@ -98,15 +101,9 @@ function InlineEditInput({
   );
 }
 
-function DocHeader({
-  doc,
-  view,
-  onViewChange,
-  accessLevel = "editor",
-  mode = "edit",
-  onModeChange,
-  publishedDoc,
-}: {
+/** The header's props (the consumer's state: the doc's stand, the view and
+ *  the mode's switchers — the consumer owns the view / the mode's state). */
+interface DocHeaderProps {
   /** The headless document (the consumer's own stand: the live doc over the editor's stand, the published snapshot over the viewer's stand — the reader's browser never holds the live document). */
   doc?: Doc;
   view: EditorView;
@@ -119,7 +116,31 @@ function DocHeader({
   onModeChange?: (mode: EditorMode) => void;
   /** The published snapshot (the meta's source over the published's stand; the "Published"'s option stands disabled over its absence). */
   publishedDoc?: Doc | null;
-}) {
+}
+
+/** The header's i18n scope: the package's instance stands the provider's seat
+ *  over the panel (the consumer places the header outside the editor — the
+ *  editor's own scope never reaches it). A consumer-wrapped subtree stands
+ *  the same instance nested — the provider is a plain context, the render
+ *  is unchanged. */
+function DocHeader(props: DocHeaderProps) {
+  return (
+    <DocblocksI18nProvider>
+      <DocHeaderInner {...props} />
+    </DocblocksI18nProvider>
+  );
+}
+
+function DocHeaderInner({
+  doc,
+  view,
+  onViewChange,
+  accessLevel = "editor",
+  mode = "edit",
+  onModeChange,
+  publishedDoc,
+}: DocHeaderProps) {
+  const { t } = useTranslation("editor");
   // The effective mode: the viewer's published's forced stand (the current
   // state is never the viewer's stand).
   const effectiveMode: EditorMode = accessLevel === "viewer" ? "published" : mode;
@@ -203,12 +224,12 @@ function DocHeader({
     <div data-slot="docblocks/doc-header" className="flex items-center gap-3">
       <SegmentSelector
         options={[
-          { value: "page", label: "Page view", icon: <SquareText className="size-4" /> },
-          { value: "canvas", label: "Canvas view", icon: <Network className="size-4" /> },
+          { value: "page", label: t("docHeader.pageView"), icon: <SquareText className="size-4" /> },
+          { value: "canvas", label: t("docHeader.canvasView"), icon: <Network className="size-4" /> },
         ]}
         value={view}
         onChange={switchView}
-        ariaLabel="Document view"
+        ariaLabel={t("docHeader.documentViewAria")}
         slot="docblocks/doc-header-view"
         pillSlot="docblocks/doc-header-view-pill"
         buttonAttrName="doc-header-view-button"
@@ -216,18 +237,18 @@ function DocHeader({
       {showModeSwitcher ? (
         <SegmentSelector
           options={[
-            { value: "edit", label: "Edit mode", icon: <Pen className="size-4" /> },
-            { value: "view", label: "View mode", icon: <Eye className="size-4" /> },
+            { value: "edit", label: t("docHeader.editMode"), icon: <Pen className="size-4" /> },
+            { value: "view", label: t("docHeader.viewMode"), icon: <Eye className="size-4" /> },
             {
               value: "published",
-              label: "Published",
+              label: t("docHeader.published"),
               icon: <BookOpen className="size-4" />,
               disabled: publishedDoc === null || publishedDoc === undefined,
             },
           ]}
           value={effectiveMode}
           onChange={switchMode}
-          ariaLabel="Document mode"
+          ariaLabel={t("docHeader.documentModeAria")}
           slot="docblocks/doc-header-mode"
           pillSlot="docblocks/doc-header-mode-pill"
           buttonAttrName="doc-header-mode-button"
@@ -238,7 +259,7 @@ function DocHeader({
         // stands display-only (the picker's entry is off).
         <span
           data-slot="docblocks/doc-header-avatar"
-          aria-label="Document avatar"
+          aria-label={t("docHeader.documentAvatarAria")}
           className={cn(
             "flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full text-base font-normal",
             displayMeta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
@@ -254,8 +275,8 @@ function DocHeader({
               variant="ghost"
               size="icon"
               data-slot="docblocks/doc-header-avatar"
-              aria-label="Edit the document avatar"
-              title="Edit the avatar"
+              aria-label={t("docHeader.editAvatarAria")}
+              title={t("docHeader.editAvatar")}
               className={cn(
                 "size-8 shrink-0 overflow-hidden rounded-full text-base font-normal",
                 liveMeta.avatar ? "bg-muted" : "border border-dashed border-input text-muted-foreground"
@@ -272,7 +293,7 @@ function DocHeader({
       {titleEditing && !viewMode ? (
         <InlineEditInput
           initial={liveMeta.title}
-          ariaLabel="Document title"
+          ariaLabel={t("docHeader.documentTitleAria")}
           slot="docblocks/doc-header-title-edit"
           className="
             h-auto min-w-0 flex-1 border-0 bg-background p-0 text-lg font-semibold shadow-none
@@ -287,22 +308,22 @@ function DocHeader({
         // stands display-only (the inline edit's entry is off).
         <span
           data-slot="docblocks/doc-header-title"
-          aria-label="Document title"
+          aria-label={t("docHeader.documentTitleAria")}
           className="min-w-0 flex-1 truncate text-left text-lg font-semibold"
         >
-          {displayMeta.title || <span className="text-muted-foreground">Untitled</span>}
+          {displayMeta.title || <span className="text-muted-foreground">{t("common:untitled")}</span>}
         </span>
       ) : (
         <Button
           type="button"
           variant="ghost"
           data-slot="docblocks/doc-header-title"
-          aria-label="Edit the document title"
-          title="Edit the title"
+          aria-label={t("docHeader.editTitleAria")}
+          title={t("docHeader.editTitle")}
           onClick={beginTitleEdit}
           className="h-auto min-w-0 flex-1 truncate text-left text-lg font-semibold"
         >
-          {liveMeta.title || <span className="text-muted-foreground">Untitled</span>}
+          {liveMeta.title || <span className="text-muted-foreground">{t("common:untitled")}</span>}
         </Button>
       )}
     </div>

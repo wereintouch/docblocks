@@ -9,6 +9,8 @@
  * is the members' area). Pure view state: the doc writes on the commit
  * only.
  */
+import { useTranslation } from "react-i18next";
+
 import type { Block, BlockId } from "docblocks-core";
 
 import { CanvasTitleChip } from "./CanvasTitleChip";
@@ -18,6 +20,7 @@ type GROUP_BLOCK_VIEW = Extract<Block, { type: "group" }>;
 const BORDER_HIT_PX = 6;
 
 function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_VIEW; selected: boolean }) {
+  const { t } = useTranslation("canvas");
   const title = block.attrs?.title ?? "";
 
   const selectedColor = "var(--docblocks-canvas-selection-border-color)";
@@ -97,7 +100,7 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
         title={title}
         selected={selected}
         slot="group"
-        ariaLabel="Container title"
+        ariaLabel={t("titleChip.containerTitle")}
         restBorderColor="var(--docblocks-table-border-color)"
       />
     </div>
