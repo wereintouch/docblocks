@@ -42,7 +42,7 @@ function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = docu
     const el =
       Array.from(
         liveScope(scope).querySelectorAll<HTMLElement>(
-          `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
+          `[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`
         )
       ).find((candidate) => !candidate.closest('[data-slot="docblocks/frame-window-content"]')) ?? null;
     if (el === null || !el.isConnected) return;

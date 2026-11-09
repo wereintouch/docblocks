@@ -218,7 +218,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     // re-seat must not mistake the clone for the target.
     const exclude =
       rootRef.current?.querySelector<HTMLElement>(
-        `[data-block-id="${range.blockId}"][data-slot="docblocks/block-content"]`
+        `[data-block-id="${CSS.escape(range.blockId)}"][data-slot="docblocks/block-content"]`
       ) ?? null;
     if (option === "paragraph") {
       // A task's `checked` is dropped by the type change (the check state
