@@ -12,9 +12,15 @@ import type {
   TableDescription,
 } from "../bridge";
 
-/** The cell-value equality (null / undefined stand as the empty cell). */
+/** The cell-value equality (null / undefined stand as the empty cell).
+ *  The composite value (the multi-select's array) stands the element-wise
+ *  stand: the same content over a fresh array instance is NOT a change
+ *  (the identity stand would commit the no-op and push the undo entry). */
 function cellValueEqual(current: unknown, next: unknown): boolean {
   if (current === undefined || current === null) return next === undefined || next === null;
+  if (Array.isArray(current) && Array.isArray(next)) {
+    return current.length === next.length && current.every((value, index) => value === next[index]);
+  }
   return current === next;
 }
 

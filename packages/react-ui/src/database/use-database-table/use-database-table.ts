@@ -43,7 +43,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DatabaseFilterPayload } from "docblocks-core";
 
 import type { BridgeColumn, BridgeTableDescription } from "../bridge";
-import { BridgeError, isBridgeError } from "../bridge";
+import { BridgeError, isBridgeError, toBridgeError } from "../bridge";
 import type {
   BatchOp,
   BridgeErrorCode,
@@ -114,8 +114,12 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   }
   const filterKey = filter === undefined ? "" : JSON.stringify(filter);
 
-  const messageOf = (operationError: unknown): string =>
-    operationError instanceof Error ? operationError.message : String(operationError);
+  /** The operation's error message: the unknown rejection stands the
+   *  transport-level stand (the safe recovery is the same-operationId's
+   *  reconciliation, not the blind new operation) — the plain serialized
+   *  `{ code, message }` shape (the wire-rehydrated error) stands the
+   *  message, not the object's `String()` stand. */
+  const messageOf = (operationError: unknown): string => toBridgeError(operationError).message;
 
   const noteError = (operationError: unknown) => {
     setError(messageOf(operationError));
@@ -357,7 +361,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
       pushUndo(
         {
@@ -459,7 +463,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -549,7 +553,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -584,7 +588,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -641,7 +645,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -759,7 +763,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         if (updatesChanged) setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -830,7 +834,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         liveColumnId = receipt.result.id;
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
       // Without the `columnRestore` capability the consumer's
       // `deleteColumn` destroys the column's data — the removal is NOT
@@ -950,7 +954,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -981,7 +985,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         }
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -1008,7 +1012,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -1035,7 +1039,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -1097,6 +1101,15 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     const identity = { bridge: historyRef.current.bridge, tableId: historyRef.current.tableId };
     const sameIdentity = () =>
       historyRef.current.bridge === identity.bridge && historyRef.current.tableId === identity.tableId;
+    // The window detector: the redo stack at the call's time. A forward
+    // write that commits over the in-flight inverse runs the pushUndo (the
+    // redo stack stands REPLACED, not grown) — the history's invariant "a
+    // new operation clears the redo side" then applies to this undo too:
+    // the op stands consumed (popped from the undo stack) but NOT moved to
+    // the redo stack (it would stand redoable over the newer write — the
+    // redo's re-commit would clobber it). The op's inverse already applied
+    // over the bridge; the refresh stands the UI on the bridge's truth.
+    const redoStackAtCall = redoStackRef.current;
     historyInFlightRef.current = true;
     try {
       await op.inverse();
@@ -1111,7 +1124,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       if (index !== -1) {
         if (index === ops.length - 1) ops.pop();
         else ops.splice(index, 1);
-        redoStackRef.current.push(op);
+        if (redoStackRef.current === redoStackAtCall) redoStackRef.current.push(op);
       }
       setError(null);
       setErrorCode(null);
@@ -1136,6 +1149,17 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     const identity = { bridge: historyRef.current.bridge, tableId: historyRef.current.tableId };
     const sameIdentity = () =>
       historyRef.current.bridge === identity.bridge && historyRef.current.tableId === identity.tableId;
+    // The symmetric window stand: the undo stack at the call's time. A
+    // forward write that commits over the in-flight forward run PUSHes onto
+    // the same array (the pushUndo does not replace the undo stack). The
+    // redone op stands a live edit (its forward already applied) and must
+    // re-enter the undo stack — but at the call's position, NOT on top of
+    // the window's writes (the naive push would stand the undo order's
+    // inversion: the first undo reverts the stale op, not the newest
+    // write). The call-time insertion keeps the window's writes on top:
+    // the undo walks back over the newest first, the redone op then.
+    const undoStackAtCall = undoStackRef.current;
+    const undoLengthAtCall = undoStackRef.current.length;
     historyInFlightRef.current = true;
     try {
       await op.forward();
@@ -1147,7 +1171,12 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       if (index !== -1) {
         if (index === ops.length - 1) ops.pop();
         else ops.splice(index, 1);
-        undoStackRef.current.push(op);
+        if (undoStackRef.current === undoStackAtCall) {
+          // The call-time position's insertion: no window — the top's push
+          // (the length is the call's); the window's stand — below the
+          // window's writes (the splice at the call's length).
+          undoStackRef.current.splice(undoLengthAtCall, 0, op);
+        }
       }
       setError(null);
       setErrorCode(null);

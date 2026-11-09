@@ -41,7 +41,7 @@ import { useEnumOptionsMotion } from "./use-enum-options-motion";
 import { useGridCellInteraction } from "./use-grid-cell-interaction";
 import { useGridColumnDrag } from "./use-grid-column-drag";
 import { useGridSeamResize } from "./use-grid-seam-resize";
-import { refEntryKey, useRefTables } from "./use-ref-tables";
+import { loadFullPages, refEntryKey, useRefTables } from "./use-ref-tables";
 import type { RefTableEntry } from "./use-ref-tables";
 import { emptyColumnForm } from "./utils";
 import { cellKeyOf, visibleColumns } from "./utils";
@@ -174,10 +174,12 @@ function GridBody({
         if (currentOrder !== undefined) {
           doc.updateBlock(blockId, { columnOrder: [...currentOrder, liveColumnId] });
         }
-      } catch {
+      } catch (error) {
         // The create's failure: the form stands open (the retry is the
-        // form's own create press); the error stands the hook's transient
-        // display.
+        // form's own create press); the hook's operation failure stands
+        // the hook's transient display, the log stands the diagnostic's
+        // stand (the view attr's write's throw sets no state).
+        console.error("docblocks: the column's create failed — the form stays open", error);
         return;
       }
       setColumnFormOpen(false);
@@ -224,9 +226,13 @@ function GridBody({
           }
           setCatalogRefresh((key) => key + 1);
           await commitRef(enumTableId);
-        } catch {
-          // The system table's create failure: the form stands open (the
-          // commit stands none — the retry is the form's own press).
+        } catch (error) {
+          // The system table's create failure (the partial sequence — the
+          // created rows over the failed column stand a residue): the form
+          // stands open (the retry is the form's own press), the catalog
+          // re-reads (the partial's stand), the error stands the log.
+          console.error("docblocks: the enum's system table create failed — the catalog re-reads", error);
+          setCatalogRefresh((key) => key + 1);
         }
       })();
       return;
@@ -243,9 +249,11 @@ function GridBody({
           const tableId = (await bridge.createTable({ name: tableName }, newMutationContext())).result.id;
           setCatalogRefresh((key) => key + 1);
           await commitRef(tableId);
-        } catch {
+        } catch (error) {
           // The table's create failure: the form stands open (the commit
-          // stands none — the retry is the form's own create press).
+          // stands none — the retry is the form's own create press); the
+          // error stands the log.
+          console.error("docblocks: the table's create failed — the form stays open", error);
         }
       })();
       return;
@@ -301,11 +309,21 @@ function GridBody({
     void (async () => {
       try {
         // The option's columns stand by their names (the bridge assigns
-        // the ids); the cell's keys read the ids.
-        const snapshot = await bridge.snapshotTable(refTableId, { limit: 200 });
+        // the ids); the cell's keys read the ids. The full page set's
+        // stand (the cursor's continuation to the tail): the single
+        // page's limit would truncate the catalog over 200 options (the
+        // diff's delete set over the truncated rows stands the
+        // silent-ignored delete of the truncated option).
+        const pageSet = await loadFullPages(bridge, refTableId);
+        // The partial page set (the cursor's churn over the retry bound):
+        // the diff's delete set over the truncated rows stands no stand —
+        // the commit stands none (the retry is the form's own press, the
+        // refresh re-reads the full set).
+        if (pageSet === null) throw new Error("the catalog's page set stood partial over the cursor's churn");
+        const snapshot = pageSet;
         const nameColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_NAME_COLUMN)?.id;
         const colorColumnId = snapshot.columns.find((entry) => entry.name === ENUM_OPTION_COLOR_COLUMN)?.id;
-        const current: { rowId: string; name: string; color: string | null }[] = snapshot.page.rows.map((row) => ({
+        const current: { rowId: string; name: string; color: string | null }[] = snapshot.rows.map((row) => ({
           rowId: row.id,
           name:
             nameColumnId !== undefined && typeof row.cells[nameColumnId] === "string"
@@ -417,9 +435,14 @@ function GridBody({
         if (column.name !== draft.name.trim()) await data.renameColumn(columnId, draft.name.trim());
         setColumnFormOpen(false);
         setColumnForm(null);
-      } catch {
+      } catch (error) {
         // The commit's failure: the form stands open (the retry is the
-        // form's own save press).
+        // form's own save press); the partial's stand (the mixed batch's
+        // atomic commit + the move's second commit) re-reads the catalog
+        // (the move over the failed batch stands applied), the error
+        // stands the log.
+        console.error("docblocks: the column's enum commit failed — the catalog re-reads", error);
+        setCatalogRefresh((key) => key + 1);
       }
     })();
   };

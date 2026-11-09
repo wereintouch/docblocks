@@ -207,5 +207,5 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
   return data;
 }
 
-export { REF_PAGE_SIZE, refEntryKey, useRefTables };
+export { REF_PAGE_SIZE, loadFullPages, refEntryKey, useRefTables };
 export type { RefTableData, RefTableDataMap, RefTableEntry };
