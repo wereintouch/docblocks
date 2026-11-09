@@ -235,6 +235,35 @@ const reactUiPeerRestrictions = {
   ],
 };
 
+/**
+ * The per-subpath peer's scope (the cross-peer's stand): a subpath's source
+ * imports ITS peer only — the other two peers stay restricted (a cross-peer
+ * import would pull the foreign dependency into the subpath's bundle and
+ * break the consumer without that peer). Each block stands the FULL
+ * restrictions (the flat config's later block replaces the rule's options
+ * per file, no merge): the boundary's set + the two foreign peers.
+ */
+const PEER_RESTRICTIONS = {
+  motion: { peer: "framer-motion", foreign: ["mermaid", "pdfjs-dist"], message: "the ./motion subpath" },
+  mermaid: { peer: "mermaid", foreign: ["framer-motion", "pdfjs-dist"], message: "the ./mermaid subpath" },
+  pdf: { peer: "pdfjs-dist", foreign: ["framer-motion", "mermaid"], message: "the ./pdf subpath" },
+};
+
+const peerSubpathRestrictions = (subpath) => {
+  const { foreign, message } = PEER_RESTRICTIONS[subpath];
+  return {
+    ...reactUiBoundaryRestrictions,
+    paths: [...reactUiBoundaryRestrictions.paths, ...foreign],
+    patterns: [
+      ...reactUiBoundaryRestrictions.patterns,
+      ...foreign.map((peer) => ({
+        regex: `^${peer}(/.*)?$`,
+        message: `${peer} stands over its own subpath's source only — ${message} imports its peer only (the consumer's opt-in per dependency).`,
+      })),
+    ],
+  };
+};
+
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
@@ -304,6 +333,17 @@ const eslintConfig = tseslint.config(
       "@typescript-eslint/no-restricted-imports": ["error", reactUiPeerRestrictions],
     },
   },
+  // The cross-peer's stand per subpath: the subpath's source imports its
+  // own peer only (the two foreign peers stay restricted — a cross-peer
+  // import would break the consumer without that peer). The blocks stand
+  // AFTER the peers' block (the last match wins the rule's options per
+  // file) and carry the full set (no merge).
+  ...Object.entries(PEER_RESTRICTIONS).map(([subpath]) => ({
+    files: [`packages/react-ui/src/${subpath}/**/*.{ts,tsx}`],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", peerSubpathRestrictions(subpath)],
+    },
+  })),
   // Tailwind class hygiene for react-ui: order + line wrapping (auto-fixable),
   // canonical forms, and correctness (typos / conflicting classes).
   {
