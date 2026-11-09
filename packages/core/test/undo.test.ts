@@ -7,7 +7,7 @@ import { fixture } from "./fixtures";
 /**
  * Undo/redo (y-undo UndoManager, local origin only, captureTimeout 0).
  * Remote and loaded state never enter the history; undo never reverts
- * remote changes (api-v1 §6.3).
+ * remote changes (the local-origin's capture stand).
  */
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -113,7 +113,7 @@ describe("undo never reverts remote or loaded state", () => {
     doc1.insertText("b0", 0, "A");
     doc2.insertText("b0", 0, "B");
 
-    // doc1 receives doc2's delta (the classic §6.3 scenario).
+    // doc1 receives doc2's delta (the classic remote-apply scenario).
     doc1.applyUpdate(doc2.encodeUpdate(Y.encodeStateVector(doc1.raw)));
     expect(doc1.canUndo).toBe(true);
 

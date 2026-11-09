@@ -9,7 +9,9 @@ import tseslint from "typescript-eslint";
  * Boundary enforcement:
  *
  * 1. `no-restricted-imports` — bare package specifiers: react-ui must not
- *    import yjs/y-protocols/lib0 or deep `docblocks-core/*` subpaths.
+ *    import yjs/y-protocols/lib0 or deep `docblocks-core/*` subpaths; the
+ *    optional peers (framer-motion / mermaid / pdfjs-dist) stand over their
+ *    own subpath's source only (`./motion` / `./mermaid` / `./pdf`).
  * 2. `docblocks/no-cross-boundary-import` — resolver-aware check:
  *    - packages/react-ui: relative imports must not escape the package dir
  *      (no reaching into packages/core from source);
@@ -168,6 +170,71 @@ const boundariesPlugin = {
 // strings (base + variant values).
 const TAILWIND_ENTRY = path.join(import.meta.dirname, "packages", "react-ui", "eslint.tailwind.entry.css");
 
+/**
+ * The react-ui boundary's import restrictions (the public-API-only
+ * contract): the yjs stack, the core's deep subpaths and layer aliases.
+ * Stood as a const so the optional-peers' block (below) reuses the same
+ * set — the flat config's later block stands the rule's full options (the
+ * per-file merge is a replace, not a union), so the reuse keeps the yjs'
+ * stand over the non-peer's files too.
+ */
+const reactUiBoundaryRestrictions = {
+  paths: ["yjs", "y-protocols", "lib0"],
+  patterns: [
+    {
+      regex: "^yjs(/.*)?$",
+      message: "react-ui must not import yjs — build strictly on the docblocks-core public API.",
+    },
+    {
+      regex: "^y-protocols(/.*)?$",
+      message: "react-ui must not import y-protocols — build strictly on the docblocks-core public API.",
+    },
+    {
+      regex: "^lib0(/.*)?$",
+      message: "react-ui must not import lib0 — build strictly on the docblocks-core public API.",
+    },
+    {
+      regex: "^docblocks-core/.+",
+      message: "react-ui must import only the docblocks-core public entry — deep subpaths are internal.",
+    },
+    {
+      regex: "^@docblocks-core(/.*)?$",
+      message:
+        "react-ui must import only the docblocks-core public entry — layer aliases are internal to the core package.",
+    },
+  ],
+};
+
+/**
+ * The optional peers' file scope (the package's peer contract): the
+ * framer-motion / mermaid / pdfjs-dist imports stand over their own
+ * subpath's source only (the `./motion` / `./mermaid` / `./pdf` exports —
+ * the consumer's opt-in per dependency). The block stands the FULL
+ * restrictions (the boundary's set + the peers) over every other react-ui
+ * file: the flat config's later block replaces the rule's options per
+ * file (no merge), so the base block's yjs' stand would not reach the
+ * non-peer's files otherwise.
+ */
+const reactUiPeerRestrictions = {
+  ...reactUiBoundaryRestrictions,
+  paths: [...reactUiBoundaryRestrictions.paths, "framer-motion", "mermaid", "pdfjs-dist"],
+  patterns: [
+    ...reactUiBoundaryRestrictions.patterns,
+    {
+      regex: "^framer-motion(/.*)?$",
+      message: "framer-motion stands over the ./motion subpath's source only (the consumer's opt-in peer).",
+    },
+    {
+      regex: "^mermaid(/.*)?$",
+      message: "mermaid stands over the ./mermaid subpath's source only (the consumer's opt-in peer).",
+    },
+    {
+      regex: "^pdfjs-dist(/.*)?$",
+      message: "pdfjs-dist stands over the ./pdf subpath's source only (the consumer's opt-in peer).",
+    },
+  ],
+};
+
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
@@ -209,38 +276,32 @@ const eslintConfig = tseslint.config(
       },
     },
   },
+
+  // The base boundary's stand over the whole react-ui (the subpaths included:
+  // the peers' block re-stands the full set over its own files below).
   {
     files: ["packages/react-ui/**/*.{ts,tsx}"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": [
-        "error",
-        {
-          paths: ["yjs", "y-protocols", "lib0"],
-          patterns: [
-            {
-              regex: "^yjs(/.*)?$",
-              message: "react-ui must not import yjs — build strictly on the docblocks-core public API.",
-            },
-            {
-              regex: "^y-protocols(/.*)?$",
-              message: "react-ui must not import y-protocols — build strictly on the docblocks-core public API.",
-            },
-            {
-              regex: "^lib0(/.*)?$",
-              message: "react-ui must not import lib0 — build strictly on the docblocks-core public API.",
-            },
-            {
-              regex: "^docblocks-core/.+",
-              message: "react-ui must import only the docblocks-core public entry — deep subpaths are internal.",
-            },
-            {
-              regex: "^@docblocks-core(/.*)?$",
-              message:
-                "react-ui must import only the docblocks-core public entry — layer aliases are internal to the core package.",
-            },
-          ],
-        },
-      ],
+      "@typescript-eslint/no-restricted-imports": ["error", reactUiBoundaryRestrictions],
+    },
+  },
+  // The optional peers' scope: the peers' restriction over every react-ui
+  // file EXCEPT the subpaths' own source (the motion / mermaid / pdf
+  // directories import their peer legitimately — the object's ignores
+  // stand the exclusion, the flat config's `files` stands no negation).
+  {
+    files: ["packages/react-ui/**/*.{ts,tsx}"],
+    ignores: [
+      "packages/react-ui/src/motion/**",
+      "packages/react-ui/src/mermaid/**",
+      "packages/react-ui/src/pdf/**",
+      // The package's own test suite stands the peers' stubs / spies
+      // (the shipped surface is the src/ only — the tests stand no
+      // consumer's import path).
+      "packages/react-ui/test/**",
+    ],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", reactUiPeerRestrictions],
     },
   },
   // Tailwind class hygiene for react-ui: order + line wrapping (auto-fixable),

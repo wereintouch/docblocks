@@ -8,9 +8,9 @@ import { rebaseSelection } from "../src/core/selection/rebase";
 import type { StructuralFacts } from "../src/core/selection/rebase";
 
 /**
- * Selection rebase over document changes (spec selection-v1 §3 table):
- * offset shifts, range growth, clamping, collapse; cross-block chains
- * (recomputed on structural changes); kind "blocks" drop rules.
+ * Selection rebase over document changes (the rebase contract: offset
+ * shifts, range growth, clamping, collapse; cross-block chains
+ * (recomputed on structural changes); kind "blocks" drop rules).
  */
 
 const CREATED_AT = "2026-01-01T00:00:00Z";

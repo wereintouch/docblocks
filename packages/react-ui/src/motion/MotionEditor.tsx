@@ -29,7 +29,7 @@ import { EnumOptionsMotionSlot } from "../database";
 import { FORMAT_PALETTE, useFormatToolbar } from "../editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "../editing/mention";
 import { SlashMenuContext, useSlashMenu } from "../editing/slash";
-import { useEditing } from "../editing/useEditing";
+import { useEditing } from "../editing/use-editing";
 import { useEditorContext } from "../editor-provider";
 import { PresenceCaretOverlay } from "../presence";
 import { Card } from "../shared/ui/Card";

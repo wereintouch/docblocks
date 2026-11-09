@@ -17,7 +17,7 @@ import { Skeleton } from "../shared/ui/Skeleton";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 import { INLINE_CODE_CLASS } from "../text";
 import { configureMermaidTheme, safeId } from "./mermaid-config";
-import { useContainerTheme } from "./useContainerTheme";
+import { useContainerTheme } from "./use-container-theme";
 
 /** The preview state: the current svg (kept while a re-render runs), or the last error. */
 type DiagramState = { svg: string | null; error: string | null };

@@ -8,8 +8,8 @@ import { WsRelay } from "./ws-relay";
 import type { FakeSocket } from "./ws-relay";
 
 /**
- * Transport-level convergence (api-v1 test criterion: random order with
- * losses and duplicates): two attached docs through the relay, an
+ * Transport-level convergence (the engine's convergence criterion: random
+ * order with losses and duplicates): two attached docs through the relay, an
  * interleaved command sequence, identical final state under frame
  * duplication, shuffled delivery, and kill+reconnect. (Losses over a live
  * socket are impossible — the WebSocket contract is reliable delivery;

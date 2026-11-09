@@ -28,7 +28,7 @@ const expectThrows = (fn: () => unknown, ctor: new (message: string) => Error): 
   throw new Error("expected the command to throw");
 };
 
-/** The schema §4.2 document: one plain run "Help us sync faster!" (20 chars). */
+/** The fixture's document: one plain run "Help us sync faster!" (20 chars). */
 const markedDoc = (): { doc: Doc; id: string } => {
   const doc = newDoc();
   const id = doc.insertBlock("paragraph");
@@ -37,7 +37,7 @@ const markedDoc = (): { doc: Doc; id: string } => {
 };
 
 describe("setMark", () => {
-  it("schema §4.2: bold + color + highlight compose on one split run", () => {
+  it("bold + color + highlight compose on one split run", () => {
     const { doc, id } = markedDoc();
     doc.setMark(id, 8, 12, { type: "bold" });
     doc.setMark(id, 8, 12, { type: "color", value: "#0066CC" });
