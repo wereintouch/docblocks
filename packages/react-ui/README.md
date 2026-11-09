@@ -109,6 +109,7 @@ mention catalog). The full props list:
 | `accessLevel?`               | The consumer's user access level (default `editor`): `viewer` forces the `published` mode (the current state is never rendered to a reader).                                                                                                                                                                                           |
 | `mode?`                      | The document mode (default `edit`): `view` is a read-only live document; `published` renders the `publishedDoc` snapshot read-only.                                                                                                                                                                                                    |
 | `publishedDoc?`              | The published snapshot (a hydrated core `Doc`; must not change after mount — remount over `key` for a new snapshot). The consumer owns the publish action and the snapshot storage.                                                                                                                                                    |
+| `presence?`                  | The local user's presence identity + the selection-sharing cipher (see Presence sharing below). Without the prop the editor keeps the legacy stand (the anonymous plaintext selection, always shared over the room).                                                                                                                   |
 
 Two rules for the optional props:
 
@@ -255,6 +256,62 @@ function App() {
   carets. `usePresence()` reads the per-peer state (peer id, selection,
   `updatedAt`); staleness (dropping stale peers) is a consumer concern —
   the payload's `updatedAt` (Unix ms) is the only input.
+
+### Presence sharing
+
+The selection's visibility over the room is grant-gated (the privacy
+stand): with the `presence` prop the grant defaults to **off** — the
+selection does not publish, only the light identity frame (the roster). The
+consumer flips the grant through the hook (session state — not document
+data, not on the wire; it lives until the page reload or the provider's
+unmount):
+
+```tsx
+import { usePresenceSharing } from "docblocks-react-ui";
+
+function ShareControl() {
+  const { sharing, setSharing, peers } = usePresenceSharing();
+  // sharing: "off" | "everyone" | string[] (the local grant — the full
+  // information stands over the sharer's pane: what is shared, and to whom)
+  // setSharing(mode) — a no-op over the read-only modes; a targeted grant
+  // requires the presence prop's userId + crypto (the degraded stand
+  // stands a console warn, no crash)
+  // peers: { peerId, userId?, name?, updatedAt, selectionVisible }[] —
+  // the live roster (the identity frames are always published)
+  return <button onClick={() => setSharing(sharing === "off" ? "everyone" : "off")}>{sharing}</button>;
+}
+```
+
+The grant's modes:
+
+- **`off`** — the selection never publishes (the identity frame only).
+- **`everyone`** — the plaintext `selection` (the legacy wire shape — the
+  peers of any version render it).
+- **`[userId, …]`** (targeted) — the selection publishes as opaque
+  ciphertext entries (`selections`), one per grant member, produced by the
+  consumer's `PresenceCrypto` cipher. The entries carry **no target id**:
+  a recipient tries each entry with its own `decrypt`; an unaddressed peer
+  sees the sharer's identity in the roster but never the selection (and
+  never learns the audience).
+
+```ts
+interface PresenceCrypto {
+  /** One opaque entry per grant member (grant order; no target id inside). */
+  encrypt(selection: PresenceSelection, grant: string[]): Promise<string[]>;
+  /** Null when the entry is not addressed to the local user (or broken). */
+  decrypt(entry: string): Promise<PresenceSelection | null>;
+}
+```
+
+The library orchestrates (publish gating, the debounce, the per-peer
+sequence guard over the async decrypt, the roster) and renders the
+accepted selections through the existing overlay; the cryptography and
+the keys are the consumer's, and the sharing's UI (the toggle, the target
+picker, the indicator) is the consumer's stand over the hook — the package
+ships no built-in control. Without `crypto` the targeted mode degrades
+(the setter stands a no-op); `off` / `everyone` stand regardless. A
+provider **without** the `presence` prop keeps the legacy stand (the
+anonymous plaintext selection over the room — the 0.2.0 behavior).
 
 ### Blobs
 
@@ -525,6 +582,8 @@ value actually changes (the store's reference-stability contract):
   local state; `null` before the mount effect ran and after unmount).
 - `usePresence()` — the remote peers' ephemeral state (the selection +
   the `updatedAt` per peer).
+- `usePresenceSharing()` — the selection-sharing grant (the session state
+  - the setter + the live roster; see Presence sharing).
 - `useMeta()` — the document meta (the reference is replaced only when
   the title changed).
 - `useEditorContext()` — the whole provider context (the store, the

@@ -32,6 +32,10 @@ test("text syncs both directions", async ({ browser }) => {
 test("presence tracks the remote caret and its new block", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "sync-presence");
 
+  // The sharing's grant (the default is off — the privacy stand): A flips
+  // to "everyone" (the plaintext stand) before the caret lands.
+  await a.getByTestId("share-a-everyone").click();
+
   // A's real caret: click the pane's current block and type into the editor.
   const current = a.locator('[data-testid^="block-a-"][data-current="true"]');
   await current.locator('[data-slot="docblocks/block-content"]').first().click();

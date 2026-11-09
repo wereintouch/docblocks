@@ -12,6 +12,7 @@ export type {
   MentionProvider,
   PdfPreview,
   PdfPreviewProps,
+  PresenceConfig,
   SelectionRef,
   SyncEmbedResolver,
 } from "./models";

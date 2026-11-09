@@ -232,6 +232,10 @@ test("a cross range selected in pane B renders as a range highlight in pane A", 
   const blocks = await blocksOf(b, "b");
   const [first, second] = [blocks[0]!, blocks[1]!];
 
+  // The sharing's grant (the default is off — the privacy stand): B flips
+  // to "everyone" (the plaintext stand) before the range lands.
+  await b.getByTestId("share-b-everyone").click();
+
   // B composes the cross selection; A renders the range highlight boxes
   // (one per chain block — the box carries the segment's block id).
   await selectAcrossBlocks(b, "b", 3);

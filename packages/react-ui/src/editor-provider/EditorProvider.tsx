@@ -3,7 +3,7 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { BLOCK_REGISTRY, createSelection, presenceSelectionOf } from "docblocks-core";
-import type { Doc, Selection } from "docblocks-core";
+import type { Doc, PresenceState, Selection } from "docblocks-core";
 
 import { getDefaultBlobStore, legacyBlobStore } from "../blob-store";
 import type { BlobStore } from "../blob-store";
@@ -11,6 +11,7 @@ import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
 import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
 import { DocblocksI18nProvider } from "../i18n";
+import { buildPresencePayload, resolvePeerSelection } from "../presence";
 import { createEditorStore } from "../state";
 import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
@@ -62,6 +63,7 @@ function EditorProviderStand({
   accessLevel,
   mode,
   publishedDoc,
+  presence,
   children,
 }: EditorProviderProps & { doc: Doc }) {
   const rootId = rootBlockId ?? doc.meta.id;
@@ -85,6 +87,13 @@ function EditorProviderStand({
   // read-only subtree must not write into its own doc (the embedded's
   // master over the published's stand is read-only too).
   const editingStandRef = useRef(effectiveMode === "edit");
+  // The presence identity + cipher and the read-only stand are read at
+  // publish/receive time (the awareness effects stay keyed on provider /
+  // store — a fresh inline presence prop must not re-subscribe them).
+  const presenceRef = useRef(presence);
+  presenceRef.current = presence;
+  const viewModeRef = useRef(effectiveMode !== "edit");
+  viewModeRef.current = effectiveMode !== "edit";
 
   useEffect(() => {
     if (docRef.current !== doc) {
@@ -169,29 +178,78 @@ function EditorProviderStand({
     // own setAwareness — so an unchanged list must not churn the slice
     // reference (reference stability across unrelated changes).
     let lastPeers = "";
-    const unsubscribeAwareness = provider.onAwareness((peers) => {
-      const serialized = JSON.stringify(peers);
+    // The latest raw frame per peer: a frame older than the peer's latest
+    // (the async decrypt's race — the older frame's decrypt can resolve
+    // after a newer one's) never enters the set, so the slice always
+    // resolves over the latest frames only.
+    const latest = new Map<string, PresenceState>();
+    // The resolution's generation: the last-started resolution owns the
+    // slice (an earlier one finishing late stands dropped).
+    let generation = 0;
+
+    const unsubscribeAwareness = provider.onAwareness((rawPeers) => {
+      const serialized = JSON.stringify(rawPeers);
       if (serialized === lastPeers) return;
       lastPeers = serialized;
-      store.getState().setPresence(peers);
+      const rawIds = new Set(rawPeers.map((peer) => peer.peerId));
+      for (const id of [...latest.keys()]) if (!rawIds.has(id)) latest.delete(id);
+      for (const peer of rawPeers) {
+        const prev = latest.get(peer.peerId);
+        if (peer.seq !== undefined && prev?.seq !== undefined && peer.seq < prev.seq) continue;
+        latest.set(peer.peerId, peer);
+      }
+      const gen = ++generation;
+      const crypto = presenceRef.current?.crypto ?? null;
+      const input = [...latest.values()];
+      void (async () => {
+        const resolved: PresenceState[] = [];
+        for (const peer of input) {
+          resolved.push(await resolvePeerSelection({ peer, crypto }));
+        }
+        if (gen !== generation) return;
+        store.getState().setPresence(resolved);
+      })();
     });
     return () => unsubscribeAwareness();
   }, [provider, store]);
 
-  // Publish the live local selection into the provider's awareness:
-  // debounced on change, a null selection immediately on window blur or
-  // page unload, and an immediate re-publish of the current selection on
-  // window focus (closing the stale-null gap after a blur). A transport
-  // that re-sends the local awareness state on (re)connect (WsSyncProvider
-  // does) restores the payload automatically after a reconnect.
+  // Publish the local selection state into the provider's awareness over
+  // the sharing contract: the grant is session state (the store's sharing
+  // slice, the default "off" — the privacy stand): "off" / the read-only
+  // stand publishes the identity only, "everyone" publishes the plaintext
+  // selection (the legacy stand), and a targeted grant encrypts per target
+  // over the consumer's cipher (no cipher — the publish stands dropped).
+  // Debounced on change, identity-only immediately on window blur or page
+  // unload, and an immediate re-publish on window focus (closing the
+  // stale-null gap after a blur). A transport that re-sends the local
+  // awareness state on (re)connect (WsSyncProvider does) restores the
+  // payload automatically after a reconnect.
   useEffect(() => {
     if (provider === undefined) return;
 
+    // The monotonic publication counter (every publish increments it — the
+    // recipient's seq guard orders the async decrypts).
+    let seq = 0;
+    // The async publish's token: a grant that changed in flight (the
+    // cipher's await) must not land over the newer state.
+    let publishToken = 0;
+
     const publish = (selection: Selection): void => {
-      provider.setAwareness({
-        selection: presenceSelectionOf(selection),
-        updatedAt: Date.now(),
-      });
+      const token = ++publishToken;
+      const sharing = store.getState().sharing;
+      void (async () => {
+        const payload = await buildPresencePayload({
+          selection: presenceSelectionOf(selection),
+          sharing,
+          viewMode: viewModeRef.current,
+          identity: presenceRef.current ?? {},
+          crypto: presenceRef.current?.crypto ?? null,
+          seq: ++seq,
+          updatedAt: Date.now(),
+        });
+        if (token !== publishToken || payload === null) return;
+        provider.setAwareness(payload);
+      })();
     };
 
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -202,30 +260,31 @@ function EditorProviderStand({
         publish(selection);
       }, AWARENESS_DEBOUNCE_MS);
     };
-    const publishNoneNow = (): void => {
+    const publishNow = (selection: Selection): void => {
       if (timer !== undefined) {
         clearTimeout(timer);
         timer = undefined;
       }
-      publish({ kind: "none" });
-    };
-    const publishCurrentNow = (): void => {
-      if (timer !== undefined) return; // a queued publish carries the newest state
-      publish(store.getState().selection);
+      publish(selection);
     };
 
     const unsubscribe = store.subscribe((state, prev) => {
       if (state.selection !== prev.selection) queue(state.selection);
+      if (state.sharing !== prev.sharing) publish(store.getState().selection);
     });
-    window.addEventListener("blur", publishNoneNow);
-    window.addEventListener("beforeunload", publishNoneNow);
-    window.addEventListener("focus", publishCurrentNow);
+    const onBlur = (): void => publishNow({ kind: "none" });
+    const onFocus = (): void => {
+      if (timer !== undefined) return; // a queued publish carries the newest state
+      publishNow(store.getState().selection);
+    };
+    window.addEventListener("blur", onBlur);
+    window.addEventListener("beforeunload", onBlur);
+    window.addEventListener("focus", onFocus);
 
     return () => {
       unsubscribe();
-      window.removeEventListener("blur", publishNoneNow);
-      window.removeEventListener("beforeunload", publishNoneNow);
-      window.removeEventListener("focus", publishCurrentNow);
+      window.removeEventListener("blur", onBlur);
+      window.removeEventListener("beforeunload", onBlur);
       if (timer !== undefined) clearTimeout(timer);
     };
   }, [provider, store]);
@@ -272,6 +331,7 @@ function EditorProviderStand({
       accessLevel: effectiveAccessLevel,
       mode: effectiveMode,
       viewMode: effectiveMode !== "edit",
+      presence: presence ?? null,
     };
   }, [
     store,
@@ -288,6 +348,7 @@ function EditorProviderStand({
     embedSandbox,
     effectiveAccessLevel,
     effectiveMode,
+    presence,
   ]);
 
   // The published's stand: a read-only nested provider over the consumer's

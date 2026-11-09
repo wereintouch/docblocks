@@ -6,6 +6,7 @@ import {
   type EditorMode,
   EditorProvider,
   type EditorView,
+  type PresenceConfig,
   cn,
 } from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
@@ -25,6 +26,7 @@ import type { InsertableType } from "./insert-blocks";
 import { BridgeInspector } from "./inspect/BridgeInspector";
 import { JsonInspector } from "./inspect/JsonInspector";
 import { PresencePanel } from "./inspect/PresencePanel";
+import { PresenceShareControl } from "./inspect/PresenceShareControl";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
 import { CATALOG_MASTER_ID, createMasterRuntime, destroyMasterRuntime } from "./master";
 import type { MasterRuntime } from "./master";
@@ -32,6 +34,7 @@ import { mentionProvider } from "./mention-provider";
 import { currentBlockOf, readBlocks } from "./pane-blocks";
 import type { PaneBlock } from "./pane-blocks";
 import { loadPublishedSnapshot, publishSnapshot } from "./publish";
+import { stubPresenceCrypto } from "./stub-crypto";
 import { useBlockLabels } from "./useBlockLabels";
 
 /** The wire log keeps the last N events. */
@@ -60,6 +63,19 @@ declare global {
  * reads the map per render, so the reference must be stable.
  */
 const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
+
+/**
+ * The panes' presence identity (the sharing's stand: the module-level
+ * stable reference — the provider reads the prop per render, and a fresh
+ * inline object would churn the context value). The user id is the pane's
+ * letter suffixed (the e2e's target/stranger grants stand the ids), the
+ * cipher is the harness's stub (the orchestration's demo — the e2e checks
+ * the privacy property, not the cryptography).
+ */
+const PRESENCE: Record<"a" | "b", PresenceConfig> = {
+  a: { userId: "user-a", name: "User A", crypto: stubPresenceCrypto("user-a") },
+  b: { userId: "user-b", name: "User B", crypto: stubPresenceCrypto("user-b") },
+};
 
 /** The inspector tabs in the pane's system panel. */
 const TABS = ["json", "wire", "presence", "bridge"] as const;
@@ -498,11 +514,15 @@ function SyncPane({
                 syncEmbedResolver={syncEmbedResolver}
                 pdfPreview={PdfFirstPage}
                 mentionProvider={mentionProvider}
+                presence={PRESENCE[client]}
                 accessLevel={role}
                 mode={mode}
                 publishedDoc={publishedDoc}
               >
                 <Editor view={view} />
+                {/* The harness's sharing's control (the consumer-side UI over the hook — the
+                     provider's context; the catalog's golden's fixture stands no control). */}
+                {!catalog && <PresenceShareControl client={client} peerUserId={`user-${peerLetter}`} />}
               </EditorProvider>
             )
           )}

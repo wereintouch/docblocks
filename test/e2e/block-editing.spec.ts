@@ -37,6 +37,10 @@ async function leftKeys(page: Page, n: number): Promise<void> {
 test("Enter splits the block in both panes and the caret lands in the tail", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui03b-enter");
 
+  // The sharing's grant (the default is off — the privacy stand): A flips
+  // to "everyone" (the plaintext stand) before the caret lands.
+  await a.getByTestId("share-a-everyone").click();
+
   // The room starts with pane "a"'s single starter (seeded once after the
   // sync settles — a reload never re-seeds a non-empty room).
   await expect(inners(a, "a")).toHaveCount(1);

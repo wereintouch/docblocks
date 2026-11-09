@@ -19,6 +19,7 @@ export type {
   MentionProvider,
   PdfPreview,
   PdfPreviewProps,
+  PresenceConfig,
   SyncEmbedResolver,
 } from "./editor-provider";
 export { DocHeader } from "./DocHeader";
@@ -93,7 +94,17 @@ export type {
   UseTableList,
 } from "./database";
 export type { SyncEmbedRef } from "docblocks-core";
-export { useBlock, useDoc, useMeta, usePresence, useSelection, useSelectionView, useText } from "./hooks";
+export {
+  useBlock,
+  useDoc,
+  useMeta,
+  usePresence,
+  usePresenceSharing,
+  useSelection,
+  useSelectionView,
+  useText,
+} from "./hooks";
+export type { PresenceCrypto, PresenceIdentity, PresencePeer, PresenceSharing, PresenceSharingMode } from "./presence";
 export { FORMAT_PALETTE } from "./editing/format-toolbar";
 export { markToggleAction } from "./editing/keyboard";
 export type { FormatMark } from "./editing/keyboard";

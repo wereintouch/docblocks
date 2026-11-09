@@ -8,6 +8,7 @@ import type { BlockId, Doc, SelectionView, SyncEmbedRef, SyncProvider } from "do
 import type { BlobStore } from "../blob-store";
 import type { BlockRendererMap } from "../blocks";
 import type { DatabaseBridge } from "../database";
+import type { PresenceCrypto } from "../presence";
 import type { EditorStore } from "../state";
 
 /**
@@ -57,6 +58,28 @@ interface SelectionRef {
   view: SelectionView | null;
 }
 
+/**
+ * The local user's presence identity and the selection-sharing cipher
+ * (consumer session state — never document data). Without `userId` the
+ * peer is unaddressable: targeted sharing stands unavailable (the roster
+ * still lists the peer by its transport-level `peerId`). Without `crypto`
+ * the grant degrades to "off" / "everyone" (a targeted grant is a no-op).
+ */
+interface PresenceConfig {
+  /** The stable user id — the addressable identity on the wire. */
+  userId: string;
+  /** The roster display label (optional). */
+  name?: string;
+  /**
+   * The selection cipher (the targeted's stand): the local selection is
+   * encrypted per target for a targeted grant, and a received ciphertext
+   * entry is decrypted with the local user's keys. Opaque strings
+   * throughout — the algorithm is the consumer's choice. Without it, only
+   * "off" / "everyone" are available.
+   */
+  crypto?: PresenceCrypto;
+}
+
 /** The consumer's user access level: the available document modes. "viewer" is locked to the published's view (the current state is never rendered); "editor" (the default) may edit and view. Session state — not document data, never on the wire. */
 type AccessLevel = "viewer" | "editor";
 
@@ -99,6 +122,8 @@ interface EditorContextValue {
   mode: EditorMode;
   /** True over the non-edit modes ("view" / "published"): every editing surface gates off (the read-only stand). */
   viewMode: boolean;
+  /** The presence identity + cipher (the provider's `presence` prop); null when none was supplied (the legacy's anonymous stand). */
+  presence: PresenceConfig | null;
 }
 
 interface EditorProviderProps {
@@ -242,6 +267,22 @@ interface EditorProviderProps {
    * inherits the enclosing value, like the resolvers.
    */
   commandPalettePlaceholder?: string;
+  /**
+   * Optional presence identity + the selection-sharing cipher (consumer
+   * session state, never document data): the local user's stable `userId`
+   * (the addressable identity on the wire), the optional roster label, and
+   * the optional `PresenceCrypto` cipher (without it a targeted grant
+   * degrades to "off" / "everyone": the hook's setter stands a no-op over
+   * a targeted grant without the identity or the cipher). With the prop
+   * the selection sharing grant is session state
+   * driven through `usePresenceSharing()` (the default "off" — the
+   * privacy stand); without it the provider keeps the legacy stand (the
+   * anonymous plaintext selection — always shared over the room).
+   *
+   * Like the other customization values, the value is read per render:
+   * pass a stable reference.
+   */
+  presence?: PresenceConfig;
   children: ReactNode;
 }
 
@@ -255,6 +296,7 @@ export type {
   MentionProvider,
   PdfPreview,
   PdfPreviewProps,
+  PresenceConfig,
   SelectionRef,
   SyncEmbedResolver,
 };

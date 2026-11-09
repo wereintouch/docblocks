@@ -15,6 +15,10 @@ async function selectLeft(page: Page, n: number): Promise<void> {
 test("ArrowDown at the text end moves the caret to the next block", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui04-arrow");
 
+  // The sharing's grant (the default is off — the privacy stand): A flips
+  // to "everyone" (the plaintext stand) before the caret lands.
+  await a.getByTestId("share-a-everyone").click();
+
   // The room starts with pane "a"'s single starter.
   await expect(inners(a, "a")).toHaveCount(1);
   const first = inners(a, "a").first();

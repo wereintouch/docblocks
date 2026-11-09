@@ -5,6 +5,10 @@ import { twoPanes } from "./helpers";
 test("the remote caret renders inside the peer's block and clears on blur", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ui02b-overlay");
 
+  // The sharing's grant (the default is off — the privacy stand): A flips
+  // to "everyone" (the plaintext stand) before the caret lands.
+  await a.getByTestId("share-a-everyone").click();
+
   // A's real caret: click its (empty) paragraph and type. Clicking the
   // empty block also verifies the package stylesheet's ZWSP rule is live.
   const paragraphA = a.locator('[data-testid="doc-a"] [data-block-type="paragraph"]').first();

@@ -1,12 +1,14 @@
 import type { PresenceSelection, PresenceState } from "docblocks-core";
 
 /**
- * The pane's remote-peers panel. Each peer renders its selection anchor as
+ * The pane's remote-peers panel. Each peer renders its identity line (the
+ * sharing's roster stand: `user: <userId> (<name>)` — the identity stands
+ * even over an invisible selection) and its selection anchor as
  * `<letter>:<blockId>:<offset>`; a peer whose selection has more than the
  * anchor point (a range or a block set) gets a second line with the age of
  * the peer's `updatedAt` (seconds since the pane mount) and the full
- * selection as compact JSON. A caret is fully described by the first line,
- * so it keeps exactly that one line.
+ * selection as compact JSON. A caret is fully described by the anchor
+ * line, so it keeps exactly that one line.
  */
 
 /** The peer's anchor line: `<letter>:<blockId>:<offset>`; null for a block-set selection. */
@@ -45,11 +47,23 @@ function PresencePanel({
         {peers.map((peer) => {
           const anchor = anchorLine(peerLabel, peer.selection);
           const detail = detailLine(mountAt, peer);
-          if (anchor === null && detail === null) return null;
+          // The render's stand: a visible selection (the anchor / the detail
+          // line, the legacy's shape), or an invisible frame over the
+          // roster's / the enc's line (the off's / the targeted's
+          // non-recipient's stand — the sharing's debug's view).
+          const invisible = anchor === null && detail === null;
+          if (invisible && peer.userId === undefined && peer.selections === undefined) return null;
           return (
-            <div key={peer.peerId}>
+            <div key={peer.peerId} data-testid={`peer-${client}-${peer.userId ?? "anon"}`}>
               {anchor !== null && <div>{anchor}</div>}
               {detail !== null && <div style={{ color: "var(--muted-foreground)", paddingLeft: 8 }}>{detail}</div>}
+              {invisible && peer.userId !== undefined && (
+                <div>
+                  user: {peer.userId}
+                  {peer.name !== undefined ? ` (${peer.name})` : ""}
+                </div>
+              )}
+              {invisible && peer.selections !== undefined && <div>enc: {peer.selections.length}</div>}
             </div>
           );
         })}

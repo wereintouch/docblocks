@@ -168,6 +168,9 @@ test("the presence's overlay stands off over the view's mode (the peer's caret s
 }) => {
   const { a, b, close } = await twoPanes(browser, "vm-presence");
   try {
+    // The sharing's grant (the default is off — the privacy stand): A flips
+    // to "everyone" (the plaintext stand) before the caret lands.
+    await a.getByTestId("share-a-everyone").click();
     // A: the live's content + the real's caret (the peer's selection's
     // stand over the wire's awareness).
     await a.evaluate(() => {

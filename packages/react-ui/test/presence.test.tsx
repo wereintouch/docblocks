@@ -9,7 +9,8 @@ import type { PresenceState, SyncProvider } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
-import { usePresence } from "../src/hooks";
+import { usePresence, usePresenceSharing } from "../src/hooks";
+import type { PresenceSharingMode } from "../src/presence";
 import { peerBlockIdsOf } from "../src/presence/PresenceCaretOverlay";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
@@ -68,7 +69,7 @@ describe("structural data-slot attributes", () => {
 });
 
 describe("awareness publishing (EditorProvider)", () => {
-  it("publishes the live selection debounced, null on unfocus and on window blur", () => {
+  it('publishes the identity frame over the default grant, and the plaintext selection over the "everyone" grant', async () => {
     vi.useFakeTimers();
     try {
       const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
@@ -76,9 +77,17 @@ describe("awareness publishing (EditorProvider)", () => {
       doc.insertText(p, 0, "hello");
       const { provider, published } = makePublishingProvider();
 
+      // The grant's driver: flips the sharing grant through the hook.
+      let setSharingStand: ((mode: PresenceSharingMode) => void) | null = null;
+      function GrantDriver() {
+        setSharingStand = usePresenceSharing().setSharing;
+        return null;
+      }
+
       const { unmount } = render(
-        <EditorProvider doc={doc} provider={provider}>
+        <EditorProvider doc={doc} provider={provider} presence={{ userId: "u-alice", name: "Alice" }}>
           <Editor />
+          <GrantDriver />
         </EditorProvider>
       );
       expect(published).toHaveLength(0);
@@ -103,16 +112,36 @@ describe("awareness publishing (EditorProvider)", () => {
       // Inside the debounce window nothing is published yet.
       expect(published).toHaveLength(0);
 
-      act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(50);
       });
+      // The default grant ("off"): the identity frame only — the selection
+      // never publishes (the privacy stand).
       expect(published).toHaveLength(1);
       expect(published[0]).toEqual({
-        selection: { blockId: p, offset: 2 },
+        selection: null,
+        userId: "u-alice",
+        name: "Alice",
+        seq: expect.any(Number),
         updatedAt: expect.any(Number),
       });
 
-      // A selection outside the editor maps to none → a null selection.
+      // The "everyone" grant re-publishes immediately (no debounce) with
+      // the plaintext selection (the legacy stand).
+      await act(async () => {
+        setSharingStand!("everyone");
+      });
+      expect(published).toHaveLength(2);
+      expect(published[1]).toEqual({
+        selection: { blockId: p, offset: 2 },
+        userId: "u-alice",
+        name: "Alice",
+        seq: expect.any(Number),
+        updatedAt: expect.any(Number),
+      });
+
+      // A selection outside the editor maps to none → a null selection
+      // (the frame keeps publishing — the roster frame stands).
       const outside = document.createElement("span");
       outside.textContent = "outside";
       document.body.appendChild(outside);
@@ -124,22 +153,28 @@ describe("awareness publishing (EditorProvider)", () => {
       act(() => {
         document.dispatchEvent(new Event("selectionchange"));
       });
-      act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(50);
       });
       expect(published[published.length - 1]).toEqual({
         selection: null,
+        userId: "u-alice",
+        name: "Alice",
+        seq: expect.any(Number),
         updatedAt: expect.any(Number),
       });
 
-      // Window blur publishes null immediately (no debounce).
+      // Window blur publishes the identity frame immediately (no debounce).
       const before = published.length;
-      act(() => {
+      await act(async () => {
         window.dispatchEvent(new Event("blur"));
       });
       expect(published).toHaveLength(before + 1);
       expect(published[published.length - 1]).toEqual({
         selection: null,
+        userId: "u-alice",
+        name: "Alice",
+        seq: expect.any(Number),
         updatedAt: expect.any(Number),
       });
 
@@ -163,7 +198,7 @@ describe("awareness publishing (EditorProvider)", () => {
     }
   });
 
-  it("keeps the presence slice reference stable across self-echoing local publishes", () => {
+  it("keeps the presence slice reference stable across self-echoing local publishes", async () => {
     vi.useFakeTimers();
     try {
       const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
@@ -199,14 +234,19 @@ describe("awareness publishing (EditorProvider)", () => {
         return null;
       }
 
-      render(
-        <EditorProvider doc={doc} provider={provider}>
-          <Editor />
-          <Probe />
-        </EditorProvider>
-      );
+      await act(async () => {
+        render(
+          <EditorProvider doc={doc} provider={provider}>
+            <Editor />
+            <Probe />
+          </EditorProvider>
+        );
+      });
 
-      expect(probe.slice).toBe(remote);
+      // The pipeline resolves the plaintext frame as is (content parity
+      // with the transport's frame — the slice is the resolution's stand,
+      // not the raw array).
+      expect(probe.slice).toEqual(remote);
       const before = probe.slice;
 
       // A local selection change publishes after the debounce; the fake
@@ -222,17 +262,17 @@ describe("awareness publishing (EditorProvider)", () => {
       act(() => {
         document.dispatchEvent(new Event("selectionchange"));
       });
-      act(() => {
+      await act(async () => {
         vi.advanceTimersByTime(50);
       });
       expect(probe.slice).toBe(before);
 
       // A real change to the remote list still re-renders.
       const changed: PresenceState[] = [{ peerId: "42", updatedAt: 2, selection: null }];
-      act(() => {
+      await act(async () => {
         awarenessCb?.(changed);
       });
-      expect(probe.slice).toBe(changed);
+      expect(probe.slice).toEqual(changed);
       expect(probe.slice).not.toBe(before);
     } finally {
       vi.useRealTimers();
@@ -240,17 +280,19 @@ describe("awareness publishing (EditorProvider)", () => {
   });
 });
 describe("the presence overlay's stands (the crafted frame, the re-render contract)", () => {
-  it("stands the crafted presence frame over the tree (the CSS.escape sink — no selector crash)", () => {
+  it("stands the crafted presence frame over the tree (the CSS.escape sink — no selector crash)", async () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     const p = doc.insertBlock("paragraph");
     doc.insertText(p, 0, "hello");
     const { provider, emit } = makePublishingProvider();
 
-    render(
-      <EditorProvider doc={doc} provider={provider}>
-        <Editor />
-      </EditorProvider>
-    );
+    await act(async () => {
+      render(
+        <EditorProvider doc={doc} provider={provider}>
+          <Editor />
+        </EditorProvider>
+      );
+    });
 
     // The crafted peer: the blockId carries the selector metacharacters (the
     // unescaped interpolation stands the invalid selector — the querySelector
@@ -263,7 +305,7 @@ describe("the presence overlay's stands (the crafted frame, the re-render contra
         selection: { blockId: '"] } [contenteditable="x"', offset: 0 },
       },
     ];
-    act(() => {
+    await act(async () => {
       emit(crafted);
     });
     // The tree stands intact (the crafted frame draws no box — the block

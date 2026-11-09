@@ -23,6 +23,7 @@ import type { StoreApi } from "zustand/vanilla";
 import type { Block, BlockId, Change, DocMeta, PresenceState, Selection } from "docblocks-core";
 
 import type { CanvasClipboard } from "../canvas";
+import type { PresenceSharingMode } from "../presence";
 
 /**
  * Per-instance editor state: a projection of one docblocks-core Doc.
@@ -66,6 +67,12 @@ interface EditorState {
   /** Remote peers' ephemeral state; a separate slice for the same reason. */
   presence: PresenceState[];
   /**
+   * The local selection's sharing grant (session state per provider
+   * instance; the default "off" — not document data, never on the wire).
+   * A separate slice so a grant change never re-renders blocks.
+   */
+  sharing: PresenceSharingMode;
+  /**
    * The canvas clipboard: the deep copy of
    * the copied canvas items — the view state per editor (not doc data, no
    * wire); `null` when empty. A separate slice so the copy never re-renders
@@ -80,6 +87,8 @@ interface EditorActions {
   applyChange: (change: Change) => void;
   /** Replaces the presence slice. */
   setPresence: (peers: PresenceState[]) => void;
+  /** Sets the local sharing grant. */
+  setSharing: (mode: PresenceSharingMode) => void;
   /** Replaces the selection slice. */
   setSelection: (selection: Selection) => void;
   /** Sets the collapsed state of one list item (view state, no doc command). */

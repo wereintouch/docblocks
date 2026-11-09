@@ -193,7 +193,7 @@ describe("EditorProvider + Editor", () => {
     expect(screen.getByTestId("selection").textContent).toBe(`text:${p}:1:caret`);
   });
 
-  it("updates usePresence from the provider's awareness channel", () => {
+  it("updates usePresence from the provider's awareness channel", async () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     const p = doc.insertBlock("paragraph");
     doc.insertText(p, 0, "abc");
@@ -213,7 +213,7 @@ describe("EditorProvider + Editor", () => {
     expect(screen.getByTestId("presence").textContent).toBe("");
 
     const peer: PresenceState = { peerId: "peer-7", selection: { blockId: p, offset: 0 }, updatedAt: 42 };
-    act(() => {
+    await act(async () => {
       emit([peer]);
     });
     expect(screen.getByTestId("presence").textContent).toBe("peer-7");

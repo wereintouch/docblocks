@@ -72,7 +72,7 @@ function rangeBoxCount(root: HTMLElement, peerId: string): number {
 afterEach(cleanup);
 
 describe("presence overlay (remote carets)", () => {
-  it("renders a caret bar for a peer's caret selection and clears it on a null selection", () => {
+  it("renders a caret bar for a peer's caret selection and clears it on a null selection", async () => {
     const { doc, emit, root } = renderEditor((d) => {
       const id = d.insertBlock("paragraph");
       d.insertText(id, 0, "hello");
@@ -81,25 +81,25 @@ describe("presence overlay (remote carets)", () => {
 
     expect(barCount(root, "peer-7")).toBe(0);
 
-    act(() => {
+    await act(async () => {
       emit([{ peerId: "peer-7", selection: { blockId: id, offset: 2 }, updatedAt: 1 }]);
     });
     expect(barCount(root, "peer-7")).toBe(1);
 
-    act(() => {
+    await act(async () => {
       emit([{ peerId: "peer-7", selection: null, updatedAt: 2 }]);
     });
     expect(barCount(root, "peer-7")).toBe(0);
   });
 
-  it("draws the range boxes (not caret bars) for a peer's range selection; blocks kind and null draw nothing", () => {
+  it("draws the range boxes (not caret bars) for a peer's range selection; blocks kind and null draw nothing", async () => {
     const { doc, emit, root } = renderEditor((d) => {
       const id = d.insertBlock("paragraph");
       d.insertText(id, 0, "hello");
     });
     const id = paragraphIdOf(doc);
 
-    act(() => {
+    await act(async () => {
       emit([
         {
           peerId: "peer-9",
@@ -122,7 +122,7 @@ describe("presence overlay (remote carets)", () => {
     expect(rangeBoxCount(root, "peer-13")).toBe(0);
   });
 
-  it("draws one range box per chain block for a cross-block range", () => {
+  it("draws one range box per chain block for a cross-block range", async () => {
     const { doc, emit, root } = renderEditor((d) => {
       const id1 = d.insertBlock("paragraph");
       d.insertText(id1, 0, "alpha");
@@ -134,7 +134,7 @@ describe("presence overlay (remote carets)", () => {
     expect(ids).toHaveLength(2);
     const [id1, id2] = ids;
 
-    act(() => {
+    await act(async () => {
       emit([
         {
           peerId: "peer-9",
@@ -160,7 +160,7 @@ describe("presence overlay (remote carets)", () => {
     expect(barCount(root, "peer-9")).toBe(0);
   });
 
-  it("skips the stale chain blocks of a range leniently", () => {
+  it("skips the stale chain blocks of a range leniently", async () => {
     const { doc, emit, root } = renderEditor((d) => {
       const id = d.insertBlock("paragraph");
       d.insertText(id, 0, "hello");
@@ -169,7 +169,7 @@ describe("presence overlay (remote carets)", () => {
 
     // The chain names a block that no longer exists: only the live segment
     // draws.
-    act(() => {
+    await act(async () => {
       emit([
         {
           peerId: "peer-9",
@@ -189,25 +189,25 @@ describe("presence overlay (remote carets)", () => {
     ).not.toBeNull();
   });
 
-  it("draws nothing for a peer pointing at a block that is not rendered", () => {
+  it("draws nothing for a peer pointing at a block that is not rendered", async () => {
     const { emit, root } = renderEditor((d) => {
       d.insertBlock("paragraph");
     });
 
-    act(() => {
+    await act(async () => {
       emit([{ peerId: "peer-7", selection: { blockId: "missing-block", offset: 0 }, updatedAt: 1 }]);
     });
     expect(root.querySelector('[data-slot="docblocks/presence-caret"]')).toBeNull();
   });
 
-  it("drops the bar of a block removed by a peer", () => {
+  it("drops the bar of a block removed by a peer", async () => {
     const { doc, emit, root } = renderEditor((d) => {
       const id = d.insertBlock("paragraph");
       d.insertText(id, 0, "hello");
     });
     const id = paragraphIdOf(doc);
 
-    act(() => {
+    await act(async () => {
       emit([{ peerId: "peer-7", selection: { blockId: id, offset: 1 }, updatedAt: 1 }]);
     });
     expect(barCount(root, "peer-7")).toBe(1);

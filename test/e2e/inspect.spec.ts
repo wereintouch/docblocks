@@ -29,6 +29,10 @@ test("the json inspector and the wire log track the live doc", async ({ browser 
 test("the presence panel shows the remote selection", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "plg01-presence");
 
+  // The sharing's grant (the default is off — the privacy stand): A flips
+  // to "everyone" (the plaintext stand) before the caret lands.
+  await a.getByTestId("share-a-everyone").click();
+
   const current = a.locator('[data-testid^="block-a-"][data-current="true"]');
   await current.locator('[data-slot="docblocks/block-content"]').first().click();
   await a.keyboard.type("live");
