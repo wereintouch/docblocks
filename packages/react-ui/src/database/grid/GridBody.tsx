@@ -66,21 +66,28 @@ const GRID_BUTTON_HOVER =
   "cursor-pointer hover:opacity-70 hover:bg-transparent hover:text-inherit dark:hover:bg-transparent";
 
 interface GridBodyProps {
-  id: BlockId;
-  doc: import("docblocks-core").Doc;
-  blockId: BlockId;
+  /** The block id's structural hook (the data attribute's stand — the
+   *  standalone's stand is absent, the data attribute stands off). */
+  blockId?: BlockId;
   bridge: import("../bridge").DatabaseBridge;
   tableId: string;
   filter?: DatabaseFilterPayload;
   columnOrder?: string[];
   hiddenColumns?: string[];
   columnWidths?: number[];
+  /** The view-attrs' write stand (the block's stand: one `updateBlock` —
+   *  the CRDT data, the undo step, the wire update; the standalone's
+   *  stand: the internal state's merge + the consumer's `onViewChange`
+   *  persistence hook). */
+  onViewChange: (patch: Record<string, unknown>) => void;
+  /** The current column order's read at call time (the async tail's stand
+   *  — the render-time `columnOrder` prop stands stale over the await).
+   *  The absent order stands the bridge's schema order (the attr's no-op). */
+  readColumnOrder: () => string[] | undefined;
   /** The read-only stand (the view / published's modes): the grid's data stands rendered, every editing's path (the cells' selection / edit, the rows / columns' operations, the view's attrs, the bridge's writes) stands off. */
   readOnly?: boolean;
 }
 function GridBody({
-  id,
-  doc,
   blockId,
   bridge,
   tableId,
@@ -88,6 +95,8 @@ function GridBody({
   columnOrder,
   hiddenColumns,
   columnWidths,
+  onViewChange,
+  readColumnOrder,
   readOnly = false,
 }: GridBodyProps) {
   const { t } = useTranslation("database");
@@ -167,15 +176,14 @@ function GridBody({
         // stands the visible order, so the new column is appended to its
         // end over the bridge-assigned id (the draft's placeholder stands
         // the form's local only) — one `updateBlock` (the view attr, CRDT /
-        // undo as the current ones). Read fresh over the doc: the enum's
+        // undo as the current ones). Read fresh over the stand: the enum's
         // commit runs in the async's tail, where the render-time
         // `columnOrder` prop stands stale. Without an explicit order the
         // bridge's schema order stands (the create appends to the end) and
         // the attr is left untouched.
-        const block = doc.getBlock(blockId);
-        const currentOrder = block !== null && block.type === "database" ? block.attrs.columnOrder : undefined;
+        const currentOrder = readColumnOrder();
         if (currentOrder !== undefined) {
-          doc.updateBlock(blockId, { columnOrder: [...currentOrder, liveColumnId] });
+          onViewChange({ columnOrder: [...currentOrder, liveColumnId] });
         }
       } catch (error) {
         // The create's failure: the form stands open (the retry is the
@@ -485,7 +493,7 @@ function GridBody({
   const columns = visibleColumns(data.table?.columns, columnOrder, hiddenColumns);
 
   const updateView = (patch: Record<string, unknown>) => {
-    doc.updateBlock(blockId, patch);
+    onViewChange(patch);
   };
 
   const { resizePreview, onSeamPointerDown, onSeamPointerMove, onSeamPointerUp, onSeamPointerCancel } =
@@ -526,7 +534,7 @@ function GridBody({
 
   if (data.phase === "loading") {
     return (
-      <Card data-slot="docblocks/block" data-block-type="database" data-block-id={id}>
+      <Card data-slot="docblocks/block" data-block-type="database" data-block-id={blockId}>
         <CardContent data-slot="docblocks/database" data-state="loading" className="p-(--docblocks-block-spacing)">
           <span className="text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color)">
             {t("state.loading")}
@@ -543,7 +551,7 @@ function GridBody({
       <Card
         data-slot="docblocks/block"
         data-block-type="database"
-        data-block-id={id}
+        data-block-id={blockId}
         className="
           my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
           border-(--docblocks-table-border-color) outline-none
@@ -676,7 +684,7 @@ function GridBody({
     <Card
       data-slot="docblocks/block"
       data-block-type="database"
-      data-block-id={id}
+      data-block-id={blockId}
       data-state="ready"
       className="
         my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)

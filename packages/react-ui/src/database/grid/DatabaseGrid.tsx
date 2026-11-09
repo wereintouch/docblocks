@@ -74,8 +74,6 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
   }
   return (
     <GridBody
-      id={id}
-      doc={doc}
       blockId={id}
       bridge={databaseBridge}
       tableId={tableId}
@@ -83,6 +81,15 @@ function DatabaseGrid({ id, block }: { id: BlockId; block: DatabaseBlockType }) 
       columnOrder={block.attrs.columnOrder}
       hiddenColumns={block.attrs.hiddenColumns}
       columnWidths={block.attrs.columnWidths}
+      // The view-attrs' write stand: one `updateBlock` (the CRDT data,
+      // the undo step, the wire update).
+      onViewChange={(patch) => doc.updateBlock(id, patch)}
+      // The async tail's fresh read (the render-time attr stands stale
+      // over the await).
+      readColumnOrder={() => {
+        const current = doc.getBlock(id);
+        return current !== null && current.type === "database" ? current.attrs.columnOrder : undefined;
+      }}
       // The read-only stand (view / published): the grid's data stands
       // rendered, the editing's paths stand off.
       readOnly={viewMode}
