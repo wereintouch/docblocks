@@ -492,6 +492,24 @@ describe("mdToBlocks — inline marks", () => {
     expect(textOf(block2.runs)).toBe("mail me now");
   });
 
+  it("the href's mid-string control stands the writer's normalized stand (the core's mirror, the degrade)", () => {
+    // The WHATWG URL parser removes ASCII tab / LF / CR from ANY position
+    // before the scheme's detection — the core's gate mirrors the full
+    // normalization, so a mid-string control cannot hide the scheme
+    // ("java\tscript:…" resolves as "javascript:…" in the browser). The
+    // mirror stands the degrade over the pass-through.
+    const block = single('mail <a href="java\tscript:alert(1)">me</a> now');
+    expect(block.runs.filter((r) => r.marks.link !== undefined)).toEqual([]);
+    expect(textOf(block.runs)).toBe("mail me now");
+    // The entity-hidden stand: the raw parse does not see the control (the
+    // entity hides it); the decoded value exposes the scheme — the re-gate
+    // over the decode's run pass degrades the run (the link syntax cuts at
+    // the first `)`).
+    const block2 = single("[x](java&#9;script:alert(1))");
+    expect(block2.runs.filter((r) => r.marks.link !== undefined)).toEqual([]);
+    expect(textOf(block2.runs)).toBe("x)");
+  });
+
   it("the backslash escape keeps the punctuation literal", () => {
     const block = single("\\*star\\* and \\#hash");
     expect(textOf(block.runs)).toBe("*star* and #hash");
