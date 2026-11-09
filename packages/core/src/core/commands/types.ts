@@ -5,7 +5,13 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, isRegisteredBlockType, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import {
+  BLOCK_REGISTRY,
+  isRegisteredBlockType,
+  setOwn,
+  validateBlockAttrs,
+  validateCanvasBlock,
+} from "@docblocks-core/schema";
 import type { AttrsFor, BlockId, BlockType, ValidationError } from "@docblocks-core/schema";
 
 import {
@@ -108,15 +114,19 @@ function changeBlockType(
   }
 
   // The post-change attrs: the current attrs the target also declares
-  // (the target spec is the whitelist), overridden by the patch.
+  // (the target spec is the whitelist — the own-property stand: a
+  // prototype-key name is not a declared attr, it stands reset like the
+  // rest of the type-specific attrs), overridden by the patch. The own
+  // writes keep a hostile key out of the prototype's setters (the strict
+  // validation sees the patch's keys and rejects them, like insertBlock).
   const snapshot = readBlock(ydoc, id);
   const currentAttrs = snapshot !== null && "attrs" in snapshot ? snapshot.attrs : undefined;
   const merged: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(currentAttrs ?? {})) {
-    if (to.attrs !== undefined && key in to.attrs) merged[key] = value;
+    if (to.attrs !== undefined && Object.hasOwn(to.attrs, key)) setOwn(merged, key, value);
   }
   for (const [key, value] of Object.entries(isPlainObject(attrs) ? attrs : {})) {
-    if (value !== undefined) merged[key] = value;
+    if (value !== undefined) setOwn(merged, key, value);
   }
   if (to.attrs !== undefined) {
     const errors = validateBlockAttrs(type, merged);

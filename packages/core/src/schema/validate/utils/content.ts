@@ -260,7 +260,7 @@ function validateMarkFields(
     }
   }
   for (const key of Object.keys(value)) {
-    if (!(key in fields)) {
+    if (!Object.hasOwn(fields, key)) {
       // Lenient (cross-minor load): an unknown field (a future minor's
       // additive data) is preserved as-is, not rejected; the strict
       // posture rejects it.

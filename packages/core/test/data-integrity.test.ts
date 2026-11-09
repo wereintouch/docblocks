@@ -3,7 +3,7 @@ import * as Y from "yjs";
 
 import { type Doc, InvalidSnapshotError, createDoc, fromJSON, loadDoc } from "../src/core";
 import { attrsToMarkSet } from "../src/core/text-model";
-import { flattenDoc, validateDoc } from "../src/schema";
+import { flattenDoc, validateDoc, validateMarkSet } from "../src/schema";
 import type { DocJSON, OpaqueBlock } from "../src/schema";
 
 /**
@@ -583,6 +583,45 @@ describe("the prototype-key type and mark stand (the registry's own-property loo
     expect(() => doc.setMark(p, 0, 1, { type: "constructor" as never })).toThrow(/Unknown mark/);
     expect(() => doc.unsetMark(p, 0, 1, "constructor" as never)).toThrow(/Unknown mark/);
     expect(() => doc.insertText(p, 0, "y", { constructor: true } as never)).toThrow(/Unknown mark/);
+  });
+
+  it("changeBlockType stands the hostile attrs over the own-property merge (the reset, not the silent swap)", () => {
+    const doc = createDoc({ id: "d" });
+    const p = doc.insertBlock("paragraph");
+    doc.updateBlock(p, { align: "center" });
+    // The hostile own attr over the raw (the wire's stand — the command's
+    // path rejects it, the layout's does not).
+    const entry = doc.raw.getMap("blocks").get(p) as Y.Map<unknown>;
+    (entry.get("attrs") as Y.Map<unknown>).set("__proto__", "ok");
+    // The type change: the target's whitelist does not declare the hostile
+    // key (the own-property stand) — it stands reset like the rest of the
+    // type-specific attrs (the change's declared-attr contract), not a
+    // silent drop over the prototype's setter. The shared attr's
+    // carry-over stands.
+    doc.changeBlockType(p, "heading", { level: 2 });
+    const block = doc.getBlock(p);
+    expect(block?.type).toBe("heading");
+    const attrs = (block !== null && "attrs" in block ? block.attrs : {}) as Record<string, unknown>;
+    expect(Object.hasOwn(attrs, "__proto__")).toBe(false);
+    expect(Object.getPrototypeOf(attrs)).toBe(Object.prototype);
+    expect(attrs.level).toBe(2);
+    expect(attrs.align).toBe("center");
+    // The patch's hostile key stands the strict rejection (like
+    // insertBlock's): the change is refused, no silent drop of the input.
+    const q = doc.insertBlock("paragraph");
+    expect(() => doc.changeBlockType(q, "heading", { constructor: 1 } as never)).toThrow(/Unknown attribute/);
+  });
+
+  it("the strict mark-field validation stands the own-property's lookup (the prototype name is unknown)", () => {
+    // The multi-field mark (the mention's kind / id / label) with an
+    // unknown field named like an Object.prototype member: the
+    // prototype-aware `in` would treat it as a declared field and pass the
+    // strict posture. The own-property stand rejects it.
+    const hostile = { kind: "user", id: "u1", label: "x", toString: "evil" };
+    const errors = validateMarkSet("paragraph", { mention: hostile });
+    expect(errors).toEqual([
+      { path: "marks.mention.toString", message: 'Unknown attribute "toString" for mark "mention".' },
+    ]);
   });
 });
 

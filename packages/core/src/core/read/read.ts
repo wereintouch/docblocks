@@ -280,8 +280,10 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
     const rowsMap = yblock.get("rows");
     if (rowsMap instanceof Y.Map) {
       rowsMap.forEach((row, rowId) => {
-        // readPlainValue of a Y.Map is a plain object of plain values.
-        rows[rowId] = row instanceof Y.Map ? (readPlainValue(row) as Record<string, unknown>) : {};
+        // readPlainValue of a Y.Map is a plain object of plain values. The
+        // own write: the id key is wire data (the reader's defense in
+        // depth over the id-safety boundary).
+        setOwn(rows, rowId, row instanceof Y.Map ? (readPlainValue(row) as Record<string, unknown>) : {});
       });
     }
     const rowOrder = yblock.get("rowOrder");
@@ -353,7 +355,7 @@ function toDocJSON(ydoc: Y.Doc): DocJSON {
   const blocksMap = ydoc.getMap("blocks");
   blocksMap.forEach((_, id) => {
     const block = readBlockSnapshot(ydoc, id);
-    if (block) blocks[id] = block;
+    if (block) setOwn(blocks, id, block);
   });
   return { ...meta, blocks };
 }
