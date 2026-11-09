@@ -1,5 +1,6 @@
 import { DsPanel } from "./DsPanel";
 import { SyncPane } from "./SyncPane";
+import { TablesSection } from "./TablesSection";
 
 /** The in-process dev relay (see vite.config.ts). */
 const DEFAULT_SYNC_URL = "ws://localhost:5199/doc-1";
@@ -23,7 +24,10 @@ const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
  * referencing the outer doc (the cycle-guard e2e case); `?ds=1` renders the
  * design system preview instead of a pane (DsPanel.tsx — the shared/ui
  * primitives outside any editor root, the visual gate for the compiled
- * utility CSS, no relay/doc involved). Each pane renders
+ * utility CSS, no relay/doc involved); `?tables=1` renders the
+ * standalone's database tables section instead of a pane
+ * (TablesSection.tsx — the `useTableList` + the `DatabaseTable` over the
+ * harness's shared bridge, no relay/doc involved). Each pane renders
  * the two-pane layout: the editor (page or canvas) on the left and the
  * system panel (status, the relay's per-room chaos controls, the live
  * JSON / wire / presence inspectors) on the right.
@@ -37,6 +41,8 @@ function App() {
   const catalog = params.get("catalog") === "1";
   const cycle = params.get("cycle") === "1";
   const ds = params.get("ds") === "1";
+  const tables = params.get("tables") === "1";
+  if (tables) return <TablesSection />;
   if (ds) return <DsPanel />;
   return <SyncPane client={client} syncUrl={syncUrl} catalog={catalog} canvas={canvas} cycle={cycle} role={role} />;
 }

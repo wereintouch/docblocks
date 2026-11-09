@@ -337,6 +337,49 @@ package root: `BridgeError` (the structured error type) with
 `isDatabaseBridge`, and `useDatabaseTable(bridge, tableId, filter?)` — the
 grid controller for a consumer-owned grid over the bridge.
 
+### Standalone database table
+
+The database's UI stands outside any document as well — the
+consumer-owned "tables section" (the user's tables management, not a
+document block). The package ships the composable primitives; the
+consumer assembles its own section (the list / the UX) over
+`useTableList` and embeds the ready grid over the picked table:
+
+```tsx
+import { DatabaseTable, useTableList } from "docblocks-react-ui";
+
+function TablesSection({ bridge }: { bridge: DatabaseBridge }) {
+  const list = useTableList(bridge);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  return (
+    <div>
+      {list.tables?.map((table) => (
+        <button key={table.id} onClick={() => setSelectedId(table.id)}>
+          {table.name}
+        </button>
+      ))}
+      {selectedId !== null && <DatabaseTable bridge={bridge} tableId={selectedId} />}
+    </div>
+  );
+}
+```
+
+- `DatabaseTable({ bridge, tableId, readOnly?, view?, onViewChange? })` —
+  the live grid over the bridge's table id (the same data stand as the
+  document block: the schema, the rows, the live events, the optimistic
+  cell layer). The view's settings (`filter`, `columnOrder`,
+  `hiddenColumns`, `columnWidths`) stand the internal state (seeded from
+  the optional `view` prop at mount); `onViewChange(patch)` receives one
+  patch per change for the consumer's persistence (the controlled mode
+  stands absent — the state is never external). `readOnly` gates the
+  editing's paths (the read-only block's parity).
+- `useTableList(bridge)` — `{ tables, loading, error, refresh, create,
+rename }`: the `listTables` catalog (the system tables stand out), the
+  `createTable` / `renameTable` mutations (the fresh `operationId` per op;
+  they reject with the `BridgeError`), and the catalog's re-read —
+  automatic over the hook's own successful mutations + manual over
+  `refresh` (the contract's catalog stands no push channel).
+
 ### Sync-embed
 
 A `sync-embed` block references another document by an opaque ref. The

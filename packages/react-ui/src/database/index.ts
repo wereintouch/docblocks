@@ -65,3 +65,6 @@ export { cellValueEqual, newMutationContext, useDatabaseTable } from "./use-data
 export type { DatabaseTablePhase, DatabaseTableRow, UseDatabaseTable } from "./use-database-table";
 export { DatabaseGrid, EnumOptionsMotionSlot } from "./grid";
 export type { EnumOptionDraft } from "./grid";
+export { DatabaseTable, useTableList } from "./standalone";
+export type { DatabaseTableView, UseTableList } from "./standalone";
+export type { DatabaseTableProps } from "./standalone";

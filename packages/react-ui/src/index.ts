@@ -28,6 +28,7 @@ export {
   BASELINE_CAPABILITIES,
   BRIDGE_ERROR_CODES,
   BridgeError,
+  DatabaseTable,
   TEXT_TYPES,
   cellValueEqual,
   columnAnnotation,
@@ -43,6 +44,7 @@ export {
   PROTOCOL_VERSION,
   toBridgeError,
   useDatabaseTable,
+  useTableList,
   validateProtocolDescriptor,
 } from "./database";
 export type {
@@ -57,7 +59,9 @@ export type {
   Column,
   DatabaseBridge,
   DatabaseTablePhase,
+  DatabaseTableProps,
   DatabaseTableRow,
+  DatabaseTableView,
   DomainEvent,
   FilterConditionInput,
   FilterInput,
@@ -86,6 +90,7 @@ export type {
   TableRef,
   TableSnapshot,
   UseDatabaseTable,
+  UseTableList,
 } from "./database";
 export type { SyncEmbedRef } from "docblocks-core";
 export { useBlock, useDoc, useMeta, usePresence, useSelection, useSelectionView, useText } from "./hooks";
