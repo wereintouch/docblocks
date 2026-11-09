@@ -5,7 +5,7 @@ import { FORMAT_PALETTE } from "../../editing/format-toolbar";
 /**
  * The editor's format color palette (the shared palette's eight swatches,
  * overridable through the editor's `formatPalette` prop). The provider stands in the
- * Editor / MotionEditor above the block tree, so a block (the table's
+ * Editor above the block tree, so a block (the table's
  * row/column color menus) reads the same palette the floating format
  * toolbar uses.
  */

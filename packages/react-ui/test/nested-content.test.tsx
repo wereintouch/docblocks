@@ -95,17 +95,18 @@ describe("nested content of a text container (render)", () => {
     });
 
     const wrapper = wrapperOf(p);
-    const nested = wrapper.querySelector<HTMLElement>('[data-slot="docblocks/nested"]');
-    expect(nested, "the nested slot should render inside the parent wrapper").not.toBeNull();
-    // The children render inside the slot, after the inner editable.
-    expect(nested!.contains(wrapperOf(child))).toBe(true);
-    expect(nested!.contains(wrapperOf(li))).toBe(true);
-    // The nested list renders as a list; the marker cycles by the
-    // INDENT (the flat model: the nesting depth is the indent attr, so a
-    // list one level in carries the cycle-2 marker, not a fresh cycle-1).
-    const list = nested!.querySelector<HTMLElement>('ul[data-slot="docblocks/list"]');
-    expect(list).not.toBeNull();
-    expect(list!.getAttribute("data-depth")).toBe("2");
+    // The flat stand: the nested content is the sequence's own rows at the
+    // deeper indent step (the nested slot stands no element over the page).
+    expect(wrapperOf(child)).not.toBeNull();
+    expect(wrapperOf(li)).not.toBeNull();
+    expect(wrapper.contains(wrapperOf(child))).toBe(false);
+    expect(wrapper.contains(wrapperOf(li))).toBe(false);
+    // The list item's marker cycles by the INDENT (the flat model: the
+    // nesting depth is the indent attr, so a list one level in carries the
+    // cycle-2 marker, not a fresh cycle-1).
+    const marker = wrapperOf(li).querySelector<HTMLElement>('[data-slot="docblocks/row-marker"]');
+    expect(marker).not.toBeNull();
+    expect(marker!.getAttribute("data-cycle")).toBe("2");
     expect(wrapperOf(child).querySelector('[data-slot="docblocks/block-content"]')!.textContent).toBe(
       "nested paragraph"
     );
@@ -122,9 +123,10 @@ describe("nested content of a text container (render)", () => {
     });
 
     const wrapper = wrapperOf(code);
-    const nested = wrapper.querySelector<HTMLElement>('[data-slot="docblocks/nested"]');
-    expect(nested).not.toBeNull();
-    expect(nested!.contains(wrapperOf(child))).toBe(true);
+    // The flat stand: the nested content is the sequence's own row (the
+    // nested slot stands no element over the page).
+    expect(wrapperOf(child)).not.toBeNull();
+    expect(wrapper.contains(wrapperOf(child))).toBe(false);
   });
 
   it("a paragraph without children renders no nested slot", () => {
@@ -161,8 +163,9 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     const p2Json = json.blocks[p2]!;
     expect((p2Json as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
     expect(doc.getChildren(doc.meta.id)).toEqual([p1, p2]);
-    // The nested content renders inside the parent's nested slot.
-    expect(wrapperOf(p1).querySelector('[data-slot="docblocks/nested"]')).not.toBeNull();
+    // The flat stand: the nested content is the sequence's own row at the
+    // deeper indent step (the nested slot stands no element over the page).
+    expect(wrapperOf(p1).contains(wrapperOf(p2))).toBe(false);
 
     // Shift+Tab: back at the top level (the indent is zeroed).
     caretAtFlat(p2, 0);
@@ -191,9 +194,9 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     expect(doc.getChildren(doc.meta.id)).toEqual([divider, p]);
     const pJson = doc.toJSON().blocks[p]!;
     expect((pJson as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
-    // The indented content stands in the divider's indent slot (after the
-    // non-text block view).
-    expect(document.querySelector('[data-slot="docblocks/nested"]')).not.toBeNull();
+    // The flat stand: the indented content is the sequence's own row —
+    // the nested slot stands no element over the page.
+    expect(document.querySelector('[data-slot="docblocks/nested"]')).toBeNull();
   });
 
   it("Shift+Tab at the top level is a no-op (the key is still owned)", () => {

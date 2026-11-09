@@ -1,5 +1,5 @@
-// The blocks unit's cross-unit surface (C6): the editor entry points (Editor,
-// MotionEditor), the motion layer, the mermaid subpath, the editing layer, the
+// The blocks unit's cross-unit surface: the editor entry (Editor),
+// the motion layer, the mermaid subpath, the editing layer, the
 // state store, and the public entry import the blocks unit through this barrel.
 // The canvas boundary stays deep in both directions: this barrel re-exports
 // CanvasView from the canvas-view sub-barrel (not the canvas barrel), and the

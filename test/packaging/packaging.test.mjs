@@ -93,8 +93,6 @@ try {
     "dist/pdf/jbig2_nowasm_fallback.js",
     "dist/mermaid/index.mjs",
     "dist/mermaid/index.d.mts",
-    "dist/motion/index.mjs",
-    "dist/motion/index.d.mts",
   ]) {
     assert(uiFiles.includes(f), `the react-ui archive carries ${f}`);
   }
@@ -110,8 +108,6 @@ try {
     "dist/pdf/jbig2_nowasm_fallback.js",
     "dist/mermaid/index.mjs",
     "dist/mermaid/index.d.mts",
-    "dist/motion/index.mjs",
-    "dist/motion/index.d.mts",
   ];
   // The dist's root level stands the entry + the build's hashed chunks
   // (the code-split .mjs / the d.ts chunks — the names are content-hashed,
@@ -152,8 +148,9 @@ try {
           "docblocks-react-ui": `file:${join(tmp, uiTgz)}`,
           react: "^19.0.0",
           "react-dom": "^19.0.0",
-          // The optional peers: the subpath imports stand the full module
-          // evaluation (a parse error / a missing peer must fail the gate).
+          // The required peers: the base entry's page view stands the
+          // framer's module evaluation, and the subpath imports stand the
+          // rest (a parse error / a missing peer must fail the gate).
           "framer-motion": "^12.0.0",
           mermaid: "^12.0.0",
           "pdfjs-dist": "^6.0.0",
@@ -207,21 +204,19 @@ if (json.blocks[para]?.content?.[0]?.text !== "hello from the consumer")
 // missing peer stands the gate red); the CSS stands the resolve + the read
 // (node cannot import the css module).
 const entry = await import("docblocks-react-ui");
-const motion = await import("docblocks-react-ui/motion");
 const mermaid = await import("docblocks-react-ui/mermaid");
 const pdf = await import("docblocks-react-ui/pdf");
 if (typeof entry.Editor !== "function") throw new Error("the base entry did not export the Editor");
-if (typeof motion.MotionEditor !== "function") throw new Error("the motion subpath did not export the MotionEditor");
-if (typeof mermaid.MermaidCodeRenderer !== "function") throw new Error("the mermaid subpath did not export the renderer");
+if (typeof mermaid.MermaidCodeRenderer !== "function")
+  throw new Error("the mermaid subpath did not export the renderer");
 if (typeof pdf.PdfFirstPage !== "function") throw new Error("the pdf subpath did not export the preview");
 
-const motionUrl = import.meta.resolve("docblocks-react-ui/motion");
 const mermaidUrl = import.meta.resolve("docblocks-react-ui/mermaid");
 const pdfUrl = import.meta.resolve("docblocks-react-ui/pdf");
 const css = import.meta.resolve("docblocks-react-ui/styles.css");
 const theme = import.meta.resolve("docblocks-react-ui/theme.css");
 
-for (const url of [motionUrl, mermaidUrl, pdfUrl, css, theme]) {
+for (const url of [mermaidUrl, pdfUrl, css, theme]) {
   if (!url.includes("node_modules/docblocks-react-ui"))
     throw new Error(\`resolved outside the installed react-ui package: \${url}\`);
 }

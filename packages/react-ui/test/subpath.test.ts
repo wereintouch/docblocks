@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -17,19 +17,16 @@ function filesOf(dir: string): string[] {
 }
 
 describe("subpath split (built artifacts)", () => {
-  it("keeps framer-motion out of the base entry", () => {
-    expect(readFileSync(join(DIST, "index.mjs"), "utf8")).not.toContain("framer-motion");
-    expect(readFileSync(join(DIST, "index.d.mts"), "utf8")).not.toContain("framer-motion");
-  });
-
-  it("keeps the motion subpath the only framer-motion consumer in dist", () => {
+  it("stands the framer-motion over the base entry's row layer (the required peer)", () => {
+    // The ./motion subpath stands removed: the page view IS the row layer
+    // (the framer-motion's required peer stands over the base entry).
+    expect(existsSync(join(DIST, "motion"))).toBe(false);
+    // The framer's consumer stands the one code-split chunk (the row
+    // layer's module) — the entry's graph stays framer-free over its own
+    // surface (the mermaid / pdf's subpath split).
     const withFramer = filesOf(DIST).filter((file) => readFileSync(file, "utf8").includes("framer-motion"));
-    // The shared chunk and every type file stay framer-free as well.
-    expect(withFramer).toEqual([join(DIST, "motion/index.mjs")]);
-  });
-
-  it("ships the motion entry importing framer-motion", () => {
-    expect(readFileSync(join(DIST, "motion/index.mjs"), "utf8")).toContain('from "framer-motion"');
+    expect(withFramer).toHaveLength(1);
+    expect(withFramer[0]!.endsWith(".mjs")).toBe(true);
   });
 
   it("keeps mermaid out of the base entry", () => {

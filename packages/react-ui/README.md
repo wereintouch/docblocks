@@ -12,11 +12,14 @@ package renders the document and provides the editing surface
 npm i docblocks-react-ui docblocks-core
 ```
 
-Peer dependencies: `docblocks-core`, `react` (19), `react-dom`. Optional
-peers, used only by their subpaths: `framer-motion` (`./motion`), `mermaid`
-(`./mermaid`), `pdfjs-dist` (`./pdf`). The package's own runtime dependencies
-(zustand, the Radix primitives, the shared ui runtime set) are declared, so
-a plain `npm i` is the whole install.
+Peer dependencies: `docblocks-core`, `react` (19), `react-dom`, and the
+required peers `framer-motion` (the Editor's page view is the motion row
+layer — the drag-reorder + the layout animations), `mermaid` (the
+`./mermaid` subpath's renderer), and `pdfjs-dist` (the `./pdf` subpath's
+preview) — the install must carry all of them (npm enforces the required
+peers). The package's own runtime dependencies (zustand, the Radix
+primitives, the shared ui runtime set) are declared, so a plain `npm i`
+is the whole install.
 
 The package is ESM-only (`import`, not `require`); it stands Node
 `^22.22.2 || ^24.15.0 || >=26.0.0` (the `engines` field).
@@ -474,8 +477,10 @@ value actually changes (the store's reference-stability contract):
 | `view`          | `"page"` (default) or `"canvas"` — the rendering the consumer switches   |
 | `formatPalette` | The format toolbar's color swatches (default `FORMAT_PALETTE`, exported) |
 
-`MotionEditor` (the `./motion` subpath) accepts the same props and adds the
-layout animations and drag-reorder (requires `framer-motion`).
+The page view renders the flat page sequence — every page block is its
+own row (the drag-reorder's pure framer `Reorder`, the insert/remove's
+layout animation, the rendered list marker per row) — over the required
+`framer-motion` peer.
 
 ## Subpath exports
 
@@ -484,12 +489,13 @@ layout animations and drag-reorder (requires `framer-motion`).
 | `docblocks-react-ui`            | The editor, the provider, the hooks, the primitives (the entry)                                                  |
 | `docblocks-react-ui/styles.css` | The compiled stylesheet: the utility layer + the token seed + the `--docblocks-*` mapping + the structural rules |
 | `docblocks-react-ui/theme.css`  | The pure token seed (standard tokens + the radius scale), no utility layer                                       |
-| `docblocks-react-ui/motion`     | `MotionEditor` (layout animations, insert/remove, drag-reorder; peer: `framer-motion`)                           |
 | `docblocks-react-ui/mermaid`    | The `mermaid` renderer above `code { language: "mermaid" }` blocks (peer: `mermaid`)                             |
 | `docblocks-react-ui/pdf`        | `PdfFirstPage` (the first-page preview over `pdfjs-dist`; the worker is copied to `dist/pdf/` at build time)     |
 
-The base entry imports none of the optional peers, so consumers who skip a
-subpath ship no extra weight.
+The `./mermaid` and `./pdf` subpaths' wiring is opt-in (the `pdfPreview`
+prop / the `code` block renderer): a consumer who skips a subpath imports
+nothing of its module. The peers themselves are required installs (the
+page view's framer import included).
 
 ## Theming
 

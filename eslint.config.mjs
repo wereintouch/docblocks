@@ -10,8 +10,10 @@ import tseslint from "typescript-eslint";
  *
  * 1. `no-restricted-imports` — bare package specifiers: react-ui must not
  *    import yjs/y-protocols/lib0 or deep `docblocks-core/*` subpaths; the
- *    optional peers (framer-motion / mermaid / pdfjs-dist) stand over their
- *    own subpath's source only (`./motion` / `./mermaid` / `./pdf`).
+ *    subpath-scoped peers (mermaid / pdfjs-dist) stand over their own
+ *    subpath's source only (`./mermaid` / `./pdf`). framer-motion is a
+ *    required peer (the Editor's page view is the motion row layer) and
+ *    stands unrestricted.
  * 2. `docblocks/no-cross-boundary-import` — resolver-aware check:
  *    - packages/react-ui: relative imports must not escape the package dir
  *      (no reaching into packages/core from source);
@@ -206,10 +208,11 @@ const reactUiBoundaryRestrictions = {
 };
 
 /**
- * The optional peers' file scope (the package's peer contract): the
- * framer-motion / mermaid / pdfjs-dist imports stand over their own
- * subpath's source only (the `./motion` / `./mermaid` / `./pdf` exports —
- * the consumer's opt-in per dependency). The block stands the FULL
+ * The subpath-scoped peers' file scope (the package's peer contract): the
+ * mermaid / pdfjs-dist imports stand over their own subpath's source only
+ * (the `./mermaid` / `./pdf` exports — the subpath's bundle carries its
+ * peer only). framer-motion is a required peer (the Editor's page view is
+ * the motion row layer) and stands unrestricted. The block stands the FULL
  * restrictions (the boundary's set + the peers) over every other react-ui
  * file: the flat config's later block replaces the rule's options per
  * file (no merge), so the base block's yjs' stand would not reach the
@@ -217,36 +220,31 @@ const reactUiBoundaryRestrictions = {
  */
 const reactUiPeerRestrictions = {
   ...reactUiBoundaryRestrictions,
-  paths: [...reactUiBoundaryRestrictions.paths, "framer-motion", "mermaid", "pdfjs-dist"],
+  paths: [...reactUiBoundaryRestrictions.paths, "mermaid", "pdfjs-dist"],
   patterns: [
     ...reactUiBoundaryRestrictions.patterns,
     {
-      regex: "^framer-motion(/.*)?$",
-      message: "framer-motion stands over the ./motion subpath's source only (the consumer's opt-in peer).",
-    },
-    {
       regex: "^mermaid(/.*)?$",
-      message: "mermaid stands over the ./mermaid subpath's source only (the consumer's opt-in peer).",
+      message: "mermaid stands over the ./mermaid subpath's source only (the subpath's peer).",
     },
     {
       regex: "^pdfjs-dist(/.*)?$",
-      message: "pdfjs-dist stands over the ./pdf subpath's source only (the consumer's opt-in peer).",
+      message: "pdfjs-dist stands over the ./pdf subpath's source only (the subpath's peer).",
     },
   ],
 };
 
 /**
  * The per-subpath peer's scope (the cross-peer's stand): a subpath's source
- * imports ITS peer only — the other two peers stay restricted (a cross-peer
+ * imports ITS peer only — the other peer stays restricted (a cross-peer
  * import would pull the foreign dependency into the subpath's bundle and
- * break the consumer without that peer). Each block stands the FULL
+ * break the consumer's bundle boundary). Each block stands the FULL
  * restrictions (the flat config's later block replaces the rule's options
- * per file, no merge): the boundary's set + the two foreign peers.
+ * per file, no merge): the boundary's set + the foreign peer.
  */
 const PEER_RESTRICTIONS = {
-  motion: { peer: "framer-motion", foreign: ["mermaid", "pdfjs-dist"], message: "the ./motion subpath" },
-  mermaid: { peer: "mermaid", foreign: ["framer-motion", "pdfjs-dist"], message: "the ./mermaid subpath" },
-  pdf: { peer: "pdfjs-dist", foreign: ["framer-motion", "mermaid"], message: "the ./pdf subpath" },
+  mermaid: { peer: "mermaid", foreign: ["pdfjs-dist"], message: "the ./mermaid subpath" },
+  pdf: { peer: "pdfjs-dist", foreign: ["mermaid"], message: "the ./pdf subpath" },
 };
 
 const peerSubpathRestrictions = (subpath) => {
@@ -314,14 +312,15 @@ const eslintConfig = tseslint.config(
       "@typescript-eslint/no-restricted-imports": ["error", reactUiBoundaryRestrictions],
     },
   },
-  // The optional peers' scope: the peers' restriction over every react-ui
-  // file EXCEPT the subpaths' own source (the motion / mermaid / pdf
+  // The subpath-scoped peers' scope: the peers' restriction over every
+  // react-ui file EXCEPT the subpaths' own source (the mermaid / pdf
   // directories import their peer legitimately — the object's ignores
   // stand the exclusion, the flat config's `files` stands no negation).
+  // framer-motion stands unrestricted (the required peer's imports are
+  // the Editor's page view + the motion's segment files).
   {
     files: ["packages/react-ui/**/*.{ts,tsx}"],
     ignores: [
-      "packages/react-ui/src/motion/**",
       "packages/react-ui/src/mermaid/**",
       "packages/react-ui/src/pdf/**",
       // The package's own test suite stands the peers' stubs / spies

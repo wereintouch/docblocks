@@ -18,9 +18,10 @@ are 0.x pre-release.
 | `apps/playground`   | (private)            | Dev harness for visual and sync testing: A/B clients on a local ws relay, inspectors, chaos controls.                                       |
 
 Dependency budget of `docblocks-core`: `yjs` + `y-protocols` + `lib0`
-only. `docblocks-react-ui` peers: `docblocks-core`, `react`,
-`react-dom`; optional peers used only by their subpaths (`framer-motion`,
-`mermaid`, `pdfjs-dist`). The consumer-facing contracts of the React layer
+only. `docblocks-react-ui` peers: `docblocks-core`, `react`, `react-dom`,
+and the required peers `framer-motion` (the Editor's page view is the
+motion row layer), `mermaid` (the `./mermaid` subpath), `pdfjs-dist` (the
+`./pdf` subpath). The consumer-facing contracts of the React layer
 are documented in `packages/react-ui/README.md`. The notable changes are
 recorded in the per-package changelogs (`packages/core/CHANGELOG.md`,
 `packages/react-ui/CHANGELOG.md`); the versions are managed by
@@ -75,8 +76,8 @@ Query flags (combined freely):
 | `?ds=1`        | Render the design-system preview panel instead of a pane                                                                                       |
 
 `docblocks-react-ui` is consumed by the playground from its built `dist/`
-(consumer view, including the `./motion` subpath): rebuild the packages
-first after a source change, or the playground runs the stale build.
+(consumer view): rebuild the packages first after a source change, or the
+playground runs the stale build.
 
 ## Commands (run from the repo root)
 

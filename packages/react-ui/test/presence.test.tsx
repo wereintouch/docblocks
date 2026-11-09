@@ -40,7 +40,7 @@ function makePublishingProvider() {
 afterEach(cleanup);
 
 describe("structural data-slot attributes", () => {
-  it("renders the slot on the editor root, blocks, list wrappers, list items, and placeholders", () => {
+  it("renders the slot on the editor root, blocks, list items, and row markers", () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     const p = doc.insertBlock("paragraph");
     doc.insertText(p, 0, "text");
@@ -59,8 +59,10 @@ describe("structural data-slot attributes", () => {
     expect(document.querySelector(`[data-block-id="${p}"]`)?.getAttribute("data-slot")).toBe("docblocks/block");
     expect(document.querySelector('[data-slot="docblocks/block"][data-block-type="heading"]')).not.toBeNull();
     expect(document.querySelectorAll('[data-slot="docblocks/list-item"]').length).toBe(2);
-    expect(document.querySelector('[data-slot="docblocks/list"][data-list="bullet"]')).not.toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/list"][data-list="number"]')).not.toBeNull();
+    // The flat stand: the list's marker stands the kind (no list element —
+    // the row's marker label renders the marker per row).
+    expect(document.querySelector('[data-slot="docblocks/row-marker"][data-kind="bullet"]')).not.toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/row-marker"][data-kind="number"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="docblocks/divider"][data-block-type="divider"]')).not.toBeNull();
   });
 });

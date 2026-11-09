@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, cleanup, render } from "@testing-library/react";
+import { act, cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
@@ -323,7 +323,7 @@ describe("Task checkbox", () => {
 });
 
 describe("Collapse toggle", () => {
-  it("hides the children on click (view state: no doc change) and restores them", () => {
+  it("hides the children on click (view state: no doc change) and restores them", async () => {
     let parent: BlockId = "";
     let child: BlockId = "";
     const doc = renderDoc((d) => {
@@ -343,11 +343,18 @@ describe("Collapse toggle", () => {
     act(() => toggle!.click());
 
     expect(toggle!.getAttribute("aria-expanded")).toBe("false");
-    expect(document.querySelector(`[data-block-id="${child}"]`), "the child should be hidden").toBeNull();
+    // The row's exit animation keeps the element in the DOM while it
+    // collapses; the unmount stands once it completes (the motion page's
+    // row list stands the visible rows only).
+    await waitFor(() => expect(document.querySelector(`[data-block-id="${child}"]`)).toBeNull(), {
+      timeout: 5000,
+    });
     expect(JSON.stringify(doc.toJSON()), "a collapse must not touch the doc").toBe(before);
 
     act(() => toggle!.click());
-    expect(document.querySelector(`[data-block-id="${child}"]`), "the child should be back").not.toBeNull();
+    await waitFor(() => expect(document.querySelector(`[data-block-id="${child}"]`)).not.toBeNull(), {
+      timeout: 5000,
+    });
   });
 
   it("renders no toggle for a childless list item", () => {

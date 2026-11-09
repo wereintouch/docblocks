@@ -6,7 +6,6 @@ import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
-import { MotionEditor } from "../src/motion/index";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -17,42 +16,31 @@ function wrappersOf(container: HTMLElement): HTMLElement[] {
   );
 }
 
-describe("MotionEditor", () => {
+describe("the Editor's motion page view", () => {
   afterEach(cleanup);
 
-  it("renders the same block content as the base Editor", () => {
+  it("renders the flat page rows (the Reorder's rows + the rendered list marker)", () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     doc.insertText(doc.insertBlock("paragraph"), 0, "first");
     doc.insertBlock("list-item", { list: "bullet" });
     doc.insertText(doc.insertBlock("paragraph"), 0, "second");
 
-    const base = render(
+    const { container } = render(
       <EditorProvider doc={doc}>
         <Editor />
       </EditorProvider>
     );
-    const motion = render(
-      <EditorProvider doc={doc}>
-        <MotionEditor />
-      </EditorProvider>
-    );
 
-    expect(motion.container.querySelector('[data-slot="docblocks/editor"]')).not.toBeNull();
+    expect(container.querySelector('[data-slot="docblocks/editor"]')).not.toBeNull();
 
-    // Parity: the same ids in the same order, the same wrapper text.
-    const baseWrappers = wrappersOf(base.container);
-    const motionWrappers = wrappersOf(motion.container);
-    expect(baseWrappers).toHaveLength(3);
-    expect(motionWrappers.map((el) => el.getAttribute("data-block-id"))).toEqual(
-      baseWrappers.map((el) => el.getAttribute("data-block-id"))
-    );
-    expect(motionWrappers.map((el) => el.textContent)).toEqual(baseWrappers.map((el) => el.textContent));
+    const wrappers = wrappersOf(container);
+    expect(wrappers).toHaveLength(3);
 
     // The flat rows: every block is its own row (no list element — the
     // list item's marker stands as a rendered row marker per row).
-    const rows = motion.container.querySelectorAll('[data-slot="docblocks/row"]');
+    const rows = container.querySelectorAll('[data-slot="docblocks/row"]');
     expect(rows.length).toBe(3);
-    const marker = motion.container.querySelector('[data-slot="docblocks/row-marker"]');
+    const marker = container.querySelector('[data-slot="docblocks/row-marker"]');
     expect(marker).not.toBeNull();
     expect(marker?.getAttribute("data-kind")).toBe("bullet");
     expect(marker?.getAttribute("data-cycle")).toBe("1");
@@ -64,7 +52,7 @@ describe("MotionEditor", () => {
 
     const { container } = render(
       <EditorProvider doc={doc}>
-        <MotionEditor />
+        <Editor />
       </EditorProvider>
     );
     expect(wrappersOf(container)).toHaveLength(1);
@@ -115,7 +103,7 @@ describe("MotionEditor", () => {
 
     const { container } = render(
       <EditorProvider doc={doc}>
-        <MotionEditor />
+        <Editor />
       </EditorProvider>
     );
     expect(wrappersOf(container)).toHaveLength(2);
@@ -136,7 +124,7 @@ describe("MotionEditor", () => {
     doc.insertText(doc.insertBlock("paragraph"), 0, "text");
     const { container } = render(
       <EditorProvider doc={doc}>
-        <MotionEditor />
+        <Editor />
       </EditorProvider>
     );
     const root = container.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');

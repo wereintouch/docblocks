@@ -11,8 +11,8 @@ const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
  * Playground page: one sync pane per tab. `?client=a|b` picks the pane's
  * letter (default a); `?syncUrl=` overrides the relay URL (the E2E smoke
  * spec points it at a real y-websocket server); the doc area always
- * renders the animated editor from the `docblocks-react-ui/motion`
- * subpath; `?catalog=1` builds the deterministic v1 catalog document (the visual regression fixture, see catalog.ts) instead of the
+ * renders the base `Editor` (the motion page view is the Editor's
+ * default); `?catalog=1` builds the deterministic v1 catalog document (the visual regression fixture, see catalog.ts) instead of the
  * empty seed; `?canvas=1` seeds the canvas demo (the page + a surface with
  * shapes, a canvas text, and a connector — see canvas-seed.ts) and starts
  * in the canvas view; `?role=viewer` stands the pane's viewer's access

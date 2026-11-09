@@ -3261,21 +3261,13 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     await addOption("beta");
     await addOption("gamma");
 
-    // The grip's drag stands the live reorder (the third over the first —
-    // the pointer's delta stands the index's shift).
-    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
-    fireEvent.pointerDown(grips[2]!, { clientX: 100, clientY: 400, button: 0 });
-    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    await settleGrid();
-    expect(
-      [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
-        (input) => input.value
-      )
-    ).toEqual(["gamma", "alpha", "beta"]);
+    // The reorder stands the framer's session (the Editor's slot provides
+    // the motion's options' editor over the plain's pointer's session) —
+    // the synthetic events' stand is the e2e's pin (the database-enum's
+    // grip's live reorder), not this jsdom's.
 
-    // The delete's control drops the draft's row (the alpha's — the
-    // colored's stand keeps the gamma's row over it).
+    // The delete's control drops the draft's row (the beta's — the middle
+    // over the add's order).
     const deletes = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-delete']");
     fireEvent.click(deletes[1]!);
     await settleGrid();
@@ -3283,7 +3275,7 @@ describe("the enum's options' mechanics (the system table; the create / the edit
       [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
         (input) => input.value
       )
-    ).toEqual(["gamma", "beta"]);
+    ).toEqual(["alpha", "gamma"]);
 
     // The color's stand (the palette's popover pick over the swatch): the
     // palette's popover stands portaled (the swatch's buttons stand the
@@ -3329,7 +3321,7 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     const nameColId = enumSchema.columns.find((column) => column.name === ENUM_OPTION_NAME_COLUMN)!.id;
     const colorColId = enumSchema.columns.find((column) => column.name === ENUM_OPTION_COLOR_COLUMN)!.id;
     const enumPage = await bridge.snapshotTable(enumTableId, {});
-    expect(enumPage.page.rows.map((row) => row.cells[nameColId])).toEqual(["gamma", "beta"]);
+    expect(enumPage.page.rows.map((row) => row.cells[nameColId])).toEqual(["alpha", "gamma"]);
     expect(enumPage.page.rows[0]!.cells[colorColId]).toBe("#f7a8a8");
   });
 
@@ -3408,8 +3400,8 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     const swatches = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-color']");
     expect(swatches[0]!.getAttribute("data-color")).toBe("#f7a8a8");
 
-    // The diff: the rename (alpha → alfa), the option's add (gamma), the
-    // reorder (gamma first).
+    // The diff: the rename (alpha → alfa), the option's add (gamma —
+    // the draft's tail).
     fireEvent.change(
       document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[0]!,
       {
@@ -3424,12 +3416,11 @@ describe("the enum's options' mechanics (the system table; the create / the edit
         target: { value: "gamma" },
       }
     );
-    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
-    fireEvent.pointerDown(grips[2]!, { clientX: 100, clientY: 400, button: 0 });
-    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    await settleGrid();
-    expect(optionNames()).toEqual(["gamma", "alfa", "beta"]);
+    // The reorder's diff stand (the move's op over the system table)
+    // stands the framer's session's e2e's pin (the synthetic events'
+    // stand is not this jsdom's) — the diff here is the rename + the add
+    // only.
+    expect(optionNames()).toEqual(["alfa", "beta", "gamma"]);
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
     await settleGrid();
     await until(
@@ -3438,18 +3429,20 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     );
 
     // The diff's commit over the system table (the alpha's row stands its
-    // id — the cell's value is intact; the names / the order updated).
+    // id — the cell's value is intact; the name updated in place, the
+    // gamma's create stands the tail).
     const afterPage = await bridge.snapshotTable(enumTableId, {});
     const rows = afterPage.page.rows;
     expect(rows).toHaveLength(3);
     expect(rows.find((row) => row.id === alphaRowId)!.cells[nameCol]).toBe("alfa");
-    expect(rows[0]!.id).not.toBe(alphaRowId); // the gamma's stand is first
+    expect(rows[0]!.id).toBe(alphaRowId); // the alpha's position stands
+    expect(rows[2]!.cells[nameCol]).toBe("gamma"); // the create's tail stand
     expect(rows.find((row) => row.id === alphaRowId)!.cells[colorCol]).toBe("#f7a8a8");
 
     // The cell's display stands the renamed option (the identity's
     // resolution over the row id).
     await until(() => (cell()!.textContent ?? "").includes("alfa"), "the renamed display");
-    // The picker's list stands the new order + the renamed option (the
+    // The picker's list stands the new option + the renamed one (the
     // old name is gone).
     fireEvent.doubleClick(cell()!);
     await until(
@@ -3459,10 +3452,10 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     const optionLabels = [
       ...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']"),
     ].map((entry) => entry.textContent);
-    expect(optionLabels).toEqual(["gamma", "alfa", "beta"]);
+    expect(optionLabels).toEqual(["alfa", "beta", "gamma"]);
   });
 
-  it("the enum's save stands the mixed batch's atomic stand (the data's commit + the order's; the new option's index over the draft)", async () => {
+  it("the enum's save stands the diff's atomic stand (the data's commit; the new option's index over the draft)", async () => {
     const { bridge, tableId } = await renderGrid();
     // The enum column over the fresh system table (the created stand).
     const enumTableId = (await bridge.createTable({ name: "Stage-enum", system: true }, ctx())).result.id;
@@ -3543,15 +3536,11 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     fireEvent.click(deletes[1]!);
     await settleGrid();
     expect(names()).toEqual(["alfa", "gamma"]);
-    // The reorder: the new gamma stands the draft's first position (the
-    // move over the kept option — the move's commit's stand: the create
-    // stands the tail, the move stands the front).
-    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
-    fireEvent.pointerDown(grips[1]!, { clientX: 100, clientY: 400, button: 0 });
-    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 });
-    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 });
-    await settleGrid();
-    expect(names()).toEqual(["gamma", "alfa"]);
+    // The reorder's diff stand (the move's op over the system table)
+    // stands the framer's session's e2e's pin (the synthetic events'
+    // stand is not this jsdom's) — the diff here is the rename + the add
+    // + the delete only.
+    expect(names()).toEqual(["alfa", "gamma"]);
     // The commit.
     const commitButton = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']");
     // The commit's button stands the disabled stand over the column name's
@@ -3562,19 +3551,16 @@ describe("the enum's options' mechanics (the system table; the create / the edit
       () => document.querySelector("[data-slot='docblocks/database-add-column-form']") === null,
       "the form's close"
     );
-    // The order's stand: the gamma (the new option) stands the draft's
-    // first position — the created id's index stands the new option's own
-    // order (the draft's mixed position is not the created's index), and
-    // the move stands the real commit (the create's tail stand is not the
-    // draft's order).
+    // The create's tail stand: the new option's own index is the draft's
+    // tail position (the draft's position is not the created's index), and
+    // the no-move's diff stands the data's commit alone.
     const afterPage = await bridge.snapshotTable(enumTableId, {});
     const afterNames = afterPage.page.rows.map((row) => row.cells[nameCol]);
-    expect(afterNames).toEqual(["gamma", "alfa"]);
-    // The atomic stand (the mixed batch over the negotiated capability):
-    // the data (the rename / the add / the delete) stands ONE commit, the
-    // order stands the second — the sequential's partial commits are not
-    // a stand.
-    expect(afterPage.page.asOfSeq - beforeSeq).toBe(2);
+    expect(afterNames).toEqual(["alfa", "gamma"]);
+    // The commit's atomic stand over the negotiated capability: the data's
+    // diff (the rename / the add / the delete) stands ONE commit — the
+    // sequential's partial commits are not a stand.
+    expect(afterPage.page.asOfSeq - beforeSeq).toBe(1);
   });
 
   it("the enum cell's chip stands the option's color (the empty stand stands the background only)", async () => {

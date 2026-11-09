@@ -3,8 +3,7 @@
  * rows' positions animate over the drag / the commit). The base's stand
  * stands the plain editor (the pointer's session — no animation); this
  * variant is provided over the `EnumOptionsMotionSlot`'s context by the
- * `MotionEditor` (the framer's import stands this subpath only — the
- * subpath's boundary's contract). */
+ * Editor (the framer-motion's required peer). */
 import { Reorder, useDragControls } from "framer-motion";
 
 import { useState } from "react";

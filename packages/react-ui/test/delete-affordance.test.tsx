@@ -7,7 +7,6 @@ import type { BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
-import { MotionEditor } from "../src/motion/index";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -67,7 +66,7 @@ describe("the page row's delete affordance (the hover's trash icon)", () => {
 
     const { container } = render(
       <EditorProvider doc={doc}>
-        <MotionEditor />
+        <Editor />
       </EditorProvider>
     );
     const button = deleteButtonOf(container, image);
@@ -115,14 +114,14 @@ describe("the page row's delete affordance (the hover's trash icon)", () => {
     expect(children[0]).not.toBe(b);
   });
 
-  it("stands on the non-text row of the motion view (the row-level affordance)", () => {
+  it("stands on the non-text row (the row-level affordance)", () => {
     const doc = createDoc({ id: "doc-4", createdAt: CREATED_AT });
     doc.insertBlock("paragraph");
     const divider: BlockId = doc.insertBlock("divider");
 
     const { container } = render(
       <EditorProvider doc={doc}>
-        <MotionEditor />
+        <Editor />
       </EditorProvider>
     );
     const button = deleteButtonOf(container, divider);

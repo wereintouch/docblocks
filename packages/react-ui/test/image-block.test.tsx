@@ -67,9 +67,14 @@ function standRects(figure: HTMLElement, width: number, editorWidth: number): vo
   const rect = (l: number, w: number) =>
     ({ left: l, right: l + w, top: 0, bottom: 400, width: w, height: 400, x: l, y: 0, toJSON: () => ({}) }) as DOMRect;
   figure.getBoundingClientRect = () => rect(left, width);
-  const editor = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');
-  expect(editor, "the editor root should render").not.toBeNull();
-  editor!.getBoundingClientRect = () => rect(0, editorWidth);
+  // The resize's clamp scope: the figure's row (the motion page view — the
+  // row's content box over the indent) or the editor root (the no-row's
+  // stand — the table cell's mini-doc).
+  const scope =
+    figure.closest<HTMLElement>("[data-slot='docblocks/row']") ??
+    document.querySelector<HTMLElement>("[data-slot='docblocks/editor']");
+  expect(scope, "the figure's row (or the editor root) should render").not.toBeNull();
+  scope!.getBoundingClientRect = () => rect(0, editorWidth);
 }
 
 afterEach(() => {
