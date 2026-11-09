@@ -5,11 +5,11 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH, setOwn } from "@docblocks-core/schema";
 import type { Block, BlockId, DocJSON, DocMeta, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
 import { derivedZIndex } from "../commands";
-import { rootBlockIdOf, rootOrderOf } from "../layout";
+import { LAYOUT_BLOCK_KEYS, rootBlockIdOf, rootOrderOf } from "../layout";
 import { normalizeRuns } from "../normalize";
 import { attrsToMarkSet } from "../text-model";
 import type { TextDeltaOp } from "../text-model";
@@ -122,7 +122,10 @@ function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
     attrs.forEach((value, key) => entries.push([key, readPlainValue(value)]));
     entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
     const plain: Record<string, unknown> = {};
-    for (const [key, value] of entries) plain[key] = value;
+    // The own-property stand: the reserved key (`__proto__`) becomes an own
+    // data key, not the prototype's reassignment (the data survives the
+    // export, the snapshot's prototype stands untouched).
+    for (const [key, value] of entries) setOwn(plain, key, value);
     block.attrs = plain;
   }
 
@@ -145,6 +148,43 @@ function readOpaqueBlock(yblock: Y.Map<unknown>, type: unknown): OpaqueBlock {
   if (children instanceof Y.Array) {
     const ids = children.toArray().filter((childId): childId is string => typeof childId === "string");
     if (ids.length > 0) block.children = ids;
+  }
+
+  // Additive top-level fields of a future minor: preserved as-is so a save
+  // never drops data the engine does not know (the cross-minor stand). The
+  // layout-only `parent` (the owner field) never reaches the JSON. Sorted
+  // keys: the Y.Map iteration order is process-dependent, so the JSON key
+  // order stays deterministic on every peer.
+  const extra: Array<[string, unknown]> = [];
+  yblock.forEach((value, key) => {
+    if (
+      key === "type" ||
+      key === "attrs" ||
+      key === "content" ||
+      key === "children" ||
+      key === "geometry" ||
+      key === "parent"
+    )
+      return;
+    extra.push([key, value]);
+  });
+  extra.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const [key, value] of extra) {
+    if (value instanceof Y.Text) {
+      // A text field reads like the content: Y.Text -> runs (a plain value
+      // must never leak a live Yjs type).
+      const raw: TextRun[] = [];
+      for (const op of value.toDelta() as TextDeltaOp[]) {
+        if (typeof op.insert !== "string") continue;
+        raw.push({ text: op.insert, marks: attrsToMarkSet(op.attributes) });
+      }
+      const runs = normalizeRuns(raw);
+      if (runs.length > 0) setOwn(block, key, runs);
+      continue;
+    }
+    // The open key comes from the CRDT (the reserved-key's stand — the
+    // own data key, the prototype untouched).
+    setOwn(block, key, readPlainValue(value));
   }
 
   return block;
@@ -187,7 +227,7 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
       });
       entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
       const plain: Record<string, unknown> = {};
-      for (const [key, value] of entries) plain[key] = value;
+      for (const [key, value] of entries) setOwn(plain, key, value);
       block.attrs = plain;
     }
   }
@@ -240,8 +280,10 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
     const rowsMap = yblock.get("rows");
     if (rowsMap instanceof Y.Map) {
       rowsMap.forEach((row, rowId) => {
-        // readPlainValue of a Y.Map is a plain object of plain values.
-        rows[rowId] = row instanceof Y.Map ? (readPlainValue(row) as Record<string, unknown>) : {};
+        // readPlainValue of a Y.Map is a plain object of plain values. The
+        // own write: the id key is wire data (the reader's defense in
+        // depth over the id-safety boundary).
+        setOwn(rows, rowId, row instanceof Y.Map ? (readPlainValue(row) as Record<string, unknown>) : {});
       });
     }
     const rowOrder = yblock.get("rowOrder");
@@ -288,6 +330,36 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
     block.attrs = { ...(block.attrs ?? {}), columnWidths: derived };
   }
 
+  // Additive top-level fields of a future minor on a KNOWN type: preserved
+  // as-is so a save never drops data the engine does not know (the
+  // cross-minor stand, the opaque reader's parity). The layout's own keys
+  // stand their typed reads; `parent` is the Yjs-layout-only owner field
+  // and never reaches the JSON. Sorted keys: the Y.Map's iteration order is
+  // process-dependent, so the JSON key order stays deterministic on every
+  // peer.
+  const extra: Array<[string, unknown]> = [];
+  yblock.forEach((value, key) => {
+    if (typeof key === "string" && !LAYOUT_BLOCK_KEYS.has(key)) extra.push([key, value]);
+  });
+  extra.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const [key, value] of extra) {
+    if (value instanceof Y.Text) {
+      // A text field reads like the content: Y.Text -> runs (a plain value
+      // must never leak a live Yjs type).
+      const raw: TextRun[] = [];
+      for (const op of value.toDelta() as TextDeltaOp[]) {
+        if (typeof op.insert !== "string") continue;
+        raw.push({ text: op.insert, marks: attrsToMarkSet(op.attributes) });
+      }
+      const runs = normalizeRuns(raw);
+      if (runs.length > 0) setOwn(block, key, runs);
+      continue;
+    }
+    // The open key comes from the CRDT (the reserved-key's stand — the
+    // own data key, the prototype untouched).
+    setOwn(block, key, readPlainValue(value));
+  }
+
   return block as Block;
 }
 
@@ -311,10 +383,17 @@ function toDocJSON(ydoc: Y.Doc): DocJSON {
   const meta = readMeta(ydoc);
   const blocks: Record<string, Block | OpaqueBlock> = {};
   const blocksMap = ydoc.getMap("blocks");
-  blocksMap.forEach((_, id) => {
+  // The blocks are assembled in sorted id order: the Y.Map's iteration order
+  // depends on the creation history, so peers that converge on the same
+  // content would otherwise export the same data in different key orders
+  // (the byte-identical peer export's stand; the JSON's object order is
+  // semantically irrelevant — the children's arrays carry the document
+  // order).
+  const ids = [...blocksMap.keys()].sort();
+  for (const id of ids) {
     const block = readBlockSnapshot(ydoc, id);
-    if (block) blocks[id] = block;
-  });
+    if (block) setOwn(blocks, id, block);
+  }
   return { ...meta, blocks };
 }
 

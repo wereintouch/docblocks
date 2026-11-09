@@ -3,31 +3,50 @@
 import { useContext, useEffect, useMemo, useRef, useState } from "react";
 
 import { BLOCK_REGISTRY, createSelection, presenceSelectionOf } from "docblocks-core";
-import type { Selection } from "docblocks-core";
+import type { Doc, Selection } from "docblocks-core";
 
 import { getDefaultBlobStore, legacyBlobStore } from "../blob-store";
 import type { BlobStore } from "../blob-store";
-import { getDefaultDatabaseBridge } from "../database";
 import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
 import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
+import { DocblocksI18nProvider } from "../i18n";
 import { createEditorStore } from "../state";
+import { NotPublishedPlaceholder } from "./NotPublishedPlaceholder";
 import { AWARENESS_DEBOUNCE_MS, defaultEmbedSandbox } from "./constants";
 import { EditorContext } from "./context";
-import type { EditorProviderProps, SelectionRef } from "./models";
+import type { EditorMode, EditorProviderProps, SelectionRef } from "./models";
+
+// The published snapshot's stand key (a module stand, one seq per snapshot
+// instance): the nested published provider remounts over a NEW snapshot
+// (the doc's stand must not change over a mounted provider — the doc's
+// stand guard) and keeps its stand over the same snapshot (no re-mount
+// over the re-render).
+const SNAPSHOT_KEYS = new WeakMap<object, number>();
+let SNAPSHOT_KEY_SEQ = 0;
+
+function publishedStandKey(doc: Doc): string {
+  let key = SNAPSHOT_KEYS.get(doc);
+  if (key === undefined) {
+    key = SNAPSHOT_KEY_SEQ;
+    SNAPSHOT_KEY_SEQ += 1;
+    SNAPSHOT_KEYS.set(doc, key);
+  }
+  return `published-${key}`;
+}
 
 /**
- * Owns the per-instance editor lifecycle: the zustand store (projection of
- * the doc), the selection view, and the subscriptions that keep them in
- * sync, and the per-instance customization context (consumer block
- * renderers, blob and sync-embed resolvers, the entry-list root). Multiple
- * providers may coexist, each with its own doc and state; a nested provider
- * inherits the enclosing renderers, resolvers, and the ancestor-doc chain
- * (the sync-embed cycle guards) when it supplies none of its own. Safe
- * under StrictMode double-mount: the cleanup detaches every subscription
- * and destroys the view between the two mounts.
+ * The stand: owns the per-instance editor lifecycle — the zustand store
+ * (projection of the doc), the selection view, and the subscriptions that
+ * keep them in sync, and the per-instance customization context (consumer
+ * block renderers, blob and sync-embed resolvers, the entry-list root).
+ * Multiple providers may coexist, each with its own doc and state; a nested
+ * provider inherits the enclosing renderers, resolvers, and the
+ * ancestor-doc chain (the sync-embed cycle guards) when it supplies none of
+ * its own. Safe under StrictMode double-mount: the cleanup detaches every
+ * subscription and destroys the view between the two mounts.
  */
-function EditorProvider({
+function EditorProviderStand({
   doc,
   provider,
   blockRenderers,
@@ -40,8 +59,11 @@ function EditorProvider({
   embedSandbox,
   rootBlockId,
   commandPalettePlaceholder,
+  accessLevel,
+  mode,
+  publishedDoc,
   children,
-}: EditorProviderProps) {
+}: EditorProviderProps & { doc: Doc }) {
   const rootId = rootBlockId ?? doc.meta.id;
   const [store] = useState(() => createEditorStore(doc, rootId));
   const docRef = useRef(doc);
@@ -50,6 +72,19 @@ function EditorProvider({
   // The raw enclosing context (nullable): the inheritance source for the
   // renderers, resolvers, and the cycle-guard chain/depth.
   const parentContext = useContext(EditorContext);
+  // The effective access stand: the own prop, else the enclosing one, else
+  // the default editor. The effective mode: a viewer stands "published" over
+  // any stand (the current state is never rendered for a reader); an editor
+  // stands the own `mode`, else the enclosing one, else the default "edit".
+  const effectiveAccessLevel = accessLevel ?? parentContext?.accessLevel ?? "editor";
+  const effectiveMode: EditorMode =
+    effectiveAccessLevel === "viewer" ? "published" : (mode ?? parentContext?.mode ?? "edit");
+  // The editing stand over the mount (the guarantee's write gate): a
+  // read-only stand (view / published) never runs the tail guarantee's
+  // write — the published's snapshot stands static over the render and a
+  // read-only subtree must not write into its own doc (the embedded's
+  // master over the published's stand is read-only too).
+  const editingStandRef = useRef(effectiveMode === "edit");
 
   useEffect(() => {
     if (docRef.current !== doc) {
@@ -72,8 +107,9 @@ function EditorProvider({
     // (the starter's seeder owns the empty room, the empty hint owns the
     // empty editor), the text tail stands no write (no no-op transact —
     // a mount with nothing to stand must not stamp the doc), and the
-    // subtree providers' sequence ends are the consumer's stand.
-    if (rootBlockId === undefined) {
+    // subtree providers' sequence ends are the consumer's stand. A
+    // read-only stand skips the write (the snapshot's stand above).
+    if (rootBlockId === undefined && editingStandRef.current) {
       const sequence = doc.getChildren(doc.meta.id);
       const lastId = sequence[sequence.length - 1];
       const last = lastId === undefined ? null : doc.getBlock(lastId);
@@ -96,7 +132,7 @@ function EditorProvider({
     // the remote transaction would stand the remote origin and the
     // origin guard would keep it off the wire.
     let unsubscribeTail: (() => void) | null = null;
-    if (rootBlockId === undefined) {
+    if (rootBlockId === undefined && editingStandRef.current) {
       unsubscribeTail = doc.onRemoteChange(() => {
         void queueMicrotask(() => {
           ensureTrailingParagraph(doc, doc.meta.id);
@@ -207,9 +243,11 @@ function EditorProvider({
   );
 
   // The effective database bridge: the explicit bridge wins, else the
-  // enclosing one, then the shared default in-memory bridge.
-  const effectiveDatabaseBridge = useMemo<DatabaseBridge>(
-    () => databaseBridge ?? parentContext?.databaseBridge ?? getDefaultDatabaseBridge(),
+  // enclosing one; without a bridge the external-form database blocks
+  // render the disconnected placeholder (the inline form stands
+  // unchanged — its data is the document's own).
+  const effectiveDatabaseBridge = useMemo<DatabaseBridge | undefined>(
+    () => databaseBridge ?? parentContext?.databaseBridge,
     [databaseBridge, parentContext]
   );
 
@@ -231,6 +269,9 @@ function EditorProvider({
       embedDepth: parent === null ? 0 : parent.embedDepth + 1,
       commandPalettePlaceholder:
         commandPalettePlaceholder ?? parent?.commandPalettePlaceholder ?? COMMAND_PALETTE_PLACEHOLDER,
+      accessLevel: effectiveAccessLevel,
+      mode: effectiveMode,
+      viewMode: effectiveMode !== "edit",
     };
   }, [
     store,
@@ -245,9 +286,74 @@ function EditorProvider({
     pdfPreview,
     mentionProvider,
     embedSandbox,
+    effectiveAccessLevel,
+    effectiveMode,
   ]);
 
-  return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
+  // The published's stand: a read-only nested provider over the consumer's
+  // snapshot (its own store and selection, no sync transport — the snapshot
+  // stands static over the render; the resolvers and the rootBlockId inherit
+  // over the enclosing's stand — the snapshot carries the same block ids),
+  // or the not-published's placeholder over the stand without a snapshot.
+  // The top-level viewer's stand renders its own doc read-only, directly:
+  // the doc IS the published snapshot (the security stand — the reader's
+  // browser never holds the live document, and no separate snapshot prop).
+  // A provider that INHERITS the published stand (the nested snapshot's
+  // provider itself, the sync-embed over the published's stand) carries the
+  // read-only stand over the context and renders its children over its own
+  // doc — it never re-stands the stand.
+  const inheritedPublishedStand = parentContext !== null && parentContext.mode === "published";
+  const viewerStand = effectiveAccessLevel === "viewer" && parentContext === null;
+  const rendered = viewerStand ? (
+    children
+  ) : effectiveMode === "published" ? (
+    publishedDoc !== undefined && publishedDoc !== null ? (
+      <EditorProvider key={publishedStandKey(publishedDoc)} doc={publishedDoc} rootBlockId={rootId}>
+        {children}
+      </EditorProvider>
+    ) : inheritedPublishedStand ? (
+      children
+    ) : (
+      <NotPublishedPlaceholder />
+    )
+  ) : (
+    children
+  );
+
+  return (
+    <DocblocksI18nProvider>
+      <EditorContext.Provider value={value}>{rendered}</EditorContext.Provider>
+    </DocblocksI18nProvider>
+  );
+}
+
+/**
+ * The provider's entry: resolves the viewer's top-level stand before the
+ * stand's hooks (the security stand — the reader's browser never holds the
+ * live document: over the `viewer`'s level the `doc` is the published
+ * snapshot, the only stand the consumer passes, and an absent stand stands
+ * the not-published placeholder — the document was never published). The
+ * editor's stand requires the doc (an explicit throw over the absent
+ * stand).
+ */
+function EditorProvider(props: EditorProviderProps) {
+  const parentContext = useContext(EditorContext);
+  const accessLevel = props.accessLevel ?? parentContext?.accessLevel ?? "editor";
+  if (accessLevel === "viewer" && parentContext === null) {
+    if (props.doc === undefined)
+      return (
+        <DocblocksI18nProvider>
+          <NotPublishedPlaceholder />
+        </DocblocksI18nProvider>
+      );
+    return <EditorProviderStand {...props} doc={props.doc} />;
+  }
+  if (props.doc === undefined) {
+    throw new Error(
+      "EditorProvider: the doc stand is required over the editor's stand (the viewer's stand stands the placeholder over the absent stand)"
+    );
+  }
+  return <EditorProviderStand {...props} doc={props.doc} />;
 }
 
 export { EditorProvider };

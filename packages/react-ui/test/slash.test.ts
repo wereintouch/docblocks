@@ -73,7 +73,7 @@ describe("deriveSlash", () => {
 
 describe("filterCommands", () => {
   it("stands the full list on an empty query", () => {
-    expect(filterCommands("")).toHaveLength(16);
+    expect(filterCommands("")).toHaveLength(17);
   });
 
   it("filters by a case-insensitive substring of the label", () => {
@@ -84,7 +84,13 @@ describe("filterCommands", () => {
     expect(filterCommands("image").map((c) => c.label)).toEqual(["Image"]);
     expect(filterCommands("embed").map((c) => c.label)).toEqual(["Embed"]);
     expect(filterCommands("database").map((c) => c.label)).toEqual(["Database"]);
+    expect(filterCommands("frame").map((c) => c.label)).toEqual(["Frame"]);
     expect(filterCommands("table").map((c) => c.label)).toEqual(["Table"]);
+  });
+
+  it("stands the frame's command over no gate (unlike the database's bridge's — the frames are the doc's own data)", () => {
+    expect(filterCommands("", false).map((c) => c.label)).toContain("Frame");
+    expect(filterCommands("frame", false).map((c) => c.label)).toEqual(["Frame"]);
   });
 
   it("stands at zero on a miss (the menu hides, not a placeholder)", () => {

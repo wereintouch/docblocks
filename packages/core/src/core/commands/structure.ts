@@ -5,15 +5,16 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, isRegisteredBlockType } from "@docblocks-core/schema";
 import type { BlockId, BlockType } from "@docblocks-core/schema";
 
+import { DocBlocksError } from "../errors";
 import { rootBlockIdOf, rootOrderOf } from "../layout";
 
 /** The blocks map of the document (throws on a broken layout). */
 function getBlocks(ydoc: Y.Doc): Y.Map<unknown> {
   const blocks = ydoc.getMap("blocks");
-  if (!(blocks instanceof Y.Map)) throw new Error("docblocks: broken Yjs layout (blocks map missing)");
+  if (!(blocks instanceof Y.Map)) throw new DocBlocksError("docblocks: broken Yjs layout (the blocks map is missing)");
   return blocks;
 }
 
@@ -28,7 +29,7 @@ function blockTypeOf(ydoc: Y.Doc, id: string): BlockType | null {
   const block = getBlockMap(ydoc, id);
   if (!block) return null;
   const type = block.get("type");
-  return typeof type === "string" && type in BLOCK_REGISTRY ? (type as BlockType) : null;
+  return isRegisteredBlockType(type) ? type : null;
 }
 
 /**
@@ -68,7 +69,7 @@ function indentOfBlock(ydoc: Y.Doc, id: string): number {
   return typeof indent === "number" && Number.isInteger(indent) ? indent : 0;
 }
 
-/** True when the block is a page-sequence container (root / cell / frame). */
+/** True when the block is a page-sequence container (root / cell). */
 function isPageSequence(ydoc: Y.Doc, id: string): boolean {
   const type = blockTypeOf(ydoc, id);
   return type !== null && BLOCK_REGISTRY[type].sequence === true;
@@ -104,7 +105,7 @@ function findParentInArrays(ydoc: Y.Doc, id: string): BlockId | null {
   blocks.forEach((block, blockId) => {
     if (parent !== null || !(block instanceof Y.Map)) return;
     const type = block.get("type");
-    if (typeof type !== "string" || !(type in BLOCK_REGISTRY) || !BLOCK_REGISTRY[type as BlockType].children) return;
+    if (!isRegisteredBlockType(type) || !BLOCK_REGISTRY[type].children) return;
     const children = block.get("children");
     if (children instanceof Y.Array && (children as Y.Array<string>).toArray().includes(id)) parent = blockId;
   });

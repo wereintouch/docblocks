@@ -54,8 +54,9 @@ function placeCanvasText(doc: Doc, point: CanvasPoint, size: { w: number; h: num
 }
 
 /**
- * A placed frame at the point, with a starter paragraph inside (an empty
- * frame has no block to seat the caret on). Returns the new frame id.
+ * A placed frame at the point (the viewport window — the childless box:
+ * the content stands on the frame's own surface, not on the frame).
+ * Returns the new frame id.
  */
 function placeFrame(doc: Doc, point: CanvasPoint, size: { w: number; h: number }): BlockId {
   const surface = firstSurface(doc);
@@ -63,7 +64,6 @@ function placeFrame(doc: Doc, point: CanvasPoint, size: { w: number; h: number }
   doc.transact(() => {
     id = doc.insertBlock("frame", undefined, { parent: surface });
     doc.setGeometry(id, { x: point.x, y: point.y, w: size.w, h: size.h });
-    doc.insertBlock("paragraph", undefined, { parent: id });
   });
   return id!;
 }

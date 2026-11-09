@@ -1,6 +1,8 @@
 /** The shared option picker's list (the single's / the multi's): the
  *  search's row, the empty's option, and the options over the configured's
  *  order. */
+import { useTranslation } from "react-i18next";
+
 import { useState } from "react";
 
 import { Button } from "../../../shared/ui/Button";
@@ -37,6 +39,7 @@ function OptionPickerList({
   onClear?: () => void;
   onEditEnd: () => void;
 }) {
+  const { t } = useTranslation("database");
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
   const filtered = needle === "" ? options : options.filter((option) => option.label.toLowerCase().includes(needle));
@@ -61,7 +64,7 @@ function OptionPickerList({
         type="search"
         data-slot="docblocks/database-enum-picker-search"
         autoFocus
-        placeholder="Search options"
+        placeholder={t("picker.searchOptions")}
         className="h-7 cursor-text text-xs focus:bg-muted/40"
         value={query}
         onChange={onQueryChange}
@@ -77,7 +80,7 @@ function OptionPickerList({
               variant="ghost"
               size="sm"
               className={cn(
-                "w-full cursor-pointer justify-start rounded-(--docblocks-radius) px-2 py-1.5 text-sm font-normal",
+                "w-full cursor-pointer justify-start rounded-lg px-2 py-1.5 text-sm font-normal",
                 "text-muted-foreground",
                 currentEmpty && "bg-muted text-foreground"
               )}
@@ -94,7 +97,7 @@ function OptionPickerList({
               data-state={multi ? (values.includes(option.value) ? "checked" : "unchecked") : undefined}
               role={multi ? undefined : "button"}
               className={cn(
-                "flex cursor-pointer items-center gap-2 rounded-(--docblocks-radius) px-2 py-1.5 text-sm",
+                "flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm",
                 "text-foreground hover:bg-accent",
                 values.includes(option.value) && "bg-muted"
               )}
@@ -112,7 +115,7 @@ function OptionPickerList({
                   option.color !== undefined ? { backgroundColor: option.color, color: OPTION_CHIP_INK } : undefined
                 }
                 className={cn(
-                  "max-w-full shrink truncate rounded-(--docblocks-radius) px-2 leading-5",
+                  "max-w-full shrink truncate rounded-lg px-2 leading-5",
                   option.color === undefined && "bg-muted"
                 )}
               >
@@ -120,7 +123,9 @@ function OptionPickerList({
               </span>
             </div>
           ))}
-          {filtered.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">No options.</div>}
+          {filtered.length === 0 && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">{t("common:noOptions")}</div>
+          )}
         </div>
       </div>
     </div>

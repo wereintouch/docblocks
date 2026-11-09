@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
+import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
 import { renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import type { DatabaseBridge, MutationContext, TableEvent } from "../src/database/bridge";
-import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
+import type {
+  BatchOp,
+  DatabaseBridge,
+  MutationContext,
+  PageQuery,
+  SubscriptionObserver,
+  TableEvent,
+} from "../src/database/bridge";
+import { BridgeError } from "../src/database/bridge";
 import { useDatabaseTable } from "../src/database/use-database-table";
 
 function ctx(operationId?: string): MutationContext {
@@ -73,6 +81,200 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("Yan");
   });
 
+  it("the stale duplicate envelope stands the drop (no rebaseline loop over the redelivery)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let snapshotCalls = 0;
+    let subscriptions = 0;
+    let liveObserver: SubscriptionObserver | null = null;
+    let captured: TableEvent | null = null;
+    const wrapped: DatabaseBridge = {
+      ...bridge,
+      snapshotTable: async (tableId: string, query: PageQuery) => {
+        snapshotCalls += 1;
+        return bridge.snapshotTable(tableId, query);
+      },
+      subscribeTable: (tableId: string, input: { afterSeq: number }, observer: SubscriptionObserver) => {
+        subscriptions += 1;
+        liveObserver = observer;
+        return bridge.subscribeTable(tableId, input, {
+          ...observer,
+          event: (envelope) => {
+            captured = envelope;
+            observer.event(envelope);
+          },
+        });
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    // The peer's write: the envelope stands the refetch (captured for the
+    // redelivery below).
+    await bridge.batchRows(
+      seeded.tableId,
+      { ops: [{ op: "create", row: { [seeded.nameColumnId]: "Late" }, beforeRowId: null }] },
+      ctx()
+    );
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    const envelope = captured;
+    if (envelope === null) throw new Error("the envelope was not captured");
+    // The forced rebaseline (the reset signal): the bootstrap clears the
+    // dedup set (the stand — the redelivery below stands the stale class).
+    const snapshotsAfterBootstrap = snapshotCalls;
+    liveObserver!.reset({ code: "replay_expired" });
+    await waitFor(() => expect(subscriptions).toBe(2));
+    // The at-least-once redelivery of the ALREADY-SEEN envelope (the seq at
+    // the fresh head, absent from the cleared dedup set): the stale
+    // duplicate stands the drop — no rebaseline over the redelivery (the
+    // loop stand) and the page stands intact.
+    const live = liveObserver!;
+    live.event({ ...(envelope as TableEvent) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(subscriptions).toBe(2);
+    expect(snapshotCalls).toBe(snapshotsAfterBootstrap + 1);
+    expect(result.current.phase).toBe("ready");
+    expect(result.current.rows.length).toBe(3);
+  });
+
+  it("the fatal not_found over the bootstrap stands the death (the stale rows stand cleared, the phase broken)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result, rerender } = renderHook((tableId: string) => useDatabaseTable(bridge, tableId), {
+      initialProps: seeded.tableId,
+    });
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.rows.length).toBe(2);
+    // The relink to the dead table (the block's tableId over the deleted
+    // one): the bootstrap's not_found stands the death (the contract's
+    // stand: the operation stops, the sensitive cache stands cleared).
+    rerender("t-dead-table");
+    await waitFor(() => expect(result.current.phase).toBe("broken"));
+    expect(result.current.errorCode).toBe("not_found");
+    // The sensitive cache stands cleared (the stale rows / the cursor /
+    // the revisions of the live table are not a stand over the dead one).
+    expect(result.current.rows).toEqual([]);
+    expect(result.current.nextCursor).toBeNull();
+  });
+
+  it("the fatal not_found over the refetch stands the death (the page cleared, the delivery stopped)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let snapshotCalls = 0;
+    let liveObserver: SubscriptionObserver | null = null;
+    let headSeq = 0;
+    let unsubscribed = 0;
+    const wrapped: DatabaseBridge = {
+      ...bridge,
+      snapshotTable: async (tableId: string, query: PageQuery) => {
+        snapshotCalls += 1;
+        // The second snapshot stands the table's death (the deleted-table
+        // stand — the first one stands the bootstrap).
+        if (snapshotCalls >= 2) throw new BridgeError("not_found", 'The table "t-dead" is unknown.');
+        return bridge.snapshotTable(tableId, query);
+      },
+      subscribeTable: (tableId: string, input: { afterSeq: number }, observer: SubscriptionObserver) => {
+        liveObserver = observer;
+        const handle = bridge.subscribeTable(tableId, input, {
+          ...observer,
+          ready: (value) => {
+            headSeq = value.headSeq;
+            observer.ready(value);
+          },
+        });
+        return {
+          unsubscribe: () => {
+            unsubscribed += 1;
+            handle.unsubscribe();
+          },
+        };
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.rows.length).toBe(2);
+    // The stream's invalidate stands the refetch — the refetch hits the
+    // dead table (the fatal code): the page stands cleared, the phase
+    // stands broken, the delivery stands stopped (the unsubscribe).
+    liveObserver!.event({
+      tableId: seeded.tableId,
+      seq: headSeq + 1,
+      prevSeq: headSeq,
+      txId: "tx-death",
+      kind: "invalidate",
+      originSessionId: null,
+      operationId: null,
+      receipt: null,
+      events: [],
+    });
+    await waitFor(() => expect(result.current.phase).toBe("broken"));
+    expect(result.current.errorCode).toBe("not_found");
+    expect(result.current.rows).toEqual([]);
+    expect(unsubscribed).toBe(1);
+  });
+
+  it("the re-entrant undo stands the drop (the inverse stands once, not twice)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let batchCalls = 0;
+    const spyBridge = {
+      ...bridge,
+      batchRows: (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        batchCalls += 1;
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(spyBridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await result.current.insertRow({ [seeded.nameColumnId]: "Par" });
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    const beforeUndo = batchCalls;
+    // The parallel undo (the second press over the first's in-flight
+    // inverse): the inverse stands ONCE (the re-entrant call stands the
+    // drop, not the second inverse over the same entry).
+    void result.current.undo();
+    void result.current.undo();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(batchCalls).toBe(beforeUndo + 1);
+    expect(result.current.rows.length).toBe(2);
+  });
+
+  it("the relink over the in-flight inverse stands the drop (the old op stands not carried into the new table's history)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const other = await bridge.createTable({ name: "Other" }, ctx());
+    let calls = 0;
+    let releaseGate: (() => void) | null = null;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    const spyBridge = {
+      ...bridge,
+      batchRows: async (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        calls += 1;
+        if (calls === 2) await gate; // the inverse's stand (the insert's undo) holds in flight
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result, rerender } = renderHook((tableId: string) => useDatabaseTable(spyBridge, tableId), {
+      initialProps: seeded.tableId,
+    });
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    await result.current.insertRow({ [seeded.nameColumnId]: "Relinked" });
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    const undoPromise = result.current.undo(); // the inverse stands in flight (the gate)
+    // The relink to the other table over the in-flight inverse: the history
+    // stands cleared (the per-(bridge, tableId) stand).
+    rerender(other.result.id);
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    releaseGate!();
+    await undoPromise;
+    // The old op stands NOT carried into the new table's history (the redo
+    // / the undo stand empty over the relink) — the stand is observed over
+    // the settled render (a stale result.current is not a stand).
+    await waitFor(() => expect(result.current.canUndo).toBe(false), { timeout: 1000 });
+    await waitFor(() => expect(result.current.canRedo).toBe(false), { timeout: 1000 });
+  });
+
   it("the protocol mismatch stands the broken phase + the structured code (no silent downgrade)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const seeded = await seed(bridge);
@@ -103,6 +305,54 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("New");
   });
 
+  it("the mixed paste stands the one batch (the updates + the overflow's creates) + the one undo", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge); // Alice, Bob
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const [r1] = seeded.rowIds;
+    // The paste: 3 values over the 2 loaded rows — the 2 updates + the
+    // 1 create (the overflow).
+    const createdIds = await result.current.pasteRows({
+      updates: [
+        { rowId: r1!, cells: { [seeded.nameColumnId]: "№1" } },
+        { rowId: seeded.rowIds[1]!, cells: { [seeded.nameColumnId]: "№2" } },
+      ],
+      creates: [{ [seeded.nameColumnId]: "№3" }],
+      beforeRowId: null,
+    });
+    expect(createdIds).toHaveLength(1);
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    expect(result.current.rows[0]!.cells[seeded.nameColumnId]).toBe("№1");
+    expect(result.current.rows[1]!.cells[seeded.nameColumnId]).toBe("№2");
+    expect(result.current.rows[2]!.cells[seeded.nameColumnId]).toBe("№3");
+    // The one undo: the updates' restore + the created row's deletion.
+    expect(result.current.canUndo).toBe(true);
+    await result.current.undo();
+    await waitFor(() => expect(result.current.rows.length).toBe(2));
+    expect(result.current.rows[0]!.cells[seeded.nameColumnId]).toBe("Alice");
+    expect(result.current.rows[1]!.cells[seeded.nameColumnId]).toBe("Bob");
+    // The redo stands the batch again (the created row over the fresh id).
+    await result.current.redo();
+    await waitFor(() => expect(result.current.rows.length).toBe(3));
+    expect(result.current.rows[2]!.cells[seeded.nameColumnId]).toBe("№3");
+  });
+
+  it("the all-unchanged paste over no creates stands the no-op (no bridge call, no undo entry)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const [r1] = seeded.rowIds;
+    await result.current.pasteRows({
+      updates: [{ rowId: r1!, cells: { [seeded.nameColumnId]: "Alice" } }], // the same value
+      creates: [],
+      beforeRowId: null,
+    });
+    expect(result.current.canUndo).toBe(false);
+    expect(result.current.error).toBeNull();
+  });
+
   it("the failed undo entry stands retryable (the entry stays on the stack)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const seeded = await seed(bridge);
@@ -121,6 +371,55 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(result.current.canUndo).toBe(true);
   });
 
+  it("the CAS stand: the `cas` capability selects the expectedRevision over the live revision", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const calls: Array<{ ops: BatchOp[] }> = [];
+    const spyBridge = {
+      ...bridge,
+      batchRows: (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        calls.push(input);
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(spyBridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.capabilities).toContain("cas");
+    const rowId = seeded.rowIds[0]!;
+    const revision = result.current.revisionOf(rowId);
+    expect(revision).toBeDefined();
+    await result.current.updateRow(rowId, { [seeded.nameColumnId]: "Edited" });
+    expect(calls.at(-1)!.ops[0]!).toMatchObject({ expectedRevision: revision });
+  });
+
+  it("the CAS stand: the absent `cas` capability stands the LWW default (no expectedRevision)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const descriptor = await bridge.describeProtocol();
+    const calls: Array<{ ops: BatchOp[] }> = [];
+    const nonCasBridge = {
+      ...bridge,
+      describeProtocol: async () => ({
+        ...descriptor,
+        capabilities: descriptor.capabilities.filter((capability) => capability !== "cas"),
+      }),
+      batchRows: (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+        calls.push(input);
+        return bridge.batchRows(tableId, input, context);
+      },
+    } as unknown as DatabaseBridge;
+    const { result } = renderHook(() => useDatabaseTable(nonCasBridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.capabilities).not.toContain("cas");
+    const rowId = seeded.rowIds[0]!;
+    // The live revision is known (the CAS would stand) — the capability's
+    // absence stands the LWW default (the expectedRevision is not sent to
+    // a bridge that does not stand the capability).
+    expect(result.current.revisionOf(rowId)).toBeDefined();
+    await result.current.updateRow(rowId, { [seeded.nameColumnId]: "Edited" });
+    expect(calls.at(-1)!.ops[0]!).not.toHaveProperty("expectedRevision");
+  });
+
   it("the failed write stands the optimistic rollback over the pre-op snapshot", async () => {
     const bridge = createMemoryDatabaseBridge();
     const seeded = await seed(bridge);
@@ -134,6 +433,36 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     await expect(result.current.updateRow(rowId, { [seeded.nameColumnId]: "Ghost" })).rejects.toThrow();
     await waitFor(() => expect(result.current.errorCode).toBe("not_found"));
     expect(result.current.rows.length).toBe(1);
+  });
+
+  it("the pinned-revision write over the peer's mid-session commit stands the conflict (the peer's value stands)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    const rowId = seeded.rowIds[0]!;
+    // The draft session's open stand: the revision as of the open (the
+    // read's surface).
+    const openRevision = result.current.revisionOf(rowId);
+    expect(openRevision).toBeDefined();
+    // The peer's commit over the same row (the event's refetch re-baselines
+    // the hook's live revision map over the fresh revision).
+    await bridge.batchRows(
+      seeded.tableId,
+      { ops: [{ op: "update", rowId, cells: { [seeded.nameColumnId]: "peer" } }] },
+      ctx()
+    );
+    await waitFor(() => expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("peer"));
+    // The draft session's close commits over the open-time pin: the stale
+    // CAS rejects (the conflict) — the peer's value stands (no silent
+    // overwrite).
+    await expect(result.current.updateRow(rowId, { [seeded.nameColumnId]: "local" }, openRevision)).rejects.toThrow();
+    await waitFor(() => expect(result.current.errorCode).toBe("conflict"));
+    expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("peer");
+    // The un-pinned stand reads the live revision (the LWW's default):
+    // the explicit write commits over it.
+    await result.current.updateRow(rowId, { [seeded.nameColumnId]: "local" });
+    await waitFor(() => expect(result.current.rows[0]?.cells[seeded.nameColumnId]).toBe("local"));
   });
 
   it("dedups the at-least-once replay and rebaselines on the broken prevSeq chain", async () => {

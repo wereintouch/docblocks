@@ -1,0 +1,68 @@
+{
+  "row": {
+    "selectBlock": "Select block",
+    "addBlockBelow": "Add block below",
+    "deleteBlock": "Delete block"
+  },
+  "task": {
+    "markDone": "Mark task as done",
+    "markNotDone": "Mark task as not done"
+  },
+  "collapse": {
+    "expand": "Expand children",
+    "collapse": "Collapse children"
+  },
+  "caption": {
+    "placeholder": "Write a caption…",
+    "edit": "Edit the caption",
+    "add": "Add a caption",
+    "aria": "Caption",
+    "imageAria": "Image caption"
+  },
+  "code": {
+    "language": "Code language",
+    "chooseLanguage": "Choose the code language",
+    "searchPlaceholder": "Search language…",
+    "searchAria": "Search language",
+    "languages": "Languages",
+    "copy": "Copy the code",
+    "expand": "Expand the code",
+    "collapse": "Collapse the code",
+    "expandTitle": "Expand",
+    "collapseTitle": "Collapse",
+    "options": "Code options",
+    "lineNumbers": "Line numbers",
+    "wrap": "Wrap long lines",
+    "rendering": "rendering…",
+    "pdfPreviewUnavailable": "PDF preview unavailable ({error}). Showing the built-in viewer.",
+    "pdfLoading": "loading preview…"
+  },
+  "image": {
+    "placeholder": "image",
+    "document": "document",
+    "resize": "Resize the image",
+    "download": "Download the image",
+    "downloadTitle": "Download"
+  },
+  "embed": {
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Reset zoom"
+  },
+  "syncEmbed": {
+    "broken": "The master document for this synced block is unavailable.",
+    "cycle": "Circular synced block reference."
+  },
+  "align": {
+    "left": "Align left",
+    "center": "Align center",
+    "right": "Align right"
+  },
+  "rowCount_one": "row",
+  "rowCount_few": "rows",
+  "rowCount_many": "rows",
+  "rowCount_other": "rows",
+  "error": {
+    "render": "Could not be rendered"
+  }
+}

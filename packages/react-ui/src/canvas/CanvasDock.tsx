@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import { memo } from "react";
 import type { ComponentType, SVGProps } from "react";
 
@@ -17,12 +19,12 @@ import {
   Container,
   Cylinder,
   Diamond,
+  Frame,
   Hand,
   MousePointer2,
   Pen,
   Square,
   SquareRounded,
-  SquareSplitVertical,
   Type,
 } from "../shared/ui/icons";
 import { preventDefault } from "../shared/utils";
@@ -35,29 +37,30 @@ type DockIcon = ComponentType<SVGProps<SVGSVGElement>>;
 /** A dock tool button entry. */
 interface DockTool {
   id: CanvasTool;
-  label: string;
+  /** The accessible label's i18n key (the `canvas` namespace's `dock.*` / `shapes.*`). */
+  labelKey: string;
   icon: DockIcon;
 }
 
 /** The shape types (the dock's single shapes button opens them as a row). */
 const SHAPE_TOOLS: DockTool[] = [
-  { id: "rect", label: "Rectangle", icon: Square },
-  { id: "rounded", label: "Rounded Rectangle", icon: SquareRounded },
-  { id: "ellipse", label: "Ellipse", icon: Circle },
-  { id: "diamond", label: "Diamond", icon: Diamond },
-  { id: "cylinder", label: "Cylinder", icon: Cylinder },
-  { id: "cloud", label: "Cloud", icon: Cloud },
+  { id: "rect", labelKey: "shapes.rect", icon: Square },
+  { id: "rounded", labelKey: "shapes.rounded", icon: SquareRounded },
+  { id: "ellipse", labelKey: "shapes.ellipse", icon: Circle },
+  { id: "diamond", labelKey: "shapes.diamond", icon: Diamond },
+  { id: "cylinder", labelKey: "shapes.cylinder", icon: Cylinder },
+  { id: "cloud", labelKey: "shapes.cloud", icon: Cloud },
 ];
 
 const SHAPE_IDS: CanvasTool[] = SHAPE_TOOLS.map((tool) => tool.id);
 
 /** The dock's tool groups, in display order (the Separators between the groups). */
 const TOOL_GROUPS: DockTool[][] = [
-  [{ id: "text", label: "Text", icon: Type }],
-  [{ id: "frame", label: "Frame", icon: SquareSplitVertical }],
-  [{ id: "container", label: "Container", icon: Container }],
-  [{ id: "connector", label: "Connector", icon: ArrowRight }],
-  [{ id: "pen", label: "Pen", icon: Pen }],
+  [{ id: "text", labelKey: "dock.text", icon: Type }],
+  [{ id: "frame", labelKey: "dock.frame", icon: Frame }],
+  [{ id: "container", labelKey: "dock.container", icon: Container }],
+  [{ id: "connector", labelKey: "dock.connector", icon: ArrowRight }],
+  [{ id: "pen", labelKey: "dock.pen", icon: Pen }],
 ];
 
 /**
@@ -75,6 +78,7 @@ const ACTIVE_TOOL_CLASS = "bg-accent text-accent-foreground";
 
 const CanvasDock = memo(
   function CanvasDock({ viewport }: { viewport: CanvasViewportState }) {
+    const { t } = useTranslation("canvas");
     const { mode, activeTool, setMode, setActiveTool, setPendingStand } = viewport;
 
     const toggleHand = () => {
@@ -109,7 +113,7 @@ const CanvasDock = memo(
         <div
           data-slot="docblocks/canvas-dock"
           role="toolbar"
-          aria-label="Canvas tools"
+          aria-label={t("dock.toolbar")}
           className="
             flex items-center gap-0.5 rounded-(--docblocks-radius) border border-(--docblocks-formatbar-border-color)
             bg-(--docblocks-formatbar-background) p-1 text-(--docblocks-text-color)
@@ -123,7 +127,7 @@ const CanvasDock = memo(
           <Button
             variant="ghost"
             size="xl"
-            aria-label={mode === "pan" ? "Switch to the select mode" : "Switch to the pan mode"}
+            aria-label={mode === "pan" ? t("dock.modeSelect") : t("dock.modePan")}
             aria-pressed={mode === "pan"}
             className={cn(mode === "pan" && ACTIVE_TOOL_CLASS)}
             onClick={toggleHand}
@@ -137,8 +141,8 @@ const CanvasDock = memo(
                 <Button
                   variant="ghost"
                   size="xl"
-                  title="Shapes"
-                  aria-label="Shapes"
+                  title={t("dock.shapes")}
+                  aria-label={t("dock.shapes")}
                   data-tool="shapes"
                   aria-pressed={shapesActive}
                   className={cn(shapesActive && ACTIVE_TOOL_CLASS)}
@@ -149,19 +153,19 @@ const CanvasDock = memo(
               <DropdownMenuContent
                 side="top"
                 className="flex flex-row"
-                aria-label="Shapes menu"
+                aria-label={t("dock.shapesMenu")}
                 data-slot="docblocks/canvas-shapes-menu"
               >
-                {SHAPE_TOOLS.map(({ id, label, icon: Icon }) => (
+                {SHAPE_TOOLS.map(({ id, labelKey, icon: Icon }) => (
                   <DropdownMenuItem
                     key={id}
-                    aria-label={label}
+                    aria-label={t(labelKey)}
                     data-tool={id}
                     className={cn("px-2.5", activeTool === id && "bg-accent text-accent-foreground")}
                     onSelect={pickToolAt(id)}
                   >
                     <Icon />
-                    {label}
+                    {t(labelKey)}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -170,13 +174,13 @@ const CanvasDock = memo(
           {TOOL_GROUPS.map((group, index) => (
             <span key={group[0]!.id} className="flex items-center gap-0.5">
               {index > 0 && <Separator orientation="vertical" className="h-6" />}
-              {group.map(({ id, label, icon: Icon }) => (
+              {group.map(({ id, labelKey, icon: Icon }) => (
                 <Button
                   key={id}
                   variant="ghost"
                   size="xl"
-                  title={label}
-                  aria-label={label}
+                  title={t(labelKey)}
+                  aria-label={t(labelKey)}
                   data-tool={id}
                   aria-pressed={activeTool === id}
                   className={cn(activeTool === id && ACTIVE_TOOL_CLASS)}

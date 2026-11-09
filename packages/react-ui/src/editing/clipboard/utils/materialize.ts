@@ -17,7 +17,7 @@
  * the next sibling or the seat when the landing is a non-text block), or
  * `null` when nothing was pasted.
  */
-import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
+import { BLOCK_REGISTRY, InvalidAttrsError, InvalidMarkError, InvalidOperationError } from "docblocks-core";
 import type { BlockId, BlockType, Doc, TextRun } from "docblocks-core";
 
 import { findParentId, indentOf } from "../../block-commands";
@@ -212,13 +212,18 @@ function materializePaste(
     });
   } catch (error) {
     // The core's typed rejection (a landing the re-based content cannot
-    // keep valid — the jump rule over a block the paste displaces): the
-    // transact rolled back (the doc stands, the peers converge) — the
-    // paste is a no-op (the caret stands where it was). The nested call
-    // (the cross-seam composition inside the caller's open transact) is
-    // rethrown: the caller's batch must roll back as a whole (a partial
-    // paste would stand committed next to the deleted range).
-    if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) {
+    // keep valid — the jump rule over a block the paste displaces; the
+    // mark over the data model's contract the parser's degrade stands the
+    // guard against): the transact rolled back (the doc stands, the peers
+    // converge) — the paste is a no-op (the caret stands where it was).
+    // The nested call (the cross-seam composition inside the caller's open
+    // transact) is rethrown: the caller's batch must roll back as a whole
+    // (a partial paste would stand committed next to the deleted range).
+    if (
+      error instanceof InvalidAttrsError ||
+      error instanceof InvalidOperationError ||
+      error instanceof InvalidMarkError
+    ) {
       if (opts?.keepSeat !== true) return { blockId: seatId, offset: from };
     }
     throw error;

@@ -1,5 +1,7 @@
 /** The shape toolbar's pure helpers (the border width's dot index, the
  *  variant's icon, the hex input's normalization). */
+import type { MouseEvent as ReactMouseEvent } from "react";
+
 import { Circle, Cloud, Cylinder, Diamond, Square, SquareRounded } from "../../shared/ui/icons";
 import { BORDER_WIDTH_POINTS, HEX_RE } from "./constants";
 import type { ShapeVariantId } from "./models";
@@ -36,4 +38,18 @@ function normalizeHex(raw: string): string | null {
   return digits === undefined ? null : `#${digits.toLowerCase()}`;
 }
 
-export { borderWidthIndex, normalizeHex, variantIcon };
+/**
+ * The toolbar body's mousedown (the trigger buttons): the canvas
+ * container's focus keeps (the keyboard context) for the contained
+ * targets. A press on the portaled palette content (the fiber path
+ * crosses the wrapper, the target is not contained in it) is NOT
+ * guarded: the hex input must receive the mousedown default (the
+ * focus transfer).
+ */
+function onToolbarBodyMouseDown(event: ReactMouseEvent<HTMLDivElement>): void {
+  if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
+    event.preventDefault();
+  }
+}
+
+export { borderWidthIndex, normalizeHex, onToolbarBodyMouseDown, variantIcon };

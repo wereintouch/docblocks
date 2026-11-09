@@ -7,8 +7,13 @@
  * in the caller's transact. An empty (or whitespace-only) URL commits nothing
  * (the menu stands open on the phrase — the Image / Database contract).
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 
+import { isSafeEmbedSrc } from "docblocks-core";
+
+import { DocblocksI18nProvider } from "../../i18n";
 import { BareSelect } from "../../shared/ui/BareSelect";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
@@ -19,14 +24,26 @@ import type { EmbedKind } from "./models";
 /** The embed's kind catalog (the core `EmbedAttrs.kind` enum). */
 const EMBED_KINDS = ["iframe", "github", "figma", "loom", "html"] as const;
 
-/** The embed form panel (the slash menu's embed state). */
-function SlashEmbedForm({
-  onCommit,
-  onCancel,
-}: {
+/** The embed form's props (the commit / the cancel — the phrase strip + the
+ *  insert commit is the caller's transact). */
+interface SlashEmbedFormProps {
   onCommit: (input: { kind: EmbedKind; src: string }) => void;
   onCancel: () => void;
-}) {
+}
+
+/** The form's i18n scope: the package's instance stands the provider's seat
+ *  over the form (the form stands also outside the editor's scope). */
+function SlashEmbedForm(props: SlashEmbedFormProps) {
+  return (
+    <DocblocksI18nProvider>
+      <SlashEmbedFormInner {...props} />
+    </DocblocksI18nProvider>
+  );
+}
+
+/** The embed form panel (the slash menu's embed state). */
+function SlashEmbedFormInner({ onCommit, onCancel }: SlashEmbedFormProps) {
+  const { t } = useTranslation("slash");
   const [url, setUrl] = useState("");
   const [kind, setKind] = useState<EmbedKind>("iframe");
   const urlInputRef = useRef<HTMLInputElement | null>(null);
@@ -41,6 +58,9 @@ function SlashEmbedForm({
   const commit = () => {
     const trimmed = url.trim();
     if (trimmed.length === 0) return;
+    // The unsafe scheme stands no commit (the core's write posture rejects
+    // it too — the `javascript:` / the foreign `data:`).
+    if (!isSafeEmbedSrc(kind, trimmed)) return;
     onCommit({ kind, src: trimmed });
   };
 
@@ -52,7 +72,10 @@ function SlashEmbedForm({
     if (event.key === "Escape") onCancel();
   };
 
-  const canCommit = url.trim().length > 0;
+  const canCommit = url.trim().length > 0 && isSafeEmbedSrc(kind, url.trim());
+  // The unsafe-scheme hint (the commit stands rejected over the same rule —
+  // the input feedback instead of the silent no-op).
+  const unsafeHint = url.trim().length > 0 && !isSafeEmbedSrc(kind, url.trim()) ? t("embed.unsafeHint") : null;
 
   const onUrlKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     stopFormKey(event);
@@ -72,7 +95,7 @@ function SlashEmbedForm({
         type="text"
         data-slot="docblocks/slash-embed-url"
         className="rounded-sm"
-        placeholder="Embed URL (https://…)"
+        placeholder={t("embed.urlPlaceholder")}
         value={url}
         onKeyDown={onUrlKeyDown}
         onChange={onUrlChange}
@@ -103,6 +126,11 @@ function SlashEmbedForm({
           <Check className="size-4" />
         </Button>
       </div>
+      {unsafeHint !== null && (
+        <p data-slot="docblocks/slash-embed-hint" className="px-1 text-xs text-destructive">
+          {unsafeHint}
+        </p>
+      )}
     </div>
   );
 }

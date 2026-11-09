@@ -7,8 +7,10 @@ import {
   InvalidRangeError,
   UnknownBlockError,
   createDoc,
+  fromJSON,
 } from "../src/core";
 import type { Doc } from "../src/core";
+import { isSafeLinkHref, validateDoc } from "../src/schema";
 import type { MarkName } from "../src/schema";
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -26,7 +28,7 @@ const expectThrows = (fn: () => unknown, ctor: new (message: string) => Error): 
   throw new Error("expected the command to throw");
 };
 
-/** The schema §4.2 document: one plain run "Help us sync faster!" (20 chars). */
+/** The fixture's document: one plain run "Help us sync faster!" (20 chars). */
 const markedDoc = (): { doc: Doc; id: string } => {
   const doc = newDoc();
   const id = doc.insertBlock("paragraph");
@@ -35,7 +37,7 @@ const markedDoc = (): { doc: Doc; id: string } => {
 };
 
 describe("setMark", () => {
-  it("schema §4.2: bold + color + highlight compose on one split run", () => {
+  it("bold + color + highlight compose on one split run", () => {
     const { doc, id } = markedDoc();
     doc.setMark(id, 8, 12, { type: "bold" });
     doc.setMark(id, 8, 12, { type: "color", value: "#0066CC" });
@@ -151,6 +153,73 @@ describe("mark command errors", () => {
     expect(() => doc.setMark(id, 0, 1, { type: "color", value: "red" })).toThrow(InvalidMarkError);
     expect(() => doc.setMark(id, 0, 1, { type: "link", href: "javascript:alert(1)" })).toThrow(InvalidMarkError);
     expect(() => doc.unsetMark(id, 0, 1, "bogus" as MarkName)).toThrow(InvalidMarkError);
+  });
+
+  it("the unsafe-scheme rejection stands the browser's C0 / space trim (no leading-control bypass)", () => {
+    // The browser trims the leading C0 controls + spaces (U+0000–U+0020)
+    // before the scheme detection: the raw string stands no scheme, the
+    // browser's does — the check runs over the trimmed form.
+    const { doc, id } = markedDoc();
+    for (const href of [
+      "\tjavascript:alert(1)",
+      "\njavascript:alert(1)",
+      "\u0000javascript:alert(1)",
+      "  javascript:alert(1)",
+      "\x1fjavascript:alert(1)",
+    ]) {
+      expect(
+        () => doc.setMark(id, 0, 1, { type: "link", href }),
+        `the href ${JSON.stringify(href)} should be rejected`
+      ).toThrow(InvalidMarkError);
+    }
+    // The trim stands the safe stand: a C0-prefixed http URL is the http URL.
+    doc.setMark(id, 0, 1, { type: "link", href: "\thttps://example.com" });
+    expect(doc.getRuns(id)[0]!.marks.link).toEqual({ href: "\thttps://example.com" });
+  });
+
+  it("the isSafeLinkHref contract (the public renderer's gate)", () => {
+    expect(isSafeLinkHref("https://example.com")).toBe(true);
+    expect(isSafeLinkHref("http://example.com")).toBe(true);
+    expect(isSafeLinkHref("#fragment")).toBe(true);
+    expect(isSafeLinkHref("/relative/path")).toBe(true);
+    expect(isSafeLinkHref("\thttps://example.com")).toBe(true);
+    expect(isSafeLinkHref("javascript:alert(1)")).toBe(false);
+    expect(isSafeLinkHref("\tjavascript:alert(1)")).toBe(false);
+    expect(isSafeLinkHref("\u0000javascript:alert(1)")).toBe(false);
+    // The WHATWG URL parser removes ASCII tab / LF / CR from ANY position
+    // before the scheme detection — the gate mirrors it, so a mid-string
+    // control cannot hide the scheme ("java\tscript:…" resolves as
+    // "javascript:…" in the browser).
+    expect(isSafeLinkHref("java\tscript:alert(1)")).toBe(false);
+    expect(isSafeLinkHref("java\nscript:alert(1)")).toBe(false);
+    expect(isSafeLinkHref("java\rscript:alert(1)")).toBe(false);
+    expect(isSafeLinkHref("data:text/html,<script>alert(1)</script>")).toBe(false);
+    expect(isSafeLinkHref("mailto:a@b.c")).toBe(false);
+    expect(isSafeLinkHref("")).toBe(false);
+    expect(isSafeLinkHref("   ")).toBe(false);
+  });
+
+  it("the lenient load stands the poisoned href (the persistence DoS stand; the renderer's gate stands the display)", () => {
+    const { doc, id } = markedDoc();
+    // The write path rejects the unsafe scheme; the snapshot's load does
+    // not (the reader's contract stands the data, the renderer's gate
+    // stands the href — a throwing fromJSON would DoS the room over the
+    // poisoned snapshot).
+    expect(() => doc.setMark(id, 0, 1, { type: "link", href: "javascript:alert(1)" })).toThrow(InvalidMarkError);
+    const json = JSON.parse(JSON.stringify(doc.toJSON())) as {
+      blocks: Record<string, { content?: Array<{ marks?: Record<string, { href?: string }> }> }>;
+    };
+    const block = json.blocks[id]!;
+    expect(block).toBeDefined();
+    const runs = block.content;
+    runs![0]!.marks = { link: { href: "javascript:alert(1)" } };
+    const loaded = fromJSON(json as Parameters<typeof fromJSON>[0]);
+    const loadedRuns = loaded.getRuns(id);
+    expect(loadedRuns[0]!.marks.link).toEqual({ href: "javascript:alert(1)" });
+    // The strict posture stands the rejection (the writer's stand over
+    // the data we own).
+    const errors = validateDoc(json);
+    expect(errors.some((error) => error.message.includes('"link"'))).toBe(true);
   });
 
   it("invalid ranges -> InvalidRangeError; from === to is a no-op", () => {

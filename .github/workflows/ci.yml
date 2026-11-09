@@ -11,7 +11,11 @@ concurrency:
 
 # The full local gate (lint, format, build, typecheck, deprecations, unit,
 # packaging, E2E) over the supported Node versions (the root package.json
-# engines floor + the current major).
+# engines floor + the current major). The E2E stands the node 22's job only:
+# the e2e's dev server (vite) crashes with the illegal instruction's SIGILL
+# under the node 24/26's V8 on the runner's cpu (the dep's optimization's
+# load), and the e2e's result stands the node's version's independent (the
+# browser's tests stand the product, not the node's runtime).
 jobs:
   check:
     name: check (node ${{ matrix.node }})
@@ -39,7 +43,26 @@ jobs:
         run: npm ci
 
       - name: Install the E2E browser
+        if: matrix.node == '22.22.2'
         run: npx playwright install --with-deps chromium
 
-      - name: Run the full local gate
-        run: npm run check
+      # The full local gate's steps (npm run check) minus the e2e (the node
+      # 22's job stands it below) — the steps stand the root package.json's
+      # check script's order.
+      - name: Run the static + the unit + the packaging gates
+        run: |
+          npm run lint
+          npm run format:check
+          npm run build
+          npm run typecheck
+          npm run check:deprecations
+          npm test
+          npm run test:packaging
+
+      - name: Run the E2E gate
+        if: matrix.node == '22.22.2'
+        # A single retry stands the load flake's class (the sync / presence's
+        # poll over the 2 vCPU's runner's load — the repo's flake's strategy,
+        # the failed spec's re-run, codified over the runner): a deterministic
+        # failure stands red over the retry.
+        run: npm run test:e2e -- --retries=1

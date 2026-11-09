@@ -35,11 +35,15 @@ function renderCanvas(doc: TestDoc, view: "page" | "canvas" = "canvas") {
   return doc;
 }
 
-/** The canvas-item wrappers in DOM order (the paint order pin). */
+/** The canvas-item wrappers over the world's DIRECT children in DOM order
+ * (the paint order pin — the frame's window's copies stand inside the
+ * frame's wrapper and stand out of the list). */
 function canvasItemIds(): string[] {
-  return Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item']")).map(
-    (el) => el.dataset.blockId as string
-  );
+  const world = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-world"]');
+  if (world === null) return [];
+  return Array.from(world.children)
+    .filter((el): el is HTMLElement => el instanceof HTMLElement && el.dataset.slot === "docblocks/canvas-item")
+    .map((el) => el.dataset.blockId as string);
 }
 
 /** The block's `zIndex` stand (-1 when absent). */
@@ -74,16 +78,18 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
     expect(zIndexOf(doc, a)).toBe(1);
     expect(zIndexOf(doc, b)).toBe(2);
     expect(zIndexOf(doc, "z0003")).toBe(-1);
-    expect(canvasItemIds()).toEqual([a, "z0003", b]);
+    // The frame stands the view back (the window's parity — it renders
+    // behind the figures; its zIndex's data slot stands no paint role).
+    expect(canvasItemIds()).toEqual(["z0003", a, b]);
 
     act(() => {
       doc.setZOrder(a, "toFront");
     });
     // a stands on top: the paint order (the DOM order) reorders with it,
     // the indices re-densify over the canvas elements (the frame stands
-    // no index), the frame's position stands.
+    // no index), the frame's view-back position stands.
     expect(doc.getChildren(surface)).toEqual([b, "z0003", a]);
-    expect(canvasItemIds()).toEqual([b, "z0003", a]);
+    expect(canvasItemIds()).toEqual(["z0003", b, a]);
     expect(zIndexOf(doc, a)).toBe(2);
     expect(zIndexOf(doc, b)).toBe(1);
     expect(zIndexOf(doc, "z0003")).toBe(-1);
@@ -168,7 +174,7 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
     expect(zIndexOf(doc, "b")).toBe(-1);
   });
 
-  it("the page view stands the same order with the inert line", () => {
+  it("the page view carries no surface (the scene stands in the canvas view only)", () => {
     const d = newDoc();
     const surface = d.insertBlock("surface");
     const a = d.insertBlock("shape", { variant: "rect" }, { parent: surface });
@@ -177,12 +183,16 @@ describe("the canvas z-order's paint stand (the 2026-10-22 explicit zIndex)", ()
     d.setGeometry(b, { x: 100, y: 0, w: 100, h: 60 });
     d.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
     renderCanvas(d, "page");
-    // The children order's paint stand (the connector on top).
+    // The surface is a canvas layer: the page view's sequence filters it
+    // out, so the scene (the shapes, the connector's line) stands in the
+    // canvas view only.
+    expect(canvasItemIds()).toEqual([]);
+    expect(document.querySelector('[data-connector-id="z0004"]')).toBeNull();
+    // The canvas view stands the same order (the children order's paint
+    // stand — the connector on top).
+    cleanup();
+    renderCanvas(d, "canvas");
     expect(canvasItemIds()).toEqual(["z0002", "z0003", "z0004"]);
-    // The line stands (the display stand), the hit path stands off (the
-    // page view is not selectable — the band must not intercept the
-    // content's clicks).
     expect(document.querySelector('[data-connector-id="z0004"]')).not.toBeNull();
-    expect(document.querySelector('[data-connector-hit="z0004"]')).toBeNull();
   });
 });

@@ -174,6 +174,32 @@ test("a drag back to the same position issues no command", async ({ browser }) =
   await close();
 });
 
+test("the drag's release parks the focus on the editor root with no visible ring", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "ui04b-focus-ring");
+
+  await expect(wrappers(a, "a")).toHaveCount(1);
+  const handleBox = await gutter(a, "a", 0).boundingBox();
+  if (handleBox === null) throw new Error("the first wrapper's gutter has no box");
+  await dragGutterTo(a, "a", 0, handleBox.x, handleBox.y + 4);
+
+  // The gesture's contract: the release parks the focus on the editor
+  // root (the keyboard's input stays scoped over the editor after the
+  // pointer capture leaves it on body).
+  await expect(a.locator('[data-slot="docblocks/editor"]').first()).toBeFocused();
+
+  // The park is programmatic (the root's tabIndex -1 — no Tab focus): the
+  // browser's default focus ring would stand the visible ring over the
+  // whole document after the release — the styles.css stand suppresses
+  // it (the focus itself stays, only the ring is gone).
+  const outlineStyle = await a
+    .locator('[data-slot="docblocks/editor"]')
+    .first()
+    .evaluate((el) => getComputedStyle(el).outlineStyle);
+  expect(outlineStyle).toBe("none");
+
+  await close();
+});
+
 test("a drag of a block with a derived subtree moves the whole segment (one wire update, the indents stand)", async ({
   browser,
 }) => {

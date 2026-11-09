@@ -2,6 +2,8 @@
  *  div inside the editor root (the root is the positioning context),
  *  anchored at the "/" character (below the line, or above it on the
  *  viewport-bottom flip). */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useBlock } from "../../hooks";
@@ -12,6 +14,7 @@ import { preventDefault } from "../../shared/utils";
 import { locatePosition } from "../dom-offset";
 import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
 import { DatabaseSlashPicker } from "./DatabaseSlashPicker";
+import { FrameSlashPicker } from "./FrameSlashPicker";
 import { SlashEmbedForm } from "./SlashEmbedForm";
 import type { SlashDerivation, SlashMenuProps } from "./models";
 import { deriveSlash, filterCommands } from "./utils";
@@ -32,12 +35,17 @@ function SlashMenu({
   onImageFile,
   imageClickRef,
   databasePick,
+  databaseAvailable,
   onDatabasePickCancel,
   onDatabaseCommit,
+  framePick,
+  onFramePickCancel,
+  onFrameCommit,
   embedForm,
   onEmbedCancel,
   onEmbedCommit,
 }: SlashMenuProps) {
+  const { t } = useTranslation("slash");
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
 
@@ -62,15 +70,15 @@ function SlashMenu({
   useLayoutEffect(() => {
     // The picker / form is standing (the input's focus is expected — the menu
     // stays open over the phrase; the derivation is irrelevant while it stands).
-    if (databasePick || embedForm) return;
+    if (databasePick || framePick || embedForm) return;
     const caret = liveCaretOf(rootRef, state.blockId, state.slashOffset + 1);
     const derivation = deriveSlash(text, state.slashOffset, caret);
     setDerived(derivation);
     if (derivation.closed) onClose();
-  }, [text, state, rootRef, onClose, databasePick, embedForm]);
+  }, [text, state, rootRef, onClose, databasePick, framePick, embedForm]);
 
-  const items = derived === null ? [] : filterCommands(derived.query);
-  const visible = items.length > 0 || databasePick || embedForm;
+  const items = derived === null ? [] : filterCommands(derived.query, databaseAvailable, t);
+  const visible = items.length > 0 || databasePick || framePick || embedForm;
   const active = Math.min(state.active, Math.max(items.length - 1, 0));
 
   // Anchor at the "/" character: below the line, or above it when the
@@ -162,6 +170,8 @@ function SlashMenu({
       />
       {embedForm ? (
         <SlashEmbedForm onCommit={onEmbedCommit} onCancel={onEmbedCancel} />
+      ) : framePick ? (
+        <FrameSlashPicker onCommit={onFrameCommit} onCancel={onFramePickCancel} />
       ) : databasePick ? (
         <DatabaseSlashPicker onCommit={onDatabaseCommit} onCancel={onDatabasePickCancel} />
       ) : (
@@ -182,7 +192,7 @@ function SlashMenu({
               onClick={pickAt(index)}
             >
               <command.icon className="size-4" />
-              {command.label}
+              {t(command.labelKey)}
             </div>
           ))}
         </>

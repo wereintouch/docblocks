@@ -3,7 +3,7 @@
  * (the registry's single Record is assembled from the v1 entries and this
  * table); `BlockSpec` is a type-only import, so there is no runtime cycle.
  */
-import { FRAME_ELEMENT_TYPES, SURFACE_ELEMENT_TYPES } from "./block-type-lists";
+import { SURFACE_ELEMENT_TYPES } from "./block-type-lists";
 import type { BlockType } from "./block-union";
 import type { BlockSpec } from "./registry";
 
@@ -119,14 +119,22 @@ const CANVAS_BLOCK_SPECS: Pick<
       zIndex: { kind: "number", positive: true, integer: true },
     },
   },
+  // The frame: a viewport window into its own surface's content — no
+  // children, no content, no z-order index (the paint position is the
+  // surface's children order). Two contexts, one type: the surface child
+  // is the canvas frame (the optional `title` label, `frameId` is
+  // forbidden), the root child is the page-frame block (the required
+  // `frameId` weak reference to a canvas frame, `title` is forbidden) —
+  // the context presence rules stand in the strict validator (they are
+  // not expressible per-attr).
   frame: {
     content: false,
-    children: true,
+    children: false,
     rows: false,
-    childrenTypes: FRAME_ELEMENT_TYPES,
-    // The frame's children are a nested page: the flat page model applies
-    // to this sequence (indent, the indent-jump rule).
-    sequence: true,
+    attrs: {
+      title: { kind: "string" },
+      frameId: { kind: "string", nonEmpty: true },
+    },
   },
   "canvas-text": {
     content: true,
@@ -135,6 +143,13 @@ const CANVAS_BLOCK_SPECS: Pick<
     attrs: {
       fontSize: { kind: "number", positive: true },
       fontFamily: { kind: "string" },
+      // The text style attrs (the shape's text parity): the color and the
+      // weight x slant stand on the text wrapper at render.
+      textColor: { kind: "string", hexColor: true },
+      textStyle: {
+        kind: "enum",
+        values: ["regular", "semibold", "light", "light-italic", "italic", "semibold-italic"],
+      },
       textAlign: { kind: "string" },
       // The explicit z-order index (dense 1..N over the surface's canvas
       // elements; the order's mirror — the paint order, 1 = bottom).

@@ -8,10 +8,13 @@
  * container's full sequence; for a page-block entry root (a subtree
  * provider, e.g. a sync-embed subtree) the entry root's derived segment
  * within the container's sequence — the final VISIBLE order (the local
- * order at release — the collapsed segments are unmounted, so they do not
- * participate) is a permutation of the segment's blocks. The visible
- * order is mapped back to the scope (a collapsed item's hidden segment
- * rows reinsert after their collapsed item), and the commit is the range
+ * order at release — the collapsed segments and the surfaces (the canvas
+ * layer — the page view filters them out of the page sequence) do not
+ * participate) is a permutation of the segment's visible blocks. The
+ * visible order is mapped back to the scope (a collapsed item's hidden
+ * segment rows reinsert after their collapsed item, a surface stands at
+ * its scope slot — a page gesture does not reorder the canvas layer), and
+ * the commit is the range
  * move of the dragged block's derived subtree within the CONTAINER's
  * sequence (a range operation on one array, the scope's indices translated
  * by the scope's offset) plus the seam's indent assignment (below): one
@@ -135,7 +138,6 @@ function commitFlatDrag(
   // in data order, wherever the visible order left the visible ones).
   const segmentRows = sequence.slice(start, start + segmentLength);
   const segmentOthers = segmentRows.filter((id) => id !== draggedId);
-  const segmentOthersSet = new Set(segmentOthers);
 
   // The hidden rows of the OTHER collapsed items (a collapsed item is
   // itself visible — only its segment rows are unmounted); the dragged
@@ -151,29 +153,68 @@ function commitFlatDrag(
     if (rows.length > 0) hiddenByItem.set(id, rows);
   }
 
-  const finalFull: BlockId[] = [];
-  for (const id of visibleFinalOrder) {
-    if (segmentOthersSet.has(id)) continue;
-    finalFull.push(id);
-    if (id === draggedId) finalFull.push(...segmentOthers);
-    else {
-      const hidden = hiddenByItem.get(id);
-      if (hidden !== undefined) finalFull.push(...hidden);
-    }
-  }
-  if (finalFull.length !== sequence.length) return false; // stale: the visible set changed mid-drag
-
-  const target = finalFull.indexOf(draggedId);
-  if (target === start) return true; // a no-op drop: the segment stood in place, the order matches
-
-  // The final must be exactly the scope with the segment moved: the
-  // segment's internal order stands and the rest stands in order.
-  const segmentNow = sequence.slice(start, start + segmentLength);
-  const segmentFinal = finalFull.slice(target, target + segmentLength);
-  if (!segmentNow.every((id, i) => id === segmentFinal[i])) return false; // stale
+  // The scope members that stand no visible row — a FIXED member: a
+  // surface (the page view filters the canvas layer out of the page
+  // sequence — a page gesture does not reorder the canvas layer) and a
+  // collapsed item's hidden segment row (unmounted). Framer's reorder runs
+  // over the visible rows only: the non-segment visible rows keep their
+  // relative order in the visible values, and a fixed member (no row of
+  // its own) stands at its scope slot. The stale checks: the visible set
+  // stands (no ghost or vanished row) and the rest (the non-segment
+  // visible rows) stands in scope order (a remote reorder of the rest
+  // stands the mismatch — the stale drop's posture, the order resyncs to
+  // the store). The commit: the segment (the head's derived span)
+  // reinserts at the head's landing over the rest — the fixed members'
+  // scope slots stand, so a landing across a surface's slot stands the
+  // segment adjacent to it (the surface's slot stands — the segment does
+  // not cross it).
+  const hiddenRowSet = new Set<BlockId>();
+  for (const rows of hiddenByItem.values()) for (const row of rows) hiddenRowSet.add(row);
+  const isFixed = (id: BlockId): boolean => doc.getBlock(id)?.type === "surface" || hiddenRowSet.has(id);
+  const scopeVisible = sequence.filter((id) => !isFixed(id));
+  const scopeVisibleSet = new Set(scopeVisible);
+  const headLanding = visibleFinalOrder.indexOf(draggedId);
+  if (headLanding === -1) return false; // the dragged block vanished mid-drag
+  if (visibleFinalOrder.length !== scopeVisible.length) return false; // stale: the visible set changed mid-drag
+  if (!visibleFinalOrder.every((id) => scopeVisibleSet.has(id))) return false; // stale: a ghost row
+  const segmentSet = new Set(segmentRows);
   const restNow = [...sequence.slice(0, start), ...sequence.slice(start + segmentLength)];
-  const restFinal = [...finalFull.slice(0, target), ...finalFull.slice(target + segmentLength)];
-  if (!sameIds(restNow, restFinal)) return false; // stale: a remote reorder mid-drag
+  const restVisible = restNow.filter((id) => !isFixed(id));
+  // The rest (the non-segment visible rows) stands in scope order — the
+  // segment's own visible rows (wherever the visible order left them) are
+  // not part of the rest.
+  if (
+    !sameIds(
+      visibleFinalOrder.filter((id) => !segmentSet.has(id)),
+      restVisible
+    )
+  ) {
+    return false; // stale: a remote reorder of the rest mid-drag
+  }
+  // The no-op drop: the head's visible landing is its own visible slot
+  // (the data stands — a fixed member's slot may stand around the head,
+  // but the head's position stands).
+  if (headLanding === scopeVisible.indexOf(draggedId)) return true;
+  // The head's landing over the rest's visible members: the rest's visible
+  // members that stand before the head in the visible order (the segment's
+  // own visible followers stand at the head's span — they ride the
+  // segment, they do not count).
+  let restVisibleBeforeHead = 0;
+  for (let i = 0; i < headLanding; i += 1) {
+    if (!segmentSet.has(visibleFinalOrder[i]!)) restVisibleBeforeHead += 1;
+  }
+  // The splice point over the rest (scope units): right after the head's
+  // preceding visible rest member — the fixed members that stand behind it
+  // in scope stand behind the segment (a scope-trailing surface's slot
+  // stands — the segment does not cross the canvas layer's slot; a leading
+  // fixed member stands ahead of the head's first visible seat).
+  const restIndexOf = new Map<BlockId, number>();
+  restNow.forEach((id, i) => restIndexOf.set(id, i));
+  const precedingVisible = restVisible[restVisibleBeforeHead - 1];
+  const spliceAt = precedingVisible === undefined ? 0 : (restIndexOf.get(precedingVisible) ?? 0) + 1;
+  const finalFull = [...restNow.slice(0, spliceAt), ...segmentRows, ...restNow.slice(spliceAt)];
+
+  const target = spliceAt;
 
   // The core's pre-move index of the item the segment's head precedes, in
   // the CONTAINER's sequence (the scope-relative index translated by the
@@ -219,8 +260,25 @@ function commitFlatDrag(
   // only (the early return above), so a candidate that matches neither
   // neighbor is a stale measurement (a mid-slide box) — the stale drop's
   // posture: no command, the caller resyncs.
-  const before = target > 0 ? finalFull[target - 1] : undefined;
-  const after = finalFull[target + segmentLength];
+  // The seam's VISIBLE neighbors (a fixed member stands no seam candidate
+  // — the candidate is measured from the visible rows): the nearest
+  // visible block before / after the landed span.
+  let before: BlockId | undefined;
+  for (let i = target - 1; i >= 0; i -= 1) {
+    const id = finalFull[i];
+    if (id !== undefined && !isFixed(id)) {
+      before = id;
+      break;
+    }
+  }
+  let after: BlockId | undefined;
+  for (let i = target + segmentLength; i < finalFull.length; i += 1) {
+    const id = finalFull[i];
+    if (id !== undefined && !isFixed(id)) {
+      after = id;
+      break;
+    }
+  }
   const matchesSeam =
     (before !== undefined && candidateIndent === indentOf(doc, before)) ||
     (after !== undefined && candidateIndent === indentOf(doc, after));

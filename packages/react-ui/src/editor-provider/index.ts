@@ -1,9 +1,11 @@
-// The editor provider's cross-unit surface (C6).
+// The editor provider's cross-unit surface.
 export { EditorProvider } from "./EditorProvider";
 export { DEFAULT_EMBED_SANDBOX } from "./constants";
 export { useEditorContext } from "./context";
 export type {
+  AccessLevel,
   EditorContextValue,
+  EditorMode,
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,

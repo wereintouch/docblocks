@@ -8,7 +8,6 @@
 import type { BlockId, Doc, SelectionView } from "docblocks-core";
 
 import { editorRootOf, locatePosition, logicalTextOf, restoreSelection } from "../../dom-offset";
-import { findParentId } from "./commands";
 
 /** Run `fn` in the next animation frame (setTimeout where frames do not exist). */
 function afterFrame(fn: () => void): void {
@@ -35,11 +34,35 @@ function liveScope(scope: ParentNode): ParentNode {
  */
 function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = document): void {
   afterFrame(() => {
-    const el = liveScope(scope).querySelector<HTMLElement>(
-      `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`
-    );
-    // The gesture outlived its editor: a stale restore would clobber the live selection.
+    // The original's inner stands the id's query (the frame's window's
+    // inert copy stands the same id over the copy — the frame's view-back
+    // order stands it first in the DOM); the window-content's exclusion
+    // picks the original. The gesture outlived its editor: a stale
+    // restore would clobber the live selection.
+    const el =
+      Array.from(
+        liveScope(scope).querySelectorAll<HTMLElement>(
+          `[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`
+        )
+      ).find((candidate) => !candidate.closest('[data-slot="docblocks/frame-window-content"]')) ?? null;
     if (el === null || !el.isConnected) return;
+    el.focus();
+    restoreSelection(el, offset, null);
+  });
+}
+
+/**
+ * The caret's seat into the EXACT editable element at the flat offset
+ * (the focusCaretIn's parity — the frame waits the caller's re-render's
+ * commit). The exact element's stand over the id's query: the canvas's
+ * frame windows render the block's inert copies over the same id (the
+ * query stands the copy — the frame's view-back order stands it first in
+ * the DOM), so the caller passes the hit's element (the elementFromPoint's
+ * resolution — the pointer-events-none's copy stands no hit).
+ */
+function focusCaretInElement(el: HTMLElement, offset: number): void {
+  afterFrame(() => {
+    if (!el.isConnected) return;
     el.focus();
     restoreSelection(el, offset, null);
   });
@@ -56,7 +79,9 @@ function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = docu
 function focusCellActivation(cellId: BlockId, scope: ParentNode = document): void {
   afterFrame(() => {
     const root = liveScope(scope);
-    const cell = root.querySelector<HTMLElement>(`[data-slot="docblocks/table-cell"][data-block-id="${cellId}"]`);
+    const cell = root.querySelector<HTMLElement>(
+      `[data-slot="docblocks/table-cell"][data-block-id="${CSS.escape(cellId)}"]`
+    );
     const activation = cell?.querySelector<HTMLElement>('[data-slot="docblocks/cell-activation"]');
     if (activation == null || !activation.isConnected) return;
     activation.focus();
@@ -126,13 +151,21 @@ function restoreSelectionIn(
   scope: ParentNode = document,
   exclude: HTMLElement | null = null
 ): void {
-  const selector = `[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`;
+  const selector = `[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`;
   const json = doc.toJSON();
   // A top-level block's doc parent is the root block; in the DOM its parent
   // wrapper is absent, so normalize to null (domParentBlockIdOf's domain).
   // The same normalization stands for a frame: its nested page renders in
-  // its own editor root (no frame wrapper in the DOM).
-  const rawParent = findParentId(doc, blockId);
+  // its own editor root (no frame wrapper in the DOM). One full read stands
+  // the gesture's context (the parent's scan over the same snapshot — no
+  // second toJSON).
+  let rawParent: BlockId | null = null;
+  for (const [parentId, block] of Object.entries(json.blocks)) {
+    if ("children" in block && block.children !== undefined && block.children.includes(blockId)) {
+      rawParent = parentId;
+      break;
+    }
+  }
   const rawParentType = rawParent === null ? null : (json.blocks[rawParent]?.type ?? null);
   const expectedParent = rawParent === null || rawParent === json.id || rawParentType === "frame" ? null : rawParent;
   const blockType = json.blocks[blockId]?.type ?? "";
@@ -225,10 +258,19 @@ function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: Bloc
   const domSelection = window.getSelection();
   if (domSelection === null) return;
   const scope = editorRootOf(anchorNode);
-  const el = scope.querySelector<HTMLElement>(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
+  const el = scope.querySelector<HTMLElement>(
+    `[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`
+  );
   if (el === null) return;
   const target = locatePosition(el, offset);
   domSelection.setBaseAndExtent(anchorNode, anchorOffset, target.node, target.offset);
 }
 
-export { extendSelectionTo, focusCaretIn, focusCellActivation, reseatHistorySelection, restoreSelectionIn };
+export {
+  extendSelectionTo,
+  focusCaretIn,
+  focusCaretInElement,
+  focusCellActivation,
+  reseatHistorySelection,
+  restoreSelectionIn,
+};

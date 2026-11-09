@@ -46,6 +46,19 @@ const SHAPE_TEXT_STYLE_OPTIONS = [
   { id: "semibold-italic", label: "Semibold Italic" },
 ] as const;
 
+/** The textStyle's render mapping (the weight x the slant — the shape's
+ * text overlay and the canvas-text's wrapper share the stand: the absent
+ * / an unrecognized value stands the regular weight). */
+function textStyleOf(style: string | undefined): { fontWeight: number; fontStyle: "italic" | undefined } {
+  const fontWeight =
+    style === "light" || style === "light-italic"
+      ? SHAPE_TEXT_WEIGHTS.light
+      : style === "semibold" || style === "semibold-italic"
+        ? SHAPE_TEXT_WEIGHTS.semibold
+        : SHAPE_TEXT_WEIGHTS.regular;
+  return { fontWeight, fontStyle: /italic$/.test(style ?? "") ? "italic" : undefined };
+}
+
 export {
   SHAPE_FONT_OPTIONS,
   SHAPE_FONT_STACKS,
@@ -53,4 +66,5 @@ export {
   SHAPE_TEXT_DEFAULT_SIZE,
   SHAPE_TEXT_WEIGHTS,
   SHAPE_TEXT_STYLE_OPTIONS,
+  textStyleOf,
 };

@@ -1,0 +1,7 @@
+{
+  "page": {
+    "missing": "Фрейм не найден",
+    "windowLabel": "Фрейм",
+    "windowTitle": "Фрейм: {title}"
+  }
+}

@@ -14,12 +14,64 @@
  */
 import { useEffect, useState } from "react";
 
-import { ENUM_OPTION_COLOR_COLUMN } from "../bridge";
-import type { DatabaseBridge, SubscriptionHandle } from "../bridge";
+import { ENUM_OPTION_COLOR_COLUMN, isBridgeError } from "../bridge";
+import type { Column, DatabaseBridge, RowWire, SubscriptionHandle } from "../bridge";
 
 /** The page size the ref table loads (the dict options / the picker's
- *  rows — one page, no cursor continuation). */
+ *  rows): the cursor's continuation runs over every page (the catalog
+ *  stands complete — the truncated option list / the picker's rows are
+ *  not a stand). */
 const REF_PAGE_SIZE = 200;
+
+/** The cursor's continuation's retry bound (the `cursor_expired` over
+ *  the concurrent commit stands the fresh snapshot; the bound stands the
+ *  churn's livelock — over it the partial page set stands the lenient
+ *  read). */
+const REF_LOAD_ATTEMPTS = 3;
+
+/** Loads one page set over the cursor's continuation (the full page set
+ *  — the loop runs to the tail; the `cursor_expired` over the concurrent
+ *  commit stands the fresh snapshot's retry). The schema stands the first
+ *  snapshot's (the page set's stand — the color column's id lookup). */
+async function loadFullPages(
+  bridge: DatabaseBridge,
+  tableId: string
+): Promise<{ rows: RowWire[]; asOfSeq: number; columns: Column[] } | null> {
+  for (let attempt = 0; attempt < REF_LOAD_ATTEMPTS; attempt += 1) {
+    const snapshot = await bridge.snapshotTable(tableId, { limit: REF_PAGE_SIZE });
+    const rows = [...snapshot.page.rows];
+    const columns = snapshot.columns;
+    let cursor = snapshot.page.nextCursor;
+    let asOfSeq = snapshot.page.asOfSeq;
+    let queryFingerprint = snapshot.page.queryFingerprint;
+    while (cursor !== null) {
+      try {
+        const page = await bridge.queryNextPage(tableId, {
+          cursor,
+          asOfSeq,
+          queryFingerprint,
+        });
+        for (const row of page.rows) rows.push(row);
+        cursor = page.nextCursor;
+        asOfSeq = page.asOfSeq;
+        queryFingerprint = page.queryFingerprint;
+      } catch (pageError) {
+        // The cursor's snapshot boundary advanced (the concurrent commit):
+        // the fresh snapshot's retry (the loop's stand).
+        if (isBridgeError(pageError) && pageError.code === "cursor_expired" && attempt < REF_LOAD_ATTEMPTS - 1) {
+          break;
+        }
+        throw pageError;
+      }
+    }
+    if (cursor === null) return { rows, asOfSeq, columns };
+    // The cursor expired over the last attempt: the partial page set
+    // stands the lenient read (the refresh's next event stands the next
+    // load).
+    if (attempt === REF_LOAD_ATTEMPTS - 1) return { rows, asOfSeq, columns };
+  }
+  return null;
+}
 
 /** The loaded ref-table data: the row ids in the row order + the row
  *  displays (rowId → the display text) + the option colors (rowId → the
@@ -71,10 +123,12 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
     const refreshEntry = async (entryKey: string): Promise<void> => {
       const [tableId, displayColumn] = entryKey.split("\u0000");
       try {
-        // The snapshot's page (the ordered rows + the schema) stands the
-        // entry's data; the color stands the named `color` column's id.
-        const snapshot = await bridge.snapshotTable(tableId!, { limit: REF_PAGE_SIZE });
-        const rows = snapshot.page.rows;
+        // The full page set (the cursor's continuation to the tail — the
+        // catalog stands complete) + the schema stand the entry's data;
+        // the color stands the named `color` column's id.
+        const pageSet = await loadFullPages(bridge, tableId!);
+        if (pageSet === null) return;
+        const rows = pageSet.rows;
         const rowIds = rows.map((row) => row.id);
         const rawDisplays = await bridge.resolveRowDisplay(tableId!, {
           rowIds,
@@ -84,7 +138,7 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
         for (const [rowId, display] of Object.entries(rawDisplays)) {
           if (display !== null) displays[rowId] = display;
         }
-        const colorColumnId = snapshot.columns.find((column) => column.name === ENUM_OPTION_COLOR_COLUMN)?.id;
+        const colorColumnId = pageSet.columns.find((column) => column.name === ENUM_OPTION_COLOR_COLUMN)?.id;
         const colors: Record<string, string> = {};
         for (const row of rows) {
           const color = colorColumnId !== undefined ? row.cells[colorColumnId] : undefined;
@@ -112,6 +166,9 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
     const open = async (entryKey: string): Promise<void> => {
       const tableId = entryKey.split("\u0000")[0]!;
       try {
+        // The snapshot's `R` stands the replay cursor (the snapshot's
+        // first page — the full page set's continuation stands no
+        // subscription's cursor).
         const snapshot = await bridge.snapshotTable(tableId, { limit: REF_PAGE_SIZE });
         if (!live) return;
         let handle: SubscriptionHandle | null = null;
@@ -150,5 +207,5 @@ function useRefTables(bridge: DatabaseBridge, entries: RefTableEntry[]): RefTabl
   return data;
 }
 
-export { REF_PAGE_SIZE, refEntryKey, useRefTables };
+export { REF_PAGE_SIZE, loadFullPages, refEntryKey, useRefTables };
 export type { RefTableData, RefTableDataMap, RefTableEntry };

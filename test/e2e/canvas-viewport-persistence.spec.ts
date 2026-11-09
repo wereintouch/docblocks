@@ -43,6 +43,9 @@ async function seedWideScene(page: Page): Promise<void> {
       doc.setGeometry(b, { x: -9000, y: 0, w: 100, h: 80 });
     });
   });
+  // The canvas items render only in the canvas view (the page view filters
+  // the surface out), so the seed's stand is asserted there.
+  await toCanvas(page, "a");
   await expect(page.locator(`[data-testid="doc-a"] [data-slot="docblocks/canvas-item"]`)).toHaveCount(2);
 }
 

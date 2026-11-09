@@ -2,7 +2,7 @@
  * (the `./motion`'s Reorder's rows) provides the motion's variant here;
  * the base's renderer stands the plain editor (the slot stands the null's
  * stand). The base stands the context only — the framer's import stands
- * the motion's subpath (the house's boundary's contract). */
+ * the motion's subpath (the subpath's boundary's contract). */
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 

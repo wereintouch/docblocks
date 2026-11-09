@@ -134,7 +134,11 @@ test.describe("the border's controls", () => {
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "border-style");
+    // Both panes stand in the canvas view: the page view filters the
+    // surface out, so the shape's svg stands in the canvas view's
+    // canvas-item only.
     await switchPaneView(a, "a", "canvas");
+    await switchPaneView(b, "b", "canvas");
     await a.waitForTimeout(200);
 
     const id = await seedShape(a, "a", { variant: "rect", fill: "none" });

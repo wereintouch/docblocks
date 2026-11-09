@@ -6,27 +6,39 @@
  * content is portaled outside the editor root, where the `--docblocks-*`
  * tokens are not mapped).
  */
+import { useTranslation } from "react-i18next";
+
+import { DocblocksI18nProvider } from "../../i18n";
 import { Button } from "./Button";
 import { cn } from "./cn";
 import { AVATAR_EMOJI } from "./emoji-catalog";
 
-function EmojiPicker({
-  selected,
-  onPick,
-  onClear,
-}: {
+interface EmojiPickerProps {
   /** The standing avatar (the highlighted option); null / undefined when absent. */
   selected: string | null;
   /** Report an emoji pick. */
   onPick: (emoji: string) => void;
   /** Report the clear (remove the avatar). */
   onClear: () => void;
-}) {
+}
+
+/** The picker's i18n scope: the package's instance stands the provider's seat
+ *  over the picker (it stands also outside the editor's scope). */
+function EmojiPicker(props: EmojiPickerProps) {
+  return (
+    <DocblocksI18nProvider>
+      <EmojiPickerInner {...props} />
+    </DocblocksI18nProvider>
+  );
+}
+
+function EmojiPickerInner({ selected, onPick, onClear }: EmojiPickerProps) {
+  const { t } = useTranslation("editor");
   const pickEmoji = (emoji: string) => () => onPick(emoji);
 
   return (
     <div data-slot="docblocks/emoji-picker" className="flex w-52 flex-col gap-2">
-      <div role="group" aria-label="Avatar emoji" className="grid grid-cols-6 gap-1">
+      <div role="group" aria-label={t("shared.emojiPickerGroup")} className="grid grid-cols-6 gap-1">
         {AVATAR_EMOJI.map(({ emoji, label }) => {
           const isSelected = selected === emoji;
           return (
@@ -65,7 +77,7 @@ function EmojiPicker({
         "
         onClick={onClear}
       >
-        Remove avatar
+        {t("shared.removeAvatar")}
       </Button>
     </div>
   );

@@ -7,6 +7,7 @@
  * re-render trigger) and on an editor-theme flip (the theme is the
  * global config's stand, set in the same task as the render call). */
 import mermaid from "mermaid";
+import { useTranslation } from "react-i18next";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -17,7 +18,7 @@ import { Skeleton } from "../shared/ui/Skeleton";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
 import { INLINE_CODE_CLASS } from "../text";
 import { configureMermaidTheme, safeId } from "./mermaid-config";
-import { useContainerTheme } from "./useContainerTheme";
+import { useContainerTheme } from "./use-container-theme";
 
 /** The preview state: the current svg (kept while a re-render runs), or the last error. */
 type DiagramState = { svg: string | null; error: string | null };
@@ -26,6 +27,7 @@ type DiagramState = { svg: string | null; error: string | null };
 let renderSeq = 0;
 
 function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
+  const { t } = useTranslation("blocks");
   const containerRef = useRef<HTMLDivElement>(null);
   const theme = useContainerTheme(containerRef);
   const [state, setState] = useState<DiagramState>({ svg: null, error: null });
@@ -96,7 +98,7 @@ function MermaidDiagram({ id, text }: { id: BlockId; text: string }) {
       <Skeleton className="h-24 w-full" />
       <div className="absolute inset-0 flex items-center justify-center gap-2">
         <LoaderCircle className="size-4 animate-spin" />
-        <span data-slot="docblocks/mermaid-loading">rendering…</span>
+        <span data-slot="docblocks/mermaid-loading">{t("code.rendering")}</span>
       </div>
     </div>
   );

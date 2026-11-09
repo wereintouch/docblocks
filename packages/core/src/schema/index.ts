@@ -9,10 +9,13 @@ export {
   LEAF_BLOCK_TYPES,
   MARK_REGISTRY,
   PAGE_BLOCK_TYPES,
+  isRegisteredBlockType,
+  isRegisteredMarkName,
 } from "./registry";
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
 export { flattenDoc } from "./flatten";
 export { isReservedId, RESERVED_ID_KEYS } from "./id-safety";
+export { setOwn } from "./object-safety";
 export { CANVAS_ZORDER_TYPES, normalizeZOrder } from "./z-order";
 export {
   checkDatabaseCellValue,
@@ -23,6 +26,7 @@ export {
   validateMarkSet,
 } from "./validate";
 export type { ValidationError } from "./validate";
+export { isHexColor, isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
 export type { AttrsFor, Block, BlockAttrsPatch, BlockType } from "./block-union";
 export type {
   BlockId,
@@ -49,8 +53,11 @@ export type {
   DividerBlock,
   EmbedAttrs,
   EmbedBlock,
+  FrameAttrs,
   FrameBlock,
   Geometry,
+  GroupAttrs,
+  GroupBlock,
   HeadingAttrs,
   HeadingBlock,
   ImageAttrs,
@@ -61,6 +68,8 @@ export type {
   PageIndent,
   ParagraphAttrs,
   ParagraphBlock,
+  QuoteAttrs,
+  QuoteBlock,
   RootBlock,
   ShapeAttrs,
   ShapeBlock,

@@ -677,7 +677,7 @@ describe("the flat page model (indent)", () => {
     expectError(doc, "blocks.a.attrs.indent", "must have indent 0");
   });
 
-  it("rejects an indent jump in the cell mini-doc sequence and the frame nested page", () => {
+  it("rejects an indent jump in the cell mini-doc sequence", () => {
     const cell = {
       ...makeDoc(),
       blocks: {
@@ -690,18 +690,6 @@ describe("the flat page model (indent)", () => {
       },
     };
     expectError(cell, "blocks.c2.attrs.indent", "by more than 1");
-
-    const frame = {
-      ...makeDoc(),
-      blocks: {
-        r: { type: "root", children: ["s"] },
-        s: { type: "surface", children: ["f"] },
-        f: { type: "frame", children: ["f1", "f2"] },
-        f1: { type: "paragraph" },
-        f2: { type: "paragraph", attrs: { indent: 2 } },
-      },
-    };
-    expectError(frame, "blocks.f2.attrs.indent", "by more than 1");
 
     // Structural order ignores indent: a jump there is not a violation.
     const surface = {
@@ -766,6 +754,63 @@ describe("table rows", () => {
     // missing cells as placeholders.
     expectValid(tableWithRowCells(2, 1));
     expectValid(tableWithRowCells(2, 2));
+  });
+});
+
+describe("the frame context rules (two contexts, one type)", () => {
+  /** The frame's scene: a surface with a canvas frame + a page frame in the root. */
+  const frameDoc = (canvasFrame: Record<string, unknown>, pageFrame?: Record<string, unknown>) => ({
+    ...makeDoc(),
+    blocks: {
+      r: { type: "root", children: pageFrame === undefined ? ["s"] : ["s", "pf"] },
+      ...(pageFrame === undefined ? {} : { pf: pageFrame }),
+      s: { type: "surface", children: ["f"] },
+      f: canvasFrame,
+    },
+  });
+
+  it("accepts the canvas frame (a surface child with the optional title) and the page-frame block (a root child with the frameId)", () => {
+    expectValid(frameDoc({ type: "frame", attrs: { title: "Camera" } }, { type: "frame", attrs: { frameId: "f" } }));
+    expectValid(frameDoc({ type: "frame" })); // the title is optional in the canvas context
+    expectValid(frameDoc({ type: "frame", attrs: { title: "" } })); // the empty string = the removed state
+  });
+
+  it("a frame in the root's children requires the frameId (missing / empty)", () => {
+    expectError(
+      frameDoc({ type: "frame" }, { type: "frame" }),
+      "blocks.pf.attrs.frameId",
+      'requires a non-empty "frameId"'
+    );
+    // The empty string: the registry's nonEmpty rule stands (the value rule).
+    expectError(
+      frameDoc({ type: "frame" }, { type: "frame", attrs: { frameId: "" } }),
+      "blocks.pf.attrs.frameId",
+      "non-empty string"
+    );
+  });
+
+  it("a frame in the root's children must not carry a title", () => {
+    expectError(
+      frameDoc({ type: "frame" }, { type: "frame", attrs: { frameId: "f", title: "Camera" } }),
+      "blocks.pf.attrs.title",
+      'must not carry a "title"'
+    );
+  });
+
+  it("a frame in a surface's children must not carry a frameId", () => {
+    expectError(
+      frameDoc({ type: "frame", attrs: { frameId: "other" } }),
+      "blocks.f.attrs.frameId",
+      'must not carry a "frameId"'
+    );
+  });
+
+  it("a frame with children is a structural error (the strict posture)", () => {
+    expectError(
+      frameDoc({ type: "frame", children: ["x"] }),
+      "blocks.f.children",
+      'Block type "frame" has no children'
+    );
   });
 });
 

@@ -22,7 +22,12 @@ const LEAF_BLOCK_TYPES: readonly BlockType[] = [
   "database",
 ];
 
-/** Top-level page blocks: everything except `root` and table internals. */
+/**
+ * Top-level page blocks: everything except `root` and table internals.
+ * The `frame` stands in the page set (the page-frame block — the inline
+ * window into a canvas frame; the canvas-frame context stands in the
+ * surface's element set).
+ */
 const PAGE_BLOCK_TYPES: readonly BlockType[] = [
   "paragraph",
   "quote",
@@ -37,26 +42,21 @@ const PAGE_BLOCK_TYPES: readonly BlockType[] = [
   "divider",
   "database",
   "surface",
+  "frame",
 ];
 
 /**
  * The canvas element set for `surface.children`: the page blocks (a nested
- * `surface` is NOT allowed in v1 — the canvas does not nest) plus the
+ * `surface` is NOT allowed in v1 — the canvas does not nest; the `frame`
+ * arrives with the page set — the canvas-frame context) plus the
  * canvas-only types.
  */
 const SURFACE_ELEMENT_TYPES: readonly BlockType[] = [
   ...PAGE_BLOCK_TYPES.filter((type) => type !== "surface"),
   "shape",
   "connector",
-  "frame",
   "canvas-text",
   "group",
 ];
 
-/**
- * The `frame`'s children: the page blocks (the frame is a page container on
- * the canvas — no nested surface, no frame-in-frame).
- */
-const FRAME_ELEMENT_TYPES: readonly BlockType[] = PAGE_BLOCK_TYPES.filter((type) => type !== "surface");
-
-export { FRAME_ELEMENT_TYPES, LEAF_BLOCK_TYPES, PAGE_BLOCK_TYPES, SURFACE_ELEMENT_TYPES };
+export { LEAF_BLOCK_TYPES, PAGE_BLOCK_TYPES, SURFACE_ELEMENT_TYPES };

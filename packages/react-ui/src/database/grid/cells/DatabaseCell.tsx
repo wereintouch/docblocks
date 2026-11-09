@@ -46,6 +46,9 @@ interface DatabaseCellProps {
   rowId: string;
   column: BridgeColumn;
   value: unknown;
+  /** The row's live revision (the draft's open stand — the deferred
+   *  commit's CAS pins the open-time one). */
+  revision: string | undefined;
   rowIndex: number;
   colIndex: number;
   first: boolean;
@@ -57,7 +60,9 @@ interface DatabaseCellProps {
   /** The cell stands the sole selection (the boolean's checkbox interactive stand). */
   singleSelected: boolean;
   editing: boolean;
-  onChange: (value: unknown) => void;
+  /** The draft's commit: the value + the pinned revision (the open stand —
+   *  the immediate commits stand the one-arg form). */
+  onChange: (value: unknown, expectedRevision?: string) => void;
   onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onEditStart: () => void;
   onEditEnd: () => void;
@@ -81,6 +86,7 @@ function DatabaseCell({
   rowId,
   column,
   value,
+  revision,
   rowIndex,
   colIndex,
   first,
@@ -123,6 +129,14 @@ function DatabaseCell({
   const [textDraft, setTextDraft] = useState<string | null>(null);
   const textCancelledRef = useRef(false);
   const textSettledRef = useRef(false);
+  // The draft's open stand (the deferred commit's pin + the no-write's
+  // guard): the mid-session's value changes re-baseline the grid's
+  // revision map (the peer's commit over the refetch), so the close's
+  // unchanged test + the CAS stand the open-time value + revision — the
+  // stale pin's rejection stands the conflict, not a silent overwrite.
+  const openValueRef = useRef<string | null>(null);
+  const openDateRef = useRef<Date | null>(null);
+  const openRevisionRef = useRef<string | undefined>(undefined);
 
   // The multi-line edit's caret seat (the autoFocus's start seat): the
   // session's open focuses the editor and seats the caret at the value's
@@ -149,7 +163,8 @@ function DatabaseCell({
    * external teardown both end the session, the session's end commits):
    * the parse's invalid stand no commit, the negative's reject stand no
    * commit, the unchanged value stand no commit (no bridge call, no
-   * refetch, no no-op undo entry). */
+   * refetch, no no-op undo entry). The unchanged test + the CAS stand the
+   * open-time stand (the mid-session's peer's commit stands no clobber). */
   const commitTextDraft = () => {
     const draft = textDraft;
     if (draft === null) return;
@@ -158,11 +173,8 @@ function DatabaseCell({
     const parsed = result.value;
     const rejected = isNumber && column.allowNegative === false && parsed !== null && Number(parsed) < 0;
     if (rejected) return;
-    const unchanged =
-      parsed === null
-        ? value === undefined || value === null
-        : value !== undefined && value !== null && value === parsed;
-    if (!unchanged) onChange(parsed);
+    if (draft === openValueRef.current) return;
+    onChange(parsed, openRevisionRef.current);
   };
 
   /** The Escape's cancel: the session closes without a commit (no write
@@ -198,8 +210,10 @@ function DatabaseCell({
       const [hours, minutes, seconds] = draftTime.split(":");
       committed.setHours(Number(hours), Number(minutes), Number(seconds));
     }
-    // A no-op close (the draft stands the value) stands no commit.
-    if ((committed?.getTime() ?? null) === (dateValue?.getTime() ?? null)) return;
+    // A no-op close (the draft stands the OPEN-time value) stands no
+    // commit: the peer's mid-session commit stands no clobber over the
+    // fresh value.
+    if ((committed?.getTime() ?? null) === (openDateRef.current?.getTime() ?? null)) return;
     let iso: string | null;
     if (committed === null) {
       iso = null;
@@ -217,7 +231,7 @@ function DatabaseCell({
     // keeps it a no-write.
     if (iso === committedIsoRef.current) return;
     committedIsoRef.current = iso;
-    onChange(iso);
+    onChange(iso, openRevisionRef.current);
   };
 
   // The external teardown's commit stand: the grid's session clear (the
@@ -490,12 +504,16 @@ function DatabaseCell({
     if (isText || isNumber) {
       textCancelledRef.current = false;
       textSettledRef.current = false;
+      openValueRef.current = rawValue;
+      openRevisionRef.current = revision;
       setTextDraft(rawValue);
     }
     // The datetime's drafts stand from the value at the open (the double
     // press is the session's single entry; the mid-session value changes
     // stand the draft untouched until the close commits).
     if (isDateTime) {
+      openDateRef.current = dateValue;
+      openRevisionRef.current = revision;
       setDraftDate(dateValue !== null ? dateOnly(dateValue) : null);
       setDraftTime(dateValue !== null && hasTime(dateValue) ? format(dateValue, "HH:mm:ss") : null);
     }

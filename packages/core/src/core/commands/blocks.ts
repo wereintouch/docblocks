@@ -5,7 +5,14 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, isReservedId, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import {
+  BLOCK_REGISTRY,
+  isRegisteredBlockType,
+  isReservedId,
+  isSafeEmbedSrc,
+  validateBlockAttrs,
+  validateCanvasBlock,
+} from "@docblocks-core/schema";
 import type { AttrsFor, BlockId, BlockType, ValidationError } from "@docblocks-core/schema";
 
 import {
@@ -114,7 +121,7 @@ function insertBlock(
   attrs: unknown,
   at?: InsertBlockPosition
 ): BlockId {
-  if (!(type in BLOCK_REGISTRY)) throw new UnknownBlockTypeError(`Unknown block type "${String(type)}".`);
+  if (!isRegisteredBlockType(type)) throw new UnknownBlockTypeError(`Unknown block type "${String(type)}".`);
   if (type === "root") throw new InvalidOperationError("The root block already exists and cannot be inserted.");
 
   // An explicit id must be fresh (a deterministic concurrent insert — the
@@ -157,6 +164,17 @@ function insertBlock(
     validateCanvasBlock(type, { type, attrs }, "blocks.new", canvasErrors);
     if (canvasErrors.length > 0) {
       throw new InvalidAttrsError(`Invalid attrs for block type "${type}": ${formatValidationErrors(canvasErrors)}`);
+    }
+  }
+
+  // The embed's kind x src cross-field rule (the unsafe scheme stands the
+  // XSS over the consumer's sandbox grant / the phishing surface).
+  if (type === "embed" && isPlainObject(tableAttrs) && typeof tableAttrs.src === "string") {
+    const kind = typeof tableAttrs.kind === "string" ? tableAttrs.kind : "iframe";
+    if (!isSafeEmbedSrc(kind, tableAttrs.src)) {
+      throw new InvalidAttrsError(
+        `Invalid attrs for block type "embed": the src is not a safe URL for kind "${kind}" (absolute http/https only; the html kind stands the data:text/html snippet additionally).`
+      );
     }
   }
 
@@ -509,7 +527,7 @@ function removeBlock(ydoc: Y.Doc, id: string): void {
   // the contiguous stretch to the first block with an indent <= its own —
   // removed with the block, like structural children. Extended BEFORE the
   // structural walk so the segment members' own structural descendants
-  // (a table's rows/cells, a frame's page) are collected too.
+  // (a table's rows/cells) are collected too.
   const segment: string[] = [];
   if (parentId !== null && isPageSequence(ydoc, parentId)) {
     const seq = childrenOf(ydoc, parentId);

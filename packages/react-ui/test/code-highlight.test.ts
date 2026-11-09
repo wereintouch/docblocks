@@ -8,7 +8,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 
-import { highlightCode, loadGrammar } from "../src/blocks/code-highlight";
+import { highlightCode, loadGrammar } from "../src/blocks/code/code-highlight";
 
 // A mocked grammar module that fails to load (the transient chunk fetch
 // failure pin — the "c" grammar is used by that pin only in this file).

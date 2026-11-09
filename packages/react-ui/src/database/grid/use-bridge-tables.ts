@@ -10,8 +10,16 @@ function useBridgeTables(bridge: DatabaseBridge, refreshKey: number): TableRef[]
   useEffect(() => {
     let live = true;
     void (async () => {
-      const list = await bridge.listTables();
-      if (live) setTables([...list].sort((a, b) => a.name.localeCompare(b.name)));
+      try {
+        const list = await bridge.listTables();
+        if (live) setTables([...list].sort((a, b) => a.name.localeCompare(b.name)));
+      } catch (listError) {
+        // The bridge's listTables rejection (the consumer's transient
+        // failure): the pick list stays empty (the picker keeps the
+        // "new table" entry), the failure stands the console — the
+        // unhandled rejection is not a stand.
+        if (live) console.error("docblocks: the bridge's table catalog failed to load", listError);
+      }
     })();
     return () => {
       live = false;

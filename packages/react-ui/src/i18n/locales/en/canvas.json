@@ -1,0 +1,104 @@
+{
+  "view": {
+    "label": "Canvas"
+  },
+  "dock": {
+    "toolbar": "Canvas tools",
+    "modeSelect": "Switch to the select mode",
+    "modePan": "Switch to the pan mode",
+    "shapes": "Shapes",
+    "shapesMenu": "Shapes menu",
+    "text": "Text",
+    "frame": "Frame",
+    "container": "Container",
+    "connector": "Connector",
+    "pen": "Pen"
+  },
+  "shapes": {
+    "rect": "Rectangle",
+    "rounded": "Rounded Rectangle",
+    "ellipse": "Ellipse",
+    "diamond": "Diamond",
+    "cylinder": "Cylinder",
+    "cloud": "Cloud"
+  },
+  "item": {
+    "shape": "Shape block",
+    "text": "Text block",
+    "frame": "Frame block",
+    "group": "Group block",
+    "connector": "Connector block",
+    "other": "{type} block"
+  },
+  "zoom": {
+    "toolbar": "Canvas zoom",
+    "fit": "Fit to screen",
+    "out": "Zoom out",
+    "in": "Zoom in",
+    "reset": "Reset zoom"
+  },
+  "connector": {
+    "toolbar": "Connector options",
+    "labelEdit": "Connector label",
+    "straight": "Straight line",
+    "orthogonal": "Orthogonal line",
+    "curved": "Curved line",
+    "lineColor": "Line color",
+    "lineWidth": "Line width",
+    "lineWidthTitle": "Line width (1–4 px)",
+    "solid": "Solid line",
+    "dashed": "Dashed line",
+    "arrowheadStart": "Start arrowhead",
+    "arrowheadEnd": "End arrowhead",
+    "arrowheadsStart": "Start arrowheads",
+    "arrowheadsEnd": "End arrowheads",
+    "arrowheadArrow": "Arrow",
+    "arrowheadCircle": "Circle",
+    "arrowheadNone": "None",
+    "arrange": "Arrange line"
+  },
+  "shape": {
+    "toolbar": "Shape options",
+    "type": "Shape type",
+    "types": "Shape types",
+    "addText": "Add text",
+    "addTextTitle": "Add text (or double-click the shape)",
+    "fillColor": "Shape fill color",
+    "strokeColor": "Shape stroke color",
+    "borderWidth": "Shape border width",
+    "borderWidthTitle": "Border width (1–4 px)",
+    "borderStyle": "Shape border style",
+    "borderStyleTitle": "Border style",
+    "borderStyles": "Border styles",
+    "solid": "Solid line",
+    "dashed": "Dashed",
+    "borderNone": "No border",
+    "arrange": "Arrange shape"
+  },
+  "zorder": {
+    "title": "Arrange (z-order)",
+    "bringForward": "Bring forward",
+    "bringToFront": "Bring to front",
+    "sendBackward": "Send backward",
+    "sendToBack": "Send to back"
+  },
+  "text": {
+    "toolbar": "Text options",
+    "arrange": "Arrange text",
+    "fontFamily": "Text font family",
+    "color": "Text color",
+    "style": "Text style",
+    "fontSize": "Text font size",
+    "alignLeft": "Align left",
+    "alignCenter": "Align center",
+    "alignRight": "Align right"
+  },
+  "titleChip": {
+    "button": "Title",
+    "setContainerTitle": "Set container title",
+    "setFrameTitle": "Set frame title",
+    "containerTitle": "Container title",
+    "frameTitle": "Frame title"
+  },
+  "colorHex": "{label} hex value"
+}

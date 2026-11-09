@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { StrictMode, act, memo } from "react";
 
@@ -338,5 +338,212 @@ describe("the editor frame and the empty-block hint", () => {
     const inners = container.querySelectorAll('[data-slot="docblocks/block-content"]');
     expect(inners).toHaveLength(1);
     expect(inners[0]?.getAttribute("data-placeholder")).toBe("Outer hint");
+  });
+});
+
+describe("the access level and the mode (the effective-mode's resolution)", () => {
+  beforeEach(() => {
+    captureRef.current = null;
+  });
+  afterEach(cleanup);
+
+  /** The provider's context stand (the mode's effective's read). */
+  const captureRef = { current: null as null | { accessLevel: string; mode: string; viewMode: boolean } };
+  function ContextProbe() {
+    const ctx = useEditorContext();
+    captureRef.current = { accessLevel: ctx.accessLevel, mode: ctx.mode, viewMode: ctx.viewMode };
+    return null;
+  }
+
+  it("stands the defaults (the editor's editable live doc)", () => {
+    const doc = createDoc({ id: "doc-access-1", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc}>
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "edit", viewMode: false });
+  });
+
+  it("stands the view's read-only over the mode's stand", () => {
+    const doc = createDoc({ id: "doc-access-2", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc} mode="view">
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "view", viewMode: true });
+  });
+
+  it("stands the published's read-only over the mode's stand", () => {
+    const doc = createDoc({ id: "doc-access-3", createdAt: CREATED_AT });
+    const snapshot = createDoc({ id: "doc-access-3", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc} mode="published" publishedDoc={snapshot}>
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "published", viewMode: true });
+  });
+
+  it("the viewer stands the published over any mode (the current state's stand off)", () => {
+    const doc = createDoc({ id: "doc-access-4", createdAt: CREATED_AT });
+    const snapshot = createDoc({ id: "doc-access-4", createdAt: CREATED_AT });
+    render(
+      <EditorProvider doc={doc} accessLevel="viewer" mode="edit" publishedDoc={snapshot}>
+        <ContextProbe />
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "viewer", mode: "published", viewMode: true });
+  });
+
+  it("a nested provider without its own mode inherits the enclosing's (the sync-embed's parity)", () => {
+    const doc = createDoc({ id: "doc-access-5", createdAt: CREATED_AT });
+    const b = doc.insertBlock("paragraph");
+    render(
+      <EditorProvider doc={doc} mode="view">
+        <EditorProvider doc={doc} rootBlockId={b}>
+          <ContextProbe />
+        </EditorProvider>
+      </EditorProvider>
+    );
+    expect(captureRef.current).toEqual({ accessLevel: "editor", mode: "view", viewMode: true });
+  });
+});
+
+describe("the published's stand (the snapshot's render + the placeholder)", () => {
+  afterEach(cleanup);
+
+  it("remounts the nested provider over a new snapshot (the stand key's swap, the same snapshot's keep)", () => {
+    // The remount's contract: a new snapshot instance stands a new nested
+    // provider (a new store — the doc's stand must not change over a
+    // mounted provider), the same snapshot stands no re-mount over the
+    // re-render (the key's stable reference keeps the instance).
+    const live = createDoc({ id: "doc-pub-2", createdAt: CREATED_AT });
+    live.insertText(live.insertBlock("paragraph"), 0, "LIVE");
+    const snapshot1 = createDoc({ id: "doc-pub-2", createdAt: CREATED_AT });
+    snapshot1.insertText(snapshot1.insertBlock("paragraph"), 0, "SNAP1");
+    const snapshot2 = createDoc({ id: "doc-pub-2", createdAt: CREATED_AT });
+    snapshot2.insertText(snapshot2.insertBlock("paragraph"), 0, "SNAP2");
+
+    const seenStores: unknown[] = [];
+    function StoreProbe() {
+      const ctx = useEditorContext();
+      seenStores.push(ctx.store);
+      return null;
+    }
+
+    const view = render(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot1}>
+        <StoreProbe />
+        <Editor />
+      </EditorProvider>
+    );
+    const store1 = seenStores[seenStores.length - 1];
+    expect(view.container.textContent).toContain("SNAP1");
+
+    // The same snapshot's re-render: the instance stands (the store's
+    // reference keeps).
+    view.rerender(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot1}>
+        <StoreProbe />
+        <Editor />
+      </EditorProvider>
+    );
+    expect(seenStores[seenStores.length - 1]).toBe(store1);
+
+    // The new snapshot: the key's swap stands the remount (a new store,
+    // the snapshot's content stands over the live's).
+    view.rerender(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot2}>
+        <StoreProbe />
+        <Editor />
+      </EditorProvider>
+    );
+    expect(seenStores[seenStores.length - 1]).not.toBe(store1);
+    expect(view.container.textContent).toContain("SNAP2");
+    expect(view.container.textContent).not.toContain("SNAP1");
+  });
+
+  it("renders the snapshot's doc read-only (the live's stand off over the published's mode)", () => {
+    const live = createDoc({ id: "doc-pub-1", createdAt: CREATED_AT });
+    live.insertText(live.insertBlock("paragraph"), 0, "LIVE");
+    const snapshot = createDoc({ id: "doc-pub-1", createdAt: CREATED_AT });
+    snapshot.insertText(snapshot.insertBlock("paragraph"), 0, "PUBLISHED");
+    const { container } = render(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot}>
+        <Editor />
+      </EditorProvider>
+    );
+    expect(container.textContent).toContain("PUBLISHED");
+    expect(container.textContent).not.toContain("LIVE");
+  });
+
+  it("stands the not-published's placeholder over the absent's stand (the viewer holds no doc at all)", () => {
+    const { container } = render(
+      <EditorProvider accessLevel="viewer">
+        <Editor />
+      </EditorProvider>
+    );
+    expect(container.querySelector('[data-slot="docblocks/not-published"]')).not.toBeNull();
+    expect(container.textContent).toContain("not been published");
+    expect(container.querySelector('[data-slot="docblocks/editor"]')).toBeNull();
+    expect(container.querySelector('[data-slot="docblocks/block-content"]')).toBeNull();
+  });
+
+  it("the viewer's stand renders the snapshot's doc read-only, directly (the security stand — no live doc, no nested stand)", () => {
+    // The doc the consumer passes IS the published snapshot (the reader's
+    // browser never holds the live document): a doc the viewer may see,
+    // nothing else.
+    const snapshot = createDoc({ id: "doc-pub-5", createdAt: CREATED_AT });
+    snapshot.insertText(snapshot.insertBlock("paragraph"), 0, "PUBLISHED");
+    snapshot.insertBlock("divider"); // a non-text tail: the guarantee's write target
+    const before = snapshot.toJSON();
+    const { container } = render(
+      <EditorProvider doc={snapshot} accessLevel="viewer">
+        <Editor />
+      </EditorProvider>
+    );
+    expect(container.textContent).toContain("PUBLISHED");
+    // The render stands directly over the doc (no nested provider's stand
+    // — a single editor root).
+    expect(container.querySelectorAll('[data-slot="docblocks/editor"]').length).toBe(1);
+    expect(container.querySelector('[data-slot="docblocks/editor"]')?.getAttribute("data-readonly")).toBe("true");
+    const blockId = snapshot.getChildren(snapshot.meta.id)[0]!;
+    const inner = container.querySelector(`[data-block-id="${blockId}"][data-slot="docblocks/block-content"]`);
+    expect(inner?.getAttribute("contenteditable")).toBe("false");
+    expect(container.querySelector('[data-slot="docblocks/gutter"]')).toBeNull();
+    // The read-only stand never writes into its own doc (the tail's
+    // guarantee stands off over the viewer's stand).
+    expect(snapshot.toJSON()).toEqual(before);
+  });
+
+  it("the editor's published's mode stands the same stand over an unpublished doc", () => {
+    const live = createDoc({ id: "doc-pub-3", createdAt: CREATED_AT });
+    live.insertText(live.insertBlock("paragraph"), 0, "DRAFT");
+    const { container } = render(
+      <EditorProvider doc={live} mode="published">
+        <Editor />
+      </EditorProvider>
+    );
+    expect(container.querySelector('[data-slot="docblocks/not-published"]')).not.toBeNull();
+    expect(container.textContent).not.toContain("DRAFT");
+  });
+
+  it("the snapshot stands static (the read-only stand never writes into its own doc)", () => {
+    const live = createDoc({ id: "doc-pub-4", createdAt: CREATED_AT });
+    live.insertText(live.insertBlock("paragraph"), 0, "LIVE");
+    const snapshot = createDoc({ id: "doc-pub-4", createdAt: CREATED_AT });
+    snapshot.insertText(snapshot.insertBlock("paragraph"), 0, "PUBLISHED");
+    snapshot.insertBlock("divider"); // a non-text tail: the guarantee's write target
+    const before = snapshot.toJSON();
+    render(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot}>
+        <Editor />
+      </EditorProvider>
+    );
+    expect(snapshot.toJSON()).toEqual(before);
+    const sequence = snapshot.getChildren(snapshot.meta.id);
+    expect(snapshot.getBlock(sequence[sequence.length - 1]!)).toMatchObject({ type: "divider" });
   });
 });

@@ -43,16 +43,19 @@ describe("the flat page model (registry)", () => {
     // The list marker model stands: a list item nests only under a list item.
     expect(BLOCK_REGISTRY["list-item"].legacyChildrenTypes).toEqual(["list-item"]);
     // The structural containers keep `children` (the writer contract).
-    for (const type of ["root", "table", "table-row", "table-cell", "surface", "frame"] as const) {
+    for (const type of ["root", "table", "table-row", "table-cell", "surface"] as const) {
       expect(BLOCK_REGISTRY[type].children, `${type} keeps children`).toBe(true);
     }
+    // The frame is a viewport window (no children — the legacy nested page
+    // is gone; the read drops the link, the strict validator flags it).
+    expect(BLOCK_REGISTRY["frame"].children).toBe(false);
   });
 
   it("the indent attr is registered exactly on the page-sequence types", () => {
     for (const type of PAGE_BLOCK_TYPES) {
       expect(BLOCK_REGISTRY[type].attrs?.indent, `indent on ${type}`).toBeDefined();
     }
-    for (const type of ["table-row", "table-cell", "shape", "connector", "frame", "canvas-text", "root"] as const) {
+    for (const type of ["table-row", "table-cell", "shape", "connector", "canvas-text", "root"] as const) {
       expect(BLOCK_REGISTRY[type].attrs?.indent, `no indent on ${type}`).toBeUndefined();
     }
   });

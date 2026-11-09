@@ -218,7 +218,7 @@ async function cellCenter(page: Page, row: number, col: number, cols: number): P
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
-/** The right-click on a cell (the menu defers its open a task past the gesture's release — polled). */
+/** The right-click on a cell (the menu stands its open over the gesture's release — polled). */
 async function rightClickCell(page: Page, row: number, col: number, cols: number): Promise<void> {
   const center = await cellCenter(page, row, col, cols);
   await page.mouse.click(center.x, center.y, { button: "right" });
@@ -964,30 +964,15 @@ test("the keyboard path: the handle's focus + the Enter open + the keyboard pick
     await handle.focus();
     await a.keyboard.press("Enter");
     await expect(rowMenu(a)).toBeVisible();
-    // The menu's open auto-focus (the first item) stands async of the mount:
-    // the navigation keys need the focus seated — the seat's condition, not
-    // a timer.
-    await expect
-      .poll(
-        () => a.evaluate(() => document.activeElement?.closest('[data-slot="docblocks/table-row-menu"]') !== null),
-        SETTLE
-      )
-      .toBe(true);
-    // The content's open animation keeps the menu's keys inert while it runs
-    // (a navigation key pressed during it is lost): wait for its end (the
-    // animation's stand, not a timer).
-    await expect
-      .poll(
-        () =>
-          a.evaluate(
-            () =>
-              document.querySelector<HTMLElement>("[data-slot='docblocks/table-row-menu']")?.getAnimations().length ===
-              0
-          ),
-        SETTLE
-      )
-      .toBe(true);
+    // The menu's open auto-focus (the first item — the Background sub-trigger)
+    // stands async of the mount, and the arrow's focus travel is a
+    // setTimeout hop (the roving focus group): a fixed delay is outlasted by
+    // the load-timed mount, and an Enter landed on the Background trigger
+    // opens the color palette instead of picking the item. The seated focus
+    // at each hop is the deterministic pin.
+    await expect(rowMenu(a).getByText("Background", { exact: true })).toBeFocused(SETTLE);
     await a.keyboard.press("ArrowDown"); // to the insert item (past the background sub)
+    await expect(rowMenu(a).getByText("Insert below", { exact: true })).toBeFocused(SETTLE);
     await a.keyboard.press("Enter");
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.rows.length, SETTLE).toBe(3);
     // The pick was the insert-below (the empty row at the handle's side; the

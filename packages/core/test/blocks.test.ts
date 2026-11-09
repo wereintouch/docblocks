@@ -14,7 +14,7 @@ import {
 } from "../src/core";
 import type { Doc } from "../src/core";
 import type { BlockAttrsPatch, CanvasRef, HeadingAttrs, ShapeAttrs } from "../src/schema";
-import { validateDoc } from "../src/schema";
+import { BLOCK_REGISTRY, PAGE_BLOCK_TYPES, validateDoc } from "../src/schema";
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
 
@@ -239,8 +239,9 @@ describe("insertBlock", () => {
     const table = doc.insertBlock("table", { cols: 1 });
     expect(() => doc.insertBlock("paragraph", undefined, { parent: table })).toThrow(InvalidChildError);
     expect(() => doc.insertBlock("table-cell", undefined, { parent: "r" })).toThrow(InvalidChildError);
-    // The canvas set: a shape at the page root, a nested surface, a frame
-    // inside a frame, and a canvas type inside a table cell are all rejected.
+    // The canvas set: a shape at the page root, a nested surface, an insert
+    // into a frame (the window is childless), and a canvas type inside a
+    // table cell are all rejected.
     expect(() => doc.insertBlock("shape", { variant: "rect" })).toThrow(InvalidChildError);
     expect(() => doc.insertBlock("connector", { start: { blockId: "r" }, end: { blockId: "r" } })).toThrow(
       InvalidChildError
@@ -249,12 +250,53 @@ describe("insertBlock", () => {
       InvalidChildError
     );
     const frame = doc.insertBlock("frame", undefined, { parent: doc.insertBlock("surface") });
+    expect(() => doc.insertBlock("paragraph", undefined, { parent: frame })).toThrow(InvalidChildError);
     expect(() => doc.insertBlock("frame", undefined, { parent: frame })).toThrow(InvalidChildError);
     const cell = doc.insertBlock("table-cell", undefined, {
       parent: doc.insertBlock("table-row", undefined, { parent: table }),
     });
     expect(() => doc.insertBlock("shape", { variant: "rect" }, { parent: cell })).toThrow(InvalidChildError);
     expect(() => doc.insertBlock("canvas-text", undefined, { parent: cell })).toThrow(InvalidChildError);
+  });
+});
+
+describe("the frame registry shape (the viewport window)", () => {
+  it("the frame is childless (no nested page, no sequence) and carries the context attrs", () => {
+    const spec = BLOCK_REGISTRY.frame;
+    expect(spec.content).toBe(false);
+    expect(spec.children).toBe(false);
+    expect(spec.childrenTypes).toBeUndefined();
+    expect(spec.legacyChildrenTypes).toBeUndefined();
+    expect(spec.sequence, "the frame is not a page sequence (the window is childless)").toBeFalsy();
+    expect(spec.attrs?.title).toEqual({ kind: "string" });
+    expect(spec.attrs?.frameId).toEqual({ kind: "string", nonEmpty: true });
+    // The canvas-text's text style attrs (the shape's text parity).
+    expect(BLOCK_REGISTRY["canvas-text"].attrs?.textColor).toEqual({ kind: "string", hexColor: true });
+    expect(BLOCK_REGISTRY["canvas-text"].attrs?.textStyle).toEqual({
+      kind: "enum",
+      values: ["regular", "semibold", "light", "light-italic", "italic", "semibold-italic"],
+    });
+  });
+
+  it("the type lists: the frame in the page set (the root's children set), once in the surface element set", () => {
+    expect(PAGE_BLOCK_TYPES).toContain("frame");
+    // The root's children set is the page set: the page-frame block stands
+    // in the page flow.
+    expect([...(BLOCK_REGISTRY.root.childrenTypes ?? [])]).toEqual([...PAGE_BLOCK_TYPES]);
+    // The surface element set: the page set (minus the surface) + the
+    // canvas-only types — the frame stands exactly once (with the page set;
+    // the former FRAME_ELEMENT_TYPES is gone — the frame carries no
+    // children).
+    const surfaceSet = [...(BLOCK_REGISTRY.surface.childrenTypes ?? [])];
+    expect(surfaceSet.filter((type) => type === "frame")).toEqual(["frame"]);
+    expect(surfaceSet).not.toContain("surface");
+    expect(surfaceSet).toEqual([
+      ...PAGE_BLOCK_TYPES.filter((type) => type !== "surface"),
+      "shape",
+      "connector",
+      "canvas-text",
+      "group",
+    ]);
   });
 });
 
@@ -370,6 +412,34 @@ describe("updateBlock", () => {
 
   it("missing block -> UnknownBlockError", () => {
     expect(() => newDoc().updateBlock("nope", { level: 1 })).toThrow(UnknownBlockError);
+  });
+
+  it("the table's positional columnWidths stand identity-keyed (prior widths survive, the read derivation stands)", () => {
+    const doc = newDoc();
+    const table = doc.insertBlock("table", { cols: 3 });
+    const widths = (): number[] => {
+      const block = doc.getBlock(table)!;
+      return block.type === "table" ? (block.attrs?.columnWidths ?? []) : [];
+    };
+    // Two explicit widths (the identity-keyed storage), the middle column at the default.
+    doc.setTableColumnWidth(table, 0, 150);
+    doc.setTableColumnWidth(table, 2, 250);
+    expect(widths()).toEqual([150, 100, 250]);
+    // The positional patch maps onto the column ids: the read derivation sees
+    // the new values (a positional Y.Array storage would stand all defaults).
+    doc.updateBlock(table, { columnWidths: [120, 180, 220] });
+    expect(widths()).toEqual([120, 180, 220]);
+    // The storage stays identity-keyed: the per-column command still rides its
+    // column id over the whole set.
+    doc.setTableColumnWidth(table, 1, 300);
+    expect(widths()).toEqual([120, 300, 220]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    const reloaded = fromJSON(doc.toJSON());
+    expect(reloaded.getBlock(table)!).toMatchObject({ type: "table", attrs: { columnWidths: [120, 300, 220] } });
+    // A width count off from the column set is rejected (the strict
+    // validator's one-width-per-column rule, kept live by the command).
+    expect(() => doc.updateBlock(table, { columnWidths: [100, 100] })).toThrow(InvalidAttrsError);
+    expect(widths()).toEqual([120, 300, 220]);
   });
 });
 

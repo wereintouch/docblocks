@@ -15,9 +15,12 @@
  *
  * Every row / column write goes over the contract's surface (the `batchRows`'s
  * atomic ops for the rows, the direct calls for the schema), each with a
- * FRESH `operationId` (the write's context) — a failed write is never
- * retried with a new id silently; its reconciliation stands the same id
- * over the bridge's idempotency. The per-block undo stack stands the
+ * FRESH `operationId` (the write's context) — the id is never reused across
+ * logical operations. The lost response's reconciliation (the write's fate
+ * query) is the consumer's stand over the bridge's `getOperationStatus`;
+ * the UI's surface stands no status poll — its convergence is the
+ * rebaseline (the next snapshot / the envelope stream). The per-block undo
+ * stack stands the
  * forward-only inverse operations (the update's inverse
  * covers the edited keys only; the remove's inverse is the `undeleteRows`
  * when the `rowRestore` capability stands, else the removal is not
@@ -28,14 +31,21 @@
  * call, the rollback to the pre-operation snapshot + the refetch on a
  * reject. The stacks stand per (bridge,
  * tableId); the doc-undo does not cover the table rows.
+ *
+ * The cell's draft session's commit pins the open-time row revision over
+ * `updateRow`'s `expectedRevision`: the mid-session's refetch re-baselines
+ * the live revision map (the peer's commit), so the stale pin's CAS stands
+ * the bridge's `conflict` rejection (the peer's value stands), not a
+ * silent overwrite.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
 import type { BridgeColumn, BridgeTableDescription } from "../bridge";
-import { BridgeError, isBridgeError } from "../bridge";
+import { BridgeError, isBridgeError, toBridgeError } from "../bridge";
 import type {
+  BatchOp,
   BridgeErrorCode,
   Column,
   DatabaseBridge,
@@ -47,7 +57,7 @@ import type {
 import { validateProtocolDescriptor } from "../bridge";
 import { PAGE_SIZE } from "./constants";
 import type { DatabaseTablePhase, DatabaseTableRow, InverseOp, UseDatabaseTable } from "./models";
-import { cellValueEqual, descriptionToGrid, errorCodeOf, newMutationContext } from "./utils";
+import { cellValueEqual, descriptionToGrid, errorCodeOf, isFatalTableError, newMutationContext } from "./utils";
 
 /**
  * The external-form data provider for one `tableId` (per block
@@ -89,6 +99,10 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const subGenRef = useRef(0);
   const undoStackRef = useRef<InverseOp[]>([]);
   const redoStackRef = useRef<InverseOp[]>([]);
+  // The history's mutation channel: a single in-flight guard (an undo / a
+  // redo over the same entry in flight stands no second inverse / forward —
+  // the re-entrant call is dropped, not queued).
+  const historyInFlightRef = useRef(false);
   // The history's identity: the undo/redo stacks stand PER (bridge,
   // tableId) — a relink of the block to another table / bridge drops the
   // previous one's history in the render (the per-(bridge, tableId) stack stand).
@@ -100,8 +114,12 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   }
   const filterKey = filter === undefined ? "" : JSON.stringify(filter);
 
-  const messageOf = (operationError: unknown): string =>
-    operationError instanceof Error ? operationError.message : String(operationError);
+  /** The operation's error message: the unknown rejection stands the
+   *  transport-level stand (the safe recovery is the same-operationId's
+   *  reconciliation, not the blind new operation) — the plain serialized
+   *  `{ code, message }` shape (the wire-rehydrated error) stands the
+   *  message, not the object's `String()` stand. */
+  const messageOf = (operationError: unknown): string => toBridgeError(operationError).message;
 
   const noteError = (operationError: unknown) => {
     setError(messageOf(operationError));
@@ -141,6 +159,20 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     let lastSeenSeq: number | null = null;
     const seenSeqs = new Set<number>();
 
+    // The table's death stand (the fatal code over the read / the
+    // stream): the sensitive cache stands cleared (the stale rows / the
+    // cursor / the revisions of the dead table are not a stand), the
+    // delivery stands stopped (the subscription's unsubscribe), the
+    // phase stands broken (the grid's error surface over the dead table).
+    const die = (operationError: unknown): void => {
+      setRows([]);
+      setNextCursor(null);
+      revisionsRef.current = new Map();
+      if (handle !== null) handle.unsubscribe();
+      setPhase("broken");
+      noteError(operationError);
+    };
+
     const refetch = async (): Promise<void> => {
       // The event's page refetch: the fresh snapshot (the schema + the
       // page over the fresh `R`) — the live subscription is NOT
@@ -150,9 +182,14 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
         if (disposed || token !== loadTokenRef.current) return;
         applySnapshot(snapshot);
-      } catch {
-        // A refetch failure keeps the current state (the subscription
-        // stands; the next event stands the next refetch).
+      } catch (refetchError) {
+        // The fatal code stands the death (the table gone over the
+        // refetch — the token's stand: a superseded load's failure does
+        // not kill the fresh one). The rest keeps the current state (the
+        // subscription stands; the next event stands the next refetch).
+        if (!disposed && token === loadTokenRef.current && isFatalTableError(refetchError)) {
+          die(refetchError);
+        }
       }
     };
 
@@ -189,8 +226,17 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
               if (seenSeqs.has(envelope.seq)) return; // the at-least-once dedup
               const last = lastSeenSeq; // the snapshot's `R` over the first frame
               if (last === null) return; // the subscription stands before the snapshot (unreachable)
+              // The stale duplicate (the seq at or below the head, absent
+              // from the dedup set — the set is cleared over the
+              // rebaseline, the at-least-once redelivery stands over the
+              // resubscribe): the drop (the snapshot's `R` stands the state
+              // up to the head) — the rebaseline stand is reserved for the
+              // gap (the envelope chaining past the head with a prevSeq
+              // before it), and the stale redelivery must not loop the
+              // bootstrap.
+              if (envelope.seq <= last) return;
               const chains = envelope.prevSeq === last || (last === 0 && envelope.prevSeq === null);
-              if (!chains || envelope.seq <= last) {
+              if (!chains) {
                 // The chain broke (a loss, an out-of-order frame): the full
                 // rebaseline over the fresh `R`.
                 seenSeqs.clear();
@@ -207,6 +253,13 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
             status: () => undefined,
             error: (operationError) => {
               if (disposed || myGen !== subGenRef.current) return;
+              // The fatal code over the stream stands the death (the
+              // table gone / the permission lost — the delivery stops);
+              // the rest stands the transient display.
+              if (isFatalTableError(operationError)) {
+                die(operationError);
+                return;
+              }
               noteError(operationError);
             },
             reset: () => {
@@ -220,6 +273,14 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (bootstrapError) {
         if (disposed || token !== loadTokenRef.current) return;
+        // The fatal code stands the death: the sensitive cache stands
+        // cleared over it (the stale rows of the previous table over the
+        // relink, the lost-permission rebaseline) — not just the broken
+        // phase.
+        if (isFatalTableError(bootstrapError)) {
+          die(bootstrapError);
+          return;
+        }
         setPhase("broken");
         noteError(bootstrapError);
       }
@@ -260,12 +321,20 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     })();
   }, [bridge, tableId, filterKey]);
 
-  const rowOf = (rowId: string) => revisionsRef.current.get(rowId);
-  // The CAS stand: the known revision selects the compare-and-swap, the
-  // absent one stands the LWW default (the spread keeps the op's literal
-  // shape intact).
+  // The row's live revision (the CAS's stand — the draft session's open
+  // pin reads it at the session's open; the mid-session's refetch
+  // re-baselines the map over the peer's commit).
+  const revisionOf = (rowId: string) => revisionsRef.current.get(rowId);
+  // The CAS stand: the `cas` capability (negotiated over the bootstrap's
+  // describeProtocol) selects the compare-and-swap, the absent one (a
+  // bridge that does not stand the capability) stands the LWW default —
+  // an expectedRevision over a non-CAS bridge is not a stand (the
+  // contract's optional-capability negotiation). The known revision
+  // selects the swap, the absent one stands the LWW default (the spread
+  // keeps the op's literal shape intact).
   const casOf = (rowId: string): { expectedRevision?: string } => {
-    const revision = rowOf(rowId);
+    if (!capabilitiesRef.current.includes("cas")) return {};
+    const revision = revisionOf(rowId);
     return revision === undefined ? {} : { expectedRevision: revision };
   };
 
@@ -292,7 +361,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
       pushUndo(
         {
@@ -320,7 +389,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   );
 
   const updateRow = useCallback(
-    async (rowId: string, cells: Record<string, unknown>) => {
+    async (rowId: string, cells: Record<string, unknown>, expectedRevision?: string) => {
       const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
       const current = rowsRef.current.find((row) => row.rowId === rowId);
       const cleaned: Record<string, unknown> = {};
@@ -340,7 +409,18 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       try {
         const receipt = await bridge.batchRows(
           tableId,
-          { ops: [{ op: "update", rowId, cells: cleaned, ...casOf(rowId) }] },
+          // The pinned revision (the draft session's open stand) stands
+          // the CAS over it; the absent pin stands the live revision.
+          {
+            ops: [
+              {
+                op: "update",
+                rowId,
+                cells: cleaned,
+                ...(expectedRevision !== undefined ? { expectedRevision } : casOf(rowId)),
+              },
+            ],
+          },
           newMutationContext()
         );
         for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
@@ -383,7 +463,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -473,7 +553,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -508,7 +588,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -565,7 +645,125 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         setRows(snapshot);
         noteError(operationError);
         refresh();
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
+      }
+    },
+    [bridge, tableId, pushUndo, refresh]
+  );
+
+  /** The mixed paste: the visible rows' updates (from the active row down)
+   *  + the overflow's creates — ONE `batchRows` (one transaction, one undo
+   *  entry). The updates stand the optimistic apply (the instant cells);
+   *  the creates stand no optimistic pre-apply (the id is bridge-assigned
+   *  — the rows stand over the post-commit refresh). Returns the created
+   *  rows' ids. */
+  const pasteRows = useCallback(
+    async (input: {
+      updates: Array<{ rowId: string; cells: Record<string, unknown> }>;
+      creates: Array<Record<string, unknown>>;
+      /** The created rows' seat: the visible successor of the last
+       *  updated row (null = the table's tail). */
+      beforeRowId: string | null;
+    }): Promise<string[]> => {
+      const { updates, creates, beforeRowId } = input;
+      if (updates.length === 0 && creates.length === 0) return [];
+      const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      // The pre-operation cells of the updated rows (the inverse's
+      // restore).
+      const before = new Map(rowsRef.current.map((row) => [row.rowId, row.cells]));
+      const cleaned = updates.map(({ rowId, cells }) => {
+        const patch: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(cells)) if (value !== undefined) patch[key] = value;
+        return { rowId, cells: patch };
+      });
+      // The all-unchanged updates + no creates stands no write (the empty
+      // clipboard's no-op — the same equality guard as the batch update's).
+      const updatesChanged = cleaned.some(({ rowId, cells }) => {
+        const row = rowsRef.current.find((entry) => entry.rowId === rowId);
+        return (
+          row === undefined || !Object.entries(cells).every(([key, value]) => cellValueEqual(row.cells[key], value))
+        );
+      });
+      if (!updatesChanged && creates.length === 0) return [];
+      if (updatesChanged) {
+        const byId = new Map(cleaned.map((entry) => [entry.rowId, entry.cells]));
+        setRows((rows) =>
+          rows.map((row) => {
+            const patch = byId.get(row.rowId);
+            return patch === undefined ? row : { ...row, cells: { ...row.cells, ...patch } };
+          })
+        );
+      }
+      // The created rows' identity (the inverse's delete + the redo's
+      // fresh-id re-create stand the rows the last commit actually
+      // created).
+      let liveRowIds: string[] = [];
+      try {
+        const ops: BatchOp[] = [
+          ...cleaned.map(({ rowId, cells }) => ({ op: "update" as const, rowId, cells, ...casOf(rowId) })),
+          ...creates.map((row) => ({ op: "create" as const, row, beforeRowId })),
+        ];
+        const receipt = await bridge.batchRows(tableId, { ops }, newMutationContext());
+        // The receipt's `rows` stand the created rows over the create
+        // op's order (the contract's stand) — the created rows are the
+        // ones NOT in the update set (the create's id is fresh; the
+        // updated rows keep theirs — the filter stands the guard over
+        // a bridge that would stand the wider set).
+        const updatedIds = new Set(cleaned.map((entry) => entry.rowId));
+        liveRowIds = receipt.result.rows.filter((row) => !updatedIds.has(row.id)).map((row) => row.id);
+        for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
+        const restore = cleaned.flatMap(({ rowId, cells }) => {
+          const oldCells = before.get(rowId);
+          if (oldCells === undefined) return [];
+          const patch: Record<string, unknown> = {};
+          for (const [key, value] of Object.entries(cells)) {
+            // The absent-before key stands the explicit null (the merge's
+            // removal stand — the `undefined` would be skipped by the
+            // bridge's cells' write).
+            patch[key] = oldCells[key] === undefined && value !== undefined ? null : oldCells[key];
+          }
+          if (Object.keys(patch).length === 0) return [];
+          return [{ rowId, cells: patch }];
+        });
+        pushUndo(
+          {
+            label: `paste (${cleaned.length} updates + ${creates.length} creates)`,
+            forward: async () => {
+              const redoReceipt = await bridge.batchRows(
+                tableId,
+                {
+                  ops: [
+                    ...cleaned.map(({ rowId, cells }) => ({ op: "update" as const, rowId, cells })),
+                    ...creates.map((row) => ({ op: "create" as const, row, beforeRowId })),
+                  ],
+                },
+                newMutationContext()
+              );
+              liveRowIds = redoReceipt.result.rows.filter((row) => !updatedIds.has(row.id)).map((row) => row.id);
+            },
+            inverse: async () => {
+              // The inverse: the created rows' deletion + the updates'
+              // restore (the edited keys' pre-operation values) — one
+              // batch (the paste's one-op undo stand).
+              const ops: BatchOp[] = [];
+              if (creates.length > 0) ops.push(...liveRowIds.map((rowId) => ({ op: "delete", rowId }) as const));
+              if (restore.length > 0) {
+                ops.push(...restore.map(({ rowId, cells }) => ({ op: "update", rowId, cells }) as const));
+              }
+              if (ops.length === 0) return;
+              await bridge.batchRows(tableId, { ops }, newMutationContext());
+            },
+          },
+          bridge,
+          tableId
+        );
+        refresh();
+        return liveRowIds;
+      } catch (operationError) {
+        if (updatesChanged) setRows(snapshot);
+        noteError(operationError);
+        refresh();
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo, refresh]
@@ -636,7 +834,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         liveColumnId = receipt.result.id;
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
       // Without the `columnRestore` capability the consumer's
       // `deleteColumn` destroys the column's data — the removal is NOT
@@ -756,7 +954,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -787,7 +985,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         }
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -814,7 +1012,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -841,7 +1039,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         );
       } catch (operationError) {
         noteError(operationError);
-        throw new Error(messageOf(operationError), { cause: operationError });
+        throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
       }
     },
     [bridge, tableId, pushUndo]
@@ -888,38 +1086,108 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const retry = useCallback(() => setLoadVersion((version) => version + 1), []);
 
   const undo = useCallback(async () => {
+    // The in-flight stand: a re-entrant undo (the second press over the
+    // first's in-flight inverse) stands no second inverse over the same
+    // entry.
+    if (historyInFlightRef.current) return;
     const ops = undoStackRef.current;
     const op = ops[ops.length - 1];
     if (op === undefined) return;
+    // The identity at the call's time: a relink (the bridge / the tableId
+    // change) over the in-flight inverse re-stands the history (the stacks
+    // stand cleared, historyRef stands the new one) — the post-await
+    // commit (the pop / the redo-push) must not carry the old entry into
+    // the new table's history.
+    const identity = { bridge: historyRef.current.bridge, tableId: historyRef.current.tableId };
+    const sameIdentity = () =>
+      historyRef.current.bridge === identity.bridge && historyRef.current.tableId === identity.tableId;
+    // The window detector: the redo stack at the call's time. A forward
+    // write that commits over the in-flight inverse runs the pushUndo (the
+    // redo stack stands REPLACED, not grown) — the history's invariant "a
+    // new operation clears the redo side" then applies to this undo too:
+    // the op stands consumed (popped from the undo stack) but NOT moved to
+    // the redo stack (it would stand redoable over the newer write — the
+    // redo's re-commit would clobber it). The op's inverse already applied
+    // over the bridge; the refresh stands the UI on the bridge's truth.
+    const redoStackAtCall = redoStackRef.current;
+    historyInFlightRef.current = true;
     try {
       await op.inverse();
-      ops.pop();
-      redoStackRef.current.push(op);
+      if (!sameIdentity()) return;
+      // The identity stand over the in-flight window: the user's forward
+      // write may have grown the stack since the call (the push over the
+      // same array) — the removal stands by identity (the top's pop, the
+      // grown stand's splice out of position), never by blind position
+      // (a foreign top's pop would drop the fresh entry from the history
+      // and the redo's re-commit would stand a duplicate over the bridge).
+      const index = ops.lastIndexOf(op);
+      if (index !== -1) {
+        if (index === ops.length - 1) ops.pop();
+        else ops.splice(index, 1);
+        if (redoStackRef.current === redoStackAtCall) redoStackRef.current.push(op);
+      }
       setError(null);
       setErrorCode(null);
     } catch (operationError) {
+      if (!sameIdentity()) return;
       // The failed entry STAYS on the stack (the retry stand): a failed
       // inverse never drops the operation.
       noteError(operationError);
+    } finally {
+      historyInFlightRef.current = false;
     }
+    if (!sameIdentity()) return;
     bump();
     refresh();
   }, [bump, refresh]);
 
   const redo = useCallback(async () => {
+    if (historyInFlightRef.current) return;
     const ops = redoStackRef.current;
     const op = ops[ops.length - 1];
     if (op === undefined) return;
+    const identity = { bridge: historyRef.current.bridge, tableId: historyRef.current.tableId };
+    const sameIdentity = () =>
+      historyRef.current.bridge === identity.bridge && historyRef.current.tableId === identity.tableId;
+    // The symmetric window stand: the undo stack at the call's time. A
+    // forward write that commits over the in-flight forward run PUSHes onto
+    // the same array (the pushUndo does not replace the undo stack). The
+    // redone op stands a live edit (its forward already applied) and must
+    // re-enter the undo stack — but at the call's position, NOT on top of
+    // the window's writes (the naive push would stand the undo order's
+    // inversion: the first undo reverts the stale op, not the newest
+    // write). The call-time insertion keeps the window's writes on top:
+    // the undo walks back over the newest first, the redone op then.
+    const undoStackAtCall = undoStackRef.current;
+    const undoLengthAtCall = undoStackRef.current.length;
+    historyInFlightRef.current = true;
     try {
       await op.forward();
-      ops.pop();
-      undoStackRef.current.push(op);
+      if (!sameIdentity()) return;
+      // The symmetric identity stand (the redo's stack stands stable over
+      // the in-flight window — the history's in-flight guard — the identity
+      // check stands the stand anyway).
+      const index = ops.lastIndexOf(op);
+      if (index !== -1) {
+        if (index === ops.length - 1) ops.pop();
+        else ops.splice(index, 1);
+        if (undoStackRef.current === undoStackAtCall) {
+          // The call-time position's insertion: no window — the top's push
+          // (the length is the call's); the window's stand — below the
+          // window's writes (the splice at the call's length).
+          undoStackRef.current.splice(undoLengthAtCall, 0, op);
+        }
+      }
       setError(null);
       setErrorCode(null);
     } catch (operationError) {
+      if (!sameIdentity()) return;
       // The failed entry STAYS on the stack (the retry stand).
       noteError(operationError);
+    } finally {
+      historyInFlightRef.current = false;
     }
+    if (!sameIdentity()) return;
     bump();
     refresh();
   }, [bump, refresh]);
@@ -928,11 +1196,13 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     phase,
     table,
     rows,
+    revisionOf,
     nextCursor,
     error,
     insertRow,
     updateRow,
     updateRows,
+    pasteRows,
     removeRow,
     moveRow,
     addColumn,

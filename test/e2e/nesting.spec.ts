@@ -1,4 +1,4 @@
-// Tab / Shift+Tab over the FLAT page model (schema §3.2): the nesting is
+// Tab / Shift+Tab over the FLAT page model: the nesting is
 // the block's `indent` attr relative to its PRECEDING block, so the
 // gestures are one `updateBlock({ indent })` each (one undo step, one wire
 // update) — the sequence order stands (a move is never part of the

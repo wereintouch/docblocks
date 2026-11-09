@@ -9,18 +9,21 @@ import type { ReactNode } from "react";
 
 import type { Block, BlockId } from "docblocks-core";
 
-import { CodeHeader } from "./CodeHeader";
 import { DatabaseBlock } from "./DatabaseBlock";
 import { EmbedBlock } from "./EmbedBlock";
-import { FrameBlock } from "./FrameBlock";
+import { FramePageBlock } from "./FramePageBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
-import { SurfaceBlock } from "./SurfaceBlock";
 import { SyncEmbedBlock } from "./SyncEmbedBlock";
 import { TextBlock } from "./TextBlock";
+import { CodeHeader } from "./code/CodeHeader";
 import { TableBlock } from "./table";
 
 const HEADING_TAGS = { 1: "h1", 2: "h2", 3: "h3", 4: "h4", 5: "h5", 6: "h6" } as const;
+/** The wrapper tag of a heading level outside the known set (a future
+ * minor's data): the document stays viewable, the level renders as the
+ * smallest heading (the lenient render posture). */
+const HEADING_FALLBACK_TAG = "h6";
 
 function dispatchBuiltIn(
   id: BlockId,
@@ -60,7 +63,7 @@ function dispatchBuiltIn(
         <TextBlock
           id={id}
           block={block}
-          tag={HEADING_TAGS[block.attrs.level]}
+          tag={HEADING_TAGS[block.attrs.level] ?? HEADING_FALLBACK_TAG}
           nested={nested}
           collapsible={collapsible}
           flat={flat}
@@ -127,14 +130,19 @@ function dispatchBuiltIn(
     case "table":
       return <TableBlock id={id} block={block} />;
     case "surface":
-      return <SurfaceBlock id={id} block={block} />;
+      // A surface renders ONLY in the canvas view (the page view filters it
+      // out of the root sequence — the surface is a canvas layer, not a
+      // page block). A stray one reaching the page dispatch (lenient data)
+      // falls to the placeholder (the unknown-kind posture).
+      return <PlaceholderBlock type={block.type} />;
     case "frame":
-      // The frame renders through FrameBlock in every context: inside a
-      // surface (the box + the nested provider) and as a provider entry
-      // root (its own nested provider renders the content). A stray one
-      // at the page root (lenient data) renders its content in place
-      // (the container posture, like a stray table).
-      return <FrameBlock id={id} />;
+      // The page-frame block (the root's child): the inline window into
+      // the referenced canvas frame (the FramePageBlock's lenient stand
+      // covers the dangling reference — a canvas frame at the root is
+      // invalid data, its window is its own placeholder). The canvas-frame
+      // context (the surface's child) renders through the CanvasItem's
+      // dispatch, never here.
+      return <FramePageBlock id={id} />;
     case "shape":
     case "connector":
     case "canvas-text":

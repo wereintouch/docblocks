@@ -18,9 +18,18 @@ function parseCellValue(kind: BridgeValueInput, raw: string): CellValueParse {
   if (raw === "") return { ok: true, value: null };
   switch (kind) {
     case "number": {
+      // The finite stand: the wire is JSON (Infinity / -Infinity stand the
+      // null over the round-trip — the silent corruption), so the finite
+      // number is the valid input, not just the parseable one.
       const n = Number(raw);
-      return Number.isNaN(n) ? { ok: false, error: "The value is not a number" } : { ok: true, value: n };
+      return Number.isFinite(n) ? { ok: true, value: n } : { ok: false, error: "The value is not a number" };
     }
+    case "boolean":
+      // The TSV's boolean stand (the clipboard's round-trip: the copied
+      // "true" / "false" stands back the stored boolean, never the string).
+      if (raw === "true" || raw === "1") return { ok: true, value: true };
+      if (raw === "false" || raw === "0") return { ok: true, value: false };
+      return { ok: false, error: "The value is not a boolean" };
     case "date":
       return isValidDate(raw) ? { ok: true, value: raw } : { ok: false, error: "The value is not a valid date" };
     case "datetime":

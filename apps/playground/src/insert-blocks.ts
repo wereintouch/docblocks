@@ -31,7 +31,8 @@ type InsertableType = (typeof INSERTABLE_TYPES)[number];
 /** The fixed image key the harness inserts; its src is a small inline SVG. */
 const IMAGE_KEY = "demo-image";
 
-/** The fixed embed src the harness inserts (a one-line html page). */
+/** The fixed embed src the harness inserts (a one-line html page — the
+ * `html` kind's data URL snippet, the write gate's only data-scheme stand). */
 const EMBED_SRC = "data:text/html," + encodeURIComponent("<html><body><p>embedded page</p></body></html>");
 
 /** The seed diagram the harness inserts with a mermaid code block (harness convenience; the user edits it in the block). */
@@ -327,16 +328,26 @@ function seedCatalogDatabase(doc: Doc): BlockId {
   return doc.insertBlock("database", { tableId: CATALOG_TABLE_ID });
 }
 
-/** The canvas demo scene the harness inserts (harness convenience): the fixed geometries, one surface with a frame (seeded with a heading + a paragraph), four shapes (the rounded one texted — the shape text's stand), a canvas-text, and a connector between the frame and the rect. */
-function seedCanvas(doc: Doc): BlockId {
+/**
+ * The canvas demo scene the harness inserts (harness convenience): the
+ * fixed geometries, one surface with two frames (the viewport windows —
+ * the childless box's stand; the window's content is the surface's own
+ * content, clipped to the box), four shapes (the rounded one texted —
+ * the shape text's stand), a canvas-text (the font attrs' stand), and a
+ * connector between frame A and the rect.
+ */
+function seedCanvas(doc: Doc): { surface: BlockId; frame: BlockId } {
   const surface = doc.insertBlock("surface");
   doc.setGeometry(surface, { x: 0, y: 0, w: 900, h: 500 });
-  const frame = doc.insertBlock("frame", undefined, { parent: surface });
-  doc.setGeometry(frame, { x: -180, y: -100, w: 280, h: 160 });
-  const heading = doc.insertBlock("heading", { level: 2 }, { parent: frame });
-  doc.insertText(heading, 0, "Frame heading");
-  const paragraph = doc.insertBlock("paragraph", undefined, { parent: frame });
-  doc.insertText(paragraph, 0, "Frame paragraph on the canvas.");
+  // Frame A: the window box over the rounded shape + the note (the
+  // window's content stand — the figures stand through the window) and
+  // the connector's start endpoint.
+  const frame = doc.insertBlock("frame", { title: "Frame A" }, { parent: surface });
+  doc.setGeometry(frame, { x: 120, y: -100, w: 320, h: 160 });
+  // Frame B: the second window at a disjoint empty box (the dot grid's
+  // stand; the slash picker's list stand).
+  const frameB = doc.insertBlock("frame", { title: "Frame B" }, { parent: surface });
+  doc.setGeometry(frameB, { x: 320, y: 90, w: 200, h: 120 });
   const rect = doc.insertBlock("shape", { variant: "rect", fill: "rgba(9, 105, 218, 0.2)" }, { parent: surface });
   doc.setGeometry(rect, { x: -120, y: 90, w: 160, h: 80 });
   const ellipse = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
@@ -356,7 +367,8 @@ function seedCanvas(doc: Doc): BlockId {
     { parent: surface }
   );
   doc.setGeometry(rounded, { x: 60, y: -60, w: 160, h: 60 });
-  const note = doc.insertBlock("canvas-text", undefined, { parent: surface });
+  // The canvas-text's font attrs' stand (the shape text's parity).
+  const note = doc.insertBlock("canvas-text", { textColor: "#b45309", textStyle: "semibold" }, { parent: surface });
   doc.insertText(note, 0, "Canvas note");
   doc.setGeometry(note, { x: 140, y: -140, w: 200, h: 40 });
   // The connector is the topmost element (the z-order last): from the
@@ -366,7 +378,7 @@ function seedCanvas(doc: Doc): BlockId {
     { start: { blockId: frame }, end: { blockId: rect }, label: "relates to" },
     { parent: surface }
   );
-  return surface;
+  return { surface, frame };
 }
 
 /** Fixed key -> inline data: URL (a small SVG data URI). */
@@ -426,7 +438,7 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
         id = doc.insertBlock("image", { src: IMAGE_KEY });
         break;
       case "embed":
-        id = doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
+        id = doc.insertBlock("embed", { kind: "html", src: EMBED_SRC });
         break;
       case "sync-embed":
         id = doc.insertBlock("sync-embed", { ref: { docId: masterDocId } });
@@ -441,7 +453,7 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
         id = seedDatabase(doc);
         break;
       case "canvas":
-        id = seedCanvas(doc);
+        id = seedCanvas(doc).surface;
         break;
       case "table": {
         const tableId = doc.insertBlock("table", { cols: 2 });

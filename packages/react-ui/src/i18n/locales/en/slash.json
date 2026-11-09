@@ -1,0 +1,42 @@
+{
+  "blocks": {
+    "text": "Text",
+    "heading1": "Heading 1",
+    "heading2": "Heading 2",
+    "heading3": "Heading 3",
+    "quote": "Quote",
+    "callout": "Callout",
+    "code": "Code block",
+    "codeMermaid": "Code block (mermaid)",
+    "divider": "Divider",
+    "image": "Image",
+    "embed": "Embed",
+    "database": "Database",
+    "frame": "Frame",
+    "table": "Table"
+  },
+  "lists": {
+    "bulleted": "Bulleted list",
+    "numbered": "Numbered list",
+    "task": "Task list"
+  },
+  "database": {
+    "newTable": "New table",
+    "namePlaceholder": "New table name",
+    "searchPlaceholder": "Search tables…",
+    "loading": "Loading the tables…",
+    "noMatch": "No tables match",
+    "empty": "No tables yet — create one above."
+  },
+  "frame": {
+    "fallback": "Frame",
+    "searchAria": "Search frames",
+    "searchPlaceholder": "Search frames...",
+    "noMatch": "No frames match",
+    "empty": "No frames on the canvas yet"
+  },
+  "embed": {
+    "urlPlaceholder": "Embed URL (https://…)",
+    "unsafeHint": "Only absolute https://… (the html kind stands the data:text/html snippet)."
+  }
+}

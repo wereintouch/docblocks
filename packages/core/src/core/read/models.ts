@@ -13,6 +13,8 @@ interface BlockDraft {
   rowOrder?: string[];
   /** The column identities + order (table only): the single source of the column set. */
   columnOrder?: string[];
+  /** Additive top-level fields of a future minor (preserved as-is). */
+  [key: string]: unknown;
 }
 
 export type { BlockDraft };

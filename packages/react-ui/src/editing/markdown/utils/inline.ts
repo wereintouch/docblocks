@@ -5,9 +5,9 @@
  * marks, `<br>` is the soft line break, the other tags drop with their
  * content plain), the autolinks, and the single-pass entity decode.
  */
-import type { MarkSet, TextRun } from "docblocks-core";
+import { type MarkSet, type TextRun, isSafeLinkHref } from "docblocks-core";
 
-import { marksEqual } from "../../mark-utils";
+import { appendRun, tagEmphasisMarks } from "../../mark-utils";
 import { ENTITY, MARK_HIGHLIGHT, NAMED_ENTITIES, OPEN_TAG, STRAY_CLOSE_TAG, TAG_HREF } from "../constants";
 
 /**
@@ -30,6 +30,18 @@ function decodeEntities(value: string): string {
   });
 }
 
+/** The data model's link href contract — a pass-through over the core's
+ *  public `isSafeLinkHref` (the single stand: the trimmed form is an
+ *  http/https URL or a no-scheme relative path — the browser trims the
+ *  leading C0 controls before the scheme detection, so the trimmed check
+ *  is the writer's contract itself, and a run the parser accepts can
+ *  never be rejected by the strict writer). The other scheme (the mailto
+ *  / the javascript / any custom) stands the degrade (the literal text),
+ *  not the mark. */
+function isLinkHrefOf(href: string): boolean {
+  return isSafeLinkHref(href);
+}
+
 /** The open tag at `i` of `text` (the name lower-cased; `null` for a bare `<`). */
 function inlineTagAt(
   text: string,
@@ -42,19 +54,9 @@ function inlineTagAt(
 
 /** The v1 mark an open tag maps to (`null` = the tag drops, content stays plain). */
 function inlineTagMarks(tag: { name: string; attrs: string }): MarkSet | null {
+  const simple = tagEmphasisMarks(tag.name);
+  if (simple !== null) return simple;
   switch (tag.name) {
-    case "b":
-    case "strong":
-      return { bold: true };
-    case "i":
-    case "em":
-      return { italic: true };
-    case "u":
-      return { underline: true };
-    case "s":
-    case "strike":
-    case "del":
-      return { strike: true };
     case "code":
       return { code: true };
     case "mark":
@@ -64,8 +66,12 @@ function inlineTagMarks(tag: { name: string; attrs: string }): MarkSet | null {
       if (m === null) return null;
       let href = m[1]!;
       if (href.startsWith('"') || href.startsWith("'")) href = href.slice(1, -1);
-      // The entities decode once, at the run-level pass (the single-pass rule).
-      return href !== "" ? { link: { href } } : null;
+      // The entities decode once, at the run-level pass (the single-pass
+      // rule); the unsafe scheme stands the degrade (the content stays
+      // plain) — the gate mirrors the [t](url) / the autolink's stand, and
+      // the decoded value re-stands it over the decode's run pass.
+      if (href === "" || !isLinkHrefOf(href)) return null;
+      return { link: { href } };
     }
     default:
       return null;
@@ -83,13 +89,7 @@ function parseInline(source: string): TextRun[] {
   const runs: TextRun[] = [];
 
   const push = (text: string, marks: MarkSet): void => {
-    if (text === "") return;
-    const last = runs[runs.length - 1];
-    if (last !== undefined && marksEqual(last.marks, marks)) {
-      last.text += text;
-      return;
-    }
-    runs.push({ text, marks });
+    appendRun(runs, text, marks);
   };
 
   /** Whether `_`-style emphasis may open/close at `at` of `text` (the word boundary; the `_` is a word character). */
@@ -108,8 +108,12 @@ function parseInline(source: string): TextRun[] {
     if (href === "") return null;
     // A quoted title: `href "title"` → the URL is the first token.
     const space = href.indexOf(" ");
-    if (space !== -1 && href.slice(space + 1).startsWith('"')) return href.slice(0, space);
-    return href;
+    const url = space !== -1 && href.slice(space + 1).startsWith('"') ? href.slice(0, space) : href;
+    // The data model's link contract (the core's rejection stand): the
+    // http/https URL or the no-scheme relative path — the other scheme
+    // (the mailto / the javascript / any custom) stands the degrade (the
+    // literal text), not the mark.
+    return isLinkHrefOf(url) ? url : null;
   };
 
   /** Recurse over a span with the accumulated marks. */
@@ -197,11 +201,13 @@ function parseInline(source: string): TextRun[] {
           continue;
         }
 
-        // The autolink: <https://…> / <mailto:…> (the http/https/mailto schemes only).
+        // The autolink: <https://…> (the http/https schemes — the data
+        // model's link contract; the other scheme (the mailto / any
+        // custom) degrades to the literal text over the core's rejection).
         const end = text.indexOf(">", i + 1);
         if (end !== -1) {
           const href = text.slice(i + 1, end);
-          if (/^(https?:|mailto:)/i.test(href) && !href.includes(" ")) {
+          if (/^https?:/i.test(href) && !href.includes(" ") && isLinkHrefOf(href)) {
             flush();
             push(href, { ...marks, link: { href } });
             i = end + 1;
@@ -278,4 +284,4 @@ function parseInline(source: string): TextRun[] {
   return runs;
 }
 
-export { decodeEntities, inlineTagAt, inlineTagMarks, parseInline };
+export { decodeEntities, inlineTagAt, inlineTagMarks, isLinkHrefOf, parseInline };

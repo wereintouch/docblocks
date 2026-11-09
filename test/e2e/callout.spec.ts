@@ -111,14 +111,18 @@ test("the color override applies a hex and clears with the none swatch", async (
   const menu = a.locator('[data-slot="docblocks/format-callout-menu"]');
   await expect(menu).toBeVisible();
 
-  // The first swatch is a theme token; the commit resolves it to a hex.
+  // The first swatch is a theme token; the commit resolves it to a hex (the
+  // pick's stand closes the menu — the next action reopens it).
   await menu.locator('[data-color="var(--docblocks-palette-red)"]').click();
   const aColor = (await calloutAttrs(a, "a", coId))?.color;
   expect(aColor).toMatch(/^#[0-9a-f]{6}$/i);
   // The other pane stands the same hex.
   await expect.poll(async () => (await calloutAttrs(b, "b", coId))?.color, SETTLE).toMatch(/^#[0-9a-f]{6}$/i);
 
-  // Clear with the none swatch (the preset per variant).
+  // Clear with the none swatch (the preset per variant): reopen the menu
+  // (the pick's close stands) and pick the none.
+  await bar.locator('button[aria-label="Callout"]').click();
+  await expect(menu).toBeVisible();
   await menu.locator('[data-slot="docblocks/palette-none"]').click();
   expect((await calloutAttrs(a, "a", coId))?.color ?? null).toBe(null);
   await expect.poll(async () => (await calloutAttrs(b, "b", coId))?.color, SETTLE).toBe(null);

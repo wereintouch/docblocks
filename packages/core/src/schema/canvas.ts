@@ -126,6 +126,10 @@ interface ConnectorAttrs {
 interface CanvasTextAttrs {
   fontSize?: number;
   fontFamily?: string;
+  /** The text's color (CSS hex color). */
+  textColor?: string;
+  /** The text's style (the weight x the slant). */
+  textStyle?: "regular" | "semibold" | "light" | "light-italic" | "italic" | "semibold-italic";
   textAlign?: string;
   /** The explicit z-order index (dense 1..N over the surface's canvas
    * elements; the order's mirror — the paint order, 1 = bottom). */
@@ -176,10 +180,33 @@ interface ConnectorBlock {
   attrs: ConnectorAttrs;
 }
 
+/**
+ * The frame's attrs (two contexts, one type): the canvas frame (a surface
+ * child) carries the optional `title` label (the empty-string convention:
+ * absent or the empty string is no title); the page-frame block (a root
+ * child) carries the `frameId` — the weak reference to a canvas frame (a
+ * dangling reference stands the lenient placeholder). The context
+ * presence rules (required / forbidden per context) stand in the strict
+ * validator; they are not expressible per-attr.
+ */
+interface FrameAttrs {
+  /** The canvas frame's label (the surface context; the empty string = removed). */
+  title?: string;
+  /** The page-frame block's reference to a canvas frame (the root context). */
+  frameId?: string;
+  /** Nesting depth in the page sequence (default 0); ignored in the canvas z-order. */
+  indent?: number;
+}
+
+/**
+ * The frame: a viewport window into its own surface's content (the
+ * positioned box on the canvas; the window's content belongs to the
+ * surface, not the frame — the frame carries no children and no content).
+ * The paint position is the surface's children order (no z-order index).
+ */
 interface FrameBlock {
   type: "frame";
-  /** The nested page blocks on the canvas (page block types only). */
-  children?: BlockId[];
+  attrs?: FrameAttrs;
 }
 
 interface CanvasTextBlock {
@@ -202,6 +229,7 @@ export type {
   CanvasTextBlock,
   ConnectorAttrs,
   ConnectorBlock,
+  FrameAttrs,
   FrameBlock,
   Geometry,
   GroupAttrs,

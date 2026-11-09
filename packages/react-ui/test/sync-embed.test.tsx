@@ -118,6 +118,32 @@ describe("states", () => {
     expect(wrapper.querySelector('[data-slot="docblocks/sync-embed-body"]')).toBeNull();
   });
 
+  it("the ref's block removed from the master over the mount stands the broken's transition (and the restore's back)", () => {
+    // The dynamic stand: the stale's check runs at the render, so the
+    // removal (the master's transaction) must re-stand the block to reach
+    // it — the mount-time's stale pin stands the render-time's state only.
+    const { master } = renderOuter({ docId: "master-1", blockId: "m0003" });
+    expect(wrapperOf()!.getAttribute("data-state")).toBe("resolved");
+
+    act(() => {
+      master.removeBlock("m0003");
+    });
+    const wrapper = wrapperOf()!;
+    expect(wrapper.getAttribute("data-state")).toBe("broken");
+    expect(wrapper.textContent).toContain("unavailable");
+    expect(wrapper.querySelector('[data-slot="docblocks/sync-embed-body"]')).toBeNull();
+
+    // The restore's back stand: the master's undo of the removal re-creates
+    // the same id (the consumer's doc keeps the ids stable) — the same
+    // subscription stands the resolved over it.
+    act(() => {
+      master.undo();
+    });
+    expect(master.getBlock("m0003")).not.toBeNull();
+    expect(wrapperOf()!.getAttribute("data-state")).toBe("resolved");
+    expect(wrapperOf()!.querySelector('[data-slot="docblocks/sync-embed-body"]')).not.toBeNull();
+  });
+
   it("a full-doc ref resolves: the master content renders inside, not in the outer list", () => {
     renderOuter({ docId: "master-1" });
 

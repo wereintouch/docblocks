@@ -44,6 +44,19 @@ test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
 
   const tokenOf = (name: string) => editor.evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name);
 
+  // The token's resolved color over a probe element INSIDE the editor root
+  // (the computed custom property stands the declared expression, not the
+  // resolved color — the probe's background read stands the resolved stand).
+  const resolvedAs = (value: string) =>
+    editor.evaluate((el, v) => {
+      const probe = document.createElement("div");
+      probe.style.backgroundColor = v;
+      el.appendChild(probe);
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    }, value);
+
   // Unthemed baseline: the standard seed stands (the shipped styles.css
   // carries the seed, so the harness is seeded — the radius token resolves the seed's
   // 0.625rem, not the fallback literal).
@@ -54,7 +67,18 @@ test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
   await expect.poll(() => tokenOf("--docblocks-text-color"), SETTLE).toBe("#123456");
   await expect.poll(() => tokenOf("--docblocks-radius"), SETTLE).toBe("10px");
   await expect.poll(() => tokenOf("--docblocks-table-border-color"), SETTLE).toBe("#223344");
-  await expect.poll(() => tokenOf("--docblocks-frame-background"), SETTLE).toBe("#445566");
+  // The frame's window reads the canvas's tokens (the reworked frame's
+  // stand — the former frame-background token's stand is gone): the
+  // canvas's background resolves over the consumer's --muted (the light's
+  // 8% mix).
+  await expect
+    .poll(
+      async () =>
+        (await resolvedAs("var(--docblocks-canvas-background)")) ===
+        (await resolvedAs("color-mix(in srgb, var(--muted, #afb8c1) 8%, transparent)")),
+      SETTLE
+    )
+    .toBe(true);
   await expect.poll(() => tokenOf("--docblocks-gutter-color"), SETTLE).toBe("#556677");
 
   // The .dark flip: the dark standard set resolves (the mapping re-declares
@@ -63,7 +87,15 @@ test("the standard shadcn tokens drive the editor theme", async ({ page }) => {
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await expect.poll(() => tokenOf("--docblocks-text-color"), SETTLE).toBe("#654321");
   await expect.poll(() => tokenOf("--docblocks-table-border-color"), SETTLE).toBe("#443322");
-  await expect.poll(() => tokenOf("--docblocks-frame-background"), SETTLE).toBe("#221100");
+  // …the dark's mapping (the 15% mix over the same consumer's --muted).
+  await expect
+    .poll(
+      async () =>
+        (await resolvedAs("var(--docblocks-canvas-background)")) ===
+        (await resolvedAs("color-mix(in srgb, var(--muted, #afb8c1) 15%, transparent)")),
+      SETTLE
+    )
+    .toBe(true);
 
   await page.evaluate(() => document.documentElement.classList.remove("dark"));
   await expect.poll(() => tokenOf("--docblocks-text-color"), SETTLE).toBe("#123456");

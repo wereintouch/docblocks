@@ -13,6 +13,8 @@ declare global {
     __catalogDoc?: PaneDoc | null;
     /** The playground pane's default database bridge (harness global; the state is per page) — the e2e bridge suite reads/drives it. */
     __bridge?: DatabaseBridge;
+    /** The playground pane's published stand's re-read (the publish.ts's harness stand: the room's shared localStorage stand over the pane's published's prop; true when a stand was applied) — the e2e's A/B publish flow drives it. */
+    __reloadPublished?: (client: "a" | "b") => boolean;
   }
 }
 
@@ -29,6 +31,7 @@ interface PaneBlock {
   rows?: Record<string, Record<string, unknown>>;
   rowOrder?: string[];
   columnOrder?: string[];
+  geometry?: { x: number; y: number; w: number; h: number };
 }
 
 /**
@@ -45,6 +48,8 @@ interface PaneDoc {
   getChildren(id: string): string[];
   getBlock(id: string): PaneBlock | null;
   getText(id: string): string;
+  /** The CRDT's raw escape hatch (the power-user API; the crafted-update specs drive it). */
+  raw: { getMap: (name: string) => { get: (key: string) => unknown } };
   getRuns(id: string): { text: string; marks: Record<string, unknown> }[];
   insertBlock(type: string, attrs?: Record<string, unknown>, position?: { parent?: string; after?: string }): string;
   setTitle(title: string): void;
@@ -131,15 +136,25 @@ const pane = (page: Page, client: "a" | "b") => page.locator(`[data-testid="doc-
  * status wait timeout; `url` replaces the relay's room URL (the real-server
  * spec); `light` clears the harness's default dark class (the light seed
  * pins); `first` targets the first status node (the page-level panes render
- * two).
+ * two); `role` stands the pane's access level (the `?role=viewer`'s
+ * flag — the published's forced stand over the package's contract).
  */
 async function openPane(
   page: Page,
   client: "a" | "b",
   room: string,
-  options: { cycle?: boolean; settle?: { timeout: number }; url?: string; light?: boolean; first?: boolean } = {}
+  options: {
+    cycle?: boolean;
+    settle?: { timeout: number };
+    url?: string;
+    light?: boolean;
+    first?: boolean;
+    role?: "editor" | "viewer";
+  } = {}
 ): Promise<void> {
-  const url = options.url ?? `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}`;
+  const url =
+    options.url ??
+    `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}${options.role === "viewer" ? "&role=viewer" : ""}`;
   await page.goto(url);
   const status = options.first ? page.getByTestId(`status-${client}`).first() : page.getByTestId(`status-${client}`);
   await expect(status).toHaveText("connected", options.settle ?? { timeout: 15_000 });
@@ -151,12 +166,14 @@ async function openPane(
 /**
  * Two relay panes in isolated browser contexts (the a / b clients on one
  * room; the room gets a per-run suffix so a shared room never stands
- * polluted across spec files).
+ * polluted across spec files). `viewerB` stands the b pane's viewer's
+ * access level (the access's A/B demo: the a's editor pane, the b's
+ * viewer pane).
  */
 async function twoPanes(
   browser: Browser,
   room: string,
-  options: { cycle?: boolean; permissions?: string[]; light?: boolean; first?: boolean } = {}
+  options: { cycle?: boolean; permissions?: string[]; light?: boolean; first?: boolean; viewerB?: boolean } = {}
 ): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
@@ -168,7 +185,12 @@ async function twoPanes(
   const b = await contextB.newPage();
   const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
   await openPane(a, "a", uniqueRoom, { cycle: options.cycle, light: options.light, first: options.first });
-  await openPane(b, "b", uniqueRoom, { cycle: options.cycle, light: options.light, first: options.first });
+  await openPane(b, "b", uniqueRoom, {
+    cycle: options.cycle,
+    light: options.light,
+    first: options.first,
+    role: options.viewerB ? "viewer" : undefined,
+  });
   return {
     a,
     b,

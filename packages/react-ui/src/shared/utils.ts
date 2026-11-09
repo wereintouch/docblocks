@@ -14,4 +14,30 @@ function stopPropagation(event: { stopPropagation: () => void }): void {
   event.stopPropagation();
 }
 
-export { clamp, preventDefault, stopPropagation };
+/** The executable schemes a download href must not carry (a `javascript:` / `vbscript:` href runs on the click — the `download` attribute does not neutralize it). */
+// eslint-disable-next-line no-control-regex -- the C0 prefix is the scheme-detection bypass subject.
+const UNSAFE_DOWNLOAD_SCHEME = /^[\u0000-\u0020]*(javascript|vbscript)\s*:/i;
+
+/**
+ * The download href gate (the defense in depth over the consumer's BlobStore
+ * url): the executable schemes stand no anchor; the `data:` / the `blob:` / the
+ * http(s) urls stand (the default store's data urls, the consumer's CDN).
+ * The browser's leading-control trim is undone before the scheme check (the
+ * link href's stand).
+ */
+function isSafeDownloadHref(url: unknown): boolean {
+  return typeof url === "string" && !UNSAFE_DOWNLOAD_SCHEME.test(url);
+}
+
+/**
+ * The exhaustiveness check for a `switch` over a closed union: `value` is
+ * typed `never`, so once every member has a `case` the compiler narrows it
+ * to `never` in the `default` and the call type-checks; a member without a
+ * `case` fails the build. The throw is the runtime backstop for a value that
+ * slipped past the types.
+ */
+function assertNever(value: never): never {
+  throw new Error(`Unhandled value: ${String(value)}`);
+}
+
+export { assertNever, clamp, isSafeDownloadHref, preventDefault, stopPropagation };

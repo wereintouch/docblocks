@@ -13,22 +13,56 @@
  * The per-block renderer is threaded as a prop (the `renderBlock`): the
  * block renders the nested content (the list run, the nested slot), and
  * the nested content renders the block — the explicit prop keeps the
- * dependency one-directional (no back-edge to the per-block). */
+ * dependency one-directional (no back-edge to the per-block).
+ *
+ * The per-block render error boundary stands over the dispatch: a
+ * synchronous throw of a block's renderer (the anomalous data, the
+ * consumer renderer) is contained to the block — the placeholder stand
+ * replaces the failed render, the rest of the editor stands. The dispatch
+ * renders in a child component (the `BlockBody`) below the boundary: a
+ * boundary never contains its own render's throw. */
 import { useStore } from "zustand";
 
-import { Fragment, memo, useMemo, useRef } from "react";
+import { memo, useMemo, useRef } from "react";
 import type { ReactNode } from "react";
 
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
+import { BlockErrorBoundary } from "./BlockErrorBoundary";
 import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes } from "./ListRun";
 import { ItemNested, NestedSlot } from "./NestedSlot";
 import { dispatchBuiltIn } from "./block-dispatch";
-import { deriveFlat } from "./flat";
+import { collapseEmptyTextChains, deriveFlat, flatStructureKey, isEmptyChainText } from "./flat";
 import type { FlatNode } from "./flat";
+import type { BlockRendererMap } from "./renderers";
+
+/** The block body's renderer dispatch, a child of the render error
+ * boundary: the dispatch (the consumer renderer's call, the built-in
+ * dispatch) throws during this component's render, so the boundary above
+ * it contains the throw.
+ */
+function BlockBody({
+  node,
+  block,
+  nested,
+  collapsible,
+  flat,
+  renderers,
+}: {
+  node: FlatNode;
+  block: NonNullable<ReturnType<typeof useBlock>>;
+  nested: ReactNode;
+  collapsible: boolean;
+  flat: boolean;
+  renderers: BlockRendererMap;
+}) {
+  const custom = renderers[block.type];
+  if (custom !== undefined) return custom({ id: node.id, block });
+  return dispatchBuiltIn(node.id, block, nested, collapsible, flat, node.number);
+}
 
 /**
  * The block body + the derived nested content, per view.
@@ -63,14 +97,6 @@ const BlockNodeView = memo(
     // flat or not (the flat rows' segment stands as the sequence's own
     // rows — the toggle hides them, it does not thread them in).
     const collapsible = node.children.length > 0;
-    const nested: ReactNode = hasChildren ? (
-      isListItem ? (
-        <ItemNested id={node.id} nodes={node.children} ownKind={block.attrs.list} renderBlock={renderBlock} />
-      ) : (
-        <NestedSlot id={node.id} nodes={node.children} renderBlock={renderBlock} />
-      )
-    ) : undefined;
-    const custom = renderers[block.type];
     const builtInText =
       block.type === "paragraph" ||
       block.type === "quote" ||
@@ -78,25 +104,35 @@ const BlockNodeView = memo(
       block.type === "callout" ||
       block.type === "code" ||
       isListItem;
-    if (custom !== undefined) {
-      const view = custom({ id: node.id, block });
-      if (!hasChildren) return view;
-      return (
-        <Fragment>
-          {view}
+    const isCustom = renderers[block.type] !== undefined;
+    // The nested content threaded into the wrapper (the list item's sublist
+    // inside itself, the text container's slot) — the built-in text
+    // renderers only (a consumer renderer never threads it); the rest stands
+    // after the block (the consumer renderer, the non-text built-in).
+    const threaded: ReactNode =
+      hasChildren && !isCustom ? (
+        isListItem ? (
+          <ItemNested id={node.id} nodes={node.children} ownKind={block.attrs.list} renderBlock={renderBlock} />
+        ) : (
           <NestedSlot id={node.id} nodes={node.children} renderBlock={renderBlock} />
-        </Fragment>
-      );
-    }
-    const view = dispatchBuiltIn(node.id, block, nested, collapsible, flat, node.number);
-    // The text renderers thread the content into the wrapper; the non-text
-    // built-in renderers stand it after the block.
-    if (!hasChildren || builtInText) return view;
-    return (
-      <Fragment>
-        {view}
+        )
+      ) : undefined;
+    const trailing: ReactNode =
+      hasChildren && (isCustom || !builtInText) ? (
         <NestedSlot id={node.id} nodes={node.children} renderBlock={renderBlock} />
-      </Fragment>
+      ) : undefined;
+    return (
+      <BlockErrorBoundary version={block} type={block.type}>
+        <BlockBody
+          node={node}
+          block={block}
+          nested={threaded}
+          collapsible={collapsible}
+          flat={flat}
+          renderers={renderers}
+        />
+        {trailing}
+      </BlockErrorBoundary>
     );
   },
   // The node identity is the memo: the derivation interns node objects, so
@@ -124,17 +160,42 @@ const FlatBlockView: FlatBlockRenderer = memo(
  * sublist, a text container's nested slot).
  */
 function BlockGroups({ ids }: { ids: BlockId[] }) {
-  const { store } = useEditorContext();
-  const blocks = useStore(store, (state) => state.blocks);
+  const { store, viewMode } = useEditorContext();
+  // The flat sequence stands on the structure only (the indents, the list
+  // kinds): the structure digest keys the derivation (the whole-map
+  // subscription would stand the O(n) re-derivation over every keystroke).
+  const structureKey = useStore(store, (state) => flatStructureKey(ids, state.blocks));
+  // The read-only stand's digest: the text blocks' emptiness (the chain's
+  // collapse's input — a peer's write over the live's view stand flips the
+  // empty's state). The edit's mode stands no digest (the collapse's
+  // stand is off).
+  const emptyKey = useStore(store, (state) =>
+    viewMode
+      ? ids
+          .map((id) => {
+            const block = state.blocks[id];
+            return isEmptyChainText(block) ? "o" : block === undefined ? "-" : ".";
+          })
+          .join("")
+      : ""
+  );
   // The interning cache: the previous derivation's byId stands while the
-  // sequence's data is unchanged (the memo is keyed on the node identity).
+  // sequence's data is unchanged (the memo is keyed on the digest + the ids).
   const prevRef = useRef<Map<string, FlatNode> | null>(null);
   const derivation = useMemo(() => {
-    const result = deriveFlat(ids, blocks, prevRef.current ?? undefined);
+    const result = deriveFlat(ids, store.getState().blocks, prevRef.current ?? undefined);
     prevRef.current = result.byId;
     return result;
-  }, [ids, blocks]);
-  return <GroupedNodes nodes={derivation.nodes} renderBlock={FlatBlockView} />;
+  }, [structureKey, ids, store]);
+  // The read-only stand (view / published): the consecutive empty text
+  // blocks' chain (the one indent, the zero text, no children) stands
+  // rendered as one (the chain's first block) — the data stands untouched.
+  const nodes = useMemo(() => {
+    if (!viewMode) return derivation.nodes;
+    const blocks = store.getState().blocks;
+    return collapseEmptyTextChains(derivation.nodes, (id) => isEmptyChainText(blocks[id]));
+  }, [derivation.nodes, viewMode, emptyKey, store]);
+  return <GroupedNodes nodes={nodes} renderBlock={FlatBlockView} />;
 }
 
 /**
@@ -143,13 +204,24 @@ function BlockGroups({ ids }: { ids: BlockId[] }) {
  * structural block (a table, a frame), or any block outside a flat
  * sequence context (a surface's z-order). The block snapshot is
  * store-driven by reference, so a change to a sibling never re-renders
- * this component. A block removed by a peer renders nothing.
+ * this component. A block removed by a peer renders nothing. The boundary
+ * stands over the dispatch (the `StandaloneBody` child) for the same
+ * reason as the sequence view.
  */
 const BlockView = memo(function BlockView({ id }: { id: BlockId }) {
   const block = useBlock(id);
   if (block === undefined) return null;
-  return dispatchBuiltIn(id, block, undefined, false, false, undefined);
+  return (
+    <BlockErrorBoundary version={block} type={block.type}>
+      <StandaloneBody id={id} block={block} />
+    </BlockErrorBoundary>
+  );
 });
+
+/** The standalone block's dispatch (the child of the boundary above). */
+function StandaloneBody({ id, block }: { id: BlockId; block: NonNullable<ReturnType<typeof useBlock>> }) {
+  return dispatchBuiltIn(id, block, undefined, false, false, undefined);
+}
 
 /**
  * The LEGACY nested-content reader: page blocks no longer carry

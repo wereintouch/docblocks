@@ -202,14 +202,14 @@ describe("MermaidCodeRenderer", () => {
       </EditorProvider>
     );
     // The override renders the built-in code view; the derived nested
-    // content (the flat model's "children") stands as a nested slot AFTER
-    // the replaced view — a sequence concern the custom renderer does not
-    // thread (it is never dropped).
+    // content (the flat model's "children") stands as the sequence's own
+    // row — the row's threading stands no nested slot over the flat page,
+    // and the child is never dropped.
     const codeWrapper = container.querySelector<HTMLElement>(`[data-block-id="${code}"]`)!;
-    const nested = codeWrapper.nextElementSibling;
-    expect(nested, "the nested slot should stand after the replaced view").not.toBeNull();
-    expect(nested!.getAttribute("data-slot")).toBe("docblocks/nested");
-    expect(nested!.querySelector(`[data-block-id="${child}"]`), "the child renders inside").not.toBeNull();
+    expect(codeWrapper.nextElementSibling).toBeNull();
+    const childRow = container.querySelector<HTMLElement>(`[data-block-id="${child}"]`);
+    expect(childRow, "the child renders as its own row").not.toBeNull();
+    expect(childRow?.textContent).toContain("nested");
   });
 });
 

@@ -1,5 +1,8 @@
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 
+import { isSafeEmbedSrc } from "docblocks-core";
 import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
@@ -79,6 +82,7 @@ function zoomAtPoint(view: EmbedView, cx: number, cy: number, nextScale: number)
 }
 
 function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
+  const { t } = useTranslation("blocks");
   const { kind, src, title } = block.attrs;
   // The embed's sandbox: the policy (the consumer's or the safe default) maps
   // the src to the `sandbox` value; `null` stands no sandbox (a fully trusted
@@ -219,19 +223,35 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
       onPointerUp={endPan}
       onPointerCancel={endPan}
     >
-      <iframe
-        data-slot="docblocks/embed"
-        src={src}
-        title={title ?? kind}
-        loading="lazy"
-        sandbox={sandbox ?? undefined}
-        className="block h-full w-full border-0"
-        style={{
-          transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
-          transformOrigin: "0 0",
-          pointerEvents: panModifier ? "none" : "auto",
-        }}
-      />
+      {isSafeEmbedSrc(kind, src) ? (
+        <iframe
+          data-slot="docblocks/embed"
+          src={src}
+          title={title ?? kind}
+          loading="lazy"
+          sandbox={sandbox ?? undefined}
+          className="block h-full w-full border-0"
+          style={{
+            transform: `translate(${view.x}px, ${view.y}px) scale(${view.scale})`,
+            transformOrigin: "0 0",
+            pointerEvents: panModifier ? "none" : "auto",
+          }}
+        />
+      ) : (
+        // The renderer's gate: the unsafe src (the legacy / the remote
+        // crafted data — the write posture rejects it) stands the
+        // placeholder, the iframe stands no mount (the `javascript:` / the
+        // foreign `data:` would stand the XSS over the consumer's sandbox
+        // grant / the phishing surface).
+        <div
+          data-slot="docblocks/embed-blocked"
+          className="
+            flex h-full w-full items-center justify-center p-4 text-center text-sm text-(--docblocks-muted-text-color)
+          "
+        >
+          {title ?? kind}
+        </div>
+      )}
       {/* The hover / focus reveal (the code header's controls idiom):
           invisible and unclickable unless the wrapper is hovered or a zoom
           control holds the keyboard focus (the wrapper's focus-within). The
@@ -252,7 +272,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           data-slot="docblocks/embed-zoom-out"
           variant="ghost"
           size="icon"
-          aria-label="Zoom out"
+          aria-label={t("embed.zoomOut")}
           className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={view.scale <= EMBED_MIN_SCALE}
           onMouseDown={preventDefault}
@@ -270,7 +290,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           data-slot="docblocks/embed-zoom-in"
           variant="ghost"
           size="icon"
-          aria-label="Zoom in"
+          aria-label={t("embed.zoomIn")}
           className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={view.scale >= EMBED_MAX_SCALE}
           onMouseDown={preventDefault}
@@ -282,7 +302,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           data-slot="docblocks/embed-zoom-reset"
           variant="ghost"
           size="icon"
-          aria-label="Reset zoom"
+          aria-label={t("embed.zoomReset")}
           className="size-6 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
           disabled={atIdentity}
           onMouseDown={preventDefault}

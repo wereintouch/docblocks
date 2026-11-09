@@ -116,8 +116,11 @@ describe("Tab: list nesting", () => {
     const nested = doc.toJSON();
     expect((nested.blocks[l2]! as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
     expect(doc.getChildren(doc.meta.id)).toEqual([l1, l2]);
-    // The nested item renders inside the parent's nested list.
-    expect(wrapperOf(l1).querySelector('[data-slot="docblocks/list"] li[data-block-id]')).not.toBeNull();
+    // The flat stand: the nested item is its own row at the deeper indent
+    // step, the marker's cycle following the level.
+    const marker = wrapperOf(l2).querySelector<HTMLElement>('[data-slot="docblocks/row-marker"]');
+    expect(marker).not.toBeNull();
+    expect(marker?.getAttribute("data-cycle")).toBe("2");
 
     key(wrapperOf(l2), "Tab", { shiftKey: true });
 
@@ -177,8 +180,12 @@ describe("Tab: list nesting", () => {
     expect(doc.getChildren(doc.meta.id)).toEqual([p, l1]);
     const l1Json = doc.toJSON().blocks[l1]!;
     expect((l1Json as { attrs?: { indent?: number } }).attrs?.indent).toBe(1);
-    // The indented item stands in the paragraph's indent slot.
-    expect(wrapperOf(p).querySelector('[data-slot="docblocks/nested"]')).not.toBeNull();
+    // The flat stand: the indented item is its own row at the deeper
+    // indent step (the nested slot stands no element — the sequence owns
+    // the nesting), the marker's cycle following the level.
+    const marker = wrapperOf(l1).querySelector<HTMLElement>('[data-slot="docblocks/row-marker"]');
+    expect(marker).not.toBeNull();
+    expect(marker?.getAttribute("data-cycle")).toBe("2");
   });
 });
 
@@ -297,11 +304,11 @@ describe("blocks selection (gutter)", () => {
   });
 });
 
-describe("per-level list markers (the rendered data-depth cycle)", () => {
-  /** The data-depth cycle index of every list element, in DOM order. */
+describe("per-level list markers (the rendered row marker's cycle)", () => {
+  /** The cycle index of every flat list row's marker, in DOM order. */
   function listDepths(): string[] {
-    return Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/list']")).map(
-      (el) => el.getAttribute("data-depth") ?? ""
+    return Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/row-marker']")).map(
+      (el) => el.getAttribute("data-cycle") ?? ""
     );
   }
 
@@ -326,7 +333,12 @@ describe("per-level list markers (the rendered data-depth cycle)", () => {
   it("a 2-level nested number list carries the cycle indices 1, 2", () => {
     renderDoc((d) => seedChain(d, "number", 2));
     expect(listDepths()).toEqual(["1", "2"]);
-    expect(document.querySelectorAll("ol[data-slot='docblocks/list']").length).toBe(2);
+    // The flat stand: the number's markers stand the kind (no list
+    // element — the row's marker label renders the number).
+    const kinds = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/row-marker']")).map((el) =>
+      el.getAttribute("data-kind")
+    );
+    expect(kinds).toEqual(["number", "number"]);
   });
 
   it("a top-level list inside a table cell starts a fresh depth-1 context", () => {
@@ -347,9 +359,11 @@ describe("per-level list markers (the rendered data-depth cycle)", () => {
     );
     const cellEl = document.querySelector<HTMLElement>("[data-slot='docblocks/table-cell']");
     expect(cellEl, "the cell should be rendered").not.toBeNull();
-    const list = cellEl!.querySelector("[data-slot='docblocks/list']");
-    expect(list, "the embedded list should render inside the cell").not.toBeNull();
-    expect(list!.getAttribute("data-depth")).toBe("1");
+    // The embedded editor's flat stand: the list item's row marker stands
+    // inside the cell (the fresh depth-1 context).
+    const marker = cellEl!.querySelector("[data-slot='docblocks/row-marker']");
+    expect(marker, "the embedded list's marker should stand inside the cell").not.toBeNull();
+    expect(marker!.getAttribute("data-cycle")).toBe("1");
   });
 
   it("the task list is untouched (the checkbox owns the marker slot)", () => {
@@ -357,9 +371,12 @@ describe("per-level list markers (the rendered data-depth cycle)", () => {
       const id = d.insertBlock("list-item", { list: "task" });
       d.insertText(id, 0, "a task");
     });
-    const list = document.querySelector<HTMLElement>("ul[data-slot='docblocks/list'][data-list='task']");
-    expect(list).not.toBeNull();
-    expect(list!.getAttribute("data-depth")).toBe("1");
-    expect(list!.querySelector('[data-slot="docblocks/checkbox"]')).not.toBeNull();
+    const wrapper = document.querySelector<HTMLElement>("[data-slot='docblocks/list-item']");
+    expect(wrapper).not.toBeNull();
+    expect(wrapper!.getAttribute("data-list")).toBe("task");
+    expect(wrapper!.querySelector('[data-slot="docblocks/checkbox"]')).not.toBeNull();
+    // The checkbox owns the marker slot: no rendered marker over a task
+    // row.
+    expect(wrapper!.querySelector('[data-slot="docblocks/row-marker"]')).toBeNull();
   });
 });

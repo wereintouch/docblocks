@@ -59,10 +59,10 @@ interface Linearizable {
 /**
  * The reading order of every block, starting at the root. In the flat page
  * model a page block has no children, so a page sequence (root order, a
- * cell mini-doc, a frame's nested page) reads in array order — the chain
+ * cell mini-doc) reads in array order — the chain
  * between two page blocks is a contiguous segment of that sequence; the
  * descent applies only to the structural containers (table rows/cells,
- * the surface z-order, the frame's nested page).
+ * the surface z-order).
  */
 function linearize(doc: Linearizable): BlockId[] {
   const order: BlockId[] = [];

@@ -31,17 +31,16 @@ const IDS = {
   connector: "c0005",
   brokenConnector: "c0006",
   frame: "c0007",
-  frameHeading: "c0008",
-  frameParagraph: "c0009",
-  docIdConnector: "c0010",
-  pointsConnector: "c0011",
+  docIdConnector: "c0008",
+  pointsConnector: "c0009",
 } as const;
 
 /**
  * The canvas scene (the ids follow the insertion order — the children
  * order IS the z-order): a rect, a dashed ellipse, a sized canvas-text,
  * a connector between the two shapes, a connector with an unresolvable
- * start, a frame with nested page blocks, a connector with a docId ref
+ * start, a childless frame (the viewport window — the content stands on
+ * the surface, not on the frame), a connector with a docId ref
  * (skipped: cross-doc resolution is the consumer's level), and a
  * points connector (the polyline path).
  */
@@ -68,10 +67,6 @@ function seedCanvasScene(doc: TestDoc): void {
     );
     const frame = doc.insertBlock("frame", undefined, { parent: surface });
     doc.setGeometry(frame, { x: 300, y: -120, w: 260, h: 200 });
-    const heading = doc.insertBlock("heading", { level: 1 }, { parent: frame });
-    doc.insertText(heading, 0, "Frame heading");
-    const paragraph = doc.insertBlock("paragraph", undefined, { parent: frame });
-    doc.insertText(paragraph, 0, "Frame paragraph");
     doc.insertBlock(
       "connector",
       { start: { docId: "other-doc", blockId: rect }, end: { blockId: ellipse } },
@@ -111,11 +106,15 @@ function renderScene(options?: RenderOptions) {
   return doc;
 }
 
-/** The canvas-item wrappers in DOM order (the z-order pin). */
+/** The canvas-item wrappers over the world's DIRECT children (the z-order
+ * pin — the frame's window's copies stand inside the frame's wrapper and
+ * stand out of the list). */
 function canvasItemIds(): string[] {
-  return Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/canvas-item']")).map(
-    (el) => el.dataset.blockId as string
-  );
+  const world = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-world"]');
+  if (world === null) return [];
+  return Array.from(world.children)
+    .filter((el): el is HTMLElement => el instanceof HTMLElement && el.dataset.slot === "docblocks/canvas-item")
+    .map((el) => el.dataset.blockId as string);
 }
 
 /** A Y.Map-shaped instance (the borrowed-constructor seed below). */
@@ -161,33 +160,47 @@ function parsePathPoints(d: string): { x: number; y: number }[] {
 
 describe("canvas scene", () => {
   it("renders the surface container with the elements in z-order (DOM order)", () => {
-    renderScene();
-    expect(document.querySelector('[data-slot="docblocks/canvas"]')).not.toBeNull();
+    renderScene({ view: "canvas" });
+    // The scene renders ONLY in the canvas view (the page view filters the
+    // surface out of the sequence), so the container's stand is the
+    // canvas-view's world.
+    expect(document.querySelector('[data-slot="docblocks/canvas-world"]')).not.toBeNull();
+    // The container's focus is the hotkey's parking stand (the keys'
+    // reach) — it stands no visible ring of its own (a canvas-wide focus
+    // frame is noise; the items' own outlines stand the feedback).
+    const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
+    expect(view).not.toBeNull();
+    expect(view!.className).not.toContain("focus-visible:ring");
+    // The frame stands the view back (the window's parity — it renders
+    // behind every other item; the z-order's data slot keeps its role for
+    // the figures).
     expect(canvasItemIds()).toEqual([
+      IDS.frame,
       IDS.rect,
       IDS.ellipse,
       IDS.text,
       IDS.connector,
       IDS.brokenConnector,
-      IDS.frame,
       IDS.docIdConnector,
       IDS.pointsConnector,
     ]);
   });
 
   it("reorders the elements on a moveBlock within the surface (the z-order change)", () => {
-    const doc = renderScene();
+    const doc = renderScene({ view: "canvas" });
     // Move the rect (index 0) to the end of the surface's children
     // (pre-move index semantics: toIndex = the current last position + 1).
     act(() => {
       doc.moveBlock(IDS.rect, IDS.surface, 8);
     });
+    // The frame's view-back stand: it stands first (behind the figures),
+    // the figures' z-order within their run.
     expect(canvasItemIds()).toEqual([
+      IDS.frame,
       IDS.ellipse,
       IDS.text,
       IDS.connector,
       IDS.brokenConnector,
-      IDS.frame,
       IDS.docIdConnector,
       IDS.pointsConnector,
       IDS.rect,
@@ -195,7 +208,7 @@ describe("canvas scene", () => {
   });
 
   it("positions the elements by geometry (the center-anchor coordinate model)", () => {
-    renderScene();
+    renderScene({ view: "canvas" });
     const rect = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.rect}"]`
     )!;
@@ -210,7 +223,7 @@ describe("canvas scene", () => {
   });
 
   it("renders the shapes as SVGs (the variant figures, the dash style, the fill attr)", () => {
-    renderScene();
+    renderScene({ view: "canvas" });
     const rect = document.querySelector<SVGElement>(`[data-slot="docblocks/shape"][data-block-id="${IDS.rect}"]`)!;
     expect(rect.getAttribute("data-variant")).toBe("rect");
     expect(rect.querySelector("rect")).not.toBeNull();
@@ -226,17 +239,26 @@ describe("canvas scene", () => {
   });
 
   it("renders the canvas-text as an editable block with the font attrs as inline styles", () => {
-    renderScene();
-    const wrapper = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.text}"]`
+    renderScene({ view: "canvas" });
+    // The original's wrapper over the world's direct children (the frame's
+    // window's copy stands inside the frame's wrapper — the z-order's
+    // direct-children' stand).
+    const world = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-world"]')!;
+    const wrapper = world.querySelector<HTMLElement>(
+      `:scope > [data-slot="docblocks/canvas-item"][data-block-id="${IDS.text}"]`
     )!;
     expect(wrapper.style.fontSize).toBe("20px");
     expect(wrapper.style.textAlign).toBe("center");
-    expect(screen.getByText("Canvas text")).not.toBeNull();
-    const editable = document.querySelector<HTMLElement>(
+    // The text stands twice (the original + the frame's window's copy —
+    // the inert's copy's stand). The inner's stand is the inert's rest
+    // (the edit session's open over the double-click's entry stands the
+    // editable — the press's contract: the single click stands the
+    // selection, no caret).
+    expect(screen.getAllByText("Canvas text").length).toBe(2);
+    const editable = wrapper.querySelector<HTMLElement>(
       `[data-slot="docblocks/block-content"][data-block-id="${IDS.text}"]`
     )!;
-    expect(editable.getAttribute("contenteditable")).toBe("true");
+    expect(editable.getAttribute("contenteditable")).toBe("false");
   });
 
   it("renders the connector line between the resolved EDGES and skips the broken one (data-missing)", () => {
@@ -308,6 +330,7 @@ describe("canvas scene", () => {
 
   it("renders the connector's stroke style (the data-driven dasharray: dash / dot / the solid default)", () => {
     const doc = renderScene({
+      view: "canvas",
       seed: (d: TestDoc) => {
         d.transact(() => {
           const surface = d.insertBlock("surface");
@@ -354,7 +377,7 @@ describe("canvas scene", () => {
   });
 
   it("renders the variant shapes (the orthogonal elbow and the curved bow)", () => {
-    const doc = renderScene();
+    const doc = renderScene({ view: "canvas" });
 
     // The absent variant stands straight (the default).
     const straight = document.querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
@@ -507,27 +530,125 @@ describe("canvas: the connector's style attrs", () => {
   });
 });
 
-describe("canvas: frame", () => {
-  it("renders the nested page blocks through the nested provider (same doc)", () => {
-    renderScene();
+describe("canvas: frame (the viewport window)", () => {
+  it("renders the window (the border / the canvas background / the true clipping) and stands no nested content", () => {
+    const doc = renderScene({ view: "canvas" });
     const frame = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"]`)!;
-    // The nested content: the heading and the paragraph inside the frame box.
-    expect(frame.querySelector("h1")!.textContent).toBe("Frame heading");
-    expect(
-      frame.querySelector(`[data-slot="docblocks/block-content"][data-block-id="${IDS.frameParagraph}"]`)
-    ).not.toBeNull();
-    // The frame's children are NOT direct children of the surface (the
-    // nested provider carries them).
-    expect(canvasItemIds()).not.toContain(IDS.frameHeading);
+    expect(frame).not.toBeNull();
+    const box = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-window']")!;
+    // The true window: the content is clipped at the box.
+    expect(box.className).toContain("overflow-hidden");
+    expect(box.className).toContain("rounded-(--docblocks-radius)");
+    // The canvas's own background: the color + the 24px dot grid (the
+    // world grid's phase — the box at (300, -120) 260x200 stands the
+    // top-left world corner at (170, -220): the phase 170 mod 24 = 2 →
+    // the dot's half-step offset 12 - 2 = 10; -220's phase 20 →
+    // 12 - 20 + 24 = 16).
+    expect(box.style.backgroundColor).toBe("var(--docblocks-canvas-background)");
+    expect(box.style.backgroundImage).toBe(
+      "radial-gradient(circle, var(--docblocks-canvas-view-dot) 1px, transparent 1px)"
+    );
+    expect(box.style.backgroundSize).toBe("24px 24px");
+    expect(box.style.backgroundPosition).toBe("10px 16px");
+    // The container's thin rounded border: the 1px inset ring (the resting
+    // stand over the canvas group's border token).
+    expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-group-border-color)");
+    // The frame is childless: the content is the surface's window copy, not
+    // the frame's children (the nested-page's stand is gone).
+    expect(doc.getChildren(IDS.frame)).toEqual([]);
+    expect(frame.querySelector("h1")).toBeNull();
+    // The window's content stands the surface's items (the inert copy — the
+    // rect stands inside the window, not as a direct surface's item twice:
+    // the copy's wrapper stands inside the window's content's stand).
+    const content = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
+    expect(content).not.toBeNull();
+    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${IDS.rect}"]`)).not.toBeNull();
+    // The frame's cycle guard: the frame does not stand inside its own
+    // window.
+    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${IDS.frame}"]`)).toBeNull();
   });
 
-  it("commits an edit inside the frame to the shared doc", () => {
-    const doc = renderScene();
-    const length = doc.getTextLength(IDS.frameParagraph);
+  it("stands the selection's outline over the window (the ring's switch to the selection's color)", () => {
+    renderScene({ view: "canvas" });
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]`
+    )!;
+    const box = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-window']")!;
+    expect(wrapper.hasAttribute("data-selected")).toBe(false);
+    expect(box.style.outline).toBe("");
+    // The press selects the frame (the window's content is pointer-
+    // transparent — the press stands the frame's wrapper's generic item's
+    // branch: select + the move session).
+    fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(wrapper, { pointerId: 1 });
+    expect(wrapper.getAttribute("data-selected")).toBe("true");
+    // The ring stands the selection's color (the wrapper's outline stands
+    // the shared selection's stand).
+    expect(box.style.outline).toBe(
+      "var(--docblocks-canvas-selection-border-width) solid var(--docblocks-canvas-selection-border-color)"
+    );
+    expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-selection-border-color)");
+  });
+
+  it("stands the title chip (the chip's stand, the empty's removed stand)", () => {
+    const doc = renderScene({ view: "canvas" });
+    const frame = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"]`)!;
+    expect(frame.querySelector("[data-slot='docblocks/frame-title']")).toBeNull(); // the absent's off
     act(() => {
-      doc.insertText(IDS.frameParagraph, length, " — edited");
+      doc.updateBlock(IDS.frame, { title: "My frame" });
     });
-    expect(screen.getByText("Frame paragraph — edited")).not.toBeNull();
+    const chip = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-title']");
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toBe("My frame");
+    act(() => {
+      doc.updateBlock(IDS.frame, { title: "" });
+    });
+    expect(frame.querySelector("[data-slot='docblocks/frame-title']")).toBeNull(); // the empty's off
+  });
+
+  it("enters the title's inline edit on the chip's double-click and commits on the blur (one updateBlock)", () => {
+    const doc = renderScene({ view: "canvas" });
+    act(() => {
+      doc.updateBlock(IDS.frame, { title: "First" });
+    });
+    const chip = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"] [data-slot='docblocks/frame-title']`
+    )!;
+    fireEvent.dblClick(chip);
+    const edit = document.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-edit']")!;
+    expect(edit).not.toBeNull();
+    expect(edit.getAttribute("aria-label")).toBe("Frame title");
+    expect((edit as HTMLInputElement).value).toBe("First");
+    // The commit (the blur): one updateBlock over the frame's title.
+    const editInput = edit as HTMLInputElement;
+    editInput.value = "First — edited";
+    fireEvent.blur(edit);
+    const frame = doc.getBlock(IDS.frame);
+    expect(frame?.type === "frame" && frame.attrs?.title).toBe("First — edited");
+  });
+
+  it("stands the set-title menu on the selection over the title-less frame (the commit's one updateBlock)", () => {
+    const doc = renderScene({ view: "canvas" });
+    const wrapper = document.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]`
+    )!;
+    const frame = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame']")!;
+    // The selection (the title-less stand): the menu's trigger stands at
+    // the title's seat.
+    fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerUp(wrapper, { pointerId: 1 });
+    const menu = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");
+    expect(menu).not.toBeNull();
+    expect(menu!.getAttribute("aria-label")).toBe("Set frame title");
+    fireEvent.click(menu!);
+    const input = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu-input']")!;
+    expect(input).not.toBeNull();
+    fireEvent.change(input, { target: { value: "Seated" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    const block = doc.getBlock(IDS.frame);
+    expect(block?.type === "frame" && block.attrs?.title).toBe("Seated");
+    // The menu closes, the chip stands over the title's commit.
+    expect(frame.querySelector("[data-slot='docblocks/frame-title']")!.textContent).toBe("Seated");
   });
 });
 
@@ -556,7 +677,7 @@ describe("canvas: lenient render", () => {
     });
     render(
       <EditorProvider doc={doc}>
-        <Editor />
+        <Editor view="canvas" />
       </EditorProvider>
     );
     const wrapper = document.querySelector<HTMLElement>("[data-slot='docblocks/canvas-item']")!;
@@ -592,7 +713,7 @@ describe("canvas: shape variants", () => {
     });
     render(
       <EditorProvider doc={doc}>
-        <Editor />
+        <Editor view="canvas" />
       </EditorProvider>
     );
 
@@ -623,7 +744,7 @@ describe("canvas: shape variants", () => {
     });
     render(
       <EditorProvider doc={doc}>
-        <Editor />
+        <Editor view="canvas" />
       </EditorProvider>
     );
 
@@ -656,7 +777,7 @@ describe("canvas: consumer renderer", () => {
       shape: ({ id }) => <span data-custom="shape">{`custom-shape-${id}`}</span>,
       "canvas-text": ({ id }) => <span data-custom="canvas-text">{`custom-text-${id}`}</span>,
     };
-    renderScene({ blockRenderers: renderers });
+    renderScene({ view: "canvas", blockRenderers: renderers });
     // The built-in shape SVGs are gone; the custom ones render in place.
     expect(document.querySelector("[data-slot='docblocks/shape']")).toBeNull();
     expect(document.querySelector("[data-custom='shape']")!.textContent).toBe(`custom-shape-${IDS.rect}`);

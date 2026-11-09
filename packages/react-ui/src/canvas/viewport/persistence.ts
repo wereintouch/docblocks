@@ -71,7 +71,7 @@ function isPersistedViewport(value: unknown): value is PersistedViewport {
 
 // The zoom's clamp (the 25%–400% bounds): a corrupted / an out-of-bounds
 // stored zoom stands the bound, not the raw value.
-function clampZoom(zoom: number): number {
+function clampZoomToBounds(zoom: number): number {
   return Number(Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom)).toFixed(4));
 }
 
@@ -82,13 +82,13 @@ function clampZoom(zoom: number): number {
 function readCanvasViewport(docId: string): PersistedViewport | null {
   const stored = readMap()[docId];
   if (stored === undefined || !isPersistedViewport(stored)) return null;
-  return { zoom: clampZoom(stored.zoom), pan: { x: stored.pan.x, y: stored.pan.y } };
+  return { zoom: clampZoomToBounds(stored.zoom), pan: { x: stored.pan.x, y: stored.pan.y } };
 }
 
 /** The document's stored viewport's write (the map's one entry). */
 function writeCanvasViewport(docId: string, viewport: PersistedViewport): void {
   const map = readMap();
-  map[docId] = { zoom: clampZoom(viewport.zoom), pan: { x: viewport.pan.x, y: viewport.pan.y } };
+  map[docId] = { zoom: clampZoomToBounds(viewport.zoom), pan: { x: viewport.pan.x, y: viewport.pan.y } };
   writeMap(map);
 }
 

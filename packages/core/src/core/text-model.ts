@@ -12,7 +12,7 @@
  */
 import * as Y from "yjs";
 
-import { MARK_REGISTRY } from "@docblocks-core/schema";
+import { MARK_REGISTRY, setOwn } from "@docblocks-core/schema";
 import type { MarkName, MarkSet } from "@docblocks-core/schema";
 
 /** All registered mark names. */
@@ -40,11 +40,11 @@ function markSetToAttrs(marks: MarkSet): Record<string, unknown> {
     if (typeof value === "object" && value !== null) {
       const nested: Record<string, unknown> = {};
       for (const [key, attrValue] of Object.entries(value)) {
-        if (attrValue !== undefined) nested[key] = attrValue;
+        if (attrValue !== undefined) setOwn(nested, key, attrValue);
       }
-      attrs[name] = nested;
+      setOwn(attrs, name, nested);
     } else {
-      attrs[name] = value;
+      setOwn(attrs, name, value);
     }
   }
   return attrs;
@@ -54,26 +54,41 @@ function markSetToAttrs(marks: MarkSet): Record<string, unknown> {
  * A Y.Text attribute object as a `MarkSet` (mirrors the snapshot reader:
  * `true` toggles kept, object values reduced to their string fields). The
  * cross-minor stand: an unknown mark name is preserved (its fields pass
- * through as-is, not only the string ones) — the data is not lost on save,
- * the reader/renderer stand the text without it, the strict validator
- * rejects it.
+ * through as-is, not only the string ones), and a non-boolean primitive
+ * value (a future minor's additive value shape) is kept as-is — the data
+ * is not lost on save, the reader/renderer stand the text without it, the
+ * strict validator rejects it. A known mark's unknown fields stand the
+ * same pass-through (a future minor's additive field on a known mark, any
+ * value shape); a known field keeps the string stand (a non-string value
+ * on a known field is corrupt data — a future minor cannot change a known
+ * field's contract — and is dropped protectively).
  */
 function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
   const marks = {} as MarkSet;
   if (attributes === null || attributes === undefined) return marks;
   for (const [name, value] of Object.entries(attributes)) {
     if (value === true) {
-      (marks as Record<string, unknown>)[name] = true;
+      setOwn(marks, name, true);
     } else if (typeof value === "object" && value !== null) {
       const attrs: Record<string, unknown> = {};
+      const spec = Object.hasOwn(MARK_REGISTRY, name) ? MARK_REGISTRY[name as MarkName] : undefined;
+      const fields = spec?.fields;
       for (const [key, attrValue] of Object.entries(value)) {
         if (attrValue === undefined) continue;
-        // Known marks are normalized to their string fields (the writer's
-        // contract); an unknown mark passes its fields through as-is.
-        if (name in MARK_REGISTRY && typeof attrValue !== "string") continue;
-        attrs[key] = attrValue;
+        // A known field stands the string contract (the writer's stand);
+        // an unknown field (a future minor's additive data) passes through
+        // as-is — the data is not lost on save.
+        const knownField =
+          (fields !== undefined && Object.hasOwn(fields, key)) ||
+          (fields === undefined && spec !== undefined && key === spec.attr);
+        if (knownField && typeof attrValue !== "string") continue;
+        setOwn(attrs, key, attrValue);
       }
-      (marks as Record<string, unknown>)[name] = attrs;
+      setOwn(marks, name, attrs);
+    } else {
+      // A non-boolean primitive (string / number): a future minor's
+      // additive value shape — kept as-is (the cross-minor stand).
+      setOwn(marks, name, value);
     }
   }
   return marks;

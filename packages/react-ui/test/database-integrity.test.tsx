@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
+import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
 import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { act } from "react";
 
 import type { BatchOp, DatabaseBridge, MutationContext } from "../src/database/bridge";
-import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { newMutationContext, useDatabaseTable } from "../src/database/use-database-table";
 
 /**

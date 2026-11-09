@@ -12,11 +12,17 @@ package renders the document and provides the editing surface
 npm i docblocks-react-ui docblocks-core
 ```
 
-Peer dependencies: `docblocks-core`, `react` (19), `react-dom`. Optional
-peers, used only by their subpaths: `framer-motion` (`./motion`), `mermaid`
-(`./mermaid`), `pdfjs-dist` (`./pdf`). The package's own runtime dependencies
-(zustand, the Radix primitives, the shared ui runtime set) are declared, so
-a plain `npm i` is the whole install.
+Peer dependencies: `docblocks-core`, `react` (19), `react-dom`, and the
+required peers `framer-motion` (the Editor's page view is the motion row
+layer — the drag-reorder + the layout animations), `mermaid` (the
+`./mermaid` subpath's renderer), and `pdfjs-dist` (the `./pdf` subpath's
+preview) — the install must carry all of them (npm enforces the required
+peers). The package's own runtime dependencies (zustand, the Radix
+primitives, the shared ui runtime set) are declared, so a plain `npm i`
+is the whole install.
+
+The package is ESM-only (`import`, not `require`); it stands Node
+`^22.22.2 || ^24.15.0 || >=26.0.0` (the `engines` field).
 
 ## Quick start
 
@@ -46,6 +52,10 @@ function App() {
 }
 ```
 
+The `styles.css` side-effect import stands the standard bundler's ambient
+`*.css` module declaration (shipped with the Vite / CRA / Next.js templates);
+a bare `tsc`-only setup needs a one-line `declare module "*.css"` shim.
+
 - `EditorProvider` owns the per-instance editor state (the store projection
   of the doc, the selection view, the subscriptions). Multiple providers may
   coexist, each with its own doc.
@@ -54,31 +64,51 @@ function App() {
   elements on the canvas.
 - `DocHeader` is a consumer-placed panel rendered in the consumer's chrome
   (outside the editor, so it takes the core `Doc` directly): the
-  page/canvas switcher, the avatar, and the title — inline-editable, the
+  page/canvas switcher, the document mode's switcher (Edit / View /
+  Published — consumer-controlled over the `mode` + `onModeChange` props,
+  rendered over the `editor`'s access level and the callback's presence;
+  the `Published` option is disabled while the `publishedDoc` prop is
+  absent), the avatar, and the title — inline-editable in the edit mode
+  only (the read-only modes stand the title/avatar display-only), the
   title/avatar commits are one core command each (one undo step each),
-  the Escape cancels without a write. It stands the standard theme tokens
+  the Escape cancels without a write. Over the published's stand the
+  header stands the snapshot's meta (the live's meta stands off — the
+  `viewer`'s `doc` is the snapshot itself; the no-snapshot stand renders
+  the neutral meta, never the live one). It
+  stands the standard theme tokens
   (not the `--docblocks-*` ones), since it renders outside the editor root.
+- The `Doc` holds the document state, and the package holds no
+  persistence — how to store and restore it: the Persistence section
+  below.
 
 ## The consumer contract
 
 Everything the editor needs from the consumer is injected as an
-`EditorProvider` prop; every prop except `doc` is optional, and the
-package ships a working default for most of them (the defaults are the dev / demo mode —
-session-only, cleared on reload). The full props list:
+`EditorProvider` prop; every prop except `doc` is optional. The only
+built-in default is the blob store (a shared in-memory stand — the
+uploads resolve as data urls for the JS session, cleared on reload); the
+other props degrade gracefully over their absence (the external-form
+database block stands the not-connected placeholder and the `/database`
+slash command is hidden without a bridge; the `sync-embed` block stands
+its broken state without a resolver; the `@` stays plain text without a
+mention catalog). The full props list:
 
-| Prop                         | Contract                                                                                                                             |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `doc` (required)             | The core `Doc` to render and edit. Must not change after mount (a throw on change is the contract).                                  |
-| `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs). |
-| `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                             |
-| `blobStore?`                 | The blob bridge for image / pdf / file blocks (see below).                                                                           |
-| `blobResolver?`              | Legacy view-only resolver (key → src string). Wrapped as a store: no upload, subtype `image`. Prefer `blobStore`.                    |
-| `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                               |
-| `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                          |
-| `pdfPreview?`                | A first-page preview component for `pdf`-subtype image blocks (see below).                                                           |
-| `mentionProvider?`           | The `@` mention picker's search catalog (see below).                                                                                 |
-| `rootBlockId?`               | Render the entry list of this block instead of the document root (the subtree view). Must not change after mount.                    |
-| `commandPalettePlaceholder?` | The empty-block hint text (default `Type '/' for commands`).                                                                         |
+| Prop                         | Contract                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `doc`                        | The core `Doc` to render. Must not change after mount (a throw on change is the contract). Required for the `editor` stand; over the `viewer`'s level the doc IS the published snapshot (the security model — the reader's browser never receives the live document), and an absent stand renders the "not published yet" placeholder. |
+| `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs).                                                                                                                                                                                                   |
+| `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                                                                                                                                                                                                                               |
+| `blobStore?`                 | The blob bridge for image / pdf / file blocks (see below).                                                                                                                                                                                                                                                                             |
+| `blobResolver?`              | Legacy view-only resolver (key → src string). Wrapped as a store: no upload, subtype `image`. Prefer `blobStore`.                                                                                                                                                                                                                      |
+| `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                                                                                                                                                                                 |
+| `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                                                                                                                                                                            |
+| `pdfPreview?`                | A first-page preview component for `pdf`-subtype image blocks (see below).                                                                                                                                                                                                                                                             |
+| `mentionProvider?`           | The `@` mention picker's search catalog (see below).                                                                                                                                                                                                                                                                                   |
+| `rootBlockId?`               | Render the entry list of this block instead of the document root (the subtree view). Must not change after mount.                                                                                                                                                                                                                      |
+| `commandPalettePlaceholder?` | The empty-block hint text (default `Type '/' for commands`).                                                                                                                                                                                                                                                                           |
+| `accessLevel?`               | The consumer's user access level (default `editor`): `viewer` forces the `published` mode (the current state is never rendered to a reader).                                                                                                                                                                                           |
+| `mode?`                      | The document mode (default `edit`): `view` is a read-only live document; `published` renders the `publishedDoc` snapshot read-only.                                                                                                                                                                                                    |
+| `publishedDoc?`              | The published snapshot (a hydrated core `Doc`; must not change after mount — remount over `key` for a new snapshot). The consumer owns the publish action and the snapshot storage.                                                                                                                                                    |
 
 Two rules for the optional props:
 
@@ -91,24 +121,125 @@ Two rules for the optional props:
   own — a sync-embed's nested editor resolves its own content against the
   enclosing catalog.
 
+### Persistence
+
+The package holds no persistence — the document state lives in the core
+`Doc`, and the snapshot / update storage is a consumer-side concern (the
+non-goal list in the core README). The canonical loop: restore the doc
+from your stored state, and save it on every transaction:
+
+```tsx
+import { useEffect, useState } from "react";
+
+import { loadDoc } from "docblocks-core";
+
+function useDocument(id: string) {
+  // Restore: loadDoc over your stored encoded state (fromJSON over a
+  // stored JSON snapshot).
+  const [doc] = useState(() => loadDoc(readStoredState(id)));
+  useEffect(() => {
+    // onChange fires for every transaction (local and remote) — encode
+    // the full state after each and hand it to your storage.
+    const off = doc.onChange(() => {
+      writeStoredState(id, doc.encode());
+    });
+    return off;
+  }, [doc]);
+  return doc;
+}
+```
+
+(`doc.toJSON()` / `fromJSON` is the JSON path, `doc.encode()` /
+`loadDoc` the encoded path — the core README's Doc section; a consumer
+that stores incremental updates can encode them with
+`doc.encodeUpdate(stateVector)`.)
+
+### Access modes and publishing
+
+The access level and the document mode are consumer session state (never
+document data, never on the wire):
+
+```tsx
+// The editor's stand: the live document + the publish's snapshot.
+<EditorProvider doc={doc} mode={mode} accessLevel={role} publishedDoc={snapshot}>
+  <Editor />
+</EditorProvider>
+
+// The viewer's stand (the security model): the published snapshot is the
+// only document the reader's browser receives — pass it as `doc`.
+<EditorProvider doc={snapshot} accessLevel="viewer">
+  <Editor />
+</EditorProvider>
+```
+
+- `accessLevel: "viewer" | "editor"` (default `editor`) decides which
+  modes are available: a `viewer` is always in the `published` mode (the
+  current state is never rendered to a reader); an `editor` switches
+  freely.
+- **The security model — the reader never receives the live document.**
+  The consumer hands the viewer exactly the minimum needed to render the
+  published state: the published snapshot as `doc` and nothing else (no
+  live document, no sync transport, no `publishedDoc` — over the viewer
+  the `doc` is the snapshot). A document that was never published is no
+  stand at all: the provider renders the "not published yet" placeholder
+  over the absent `doc`.
+- `mode: "edit" | "view" | "published"` (default `edit`): `edit` is the
+  full editor over the live document; `view` is a read-only render of the
+  live document (it keeps syncing — the state stays current); `published`
+  renders the `publishedDoc` snapshot read-only (a nested read-only editor
+  over the snapshot: its own selection, no sync transport, the snapshot
+  stands static over the live edits).
+- A published mode without a `publishedDoc` renders the
+  "not published yet" placeholder in place of the content (the current
+  state is not shown).
+- Over the read-only modes the editing surfaces are off (the text inners
+  are not editable, the gutter / drag / hotkeys / format toolbar / the
+  table and database editing chrome / the canvas sessions and dock stand
+  off); the read-only gestures keep (scroll, the embed pan / zoom, the
+  canvas wheel zoom / pan). Consecutive empty text blocks render as one
+  over the read-only modes (the document data is untouched).
+- Publishing is a consumer action: snapshot the doc state (`doc.encode()`
+  or `doc.toJSON()`), persist it where the reader loads it from, and
+  hydrate it (`loadDoc` / `fromJSON`) — for the `editor`'s `published`
+  mode into the `publishedDoc` prop, for the `viewer`'s stand as the `doc`
+  itself. The package ships no publish API and stores no publish state; the
+  external database form's rows live in the consumer's table (they are not
+  part of the snapshot — the inline form is document data and is). A new
+  snapshot is a remount (pass it under a changing `key`).
+- The `DocHeader` stands over the viewer's stand too: pass the snapshot as
+  its `doc` (the viewer's switcher stays off — the `accessLevel` stands no
+  `mode` stand over the `viewer` level).
+
 ### Sync and presence
 
 The transport is a core concern: create the doc, build a provider, attach
 them, and pass both to the provider:
 
 ```tsx
-import { Editor, EditorProvider, usePresence } from "docblocks-react-ui";
+import { Editor, EditorProvider } from "docblocks-react-ui";
+
+import { useEffect, useMemo } from "react";
 
 import { WsSyncProvider, attach, createDoc } from "docblocks-core";
 
-const doc = createDoc({ id: "room-1" });
-const provider = new WsSyncProvider("ws://my-server:5199/room-1");
-await provider.connect();
-const session = attach(doc, provider); // session.detach() on unmount
+const doc = createDoc({ id: "room-1" }); // or restore it (the Persistence section)
 
-<EditorProvider doc={doc} provider={provider}>
-  <Editor />
-</EditorProvider>;
+function App() {
+  const provider = useMemo(() => new WsSyncProvider("ws://my-server:5199/room-1"), []);
+  useEffect(() => {
+    void provider.connect();
+    const session = attach(doc, provider);
+    return () => {
+      session.detach(); // detach before the transport closes
+      provider.disconnect();
+    };
+  }, [doc, provider]);
+  return (
+    <EditorProvider doc={doc} provider={provider}>
+      <Editor />
+    </EditorProvider>
+  );
+}
 ```
 
 - `attach` bootstraps the session (it sends the full local state first,
@@ -161,21 +292,93 @@ The `database` block has two forms. The **inline** form keeps its columns
 and rows in the document. The **external** form keeps only a `tableId`
 reference; the schema and the rows live in the consumer's database behind
 the `DatabaseBridge` (the `databaseBridge` prop) — all methods are async,
-errors reject, and the package neither swallows nor retries:
+errors reject as the structured `BridgeError` (the closed `code`
+vocabulary — `BRIDGE_ERROR_CODES` — + the `message` + the optional
+`details`), and the package neither swallows nor
+retries:
 
+- protocol: `describeProtocol` (the version + the capabilities + the
+  limits) — the client negotiates it before any use; a version /
+  baseline-capability mismatch stands the `protocol_mismatch`, not a
+  silent downgrade
 - catalog: `listTables`, `createTable`, `renameTable`, `describeTable`
-- schema: `createColumn`, `updateColumn`, `renameColumn`, `deleteColumn`
-- rows: `queryRows` (cursor pagination), `insertRow(s)`, `updateRow(s)`,
-  `removeRow(s)`, `moveRow`, optional `undeleteRows` (only with soft-delete),
-  `resolveRowDisplay` (the row-link cells' join)
-- live feed: `subscribeTable(tableId, onEvents) → unsubscribe` — the only
-  push channel (WS / SSE / polling with the same event shape: `row.created`
-  / `row.updated` / `row.removed` / `row.moved` / `schema.changed` / …);
-  events arrive for all rows, the client filters.
+- schema: `createColumn`, `updateColumn`, `renameColumn` (the `name` key
+  of `updateColumn`), `deleteColumn`, `restoreDeletedColumn` (the
+  soft-delete posture)
+- reads: `snapshotTable` (the sole initial load: the schema + the first
+  page from one read), `queryNextPage` (the opaque keyset cursor — the
+  cursor is signed by the server), `resolveRowDisplay` (the row-link
+  cells' join)
+- writes: the atomic mixed `batchRows` (the ordered `ops[]` commit as one
+  transaction — the insert / update / remove / move / append stand the
+  op's kinds), `undeleteRows` (one atomic operation, independent of the
+  batch) — every mutation carries the `MutationContext` (the
+  client-issued `operationId` idempotency key + the issue time + the
+  optional CAS `expectedRevision` — its absence selects the LWW default)
+- live feed: `subscribeTable(tableId, { afterSeq }, observer)` → the
+  handle — the push channel (the consumer's transport: WS / SSE /
+  polling); the observer stands the `commit` envelope (one transaction →
+  one `seq` / `prevSeq` over the append-only per-table stream) and the
+  `invalidate` (the table's stream re-anchors — the grid refetches over
+  the alive subscription); the bootstrap's replay covers the
+  snapshot → subscribe gap (the `afterSeq` handoff)
+- reconciliation: `getOperationStatus(operationId)` — the lost-response
+  stand (the committed receipt or the pending)
 
-Without a bridge, the editor uses the shared default in-memory bridge
-(tables and rows stand in the page's JS memory, cleared on reload) — the
-dev / demo mode. `createMemoryDatabaseBridge` is exported.
+Without a bridge, external-form database blocks render a "database not
+connected" placeholder and the `/database` slash command is hidden; the
+inline-form database block (columns + rows stored in the document) renders
+and edits without a bridge. Supply your own `DatabaseBridge` implementation
+for external-form tables. The bridge-side helpers are exported from the
+package root: `BridgeError` (the structured error type) with
+`toBridgeError` / `isBridgeError` / `isBridgeErrorCode`, `newMutationContext`
+(the client-issued `operationId` per op), `PROTOCOL_VERSION` /
+`BASELINE_CAPABILITIES` / `validateProtocolDescriptor` (the negotiation),
+`isDatabaseBridge`, and `useDatabaseTable(bridge, tableId, filter?)` — the
+grid controller for a consumer-owned grid over the bridge.
+
+### Standalone database table
+
+The database's UI stands outside any document as well — the
+consumer-owned "tables section" (the user's tables management, not a
+document block). The package ships the composable primitives; the
+consumer assembles its own section (the list / the UX) over
+`useTableList` and embeds the ready grid over the picked table:
+
+```tsx
+import { DatabaseTable, useTableList } from "docblocks-react-ui";
+
+function TablesSection({ bridge }: { bridge: DatabaseBridge }) {
+  const list = useTableList(bridge);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  return (
+    <div>
+      {list.tables?.map((table) => (
+        <button key={table.id} onClick={() => setSelectedId(table.id)}>
+          {table.name}
+        </button>
+      ))}
+      {selectedId !== null && <DatabaseTable bridge={bridge} tableId={selectedId} />}
+    </div>
+  );
+}
+```
+
+- `DatabaseTable({ bridge, tableId, readOnly?, view?, onViewChange? })` —
+  the live grid over the bridge's table id (the same data stand as the
+  document block: the schema, the rows, the live events, the optimistic
+  cell layer). The view's settings (`filter`, `columnOrder`,
+  `hiddenColumns`, `columnWidths`) stand the internal state (seeded from
+  the optional `view` prop at mount); `onViewChange(patch)` receives one
+  patch per change for the consumer's persistence (the controlled mode
+  stands absent — the state is never external). `readOnly` gates the
+  editing's paths (the read-only block's parity).
+- `useTableList(bridge)` — `{ tables, loading, error, refresh, create,
+rename }`: the `listTables` catalog (the system tables stand out), the
+  `createTable` / `renameTable` mutations (the fresh `operationId` per op;
+  they reject with the `BridgeError`), and the catalog's re-read —
+  automatic over the hook's own successful mutations + manual over
+  `refresh` (the contract's catalog stands no push channel).
 
 ### Sync-embed
 
@@ -225,7 +428,7 @@ const blockRenderers: BlockRendererMap = {
 
 `pdfPreview` is a component that renders a `pdf`-subtype image block's
 resolved blob as a client-side first-page preview. The `./pdf` subpath
-provides one over `pdfjs-dist` (an optional peer):
+provides one over `pdfjs-dist` (a required peer):
 
 ```tsx
 import { PdfFirstPage } from "docblocks-react-ui/pdf";
@@ -264,6 +467,36 @@ non-editable chip; copying it stands the `@label` plain text. Without the
 prop the `@` is plain text (no picker). The mark is non-exclusive (it
 composes with the other marks).
 
+### Canvas
+
+`view: "canvas"` renders the page miniature plus the document's
+root-level `surface` blocks — the shapes, the connectors, the frames,
+and the canvas texts. The canvas content is document data (the `surface`
+block with its child elements, each optionally carrying the `geometry`
+— `x` / `y` / `w` / `h`), created in the editor (the bottom dock's
+insert menu, the drag / resize / nudge / fit / draw sessions) or
+programmatically through the core's block commands. The viewport's zoom
+and pan are view state — they never reach the document.
+
+### Localization
+
+The editor's UI strings ship localized (en + ru). The language is
+consumer-driven — the package reads the `<html lang>` attribute (the `ru*`
+prefix stands the Russian stand; the absent / unknown language falls back
+to English) and follows the attribute's change at runtime (the editor
+re-renders over the flip). There is no `locale` prop — the document's
+language is the consumer's, set on `<html>`.
+
+The package runs its **own** `i18next` instance (the shipped catalogs,
+`i18next` + `react-i18next` are runtime dependencies) under the
+`EditorProvider`'s subtree — a consumer's global `i18next` singleton stands
+untouched, and the editor's `useTranslation` never leaks into (or out of)
+the consumer's setup.
+
+Not localized (the technical stand): the code language names, the font
+family / weight names, the avatar emoji picker's accessible names, and the
+technical glyphs.
+
 ### Subtree view
 
 `rootBlockId` renders the entry list of one block instead of the document
@@ -276,6 +509,29 @@ subtree as its own page:
 </EditorProvider>
 ```
 
+### Hooks
+
+The editor state is read through the hooks over the nearest
+`EditorProvider`; every hook re-renders its consumer only when the read
+value actually changes (the store's reference-stability contract):
+
+- `useDoc()` — the core `Doc`.
+- `useBlock(id)` — the block snapshot (`undefined` when the block is
+  missing, e.g. removed by a peer).
+- `useText(id)` — the block's flattened text.
+- `useSelection()` — the local view selection (the caret / range / block
+  selection).
+- `useSelectionView()` — the selection view (set the selection, read the
+  local state; `null` before the mount effect ran and after unmount).
+- `usePresence()` — the remote peers' ephemeral state (the selection +
+  the `updatedAt` per peer).
+- `useMeta()` — the document meta (the reference is replaced only when
+  the title changed).
+- `useEditorContext()` — the whole provider context (the store, the
+  resolvers, the access stand).
+- `useDatabaseTable(bridge, tableId, filter?)` — the external database
+  block's grid controller (a consumer-owned grid over the bridge).
+
 ### The `Editor` props
 
 | Prop            | Contract                                                                 |
@@ -283,8 +539,10 @@ subtree as its own page:
 | `view`          | `"page"` (default) or `"canvas"` — the rendering the consumer switches   |
 | `formatPalette` | The format toolbar's color swatches (default `FORMAT_PALETTE`, exported) |
 
-`MotionEditor` (the `./motion` subpath) accepts the same props and adds the
-layout animations and drag-reorder (requires `framer-motion`).
+The page view renders the flat page sequence — every page block is its
+own row (the drag-reorder's pure framer `Reorder`, the insert/remove's
+layout animation, the rendered list marker per row) — over the required
+`framer-motion` peer.
 
 ## Subpath exports
 
@@ -293,12 +551,13 @@ layout animations and drag-reorder (requires `framer-motion`).
 | `docblocks-react-ui`            | The editor, the provider, the hooks, the primitives (the entry)                                                  |
 | `docblocks-react-ui/styles.css` | The compiled stylesheet: the utility layer + the token seed + the `--docblocks-*` mapping + the structural rules |
 | `docblocks-react-ui/theme.css`  | The pure token seed (standard tokens + the radius scale), no utility layer                                       |
-| `docblocks-react-ui/motion`     | `MotionEditor` (layout animations, insert/remove, drag-reorder; peer: `framer-motion`)                           |
 | `docblocks-react-ui/mermaid`    | The `mermaid` renderer above `code { language: "mermaid" }` blocks (peer: `mermaid`)                             |
 | `docblocks-react-ui/pdf`        | `PdfFirstPage` (the first-page preview over `pdfjs-dist`; the worker is copied to `dist/pdf/` at build time)     |
 
-The base entry imports none of the optional peers, so consumers who skip a
-subpath ship no extra weight.
+The `./mermaid` and `./pdf` subpaths' wiring is opt-in (the `pdfPreview`
+prop / the `code` block renderer): a consumer who skips a subpath imports
+nothing of its module. The peers themselves are required installs (the
+page view's framer import included).
 
 ## Theming
 

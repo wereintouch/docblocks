@@ -8,10 +8,12 @@
  * create / list failure stands the error line (the block is not inserted);
  * the cancel keeps the command list on the phrase.
  */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useRef, useState } from "react";
 
 import type { TableRef } from "../../database";
-import { newMutationContext } from "../../database";
+import { newMutationContext, validateProtocolDescriptor } from "../../database";
 import { useEditorContext } from "../../editor-provider";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
@@ -20,7 +22,13 @@ import { preventDefault } from "../../shared/utils";
 
 /** The table picker panel (the slash menu's database state). */
 function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: string) => void; onCancel: () => void }) {
+  const { t } = useTranslation("slash");
   const { databaseBridge } = useEditorContext();
+  // The picker stands only while a bridge is available: the slash menu hides
+  // the `database` command when the bridge is absent, so this guard is the
+  // unreachable stand (the bridge is read before any hook, stably across the
+  // provider's lifetime).
+  if (databaseBridge === undefined) return null;
   const [tables, setTables] = useState<TableRef[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -31,6 +39,23 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
   // The search row's query (the existing list filters by table name).
   const [query, setQuery] = useState("");
   const nameInputRef = useRef<HTMLInputElement | null>(null);
+
+  // The picker's lifetime: the create's commit stands only while the
+  // picker stands (the Escape / the caret's move unmounts it — the commit
+  // over the unmount would insert the block over a cancelled gesture; the
+  // create's receipt itself stands the consumer's orphan, the picker
+  // cannot unwind it).
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    // The StrictMode's dev double-mount re-runs the setup: the reset stands
+    // the guard live after the double-mount (the cleanup-only stand leaves
+    // the ref false over a dev StrictMode, dropping the create's commit —
+    // the table is created, the block is not inserted).
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // The name input stands focused when the form stands (the keyboard's
   // create flow: the button's click lands the focus, the name types, the
@@ -43,6 +68,12 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
     let cancelled = false;
     void (async () => {
       try {
+        // The negotiation stand (the useDatabaseTable bootstrap's
+        // contract): the version / the baseline-capability mismatch stands
+        // the protocol_mismatch — the list/create stand only over a
+        // validated protocol (the silent downgrade is not a stand).
+        const descriptor = await databaseBridge.describeProtocol();
+        validateProtocolDescriptor(descriptor);
         const refs = await databaseBridge.listTables();
         if (!cancelled) setTables(refs);
       } catch (listError) {
@@ -56,16 +87,21 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
 
   const create = () => {
     const trimmed = name.trim();
-    if (trimmed.length === 0 || creating) return;
+    // The protocol stand: the create stands only over the validated
+    // protocol (the mount effect's negotiation — tables === null is the
+    // loading / the failed-negotiation stand).
+    if (trimmed.length === 0 || creating || tables === null) return;
     setCreating(true);
     setError(null);
     void (async () => {
       try {
         const tableId = (await databaseBridge.createTable({ name: trimmed }, newMutationContext())).result.id;
-        onCommit(tableId);
+        if (mountedRef.current) onCommit(tableId);
       } catch (createError) {
-        setCreating(false);
-        setError(createError instanceof Error ? createError.message : String(createError));
+        if (mountedRef.current) {
+          setCreating(false);
+          setError(createError instanceof Error ? createError.message : String(createError));
+        }
       }
     })();
   };
@@ -103,7 +139,7 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
             type="text"
             data-slot="docblocks/slash-database-name"
             className="rounded-sm"
-            placeholder="New table name"
+            placeholder={t("database.namePlaceholder")}
             value={name}
             onKeyDown={onNameKeyDown}
             onChange={onNameChange}
@@ -130,7 +166,7 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
           onClick={openCreate}
         >
           <Plus className="size-4" />
-          New table
+          {t("database.newTable")}
         </Button>
       )}
       {error !== null && (
@@ -143,20 +179,20 @@ function DatabaseSlashPicker({ onCommit, onCancel }: { onCommit: (tableId: strin
         type="text"
         data-slot="docblocks/slash-database-search"
         className="rounded-sm"
-        placeholder="Search tables…"
+        placeholder={t("database.searchPlaceholder")}
         value={query}
         onKeyDown={stopPickerKey}
         onChange={onQueryChange}
       />
       {tables === null ? (
         <div data-slot="docblocks/slash-database-loading" className="px-2 py-1 text-sm text-muted-foreground">
-          Loading the tables…
+          {t("database.loading")}
         </div>
       ) : (
         <div data-slot="docblocks/slash-database-list" className="max-h-40 overflow-y-auto">
           {filtered.length === 0 && (
             <div data-slot="docblocks/slash-database-empty" className="px-2 py-1 text-sm text-muted-foreground">
-              {query.trim().length > 0 ? "No tables match" : "No tables yet — create one above."}
+              {query.trim().length > 0 ? t("database.noMatch") : t("database.empty")}
             </div>
           )}
           {filtered.map((ref) => (

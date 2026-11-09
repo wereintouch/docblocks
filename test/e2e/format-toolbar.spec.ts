@@ -99,21 +99,23 @@ test("the palette applies a background highlight, then a text color, then clears
   // The palette opens at the palette button (the background target is the
   // default) and a swatch applies the highlight mark. The palette content
   // is portaled to the document body (radix), so the locator is page-scoped.
-  await bar.locator('[data-target="highlight"]').click();
+  const paletteTrigger = bar.locator('[aria-label="Text and background color"]');
+  await paletteTrigger.click();
   const palette = a.locator('[data-slot="docblocks/format-palette"]');
   await expect(palette).toBeVisible();
   // The swatch's entry is a theme token; the commit resolves it to the
-  // active theme's hex (the harness stands dark — the muted red).
+  // active theme's hex (the harness stands dark — the muted red). The
+  // pick's stand closes the palette (the next pick reopens it).
   await palette.locator('[data-color="var(--docblocks-palette-red)"]').click();
-  // The palette stays open for the next pick (applying a color does not
-  // move the selection).
-  await expect(palette).toBeVisible();
   let block = await firstBlock(a, "a");
   expect((block.content ?? []).find((run) => run.text === "hello world")?.marks.highlight).toEqual({
     value: "#c96a6a",
   });
 
-  // The text target applies the color mark alongside the highlight.
+  // The text target applies the color mark alongside the highlight (the
+  // pick's close stands: reopen before the switch).
+  await paletteTrigger.click();
+  await expect(palette).toBeVisible();
   await a.locator('[data-target-btn="color"]').click();
   await palette.locator('[data-color="var(--docblocks-palette-blue)"]').click();
   block = await firstBlock(a, "a");
@@ -126,7 +128,10 @@ test("the palette applies a background highlight, then a text color, then clears
   await expect(span).toHaveCSS("color", "rgb(101, 133, 205)");
   await expect(span).toHaveCSS("background-color", "rgb(201, 106, 106)");
 
-  // The "no color" entry clears the active target's mark (color here).
+  // The "no color" entry clears the active target's mark (color here):
+  // reopen the palette (the pick's close stands) and pick the none.
+  await paletteTrigger.click();
+  await expect(palette).toBeVisible();
   await palette.locator('[data-color="none"]').click();
   block = await firstBlock(a, "a");
   const cleared = (block.content ?? []).find((run) => run.text === "hello world");

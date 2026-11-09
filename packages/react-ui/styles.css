@@ -56,7 +56,7 @@
  * docblocks/format-palette),
  * plus the per-block elements;
  * + `data-block-type` / `data-list` / `data-depth` / `data-variant` / `data-checked`
- * / `data-kind` / `data-selected` / `data-state` / `data-doc-id`.
+ * / `data-kind` / `data-selected` / `data-state` / `data-doc-id` / `data-readonly`.
  */
 
 /*
@@ -233,10 +233,8 @@
   --docblocks-sync-embed-max-height: 200px;
 
   /* Canvas (surface). */
-  --docblocks-canvas-height: 500px;
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #afb8c1) 8%, transparent);
   --docblocks-canvas-shape-stroke: currentColor;
-  --docblocks-frame-background: var(--card, #ffffff);
 
   /* Canvas view (the document-level canvas). */
   --docblocks-canvas-view-height: 100%;
@@ -321,7 +319,6 @@
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
 
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #6e7681) 15%, transparent);
-  --docblocks-frame-background: var(--card, #161b22);
   /* The slightly muted selection cyan (the dark theme's base). */
   --docblocks-canvas-selection-border-color: #39c5cf;
   --docblocks-canvas-selected-stroke: #39c5cf;
@@ -350,6 +347,44 @@
  */
 [data-slot="docblocks/canvas-view"] {
   overscroll-behavior: contain;
+}
+
+/*
+ * The editor root's focus-ring stand: the root is a focus PARK (the
+ * gestures' contract — the drag's release and the gutter's delete park
+ * the focus there so the keyboard's input stays scoped over the editor).
+ * It is reached programmatically only (tabIndex -1 — no Tab focus), so
+ * the browser's default focus ring would stand the visible ring over the
+ * whole document after a drag's release. The ring is suppressed; the
+ * focus itself stays (the keyboard's scoping needs it), and the
+ * individual controls keep their own focus styles.
+ */
+[data-slot="docblocks/editor"]:focus {
+  outline: none;
+}
+
+/*
+ * The read-only stand (view / published modes): the editor's content is
+ * read-only — the text selection stands no stand (the native range's
+ * gesture is an editing's affordance). The caret is already impossible
+ * (the inners stand contenteditable="false"), this keeps the
+ * selection's gesture off over the whole content.
+ */
+[data-slot="docblocks/editor"][data-readonly="true"] {
+  user-select: none;
+}
+
+/*
+ * The frame's window content (the inert copy of the surface's layer):
+ * pointer-TRANSPARENT in full — the copies' stand is the render only, the
+ * interaction stands on the originals outside the window. The `!important`
+ * suppresses the copies' own explicit pointer stands (the container's
+ * border's hit band, the title's chip, the connector's hit path) — the
+ * press over the window stands the frame's wrapper (the select / the move
+ * session).
+ */
+[data-slot="docblocks/frame-window-content"] * {
+  pointer-events: none !important;
 }
 
 /*

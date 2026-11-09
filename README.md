@@ -14,14 +14,20 @@ are 0.x pre-release.
 | Workspace           | npm name             | Purpose                                                                                                                                     |
 | ------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `packages/core`     | `docblocks-core`     | Headless engine: `schema` (format/types/validator), `core` (`Doc`, commands, transactions, undo, reactivity), `sync` (providers, `attach`). |
-| `packages/react-ui` | `docblocks-react-ui` | React rendering + editing layer: provider + hooks, block renderers, caret/selection, keyboard, clipboard, presence.                         |
+| `packages/react-ui` | `docblocks-react-ui` | React rendering + editing layer: provider + hooks, block renderers, caret/selection, keyboard, clipboard, presence, localization (en/ru).   |
 | `apps/playground`   | (private)            | Dev harness for visual and sync testing: A/B clients on a local ws relay, inspectors, chaos controls.                                       |
 
 Dependency budget of `docblocks-core`: `yjs` + `y-protocols` + `lib0`
-only. `docblocks-react-ui` peers: `docblocks-core`, `react`,
-`react-dom`; optional peers used only by their subpaths (`framer-motion`,
-`mermaid`, `pdfjs-dist`). The consumer-facing contracts of the React layer
-are documented in `packages/react-ui/README.md`.
+only. `docblocks-react-ui` peers: `docblocks-core`, `react`, `react-dom`,
+and the required peers `framer-motion` (the Editor's page view is the
+motion row layer), `mermaid` (the `./mermaid` subpath), `pdfjs-dist` (the
+`./pdf` subpath); its runtime dependencies are `zustand`, the shared/ui
+runtime set, and `i18next` + `react-i18next` (the package's own localized
+UI — the language over the consumer's `<html lang>` attribute, en + ru). The consumer-facing contracts of the React layer
+are documented in `packages/react-ui/README.md`. The notable changes are
+recorded in the per-package changelogs (`packages/core/CHANGELOG.md`,
+`packages/react-ui/CHANGELOG.md`); the versions are managed by
+changesets.
 
 ## Requirements
 
@@ -72,26 +78,28 @@ Query flags (combined freely):
 | `?ds=1`        | Render the design-system preview panel instead of a pane                                                                                       |
 
 `docblocks-react-ui` is consumed by the playground from its built `dist/`
-(consumer view, including the `./motion` subpath): rebuild the packages
-first after a source change, or the playground runs the stale build.
+(consumer view): rebuild the packages first after a source change, or the
+playground runs the stale build.
 
 ## Commands (run from the repo root)
 
-| Command                           | Purpose                                                         |
-| --------------------------------- | --------------------------------------------------------------- |
-| `npm install`                     | Install all workspaces                                          |
-| `npm run build`                   | tsdown builds for both packages (core first)                    |
-| `npm run typecheck`               | `tsc --noEmit` in every workspace + the e2e project             |
-| `npm test`                        | Vitest unit tests per workspace (run after `npm run build`)     |
-| `npm run test:e2e`                | Playwright E2E (spawns the playground dev server itself)        |
-| `npm run lint` / `lint:fix`       | ESLint (flat config, includes the boundary gates)               |
-| `npm run format` / `format:check` | Prettier                                                        |
-| `npm run check`                   | Full local gate: lint → format → build → typecheck → test → e2e |
+| Command                           | Purpose                                                                                      |
+| --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `npm install`                     | Install all workspaces                                                                       |
+| `npm run build`                   | tsdown builds for both packages (core first)                                                 |
+| `npm run typecheck`               | `tsc --noEmit` in every workspace + the e2e project                                          |
+| `npm run check:deprecations`      | The deprecation gate (the `@deprecated` usages the editor surfaces over the typecheck's set) |
+| `npm test`                        | Vitest unit tests per workspace (run after `npm run build`)                                  |
+| `npm run test:packaging`          | The packaging gate (the tarball composition + the clean-install minimal consumer)            |
+| `npm run test:e2e`                | Playwright E2E (spawns the playground dev server itself)                                     |
+| `npm run lint` / `lint:fix`       | ESLint (flat config, includes the boundary gates)                                            |
+| `npm run format` / `format:check` | Prettier                                                                                     |
+| `npm run check`                   | Full local gate: lint → format → build → typecheck → deprecations → test → packaging → e2e   |
 
 The `Makefile` wraps the npm scripts for the daily loop: `make dev` (the
-playground), `make check` (lint + typecheck), `make full` (the full gate),
-`make unit` / `make unit-f F=<test file>` (all unit tests / a single file),
-`make e2e-file F=<spec>` (a single e2e spec).
+playground), `make check` (lint + typecheck + deprecations), `make full`
+(the full gate), `make unit` / `make unit-f F=<test file>` (all unit tests /
+a single file), `make e2e-file F=<spec>` (a single e2e spec).
 
 The E2E suite spawns its own dev server on `:5173` (strict port): a run
 with the port already occupied fails rather than silently testing a stale
@@ -100,11 +108,13 @@ build. To reuse an already-running dev server locally, set
 
 ## Continuous integration
 
-GitHub Actions runs the full local gate (`npm run check`) on pushes to the
-main branches and on pull requests, over the supported Node versions (the
-`engines` floor of each major plus the current major). Releases are a
-separate job: a changesets Version PR on `main`, publishing behind the
-protected `npm` environment with minimal permissions.
+GitHub Actions runs the local gate on pushes to the main branches and on
+pull requests: the static, unit and packaging gates over the supported Node
+versions (the `engines` floor of each major plus the current major), the E2E
+step over the Node 22 job (the browser tests stand the product, not the
+runner's Node). Releases are a separate job: a changesets Version PR on
+`main`, publishing behind the protected `npm` environment with minimal
+permissions.
 
 ## Boundaries (enforced by ESLint)
 

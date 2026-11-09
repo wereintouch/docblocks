@@ -19,6 +19,8 @@ interface SegmentOption<T extends string> {
   label: string;
   /** The icon stand (the icon size's option); the text size's options render the label. */
   icon?: ReactNode;
+  /** The disabled's stand (the button stands inert: no press, the muted's stand). */
+  disabled?: boolean;
 }
 
 type SegmentSelectorSize = "icon" | "text";
@@ -65,7 +67,7 @@ function SegmentSelector<T extends string>({
     const list = listRef.current;
     if (list === null) return;
     const measure = (): void => {
-      const button = list.querySelector<HTMLElement>(`[data-${buttonAttrName}="${value}"]`);
+      const button = list.querySelector<HTMLElement>(`[data-${buttonAttrName}="${CSS.escape(value)}"]`);
       if (button === null) return;
       const listRect = list.getBoundingClientRect();
       const buttonRect = button.getBoundingClientRect();
@@ -137,6 +139,7 @@ function SegmentSelector<T extends string>({
           aria-pressed={value === option.value}
           aria-label={option.label}
           title={option.label}
+          disabled={option.disabled}
           className={cn(
             `
               relative z-10 font-normal transition-colors
@@ -145,7 +148,8 @@ function SegmentSelector<T extends string>({
               focus-visible:outline-ring
             `,
             size === "icon" ? "size-6" : "h-6 px-2 text-xs",
-            value === option.value ? "text-foreground" : "hover:text-foreground"
+            value === option.value ? "text-foreground" : "hover:text-foreground",
+            option.disabled && "cursor-not-allowed text-muted-foreground/50 hover:text-muted-foreground/50"
           )}
           onClick={selectOption(option.value)}
         >

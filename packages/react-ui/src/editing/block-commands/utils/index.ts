@@ -13,6 +13,7 @@ export {
 export {
   extendSelectionTo,
   focusCaretIn,
+  focusCaretInElement,
   focusCellActivation,
   reseatHistorySelection,
   restoreSelectionIn,

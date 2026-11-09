@@ -1,7 +1,15 @@
-import { type BlockRendererMap, Button, DocHeader, EditorProvider, type EditorView, cn } from "docblocks-react-ui";
+import {
+  type BlockRendererMap,
+  Button,
+  DocHeader,
+  Editor,
+  type EditorMode,
+  EditorProvider,
+  type EditorView,
+  cn,
+} from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
-import { MotionEditor } from "docblocks-react-ui/motion";
 import { PdfFirstPage } from "docblocks-react-ui/pdf";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -23,6 +31,7 @@ import type { MasterRuntime } from "./master";
 import { mentionProvider } from "./mention-provider";
 import { currentBlockOf, readBlocks } from "./pane-blocks";
 import type { PaneBlock } from "./pane-blocks";
+import { loadPublishedSnapshot, publishSnapshot } from "./publish";
 import { useBlockLabels } from "./useBlockLabels";
 
 /** The wire log keeps the last N events. */
@@ -38,6 +47,8 @@ declare global {
     __masterDocs?: { a: Doc | null; b: Doc | null };
     /** Harness-only: inserts a v1 block of `type` into the pane's doc with the harness attrs (see insert-blocks.ts) and returns its id (null if the pane is not mounted); the e2e suite's insert path in place of the removed insert controls. */
     __insertBlock?: (client: "a" | "b", type: string) => string | null;
+    /** Harness-only: re-reads the room's published snapshot from the shared stand (the publish.ts's localStorage) and applies it to the pane's published stand (the e2e's A/B flow: the editor's pane publishes, the viewer's pane re-reads); true when a stand was applied. */
+    __reloadPublished?: (client: "a" | "b") => boolean;
   }
 }
 
@@ -54,7 +65,12 @@ const BLOCK_RENDERERS: BlockRendererMap = { code: MermaidCodeRenderer };
 const TABS = ["json", "wire", "presence", "bridge"] as const;
 type InspectTab = (typeof TABS)[number];
 
-/** The pane's live doc + provider pair; null before the mount effect ran. */
+/**
+ * The pane's live doc + provider pair; null before the mount effect ran.
+ * The viewer's pane stands no runtime (the security stand — the reader's
+ * browser never holds the live document and its transport: the pane
+ * renders the published snapshot stand read-only).
+ */
 interface Runtime {
   doc: Doc;
   provider: WsSyncProvider;
@@ -72,9 +88,9 @@ interface Runtime {
  * Editor on the same doc/provider instance): typing is the real editor,
  * the pane's awareness is published by the provider from the real DOM
  * selection, and the pane's sync-embed resolver points at its master.
- * The editor area always renders the animated editor from the
- * `docblocks-react-ui/motion` subpath (the consumer demo; the harness
- * helpers target the block wrappers the motion layer keeps);
+ * The editor area always renders the base `Editor` (the motion page view
+ * is the Editor's default — the harness helpers target the block wrappers
+ * the motion layer keeps);
  * `catalog` builds the deterministic v1 catalog document
  * (catalog.ts) instead of seeding a paragraph (the goldens' fixture; the
  * live doc on `window.__catalogDoc`); `cycle` seeds the master with a
@@ -91,12 +107,14 @@ function SyncPane({
   catalog,
   canvas,
   cycle,
+  role,
 }: {
   client: "a" | "b";
   syncUrl: string;
   catalog: boolean;
   canvas: boolean;
   cycle: boolean;
+  role: "editor" | "viewer";
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
@@ -111,6 +129,14 @@ function SyncPane({
   const [tab, setTab] = useState<InspectTab>("json");
   /** The view mode (page / canvas): view state only — switching writes nothing to the doc. */
   const [view, setView] = useState<EditorView>(canvas ? "canvas" : "page");
+  /** The consumer's document mode: the editor's mode is controlled; the viewer's mode is forced to published (the package's resolution — the harness stands the editor's controlled stand). */
+  const [mode, setMode] = useState<EditorMode>("edit");
+  /** The published snapshot (the consumer's publish stand: the room's shared localStorage stand, the publish.ts); null over the absent stand. */
+  const [publishedDoc, setPublishedDoc] = useState<Doc | null>(() =>
+    loadPublishedSnapshot(syncUrl.split("/").pop() ?? syncUrl)
+  );
+  /** The snapshot stand's seq (a fresh instance per load — the viewer's provider remounts over the new stand: the doc instance must not change over a mounted provider). */
+  const [publishedSeq, setPublishedSeq] = useState(0);
   /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
   const [dark, setDark] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
@@ -139,6 +165,31 @@ function SyncPane({
   // instance's bytes are only buffered (the socket opens after cleanup) and
   // are dropped by destroy() before reaching the wire.
   useEffect(() => {
+    // The viewer's stand (the security stand — the reader's browser never
+    // holds the live document): no doc, no relay, no master — the pane
+    // stands the published snapshot stand (the `publishedDoc`'s state, the
+    // publish.ts's shared stand) read-only. The live stand is never
+    // mounted (the fixture pins the absent stand over
+    // window.__paneDocs).
+    if (role === "viewer") {
+      window.__paneDocs = {
+        a: client === "a" ? null : (window.__paneDocs?.a ?? null),
+        b: client === "b" ? null : (window.__paneDocs?.b ?? null),
+      };
+      // The bridge stands over the viewer too (the snapshot's database's
+      // blocks stand the grid over the bridge's read path).
+      window.__bridge = databaseBridge;
+      // The stand is ready (no relay — the snapshot's stand, the consumer's
+      // persistence).
+      setConnected(true);
+      return () => {
+        window.__paneDocs = {
+          a: client === "a" ? null : (window.__paneDocs?.a ?? null),
+          b: client === "b" ? null : (window.__paneDocs?.b ?? null),
+        };
+        setConnected(false);
+      };
+    }
     // One seeder per room (the pane doc convention): client a seeds the
     // deterministic canvas doc, client b joins empty.
     const doc = canvas ? createCanvasDoc(client === "a") : seedPaneDoc(catalog);
@@ -266,7 +317,7 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog, canvas, cycle, masterDocId, client]);
+  }, [syncUrl, catalog, canvas, cycle, masterDocId, client, role]);
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
@@ -302,6 +353,35 @@ function SyncPane({
 
   // The harness runs exactly two clients, so a remote peer is the other one.
   const peerLetter = client === "a" ? "b" : "a";
+
+  // The consumer's publish stand (the harness's own storage — the package
+  // owns no publish state): the room's state becomes the published
+  // snapshot (the shared localStorage stand — the peer's pane reads the
+  // same stand over its reload / re-read).
+  const onPublish = () => {
+    const doc = docRef.current;
+    if (doc === null || runtime === null) return;
+    const roomName = syncUrl.split("/").pop() ?? syncUrl;
+    publishSnapshot(roomName, doc);
+    setPublishedDoc(loadPublishedSnapshot(roomName));
+    setPublishedSeq((seq) => seq + 1);
+  };
+  // The e2e's re-read path: the viewer's pane re-reads the room's published
+  // stand after the editor's pane published (the shared localStorage stand
+  // is the consumer's persistence — the panes are the same consumer).
+  useEffect(() => {
+    window.__reloadPublished = (letter) => {
+      if (letter !== client) return true;
+      const roomName = syncUrl.split("/").pop() ?? syncUrl;
+      const snapshot = loadPublishedSnapshot(roomName);
+      setPublishedDoc(snapshot);
+      if (snapshot !== null) setPublishedSeq((seq) => seq + 1);
+      return snapshot !== null;
+    };
+    return () => {
+      window.__reloadPublished = undefined;
+    };
+  }, [client, syncUrl]);
 
   const TOGGLE_BTN = "h-auto gap-0 rounded-md px-2.5 py-0.5 text-[13px] font-normal shadow-none";
   const TAB_BTN = "h-auto gap-0 rounded px-2 py-0.5 text-xs font-normal shadow-none";
@@ -357,22 +437,74 @@ function SyncPane({
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <h1 style={{ margin: 0, fontSize: 18 }}>docblocks — {client}</h1>
-          {runtime !== null && <DocHeader doc={runtime.doc} view={view} onViewChange={setView} />}
+          {(role === "viewer" || runtime !== null) && (
+            <>
+              {role === "editor" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  data-testid={`publish-${client}`}
+                  className={TOGGLE_BTN}
+                  onClick={onPublish}
+                >
+                  publish
+                </Button>
+              )}
+              <DocHeader
+                // The viewer's stand: the doc is the published snapshot (the
+                // only stand the consumer passes — the live's doc stands no
+                // stand; the absent stand stands the header's neutral's
+                // stand over the placeholder's card).
+                doc={role === "viewer" ? (publishedDoc ?? undefined) : runtime?.doc}
+                view={view}
+                onViewChange={setView}
+                accessLevel={role}
+                mode={mode}
+                onModeChange={setMode}
+                publishedDoc={role === "viewer" ? null : publishedDoc}
+              />
+            </>
+          )}
         </header>
         <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
-          {runtime !== null && (
+          {role === "viewer" ? (
+            // The viewer's security stand: the published snapshot is the
+            // doc (the live document never reaches the reader's browser);
+            // an absent snapshot renders the provider's not-published
+            // placeholder. Each load yields a fresh doc instance, so the
+            // key forces a provider remount on swap (the doc instance
+            // must not change over a mounted provider).
             <EditorProvider
-              doc={runtime.doc}
-              provider={runtime.provider}
+              key={publishedSeq}
+              doc={publishedDoc ?? undefined}
               blobStore={blobStore}
               databaseBridge={databaseBridge}
               blockRenderers={BLOCK_RENDERERS}
-              syncEmbedResolver={syncEmbedResolver}
               pdfPreview={PdfFirstPage}
               mentionProvider={mentionProvider}
+              accessLevel="viewer"
             >
-              <MotionEditor view={view} />
+              <Editor view={view} />
             </EditorProvider>
+          ) : (
+            runtime !== null && (
+              <EditorProvider
+                doc={runtime.doc}
+                provider={runtime.provider}
+                blobStore={blobStore}
+                databaseBridge={databaseBridge}
+                blockRenderers={BLOCK_RENDERERS}
+                syncEmbedResolver={syncEmbedResolver}
+                pdfPreview={PdfFirstPage}
+                mentionProvider={mentionProvider}
+                accessLevel={role}
+                mode={mode}
+                publishedDoc={publishedDoc}
+              >
+                <Editor view={view} />
+              </EditorProvider>
+            )
           )}
         </div>
       </section>
@@ -382,22 +514,22 @@ function SyncPane({
           theme
           <Button
             type="button"
-            variant="outline"
+            variant={dark ? "default" : "outline"}
             size="sm"
             data-testid={`theme-${client}-dark`}
             aria-pressed={dark}
-            className={cn(TOGGLE_BTN, dark ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}
+            className={TOGGLE_BTN}
             onClick={setDarkTrue}
           >
             dark
           </Button>
           <Button
             type="button"
-            variant="outline"
+            variant={!dark ? "default" : "outline"}
             size="sm"
             data-testid={`theme-${client}-light`}
             aria-pressed={!dark}
-            className={cn(TOGGLE_BTN, !dark ? "bg-primary text-primary-foreground" : "bg-muted text-foreground")}
+            className={TOGGLE_BTN}
             onClick={setDarkFalse}
           >
             light
@@ -416,7 +548,7 @@ function SyncPane({
             reconnect
           </Button>
         </div>
-        <ChaosBar syncUrl={syncUrl} />
+        {role !== "viewer" && <ChaosBar syncUrl={syncUrl} />}
         {runtime !== null && (
           <div style={{ display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", gap: 4 }}>

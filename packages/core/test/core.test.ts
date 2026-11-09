@@ -73,9 +73,9 @@ describe("fromJSON / toJSON round-trip", () => {
     expect(doc.toJSON().blocks.c2).toEqual({ type: "table-cell", attrs: { columnId: "col2" }, content: [] });
   });
 
-  it("throws the validateDoc errors as-is on invalid input", () => {
+  it("throws a typed InvalidSnapshotError carrying the validation errors on invalid input", () => {
     const invalid = makeDocJSON({}); // missing root
-    const errors = validateDoc(invalid);
+    const errors = validateDoc(invalid, true);
     expect(errors.length).toBeGreaterThan(0);
     let thrown: unknown;
     try {
@@ -83,9 +83,11 @@ describe("fromJSON / toJSON round-trip", () => {
     } catch (e) {
       thrown = e;
     }
-    // Thrown as-is: the raw validator list, unwrapped and untranslated.
-    expect(Array.isArray(thrown)).toBe(true);
-    expect(thrown).toEqual(errors);
+    // The typed error stand (instanceof / .message work); the message
+    // carries every validation error.
+    expect(thrown).toBeInstanceOf(InvalidSnapshotError);
+    const message = (thrown as Error).message;
+    expect(message).toContain(errors[0]!.message);
   });
 
   it("throws for a root block keyed differently from the document id", () => {
@@ -96,9 +98,8 @@ describe("fromJSON / toJSON round-trip", () => {
     } catch (e) {
       thrown = e;
     }
-    expect(thrown).toEqual([
-      { path: "blocks.other", message: 'The root block must be keyed by the document id "r" (got "other").' },
-    ]);
+    expect(thrown).toBeInstanceOf(InvalidSnapshotError);
+    expect((thrown as Error).message).toContain('The root block must be keyed by the document id "r" (got "other").');
   });
 });
 

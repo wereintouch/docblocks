@@ -8,12 +8,14 @@
  * behind. */
 import { RenderingCancelledException, getDocument } from "pdfjs-dist";
 import type { PDFDocumentLoadingTask, RenderTask } from "pdfjs-dist";
+import { useTranslation } from "react-i18next";
 
 import { useEffect, useRef, useState } from "react";
 
 import type { PdfPreviewProps } from "../editor-provider";
 import { cn } from "../shared/ui/cn";
 import { LoaderCircle, TriangleAlert } from "../shared/ui/icons";
+import { isSafeDownloadHref } from "../shared/utils";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "./constants";
 import { WASM_URL } from "./pdf-worker";
 
@@ -21,6 +23,7 @@ import { WASM_URL } from "./pdf-worker";
 type PdfPhase = "loading" | "ready" | "error";
 
 function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
+  const { t } = useTranslation("blocks");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
@@ -122,9 +125,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
           "
         >
           <TriangleAlert className="size-4 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">
-            PDF preview unavailable ({error}). Showing the built-in viewer.
-          </span>
+          <span className="min-w-0 flex-1 truncate">{t("code.pdfPreviewUnavailable", { error })}</span>
         </div>
         {/* The built-in viewer stands only over the embeddable scheme (the
           hostile-store gate): the data / blob / javascript urls stand the
@@ -142,7 +143,9 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
               border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
             "
           />
-        ) : (
+        ) : // The executable-scheme stand (the consumer's hostile url — the
+        // download stands no anchor, the name stands the plain text).
+        isSafeDownloadHref(url) ? (
           <a
             data-slot="docblocks/image-pdf-download"
             href={url}
@@ -151,6 +154,10 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
           >
             {name ?? "document"}
           </a>
+        ) : (
+          <span data-slot="docblocks/image-pdf-download" className="inline-block text-sm">
+            {name ?? "document"}
+          </span>
         )}
       </div>
     );
@@ -178,7 +185,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
       {phase === "loading" && (
         <div className="flex h-48 w-full items-center justify-center gap-2 text-sm text-(--muted-foreground)">
           <LoaderCircle className="size-4 animate-spin" />
-          <span data-slot="docblocks/image-pdf-loading">loading preview…</span>
+          <span data-slot="docblocks/image-pdf-loading">{t("code.pdfLoading")}</span>
         </div>
       )}
     </div>

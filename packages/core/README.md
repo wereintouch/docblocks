@@ -15,7 +15,8 @@ losses. The only runtime dependencies are `yjs`, `y-protocols`, and `lib0`.
 npm i docblocks-core
 ```
 
-## Quick start
+The package is ESM-only (`import`, not `require`); it stands Node
+`^22.22.2 || ^24.15.0 || >=26.0.0` (the `engines` field).
 
 A document is created, edited with commands, and read back as plain JSON —
 every read returns a **snapshot** (a plain object), never a live Yjs
@@ -30,7 +31,7 @@ const para = doc.insertBlock("paragraph");
 doc.insertText(para, 0, "hello world");
 doc.setMark(para, 0, 5, { type: "bold" });
 
-const json = doc.toJSON(); // { v, meta, blocks, children }
+const json = doc.toJSON(); // { v, id, title, avatar?, createdAt, blocks }
 // …persist or send `json` …
 const restored = fromJSON(json); // a fresh Doc over the same data
 ```
@@ -41,7 +42,7 @@ undo step, one wire update. Batch several into a single step with
 
 ```ts
 doc.transact(() => {
-  const h = doc.insertBlock("heading", { level: 1 }, { afterId: para });
+  const h = doc.insertBlock("heading", { level: 1 }, { after: para });
   doc.insertText(h, 0, "Title");
 }); // one undo step, one wire update
 ```
@@ -55,13 +56,14 @@ silently.
 
 ## The Doc
 
-`createDoc(options?)` builds a document with a root block and an empty,
-editable first paragraph. The other entry points:
+`createDoc(options?)` builds a document with only the root block (an empty
+page — no auto first paragraph; the react-ui editor guarantees the trailing
+editable paragraph). The other entry points:
 
 - `fromJSON(json)` — build a `Doc` from a JSON snapshot.
 - `loadDoc(bytes)` — build a `Doc` from an encoded full state (a base
   snapshot; apply diffs with `applyUpdate`).
-- `doc.toJSON()` — the JSON snapshot (`{ v, meta, blocks, children }`).
+- `doc.toJSON()` — the JSON snapshot (`{ v, id, title, avatar?, createdAt, blocks }`).
 - `doc.encode()` / `doc.encodeUpdate(stateVector?)` — the encoded full
   state / the incremental update.
 - `doc.applyUpdate(bytes)` — apply an encoded update (the remote-apply path).
@@ -86,7 +88,9 @@ The commands translate into `Y.Doc` mutations inside a transaction:
   width commands, and `setTableRowColor`.
 
 Reads: `getBlock(id)`, `getChildren(id)`, `getRuns(id)`, `getText(id)`,
-`getTextLength(id)`.
+`getTextLength(id)`. History: `undo()` / `redo()` (with `canUndo()` /
+`canRedo()`) — one `transact` is one undo step, and a command batched
+into a `transact` is one step across the batch.
 
 ## Sync
 
@@ -124,11 +128,21 @@ projects a selection into the presence payload shape.
 
 ## Data format
 
-The JSON format is `v: 1`: `meta` (the doc `id`, `title`, the optional
-`avatar`) plus a **flat block map** (`id → block`) with explicit order via
+The JSON format is `v: 1`: the document fields (`id`, `title`, the
+optional `avatar`, `createdAt`) at the top level, plus a **flat block map**
+(`id → block`) with explicit order via
 `children: [blockId]`; nesting (lists, table cells) is `children`. The text
 of a text block is `content: [{ text, marks }]` runs. JSON ↔ Yjs is
 isomorphic — every JSON field has exactly one Yjs image.
+
+The v1 registry covers the page types (`paragraph`, `quote`, `heading`,
+`list-item`, `callout`, `code`, `divider`, `image`, `embed`, `table` /
+`table-row` / `table-cell`, `database`), the five canvas types (`surface`,
+`shape`, `connector`, `frame`, `canvas-text`), and `root`; the v1 marks
+are `bold`, `italic`, `strike`, `underline`, `code` (exclusive), `link`,
+`color`, `highlight`, and `mention`. The type lists stand exported
+(`PAGE_BLOCK_TYPES`, `LEAF_BLOCK_TYPES`, `BLOCK_REGISTRY`,
+`MARK_REGISTRY`, `CALLOUT_ICONS`).
 
 The block and mark registries are the extension point. Adding a block type
 or mark is additive (a minor): the registry entry plus a renderer; the

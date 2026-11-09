@@ -4,6 +4,8 @@
  * (FilterConditionRow) + the nested groups; each condition's value is a
  * ValueInput over the column's annotation.
  */
+import { useTranslation } from "react-i18next";
+
 import type { DatabaseFilterPayload } from "docblocks-core";
 
 import { BareSelect, Button, Input } from "../../shared/ui";
@@ -33,12 +35,13 @@ const FILTER_LOGIC_OPTIONS = [
 ] as const;
 
 function FilterBuilder({ value, columns, onChange, refTableData }: FilterBuilderProps) {
+  const { t } = useTranslation("database");
   const payload = value ?? emptyFilter();
   return (
     <div data-slot="docblocks/filter-builder" className="flex max-h-80 flex-col gap-2 overflow-y-auto">
       {columns.length === 0 ? (
         <div data-slot="docblocks/filter-empty" className="text-sm text-muted-foreground">
-          No columns to filter on.
+          {t("filter.empty")}
         </div>
       ) : (
         <FilterGroup payload={payload} columns={columns} depth={0} onChange={onChange} refTableData={refTableData} />
@@ -56,6 +59,7 @@ interface FilterGroupProps {
 }
 
 function FilterGroup({ payload, columns, depth, onChange, refTableData }: FilterGroupProps) {
+  const { t } = useTranslation("database");
   const setLogic = (logic: "and" | "or") => onChange({ ...payload, logic });
   const setCondition = (index: number, condition: DatabaseFilterPayload["conditions"][number]) =>
     onChange({ ...payload, conditions: payload.conditions.map((entry, at) => (at === index ? condition : entry)) });
@@ -97,14 +101,14 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           options={FILTER_LOGIC_OPTIONS}
           value={payload.logic}
           onChange={onLogicChange}
-          ariaLabel="Filter logic"
+          ariaLabel={t("filter.logic")}
           slot="docblocks/filter-logic"
           pillSlot="docblocks/filter-logic-pill"
           buttonAttrName="filter-logic"
           size="text"
         />
         <span className="text-xs text-muted-foreground">
-          match {payload.logic === "and" ? "all" : "any"} of the conditions
+          {payload.logic === "and" ? t("filter.matchAll") : t("filter.matchAny")}
         </span>
       </div>
 
@@ -122,7 +126,9 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
       {(payload.groups ?? []).map((group, index) => (
         <div key={index} className="flex flex-col gap-1" data-slot="docblocks/filter-nested">
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <span data-slot="docblocks/filter-connector">{payload.logic === "and" ? "AND" : "OR"} nested group</span>
+            <span data-slot="docblocks/filter-connector">
+              {t("filter.nestedGroup", { logic: payload.logic === "and" ? "AND" : "OR" })}
+            </span>
             <Button
               type="button"
               variant="outline"
@@ -130,7 +136,7 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
               data-slot="docblocks/filter-remove-group"
               onClick={removeGroupAt(index)}
             >
-              Remove group
+              {t("filter.removeGroup")}
             </Button>
           </div>
           <FilterGroup
@@ -151,11 +157,11 @@ function FilterGroup({ payload, columns, depth, onChange, refTableData }: Filter
           data-slot="docblocks/filter-add-condition"
           onClick={addCondition}
         >
-          + Condition
+          {t("filter.condition")}
         </Button>
         {depth < FILTER_MAX_DEPTH && (
           <Button type="button" variant="outline" size="sm" data-slot="docblocks/filter-add-group" onClick={addGroup}>
-            + Group
+            {t("filter.group")}
           </Button>
         )}
       </div>
@@ -244,6 +250,7 @@ interface ValueInputProps {
 
 /** The value input per the annotation (the `in` / `not in` multi-value is a comma list). */
 function ValueInput({ column, operator, value, onChange, refTableData }: ValueInputProps) {
+  const { t } = useTranslation("database");
   const multiValue = operator === "in" || operator === "not in";
   const annotation = columnAnnotation(column);
   const onMultiChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,7 +275,7 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
         size="sm"
         data-slot="docblocks/filter-value"
         className="w-auto"
-        placeholder="value, value"
+        placeholder={t("filter.valuePlaceholder")}
         value={text}
         onChange={onMultiChange}
       />

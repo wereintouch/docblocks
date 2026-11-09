@@ -3,7 +3,13 @@
   "compilerOptions": {
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": ["node"],
+    // The database unit's tests import the in-memory reference bridge as a
+    // fixture by name (the bridge is the consumer's own implementation,
+    // standing in the playground harness).
+    "paths": {
+      "@playground/memory-bridge": ["../../apps/playground/src/memory-bridge/index.ts"]
+    }
   },
   "include": ["src", "test", "tsdown.config.ts", "vitest.config.ts"]
 }

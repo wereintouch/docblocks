@@ -5,7 +5,13 @@
  */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY, validateBlockAttrs, validateCanvasBlock } from "@docblocks-core/schema";
+import {
+  BLOCK_REGISTRY,
+  isSafeEmbedSrc,
+  setOwn,
+  validateBlockAttrs,
+  validateCanvasBlock,
+} from "@docblocks-core/schema";
 import type { BlockAttrsPatch, ValidationError } from "@docblocks-core/schema";
 
 import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatValidationErrors } from "../errors";
@@ -21,6 +27,11 @@ import {
   indentOfBlock,
   isPageSequence,
 } from "./structure";
+import { columnOrderOf, writeColumnWidthsPatch } from "./table/common";
+
+/** A plain array of numbers (the table's positional columnWidths). */
+const isNumberArray = (value: unknown): value is number[] =>
+  Array.isArray(value) && value.every((element) => typeof element === "number");
 
 /** Sets or overwrites the given attrs; other attrs stay, attrs are never removed. */
 function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
@@ -32,15 +43,57 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   if (entries.length === 0) return; // no-op
 
   // Validate the post-patch attrs as a whole (current attrs + patch) so the
-  // registry rules and messages are reused as-is.
+  // registry rules and messages are reused as-is. The lenient stand (the
+  // writer's hybrid posture): unknown keys (a future minor's
+  // data over the live sync) stand preserved and un-rejected; a known
+  // attr's value rules — incl. its enum — stand strict either way, so the
+  // post-patch doc keeps the writer's invariants over the keys we own.
   const snapshot = readBlock(ydoc, id);
   const current = snapshot !== null && "attrs" in snapshot ? snapshot.attrs : undefined;
   const merged: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(current ?? {})) merged[key] = value;
-  for (const [key, value] of entries) merged[key] = value;
-  const errors = validateBlockAttrs(type, merged);
+  // The open keys come from the snapshot / the caller's patch: the
+  // reserved-key stand (the own data key, no prototype reassignment).
+  for (const [key, value] of Object.entries(current ?? {})) setOwn(merged, key, value);
+  for (const [key, value] of entries) setOwn(merged, key, value);
+  // The writer's hybrid stand: the lenient posture over the
+  // post-patch attrs (the live document's unknown keys / the future minor's
+  // enum values stand preserved — the block stays editable over the live
+  // sync), with the caller's patch keys strict (the caller owns the patch —
+  // its unknown key or invalid value is a rejection).
+  const errors = validateBlockAttrs(type, merged, true, new Set(entries.map(([key]) => key)));
   if (errors.length > 0) {
     throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);
+  }
+
+  // The embed's kind x src cross-field rule over the post-patch attrs (the
+  // unsafe scheme stands the XSS over the consumer's sandbox grant / the
+  // phishing surface).
+  if (type === "embed" && typeof merged.src === "string") {
+    const kind = typeof merged.kind === "string" ? merged.kind : "iframe";
+    if (!isSafeEmbedSrc(kind, merged.src)) {
+      throw new InvalidAttrsError(
+        `Invalid attrs for block "${id}": the src is not a safe URL for kind "${kind}" (absolute http/https only; the html kind stands the data:text/html snippet additionally).`
+      );
+    }
+  }
+
+  // The table's positional columnWidths must mirror the column set (one
+  // width per column — the strict validator's rule at load; the command
+  // keeps the live document valid too). The ids stand for the identity-keyed
+  // write below.
+  let tableColumnIds: string[] | null = null;
+  if (type === "table" && patch.columnWidths !== undefined) {
+    const table = getBlockMap(ydoc, id);
+    if (table === null) throw new UnknownBlockError(`Unknown block "${id}".`);
+    const columnIds = columnOrderOf(table, id)
+      .toArray()
+      .filter((value): value is string => typeof value === "string");
+    if (patch.columnWidths.length !== columnIds.length) {
+      throw new InvalidAttrsError(
+        `Invalid attrs for block "${id}": the table's columnWidths must hold exactly ${columnIds.length} width(s); found ${patch.columnWidths.length}.`
+      );
+    }
+    tableColumnIds = columnIds;
   }
 
   // A database's post-patch columns must keep the strict invariants against
@@ -106,7 +159,16 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
     const existing = block.get("attrs");
     const attrsMap = existing instanceof Y.Map ? existing : new Y.Map<unknown>();
     if (!(existing instanceof Y.Map)) block.set("attrs", attrsMap);
-    for (const [key, value] of entries) writeAttrValue(attrsMap, key, value);
+    for (const [key, value] of entries) {
+      // The table's positional columnWidths stand identity-keyed (columnId →
+      // width): the generic attr writer would leave a positional Y.Array that
+      // the read-time derivation (identity map + columnOrder) cannot see.
+      if (key === "columnWidths" && tableColumnIds !== null && isNumberArray(value)) {
+        writeColumnWidthsPatch(block, tableColumnIds, value);
+        continue;
+      }
+      writeAttrValue(attrsMap, key, value);
+    }
   });
 }
 

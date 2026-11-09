@@ -102,13 +102,14 @@ describe("the gutter's quick insert (the plus under the item)", () => {
         <Editor view="canvas" />
       </EditorProvider>
     );
-    // The canvas-text renders through the text renderer (the canvas item's
-    // surface context): the grip stands (the selection-only stand), the
-    // plus does not — its click would write a page paragraph into the
-    // surface's children.
+    // The canvas-text renders through the text renderer (the canvas
+    // item's surface context): the page's row chrome stands no grip and
+    // no plus (the canvas-text is moved by the drag over its own body —
+    // the shape's parity; the plus's click would write a page paragraph
+    // into the surface's children).
     const canvasText = container.querySelector<HTMLElement>(`[data-block-id="${textId}"]`);
     expect(canvasText).not.toBeNull();
-    expect(canvasText?.querySelector('[data-slot="docblocks/gutter"]')).not.toBeNull();
+    expect(canvasText?.querySelector('[data-slot="docblocks/gutter"]')).toBeNull();
     expect(canvasText?.querySelector('[data-slot="docblocks/gutter-plus"]')).toBeNull();
   });
 

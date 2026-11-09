@@ -66,7 +66,7 @@ function extendRangeFocusEnd(doc: Doc, selection: Selection, key: string): boole
   if (next.blockId === movable.blockId && next.offset === offset) return false;
 
   const target = scope.querySelector<HTMLElement>(
-    `[data-block-id="${next.blockId}"][data-slot="docblocks/block-content"]`
+    `[data-block-id="${CSS.escape(next.blockId)}"][data-slot="docblocks/block-content"]`
   );
   if (target === null) return false;
   const position = locatePosition(target, next.offset);

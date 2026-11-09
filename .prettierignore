@@ -6,3 +6,8 @@ test-results
 playwright-report
 .docs
 CHANGELOG.md
+.tmp
+.pi
+.playwright-mcp
+TODO.md
+CLAUDE.md

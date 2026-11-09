@@ -118,7 +118,7 @@ function CellActivation({ cellId }: { cellId: BlockId }) {
       suppressContentEditableWarning
       spellCheck={false}
       data-slot="docblocks/cell-activation"
-      className="m-0 min-w-full whitespace-pre-wrap outline-none"
+      className="my-(--docblocks-block-spacing) min-w-full whitespace-pre-wrap outline-none"
       onInput={onInput}
       onPaste={onPaste}
       onKeyDown={onKeyDown}

@@ -36,6 +36,7 @@ import {
   collectSubtree,
   columnOrderOf,
   convertToParagraph,
+  ensureWidthsMap,
   readCellColor,
   rowsOf,
   setCellColor,
@@ -44,23 +45,6 @@ import {
   widthsMap,
   writeSubtreeCopy,
 } from "./common";
-
-/** Ensures the identity-keyed width map exists on the table's attrs (creating the attrs map if absent). */
-function ensureWidthsMap(table: Y.Map<unknown>): Y.Map<unknown> {
-  const existing = widthsMap(table);
-  if (existing !== null) return existing;
-  const attrs = table.get("attrs");
-  if (attrs instanceof Y.Map) {
-    const map = new Y.Map<unknown>();
-    attrs.set("columnWidths", map);
-    return map;
-  }
-  const freshAttrs = new Y.Map<unknown>();
-  const map = new Y.Map<unknown>();
-  freshAttrs.set("columnWidths", map);
-  table.set("attrs", freshAttrs);
-  return map;
-}
 
 /**
  * Inserts an empty column (a fresh column id, the default width, cells
@@ -91,6 +75,9 @@ function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: strin
       }
       const cellId = generateId();
       writeBlock(blocks, cellId, { type: "table-cell", attrs: { columnId: newColumnId } });
+      // The owner parent (the single CRDT-resolved ownership stand).
+      const cellMap = blocks.get(cellId);
+      if (cellMap instanceof Y.Map) cellMap.set("parent", rowId);
       for (const existingId of cells.toArray()) {
         const color = readCellColor(ydoc, existingId, "rowColor");
         if (color !== null) {
@@ -98,7 +85,10 @@ function insertTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: strin
           break;
         }
       }
-      cells.insert(index, [cellId]);
+      // The short row's length can stand below the index (the concurrent
+      // row × column race residue): the new cell lands at the end (the
+      // unclamped index would be a Yjs out-of-range op).
+      cells.insert(Math.min(index, cells.length), [cellId]);
     });
   });
 }
@@ -124,13 +114,15 @@ function removeTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
       if (row === null || !(cells instanceof Y.Array)) {
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
-      const cellId = cells.toArray()[index];
-      // A short row (the concurrent row × column race residue) may lack this
-      // position's cell: skip it — the column op stands on the cells that
-      // exist (the column identity moves in the columnOrder regardless).
-      if (cellId === undefined) continue;
-      for (const id of collectSubtree(ydoc, cellId)) blocks.delete(id);
-      cells.delete(index, 1);
+      // The row's cell of the removed column stands by its binding (a
+      // positional scan would remove a foreign column's cell over a
+      // leading-cell-absent short row); a short row may lack this column's
+      // cell: skip it — the column op stands on the cells that exist (the
+      // column identity dies in the columnOrder regardless).
+      const cell = columnCellOfRow(ydoc, rowId, columnId, index);
+      if (cell === null) continue;
+      for (const id of collectSubtree(ydoc, cell.cellId)) blocks.delete(id);
+      cells.delete(cell.position, 1);
     }
     // The column identity (the single source of the column set).
     columnOrder.delete(index, 1);
@@ -145,11 +137,55 @@ function removeTableColumn(ydoc: Y.Doc, tableId: string, index: number): void {
   });
 }
 
+/** The cell's `columnId` binding (null when the cell has no attrs / no binding — the legacy positional stand). */
+function readColumnIdOf(ydoc: Y.Doc, cellId: string): string | null {
+  const cell = getBlockMap(ydoc, cellId);
+  if (cell === null) return null;
+  const attrs = cell.get("attrs");
+  if (!(attrs instanceof Y.Map)) return null;
+  const value = attrs.get("columnId");
+  return typeof value === "string" ? value : null;
+}
+
+/**
+ * The row's cell of the column `columnId` (null when the row lacks it): the
+ * binding stands by id, not position (the short row's residue stands by id
+ * — a positional scan would stand a foreign column's cell over a
+ * leading-cell-absent row). A legacy row (no columnId bindings) keeps the
+ * positional stand (`positionalIndex`).
+ */
+function columnCellOfRow(
+  ydoc: Y.Doc,
+  rowId: string,
+  columnId: string,
+  positionalIndex: number
+): { cellId: string; position: number } | null {
+  const row = getBlockMap(ydoc, rowId);
+  const cells = row !== null ? (row.get("children") as Y.Array<string> | undefined) : undefined;
+  if (row === null || !(cells instanceof Y.Array)) {
+    throw new InvalidOperationError(`Row "${rowId}" has no cell sequence.`);
+  }
+  const cellIds = cells.toArray();
+  const boundIndex = cellIds.findIndex((cellId) => readColumnIdOf(ydoc, cellId) === columnId);
+  const hasBindings = cellIds.some((cellId) => readColumnIdOf(ydoc, cellId) !== null);
+  const position =
+    boundIndex !== -1 ? boundIndex : !hasBindings && positionalIndex < cellIds.length ? positionalIndex : -1;
+  if (position === -1) return null;
+  return { cellId: cellIds[position]!, position };
+}
+
 /**
  * Moves the column from `fromIndex` to `toIndex` (pre-move index
  * semantics, like moveRow): the column id moves in the `columnOrder` and
  * the cells of EVERY row move with it (the colors ride the cells; the width
  * entry follows the column by id — no width op is needed).
+ *
+ * The cell to move stands by its `columnId` binding (the short row's
+ * residue stands by id, not position — a positional scan would move a
+ * foreign column's cell and shift the bindings). A legacy row (no
+ * columnId bindings) keeps the positional stand. The destination index is
+ * clamped to the row's length (a short row's move lands at the end — the
+ * unclamped index would be a Yjs out-of-range op).
  */
 function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toIndex: number): void {
   const table = tableOf(ydoc, tableId);
@@ -162,6 +198,7 @@ function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toInde
   }
   const insertAt = fromIndex < toIndex ? toIndex - 1 : toIndex;
   const rowIds = rows.toArray();
+  const columnId = columnOrder.toArray()[fromIndex]!;
   localTransact(ydoc, () => {
     for (const rowId of rowIds) {
       const row = getBlockMap(ydoc, rowId);
@@ -169,16 +206,23 @@ function moveTableColumn(ydoc: Y.Doc, tableId: string, fromIndex: number, toInde
       if (row === null || !(cells instanceof Y.Array)) {
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
-      const cellId = cells.toArray()[fromIndex];
-      // A short row (the concurrent row × column race residue) may lack this
-      // position's cell: skip it — the column identity moves in the
+      const cellIds = cells.toArray();
+      // The column's own cell (the binding stands by id); the legacy row
+      // (no bindings at all) falls back to the positional stand.
+      const boundIndex = cellIds.findIndex((cellId) => readColumnIdOf(ydoc, cellId) === columnId);
+      const hasBindings = cellIds.some((cellId) => readColumnIdOf(ydoc, cellId) !== null);
+      let sourceIndex: number | null = null;
+      if (boundIndex !== -1) sourceIndex = boundIndex;
+      else if (!hasBindings && fromIndex < cellIds.length) sourceIndex = fromIndex;
+      // A short row (the concurrent row × column race residue) may lack
+      // this column's cell: skip it — the column identity moves in the
       // columnOrder regardless.
-      if (cellId === undefined) continue;
-      cells.delete(fromIndex, 1);
-      cells.insert(insertAt, [cellId]);
+      if (sourceIndex === null) continue;
+      const movedCellId = cellIds[sourceIndex]!;
+      cells.delete(sourceIndex, 1);
+      cells.insert(Math.min(insertAt, cells.length), [movedCellId]);
     }
     // The column identity moves (element-level).
-    const columnId = columnOrder.toArray()[fromIndex]!;
     columnOrder.delete(fromIndex, 1);
     columnOrder.insert(insertAt, [columnId]);
   });
@@ -199,17 +243,18 @@ function duplicateTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: st
   const sourceColumnId = columnOrder.toArray()[index]!;
   const newColumnId = generateId();
   const rowIds = rows.toArray();
-  const snaps: Array<ReturnType<typeof snapshotSubtree> | undefined> = rowIds.map((rowId) => {
-    const row = getBlockMap(ydoc, rowId);
-    const cells = row !== null ? (row.get("children") as Y.Array<string> | undefined) : null;
-    if (row === null || cells === null || !(cells instanceof Y.Array)) {
-      throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
+  const snaps: Array<{ snap: ReturnType<typeof snapshotSubtree>; position: number } | undefined> = rowIds.map(
+    (rowId) => {
+      // The source cell stands by its binding (a positional scan would copy
+      // a foreign column's cell over a leading-cell-absent short row); a
+      // short row may lack the source column's cell: the copied column
+      // stands without a cell there.
+      const source = columnCellOfRow(ydoc, rowId, sourceColumnId, index);
+      return source === null
+        ? undefined
+        : { snap: snapshotSubtree(ydoc, generateId, source.cellId), position: source.position };
     }
-    // A short row (the concurrent row × column race residue) may lack this
-    // position's cell: the copied column stands without a cell there.
-    const cellId = cells.toArray()[index];
-    return cellId === undefined ? undefined : snapshotSubtree(ydoc, generateId, cellId);
-  });
+  );
   localTransact(ydoc, () => {
     // The fresh column identity (the single source of the column set).
     columnOrder.insert(index + 1, [newColumnId]);
@@ -220,17 +265,19 @@ function duplicateTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: st
         throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence.`);
       }
       // The copied cell's columnId re-binds to the fresh column (a short
-      // row stands without a cell — the snap is absent).
-      const snap = snaps[i];
-      if (snap === undefined) return;
-      const newCellId = writeSubtreeCopy(ydoc, snap);
+      // row stands without a cell — the snap is absent); the copy lands
+      // next to the source cell (the bound position, not the positional
+      // index — the two stand apart over a short row).
+      const source = snaps[i];
+      if (source === undefined) return;
+      const newCellId = writeSubtreeCopy(ydoc, source.snap);
       const newCell = getBlockMap(ydoc, newCellId);
       if (newCell !== null) {
         const attrs = newCell.get("attrs");
         if (attrs instanceof Y.Map) attrs.set("columnId", newColumnId);
         else newCell.set("attrs", new Y.Map<unknown>([["columnId", newColumnId]]));
       }
-      cells.insert(index + 1, [newCellId]);
+      cells.insert(source.position + 1, [newCellId]);
     });
     // The explicit width entry, if any, follows the copy to the fresh id.
     const widthMap = widthsMap(table);
@@ -239,19 +286,16 @@ function duplicateTableColumn(ydoc: Y.Doc, generateId: () => string, tableId: st
   });
 }
 
-/** The cell id of the column at `index` in every row; typed error on a corrupt row. */
+/** The cell id of the column at `index` in every row (by the columnId binding — see columnCellOfRow); typed error on a corrupt row. */
 function columnCellIds(ydoc: Y.Doc, table: Y.Map<unknown>, tableId: string, index: number): string[] {
   const cellIds: string[] = [];
+  const columnId = columnOrderOf(table, tableId).toArray()[index]!;
   for (const rowId of rowsOf(table, tableId).toArray()) {
-    const row = getBlockMap(ydoc, rowId);
-    const cells = row !== null ? row.get("children") : null;
-    if (row === null || !(cells instanceof Y.Array)) {
-      throw new InvalidOperationError(`Row "${rowId}" of table "${tableId}" has no cell sequence (corrupt layout).`);
-    }
-    const cellId = (cells as Y.Array<string>).toArray()[index];
-    // A short row (the concurrent row × column race residue) may lack this
-    // position's cell: skip it (its peers' cells still receive the op).
-    if (cellId !== undefined) cellIds.push(cellId);
+    // The cell stands by its binding (see columnCellOfRow); a short row may
+    // lack the column's cell: skip it (its peers' cells still receive the
+    // op).
+    const cell = columnCellOfRow(ydoc, rowId, columnId, index);
+    if (cell !== null) cellIds.push(cell.cellId);
   }
   return cellIds;
 }

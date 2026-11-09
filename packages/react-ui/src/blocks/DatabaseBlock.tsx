@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+
 import type { BlockId, DatabaseBlock as DatabaseBlockType } from "docblocks-core";
 
 import { DatabaseGrid } from "../database";
@@ -13,6 +15,7 @@ import { Card, CardContent } from "../shared/ui/Card";
  * not text-editable: no contenteditable, no gutter.
  */
 function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType }) {
+  const { t } = useTranslation("database");
   const { columns, tableId } = block.attrs;
   if (tableId !== undefined) {
     return <DatabaseGrid id={id} block={block} />;
@@ -41,7 +44,7 @@ function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType })
             ))}
         </div>
         <Badge data-slot="docblocks/database-count" variant="secondary" className="mt-(--docblocks-block-spacing)">
-          {rowCount} {rowCount === 1 ? "row" : "rows"}
+          {rowCount} {t("rowCount", { count: rowCount })}
         </Badge>
       </CardContent>
     </Card>

@@ -1,11 +1,12 @@
 {
   "name": "docblocks-core",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Headless CRDT document engine: schema v1, Doc (commands/transactions/undo), sync providers. Yjs-based, zero UI dependencies.",
   "type": "module",
   "license": "MIT",
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
   "exports": {
@@ -17,8 +18,12 @@
   "publishConfig": {
     "access": "public"
   },
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
   "scripts": {
     "build": "tsdown",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

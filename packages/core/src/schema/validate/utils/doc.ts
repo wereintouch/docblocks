@@ -1,8 +1,8 @@
 /**
  * The document-level validation: the meta fields, the whole-doc pass
  * (validateDoc: blocks, children, reachability, the flat page sequences,
- * the table row/column invariants), and the per-block / per-mark entry
- * points over the registry specs.
+ * the frame's context rules, the table row/column invariants), and the
+ * per-block / per-mark entry points over the registry specs.
  */
 import type { BlockType } from "../../block-union";
 import { isReservedId } from "../../id-safety";
@@ -12,7 +12,7 @@ import { CANVAS_ZORDER_TYPES } from "../../z-order";
 import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../constants";
 import type { ValidationError } from "../models";
 import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
-import { isIso8601, isPlainObject, show } from "./common";
+import { isIso8601, isPlainObject, isSafeEmbedSrc, show } from "./common";
 import { validateAttrs, validateContent, validateMarks } from "./content";
 
 function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): void {
@@ -101,14 +101,15 @@ function validateSurfaceZOrder(blocks: Record<string, unknown>, errors: Validati
  * The indent-jump rule of a flat page sequence: a block's indent may
  * exceed the preceding block's indent by at most 1 (the first block anchors
  * at 0 — there is no block to attach to). Runs per sequence container
- * (registry `sequence` flag: root, table-cell, frame); structural order
+ * (registry `sequence` flag: root, table-cell); structural order
  * (table-row grid, surface z-order) ignores indent.
  */
 function validateSequences(blocks: Record<string, unknown>, errors: ValidationError[]): void {
   for (const block of Object.values(blocks)) {
     if (!isPlainObject(block)) continue;
     const type = block.type;
-    if (typeof type !== "string" || !(type in BLOCK_REGISTRY) || !BLOCK_REGISTRY[type as BlockType].sequence) continue;
+    if (typeof type !== "string" || !Object.hasOwn(BLOCK_REGISTRY, type) || !BLOCK_REGISTRY[type as BlockType].sequence)
+      continue;
     if (!Array.isArray(block.children)) continue; // a missing/non-array order is reported above
     let prev = -1; // virtual: before the first block
     block.children.forEach((childId, index) => {
@@ -129,6 +130,54 @@ function validateSequences(blocks: Record<string, unknown>, errors: ValidationEr
       }
       prev = indent;
     });
+  }
+}
+
+/**
+ * The frame's context rules (two contexts, one type): in the root's
+ * children the frame is the PAGE-FRAME block — the inline window into a
+ * canvas frame — so `attrs.frameId` (the non-empty weak reference) is
+ * required and `attrs.title` is forbidden (the label stands on the canvas
+ * frame); in a surface's children it is the CANVAS FRAME — `attrs.frameId`
+ * is forbidden and `attrs.title` stands the label. The non-empty / string
+ * value rules of `frameId` stand on the registry's attrs spec; the context
+ * rules judge the presence. A frame whose parent is neither the root nor a
+ * surface stands no context (the child-type / reachability rules report
+ * it). Runs from validateDoc, both postures.
+ */
+function validateFrameContext(
+  blocks: Record<string, unknown>,
+  firstParent: Map<string, { parentId: string; path: string }>,
+  errors: ValidationError[]
+): void {
+  for (const [id, block] of Object.entries(blocks)) {
+    if (!isPlainObject(block) || block.type !== "frame") continue;
+    const reference = firstParent.get(id);
+    if (reference === undefined) continue; // a missing or multiple parent is reported above
+    const parent = blocks[reference.parentId];
+    if (!isPlainObject(parent) || typeof parent.type !== "string") continue;
+    const attrs = isPlainObject(block.attrs) ? (block.attrs as Record<string, unknown>) : {};
+    if (parent.type === "root") {
+      if (!("frameId" in attrs)) {
+        errors.push({
+          path: `blocks.${id}.attrs.frameId`,
+          message: `A frame in the root's children (the page-frame block) requires a non-empty "frameId" (a reference to a canvas frame).`,
+        });
+      }
+      if ("title" in attrs) {
+        errors.push({
+          path: `blocks.${id}.attrs.title`,
+          message: `A frame in the root's children (the page-frame block) must not carry a "title" (the label stands on the canvas frame).`,
+        });
+      }
+    } else if (parent.type === "surface") {
+      if ("frameId" in attrs) {
+        errors.push({
+          path: `blocks.${id}.attrs.frameId`,
+          message: `A frame in a surface's children (the canvas frame) must not carry a "frameId" (the reference stands on the page-frame block in the root).`,
+        });
+      }
+    }
   }
 }
 
@@ -181,7 +230,7 @@ function validateOpaqueStructure(
       }
     });
   }
-  if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors);
+  if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors, true);
 }
 
 /**
@@ -234,7 +283,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     }
 
     const type = block.type;
-    if (typeof type !== "string" || !(type in BLOCK_REGISTRY)) {
+    if (typeof type !== "string" || !Object.hasOwn(BLOCK_REGISTRY, type)) {
       if (!lenient) {
         errors.push({ path: `blocks.${id}`, message: `Unknown block type ${show(type)}.` });
         continue;
@@ -282,7 +331,21 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     // shapes are accepted; the strictness is about the rules, not the shape.
     const allowedChildTypes = spec.childrenTypes ?? spec.legacyChildrenTypes;
     if ("children" in block && allowedChildTypes === undefined) {
-      errors.push({ path: `blocks.${id}.children`, message: `Block type "${blockType}" has no children.` });
+      // The legacy frame stand (pre-rework: the frame carried a nested page
+      // in `children`). The strict posture rejects the field (the frame is
+      // a viewport window — it carries no children); the lenient load
+      // tolerates the field and checks only the array shape: flattenDoc
+      // drops the link on load, the child blocks keep standing in the raw
+      // layer (the same posture as the dangling order ids).
+      const legacyFrame = blockType === "frame" && lenient;
+      if (!legacyFrame) {
+        errors.push({ path: `blocks.${id}.children`, message: `Block type "${blockType}" has no children.` });
+      } else if (!Array.isArray(block.children)) {
+        errors.push({
+          path: `blocks.${id}.children`,
+          message: `children must be an array of block ids (got ${show(block.children)}).`,
+        });
+      }
     } else if ("children" in block && allowedChildTypes !== undefined) {
       if (!Array.isArray(block.children)) {
         errors.push({
@@ -314,7 +377,11 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
             firstParent.set(childId, { parentId: id, path: childPath });
           }
           const childBlock = blocks[childId];
-          if (isPlainObject(childBlock) && typeof childBlock.type === "string" && childBlock.type in BLOCK_REGISTRY) {
+          if (
+            isPlainObject(childBlock) &&
+            typeof childBlock.type === "string" &&
+            Object.hasOwn(BLOCK_REGISTRY, childBlock.type)
+          ) {
             if (!allowedChildTypes.includes(childBlock.type as BlockType)) {
               errors.push({
                 path: childPath,
@@ -332,11 +399,29 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     if (!spec.rows && "rowOrder" in block) {
       errors.push({ path: `blocks.${id}.rowOrder`, message: `Block type "${blockType}" has no rowOrder.` });
     }
-    if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors);
+    if (spec.rows) validateDatabaseBlock(block, `blocks.${id}`, errors, lenient);
 
-    if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors);
+    if ("geometry" in block) validateGeometry(block.geometry, `blocks.${id}.geometry`, errors, lenient);
     if (blockType === "shape" || blockType === "connector" || blockType === "group") {
       validateCanvasBlock(blockType, block, `blocks.${id}`, errors);
+    }
+    if (blockType === "embed") {
+      // The kind x src cross-field rule (the registry's attrs spec is
+      // per-attr). The strict posture rejects the unsafe scheme (the
+      // `javascript:` / the foreign `data:` — the XSS over the consumer's
+      // sandbox grant, the phishing surface); the lenient load keeps the
+      // value as data (the renderer gates it).
+      if (!lenient) {
+        const attrs = block.attrs as Record<string, unknown> | undefined;
+        const src = attrs?.src;
+        const kind = attrs?.kind;
+        if (typeof src === "string" && src.length > 0 && !isSafeEmbedSrc(kind, src)) {
+          errors.push({
+            path: `blocks.${id}.attrs.src`,
+            message: `The embed's src is not a safe URL for kind "${kind}": absolute http/https only (the html kind stands the data:text/html snippet additionally).`,
+          });
+        }
+      }
     }
 
     validateAttrs(blockType, spec, block.attrs, `blocks.${id}.attrs`, errors, lenient);
@@ -347,7 +432,10 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     return errors;
   }
 
-  // Every block except the root must be reachable from the root.
+  // Every block except the root must be reachable from the root. The
+  // lenient posture skips the check: the unreferenced entry is preserved
+  // data (the legacy frame's dropped children, a cross-minor addition) —
+  // the read path never surfaces it, the strict posture flags it.
   const visited = new Set<string>([rootId]);
   const queue: string[] = [rootId];
   while (queue.length > 0) {
@@ -362,13 +450,17 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     }
   }
   for (const id of Object.keys(blocks)) {
-    if (id !== rootId && !visited.has(id)) {
+    if (id !== rootId && !visited.has(id) && !lenient) {
       errors.push({ path: `blocks.${id}`, message: `Orphan block "${id}" (unreachable from root).` });
     }
   }
 
   // The flat page sequences: the indent-jump rule per sequence container.
   validateSequences(blocks, errors);
+
+  // The frame's context rules (the root context: frameId required, title
+  // forbidden; the surface context: frameId forbidden, title allowed).
+  validateFrameContext(blocks, firstParent, errors);
 
   // The surface's explicit z-order (the canvas elements' dense zIndex).
   validateSurfaceZOrder(blocks, errors);
@@ -477,10 +569,22 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
  * Validates block attrs against the registry rules of the type: unknown
  * keys, missing required attrs, and value rules. `undefined` is valid only
  * for types without attrs. An empty result means the attrs are valid.
+ * `lenient` (the cross-minor load posture): unknown keys and a new enum
+ * value on a known key stand preserved (not rejected); the known keys' full
+ * rules stand either way. `strictKeys` (the writer's hybrid stand): the keys
+ * the caller's patch touches stand the strict posture even
+ * under `lenient` (the caller owns the patch — its unknown key or invalid
+ * value is a rejection); the untouched keys stand the lenient posture (the
+ * live document's data, which may carry a future minor's additive values).
  */
-function validateBlockAttrs(type: BlockType, attrs: unknown): ValidationError[] {
+function validateBlockAttrs(
+  type: BlockType,
+  attrs: unknown,
+  lenient = false,
+  strictKeys?: ReadonlySet<string>
+): ValidationError[] {
   const errors: ValidationError[] = [];
-  validateAttrs(type, BLOCK_REGISTRY[type], attrs, "attrs", errors);
+  validateAttrs(type, BLOCK_REGISTRY[type], attrs, "attrs", errors, lenient, strictKeys);
   // The database's recursive filter payload is not expressible in the flat
   // AttrSpec (the registry keeps `filter` a plain `object`): the command
   // paths (insertBlock / updateBlock) reject an invalid payload here, like

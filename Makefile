@@ -68,12 +68,13 @@ e2e-file: ## E2E a single spec (make e2e-file F=test/e2e/canvas-connectors.spec.
 	@test -n "$(F)" || { echo "usage: make e2e-file F=<spec path>"; exit 1; }
 	npm run test:e2e -- $(F)
 
-unit-f: ## Unit tests: a single file (make unit-f F=packages/react-ui/test/canvas.test.tsx)
+unit-f: ## Unit tests: a single file (make unit-f F=packages/react-ui/test/canvas.test.tsx; F=apps/playground/test/database-bridge.test.ts)
 	@test -n "$(F)" || { echo "usage: make unit-f F=<test file>"; exit 1; }
 	case "$(F)" in \
 		packages/core/*) REL=${F#packages/core/}; npm test -w packages/core -- "$(REL)";; \
 		packages/react-ui/*) REL=${F#packages/react-ui/}; npm test -w packages/react-ui -- "$(REL)";; \
-		*) echo "F must be under packages/core or packages/react-ui"; exit 1;; \
+		apps/playground/*) REL=${F#apps/playground/}; npm test -w apps/playground -- "$(REL)";; \
+		*) echo "F must be under packages/core, packages/react-ui or apps/playground"; exit 1;; \
 	esac
 
 dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
@@ -83,7 +84,7 @@ dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
 
 check: lint typecheck deprecations ## Quick gate: lint + typecheck + deprecations
 
-full: ## Full local gate: lint -> format -> build -> typecheck -> test -> e2e
+full: ## Full local gate: lint -> format -> build -> typecheck -> deprecations -> test -> packaging -> e2e
 	npm run check
 
 ## Dev and cleanup

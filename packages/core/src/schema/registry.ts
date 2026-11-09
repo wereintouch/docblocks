@@ -227,5 +227,30 @@ const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
   highlight: { kind: "attrs", exclusive: false, attr: "value", attrOptional: true },
 };
 
-export { BLOCK_REGISTRY, CALLOUT_ICONS, DEFAULT_TABLE_COLUMN_WIDTH, LEAF_BLOCK_TYPES, MARK_REGISTRY, PAGE_BLOCK_TYPES };
+/**
+ * The registry's membership checks: the `in` operator is prototype-aware,
+ * so an Object.prototype-reserved key (`constructor`, `toString`, …) would
+ * pass it as a registered entry (the inherited function, not a spec).
+ * The data-key stand is the own-property lookup: the reserved key stands
+ * unknown (the lenient reader's pass-through / the strict writer's
+ * rejection), never a spec.
+ */
+function isRegisteredBlockType(type: unknown): type is BlockType {
+  return typeof type === "string" && Object.hasOwn(BLOCK_REGISTRY, type);
+}
+
+function isRegisteredMarkName(name: unknown): name is MarkName {
+  return typeof name === "string" && Object.hasOwn(MARK_REGISTRY, name);
+}
+
+export {
+  BLOCK_REGISTRY,
+  CALLOUT_ICONS,
+  DEFAULT_TABLE_COLUMN_WIDTH,
+  LEAF_BLOCK_TYPES,
+  MARK_REGISTRY,
+  PAGE_BLOCK_TYPES,
+  isRegisteredBlockType,
+  isRegisteredMarkName,
+};
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec };

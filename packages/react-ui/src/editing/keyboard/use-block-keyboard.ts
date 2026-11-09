@@ -56,15 +56,27 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
         const selection = view.get();
         if (selection.kind !== "blocks" || selection.ids.length !== 1 || selection.ids[0] !== id) return;
         const siblings = doc.getChildren(context.parentId);
-        const index = siblings.indexOf(id);
         const segment = segmentRange(doc, context.parentId, id);
-        if (index === -1 || segment === null) return;
+        if (segment === null) return;
         const length = segment.end - segment.start;
-        // Pre-move index semantics: up lands the segment's head in the
-        // previous block's slot, down lands it right after the block
-        // following the segment (removal shifts it left by the length).
-        const target = event.key === "ArrowUp" ? segment.start - 1 : segment.end + 1;
-        if (target < 0 || target > siblings.length) return; // clamped at the edge
+        // The page view filters the surface out of the sequence (the canvas
+        // layer — a page gesture does not reorder the canvas layer), so the
+        // move targets the nearest NON-surface sibling (a surface standing
+        // between keeps its scope slot): up — the previous non-surface
+        // sibling's slot; down — right after the next non-surface sibling.
+        const isSurface = (blockId: BlockId): boolean => doc.getBlock(blockId)?.type === "surface";
+        let target: number;
+        if (event.key === "ArrowUp") {
+          let i = segment.start - 1;
+          while (i >= 0 && isSurface(siblings[i]!)) i -= 1;
+          if (i < 0) return; // the top of the visible sequence (only fixed members precede)
+          target = i;
+        } else {
+          let j = segment.end;
+          while (j < siblings.length && isSurface(siblings[j]!)) j += 1;
+          if (j >= siblings.length) return; // the bottom of the visible sequence (only fixed members follow)
+          target = j + 1;
+        }
         event.preventDefault();
         moveSegmentInSequence(doc, context.parentId, segment.start, length, target);
         // The selection is blocks-kind by id and survives the move; re-set

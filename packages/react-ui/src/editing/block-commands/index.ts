@@ -11,6 +11,7 @@ export {
   extendSelectionTo,
   findParentId,
   focusCaretIn,
+  focusCaretInElement,
   focusCellActivation,
   indentIn,
   indentOf,

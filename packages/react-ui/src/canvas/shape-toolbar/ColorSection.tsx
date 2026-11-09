@@ -2,10 +2,12 @@
  * open state is the toolbar's (the sections are mutually exclusive — the
  * non-modal popover does not close on an outside click, so a per-section
  * state would let both palettes stand open at once). */
+import { useTranslation } from "react-i18next";
+
 import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 
-import { useFormatPalette } from "../../blocks/format-palette-context";
+import { useFormatPalette } from "../../shared/providers/format-palette-context";
 import { Button, Input } from "../../shared/ui";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
@@ -24,8 +26,10 @@ function ColorSection({
   onOpenChange,
   onApply,
   allowNone = true,
+  slotPrefix = "docblocks/shape",
 }: {
   target: "fill" | "stroke" | "text";
+  /** The section's accessible label (translated — the caller's i18n lookup). */
   label: string;
   current: string | undefined;
   /** The button's chip style (the current value's preview). */
@@ -37,7 +41,13 @@ function ColorSection({
   /** The "no color" entry (absent for the text color — the unset stand is
    * the inheritance, and the hex spec rejects the "none" value). */
   allowNone?: boolean;
+  /** The data-slot's namespace base (the shape's `docblocks/shape`, the
+   * canvas-text's `docblocks/canvas-text` — the trigger's slots stand
+   * `${slotPrefix}-toolbar-...`, the palette / hex the
+   * `${slotPrefix}-<target>-...`). */
+  slotPrefix?: string;
 }) {
+  const { t } = useTranslation("canvas");
   const palette = useFormatPalette();
   const [draft, setDraft] = useState("");
   const none = allowNone && (current === undefined || current === "none");
@@ -81,7 +91,7 @@ function ColorSection({
         <Button
           variant="ghost"
           size="icon"
-          data-slot={`docblocks/shape-toolbar-${target}`}
+          data-slot={`${slotPrefix}-toolbar-${target}`}
           aria-label={label}
           title={label}
           className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
@@ -103,11 +113,11 @@ function ColorSection({
       <PopoverContent
         align="center"
         sideOffset={TOOLTIP_SIDE_OFFSET_PX}
-        data-slot={`docblocks/shape-${target}-palette`}
+        data-slot={`${slotPrefix}-${target}-palette`}
         aria-label={label}
         className="w-auto p-2"
-        // The palette suppresses the mousedown default (the house pattern,
-        // the page format palette): the portaled content div is focusable
+        // The palette suppresses the mousedown default (the page format
+        // palette's pattern): the portaled content div is focusable
         // (the radix tabIndex -1) — a padding press would focus it, and a
         // key on that focus (not a form control) would reach the editor
         // root's blocks-selection handling. The hex input opts out via
@@ -127,8 +137,8 @@ function ColorSection({
         />
         <Input
           size="sm"
-          data-slot={`docblocks/shape-${target}-hex`}
-          aria-label={`${label} hex value`}
+          data-slot={`${slotPrefix}-${target}-hex`}
+          aria-label={t("colorHex", { label })}
           className="
             mt-2 h-7 w-full rounded-(--docblocks-radius) border-(--docblocks-formatbar-border-color)
             bg-(--docblocks-editor-background) px-2 font-mono text-xs text-(--docblocks-text-color)

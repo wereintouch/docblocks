@@ -128,12 +128,28 @@ function emitPending(ydoc: Y.Doc, hub: Hub, isRemote: boolean): void {
   emitChange(ydoc, { blockIds: [...pending.blockIds], metaChanged: pending.metaChanged }, isRemote);
 }
 
+/**
+ * Run the handler with its throw isolated: a listener fires inside the
+ * Yjs transaction (the afterTransaction hook), so a listener's throw must
+ * not abort the remaining handlers of the emission nor roll back the
+ * caller's committed batch (the `transact`'s rollback guard would catch
+ * it otherwise). The throw stands the logged error; the emission
+ * continues with the next handler.
+ */
+function safeCall(label: string, handler: () => void): void {
+  try {
+    handler();
+  } catch (error) {
+    console.error(`docblocks: a ${label} handler threw — the emission continues`, error);
+  }
+}
+
 function emitChange(ydoc: Y.Doc, change: Change, isRemote: boolean): void {
   const hub = getHub(ydoc);
 
-  for (const handler of [...hub.changeHandlers]) handler(change);
+  for (const handler of [...hub.changeHandlers]) safeCall("change", () => handler(change));
   if (isRemote) {
-    for (const handler of [...hub.remoteChangeHandlers]) handler(change);
+    for (const handler of [...hub.remoteChangeHandlers]) safeCall("remote-change", () => handler(change));
   }
 
   for (const blockId of change.blockIds) {
@@ -142,14 +158,14 @@ function emitChange(ydoc: Y.Doc, change: Change, isRemote: boolean): void {
       const block = readBlock(ydoc, blockId);
       // A removed block emits nothing: removals are visible via onChange.blockIds.
       if (block !== null) {
-        for (const handler of [...blockHandlers]) handler(block);
+        for (const handler of [...blockHandlers]) safeCall("block", () => handler(block));
       }
     }
     const textHandlers = hub.textHandlers.get(blockId);
     if (textHandlers !== undefined && textHandlers.size > 0) {
       // Fires on any field change of the block; a removed block reports "".
       const text = readText(ydoc, blockId);
-      for (const handler of [...textHandlers]) handler(text);
+      for (const handler of [...textHandlers]) safeCall("text", () => handler(text));
     }
   }
 }

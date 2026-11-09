@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { type BlockId, type Selection, createDoc } from "docblocks-core";
+import { type BlockId, type Selection, type TextRun, createDoc } from "docblocks-core";
 
-import { crossRangeClipboardContent } from "../src/editing/cross-copy";
+import { crossRangeClipboardContent, segmentOf } from "../src/editing/cross-copy";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;
@@ -48,6 +48,23 @@ describe("crossRangeClipboardContent", () => {
     doc.setMark(a, 6, 11, { type: "link", href: "https://x.dev/?a=1&b=2" });
     const payload = crossRangeClipboardContent(doc, crossSelection(a, 6, b, 2));
     expect(payload?.html).toBe(`<div><a href="https://x.dev/?a=1&amp;b=2">world</a></div><div>an</div>`);
+  });
+
+  it("escapes the mark's values over the clipboard's attributes (the hostile remote data's stand)", () => {
+    // A value written over the CRDT's raw (no command's validation) stands
+    // the hostile attribute break over the third-party paste target — the
+    // escape closes it (the local paste re-parses through the whitelist).
+    const hostile = '" onmouseover="alert(1)';
+    const runs: TextRun[] = [
+      { text: "world", marks: { color: { value: hostile }, highlight: { value: hostile } } },
+      { text: "mention", marks: { mention: { kind: hostile, id: "u1", label: "x" } as never } },
+    ];
+    const { html } = segmentOf(runs, 0, 13);
+    expect(html).toContain(`color: &quot; onmouseover=&quot;alert(1)`);
+    expect(html).toContain(`background-color: &quot; onmouseover=&quot;alert(1)`);
+    expect(html).toContain('data-mention="&quot; onmouseover=&quot;alert(1)"');
+    // The unescaped quote never stands an attribute's break.
+    expect(html).not.toContain(`color: " onmouseover="`);
   });
 
   it("keeps the default copy for same-block ranges and carets", () => {

@@ -22,8 +22,9 @@ function blockTextOf(block: Block | null | undefined): string {
 /** The trigger block's inner editable (null when the block vanished). */
 function blockInnerOf(rootRef: RefObject<HTMLElement | null>, blockId: BlockId): HTMLElement | null {
   return (
-    rootRef.current?.querySelector<HTMLElement>(`[data-block-id="${blockId}"] [data-slot="docblocks/block-content"]`) ??
-    null
+    rootRef.current?.querySelector<HTMLElement>(
+      `[data-block-id="${CSS.escape(blockId)}"] [data-slot="docblocks/block-content"]`
+    ) ?? null
   );
 }
 

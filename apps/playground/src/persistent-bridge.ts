@@ -1,8 +1,9 @@
 /**
- * The playground's persistent database bridge (harness-only): the package's
- * default in-memory bridge over a localStorage snapshot — the harness's
- * tables / columns / rows survive the tab's reload (the package's default
- * stands memory-only; the consumer's own backend persists on its side).
+ * The playground's persistent database bridge (harness-only): the harness's
+ * in-memory bridge (the consumer's own stand of the `DatabaseBridge`
+ * contract) over a localStorage snapshot — the harness's tables / columns /
+ * rows survive the tab's reload (the memory bridge stands memory-only; a
+ * real consumer's backend persists on its side).
  *
  * The snapshot keeps each table's stable id (independent of the name — the
  * reload's restore re-creates the table under its original id, so a rename
@@ -16,8 +17,20 @@
  * (the cells are keyed by the column id, the row-link cells reference the
  * row ids). The soft-delete trash and the envelope stream stand no capture.
  */
-import { getDefaultDatabaseBridge, newMutationContext } from "docblocks-react-ui";
+import { newMutationContext } from "docblocks-react-ui";
 import type { BatchOp, CellMap, Column, DatabaseBridge, RowWire, TableRef } from "docblocks-react-ui";
+
+import { createMemoryDatabaseBridge } from "./memory-bridge";
+import type { MemoryDatabaseBridge } from "./memory-bridge";
+
+/** The harness's shared in-memory bridge (the demo consumer's stand): a
+ *  single instance shared by all the panes of the page (the panes sync
+ *  over the bridge's own subscription, not over a per-pane instance). */
+let memoryBridge: MemoryDatabaseBridge | null = null;
+function bridge(): MemoryDatabaseBridge {
+  if (memoryBridge === null) memoryBridge = createMemoryDatabaseBridge();
+  return memoryBridge;
+}
 
 const STORAGE_KEY = "docblocks-playground-bridge-v2";
 
@@ -264,7 +277,7 @@ let seedPromise: Promise<void> | null = null;
 function databaseBridgeReady(): Promise<void> {
   if (seedPromise === null) {
     const snapshot = loadSnapshot();
-    seedPromise = snapshot !== null ? seed(getDefaultDatabaseBridge(), snapshot) : Promise.resolve();
+    seedPromise = snapshot !== null ? seed(bridge(), snapshot) : Promise.resolve();
   }
   return seedPromise;
 }
@@ -277,13 +290,13 @@ async function flushSave(): Promise<void> {
   if (saveInFlight) return;
   saveInFlight = true;
   try {
-    const bridge = getDefaultDatabaseBridge();
+    const bridgeInstance = bridge();
     // The re-save loop: a mutation inside the save stands a second pass
     // (the saved state is always at least as fresh as the last mutation
     // before the save's start).
     while (dirty) {
       dirty = false;
-      const snapshot = await snapshotOf(bridge);
+      const snapshot = await snapshotOf(bridgeInstance);
       try {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
       } catch {
@@ -315,74 +328,74 @@ function scheduleSave(): void {
 const persistentDatabaseBridge: DatabaseBridge = {
   describeProtocol: async () => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().describeProtocol();
+    return bridge().describeProtocol();
   },
   listTables: async () => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().listTables();
+    return bridge().listTables();
   },
   createTable: async (input, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().createTable(input, ctx);
+    const receipt = await bridge().createTable(input, ctx);
     if (input.system === true) systemTableIds.add(receipt.result.id);
     scheduleSave();
     return receipt;
   },
   renameTable: async (tableId, input, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().renameTable(tableId, input, ctx);
+    const receipt = await bridge().renameTable(tableId, input, ctx);
     scheduleSave();
     return receipt;
   },
   describeTable: async (tableId) => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().describeTable(tableId);
+    return bridge().describeTable(tableId);
   },
   snapshotTable: async (tableId, query) => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().snapshotTable(tableId, query);
+    return bridge().snapshotTable(tableId, query);
   },
   queryNextPage: async (tableId, input) => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().queryNextPage(tableId, input);
+    return bridge().queryNextPage(tableId, input);
   },
   createColumn: async (tableId, input, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().createColumn(tableId, input, ctx);
+    const receipt = await bridge().createColumn(tableId, input, ctx);
     scheduleSave();
     return receipt;
   },
   updateColumn: async (tableId, columnId, patch, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().updateColumn(tableId, columnId, patch, ctx);
+    const receipt = await bridge().updateColumn(tableId, columnId, patch, ctx);
     scheduleSave();
     return receipt;
   },
   deleteColumn: async (tableId, columnId, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().deleteColumn(tableId, columnId, ctx);
+    const receipt = await bridge().deleteColumn(tableId, columnId, ctx);
     scheduleSave();
     return receipt;
   },
   restoreDeletedColumn: async (tableId, columnId, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().restoreDeletedColumn(tableId, columnId, ctx);
+    const receipt = await bridge().restoreDeletedColumn(tableId, columnId, ctx);
     scheduleSave();
     return receipt;
   },
   resolveRowDisplay: async (tableId, input) => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().resolveRowDisplay(tableId, input);
+    return bridge().resolveRowDisplay(tableId, input);
   },
   batchRows: async (tableId, input, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().batchRows(tableId, input, ctx);
+    const receipt = await bridge().batchRows(tableId, input, ctx);
     scheduleSave();
     return receipt;
   },
   undeleteRows: async (tableId, input, ctx) => {
     await databaseBridgeReady();
-    const receipt = await getDefaultDatabaseBridge().undeleteRows(tableId, input, ctx);
+    const receipt = await bridge().undeleteRows(tableId, input, ctx);
     scheduleSave();
     return receipt;
   },
@@ -390,10 +403,10 @@ const persistentDatabaseBridge: DatabaseBridge = {
   // bootstrap reads the snapshot first — that read stands the seed — and
   // subscribes over the snapshot's `asOfSeq`, so the replay's coverage
   // stands the events between the read and the subscription).
-  subscribeTable: (tableId, input, observer) => getDefaultDatabaseBridge().subscribeTable(tableId, input, observer),
+  subscribeTable: (tableId, input, observer) => bridge().subscribeTable(tableId, input, observer),
   getOperationStatus: async (operationId) => {
     await databaseBridgeReady();
-    return getDefaultDatabaseBridge().getOperationStatus(operationId);
+    return bridge().getOperationStatus(operationId);
   },
 };
 

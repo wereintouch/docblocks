@@ -1,10 +1,12 @@
 import { type CSSProperties, Fragment, type ReactNode } from "react";
 
-import type { TextRun } from "docblocks-core";
+import { type TextRun, isSafeLinkHref } from "docblocks-core";
 
 /**
  * Render inline text runs with their marks (lenient reader contract:
- * unknown marks are ignored and the text is kept).
+ * unknown marks are ignored and the text is kept). The link's href is
+ * gated over the public contract (the remote input is not validated —
+ * an unsafe scheme stands the plain text, never the raw <a>).
  */
 function renderRuns(runs: TextRun[]): ReactNode {
   return runs.map((run, index) => <Fragment key={index}>{renderMarked(run)}</Fragment>);
@@ -16,6 +18,11 @@ const INLINE_CODE_CLASS =
 
 /** The link mark class (the link color token). */
 const LINK_CLASS = "text-(--docblocks-link-color)";
+
+/** The link's href over the public contract (the unsafe stand is none —
+ *  the text renders plain). */
+const linkHrefOf = (run: TextRun): string | undefined =>
+  run.marks.link !== undefined && isSafeLinkHref(run.marks.link.href) ? run.marks.link.href : undefined;
 
 /** One run: the exclusive code mark renders alone; the rest nest. */
 function renderMarked(run: TextRun): ReactNode {
@@ -32,9 +39,10 @@ function renderMarked(run: TextRun): ReactNode {
   if (marks.code === true) return <code className={INLINE_CODE_CLASS}>{run.text}</code>;
 
   let node: ReactNode = run.text;
-  if (marks.link !== undefined)
+  const linkHref = linkHrefOf(run);
+  if (linkHref !== undefined)
     node = (
-      <a href={marks.link.href} className={LINK_CLASS}>
+      <a href={linkHref} className={LINK_CLASS}>
         {node}
       </a>
     );

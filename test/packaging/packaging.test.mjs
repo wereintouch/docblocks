@@ -55,17 +55,23 @@ try {
       .map((l) => l.replace(/^package\//, ""));
 
   // --- Composition: the required documents + files are in the archives -----
+  // The allowlist stands the exact composition (not a prefix stand): a new
+  // artifact (a font, a worker file, a chunk) must land in the list
+  // consciously — the prefix stand would let an unexpected file ship
+  // unreviewed.
   console.log("checking the tarball composition …");
   const coreFiles = list(coreTgz);
   for (const f of ["package.json", "README.md", "LICENSE", "dist/index.mjs", "dist/index.d.mts"]) {
     assert(coreFiles.includes(f), `the core archive carries ${f}`);
   }
   const coreAllowed = (f) =>
-    f === "package.json" || f === "README.md" || f === "CHANGELOG.md" || f === "LICENSE" || f.startsWith("dist/");
-  assert(
-    coreFiles.every(coreAllowed),
-    "the core archive carries no files outside package.json / README / LICENSE / CHANGELOG / dist"
-  );
+    f === "package.json" ||
+    f === "README.md" ||
+    f === "CHANGELOG.md" ||
+    f === "LICENSE" ||
+    f === "dist/index.mjs" ||
+    f === "dist/index.d.mts";
+  assert(coreFiles.every(coreAllowed), "the core archive carries no files outside the exact allowlist");
 
   const uiFiles = list(uiTgz);
   for (const f of [
@@ -77,28 +83,49 @@ try {
     "dist/styles.css",
     "theme.css",
     "dist/fonts/OFL.txt",
-    "dist/pdf/pdf.worker.min.mjs",
     "dist/pdf/index.mjs",
+    "dist/pdf/index.d.mts",
+    "dist/pdf/pdf.worker.min.mjs",
+    // The JBIG2 decoder (the wasm + the no-wasm fallback): the worker loads
+    // them from its own directory — a missing file stands the scanned PDFs'
+    // text layers dropped.
+    "dist/pdf/jbig2.wasm",
+    "dist/pdf/jbig2_nowasm_fallback.js",
     "dist/mermaid/index.mjs",
-    "dist/motion/index.mjs",
+    "dist/mermaid/index.d.mts",
   ]) {
     assert(uiFiles.includes(f), `the react-ui archive carries ${f}`);
   }
   assert(
-    uiFiles.some((f) => f.endsWith(".woff2")),
+    uiFiles.filter((f) => f.startsWith("dist/fonts/") && f.endsWith(".woff2")).length > 0,
     "the react-ui archive carries the self-hosted fonts (dist/fonts/*.woff2)"
   );
+  const uiSubpathModules = [
+    "dist/pdf/index.mjs",
+    "dist/pdf/index.d.mts",
+    "dist/pdf/pdf.worker.min.mjs",
+    "dist/pdf/jbig2.wasm",
+    "dist/pdf/jbig2_nowasm_fallback.js",
+    "dist/mermaid/index.mjs",
+    "dist/mermaid/index.d.mts",
+  ];
+  // The dist's root level stands the entry + the build's hashed chunks
+  // (the code-split .mjs / the d.ts chunks — the names are content-hashed,
+  // so the pattern is the level + the extension); the subpath directories
+  // stand the exact lists (a new file in them must land in the list
+  // consciously).
   const uiAllowed = (f) =>
     f === "package.json" ||
     f === "README.md" ||
     f === "CHANGELOG.md" ||
     f === "LICENSE" ||
     f === "theme.css" ||
-    f.startsWith("dist/");
-  assert(
-    uiFiles.every(uiAllowed),
-    "the react-ui archive carries no files outside package.json / README / LICENSE / CHANGELOG / dist / theme.css"
-  );
+    f === "dist/styles.css" ||
+    f === "dist/fonts/OFL.txt" ||
+    (f.startsWith("dist/fonts/") && f.endsWith(".woff2")) ||
+    (f.startsWith("dist/") && !f.slice("dist/".length).includes("/") && (f.endsWith(".mjs") || f.endsWith(".d.mts"))) ||
+    uiSubpathModules.includes(f);
+  assert(uiFiles.every(uiAllowed), "the react-ui archive carries no files outside the exact allowlist");
   assert(
     !uiFiles.some((f) => f.startsWith("dist/.tmp/")),
     "the react-ui archive carries no build intermediates (dist/.tmp)"
@@ -121,6 +148,12 @@ try {
           "docblocks-react-ui": `file:${join(tmp, uiTgz)}`,
           react: "^19.0.0",
           "react-dom": "^19.0.0",
+          // The required peers: the base entry's page view stands the
+          // framer's module evaluation, and the subpath imports stand the
+          // rest (a parse error / a missing peer must fail the gate).
+          "framer-motion": "^12.0.0",
+          mermaid: "^12.0.0",
+          "pdfjs-dist": "^6.0.0",
         },
       },
       null,
@@ -150,9 +183,11 @@ try {
     { cwd: consumerDir, env: cleanEnv }
   );
 
-  // The minimal consumer: exercise the core entry, resolve the react-ui entry
-  // + CSS + optional subpaths, and prove they resolve inside the installed
-  // copy (not the monorepo).
+  // The minimal consumer: exercise the core entry, import the react-ui
+  // entry + the optional subpaths (the full module evaluation — a parse
+  // error stands the gate red, not only the resolution), resolve the CSS
+  // (node cannot import it), and prove everything stands inside the
+  // installed copy (not the monorepo).
   writeFileSync(
     join(consumerDir, "consume.mjs"),
     `import { readFileSync } from "node:fs";
@@ -165,14 +200,23 @@ const json = doc.toJSON();
 if (json.blocks[para]?.content?.[0]?.text !== "hello from the consumer")
   throw new Error("the core entry did not round-trip");
 
-const entry = import.meta.resolve("docblocks-react-ui");
-const motion = import.meta.resolve("docblocks-react-ui/motion");
-const mermaid = import.meta.resolve("docblocks-react-ui/mermaid");
-const pdf = import.meta.resolve("docblocks-react-ui/pdf");
+// The subpath imports stand the module evaluation (a parse error / a
+// missing peer stands the gate red); the CSS stands the resolve + the read
+// (node cannot import the css module).
+const entry = await import("docblocks-react-ui");
+const mermaid = await import("docblocks-react-ui/mermaid");
+const pdf = await import("docblocks-react-ui/pdf");
+if (typeof entry.Editor !== "function") throw new Error("the base entry did not export the Editor");
+if (typeof mermaid.MermaidCodeRenderer !== "function")
+  throw new Error("the mermaid subpath did not export the renderer");
+if (typeof pdf.PdfFirstPage !== "function") throw new Error("the pdf subpath did not export the preview");
+
+const mermaidUrl = import.meta.resolve("docblocks-react-ui/mermaid");
+const pdfUrl = import.meta.resolve("docblocks-react-ui/pdf");
 const css = import.meta.resolve("docblocks-react-ui/styles.css");
 const theme = import.meta.resolve("docblocks-react-ui/theme.css");
 
-for (const url of [entry, motion, mermaid, pdf, css, theme]) {
+for (const url of [mermaidUrl, pdfUrl, css, theme]) {
   if (!url.includes("node_modules/docblocks-react-ui"))
     throw new Error(\`resolved outside the installed react-ui package: \${url}\`);
 }
@@ -185,7 +229,7 @@ console.log("CONSUMER_OK");
   const consumerOut = sh("node", ["consume.mjs"], { cwd: consumerDir });
   assert(
     consumerOut.includes("CONSUMER_OK"),
-    "the clean consumer uses the core entry + the react-ui entry / CSS / optional subpaths"
+    "the clean consumer imports the core entry + the react-ui entry / subpaths and resolves the CSS over the installed copy"
   );
 } catch (err) {
   failures += 1;

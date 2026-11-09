@@ -4,7 +4,7 @@
  * block type, the mark set rules, and the runs content array.
  */
 import type { BlockType } from "../../block-union";
-import { MARK_REGISTRY } from "../../registry";
+import { MARK_REGISTRY, isRegisteredMarkName } from "../../registry";
 import type { AttrSpec, BlockSpec, MarkFieldSpec } from "../../registry";
 import type { MarkName } from "../../text";
 import type { ValidationError } from "../models";
@@ -15,7 +15,8 @@ function validateAttrValue(
   spec: AttrSpec,
   value: unknown,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  lenient = false
 ): void {
   switch (spec.kind) {
     case "boolean":
@@ -64,10 +65,15 @@ function validateAttrValue(
         break;
       }
       if (!(spec.values ?? ([] as readonly unknown[])).includes(value)) {
-        errors.push({
-          path,
-          message: `Attribute "${name}" must be one of ${JSON.stringify(spec.values)} (got ${show(value)}).`,
-        });
+        // Lenient (cross-minor load): a new enum value (a future minor's
+        // data) is preserved as-is, not rejected; the strict posture
+        // rejects it (the writer's stand).
+        if (!lenient) {
+          errors.push({
+            path,
+            message: `Attribute "${name}" must be one of ${JSON.stringify(spec.values)} (got ${show(value)}).`,
+          });
+        }
       }
       break;
     case "object":
@@ -75,7 +81,7 @@ function validateAttrValue(
         errors.push({ path, message: `Attribute "${name}" must be a plain object (got ${show(value)}).` });
         return;
       }
-      validateObjectFields(name, spec, value, path, errors);
+      validateObjectFields(name, spec, value, path, errors, lenient);
       break;
     case "array": {
       if (!Array.isArray(value)) {
@@ -85,7 +91,7 @@ function validateAttrValue(
       const itemSpec = spec.items;
       if (itemSpec === undefined) break;
       value.forEach((item, index) => {
-        validateAttrValue(name, itemSpec, item, `${path}[${index}]`, errors);
+        validateAttrValue(name, itemSpec, item, `${path}[${index}]`, errors, lenient);
       });
       break;
     }
@@ -94,19 +100,22 @@ function validateAttrValue(
 
 /**
  * The fields of an `object` attr: required fields present, no unknown
- * fields, each field value validated by its own spec (the standard
- * messages apply per field). An `object` attr WITHOUT declared `fields`
- * is a free-form object: the plain-object check already stands (in the
- * `object` case), and the structure is the caller's concern (the database
- * `filter` payload is checked by its recursive branch — the recursion is
- * not expressible in the flat AttrSpec).
+ * fields (the strict posture; the lenient cross-minor load preserves an
+ * additive field as-is — it carries no spec to check), each field value
+ * validated by its own spec (the standard messages apply per field). An
+ * `object` attr WITHOUT declared `fields` is a free-form object: the
+ * plain-object check already stands (in the `object` case), and the
+ * structure is the caller's concern (the database `filter` payload is
+ * checked by its recursive branch — the recursion is not expressible in
+ * the flat AttrSpec).
  */
 function validateObjectFields(
   name: string,
   spec: AttrSpec,
   value: Record<string, unknown>,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  lenient = false
 ): void {
   const fields = spec.fields;
   if (fields === undefined) return; // a free-form object (no declared fields)
@@ -121,13 +130,18 @@ function validateObjectFields(
   for (const [fieldName, fieldValue] of Object.entries(value)) {
     const fieldSpec = fields[fieldName];
     if (fieldSpec === undefined) {
-      errors.push({
-        path: `${path}.${fieldName}`,
-        message: `Unknown field "${fieldName}" for attribute "${name}".`,
-      });
+      // Lenient (cross-minor load): an additive field (a future minor's
+      // data) is preserved as-is, not rejected; the known fields keep
+      // their value checks either way.
+      if (!lenient) {
+        errors.push({
+          path: `${path}.${fieldName}`,
+          message: `Unknown field "${fieldName}" for attribute "${name}".`,
+        });
+      }
       continue;
     }
-    validateAttrValue(fieldName, fieldSpec, fieldValue, `${path}.${fieldName}`, errors);
+    validateAttrValue(fieldName, fieldSpec, fieldValue, `${path}.${fieldName}`, errors, lenient);
   }
 }
 
@@ -153,7 +167,8 @@ function validateAttrs(
   attrs: unknown,
   path: string,
   errors: ValidationError[],
-  lenient = false
+  lenient = false,
+  strictKeys?: ReadonlySet<string>
 ): void {
   const attrSpecs = spec.attrs;
 
@@ -177,28 +192,43 @@ function validateAttrs(
   }
 
   for (const [name, value] of Object.entries(attrs)) {
-    const attrSpec = attrSpecs[name];
+    // The hasOwn stand: an inherited Object.prototype member (the reserved
+    // key or the `toString`-class name) stands no spec — the unknown-attr
+    // branch decides it (a plain `attrSpecs[name]` would read the inherited
+    // member and stand the reserved key "known").
+    const attrSpec = Object.hasOwn(attrSpecs, name) ? attrSpecs[name] : undefined;
+    // The writer's hybrid stand: the keys the caller's patch touches stand
+    // the strict posture even under the lenient posture (the caller owns
+    // the patch — its unknown key or invalid value is a rejection); the
+    // untouched keys stand the lenient posture (the live document's data).
+    const keyLenient = lenient && !strictKeys?.has(name);
     if (!attrSpec) {
-      // Lenient (cross-minor load): an unknown attr (a future minor's data)
-      // is preserved as-is, not rejected; the known attrs keep their value
-      // checks either way.
-      if (!lenient) {
+      // Lenient (cross-minor load / the writer's untouched keys): an
+      // unknown attr (a future minor's data) is preserved as-is, not
+      // rejected; the known attrs keep their value checks either way.
+      if (!keyLenient) {
         errors.push({ path: `${path}.${name}`, message: `Unknown attribute "${name}" for block type "${type}".` });
       }
       continue;
     }
-    validateAttrValue(name, attrSpec, value, `${path}.${name}`, errors);
+    validateAttrValue(name, attrSpec, value, `${path}.${name}`, errors, keyLenient);
   }
 }
 
 /** The known fields of a multi-field `attrs` mark: each field's shape + no
- *  unknown keys. */
+ *  unknown keys. The lenient stand (the cross-minor load): a new field
+ *  (a future minor's additive data) and a new enum value on a known field's
+ *  enum are preserved as-is (the data stands); the known fields' contracts
+ *  (presence, string shape, non-emptiness) stand either way — a future
+ *  minor cannot change a known field's contract (that would be a major).
+ */
 function validateMarkFields(
   name: MarkName,
   fields: Record<string, MarkFieldSpec>,
   value: Record<string, unknown>,
   markPath: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  lenient = false
 ): void {
   for (const [key, field] of Object.entries(fields)) {
     const fieldValue = value[key];
@@ -216,17 +246,27 @@ function validateMarkFields(
       continue;
     }
     if (field.enum !== undefined && !field.enum.includes(fieldValue)) {
-      errors.push({
-        path: `${markPath}.${key}`,
-        message: `Mark "${name}" field "${key}" must be one of ${field.enum.join(" | ")} (got ${show(fieldValue)}).`,
-      });
+      // Lenient (cross-minor load): a new enum value (a future minor's
+      // data) is preserved as-is, not rejected; the strict posture
+      // rejects it (the writer's stand).
+      if (!lenient) {
+        errors.push({
+          path: `${markPath}.${key}`,
+          message: `Mark "${name}" field "${key}" must be one of ${field.enum.join(" | ")} (got ${show(fieldValue)}).`,
+        });
+      }
     } else if (field.nonEmptyString && fieldValue.length === 0) {
       errors.push({ path: `${markPath}.${key}`, message: `Mark "${name}" field "${key}" must be a non-empty string.` });
     }
   }
   for (const key of Object.keys(value)) {
-    if (!(key in fields)) {
-      errors.push({ path: `${markPath}.${key}`, message: `Unknown attribute "${key}" for mark "${name}".` });
+    if (!Object.hasOwn(fields, key)) {
+      // Lenient (cross-minor load): an unknown field (a future minor's
+      // additive data) is preserved as-is, not rejected; the strict
+      // posture rejects it.
+      if (!lenient) {
+        errors.push({ path: `${markPath}.${key}`, message: `Unknown attribute "${key}" for mark "${name}".` });
+      }
     }
   }
 }
@@ -252,14 +292,13 @@ function validateMarks(
     // A future minor's mark on a code block: the cross-minor stand — the
     // marks are not the engine's data to judge (only the known-mark shape
     // rules stand); the strict posture rejects any mark on a code run.
-    if (!lenient || names.some((name) => name in MARK_REGISTRY)) {
+    if (!lenient || names.some((name) => isRegisteredMarkName(name))) {
       errors.push({ path, message: "Runs in a code block must not carry marks." });
     }
   }
 
   for (const name of names) {
-    const spec = MARK_REGISTRY[name as MarkName];
-    if (!spec) {
+    if (!isRegisteredMarkName(name)) {
       // Lenient (cross-minor load): an unknown mark (a future minor's data)
       // is preserved as-is (the text stands without it); the strict posture
       // rejects it.
@@ -268,6 +307,7 @@ function validateMarks(
       }
       continue;
     }
+    const spec = MARK_REGISTRY[name];
     const markPath = `${path}.${name}`;
     const value = marks[name];
 
@@ -283,17 +323,32 @@ function validateMarks(
       continue;
     }
     if (spec.fields !== undefined) {
-      validateMarkFields(name as MarkName, spec.fields, value, markPath, errors);
+      validateMarkFields(name as MarkName, spec.fields, value, markPath, errors, lenient);
       continue;
     }
     for (const key of Object.keys(value)) {
       if (key !== spec.attr) {
-        errors.push({ path: `${markPath}.${key}`, message: `Unknown attribute "${key}" for mark "${name}".` });
+        // Lenient (cross-minor load): an unknown attribute (a future
+        // minor's additive data) is preserved as-is, not rejected; the
+        // strict posture rejects it.
+        if (!lenient) {
+          errors.push({ path: `${markPath}.${key}`, message: `Unknown attribute "${key}" for mark "${name}".` });
+        }
       }
     }
     const attrValue = value[spec.attr ?? ""];
     if (spec.attr === "href") {
-      if (typeof attrValue !== "string" || !isLinkHref(attrValue)) {
+      if (typeof attrValue !== "string") {
+        errors.push({
+          path: markPath,
+          message: `Mark "link" requires a string href (got ${show(attrValue)}).`,
+        });
+      } else if (!lenient && !isLinkHref(attrValue)) {
+        // The writer's stand (the unsafe-scheme rejection). The lenient
+        // (reader) posture preserves the value as data — the reader's
+        // contract is to stand the data, not to judge the scheme (the
+        // renderer's gate stands the href; a rejected snapshot here would
+        // be a persistence DoS over a poisoned document).
         errors.push({
           path: markPath,
           message: `Mark "link" requires an href: http/https URL or relative path (got ${show(attrValue)}).`,
@@ -313,7 +368,7 @@ function validateMarks(
     }
   }
 
-  const exclusive = names.find((name) => MARK_REGISTRY[name as MarkName]?.exclusive);
+  const exclusive = names.find((name) => isRegisteredMarkName(name) && MARK_REGISTRY[name].exclusive);
   if (exclusive && names.length > 1) {
     errors.push({ path, message: `A run with exclusive mark "${exclusive}" must not carry other marks.` });
   }

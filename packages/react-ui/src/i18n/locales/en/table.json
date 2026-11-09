@@ -1,0 +1,32 @@
+{
+  "handle": {
+    "columnOptions": "Column {index} options",
+    "rowOptions": "Row {index} options",
+    "columnMenu": "Column options",
+    "rowMenu": "Row options"
+  },
+  "menu": {
+    "background": "Background",
+    "backgroundSwatch": "Background {color}",
+    "removeBackground": "Remove background",
+    "insertRight": "Insert right",
+    "insertLeft": "Insert left",
+    "insertBelow": "Insert below",
+    "insertAbove": "Insert above",
+    "moveRight": "Move right",
+    "moveLeft": "Move left",
+    "moveDown": "Move down",
+    "moveUp": "Move up",
+    "clearContent": "Clear content"
+  },
+  "resize": {
+    "column": "Resize column {index}"
+  },
+  "add": {
+    "column": "Add column",
+    "row": "Add row"
+  },
+  "cell": {
+    "options": "Cell options"
+  }
+}

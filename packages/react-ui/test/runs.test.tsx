@@ -51,6 +51,26 @@ describe("renderRuns", () => {
     expect(link?.querySelector("strong, em, s, u")).toBeNull();
   });
 
+  it("the unsafe link href stands the plain text (the renderer's gate over the unvalidated remote input)", () => {
+    // The remote input is not validated (the CRDT's raw stand): the
+    // renderer's gate stands the href — the text renders plain, never the
+    // raw <a> (the javascript: / the C0-prefixed bypass's stand).
+    for (const href of [
+      "javascript:alert(1)",
+      "\tjavascript:alert(1)",
+      "\u0000javascript:alert(1)",
+      "data:text/html,x",
+    ]) {
+      const el = renderText([run("site", { link: { href } })]);
+      expect(el.querySelector("a"), `the href ${JSON.stringify(href)} should stand no <a>`).toBeNull();
+      expect(el.textContent).toBe("site");
+      cleanup();
+    }
+    // The safe stand stands the link (the C0-prefixed https over the trim).
+    const safe = renderText([run("site", { link: { href: "\thttps://a.b" } })]);
+    expect(safe.querySelector("a")?.getAttribute("href")).toBe("\thttps://a.b");
+  });
+
   it("renders color and highlight as inline styles", () => {
     const el = renderText([run("c", { color: { value: "#ff0000" }, highlight: { value: "#00ff00" } })]);
     const span = el.querySelector("span");

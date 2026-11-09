@@ -12,6 +12,8 @@
  * pick closes the menu (the dropdown's contract), the outside press
  * closes without a write.
  */
+import { useTranslation } from "react-i18next";
+
 import type { Block, BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
@@ -65,19 +67,27 @@ function ZOrderMenu({
   position: number;
   /** The surface's z-order elements' total. */
   count: number;
-  /** The trigger's accessible name (the toolbar's label). */
+  /** The trigger's accessible name (the toolbar's label — translated). */
   label: string;
 }) {
+  const { t } = useTranslation("canvas");
   const { doc } = useEditorContext();
   // count < 2: every pick would be a no-op (nothing to swap with) — the
   // trigger stands absent, not disabled.
   if (count < 2 || position < 0 || position >= count) return null;
   const atTop = position === count - 1;
   const atBottom = position === 0;
-  const bringForward = () => doc.setZOrder(targetId, "forward");
-  const bringToFront = () => doc.setZOrder(targetId, "toFront");
-  const sendBackward = () => doc.setZOrder(targetId, "back");
-  const sendToBack = () => doc.setZOrder(targetId, "toBack");
+  // The pick: the target's concurrent deletion (the peer removed the
+  // element) stands the no-op (the setZOrder over the detached block would
+  // throw the typed error into the event handler).
+  const pick = (action: "forward" | "toFront" | "back" | "toBack") => {
+    if (doc.getBlock(targetId) === null) return;
+    doc.setZOrder(targetId, action);
+  };
+  const bringForward = () => pick("forward");
+  const bringToFront = () => pick("toFront");
+  const sendBackward = () => pick("back");
+  const sendToBack = () => pick("toBack");
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -86,24 +96,24 @@ function ZOrderMenu({
           size="icon"
           data-slot="docblocks/z-order-menu"
           aria-label={label}
-          title="Arrange (z-order)"
+          title={t("zorder.title")}
         >
           <EllipsisVertical className="size-4" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" sideOffset={TOOLTIP_SIDE_OFFSET_PX} aria-label={label}>
         <DropdownMenuItem data-action="forward" disabled={atTop} onSelect={bringForward}>
-          Bring forward
+          {t("zorder.bringForward")}
         </DropdownMenuItem>
         <DropdownMenuItem data-action="to-front" disabled={atTop} onSelect={bringToFront}>
-          Bring to front
+          {t("zorder.bringToFront")}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem data-action="back" disabled={atBottom} onSelect={sendBackward}>
-          Send backward
+          {t("zorder.sendBackward")}
         </DropdownMenuItem>
         <DropdownMenuItem data-action="to-back" disabled={atBottom} onSelect={sendToBack}>
-          Send to back
+          {t("zorder.sendToBack")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -2,7 +2,7 @@
  *  the tool / mode sets, the resize handles, the pen stroke) + the session
  *  shapes (the move / resize / the connector endpoint drag), the rendered
  *  previews, and the `CanvasViewportState` the hook returns. */
-import type { Box, CanvasPort } from "../../blocks/canvas-geometry";
+import type { Box, CanvasPort } from "../geometry";
 
 /** The placement tool ids (the dock's tool set; "hand" is a mode, not a tool). */
 type CanvasTool =
@@ -82,6 +82,12 @@ interface MoveSession {
   startClientX: number;
   startClientY: number;
   snapshot: Record<string, { x: number; y: number; w: number; h: number } | undefined>;
+  /** The block types over the ids (the session stand — the pointermove's indicator pass reads the session, not the doc). */
+  types: Record<string, string>;
+  /** The containers at the session's start (the membership / the geometry stand stable over the drag — the release's commit stands the fresh read). */
+  containers: { id: string; box: Box; members: string[] }[];
+  /** The dragged groups' members (the session stand). */
+  groupMembers: Record<string, string[]>;
   dragging: boolean;
   /** The last committed-candidate delta (canvas px), fed by moveDrag. */
   dx: number;
@@ -216,6 +222,10 @@ interface CanvasViewportState {
   resizeSession: boolean;
   /** The in-flight shape placement's preview (canvas coords, the center anchor); null outside a drag. */
   placePreview: PlacePreview | null;
+  /** The pending ghost text block (the double-click's empty-canvas entry): the world's point (the top-left anchor); null outside a ghost. */
+  pendingText: CanvasPoint | null;
+  /** Sets the pending ghost point (the world's top-left anchor); null closes the ghost. */
+  setPendingText: (point: CanvasPoint | null) => void;
   /** The connector's pending preview (the cursor's point + the end's edge
    * snap — the endpoint drag's parity); null outside a pick. */
   connectorPreview: EndpointPreview | null;
@@ -230,6 +240,12 @@ interface CanvasViewportState {
   connectorEndpointPreview: EndpointPreview | null;
   /** The shape in the inline text edit (the double-click's target); null outside an edit. */
   shapeTextEditing: string | null;
+  /** The canvas-text in the edit session (the double-click's target / the
+   * ghost's commit): the inner is contentEditable ONLY while the session
+   * stands (the press's contract — the single click stands the selection,
+   * no caret; the browser's stray focus over the inert inner stands no
+   * more). Null outside an edit. */
+  canvasTextEditing: string | null;
   /** The connector in the label's inline edit (the line's double-click); null outside an edit. */
   connectorLabelEditing: string | null;
   /** The canvas items' keyboard focus (the container focus's arrows move
@@ -239,6 +255,9 @@ interface CanvasViewportState {
   /** Opens / closes the shape's inline text edit (the double-click, the
    * toolbar's add-text button, the edit's blur / Escape close). */
   setShapeTextEditing: (id: string | null) => void;
+  /** Opens / closes the canvas-text's edit session (the double-click, the
+   * ghost's commit; the inner's blur and the block's removal close it). */
+  setCanvasTextEditing: (id: string | null) => void;
   /** Opens / closes the connector's label inline edit (the line's
    * double-click; the edit's blur / Escape close). */
   setConnectorLabelEditing: (id: string | null) => void;

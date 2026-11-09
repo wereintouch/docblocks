@@ -1,5 +1,7 @@
 /** The grid's row-menu track (the trailing grid column: the move / the
  *  delete row affordances). */
+import { useTranslation } from "react-i18next";
+
 import { Button } from "../../../shared/ui/Button";
 import {
   DropdownMenu,
@@ -34,6 +36,7 @@ function RowMenuCell({
   onRemove,
   lastRow,
 }: RowMenuCellProps) {
+  const { t } = useTranslation("database");
   const onRowMenuChange = (open: boolean) => setRowMenu(open ? row.rowId : null);
 
   return (
@@ -64,13 +67,13 @@ function RowMenuCell({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-32">
           <DropdownMenuItem disabled={!canMoveUp} onClick={onMoveUp}>
-            Move up
+            {t("row.moveUp")}
           </DropdownMenuItem>
           <DropdownMenuItem disabled={!canMoveDown} onClick={onMoveDown}>
-            Move down
+            {t("row.moveDown")}
           </DropdownMenuItem>
           <DropdownMenuItem data-destructive onClick={onRemove}>
-            Delete row
+            {t("row.delete")}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

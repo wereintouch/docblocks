@@ -1,0 +1,86 @@
+{
+  "state": {
+    "loading": "Загрузка таблицы…",
+    "notFound": "Таблица не найдена",
+    "unknownTable": "Таблица \"{tableId}\" не найдена в базе данных.",
+    "retry": "Повторить"
+  },
+  "rowCount_one": "строка",
+  "rowCount_few": "строки",
+  "rowCount_many": "строк",
+  "rowCount_other": "строк",
+  "toolbar": {
+    "undo": "Отменить",
+    "redo": "Повторить",
+    "filter": "Фильтр",
+    "apply": "Применить"
+  },
+  "columnTypes": {
+    "text": "Текст",
+    "integer": "Целое",
+    "decimal": "Дробное",
+    "checkbox": "Флажок",
+    "date": "Дата",
+    "datetime": "Дата и время",
+    "enum": "Перечисление",
+    "multiEnum": "Множественное перечисление",
+    "rowLink": "Ссылка на строку",
+    "rowLinks": "Ссылки на строки"
+  },
+  "form": {
+    "name": "Название",
+    "decimals": "Десятичные знаки",
+    "thousandsSeparator": "Разделитель тысяч",
+    "prefix": "Префикс",
+    "suffix": "Суффикс",
+    "allowNegative": "Разрешить отрицательные",
+    "table": "Таблица",
+    "selectTable": "— Выберите таблицу —",
+    "newTableName": "Название новой таблицы",
+    "save": "Сохранить",
+    "addColumn": "Добавить столбец"
+  },
+  "enum": {
+    "options": "Варианты",
+    "optionColor": "Цвет варианта",
+    "optionColorAria": "цвет варианта",
+    "optionPlaceholder": "Вариант",
+    "addOption": "+ Добавить вариант"
+  },
+  "header": {
+    "editOptions": "Изменить варианты",
+    "show": "Показать столбец",
+    "hide": "Скрыть столбец",
+    "delete": "Удалить столбец"
+  },
+  "row": {
+    "moveUp": "Переместить вверх",
+    "moveDown": "Переместить вниз",
+    "delete": "Удалить строку"
+  },
+  "rows": {
+    "loadMore": "Загрузить ещё строки",
+    "none": "Нет строк.",
+    "noneFiltered": "Строки не соответствуют фильтру.",
+    "add": "+ Добавить строку"
+  },
+  "filter": {
+    "empty": "Нет столбцов для фильтрации.",
+    "logic": "Логика фильтра",
+    "matchAll": "выполнены все условия",
+    "matchAny": "выполнено любое из условий",
+    "nestedGroup": "Вложенная группа ({logic})",
+    "removeGroup": "Удалить группу",
+    "condition": "+ Условие",
+    "group": "+ Группа",
+    "valuePlaceholder": "значение, значение"
+  },
+  "picker": {
+    "searchOptions": "Поиск вариантов",
+    "searchRows": "Поиск строк"
+  },
+  "disconnected": {
+    "name": "База данных",
+    "note": "база данных не подключена"
+  }
+}

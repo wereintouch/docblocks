@@ -57,6 +57,12 @@ interface SelectionRef {
   view: SelectionView | null;
 }
 
+/** The consumer's user access level: the available document modes. "viewer" is locked to the published's view (the current state is never rendered); "editor" (the default) may edit and view. Session state — not document data, never on the wire. */
+type AccessLevel = "viewer" | "editor";
+
+/** The document's mode (consumer-controlled view state, like the page/canvas `view`): "edit" (the default) is the live document editable; "view" is the live document read-only (the current state, still syncing); "published" is the `publishedDoc`'s snapshot read-only (static). */
+type EditorMode = "edit" | "view" | "published";
+
 /** Per-instance editor context: the store, the doc, the selection handle, and the customization values. */
 interface EditorContextValue {
   store: EditorStore;
@@ -67,9 +73,10 @@ interface EditorContextValue {
   /** The effective blob bridge (the consumer's store, the legacy resolver
    *  wrapped, or the shared default in-memory store) — always present. */
   blobStore: BlobStore;
-  /** The effective database bridge (the consumer's implementation or the
-   *  shared default in-memory bridge) — always present. */
-  databaseBridge: DatabaseBridge;
+  /** The effective database bridge (the consumer's implementation);
+   *  undefined when none was supplied — the external-form database blocks
+   *  render the disconnected placeholder. */
+  databaseBridge: DatabaseBridge | undefined;
   /** The sync-embed master-doc resolver; null when none was supplied. */
   syncEmbedResolver: SyncEmbedResolver | null;
   /** The consumer's PDF first-page preview renderer; null when none was supplied (the native iframe stands). */
@@ -86,11 +93,49 @@ interface EditorContextValue {
   embedDepth: number;
   /** The empty-block hint text (the default points at the slash command palette). */
   commandPalettePlaceholder: string;
+  /** The consumer's access level (the effective stand: the own prop, else the enclosing one, else "editor"). */
+  accessLevel: AccessLevel;
+  /** The effective document mode (resolved: a viewer stands "published" over any stand; a nested provider without its own `mode` inherits the enclosing one). */
+  mode: EditorMode;
+  /** True over the non-edit modes ("view" / "published"): every editing surface gates off (the read-only stand). */
+  viewMode: boolean;
 }
 
 interface EditorProviderProps {
-  /** The headless document to render and edit; must not change after mount. */
-  doc: Doc;
+  /**
+   * The headless document to render and edit; must not change after mount.
+   * Required over the editor's stand. Over the `viewer`'s stand the doc IS
+   * the published snapshot — the consumer passes only the stand the reader
+   * may see (the live document never reaches the reader's browser); an
+   * absent stand over the viewer renders the not-published placeholder.
+   */
+  doc?: Doc;
+  /**
+   * Optional user access level: "viewer" locks the render to the
+   * published's view (the `mode`'s stand is ignored — the current state is
+   * never rendered for a reader); "editor" (the default) may edit and
+   * view. Over the viewer's stand the `doc` is the published snapshot and
+   * the `publishedDoc` prop is not consulted (the doc IS the snapshot).
+   * Session state supplied by the consumer — never document data.
+   */
+  accessLevel?: AccessLevel;
+  /**
+   * Optional document mode (consumer-controlled, like the page/canvas
+   * `view`): "edit" (the default) renders the live document editable,
+   * "view" renders it read-only (the current state, the doc keeps
+   * syncing), "published" renders the `publishedDoc`'s snapshot read-only.
+   * A viewer stands "published" over every stand. A nested provider
+   * without its own `mode` inherits the enclosing one.
+   */
+  mode?: EditorMode;
+  /**
+   * Optional published snapshot (a hydrated `Doc`, the consumer's
+   * `loadDoc` / `fromJSON` over its own stored state): rendered
+   * read-only over the "published" mode (a static stand — no sync
+   * transport). Must not change after mount (like `doc`): a new
+   * snapshot is a consumer remount over a `key` change.
+   */
+  publishedDoc?: Doc | null;
   /** Optional sync transport for presence (awareness); the doc's own changes are always tracked. */
   provider?: SyncProvider;
   /**
@@ -131,9 +176,9 @@ interface EditorProviderProps {
    * Optional database bridge: the consumer's implementation of the table
    * operations behind the external-form database blocks (the document
    * keeps only the `tableId` reference; the schema and the rows live in
-   * the consumer's database). Without it the editor uses the shared
-   * default in-memory bridge (the tables and the rows stand in the page's
-   * JS memory; a reload clears them) — the dev / demo mode.
+   * the consumer's database). Without it the external-form blocks render
+   * the disconnected placeholder (the inline form stands unchanged — its
+   * data is the document's own).
    *
    * Like `blobStore`, the value is read per render into the provider
    * context: pass a stable reference. A nested provider that supplies
@@ -201,7 +246,9 @@ interface EditorProviderProps {
 }
 
 export type {
+  AccessLevel,
   EditorContextValue,
+  EditorMode,
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,

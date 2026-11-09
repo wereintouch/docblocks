@@ -91,12 +91,20 @@ function indentOf(block: Block | undefined): number {
  */
 function sequenceContainerOf(blocks: Record<BlockId, Block | OpaqueBlock>, entryRootId: BlockId): BlockId {
   const entry = blocks[entryRootId];
-  if (entry !== undefined && entry.type in BLOCK_REGISTRY && BLOCK_REGISTRY[entry.type as BlockType]?.sequence)
+  if (
+    entry !== undefined &&
+    Object.hasOwn(BLOCK_REGISTRY, entry.type) &&
+    BLOCK_REGISTRY[entry.type as BlockType]?.sequence
+  )
     return entryRootId;
   for (const [parentId, candidate] of Object.entries(blocks)) {
     const children = "children" in candidate ? candidate.children : undefined;
     if (children !== undefined && children.includes(entryRootId)) {
-      const spec = candidate.type in BLOCK_REGISTRY ? BLOCK_REGISTRY[candidate.type as BlockType] : undefined;
+      // The own-property stand: a prototype-key type name is an unknown
+      // type (the inherited member is not a registry spec).
+      const spec = Object.hasOwn(BLOCK_REGISTRY, candidate.type)
+        ? BLOCK_REGISTRY[candidate.type as BlockType]
+        : undefined;
       return spec !== undefined && spec.sequence ? parentId : entryRootId;
     }
   }
@@ -149,6 +157,28 @@ function subtreeSegmentOf(blocks: Record<BlockId, Block>, containerId: BlockId, 
  * the map) derives as a non-list block at indent 0 (the renderer renders
  * nothing for it).
  */
+/**
+ * The flat sequence's structure digest: a primitive key over the ids —
+ * the indents + the list kinds (the derivation's only inputs). The
+ * sequence's view subscribes to the key, not the whole blocks map: a
+ * text-only change (a keystroke in a block) stands no re-derivation,
+ * and an indent / a list-kind change stands the derivation's own
+ * re-render only.
+ */
+function flatStructureKey(ids: BlockId[], blocks: Record<BlockId, Block | OpaqueBlock>): string {
+  let key = "";
+  for (const id of ids) {
+    const block = blocks[id];
+    if (block === undefined) {
+      key += "-;";
+      continue;
+    }
+    const kind = block.type === "list-item" ? (block.attrs?.list ?? "") : "";
+    key += `${indentOf(block as Block)}:${kind};`;
+  }
+  return key;
+}
+
 function deriveFlat(ids: BlockId[], blocks: Record<BlockId, Block>, prev?: Map<BlockId, FlatNode>): FlatDerivation {
   /** The fresh nodes in sequence order (interning runs backwards over them). */
   const fresh: FreshNode[] = [];
@@ -308,10 +338,51 @@ function toRoman(n: number): string {
   return out;
 }
 
+/**
+ * The read-only stand's empty text chain's collapse (the view / published's
+ * modes' render filter — the data stands untouched): two or more
+ * CONSECUTIVE nodes of one indent, each a text type with no derived
+ * children and the empty's text, stand rendered as one (the chain's first
+ * block stands the chain; the rest stand no stand). A non-empty node, a
+ * node with children, or an indent's change breaks the chain.
+ */
+/** The text types over the empty chain's collapse (the empty's stand: the
+ *  zero text's length + no children). */
+const EMPTY_CHAIN_TYPES = new Set(["paragraph", "heading", "quote", "callout", "list-item", "code"]);
+
+/** The block's empty's stand (a text type with the zero text's length). */
+function isEmptyChainText(block: unknown): boolean {
+  if (block === null || block === undefined) return false;
+  const candidate = block as { type: string; content?: readonly { text: string }[] };
+  return EMPTY_CHAIN_TYPES.has(candidate.type) && (candidate.content ?? []).every((run) => run.text === "");
+}
+
+function collapseEmptyTextChains(nodes: FlatNode[], isEmptyText: (id: BlockId) => boolean): FlatNode[] {
+  const result: FlatNode[] = [];
+  let chainIndent = -1;
+  for (const node of nodes) {
+    const empty = node.children.length === 0 && isEmptyText(node.id);
+    if (empty) {
+      // The chain's start stands; the continuation's stand is dropped
+      // (the same indent's parity — a deeper node is a new chain).
+      if (node.indent === chainIndent) continue;
+      chainIndent = node.indent;
+      result.push(node);
+      continue;
+    }
+    chainIndent = -1;
+    result.push(node);
+  }
+  return result;
+}
+
 export {
+  collapseEmptyTextChains,
   deriveFlat,
   entrySequenceParent,
+  flatStructureKey,
   indentOf,
+  isEmptyChainText,
   markerCycle,
   numberMarkerLabel,
   sequenceContainerOf,

@@ -11,7 +11,11 @@ interface AddColumnTypeEntry {
   /** The stable entry key (the `data-column-entry` attribute). */
   key: string;
   type: string;
+  /** The type's display name (the form's `name` prefill — the document
+   *  data, the language-agnostic stand). */
   label: string;
+  /** The menu's label's i18n key (the `database` namespace's `columnTypes.*`). */
+  labelKey: string;
   /** The number's display-attributes block (the integer / the decimal).
    *  The integer stands the `decimals: 0` stand (the field stands none),
    *  the decimal stands the decimals field. */
@@ -76,13 +80,17 @@ interface ColumnDragSession {
 /** The in-flight column-resize press: the column (the one the seam stands
  *  at the right edge of) and the press-time width the delta applies to;
  *  `width` is the live (clamped) width the preview renders and the release
- *  commits. */
+ *  commits; `widthsAtStart` stands the untouched columns' measured widths
+ *  at the session's start (the release's WYSIWYG stand reads them — the
+ *  drag's preview shrinks the flexible (1fr) columns live, so the release
+ *  over the live DOM would stand the shrunken stand). */
 interface GridColumnResizeSession {
   col: number;
   startX: number;
   startWidth: number;
   width: number;
   visible: string[];
+  widthsAtStart: number[];
 }
 
 export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, GridColumnResizeSession, EnumOptionDraft };

@@ -3,17 +3,34 @@
  *  the shared cell class sets. */
 import type { AddColumnTypeEntry } from "./models";
 
+/** The add-column type catalog (the `label` is the form's `name` prefill —
+ *  the document data; the `labelKey` is the menu's i18n key, the
+ *  `database` namespace's `columnTypes.*`). */
 const ADD_COLUMN_TYPES: AddColumnTypeEntry[] = [
-  { key: "text", type: "text", label: "Text" },
-  { key: "integer", type: "integer", label: "Integer", numberKind: "integer" },
-  { key: "decimal", type: "numeric", label: "Decimal", numberKind: "decimal" },
-  { key: "checkbox", type: "boolean", label: "Checkbox" },
-  { key: "date", type: "date", label: "Date" },
-  { key: "datetime", type: "timestamptz", label: "Date & time" },
-  { key: "enum", type: "text", label: "Enum", refKind: "enum" },
-  { key: "multi-enum", type: "text", label: "Multi-enum", refKind: "enum", refMany: true },
-  { key: "row-link", type: "text", label: "Row link", refKind: "row" },
-  { key: "row-links", type: "text", label: "Row links", refKind: "row", refMany: true },
+  { key: "text", type: "text", label: "Text", labelKey: "columnTypes.text" },
+  { key: "integer", type: "integer", label: "Integer", labelKey: "columnTypes.integer", numberKind: "integer" },
+  { key: "decimal", type: "numeric", label: "Decimal", labelKey: "columnTypes.decimal", numberKind: "decimal" },
+  { key: "checkbox", type: "boolean", label: "Checkbox", labelKey: "columnTypes.checkbox" },
+  { key: "date", type: "date", label: "Date", labelKey: "columnTypes.date" },
+  { key: "datetime", type: "timestamptz", label: "Date & time", labelKey: "columnTypes.datetime" },
+  { key: "enum", type: "text", label: "Enum", labelKey: "columnTypes.enum", refKind: "enum" },
+  {
+    key: "multi-enum",
+    type: "text",
+    label: "Multi-enum",
+    labelKey: "columnTypes.multiEnum",
+    refKind: "enum",
+    refMany: true,
+  },
+  { key: "row-link", type: "text", label: "Row link", labelKey: "columnTypes.rowLink", refKind: "row" },
+  {
+    key: "row-links",
+    type: "text",
+    label: "Row links",
+    labelKey: "columnTypes.rowLinks",
+    refKind: "row",
+    refMany: true,
+  },
 ];
 /** The "new table" entry of the ref form's pick (the table id stand the
  *  created id, the `createTable` commit over the form's button). */

@@ -6,6 +6,7 @@
  * Run from validateDoc and from the command checks.
  */
 import type { BlockType } from "../../block-union";
+import { DATABASE_CELL_TYPES } from "../../constants";
 import { isReservedId } from "../../id-safety";
 import { GEOMETRY_FIELDS, MAX_DATABASE_FILTER_DEPTH } from "../constants";
 import type { ValidationError } from "../models";
@@ -14,10 +15,12 @@ import { isPlainObject, show } from "./common";
 /**
  * The strict shape of the optional `geometry` field of ANY block: a plain
  * object with finite x/y and w/h > 0, where x/y/w/h are required and
- * unknown fields are rejected. Runs from validateDoc for every block that
- * carries a geometry field.
+ * unknown fields are rejected (the strict posture; the lenient cross-minor
+ * load preserves an additive / legacy field as-is — the reader and the
+ * renderer ignore it, and the writer keeps it). Runs from validateDoc for
+ * every block that carries a geometry field.
  */
-function validateGeometry(geometry: unknown, path: string, errors: ValidationError[]): void {
+function validateGeometry(geometry: unknown, path: string, errors: ValidationError[], lenient = false): void {
   if (!isPlainObject(geometry)) {
     errors.push({ path, message: `geometry must be a plain object (got ${show(geometry)}).` });
     return;
@@ -40,9 +43,10 @@ function validateGeometry(geometry: unknown, path: string, errors: ValidationErr
     }
   }
   for (const field of Object.keys(geometry)) {
-    if (!(GEOMETRY_FIELDS as readonly string[]).includes(field)) {
-      errors.push({ path: `${path}.${field}`, message: `Unknown field "${field}" for geometry.` });
-    }
+    if ((GEOMETRY_FIELDS as readonly string[]).includes(field)) continue;
+    // Lenient (cross-minor load): an additive or legacy field (a future
+    // minor's data, the pre-release rotation stand) is preserved as-is.
+    if (!lenient) errors.push({ path: `${path}.${field}`, message: `Unknown field "${field}" for geometry.` });
   }
 }
 
@@ -166,6 +170,11 @@ function checkDatabaseCellValue(
   }
 }
 
+/** The column type is a known v1 type (its value contract stands checked; a future type is the cross-minor additive — the lenient load skips its value check, the data stands). */
+function isKnownDatabaseColumnType(type: string): boolean {
+  return (DATABASE_CELL_TYPES as readonly string[]).includes(type);
+}
+
 /**
  * The recursive and/or filter payload (the `filter` attr): a plain object
  * with the `logic` and/or + the `conditions` list (the column id, the
@@ -234,8 +243,8 @@ function checkDatabaseFilter(value: unknown, path: string, errors: ValidationErr
 }
 
 /**
- * The rows / rowOrder invariants of a database block (strict), over the
- * block's plain JSON shape: each cell value matches its column type (a
+ * The rows / rowOrder invariants of a database block, over the block's
+ * plain JSON shape: each cell value matches its column type (a
  * select / multi-select value is one of the column options), every cell
  * key is a known column id, `rowOrder` is a string array whose set equals
  * the rows' key set (no missing, extra, or duplicated row), and `options`
@@ -243,9 +252,18 @@ function checkDatabaseFilter(value: unknown, path: string, errors: ValidationErr
  * type-dependent presence is a database-level rule, like the table's
  * `cols` row-count rule). The column shape itself is checked separately by
  * the registry attrs spec (the `array` kind with per-column `object`
- * items). Runs from validateDoc and from the updateBlock post-patch check.
+ * items). The lenient stand (the cross-minor load) skips the checks that
+ * depend on a future (unknown) column type: its value contract and its
+ * options presence cannot be known to this reader (the data stands).
+ * Runs from validateDoc (the lenient flag) and from the updateBlock
+ * post-patch check (strict).
  */
-function validateDatabaseBlock(block: Record<string, unknown>, path: string, errors: ValidationError[]): void {
+function validateDatabaseBlock(
+  block: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[],
+  lenient = false
+): void {
   const attrs = isPlainObject(block.attrs) ? block.attrs : undefined;
   // The dual shape: the external form (a non-empty `tableId` reference)
   // carries no inline schema or rows — the rows and the columns live in
@@ -288,8 +306,10 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
 
       // The type-dependent options presence: required for the option-based
       // types (an empty option list would admit no valid value), absent for
-      // the rest.
-      const type = column.type;
+      // the rest. A future (unknown) column type stands unchecked over a
+      // lenient load — its options contract is unknown to this reader.
+      const type = typeof column.type === "string" ? column.type : "";
+      const knownType = isKnownDatabaseColumnType(type);
       if (type === "select" || type === "multi-select") {
         if (!Array.isArray(column.options) || column.options.length === 0) {
           errors.push({
@@ -297,7 +317,7 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
             message: `Column "${id}" of type "${type}" requires a non-empty options array.`,
           });
         }
-      } else if ("options" in column) {
+      } else if ("options" in column && (!lenient || knownType)) {
         errors.push({
           path: `${path}.attrs.columns`,
           message: `Column "${id}" of type "${show(type)}" must not carry options (select / multi-select only).`,
@@ -355,6 +375,9 @@ function validateDatabaseBlock(block: Record<string, unknown>, path: string, err
           });
           continue;
         }
+        // The future column type (the cross-minor additive): its value
+        // contract cannot be checked over a lenient load (the data stands).
+        if (lenient && !isKnownDatabaseColumnType(column.type)) continue;
         const violation = checkDatabaseCellValue(column.type, column.options, value);
         if (violation !== null) {
           errors.push({

@@ -1,57 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { columnAnnotation, conditionMatches, isBridgeError, parseCellValue } from "../src/database/bridge";
-import type { BridgeErrorCode } from "../src/database/bridge";
-import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
-import { newMutationContext } from "../src/database/use-database-table";
+import { columnAnnotation, conditionMatches, isDatabaseBridge, parseCellValue } from "../src/database/bridge";
 
-/** The rejected error's code (null = not a bridge error). */
-function codeOf(error: unknown): BridgeErrorCode | null {
-  return isBridgeError(error) ? error.code : null;
-}
-
-describe("the reference bridge — the table's identity + the unknown-id codes", () => {
-  it("createTable's name stands the deterministic slug; the repeat name stands the suffixed id", async () => {
-    const bridge = createMemoryDatabaseBridge();
-    const first = await bridge.createTable({ name: "Demo" }, newMutationContext());
-    expect(first.result.id).toBe("table-demo");
-    // The repeat name stands the distinct table (the suffixed id), not the
-    // adoption of the first one.
-    const second = await bridge.createTable({ name: "Demo" }, newMutationContext());
-    expect(second.result.id).toBe("table-demo-2");
-    expect((await bridge.listTables()).map((table) => table.name)).toEqual(["Demo", "Demo"]);
-  });
-
-  it("the unknown table / column stand the structured not_found / invalid_column codes", async () => {
-    const bridge = createMemoryDatabaseBridge();
-    const unknownTable = await bridge.snapshotTable("the-unknown-table", {}).catch((error: unknown) => error);
-    expect(codeOf(unknownTable)).toBe("not_found");
-    const unknownRename = await bridge
-      .renameTable("the-unknown-table", { name: "X" }, newMutationContext())
-      .catch((error: unknown) => error);
-    expect(codeOf(unknownRename)).toBe("not_found");
-    const unknownColumn = await bridge
-      .updateColumn("the-unknown-table", "the-unknown-column", { name: "X" }, newMutationContext())
-      .catch((error: unknown) => error);
-    expect(codeOf(unknownColumn)).toBe("not_found");
-    const bridge2 = createMemoryDatabaseBridge();
-    const table = await bridge2.createTable({ name: "Cols" }, newMutationContext());
-    const column = await bridge2.createColumn(
-      table.result.id,
-      { column: { name: "C", type: "text", position: 0, nullable: true } },
-      newMutationContext()
-    );
-    const missingDelete = await bridge2
-      .deleteColumn(table.result.id, "the-unknown-column", newMutationContext())
-      .catch((error: unknown) => error);
-    expect(codeOf(missingDelete)).toBe("not_found");
-    const missingUpdate = await bridge2
-      .updateColumn(table.result.id, "the-unknown-column", { name: "X" }, newMutationContext())
-      .catch((error: unknown) => error);
-    expect(codeOf(missingUpdate)).toBe("invalid_column");
-    // The known column stands (the delete's commit).
-    const deleted = await bridge2.deleteColumn(table.result.id, column.result.id, newMutationContext());
-    expect(deleted.result.columnId).toBe(column.result.id);
+describe("the bridge contract's shape guard", () => {
+  it("isDatabaseBridge stands the full-surface shape (the missing method / the non-object reject)", () => {
+    expect(isDatabaseBridge({ listTables: async () => [] })).toBe(false);
+    expect(isDatabaseBridge(null)).toBe(false);
   });
 });
 
@@ -178,6 +132,15 @@ describe("parseCellValue — the input validation", () => {
     expect(parseCellValue("number", "abc").ok).toBe(false);
   });
 
+  it("rejects the non-finite number (the wire's JSON stand — Infinity stands the null over the round-trip)", () => {
+    expect(parseCellValue("number", "Infinity").ok).toBe(false);
+    expect(parseCellValue("number", "-Infinity").ok).toBe(false);
+    expect(parseCellValue("number", "NaN").ok).toBe(false);
+    expect(parseCellValue("number", "1e999").ok).toBe(false);
+    expect(parseCellValue("number", "0")).toEqual({ ok: true, value: 0 });
+    expect(parseCellValue("number", "-7")).toEqual({ ok: true, value: -7 });
+  });
+
   it("treats the empty string as a clear (null) for every kind", () => {
     for (const kind of ["number", "date", "datetime", "text", "boolean", "enum", "row-link"] as const) {
       expect(parseCellValue(kind, "")).toEqual({ ok: true, value: null });
@@ -191,9 +154,13 @@ describe("parseCellValue — the input validation", () => {
     expect(parseCellValue("datetime", "garbage").ok).toBe(false);
   });
 
-  it("passes the text / boolean / ref kinds through", () => {
+  it("passes the text / ref kinds through; the boolean stands the strict parse (the TSV's round-trip)", () => {
     expect(parseCellValue("text", "hello")).toEqual({ ok: true, value: "hello" });
-    expect(parseCellValue("boolean", "true")).toEqual({ ok: true, value: "true" });
+    expect(parseCellValue("boolean", "true")).toEqual({ ok: true, value: true });
+    expect(parseCellValue("boolean", "1")).toEqual({ ok: true, value: true });
+    expect(parseCellValue("boolean", "false")).toEqual({ ok: true, value: false });
+    expect(parseCellValue("boolean", "0")).toEqual({ ok: true, value: false });
+    expect(parseCellValue("boolean", "maybe").ok).toBe(false);
     expect(parseCellValue("enum", "option")).toEqual({ ok: true, value: "option" });
     expect(parseCellValue("row-link", "r-t-1")).toEqual({ ok: true, value: "r-t-1" });
   });

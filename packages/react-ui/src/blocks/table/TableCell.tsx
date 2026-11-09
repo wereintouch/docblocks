@@ -9,10 +9,10 @@ import type { Block, BlockId } from "docblocks-core";
 import { focusCaretIn, focusCellActivation } from "../../editing/block-commands";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
+import { BlockContext, useBlockContext, useBlockContextValue } from "../../shared/providers/block-context";
 import { cn } from "../../shared/ui/cn";
+import { useTextInner } from "../../text/text-inner";
 import { BlockGroups } from "../BlockView";
-import { BlockContext, useBlockContext, useBlockContextValue } from "../block-context";
-import { useTextInner } from "../text-inner";
 import { CellActivation } from "./CellActivation";
 import { DRAG_TRANSITION, EMPTY_IDS } from "./constants";
 
@@ -27,6 +27,9 @@ const TableCell = memo(function TableCell({
   dragShifted: boolean;
 }) {
   const cell = useBlock(id);
+  // The read-only stand (view / published): the cell's activation layer's
+  // stand is off (the cell is not editable there).
+  const { viewMode } = useEditorContext();
   const children = cell !== undefined && cell.type === "table-cell" ? (cell.children ?? EMPTY_IDS) : EMPTY_IDS;
   const contextValue = useBlockContextValue(id, children, "table-cell");
   if (cell === undefined || cell.type !== "table-cell") return null;
@@ -60,7 +63,14 @@ const TableCell = memo(function TableCell({
     >
       <BlockContext.Provider value={contextValue}>
         {hasOwnText ? <CellContent id={id} block={cell} /> : null}
-        {children.length === 0 && !hasOwnText ? <CellActivation cellId={id} /> : <BlockGroups ids={children} />}
+        {/* The cell's activation layer (the empty cell's caret's seat):
+            the read-only stand (view / published) stands no layer (the
+            cell is not editable there). */}
+        {children.length === 0 && !hasOwnText && !viewMode ? (
+          <CellActivation cellId={id} />
+        ) : (
+          <BlockGroups ids={children} />
+        )}
       </BlockContext.Provider>
     </td>
   );
@@ -75,7 +85,7 @@ const TableCell = memo(function TableCell({
  */
 function CellContent({ id, block }: { id: BlockId; block: Extract<Block, { type: "table-cell" }> }) {
   const context = useBlockContext();
-  const { doc } = useEditorContext();
+  const { doc, viewMode } = useEditorContext();
   const { innerRef, onInput, onPaste, onKeydown } = useTextInner({
     id,
     block,
@@ -119,13 +129,15 @@ function CellContent({ id, block }: { id: BlockId; block: Extract<Block, { type:
   return (
     <div
       ref={innerRef}
-      contentEditable
+      // The read-only stand (view / published): the layer stands
+      // contenteditable=false (the cell's editing's path is off).
+      contentEditable={!viewMode}
       suppressContentEditableWarning
       spellCheck={false}
       data-slot="docblocks/block-content"
       data-block-id={id}
       className={cn(
-        "m-0 whitespace-pre-wrap outline-none",
+        "my-(--docblocks-block-spacing) whitespace-pre-wrap outline-none",
         align === "center" && "text-center",
         align === "right" && "text-right"
       )}

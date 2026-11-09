@@ -2,6 +2,19 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./test/e2e",
+  // The dev server's module-graph warm-up before the first spec (the
+  // cold-server's on-demand transform stands the parallel early loads
+  // queue behind it — `test/e2e/global-setup.ts`).
+  globalSetup: "./test/e2e/global-setup.ts",
+  // The per-test budget stands the verified baseline (the 30 s over the
+  // test's logic + the async waits): the 5 s convention stands the
+  // unit's logic, but the e2e's two-pane sync legitimately settles over
+  // the SETTLE (15 s, `test/e2e/helpers.ts`) — a 5 s budget stands the
+  // suite red over the settle (the measure: 71 red of 436,
+  // 68 of them the timeout class). The slow-test regression stands
+  // visible over the 30 s instead (the stalled settle drifts into the
+  // 30 s, the warm-up's globalSetup keeps the cold-server's transform
+  // stalls out of the picture).
   timeout: 30_000,
   // The machine stands 16 cores, but the per-test cost is the two context
   // loads (the relay + the panes' boot), not the test logic — higher

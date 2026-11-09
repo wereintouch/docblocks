@@ -10,7 +10,9 @@ export { Editor } from "./Editor";
 export type { EditorView } from "./Editor";
 export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./editor-provider";
 export type {
+  AccessLevel,
   EditorContextValue,
+  EditorMode,
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,
@@ -26,14 +28,14 @@ export {
   BASELINE_CAPABILITIES,
   BRIDGE_ERROR_CODES,
   BridgeError,
+  DatabaseTable,
+  TEXT_TYPES,
   cellValueEqual,
   columnAnnotation,
   conditionMatches,
-  createMemoryDatabaseBridge,
   emptyFilter,
   filterIsComplete,
   FilterBuilder,
-  getDefaultDatabaseBridge,
   isBridgeError,
   isBridgeErrorCode,
   isDatabaseBridge,
@@ -42,6 +44,7 @@ export {
   PROTOCOL_VERSION,
   toBridgeError,
   useDatabaseTable,
+  useTableList,
   validateProtocolDescriptor,
 } from "./database";
 export type {
@@ -56,13 +59,14 @@ export type {
   Column,
   DatabaseBridge,
   DatabaseTablePhase,
+  DatabaseTableProps,
   DatabaseTableRow,
+  DatabaseTableView,
   DomainEvent,
   FilterConditionInput,
   FilterInput,
   Id,
   IsoInstant,
-  MemoryBridgeOptions,
   MutationContext,
   MutationReceipt,
   OperationStatus,
@@ -86,6 +90,7 @@ export type {
   TableRef,
   TableSnapshot,
   UseDatabaseTable,
+  UseTableList,
 } from "./database";
 export type { SyncEmbedRef } from "docblocks-core";
 export { useBlock, useDoc, useMeta, usePresence, useSelection, useSelectionView, useText } from "./hooks";

@@ -18,7 +18,11 @@ import type { Block, BlockId, OpaqueBlock } from "docblocks-core";
 function knownBlocks(blocks: Record<BlockId, Block | OpaqueBlock>): Record<BlockId, Block> {
   const out: Record<BlockId, Block> = {};
   for (const [id, block] of Object.entries(blocks)) {
-    if (block.type in BLOCK_REGISTRY) out[id] = block as Block;
+    // The own-property stand: a prototype-key type name (constructor,
+    // toString, ...) is not a registered type — the row stands absent,
+    // like any unknown type, not a renderer lookup over the inherited
+    // Object.prototype member.
+    if (Object.hasOwn(BLOCK_REGISTRY, block.type)) out[id] = block as Block;
   }
   return out;
 }
@@ -41,7 +45,7 @@ function deepEqual(a: unknown, b: unknown): boolean {
   const objB = b as Record<string, unknown>;
   const keysA = Object.keys(objA);
   if (keysA.length !== Object.keys(objB).length) return false;
-  return keysA.every((key) => key in objB && deepEqual(objA[key], objB[key]));
+  return keysA.every((key) => Object.hasOwn(objB, key) && deepEqual(objA[key], objB[key]));
 }
 
 export { deepEqual, knownBlocks };

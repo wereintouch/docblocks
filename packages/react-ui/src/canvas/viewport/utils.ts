@@ -8,8 +8,8 @@
  *  continuous stand stands the rest of the edge. */
 import type { Doc } from "docblocks-core";
 
-import { edgeAnchor, edgePointOf, effectiveGeometry } from "../../blocks/canvas-geometry";
-import type { Box, CanvasPort } from "../../blocks/canvas-geometry";
+import { edgeAnchor, edgePointOf, effectiveGeometry } from "../geometry";
+import type { Box, CanvasPort } from "../geometry";
 import { ENDPOINT_SNAP_RADIUS } from "./constants";
 import type { CanvasPoint } from "./models";
 import type { EndpointSnap } from "./models";

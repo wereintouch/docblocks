@@ -59,12 +59,13 @@ interface BlockCaptionProps {
 }
 
 function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptionProps) {
-  const { doc, store } = useEditorContext();
+  const { doc, store, viewMode } = useEditorContext();
   const [local, setLocal] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const seatRef = useRef(false);
 
   useEffect(() => {
+    if (viewMode) return; // the read-only's stand: no input's seat (no write's entry)
     let registry = captionRegistry.get(store);
     if (registry === undefined) {
       registry = new Map();
@@ -92,7 +93,7 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
     return () => {
       registry?.delete(id);
     };
-  }, [id, store]);
+  }, [id, store, viewMode]);
 
   // A fresh line (the flag set by the button press, consumed here) seats
   // the caret at the last character. One-shot: the store re-renders on
@@ -107,6 +108,23 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
   });
 
   if (caption === "" && !local) return null;
+
+  if (viewMode) {
+    // The read-only stand (the view / published's modes): the caption
+    // stands display-only (the input's entry stands off — no write).
+    return (
+      <span
+        data-slot={slot}
+        aria-label={ariaLabel}
+        className="
+          mx-auto my-1 block w-[90%] text-center text-[0.8125em] text-muted-foreground
+          dark:text-muted-foreground
+        "
+      >
+        {caption}
+      </span>
+    );
+  }
 
   const onCaptionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;

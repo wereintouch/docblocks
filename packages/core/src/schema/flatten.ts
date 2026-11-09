@@ -4,8 +4,7 @@
  * The legacy form nests page content in the `children` field of the
  * remodeled page types (nested `list-item`; the page-set children of the
  * five text types). This helper converts it to the flat form per page
- * sequence (the root sequence, each cell mini-doc sequence, each frame's
- * nested page): a block's children are inlined into the PARENT sequence in
+ * sequence (the root sequence, each cell mini-doc sequence): a block's children are inlined into the PARENT sequence in
  * reading order (depth-first, the block before its subtree), and the
  * nesting depth becomes the `indent` attr (a child's indent = the parent's
  * final indent + 1). Indent-jump violations are clamped (a block's indent
@@ -24,19 +23,26 @@
  * input). Unchanged leaf entries share their object with the input; the
  * document, the order arrays, and every rewritten entry are new.
  */
-import type { Block, BlockType } from "./block-union";
-import { BLOCK_REGISTRY } from "./registry";
+import type { Block } from "./block-union";
+import { BLOCK_REGISTRY, isRegisteredBlockType } from "./registry";
 import type { BlockId, DocJSON } from "./types";
 import { indentOf, isPlainObject } from "./utils";
 
 type BlockMap = Record<string, unknown>;
 
-/** The legacy `children` ids; null when the block carries no legacy form. */
+/**
+ * The legacy `children` ids of the remodeled page types (the types with a
+ * `legacyChildrenTypes` — the nesting form that predates the flat page
+ * model); null otherwise. A `children` field on any other childless type
+ * (the legacy frame's nested page, a malformed field) is not a valid legacy
+ * form: the field is dropped from the writer form (the child blocks keep
+ * standing in the raw layer), not inlined into the parent's sequence.
+ */
 function legacyChildrenOf(block: Record<string, unknown>): unknown[] | null {
   if (!Array.isArray(block.children)) return null;
   const type = block.type;
-  if (typeof type !== "string" || !(type in BLOCK_REGISTRY)) return null;
-  return BLOCK_REGISTRY[type as BlockType].children === false ? (block.children as unknown[]) : null;
+  if (!isRegisteredBlockType(type)) return null;
+  return BLOCK_REGISTRY[type].legacyChildrenTypes !== undefined ? (block.children as unknown[]) : null;
 }
 
 interface FlattenState {
@@ -108,7 +114,7 @@ function projectBlock(block: unknown, id: BlockId, input: BlockMap, state: Flatt
     return withIndent(block, id, state) as unknown as Block;
   }
   const type = block.type;
-  const spec = typeof type === "string" && type in BLOCK_REGISTRY ? BLOCK_REGISTRY[type as BlockType] : undefined;
+  const spec = isRegisteredBlockType(type) ? BLOCK_REGISTRY[type] : undefined;
   if (spec === undefined) {
     return withIndent(block, id, state) as unknown as Block; // an unknown type (the validator reports it)
   }

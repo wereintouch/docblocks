@@ -29,6 +29,7 @@ const ICON_SET = [
   "Dot",
   "EllipsisVertical",
   "Eye",
+  "Frame",
   "GripVertical",
   "Hash",
   "Heading1",

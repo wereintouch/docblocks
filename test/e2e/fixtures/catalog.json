@@ -4,55 +4,6 @@
   "title": "Catalog",
   "createdAt": "2026-01-01T00:00:00Z",
   "blocks": {
-    "d1": {
-      "type": "root",
-      "children": [
-        "c0001",
-        "c0002",
-        "c0003",
-        "c0004",
-        "c0005",
-        "c0006",
-        "c0007",
-        "c0008",
-        "c0009",
-        "c0010",
-        "c0011",
-        "c0012",
-        "c0013",
-        "c0014",
-        "c0015",
-        "c0016",
-        "c0017",
-        "c0018",
-        "c0019",
-        "c0020",
-        "c0021",
-        "c0022",
-        "c0023",
-        "c0024",
-        "c0025",
-        "c0026",
-        "c0027",
-        "c0028",
-        "c0029",
-        "c0030",
-        "c0031",
-        "c0032",
-        "c0033",
-        "c0046",
-        "c0047",
-        "c0048",
-        "c0049",
-        "c0050",
-        "c0051",
-        "c0061",
-        "c0062",
-        "c0063",
-        "c0064",
-        "c0065"
-      ]
-    },
     "c0001": {
       "type": "paragraph",
       "content": [
@@ -544,7 +495,7 @@
     "c0048": {
       "type": "embed",
       "attrs": {
-        "kind": "iframe",
+        "kind": "html",
         "src": "data:text/html,%3Chtml%3E%3Cbody%3E%3Cp%3Eembedded%20page%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"
       }
     },
@@ -572,40 +523,33 @@
         "w": 900,
         "h": 500
       },
-      "children": ["c0052", "c0055", "c0056", "c0057", "c0058", "c0059", "c0060"]
+      "children": ["c0052", "c0053", "c0054", "c0055", "c0056", "c0057", "c0058", "c0059"]
     },
     "c0052": {
       "type": "frame",
-      "geometry": {
-        "x": -180,
-        "y": -100,
-        "w": 280,
-        "h": 160
+      "attrs": {
+        "title": "Frame A"
       },
-      "children": ["c0053", "c0054"]
+      "geometry": {
+        "x": 120,
+        "y": -100,
+        "w": 320,
+        "h": 160
+      }
     },
     "c0053": {
-      "type": "heading",
+      "type": "frame",
       "attrs": {
-        "level": 2
+        "title": "Frame B"
       },
-      "content": [
-        {
-          "text": "Frame heading",
-          "marks": {}
-        }
-      ]
+      "geometry": {
+        "x": 320,
+        "y": 90,
+        "w": 200,
+        "h": 120
+      }
     },
     "c0054": {
-      "type": "paragraph",
-      "content": [
-        {
-          "text": "Frame paragraph on the canvas.",
-          "marks": {}
-        }
-      ]
-    },
-    "c0055": {
       "type": "shape",
       "attrs": {
         "fill": "rgba(9, 105, 218, 0.2)",
@@ -619,7 +563,7 @@
         "h": 80
       }
     },
-    "c0056": {
+    "c0055": {
       "type": "shape",
       "attrs": {
         "variant": "ellipse",
@@ -632,7 +576,7 @@
         "h": 80
       }
     },
-    "c0057": {
+    "c0056": {
       "type": "shape",
       "attrs": {
         "variant": "diamond",
@@ -645,7 +589,7 @@
         "h": 90
       }
     },
-    "c0058": {
+    "c0057": {
       "type": "shape",
       "attrs": {
         "fontFamily": "Inter",
@@ -663,9 +607,11 @@
         "h": 60
       }
     },
-    "c0059": {
+    "c0058": {
       "type": "canvas-text",
       "attrs": {
+        "textColor": "#b45309",
+        "textStyle": "semibold",
         "zIndex": 5
       },
       "geometry": {
@@ -681,17 +627,23 @@
         }
       ]
     },
-    "c0060": {
+    "c0059": {
       "type": "connector",
       "attrs": {
         "end": {
-          "blockId": "c0055"
+          "blockId": "c0054"
         },
         "label": "relates to",
         "start": {
           "blockId": "c0052"
         },
         "zIndex": 6
+      }
+    },
+    "c0060": {
+      "type": "frame",
+      "attrs": {
+        "frameId": "c0052"
       }
     },
     "c0061": {
@@ -805,6 +757,56 @@
           "text": "Indented list item",
           "marks": {}
         }
+      ]
+    },
+    "d1": {
+      "type": "root",
+      "children": [
+        "c0001",
+        "c0002",
+        "c0003",
+        "c0004",
+        "c0005",
+        "c0006",
+        "c0007",
+        "c0008",
+        "c0009",
+        "c0010",
+        "c0011",
+        "c0012",
+        "c0013",
+        "c0014",
+        "c0015",
+        "c0016",
+        "c0017",
+        "c0018",
+        "c0019",
+        "c0020",
+        "c0021",
+        "c0022",
+        "c0023",
+        "c0024",
+        "c0025",
+        "c0026",
+        "c0027",
+        "c0028",
+        "c0029",
+        "c0030",
+        "c0031",
+        "c0032",
+        "c0033",
+        "c0046",
+        "c0047",
+        "c0048",
+        "c0049",
+        "c0050",
+        "c0051",
+        "c0060",
+        "c0061",
+        "c0062",
+        "c0063",
+        "c0064",
+        "c0065"
       ]
     }
   }

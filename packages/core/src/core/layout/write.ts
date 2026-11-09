@@ -3,7 +3,7 @@
  *  opaque block write (the cross-minor stand). */
 import * as Y from "yjs";
 
-import { BLOCK_REGISTRY } from "@docblocks-core/schema";
+import { BLOCK_REGISTRY, isRegisteredBlockType } from "@docblocks-core/schema";
 import type { Block, DocJSON, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
 import { markSetToAttrs } from "../text-model";
@@ -13,6 +13,21 @@ import { loadOriginOf } from "./origins";
 
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** The layout's own top-level keys (the spec-gated writers + the CRDT
+ *  owner field): everything else on a block entry is additive data of a
+ *  future minor and stands the generic as-is write (the cross-minor stand). */
+export const LAYOUT_BLOCK_KEYS = new Set([
+  "type",
+  "attrs",
+  "geometry",
+  "content",
+  "children",
+  "rows",
+  "rowOrder",
+  "columnOrder",
+  "parent",
+]);
 
 /** Primitive attr values are stored directly; plain objects become nested Y.Maps, and arrays become Y.Arrays (array elements are stored as-is — the schema keeps them plain). */
 function writeAttrValue(target: AnyMap, key: string, value: unknown): void {
@@ -155,6 +170,16 @@ function writeBlock(blocks: AnyMap, id: string, block: WritableBlock): void {
     }
   }
 
+  // Additive top-level fields of a future minor on a KNOWN type: written
+  // as-is (the generic storage semantics, the opaque writer's parity) so a
+  // save keeps the data the engine does not know. The layout's own keys
+  // stand their spec-gated writers; `parent` is the CRDT owner field
+  // (`setParents` derives it — the JSON never carries it).
+  for (const [key, value] of Object.entries(block)) {
+    if (LAYOUT_BLOCK_KEYS.has(key)) continue;
+    writeAttrValue(yblock, key, value);
+  }
+
   blocks.set(id, yblock);
 }
 
@@ -200,8 +225,10 @@ function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
       }
       // The cross-minor stand: a known type stands the registry writer; an
       // unknown type (a future minor's data, the lenient load) is written as
-      // opaque data (the fields as-is), so a save keeps it intact.
-      if (writable.type in BLOCK_REGISTRY) writeBlock(blocks, id, writable);
+      // opaque data (the fields as-is), so a save keeps it intact. The
+      // membership check is the own-property stand: the reserved type key
+      // (the Object.prototype name) stands unknown, never the registry's.
+      if (isRegisteredBlockType(writable.type)) writeBlock(blocks, id, writable);
       else writeOpaqueBlock(blocks, id, block as OpaqueBlock);
     }
     setParents(json, blocks);
@@ -256,6 +283,15 @@ function writeOpaqueBlock(blocks: AnyMap, id: string, block: OpaqueBlock): void 
     const children = new Y.Array<string>();
     for (const childId of block.children) if (typeof childId === "string") children.push([childId]);
     yblock.set("children", children);
+  }
+
+  // Additive top-level fields of a future minor: written as-is (the generic
+  // storage semantics — primitives as-is, plain objects as nested Y.Maps,
+  // arrays as Y.Arrays) so a save keeps the data the engine does not know.
+  const known = new Set(["type", "attrs", "content", "children", "geometry"]);
+  for (const [key, value] of Object.entries(block)) {
+    if (known.has(key)) continue;
+    writeAttrValue(yblock, key, value);
   }
 
   blocks.set(id, yblock);

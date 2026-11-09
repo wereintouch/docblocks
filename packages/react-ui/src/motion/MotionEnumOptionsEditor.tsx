@@ -3,9 +3,9 @@
  * rows' positions animate over the drag / the commit). The base's stand
  * stands the plain editor (the pointer's session — no animation); this
  * variant is provided over the `EnumOptionsMotionSlot`'s context by the
- * `MotionEditor` (the framer's import stands this subpath only — the
- * house's boundary's contract). */
+ * Editor (the framer-motion's required peer). */
 import { Reorder, useDragControls } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 import { useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
@@ -30,14 +30,21 @@ interface MotionEnumOptionRowProps {
  *  framer's drag through the row's `dragControls` — the grip is the only
  *  drag trigger, the row's own drag is disarmed). */
 function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }: MotionEnumOptionRowProps) {
+  const { t } = useTranslation("database");
   const dragControls = useDragControls();
   const onGripPointerDown = (event: ReactPointerEvent<HTMLSpanElement>) => {
     if (event.button !== 0) return;
     event.preventDefault();
     dragControls.start(event);
   };
-  const onSelectColor = (hex: string) => onSet({ color: hex });
-  const onSelectNone = () => onSet({ color: null });
+  const onSelectColor = (hex: string) => {
+    onSet({ color: hex });
+    onColorOpen(false); // the pick's stand: the palette's close
+  };
+  const onSelectNone = () => {
+    onSet({ color: null });
+    onColorOpen(false);
+  };
   const onNameChange = (event: React.ChangeEvent<HTMLInputElement>) => onSet({ name: event.target.value });
   return (
     <Reorder.Item
@@ -67,8 +74,8 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
             data-slot="docblocks/database-enum-option-color"
             variant="ghost"
             data-color={option.color ?? ""}
-            title="Option's color"
-            className="size-4 shrink-0 cursor-pointer rounded-full border border-border focus-visible:ring-0"
+            title={t("enum.optionColor")}
+            className="size-4 shrink-0 cursor-pointer rounded-full border border-border p-0 focus-visible:ring-0"
             style={option.color !== null ? { backgroundColor: option.color } : undefined}
           />
         </PopoverTrigger>
@@ -76,7 +83,7 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
           <ColorSwatches
             colors={ENUM_OPTION_PALETTE}
             current={option.color ?? undefined}
-            label="option color"
+            label={t("enum.optionColorAria")}
             allowNone
             noneActive={option.color === null}
             onSelect={onSelectColor}
@@ -88,7 +95,7 @@ function MotionEnumOptionRow({ option, colorOpen, onColorOpen, onSet, onRemove }
         size="sm"
         type="text"
         data-slot="docblocks/database-enum-option-name"
-        placeholder="Option"
+        placeholder={t("enum.optionPlaceholder")}
         className="min-w-0 flex-1 cursor-text text-foreground focus:bg-muted/60"
         value={option.name}
         onChange={onNameChange}
@@ -121,6 +128,7 @@ function MotionEnumOptionsEditor({
   options: EnumOptionDraft[];
   onChange: (next: EnumOptionDraft[]) => void;
 }) {
+  const { t } = useTranslation("database");
   const [colorOpen, setColorOpen] = useState<number | null>(null);
 
   const setOption = (index: number, patch: Partial<EnumOptionDraft>) => {
@@ -134,7 +142,7 @@ function MotionEnumOptionsEditor({
 
   return (
     <div data-slot="docblocks/database-enum-options" className="flex flex-col gap-1">
-      <div className="text-sm text-foreground">Options</div>
+      <div className="text-sm text-foreground">{t("enum.options")}</div>
       <Reorder.Group axis="y" values={options} onReorder={onChange} className="flex flex-col gap-1">
         {options.map((option, index) => (
           <MotionEnumOptionRow
@@ -154,7 +162,7 @@ function MotionEnumOptionsEditor({
         className="h-auto cursor-pointer self-start rounded-sm px-1 py-0.5 font-normal text-muted-foreground"
         onClick={addOption}
       >
-        + Add option
+        {t("enum.addOption")}
       </Button>
     </div>
   );

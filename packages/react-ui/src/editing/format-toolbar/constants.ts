@@ -4,7 +4,9 @@
  * `formatPalette` prop — a `string[]` of hex or var), the list-type menu
  * options (in display order — "paragraph" = turn into text), the toggle
  * mark buttons (in display order), the alignment buttons (in display
- * order). */
+ * order). The `title` / `label` fields are i18n keys (the `editor`
+ * namespace's `formatToolbar` group) — the toolbar resolves them over the
+ * current language at render time. */
 import type { TextAlign } from "docblocks-core";
 
 import {
@@ -45,27 +47,27 @@ const LIST_MENU_OPTIONS: {
   label: string;
   icon: ToolbarIcon;
 }[] = [
-  { option: "bullet", label: "Bullet list", icon: Dot },
-  { option: "number", label: "Numbered list", icon: ListOrdered },
-  { option: "task", label: "To-do list", icon: SquareCheck },
-  { option: "quote", label: "Quote", icon: Quote },
-  { option: "paragraph", label: "Text", icon: Pilcrow },
+  { option: "bullet", label: "formatToolbar.lists.bullet", icon: Dot },
+  { option: "number", label: "formatToolbar.lists.number", icon: ListOrdered },
+  { option: "task", label: "formatToolbar.lists.task", icon: SquareCheck },
+  { option: "quote", label: "formatToolbar.lists.quote", icon: Quote },
+  { option: "paragraph", label: "formatToolbar.lists.paragraph", icon: Pilcrow },
 ];
 
 /** The toggle mark buttons, in display order. */
 const TOOLBAR_MARKS: { mark: FormatMark; title: string; icon: ToolbarIcon }[] = [
-  { mark: "bold", title: "Bold", icon: Bold },
-  { mark: "code", title: "Monospace", icon: CodeXml },
-  { mark: "italic", title: "Italic", icon: Italic },
-  { mark: "underline", title: "Underline", icon: Underline },
-  { mark: "strike", title: "Strikethrough", icon: Strikethrough },
+  { mark: "bold", title: "formatToolbar.marks.bold", icon: Bold },
+  { mark: "code", title: "formatToolbar.marks.code", icon: CodeXml },
+  { mark: "italic", title: "formatToolbar.marks.italic", icon: Italic },
+  { mark: "underline", title: "formatToolbar.marks.underline", icon: Underline },
+  { mark: "strike", title: "formatToolbar.marks.strike", icon: Strikethrough },
 ];
 
 /** The alignment buttons, in display order. */
 const TOOLBAR_ALIGNS: { align: TextAlign; title: string; icon: ToolbarIcon }[] = [
-  { align: "left", title: "Align left", icon: TextAlignStart },
-  { align: "center", title: "Align center", icon: TextAlignCenter },
-  { align: "right", title: "Align right", icon: TextAlignEnd },
+  { align: "left", title: "formatToolbar.align.left", icon: TextAlignStart },
+  { align: "center", title: "formatToolbar.align.center", icon: TextAlignCenter },
+  { align: "right", title: "formatToolbar.align.right", icon: TextAlignEnd },
 ];
 
 /** The active item's stand (the pressed / the current's tint). */

@@ -158,8 +158,10 @@ function buildCatalogDoc(doc: Doc): void {
     doc.insertBlock("image", { src: CATALOG_IMAGE_KEY });
     doc.insertBlock("divider");
 
-    // Embed: the fixed harness src (the data: URL renders a tiny inline page).
-    doc.insertBlock("embed", { kind: "iframe", src: EMBED_SRC });
+    // Embed: the fixed harness src (the data: URL renders a tiny inline page
+    // — the `html` kind's snippet; the URL kinds stand the absolute http/https
+    // only over the write gate).
+    doc.insertBlock("embed", { kind: "html", src: EMBED_SRC });
 
     // Sync-embed: the catalog's master (seeded deterministically, fixed id)
     // renders its content inside; the outer JSON carries the ref only.
@@ -172,7 +174,12 @@ function buildCatalogDoc(doc: Doc): void {
     // Canvas (v2): the harness demo scene (the same seeded surface the
     // insert control offers — the deterministic ids continue the c00xx
     // sequence).
-    seedCanvas(doc);
+    const scene = seedCanvas(doc);
+
+    // The page-frame block (the page context's window): the inline window
+    // into frame A's surface content — the page flow's stand over the
+    // canvas layer (the canvas itself stands in the canvas view only).
+    doc.insertBlock("frame", { frameId: scene.frame });
 
     // The marks paragraph: the fixed run layout, one run at a time.
     const marks = doc.insertBlock("paragraph");

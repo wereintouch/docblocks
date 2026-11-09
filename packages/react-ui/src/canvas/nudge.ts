@@ -7,8 +7,8 @@
  * delta). */
 import type { BlockId, Doc, Selection } from "docblocks-core";
 
-import { effectiveGeometry } from "../blocks/canvas-geometry";
-import type { Box } from "../blocks/canvas-geometry";
+import { effectiveGeometry } from "./geometry";
+import type { Box } from "./geometry";
 import { NUDGE_SHIFT_MULTIPLIER, NUDGE_STEP_PX } from "./viewport/constants";
 import { unitMembers } from "./viewport/hooks";
 

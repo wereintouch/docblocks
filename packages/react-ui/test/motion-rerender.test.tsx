@@ -12,9 +12,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
+import { Editor } from "../src/Editor";
 import type { BlockRendererProps } from "../src/blocks/renderers";
 import { EditorProvider } from "../src/editor-provider";
-import { MotionEditor } from "../src/motion/index";
 
 const counters = vi.hoisted(() => ({ rowList: 0, presence: 0 }));
 
@@ -57,7 +57,7 @@ function setup() {
   };
   const utils = render(
     <EditorProvider doc={doc} blockRenderers={{ paragraph: paragraphRenderer }}>
-      <MotionEditor />
+      <Editor />
     </EditorProvider>
   );
   return { doc, a, b, c, seen, utils };

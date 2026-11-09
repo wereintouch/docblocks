@@ -5,7 +5,7 @@
  * stand, nothing is written. */
 import type { Doc } from "docblocks-core";
 
-import { effectiveGeometry } from "../blocks/canvas-geometry";
+import { effectiveGeometry } from "./geometry";
 import type { Box, ScreenPoint } from "./viewport";
 import { MAX_ZOOM, MIN_ZOOM } from "./viewport";
 

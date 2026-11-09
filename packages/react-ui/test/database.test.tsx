@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
 import { cleanup, fireEvent, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -22,7 +23,6 @@ import type {
 import { FilterBuilder } from "../src/database/filter-builder";
 import { refEntryKey } from "../src/database/grid/use-ref-tables";
 import type { RefTableDataMap } from "../src/database/grid/use-ref-tables";
-import { createMemoryDatabaseBridge } from "../src/database/memory-bridge";
 import { newMutationContext, useDatabaseTable } from "../src/database/use-database-table";
 import { DatabaseSlashPicker } from "../src/editing/slash/DatabaseSlashPicker";
 import { EditorProvider } from "../src/editor-provider";
@@ -597,6 +597,14 @@ describe("the grid's header (the table's name, the column menu, the column drag)
 
     // The pick commits to the bridge (one update) over the row's press.
     await open();
+    // The portaled stand: the option's chip / row radii over the standard
+    // token (the --docblocks-radius is mapped on the editor's root, absent
+    // over the popper's content — the square-corners' stand).
+    for (const entry of document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']")) {
+      expect(entry.className).toContain("rounded-lg");
+    }
+    const chip = document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-picker-row'] span");
+    expect(chip?.className).toContain("rounded-lg");
     fireEvent.click(row("done")!);
     await settleGrid();
     expect((await cellsOf(bridge, tableId, rowId))[cols.status]).toBe(options.done);
@@ -1218,6 +1226,32 @@ describe("the grid's cells (the type editors)", () => {
     expect(dbAttrs().columnWidths).toEqual([172, 112, 112, 112]);
   });
 
+  it("the seam release stands the untouched's start measurement (the drag's preview shrink stands no commit)", async () => {
+    // The one-shot stand: over the fresh block (no columnWidths) the drag's
+    // preview stands the flexible (1fr) columns' shrink live; the release
+    // must stand the start's measurement (the pre-drag layout), not the
+    // shrunken stand (the "the rest stand narrowed" stand).
+    const { doc, db } = await renderGrid();
+    const dbAttrs = () => (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
+    const headers = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']"));
+    expect(headers.length).toBe(4);
+    // The jsdom's offsetWidth stands the layout's stand: the 200 px stand
+    // at the press, the preview's shrink stand (100) over the drag.
+    let liveWidth = 200;
+    for (const header of headers) {
+      Object.defineProperty(header, "offsetWidth", { configurable: true, get: () => liveWidth });
+    }
+    const seam = document.querySelector<HTMLElement>("[data-slot='docblocks/database-col-resize'][data-index='0']")!;
+    fireEvent.pointerDown(seam, { clientX: 100, clientY: 5 });
+    fireEvent.pointerMove(seam, { clientX: 160, clientY: 5 }); // the +60 px delta
+    liveWidth = 100; // the flex's columns' shrink over the preview
+    fireEvent.pointerUp(seam, { clientX: 160, clientY: 5 });
+    await settleGrid();
+    // The dragged's stand (the start's 200 + 60), the untouched's start's
+    // stand (200 — not the live's 100).
+    expect(dbAttrs().columnWidths).toEqual([260, 200, 200, 200]);
+  });
+
   it("the datetime cell stands the calendar + the time on the double press (the close commits the ISO date-time)", async () => {
     const { bridge, tableId } = await renderGrid();
     const rowId = await firstRowId(bridge, tableId);
@@ -1442,7 +1476,7 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     expect(await value()).toBe("2026-10-01T09:30");
   });
 
-  it("the mid-session value change stands the draft (the in-flight edit wins the commit)", async () => {
+  it("the mid-session peer's commit stands the conflict (the peer's value stands the draft's commit)", async () => {
     const { bridge, tableId, rowId, at, cell, value, segments, openPicker, closeByEscape } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
@@ -1455,7 +1489,71 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     // The draft's date stand: the day's pick over the still-open calendar.
     fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
     await closeByEscape();
-    expect(await value()).toBe("2026-10-05T09:30");
+    // The draft's commit stands the open-time's pinned revision: the peer's
+    // commit advanced the row, so the bridge's conflict rejection stands
+    // the peer's value (the draft's commit is no silent overwrite).
+    expect(await value()).toBe("2026-11-11T08:00");
+    expect(cell().textContent).toContain("11.11.2026 08:00");
+  });
+});
+
+describe("the text cell's draft contract (the open stand over the peer's mid-session commit)", () => {
+  const cellOf = (row: number, col: number) =>
+    document.querySelector<HTMLElement>(`[data-slot='docblocks/database-cell'][data-row='${row}'][data-col='${col}']`);
+  /** The press's selection stand (the document-level teardown listener stands over it). */
+  const pressSelect = async (cell: HTMLElement) => {
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    await settleGrid();
+  };
+  /** The double press's edit open (the portaled textarea's stand). */
+  const openTextEdit = async (cell: HTMLElement) => {
+    await pressSelect(cell);
+    fireEvent.doubleClick(cell);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-cell-multiline']") !== null,
+      "the edit textarea"
+    );
+  };
+  /** The outside press's teardown stand (the draft's commit path). */
+  const outsidePress = async () => {
+    fireEvent.pointerDown(document.body, { button: 0, clientX: 5, clientY: 5 });
+    await settleGrid();
+  };
+
+  it("the peer's mid-session commit stands the conflict (the draft's commit is rejected, the peer's value stands)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
+    const cell = cellOf(0, 0)!;
+    await openTextEdit(cell);
+    const textarea = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']")!;
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: "typed draft" } });
+    });
+    // The peer's commit over the same cell (the refetch's re-baseline —
+    // the cell's data-empty's flip stands the fresh render over the
+    // session).
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [cols.title]: null } }] }, ctx());
+    await until(() => cell.getAttribute("data-empty") === "true", "the peer's value's render stand");
+    await outsidePress();
+    // The conflict stand: the peer's value stands (the draft's commit is
+    // rejected over the open-time's pinned revision — no silent overwrite).
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title] ?? null).toBeNull();
+    expect(cell.textContent).toBe("");
+  });
+
+  it("the untouched draft over the peer's mid-session commit stands no write (the empty draft's clobber is out)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
+    const rowId = await rowIdAt(bridge, tableId, 0);
+    const cell = cellOf(0, 0)!;
+    await openTextEdit(cell);
+    // The peer's commit while the session stands (the draft is untouched).
+    await bridge.batchRows(tableId, { ops: [{ op: "update", rowId, cells: { [cols.title]: null } }] }, ctx());
+    await until(() => cell.getAttribute("data-empty") === "true", "the peer's value's render stand");
+    await outsidePress();
+    // The open-time's unchanged stand: no commit (the peer's value stands,
+    // not the open-time's stale value).
+    expect((await cellsOf(bridge, tableId, rowId))[cols.title] ?? null).toBeNull();
+    expect(cell.textContent).toBe("");
   });
 });
 
@@ -1655,6 +1753,112 @@ describe("the cell interaction (the selection, the edit, the multi-select clear)
     // The block stands (the grid's keys own the stand, not the row's
     // blocks-selection Delete).
     expect(document.querySelector("[data-slot='docblocks/database-grid']")).not.toBeNull();
+  });
+
+  it("the Ctrl+C copies the selection's rectangle as TSV (the paste's round-trip stand)", async () => {
+    await renderGrid();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { writeText } });
+    // The single cell's copy (the value's flat stand: the tab / the
+    // newline stand the space, the boolean stands its "true" / "false").
+    const cell = cellOf(0, 0)!;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    table!.focus();
+    fireEvent.keyDown(table!, { key: "c", ctrlKey: true, bubbles: true });
+    await settleGrid();
+    expect(writeText).toHaveBeenCalledWith("a");
+    writeText.mockClear();
+    // The region's copy (the 2x2 over the drag): the rows top → bottom,
+    // the cells left → right.
+    const b = cellOf(1, 1)!;
+    const original = document.elementFromPoint;
+    document.elementFromPoint = () => b;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerMove(cell, { clientX: 60, clientY: 60 });
+    fireEvent.pointerUp(cell, { clientX: 60, clientY: 60 });
+    document.elementFromPoint = original;
+    await settleGrid();
+    fireEvent.keyDown(table!, { key: "c", ctrlKey: true, bubbles: true });
+    await settleGrid();
+    expect(writeText).toHaveBeenCalledWith("a\t1\nb\t2");
+    // The no-selection stands no copy.
+    fireEvent.keyDown(table!, { key: "Escape", bubbles: true });
+    await settleGrid();
+    writeText.mockClear();
+    fireEvent.keyDown(table!, { key: "c", ctrlKey: true, bubbles: true });
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it("the paste stands the spec's batch (the visible rows' updates + the overflow's creates; the one undo)", async () => {
+    const { bridge, tableId, cols } = await renderGrid(); // 2 rows: a / b
+    // The selection over the (0,0) — the paste's origin.
+    const cell = cellOf(0, 0)!;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    // 3 values over the 2 loaded rows: the 2 updates + the 1 create.
+    fireEvent.paste(table!, { clipboardData: { getData: () => "№1\n№2\n№3" } });
+    await until(async () => (await bridge.snapshotTable(tableId, {})).page.rows.length === 3, "the created row");
+    const page = await bridge.snapshotTable(tableId, {});
+    expect(page.page.rows[0]!.cells[cols.title]).toBe("№1");
+    expect(page.page.rows[1]!.cells[cols.title]).toBe("№2");
+    expect(page.page.rows[2]!.cells[cols.title]).toBe("№3");
+    // The overflow row's other cells stand null (the create's empty stand).
+    expect(page.page.rows[2]!.cells[cols.n] ?? null).toBeNull();
+    // The one undo: the updates' restore + the created row's deletion (the
+    // button's arm stands over the undo entry's render — the bridge's state
+    // stands earlier).
+    await until(
+      () =>
+        document.querySelector<HTMLElement>("[data-slot='docblocks/database-undo']")?.hasAttribute("disabled") !== true,
+      "the undo's arm"
+    );
+    const undo = document.querySelector<HTMLElement>("[data-slot='docblocks/database-undo']");
+    fireEvent.click(undo!);
+    await until(async () => (await bridge.snapshotTable(tableId, {})).page.rows.length === 2, "the undo");
+    const restored = (await bridge.snapshotTable(tableId, {})).page.rows;
+    expect(restored[0]!.cells[cols.title]).toBe("a");
+    expect(restored[1]!.cells[cols.title]).toBe("b");
+  });
+
+  it("the paste parses the column's type (the number stands the number, the invalid value stands no cell)", async () => {
+    const { bridge, tableId, cols } = await renderGrid();
+    const cell = cellOf(0, 0)!;
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    // The 2-column paste (the title + the n): the number's parse stands
+    // the number (not the string); the second row's invalid number stands
+    // no cell (the invalid input is not committed — the title stands).
+    fireEvent.paste(table!, { clipboardData: { getData: () => "t1\t7\nt2\tnot-a-number" } });
+    await until(
+      async () => (await bridge.snapshotTable(tableId, {})).page.rows[0]!.cells[cols.title] === "t1",
+      "the paste's commit"
+    );
+    const page = await bridge.snapshotTable(tableId, {});
+    expect(page.page.rows.length).toBe(2);
+    expect(page.page.rows[0]!.cells[cols.title]).toBe("t1");
+    expect(page.page.rows[0]!.cells[cols.n]).toBe(7);
+    expect(page.page.rows[1]!.cells[cols.title]).toBe("t2");
+    expect(page.page.rows[1]!.cells[cols.n]).toBe(2); // the invalid's stand (no commit)
+  });
+
+  it("the paste over the enum column stands the no-op (the option's id stands not resolvable from the text)", async () => {
+    const { bridge, tableId, cols, options } = await renderGrid();
+    const cell = cellOf(0, 3)!; // the status column (the enum)
+    fireEvent.pointerDown(cell, { button: 0, clientX: 10, clientY: 5 });
+    fireEvent.pointerUp(cell, { clientX: 10, clientY: 5 });
+    const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
+    fireEvent.paste(table!, { clipboardData: { getData: () => "todo\nactive" } });
+    await settleGrid();
+    const page = await bridge.snapshotTable(tableId, {});
+    // No updates, no creates: the option's id stands not resolvable over
+    // the pasted text — the values stand (the original's stand).
+    expect(page.page.rows.length).toBe(2);
+    expect(page.page.rows[0]!.cells[cols.status]).toBe(options.todo);
+    expect(page.page.rows[1]!.cells[cols.status]).toBe(options.active);
   });
 });
 
@@ -2250,6 +2454,40 @@ describe("the number column (the display format + the create form)", () => {
   });
 });
 
+describe("the grid's pagination (the page's cursor stands the Load more stand)", () => {
+  it("the table over the page size stands the affordance; the press stands the continuation (the full page set)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const table = await bridge.createTable({ name: "Big" }, ctx());
+    const title = await bridge.createColumn(
+      table.result.id,
+      { column: { name: "Title", type: "text", position: 0, nullable: true } },
+      ctx()
+    );
+    // The 201 rows stand over the page size (the 200's page set is NOT
+    // the table's stand — the cursor stands the continuation).
+    const ops = Array.from({ length: 201 }, (_, i) => ({
+      op: "create" as const,
+      row: { [title.result.id]: `row-${i}` },
+      beforeRowId: null,
+    }));
+    await bridge.batchRows(table.result.id, { ops }, ctx());
+    renderDoc((d) => d.insertBlock("database", { tableId: table.result.id }), undefined, bridge);
+    await settleGrid();
+    const cellSelector = `[data-slot='docblocks/database-cell'][data-column-id='${title.result.id}']`;
+    const rowCount = () => document.querySelectorAll(cellSelector).length;
+    // The first page stands the 200's bound + the affordance's stand.
+    await until(() => rowCount() === 200, "the first page's rows stand rendered");
+    const loadMore = document.querySelector("[data-slot='docblocks/database-load-more']");
+    expect(loadMore).not.toBeNull();
+    // The press stands the continuation: the fresh page's rows stand
+    // appended (the 201st row lands), the affordance stands gone (the
+    // tail's stand).
+    fireEvent.click(loadMore!);
+    await until(() => rowCount() === 201, "the continuation's rows stand appended");
+    expect(document.querySelector("[data-slot='docblocks/database-load-more']")).toBeNull();
+  });
+});
+
 describe("renderer registry: database", () => {
   it("a consumer renderer for database replaces the built-in", () => {
     renderDoc((doc) => doc.insertBlock("database", { columns: COLUMNS }), {
@@ -2348,6 +2586,255 @@ describe("the data provider (the useDatabaseTable's batch commit)", () => {
     c2 = await cellsOf(bridge, tableId, r2);
     expect(c1[t] ?? null).toBeNull();
     expect(c2[t] ?? null).toBeNull();
+  });
+
+  it("the undo's in-flight inverse stands the history's identity stand (the fresh write's entry stands no drop)", async () => {
+    // The race stand: the user's forward write lands on the undo stack
+    // while the first undo's inverse is in flight (the bridge's call
+    // held over the gate). The removal stands by identity — the blind
+    // position's pop would drop the FRESH entry (its inverse never runs)
+    // and leave the inverted entry for a duplicate inverse.
+    const base = createMemoryDatabaseBridge();
+    const tableId = (await base.createTable({ name: "Race" }, ctx())).result.id;
+    const t = (
+      await base.createColumn(tableId, { column: { name: "T", type: "text", position: 0, nullable: true } }, ctx())
+    ).result.id;
+    const receipt = await base.batchRows(
+      tableId,
+      {
+        ops: [
+          { op: "create", row: { [t]: "a" }, beforeRowId: null },
+          { op: "create", row: { [t]: "b" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const r1 = receipt.result.rows[0]!.id;
+    const r2 = receipt.result.rows[1]!.id;
+    // The gate over the bridge's batchRows: the FIRST call is the first
+    // update's forward write (passes), the SECOND is the undo's inverse
+    // (held until the test releases it — the fresh write's window).
+    let releaseInverse: (() => void) | null = null;
+    const inverseGate = new Promise<void>((resolve) => {
+      releaseInverse = resolve;
+    });
+    let batchCalls = 0;
+    const bridge: DatabaseBridge = {
+      ...base,
+      batchRows: (id: string, payload: Parameters<DatabaseBridge["batchRows"]>[1], mctx: MutationContext) => {
+        batchCalls += 1;
+        if (batchCalls === 2) return inverseGate.then(() => base.batchRows(id, payload, mctx));
+        return base.batchRows(id, payload, mctx);
+      },
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
+    await until(() => result.current.phase === "ready", "the load");
+    // Op1: the r1's clear (the forward write #1).
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r1, cells: { [t]: null } }]);
+    });
+    expect(result.current.canUndo).toBe(true);
+    // The undo's inverse reaches the gate (synchronously — the inverse's
+    // bridge call stands the undo's first await).
+    const undoPromise = result.current.undo();
+    expect(batchCalls).toBe(2);
+    // The forward write over the in-flight inverse (the r2's clear — the
+    // fresh entry stands on the stack).
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r2, cells: { [t]: null } }]);
+    });
+    // The release: the inverse lands (the r1's restore).
+    await act(async () => {
+      releaseInverse!();
+      await undoPromise;
+    });
+    expect((await cellsOf(base, tableId, r1))[t]).toBe("a");
+    // The FRESH entry stands on the undo stack (the identity stand): the
+    // second undo restores the r2 — not a duplicate over the r1.
+    expect(result.current.canUndo).toBe(true);
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect((await cellsOf(base, tableId, r2))[t]).toBe("b");
+    // The redo side's stand: the fresh write cleared it (the "a new
+    // operation clears the redo side" invariant) — the first op stands
+    // consumed (its inverse already applied), not redoable over the newer
+    // entry (the redo's re-commit would clobber the fresh write). The redo
+    // restores the fresh entry only.
+    await act(async () => {
+      await result.current.redo();
+    });
+    expect((await cellsOf(base, tableId, r2))[t] ?? null).toBeNull();
+    expect(result.current.canRedo).toBe(false);
+    expect((await cellsOf(base, tableId, r1))[t]).toBe("a");
+  });
+
+  it("the undo's in-flight inverse over the fresh write stands no stale redo (the history's redo stand)", async () => {
+    // The window: the undo's inverse is in flight (the bridge's call held
+    // over the gate) and the user's forward write commits — the pushUndo
+    // replaces the redo stack (the "a new operation clears the redo side"
+    // invariant). The undo must not then push the undone op onto the NEW
+    // stack: it would stand redoable over the newer write, and the redo's
+    // re-commit would clobber the fresh entry (the inverse ops stand no
+    // CAS). The op stands consumed (popped from the undo stack, not moved
+    // to redo) — the Yjs model: the newer operation invalidates the redo
+    // side, the undone op cannot be re-undone (its inverse already ran).
+    const base = createMemoryDatabaseBridge();
+    const tableId = (await base.createTable({ name: "StaleRedo" }, ctx())).result.id;
+    const t = (
+      await base.createColumn(tableId, { column: { name: "T", type: "text", position: 0, nullable: true } }, ctx())
+    ).result.id;
+    const receipt = await base.batchRows(
+      tableId,
+      {
+        ops: [
+          { op: "create", row: { [t]: "a" }, beforeRowId: null },
+          { op: "create", row: { [t]: "b" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const r1 = receipt.result.rows[0]!.id;
+    const r2 = receipt.result.rows[1]!.id;
+    let releaseInverse: (() => void) | null = null;
+    const inverseGate = new Promise<void>((resolve) => {
+      releaseInverse = resolve;
+    });
+    let batchCalls = 0;
+    const bridge: DatabaseBridge = {
+      ...base,
+      batchRows: (id: string, payload: Parameters<DatabaseBridge["batchRows"]>[1], mctx: MutationContext) => {
+        batchCalls += 1;
+        if (batchCalls === 2) return inverseGate.then(() => base.batchRows(id, payload, mctx));
+        return base.batchRows(id, payload, mctx);
+      },
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
+    await until(() => result.current.phase === "ready", "the load");
+    // Op1: the r1's clear (the forward write #1).
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r1, cells: { [t]: null } }]);
+    });
+    expect(result.current.canUndo).toBe(true);
+    // The undo's inverse reaches the gate.
+    const undoPromise = result.current.undo();
+    expect(batchCalls).toBe(2);
+    // The forward write over the in-flight inverse (the r2's clear — its
+    // pushUndo replaces the redo stack).
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r2, cells: { [t]: null } }]);
+    });
+    // The release: the inverse lands (the r1's restore).
+    await act(async () => {
+      releaseInverse!();
+      await undoPromise;
+    });
+    expect((await cellsOf(base, tableId, r1))[t]).toBe("a");
+    // The window's stand: the undone op is NOT redoable (the fresh write
+    // cleared the redo side — the re-commit over the newer entry stands no
+    // duplicate). The undo stack holds only the fresh entry.
+    expect(result.current.canRedo).toBe(false);
+    expect(result.current.canUndo).toBe(true);
+    // The undo walks the fresh entry (the r2's restore).
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect((await cellsOf(base, tableId, r2))[t]).toBe("b");
+    expect(result.current.canUndo).toBe(false);
+    // The redo restores the fresh entry only — the stale op never stands
+    // back on the stack.
+    await act(async () => {
+      await result.current.redo();
+    });
+    expect((await cellsOf(base, tableId, r2))[t] ?? null).toBeNull();
+    expect(result.current.canRedo).toBe(false);
+  });
+
+  it("the redo's in-flight forward over the fresh write stands no inverted undo order", async () => {
+    // The symmetric window: the redo's forward is in flight and the user's
+    // forward write commits — the pushUndo PUSHES onto the same undo
+    // array (the pushUndo does not replace it). Pushing the redone op on
+    // top of the newer entry would invert the undo order (the first undo
+    // reverts the stale op, not the newest). The op stands fixed outside
+    // the history: consumed from the redo stack, not re-pushed on top of
+    // the newer entry.
+    const base = createMemoryDatabaseBridge();
+    const tableId = (await base.createTable({ name: "Invert" }, ctx())).result.id;
+    const t = (
+      await base.createColumn(tableId, { column: { name: "T", type: "text", position: 0, nullable: true } }, ctx())
+    ).result.id;
+    const receipt = await base.batchRows(
+      tableId,
+      {
+        ops: [
+          { op: "create", row: { [t]: "a" }, beforeRowId: null },
+          { op: "create", row: { [t]: "b" }, beforeRowId: null },
+          { op: "create", row: { [t]: "c" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const [r1, r2, r3] = receipt.result.rows.map((row) => row.id);
+    // The gate over the bridge's batchRows: the REDO's forward call is the
+    // 5th (op1's forward, op2's forward, undo1's inverse, undo2's inverse,
+    // then the redo's forward) — held until the test releases it.
+    let releaseForward: (() => void) | null = null;
+    const forwardGate = new Promise<void>((resolve) => {
+      releaseForward = resolve;
+    });
+    let batchCalls = 0;
+    const bridge: DatabaseBridge = {
+      ...base,
+      batchRows: (id: string, payload: Parameters<DatabaseBridge["batchRows"]>[1], mctx: MutationContext) => {
+        batchCalls += 1;
+        if (batchCalls === 5) return forwardGate.then(() => base.batchRows(id, payload, mctx));
+        return base.batchRows(id, payload, mctx);
+      },
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, tableId));
+    await until(() => result.current.phase === "ready", "the load");
+    // Op1: the r1's clear; op2: the r2's change to "x".
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r1!, cells: { [t]: null } }]);
+    });
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r2!, cells: { [t]: "x" } }]);
+    });
+    // Undo both: the state stands the originals (r1 "a", r2 "b"), the redo
+    // stack holds [op1, op2].
+    await act(async () => {
+      await result.current.undo();
+    });
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect(result.current.canRedo).toBe(true);
+    // The redo's forward (op1: the r1's re-clear) reaches the gate.
+    const redoPromise = result.current.redo();
+    expect(batchCalls).toBe(5);
+    // The forward write over the in-flight forward (the r3's change to "z"
+    // — its pushUndo stands on the undo stack).
+    await act(async () => {
+      await result.current.updateRows([{ rowId: r3!, cells: { [t]: "z" } }]);
+    });
+    // The release: the forward lands (the r1's re-clear).
+    await act(async () => {
+      releaseForward!();
+      await redoPromise;
+    });
+    expect((await cellsOf(base, tableId, r1!))[t] ?? null).toBeNull();
+    // The order's stand: the NEXT undo reverts the FRESH write (the r3's
+    // restore to "c"), not the stale redone op (whose inverse would
+    // re-restore the r1).
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect((await cellsOf(base, tableId, r3!))[t]).toBe("c");
+    // The undo stack walks back over the stale op then.
+    await act(async () => {
+      await result.current.undo();
+    });
+    expect((await cellsOf(base, tableId, r1!))[t]).toBe("a");
   });
 
   it("a superseded load's reject keeps the retried ready grid (the stale error stands no state)", async () => {
@@ -2558,6 +3045,32 @@ describe("the slash Database picker (the rework: the create form + the search)",
     expect(onCommit).toHaveBeenCalledWith("t-my-board");
   });
 
+  it("the protocol mismatch stands the error line (no list, the create stands blocked)", async () => {
+    const { bridge, createTable } = mockBridge();
+    const descriptor = await bridge.describeProtocol();
+    const badBridge: DatabaseBridge = {
+      ...bridge,
+      describeProtocol: async () => ({ ...descriptor, protocolVersion: 1 as unknown as 2 }),
+    };
+    renderPicker(badBridge);
+    await settleGrid();
+    // The negotiation stand (the useDatabaseTable bootstrap's contract):
+    // the version mismatch stands the protocol_mismatch — the error line,
+    // the list stands not loaded.
+    expect(slot("slash-database-error")).not.toBeNull();
+    expect(slot("slash-database-list")).toBeNull();
+    // The create stands blocked (the unvalidated bridge): the Enter commits
+    // nothing (the createTable is not reached over the failed negotiation).
+    fireEvent.click(slot("slash-database-create-new")!);
+    await settleGrid();
+    const nameInput = slot("slash-database-name")!;
+    fireEvent.change(nameInput, { target: { value: "My Board" } });
+    await settleGrid();
+    fireEvent.keyDown(nameInput, { key: "Enter" });
+    await settleGrid();
+    expect(createTable).not.toHaveBeenCalled();
+  });
+
   it("the check button commits (the same as the Enter)", async () => {
     const { bridge, createTable } = mockBridge();
     const { onCommit } = renderPicker(bridge);
@@ -2588,6 +3101,44 @@ describe("the slash Database picker (the rework: the create form + the search)",
     fireEvent.change(search, { target: { value: "no-such-table" } });
     expect(slot("slash-database-table", "t-zebra")).toBeNull();
     expect(slot("slash-database-empty")).not.toBeNull();
+  });
+
+  it("the unmount over the in-flight create cancels the commit (the block is not inserted over the cancelled gesture)", async () => {
+    // The create resolves after the picker unmounts (the Escape / the
+    // caret's move closed the menu): the commit must not run over the
+    // cancelled gesture (the create's receipt stands the consumer's
+    // orphan, the picker cannot unwind it).
+    let releaseCreate: () => void = () => {};
+    const { bridge, createTable } = mockBridge();
+    const slowBridge: DatabaseBridge = {
+      ...bridge,
+      createTable: async (input: Parameters<typeof createTable>[0]) => {
+        await new Promise<void>((resolve) => {
+          releaseCreate = () => resolve();
+        });
+        return createTable(input);
+      },
+    };
+    const doc = createDoc({ id: "doc-pick", createdAt: CREATED_AT });
+    const onCommit = vi.fn();
+    const result = render(
+      <EditorProvider doc={doc} databaseBridge={slowBridge}>
+        <DatabaseSlashPicker onCommit={onCommit} onCancel={vi.fn()} />
+      </EditorProvider>
+    );
+    await settleGrid();
+    // Open the form, type the name, commit — the create is in flight.
+    fireEvent.click(slot("slash-database-create-new")!);
+    fireEvent.change(slot("slash-database-name")!, { target: { value: "Ghost" } });
+    fireEvent.keyDown(slot("slash-database-name")!, { key: "Enter" });
+    // The picker unmounts over the in-flight create (the Escape's stand).
+    result.unmount();
+    act(() => {
+      releaseCreate();
+    });
+    await settleGrid();
+    expect(createTable).toHaveBeenCalledTimes(1);
+    expect(onCommit).not.toHaveBeenCalled();
   });
 });
 
@@ -2710,21 +3261,13 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     await addOption("beta");
     await addOption("gamma");
 
-    // The grip's drag stands the live reorder (the third over the first —
-    // the pointer's delta stands the index's shift).
-    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
-    fireEvent.pointerDown(grips[2]!, { clientX: 100, clientY: 400, button: 0 });
-    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    await settleGrid();
-    expect(
-      [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
-        (input) => input.value
-      )
-    ).toEqual(["gamma", "alpha", "beta"]);
+    // The reorder stands the framer's session (the Editor's slot provides
+    // the motion's options' editor over the plain's pointer's session) —
+    // the synthetic events' stand is the e2e's pin (the database-enum's
+    // grip's live reorder), not this jsdom's.
 
-    // The delete's control drops the draft's row (the alpha's — the
-    // colored's stand keeps the gamma's row over it).
+    // The delete's control drops the draft's row (the beta's — the middle
+    // over the add's order).
     const deletes = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-delete']");
     fireEvent.click(deletes[1]!);
     await settleGrid();
@@ -2732,12 +3275,17 @@ describe("the enum's options' mechanics (the system table; the create / the edit
       [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
         (input) => input.value
       )
-    ).toEqual(["gamma", "beta"]);
+    ).toEqual(["alpha", "gamma"]);
 
     // The color's stand (the palette's popover pick over the swatch): the
     // palette's popover stands portaled (the swatch's buttons stand the
-    // background color's inline stand — the palette's red).
+    // background color's inline stand — the palette's red). The swatch's
+    // zero padding stands the circle's stand (the flex row's min-content
+    // clamp over the Button's default padding would stand the oval).
     const swatch = () => document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-color']")!;
+    expect(swatch().className).toContain("p-0");
+    expect(swatch().className).toContain("size-4");
+    expect(swatch().className).toContain("rounded-full");
     fireEvent.click(swatch());
     await settleGrid();
     const paletteButtons = [...document.querySelectorAll<HTMLElement>("button")].filter(
@@ -2747,6 +3295,9 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     fireEvent.click(paletteButtons.at(-1)!);
     await settleGrid();
     expect(swatch().getAttribute("data-color")).toBe("#f7a8a8");
+    // The pick's stand: the palette's popover closes (the picker stands no
+    // hanging over the apply) — the ported palette's group stands gone.
+    expect(document.querySelector('[role="group"][aria-label="option color"]')).toBeNull();
 
     // The create's commit (the button's press): the system table's creation
     // + the options' rows + the column's reference over the hidden table.
@@ -2770,7 +3321,7 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     const nameColId = enumSchema.columns.find((column) => column.name === ENUM_OPTION_NAME_COLUMN)!.id;
     const colorColId = enumSchema.columns.find((column) => column.name === ENUM_OPTION_COLOR_COLUMN)!.id;
     const enumPage = await bridge.snapshotTable(enumTableId, {});
-    expect(enumPage.page.rows.map((row) => row.cells[nameColId])).toEqual(["gamma", "beta"]);
+    expect(enumPage.page.rows.map((row) => row.cells[nameColId])).toEqual(["alpha", "gamma"]);
     expect(enumPage.page.rows[0]!.cells[colorColId]).toBe("#f7a8a8");
   });
 
@@ -2849,8 +3400,8 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     const swatches = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-color']");
     expect(swatches[0]!.getAttribute("data-color")).toBe("#f7a8a8");
 
-    // The diff: the rename (alpha → alfa), the option's add (gamma), the
-    // reorder (gamma first).
+    // The diff: the rename (alpha → alfa), the option's add (gamma —
+    // the draft's tail).
     fireEvent.change(
       document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[0]!,
       {
@@ -2865,12 +3416,11 @@ describe("the enum's options' mechanics (the system table; the create / the edit
         target: { value: "gamma" },
       }
     );
-    const grips = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-grip']");
-    fireEvent.pointerDown(grips[2]!, { clientX: 100, clientY: 400, button: 0 });
-    fireEvent.pointerMove(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    fireEvent.pointerUp(window, { clientX: 100, clientY: 400 - 36 * 2 });
-    await settleGrid();
-    expect(optionNames()).toEqual(["gamma", "alfa", "beta"]);
+    // The reorder's diff stand (the move's op over the system table)
+    // stands the framer's session's e2e's pin (the synthetic events'
+    // stand is not this jsdom's) — the diff here is the rename + the add
+    // only.
+    expect(optionNames()).toEqual(["alfa", "beta", "gamma"]);
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']")!);
     await settleGrid();
     await until(
@@ -2879,18 +3429,20 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     );
 
     // The diff's commit over the system table (the alpha's row stands its
-    // id — the cell's value is intact; the names / the order updated).
+    // id — the cell's value is intact; the name updated in place, the
+    // gamma's create stands the tail).
     const afterPage = await bridge.snapshotTable(enumTableId, {});
     const rows = afterPage.page.rows;
     expect(rows).toHaveLength(3);
     expect(rows.find((row) => row.id === alphaRowId)!.cells[nameCol]).toBe("alfa");
-    expect(rows[0]!.id).not.toBe(alphaRowId); // the gamma's stand is first
+    expect(rows[0]!.id).toBe(alphaRowId); // the alpha's position stands
+    expect(rows[2]!.cells[nameCol]).toBe("gamma"); // the create's tail stand
     expect(rows.find((row) => row.id === alphaRowId)!.cells[colorCol]).toBe("#f7a8a8");
 
     // The cell's display stands the renamed option (the identity's
     // resolution over the row id).
     await until(() => (cell()!.textContent ?? "").includes("alfa"), "the renamed display");
-    // The picker's list stands the new order + the renamed option (the
+    // The picker's list stands the new option + the renamed one (the
     // old name is gone).
     fireEvent.doubleClick(cell()!);
     await until(
@@ -2900,7 +3452,115 @@ describe("the enum's options' mechanics (the system table; the create / the edit
     const optionLabels = [
       ...document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-picker-row']"),
     ].map((entry) => entry.textContent);
-    expect(optionLabels).toEqual(["gamma", "alfa", "beta"]);
+    expect(optionLabels).toEqual(["alfa", "beta", "gamma"]);
+  });
+
+  it("the enum's save stands the diff's atomic stand (the data's commit; the new option's index over the draft)", async () => {
+    const { bridge, tableId } = await renderGrid();
+    // The enum column over the fresh system table (the created stand).
+    const enumTableId = (await bridge.createTable({ name: "Stage-enum", system: true }, ctx())).result.id;
+    const nameCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_NAME_COLUMN, type: "text", position: 0, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    const colorCol = (
+      await bridge.createColumn(
+        enumTableId,
+        { column: { name: ENUM_OPTION_COLOR_COLUMN, type: "text", position: 1, nullable: true } },
+        ctx()
+      )
+    ).result.id;
+    await bridge.batchRows(
+      enumTableId,
+      {
+        ops: [
+          { op: "create", row: { [nameCol]: "alpha", [colorCol]: "#f7a8a8" }, beforeRowId: null },
+          { op: "create", row: { [nameCol]: "beta" }, beforeRowId: null },
+        ],
+      },
+      ctx()
+    );
+    const stage = (
+      await bridge.createColumn(
+        tableId,
+        {
+          column: {
+            name: "Stage",
+            type: "text",
+            position: 4,
+            nullable: true,
+            reference: { kind: "enum", tableId: enumTableId, many: false },
+          },
+        },
+        ctx()
+      )
+    ).result.id;
+    await settleGrid();
+    // The edit's open (the column menu's "Edit options" entry).
+    const stageHeader = () =>
+      document.querySelector<HTMLElement>(`[data-slot='docblocks/database-header-cell'][data-column-id='${stage}']`)!;
+    const ellipsis = stageHeader().querySelector<HTMLElement>("[data-slot='docblocks/database-column-menu']")!;
+    fireEvent.pointerDown(ellipsis, { clientX: 10, clientY: 5 });
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-column-edit-options']") !== null,
+      "the edit entry"
+    );
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-column-edit-options']")!);
+    await until(() => document.querySelector("[data-slot='docblocks/database-enum-options']") !== null, "the editor");
+    const beforeSeq = (await bridge.snapshotTable(enumTableId, {})).page.asOfSeq;
+    // The diff: the rename (alpha → alfa), the option's add (gamma — the
+    // draft's position 1, over the kept option), the delete (beta).
+    const names = () =>
+      [...document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")].map(
+        (input) => input.value
+      );
+    fireEvent.change(
+      document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[0]!,
+      {
+        target: { value: "alfa" },
+      }
+    );
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-enum-option-add']")!);
+    await settleGrid();
+    fireEvent.change(
+      document.querySelectorAll<HTMLInputElement>("[data-slot='docblocks/database-enum-option-name']")[2]!,
+      { target: { value: "gamma" } }
+    );
+    await settleGrid();
+    expect(names()).toEqual(["alfa", "beta", "gamma"]);
+    // The delete of the beta (the draft's row 1 over the pre-add order).
+    const deletes = document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-enum-option-delete']");
+    fireEvent.click(deletes[1]!);
+    await settleGrid();
+    expect(names()).toEqual(["alfa", "gamma"]);
+    // The reorder's diff stand (the move's op over the system table)
+    // stands the framer's session's e2e's pin (the synthetic events'
+    // stand is not this jsdom's) — the diff here is the rename + the add
+    // + the delete only.
+    expect(names()).toEqual(["alfa", "gamma"]);
+    // The commit.
+    const commitButton = document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-column-create']");
+    // The commit's button stands the disabled stand over the column name's
+    // empty stand (the edit form's prefill stands the column's name).
+    expect(commitButton).not.toBeNull();
+    fireEvent.click(commitButton!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-add-column-form']") === null,
+      "the form's close"
+    );
+    // The create's tail stand: the new option's own index is the draft's
+    // tail position (the draft's position is not the created's index), and
+    // the no-move's diff stands the data's commit alone.
+    const afterPage = await bridge.snapshotTable(enumTableId, {});
+    const afterNames = afterPage.page.rows.map((row) => row.cells[nameCol]);
+    expect(afterNames).toEqual(["alfa", "gamma"]);
+    // The commit's atomic stand over the negotiated capability: the data's
+    // diff (the rename / the add / the delete) stands ONE commit — the
+    // sequential's partial commits are not a stand.
+    expect(afterPage.page.asOfSeq - beforeSeq).toBe(1);
   });
 
   it("the enum cell's chip stands the option's color (the empty stand stands the background only)", async () => {

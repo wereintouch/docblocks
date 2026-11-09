@@ -37,10 +37,9 @@ jobs:
       - name: Release
         uses: changesets/action@v1
         with:
-          # The publish step (and the NPM_TOKEN secret) is added with the
-          # first release: until then the packages are unpublished, and
-          # the publish command would attempt to ship the development
-          # versions to the registry on every push.
+          # The publish step stands deferred (the releases are published
+          # manually over the dev → main merge flow — the `version`'s
+          # command stands the no-op without the pending changesets).
           version: npx changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

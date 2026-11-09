@@ -196,4 +196,31 @@ describe("remote changes never restore", () => {
     expect(b.get()).toEqual(caret("b0", 1));
     expect(doc1.canUndo).toBe(false);
   });
+
+  it("undo after a remote delete of the selected block does not restore the caret into it", () => {
+    // A two-paragraph base state (the ids stand stable over the settled load).
+    const base = createDoc({ id: "d2", createdAt: CREATED_AT, generateId: makeIds("b") });
+    base.insertBlock("paragraph");
+    base.insertText("b0", 0, "abc");
+    base.insertBlock("paragraph");
+    base.insertText("b1", 0, "def");
+    const state = base.encode();
+    const doc1 = loadDoc(state);
+    const doc2 = loadDoc(state);
+    const sel = createSelection(doc1);
+
+    sel.set(caret("b1", 1));
+    doc1.insertText("b1", 1, "X"); // the local edit (its undo-caret snapshot references b1)
+
+    doc2.removeBlock("b1"); // the remote peer deletes the block
+    doc1.applyUpdate(doc2.encodeUpdate(Y.encodeStateVector(doc1.raw)));
+    expect(sel.get()).toEqual({ kind: "none" }); // the rebase discards the caret
+
+    // The undo's inverse touches no live block (b1 is gone): the stale
+    // snapshot must not stand a selection into the deleted block (the
+    // rebase's discard stands).
+    doc1.undo();
+    expect(sel.get()).toEqual({ kind: "none" });
+    expect(doc1.getBlock("b1")).toBeNull();
+  });
 });

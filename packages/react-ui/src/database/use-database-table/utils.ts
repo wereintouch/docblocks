@@ -12,9 +12,15 @@ import type {
   TableDescription,
 } from "../bridge";
 
-/** The cell-value equality (null / undefined stand as the empty cell). */
+/** The cell-value equality (null / undefined stand as the empty cell).
+ *  The composite value (the multi-select's array) stands the element-wise
+ *  stand: the same content over a fresh array instance is NOT a change
+ *  (the identity stand would commit the no-op and push the undo entry). */
 function cellValueEqual(current: unknown, next: unknown): boolean {
   if (current === undefined || current === null) return next === undefined || next === null;
+  if (Array.isArray(current) && Array.isArray(next)) {
+    return current.length === next.length && current.every((value, index) => value === next[index]);
+  }
   return current === next;
 }
 
@@ -64,8 +70,9 @@ function descriptionToGrid(description: TableDescription): BridgeTableDescriptio
 /** The write's context: the fresh client-issued operation id (a UUID,
  *  unique within the retention) + the issue time. Every user action stands
  *  a fresh `operationId` — the id is never reused across logical
- *  operations, and a failed write is reconciled by the SAME id (the
- *  bridge's idempotency), never a silent new one. */
+ *  operations. The lost response's reconciliation (the write's fate) is
+ *  the consumer's stand over the bridge's `getOperationStatus`; the UI's
+ *  convergence is the rebaseline (the next snapshot / the envelope). */
 function newMutationContext(): MutationContext {
   return { operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() };
 }
@@ -76,4 +83,16 @@ function errorCodeOf(error: unknown): BridgeErrorCode | null {
   return isBridgeError(error) ? error.code : null;
 }
 
-export { cellValueEqual, columnToGrid, descriptionToGrid, errorCodeOf, newMutationContext };
+/** The table-level fatal codes (the contract's `not_found` / `forbidden`
+ *  stand): the table is gone for this client (deleted / foreign / the
+ *  permission lost) — the operation stops and the sensitive cache (the
+ *  rows, the cursor, the revisions) stands cleared, the delivery stops.
+ *  The write's `not_found` (the GC'd row / the deleted column residue)
+ *  is the row-level stand — it stands NOT fatal (the table stands alive,
+ *  the failed op stands retryable). */
+function isFatalTableError(error: unknown): boolean {
+  const code = errorCodeOf(error);
+  return code === "not_found" || code === "forbidden";
+}
+
+export { cellValueEqual, columnToGrid, descriptionToGrid, errorCodeOf, isFatalTableError, newMutationContext };

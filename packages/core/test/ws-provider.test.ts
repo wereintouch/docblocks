@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as Y from "yjs";
 
 import { createDoc, loadDoc } from "../src/core";
 import type { Doc } from "../src/core";
@@ -200,6 +201,53 @@ describe("lifecycle", () => {
     expect(b.doc.getText(p)).toBe("alive");
   });
 
+  it("an onUpdate listener failure stands visible and the missed bytes are re-sent on reconnect", async () => {
+    const relay = new WsRelay();
+    const a = makeClient(relay);
+    await a.provider.connect();
+    await relay.deliver();
+    const p = a.doc.insertBlock("paragraph");
+    a.doc.insertText(p, 0, "hello");
+    await relay.deliver();
+
+    // b: a raw provider (no attach) with a manual glue that fails on the
+    // first delivery (the app's own failure).
+    const providerB = new WsSyncProvider(URL, { webSocketImpl: (u) => relay.connect(u) });
+    const docB = new Y.Doc();
+    let failNext = true;
+    providerB.onUpdate((bytes) => {
+      if (failNext) {
+        failNext = false;
+        throw new Error("app failure");
+      }
+      Y.applyUpdate(docB, bytes);
+    });
+    await providerB.connect();
+
+    // The exception stands visible (the old stand swallowed it as a
+    // malformed frame) — and the socket stands.
+    await expect(relay.deliver()).rejects.toThrow("app failure");
+    expect(lastSocket(relay).closed).toBe(false);
+
+    // The internal doc did not claim the missed state: the state vector
+    // stays behind (the recovery stand — the next exchange re-sends the
+    // missed bytes; a behind-claiming vector would leave the app doc
+    // diverged for the connection's life).
+    const bSV = Y.decodeStateVector(providerB.getLocalStateVector());
+    const aSV = Y.decodeStateVector(a.doc.encode());
+    for (const client of Object.keys(aSV)) expect(bSV).not.toHaveProperty(client);
+    // The app doc holds no room state yet (the bootstrap delivery failed).
+    expect(docB.getMap("blocks").size).toBe(0);
+
+    // Reconnect: the behind vector stands the step1 gap — the missed
+    // bytes are re-sent and the app doc converges.
+    providerB.disconnect();
+    await providerB.connect();
+    await relay.deliver();
+    expect(docB.getMap("blocks").size).toBeGreaterThan(0);
+    expect(loadDoc(Y.encodeStateAsUpdate(docB)).getText(p)).toBe("hello");
+  });
+
   it("answers a query-awareness frame with the local awareness state", async () => {
     const relay = new WsRelay();
     const a = makeClient(relay);
@@ -255,7 +303,7 @@ describe("the connection attempt", () => {
     expect(p2).toBe(p1);
     provider.disconnect();
 
-    await expect(p1).rejects.toThrow("cancelled before open");
+    await expect(p1).rejects.toThrow("was cancelled before the open");
     // The provider stands clean: a fresh connect starts a new attempt.
     const p3 = provider.connect();
     expect(p3).not.toBe(p1);
@@ -271,7 +319,7 @@ describe("the connection attempt", () => {
     const p = provider.connect();
     relay.killSocket(lastSocket(relay));
 
-    await expect(p).rejects.toThrow("closed before open");
+    await expect(p).rejects.toThrow("closed before the open");
     // Reconnect: a fresh attempt over a new socket.
     const p2 = provider.connect();
     expect(p2).not.toBe(p);

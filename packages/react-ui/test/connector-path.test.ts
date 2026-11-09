@@ -16,7 +16,7 @@ import {
   endpointPointOf,
   portOfNormal,
   portsOf,
-} from "../src/blocks/canvas-geometry";
+} from "../src/canvas/geometry";
 
 /** The scene boxes (the center-anchor geometry shape). */
 const A = { x: -300, y: -100, w: 200, h: 100 };
@@ -195,6 +195,24 @@ describe("endpointPointOf", () => {
   it("a docId ref or an absent block resolves to nothing (the lenient posture)", () => {
     expect(endpointPointOf({ docId: "master-1" }, siblings, blocks, { x: 0, y: 0 })).toBeNull();
     expect(endpointPointOf({ blockId: "nope" }, siblings, blocks, { x: 0, y: 0 })).toBeNull();
+  });
+
+  it("a port outside the known set (a future minor's data) stands the lenient fallback, no crash", () => {
+    const unknownPort = "topright" as unknown as Parameters<typeof endpointPointOf>[0]["port"];
+    // A free point: the unknown port stands absent (the zero normal).
+    expect(endpointPointOf({ x: 120, y: -40, port: unknownPort }, siblings, blocks, { x: 0, y: 0 })).toEqual({
+      x: 120,
+      y: -40,
+      nx: 0,
+      ny: 0,
+    });
+    // A block ref: the unknown port stands the sticky edge anchor toward
+    // the other end (the line stays visible — the same math as the
+    // portless ref).
+    const point = endpointPointOf({ blockId: "s1", port: unknownPort }, siblings, blocks, { x: 300, y: 100 });
+    expect(point?.x).toBeCloseTo(-200);
+    expect(point?.y).toBeCloseTo(-100 + (100 / 600) * 200);
+    expect(point?.nx).toBe(1);
   });
 });
 

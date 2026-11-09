@@ -20,7 +20,7 @@ import {
 import { writeAttrValue, writeBlock } from "../../layout";
 import type { WritableBlock } from "../../layout";
 import { readBlock } from "../../read";
-import { blockTypeOf, childrenOf, getBlockMap, getBlocks } from "../structure";
+import { blockTypeOf, childrenOf, findParent, getBlockMap, getBlocks } from "../structure";
 import { changeBlockType } from "../types";
 
 /** The minimum column width (the validator's `columnWidths` item min). */
@@ -117,6 +117,39 @@ function readWidthOf(table: Y.Map<unknown>, columnId: string): number | null {
   if (widths === null) return null;
   const value = widths.get(columnId);
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+/** Ensures the identity-keyed width map exists on the table's attrs (creating the attrs map if absent; a foreign value — like a positional Y.Array — is replaced). */
+function ensureWidthsMap(table: Y.Map<unknown>): Y.Map<unknown> {
+  const existing = widthsMap(table);
+  if (existing !== null) return existing;
+  const attrs = table.get("attrs");
+  if (attrs instanceof Y.Map) {
+    const map = new Y.Map<unknown>();
+    attrs.set("columnWidths", map);
+    return map;
+  }
+  const freshAttrs = new Y.Map<unknown>();
+  const map = new Y.Map<unknown>();
+  freshAttrs.set("columnWidths", map);
+  table.set("attrs", freshAttrs);
+  return map;
+}
+
+/**
+ * Writes the table's positional `columnWidths` patch (one entry per
+ * `columnOrder` id) into the identity-keyed map inside the caller's
+ * transaction. The generic attr writer must not run for this key: a
+ * positional Y.Array would replace the identity map, and the read-time
+ * derivation (identity map + columnOrder) would fall back to the default
+ * width for every column.
+ */
+function writeColumnWidthsPatch(table: Y.Map<unknown>, columnIds: readonly string[], widths: readonly number[]): void {
+  const map = ensureWidthsMap(table);
+  columnIds.forEach((columnId, i) => {
+    const value = widths[i];
+    if (typeof value === "number" && Number.isFinite(value)) map.set(columnId, value);
+  });
 }
 
 /** Sets (or removes) one color attr on a cell inside the caller's transaction. */
@@ -225,6 +258,16 @@ function writeSubtreeCopy(
       entry.children = json.children.map((childId) => idMap.get(childId) ?? childId);
     }
     writeBlock(blocks, newIds[i]!, entry);
+    // The owner parent (the single CRDT-resolved ownership stand): the
+    // remapped old parent — a parent inside the copy set stands its fresh
+    // id, the container outside the set (the copy's root over the table /
+    // the row) stands by its id. Without the field the read path falls
+    // back to the array search.
+    const oldParent = findParent(ydoc, oldId);
+    if (oldParent !== null) {
+      const blockMap = blocks.get(newIds[i]!);
+      if (blockMap instanceof Y.Map) blockMap.set("parent", idMap.get(oldParent) ?? oldParent);
+    }
   });
   return newIds[0]!;
 }
@@ -240,6 +283,7 @@ export {
   collectSubtree,
   columnOrderOf,
   convertToParagraph,
+  ensureWidthsMap,
   readCellColor,
   readWidthOf,
   rowOf,
@@ -248,5 +292,6 @@ export {
   snapshotSubtree,
   tableOf,
   widthsMap,
+  writeColumnWidthsPatch,
   writeSubtreeCopy,
 };

@@ -1,6 +1,7 @@
 import js from "@eslint/js";
 import prettier from "eslint-config-prettier";
 import betterTailwindcss from "eslint-plugin-better-tailwindcss";
+import i18nextPlugin from "eslint-plugin-i18next";
 import tailwindCanonicalClasses from "eslint-plugin-tailwind-canonical-classes";
 import path from "node:path";
 import tseslint from "typescript-eslint";
@@ -9,7 +10,11 @@ import tseslint from "typescript-eslint";
  * Boundary enforcement:
  *
  * 1. `no-restricted-imports` — bare package specifiers: react-ui must not
- *    import yjs/y-protocols/lib0 or deep `docblocks-core/*` subpaths.
+ *    import yjs/y-protocols/lib0 or deep `docblocks-core/*` subpaths; the
+ *    subpath-scoped peers (mermaid / pdfjs-dist) stand over their own
+ *    subpath's source only (`./mermaid` / `./pdf`). framer-motion is a
+ *    required peer (the Editor's page view is the motion row layer) and
+ *    stands unrestricted.
  * 2. `docblocks/no-cross-boundary-import` — resolver-aware check:
  *    - packages/react-ui: relative imports must not escape the package dir
  *      (no reaching into packages/core from source);
@@ -168,10 +173,115 @@ const boundariesPlugin = {
 // strings (base + variant values).
 const TAILWIND_ENTRY = path.join(import.meta.dirname, "packages", "react-ui", "eslint.tailwind.entry.css");
 
+/**
+ * The react-ui boundary's import restrictions (the public-API-only
+ * contract): the yjs stack, the core's deep subpaths and layer aliases.
+ * Stood as a const so the optional-peers' block (below) reuses the same
+ * set — the flat config's later block stands the rule's full options (the
+ * per-file merge is a replace, not a union), so the reuse keeps the yjs'
+ * stand over the non-peer's files too.
+ */
+const reactUiBoundaryRestrictions = {
+  paths: ["yjs", "y-protocols", "lib0"],
+  patterns: [
+    {
+      regex: "^yjs(/.*)?$",
+      message: "react-ui must not import yjs — build strictly on the docblocks-core public API.",
+    },
+    {
+      regex: "^y-protocols(/.*)?$",
+      message: "react-ui must not import y-protocols — build strictly on the docblocks-core public API.",
+    },
+    {
+      regex: "^lib0(/.*)?$",
+      message: "react-ui must not import lib0 — build strictly on the docblocks-core public API.",
+    },
+    {
+      regex: "^docblocks-core/.+",
+      message: "react-ui must import only the docblocks-core public entry — deep subpaths are internal.",
+    },
+    {
+      regex: "^@docblocks-core(/.*)?$",
+      message:
+        "react-ui must import only the docblocks-core public entry — layer aliases are internal to the core package.",
+    },
+  ],
+};
+
+/**
+ * The subpath-scoped peers' file scope (the package's peer contract): the
+ * mermaid / pdfjs-dist imports stand over their own subpath's source only
+ * (the `./mermaid` / `./pdf` exports — the subpath's bundle carries its
+ * peer only). framer-motion is a required peer (the Editor's page view is
+ * the motion row layer) and stands unrestricted. The block stands the FULL
+ * restrictions (the boundary's set + the peers) over every other react-ui
+ * file: the flat config's later block replaces the rule's options per
+ * file (no merge), so the base block's yjs' stand would not reach the
+ * non-peer's files otherwise.
+ */
+const reactUiPeerRestrictions = {
+  ...reactUiBoundaryRestrictions,
+  paths: [...reactUiBoundaryRestrictions.paths, "mermaid", "pdfjs-dist"],
+  patterns: [
+    ...reactUiBoundaryRestrictions.patterns,
+    {
+      regex: "^mermaid(/.*)?$",
+      message: "mermaid stands over the ./mermaid subpath's source only (the subpath's peer).",
+    },
+    {
+      regex: "^pdfjs-dist(/.*)?$",
+      message: "pdfjs-dist stands over the ./pdf subpath's source only (the subpath's peer).",
+    },
+  ],
+};
+
+/**
+ * The per-subpath peer's scope (the cross-peer's stand): a subpath's source
+ * imports ITS peer only — the other peer stays restricted (a cross-peer
+ * import would pull the foreign dependency into the subpath's bundle and
+ * break the consumer's bundle boundary). Each block stands the FULL
+ * restrictions (the flat config's later block replaces the rule's options
+ * per file, no merge): the boundary's set + the foreign peer.
+ */
+const PEER_RESTRICTIONS = {
+  mermaid: { peer: "mermaid", foreign: ["pdfjs-dist"], message: "the ./mermaid subpath" },
+  pdf: { peer: "pdfjs-dist", foreign: ["mermaid"], message: "the ./pdf subpath" },
+};
+
+const peerSubpathRestrictions = (subpath) => {
+  const { foreign, message } = PEER_RESTRICTIONS[subpath];
+  return {
+    ...reactUiBoundaryRestrictions,
+    paths: [...reactUiBoundaryRestrictions.paths, ...foreign],
+    patterns: [
+      ...reactUiBoundaryRestrictions.patterns,
+      ...foreign.map((peer) => ({
+        regex: `^${peer}(/.*)?$`,
+        message: `${peer} stands over its own subpath's source only — ${message} imports its peer only (the consumer's opt-in per dependency).`,
+      })),
+    ],
+  };
+};
+
 /** @type {import('eslint').Linter.Config[]} */
 const eslintConfig = tseslint.config(
   {
-    ignores: ["**/dist/**", "test-results/**", "playwright-report/**", "coverage/**", ".docs/**", ".scratch-probes/**"],
+    // The scratch / the agent's own context files stand out of the lint (the
+    // transient probes are disposable by contract — linting them stands the
+    // dev machine's gate red over the scratch, not the code).
+    ignores: [
+      "**/dist/**",
+      "test-results/**",
+      "playwright-report/**",
+      "coverage/**",
+      ".docs/**",
+      ".scratch-probes/**",
+      ".tmp/**",
+      ".pi/**",
+      ".playwright-mcp/**",
+      "TODO.md",
+      "CLAUDE.md",
+    ],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -194,36 +304,141 @@ const eslintConfig = tseslint.config(
       },
     },
   },
+
+  // The base boundary's stand over the whole react-ui (the subpaths included:
+  // the peers' block re-stands the full set over its own files below).
   {
     files: ["packages/react-ui/**/*.{ts,tsx}"],
     rules: {
-      "@typescript-eslint/no-restricted-imports": [
-        "error",
+      "@typescript-eslint/no-restricted-imports": ["error", reactUiBoundaryRestrictions],
+    },
+  },
+  // The subpath-scoped peers' scope: the peers' restriction over every
+  // react-ui file EXCEPT the subpaths' own source (the mermaid / pdf
+  // directories import their peer legitimately — the object's ignores
+  // stand the exclusion, the flat config's `files` stands no negation).
+  // framer-motion stands unrestricted (the required peer's imports are
+  // the Editor's page view + the motion's segment files).
+  {
+    files: ["packages/react-ui/**/*.{ts,tsx}"],
+    ignores: [
+      "packages/react-ui/src/mermaid/**",
+      "packages/react-ui/src/pdf/**",
+      // The package's own test suite stands the peers' stubs / spies
+      // (the shipped surface is the src/ only — the tests stand no
+      // consumer's import path).
+      "packages/react-ui/test/**",
+    ],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", reactUiPeerRestrictions],
+    },
+  },
+  // The cross-peer's stand per subpath: the subpath's source imports its
+  // own peer only (the two foreign peers stay restricted — a cross-peer
+  // import would break the consumer without that peer). The blocks stand
+  // AFTER the peers' block (the last match wins the rule's options per
+  // file) and carry the full set (no merge).
+  ...Object.entries(PEER_RESTRICTIONS).map(([subpath]) => ({
+    files: [`packages/react-ui/src/${subpath}/**/*.{ts,tsx}`],
+    rules: {
+      "@typescript-eslint/no-restricted-imports": ["error", peerSubpathRestrictions(subpath)],
+    },
+  })),
+  // The user-facing strings' guard over the react-ui's source: a literal
+  // string in the JSX's text must come from the i18n catalog's `t()`
+  // (the "forgotten literal's" stand). The allowlist's stand (the technical
+  // strings: the code language's names, the font family's / weight's
+  // names, the avatar emoji's accessible names, the technical glyphs)
+  // stands the rest as-is.
+  {
+    files: ["packages/react-ui/src/**/*.{ts,tsx}"],
+    plugins: { i18next: i18nextPlugin },
+    rules: {
+      "i18next/no-literal-string": [
+        "warn",
         {
-          paths: ["yjs", "y-protocols", "lib0"],
-          patterns: [
-            {
-              regex: "^yjs(/.*)?$",
-              message: "react-ui must not import yjs — build strictly on the docblocks-core public API.",
-            },
-            {
-              regex: "^y-protocols(/.*)?$",
-              message: "react-ui must not import y-protocols — build strictly on the docblocks-core public API.",
-            },
-            {
-              regex: "^lib0(/.*)?$",
-              message: "react-ui must not import lib0 — build strictly on the docblocks-core public API.",
-            },
-            {
-              regex: "^docblocks-core/.+",
-              message: "react-ui must import only the docblocks-core public entry — deep subpaths are internal.",
-            },
-            {
-              regex: "^@docblocks-core(/.*)?$",
-              message:
-                "react-ui must import only the docblocks-core public entry — layer aliases are internal to the core package.",
-            },
-          ],
+          mode: "jsx-text-only",
+          words: {
+            exclude: [
+              // the technical placeholders (the color input's hex, the empty's stand)
+              "#rrggbb",
+              // the code language's names (the technical stand — not translated; the
+              // entries stand the full-match regexes — the metachars escaped)
+              "Bash",
+              "C",
+              "C#",
+              "C\\+\\+",
+              "CSS",
+              "Go",
+              "Java",
+              "JavaScript",
+              "JSON",
+              "Kotlin",
+              "Markdown",
+              "Mermaid",
+              "PHP",
+              "Plain Text",
+              "Python",
+              "Rust",
+              "SQL",
+              "Swift",
+              "TOML",
+              "TypeScript",
+              "XML / HTML",
+              // the font family's names + the weight/style's labels (the technical stand)
+              "Inter",
+              "PT Sans",
+              "PT Serif",
+              "JetBrains Mono",
+              "Regular",
+              "Bold",
+              "Semibold",
+              "Italic",
+              "Semibold Italic",
+              // the avatar emoji catalog's accessible names (the emoji's proper nouns —
+              // the v1's stand, the e2e's pin)
+              "Fox",
+              "Cat",
+              "Dog",
+              "Panda",
+              "Unicorn",
+              "Frog",
+              "Owl",
+              "Turtle",
+              "Bee",
+              "Butterfly",
+              "Sun",
+              "Moon",
+              "Star",
+              "Sparkles",
+              "Rainbow",
+              "Fire",
+              "Gem",
+              "Bolt",
+              "Red heart",
+              "Blue heart",
+              "Green heart",
+              "Yellow heart",
+              "Pencil",
+              "Books",
+              "Target",
+              "Rocket",
+              "Palette",
+              "Coffee",
+              "Clover",
+              "Trophy",
+              // the technical glyphs (the zoom's percent, the time segments'
+              // colon, the required mark's asterisk, the clear's / the "any's"
+              // dash, the boolean's stand)
+              "%",
+              ":",
+              "\\*",
+              "×",
+              "—",
+              "true",
+              "false",
+            ],
+          },
         },
       ],
     },

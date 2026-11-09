@@ -36,6 +36,8 @@
  * value (a highlight without a value counts as the empty value). Every
  * action is doc command(s) inside one transaction (one undo step, one
  * wire update). */
+import { useTranslation } from "react-i18next";
+
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { CALLOUT_ICONS } from "docblocks-core";
@@ -78,6 +80,7 @@ import { ACTIVE_ITEM_CLASS, LIST_MENU_OPTIONS, MENU_SIDE_OFFSET_PX, TOOLBAR_ALIG
 import type { FormatToolbarProps, PaletteTarget, ToolbarRange } from "./models";
 
 function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
+  const { t } = useTranslation("editor");
   const { doc } = useEditorContext();
   const selection = useSelection();
   const barRef = useRef<HTMLDivElement | null>(null);
@@ -176,8 +179,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     });
   };
 
-  /** Apply the palette target's mark with the value (or clear it). */
+  /** Apply the palette target's mark with the value (or clear it). The
+   *  pick's stand: the palette's close (the apply's commit / the no-op's
+   *  confirm — the picker stands no hanging). */
   const onPaletteValue = (value: string | null): void => {
+    setPaletteOpen(false);
     if (range.kind === "cross") {
       const current = uniformMarkValueRange(doc, range.cross, target);
       if (current === value) return;
@@ -215,7 +221,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     // re-seat must not mistake the clone for the target.
     const exclude =
       rootRef.current?.querySelector<HTMLElement>(
-        `[data-block-id="${range.blockId}"][data-slot="docblocks/block-content"]`
+        `[data-block-id="${CSS.escape(range.blockId)}"][data-slot="docblocks/block-content"]`
       ) ?? null;
     if (option === "paragraph") {
       // A task's `checked` is dropped by the type change (the check state
@@ -267,11 +273,13 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   };
   const onCalloutColor = (color: string | null): void => {
     if (range.kind !== "single" || single.type !== "callout") return;
+    setCalloutMenuOpen(false); // the pick's stand: the callout menu's close
     if ((single.attrs?.color ?? null) === color) return; // no-op
     doc.updateBlock(range.blockId, { color });
   };
   const onCalloutIcon = (icon: string | null): void => {
     if (range.kind !== "single" || single.type !== "callout") return;
+    setCalloutMenuOpen(false);
     if ((single.attrs?.icon ?? null) === icon) return; // no-op
     doc.updateBlock(range.blockId, { icon });
   };
@@ -323,7 +331,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       data-slot="docblocks/format-toolbar"
       ref={barRef}
       role="toolbar"
-      aria-label="Text formatting"
+      aria-label={t("formatToolbar.aria")}
       className="
         absolute z-50 flex items-center gap-0.5 rounded-(--docblocks-radius) border
         border-(--docblocks-formatbar-border-color) bg-(--docblocks-formatbar-background) p-1 text-[0.8125em]
@@ -339,8 +347,8 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           variant="ghost"
           size="icon"
           data-mark={mark}
-          title={title}
-          aria-label={title}
+          title={t(title)}
+          aria-label={t(title)}
           aria-pressed={markActive(mark)}
           className={cn(markActive(mark) && ACTIVE_ITEM_CLASS)}
           onClick={toggleMarkAt(mark)}
@@ -355,8 +363,8 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           variant="ghost"
           size="icon"
           data-align-btn={align}
-          title={title}
-          aria-label={title}
+          title={t(title)}
+          aria-label={t(title)}
           aria-pressed={alignActive(align)}
           className={cn(alignActive(align) && ACTIVE_ITEM_CLASS)}
           onClick={alignAt(align)}
@@ -376,8 +384,8 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                 <Button
                   variant="ghost"
                   size="icon"
-                  title="List type"
-                  aria-label="List type"
+                  title={t("formatToolbar.listType")}
+                  aria-label={t("formatToolbar.listType")}
                   className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
                 >
                   <MenuIcon className="size-4" />
@@ -405,11 +413,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                         value={option}
                         data-list-option={option}
                         disabled={disabled}
-                        title={label}
+                        title={t(label)}
                         onSelect={listOptionAt(option)}
                       >
                         <Icon className="size-4" />
-                        {label}
+                        {t(label)}
                       </DropdownMenuRadioItem>
                     );
                   })}
@@ -426,8 +434,8 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
               <Button
                 variant="ghost"
                 size="icon"
-                title="Callout"
-                aria-label="Callout"
+                title={t("formatToolbar.callout.trigger")}
+                aria-label={t("formatToolbar.callout.trigger")}
                 className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
               >
                 <MenuIcon className="size-4" />
@@ -449,7 +457,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             >
               {/* Type (the preset: the variant + the overrides reset to the
                 preset — one transact). */}
-              <div role="group" aria-label="Callout type" className="flex gap-1">
+              <div role="group" aria-label={t("formatToolbar.callout.typeAria")} className="flex gap-1">
                 {(["info", "warning", "danger"] as const).map((variant) => {
                   const active = (single.attrs?.variant ?? "info") === variant;
                   const PresetIcon = CALLOUT_ICON_COMPONENTS[CALLOUT_PRESET_ICONS[variant]];
@@ -460,8 +468,8 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                       size="sm"
                       data-callout-type-btn={variant}
                       aria-pressed={active}
-                      aria-label={`${variant} callout`}
-                      title={`${variant} callout`}
+                      aria-label={t("formatToolbar.callout.variant", { variant })}
+                      title={t("formatToolbar.callout.variant", { variant })}
                       className={cn("h-7", active && ACTIVE_ITEM_CLASS)}
                       onClick={calloutPresetAt(variant)}
                     >
@@ -476,7 +484,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                   colors={palette}
                   current={single.attrs?.color ?? null}
                   onSelect={onCalloutColor}
-                  label="callout"
+                  label={t("formatToolbar.palette.callout")}
                   allowNone
                   noneActive={(single.attrs?.color ?? null) === null}
                   onSelectNone={noneCalloutColor}
@@ -484,7 +492,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
               </div>
               {/* Icon (the catalog grid; "Preset" = the variant's icon). */}
               <div className="mt-2 border-t border-border pt-2">
-                <div role="group" aria-label="Callout icon" className="grid grid-cols-6 gap-1">
+                <div role="group" aria-label={t("formatToolbar.callout.iconAria")} className="grid grid-cols-6 gap-1">
                   {CALLOUT_ICONS.map((name) => {
                     const Icon = CALLOUT_ICON_COMPONENTS[name];
                     const active = calloutIconName(single.attrs?.icon, single.attrs?.variant ?? "info") === name;
@@ -509,12 +517,12 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
                     variant="ghost"
                     size="sm"
                     data-callout-icon-preset
-                    aria-label="Preset icon"
-                    title="Preset icon"
+                    aria-label={t("formatToolbar.callout.presetIcon")}
+                    title={t("formatToolbar.callout.presetIcon")}
                     className={cn("col-span-6 h-7 text-xs", (single.attrs?.icon ?? null) === null && ACTIVE_ITEM_CLASS)}
                     onClick={clearCalloutIcon}
                   >
-                    Preset
+                    {t("formatToolbar.callout.preset")}
                   </Button>
                 </div>
               </div>
@@ -529,8 +537,8 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             variant="ghost"
             size="icon"
             data-target={target}
-            title="Text and background color"
-            aria-label="Text and background color"
+            title={t("formatToolbar.color.trigger")}
+            aria-label={t("formatToolbar.color.trigger")}
             className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
           >
             <Baseline className="size-4" />
@@ -540,26 +548,30 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           align="start"
           sideOffset={MENU_SIDE_OFFSET_PX}
           data-slot="docblocks/format-palette"
-          aria-label="Text and background color"
+          aria-label={t("formatToolbar.color.trigger")}
           className="w-auto p-2"
           onMouseDown={preventDefault}
           onPointerDownOutside={preventDefault}
           onFocusOutside={preventDefault}
         >
-          <div role="group" aria-label="Color target" className="flex gap-1">
-            {(["highlight", "color"] as const).map((t) => (
+          <div role="group" aria-label={t("formatToolbar.color.targetGroupAria")} className="flex gap-1">
+            {(["highlight", "color"] as const).map((option) => (
               <Button
-                key={t}
+                key={option}
                 variant="ghost"
                 size="sm"
-                data-target-btn={t}
-                aria-pressed={target === t}
-                aria-label={t === "highlight" ? "Highlight the background" : "Color the text"}
-                title={t === "highlight" ? "Highlight the background" : "Color the text"}
-                className={cn("h-7 flex-1 text-xs", target === t && ACTIVE_ITEM_CLASS)}
-                onClick={selectTarget(t)}
+                data-target-btn={option}
+                aria-pressed={target === option}
+                aria-label={
+                  option === "highlight" ? t("formatToolbar.color.highlightAria") : t("formatToolbar.color.textAria")
+                }
+                title={
+                  option === "highlight" ? t("formatToolbar.color.highlightAria") : t("formatToolbar.color.textAria")
+                }
+                className={cn("h-7 flex-1 text-xs", target === option && ACTIVE_ITEM_CLASS)}
+                onClick={selectTarget(option)}
               >
-                {t === "highlight" ? "bg" : "text"}
+                {option === "highlight" ? t("formatToolbar.color.highlightLabel") : t("formatToolbar.color.textLabel")}
               </Button>
             ))}
           </div>
@@ -567,7 +579,7 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             colors={palette}
             current={currentMarkValue}
             onSelect={onPaletteValue}
-            label={target === "highlight" ? "highlight" : "text"}
+            label={target === "highlight" ? t("formatToolbar.palette.highlight") : t("formatToolbar.palette.text")}
             allowNone
             noneActive={paletteActive(null)}
             onSelectNone={nonePaletteValue}
