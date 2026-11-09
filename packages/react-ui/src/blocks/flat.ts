@@ -91,12 +91,20 @@ function indentOf(block: Block | undefined): number {
  */
 function sequenceContainerOf(blocks: Record<BlockId, Block | OpaqueBlock>, entryRootId: BlockId): BlockId {
   const entry = blocks[entryRootId];
-  if (entry !== undefined && entry.type in BLOCK_REGISTRY && BLOCK_REGISTRY[entry.type as BlockType]?.sequence)
+  if (
+    entry !== undefined &&
+    Object.hasOwn(BLOCK_REGISTRY, entry.type) &&
+    BLOCK_REGISTRY[entry.type as BlockType]?.sequence
+  )
     return entryRootId;
   for (const [parentId, candidate] of Object.entries(blocks)) {
     const children = "children" in candidate ? candidate.children : undefined;
     if (children !== undefined && children.includes(entryRootId)) {
-      const spec = candidate.type in BLOCK_REGISTRY ? BLOCK_REGISTRY[candidate.type as BlockType] : undefined;
+      // The own-property stand: a prototype-key type name is an unknown
+      // type (the inherited member is not a registry spec).
+      const spec = Object.hasOwn(BLOCK_REGISTRY, candidate.type)
+        ? BLOCK_REGISTRY[candidate.type as BlockType]
+        : undefined;
       return spec !== undefined && spec.sequence ? parentId : entryRootId;
     }
   }
