@@ -1,5 +1,67 @@
 # docblocks-core
 
+## 0.1.2
+
+### Patch Changes
+
+- bf92634: The README's snapshot shape stands the actual JSON form: the document
+  fields (`id`, `title`, the optional `avatar`, `createdAt`) stand at the
+  top level of the snapshot next to the `blocks` map — the former `meta` /
+  `children` top-level description was wrong (the `children` order lives
+  inside the blocks, the `meta` object does not exist in the JSON).
+- b66e45e: The cross-minor as-is stand reaches the KNOWN block types: an additive
+  top-level field (a future minor's data) on a known type no longer stands
+  dropped on `fromJSON` — the layout writer keeps it with the generic
+  storage semantics (the opaque writer's parity) and the snapshot reader
+  passes it through (sorted keys, the `Y.Text` field reads as runs), so a
+  load → save cycle never loses unknown data.
+  
+  The mark value's as-is stand completes too: an unknown mark with a
+  non-boolean primitive value (string / number) is preserved on read —
+  the reader previously kept only the `true` and the object value shapes,
+  silently dropping the primitive ones on save.
+- c5a38d2: The link href's gate mirrors the WHATWG URL parser's full input
+  normalization: ASCII tab / LF / CR (U+0009–U+000D) are removed from ANY
+  position (plus the edge C0 / space trim) before the scheme detection. A
+  mid-string control could not hide the scheme before — `java\tscript:…`
+  carried no scheme per the `^[a-z][a-z0-9+.-]*:` test, while the browser's
+  URL parser strips the control and resolves the `javascript:` scheme, so a
+  documented link executed as script. The gate is the single stand of the
+  validator's link check, the renderer's href gate, and the paste's
+  markdown link re-gate.
+- 769c12a: The reactivity's handler isolation: a subscription handler's throw (the
+  handlers fire inside the Yjs transaction, the afterTransaction hook) no
+  longer rolls back the caller's committed batch (the `transact`'s rollback
+  guard would catch the listener's throw otherwise) and no longer aborts the
+  remaining handlers of the emission — the throw stands the logged error,
+  the emission continues, and the batch stays committed and undoable.
+  
+  The export's stable key order: `toJSON` assembles the blocks in sorted id
+  order — the Y.Map's iteration order depends on the creation history, so
+  converged peers stood the same data in different key orders before. The
+  converged peers' exports are byte-identical now (the `JSON.stringify`'s
+  bytes stand the convergence's check, not just the deep equality); the JSON's
+  object order is semantically irrelevant — the children's arrays carry the
+  document order.
+- 72fdfd3: The block and mark registry lookups stand the own-property stand over the
+  prototype-key values (`constructor`, `toString`, ...): the unknown block
+  type named by a prototype key keeps its data over the `fromJSON` /
+  `toJSON` round-trip (the opaque stand — the reader's lenient contract),
+  the strict commands refuse the unknown type and mark, and the export's
+  attr assembly writes own properties only (no prototype swap over a
+  hostile attr key).
+  
+  The same stand over the remaining lookup points: the `changeBlockType`'s
+  attrs merge (the target spec's whitelist membership over the own
+  properties — the hostile key stands reset like the type-specific attrs,
+  the patch's hostile key stands the strict rejection, the own writes keep
+  the prototype's setters out), the strict mark-field validation (an
+  unknown field named like an `Object.prototype` member stands the
+  rejection — the strict posture rejects rather than preserves it), and the
+  export's
+  id-keyed assemblies (the own writes over the `blocks` / `rows`
+  dictionaries — the wire's defense in depth).
+
 ## 0.1.1
 
 ### Patch Changes

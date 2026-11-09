@@ -428,7 +428,7 @@ const blockRenderers: BlockRendererMap = {
 
 `pdfPreview` is a component that renders a `pdf`-subtype image block's
 resolved blob as a client-side first-page preview. The `./pdf` subpath
-provides one over `pdfjs-dist` (an optional peer):
+provides one over `pdfjs-dist` (a required peer):
 
 ```tsx
 import { PdfFirstPage } from "docblocks-react-ui/pdf";
