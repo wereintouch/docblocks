@@ -31,7 +31,7 @@ const para = doc.insertBlock("paragraph");
 doc.insertText(para, 0, "hello world");
 doc.setMark(para, 0, 5, { type: "bold" });
 
-const json = doc.toJSON(); // { v, meta, blocks, children }
+const json = doc.toJSON(); // { v, id, title, avatar?, createdAt, blocks }
 // …persist or send `json` …
 const restored = fromJSON(json); // a fresh Doc over the same data
 ```
@@ -63,7 +63,7 @@ editable paragraph). The other entry points:
 - `fromJSON(json)` — build a `Doc` from a JSON snapshot.
 - `loadDoc(bytes)` — build a `Doc` from an encoded full state (a base
   snapshot; apply diffs with `applyUpdate`).
-- `doc.toJSON()` — the JSON snapshot (`{ v, meta, blocks, children }`).
+- `doc.toJSON()` — the JSON snapshot (`{ v, id, title, avatar?, createdAt, blocks }`).
 - `doc.encode()` / `doc.encodeUpdate(stateVector?)` — the encoded full
   state / the incremental update.
 - `doc.applyUpdate(bytes)` — apply an encoded update (the remote-apply path).
@@ -128,8 +128,9 @@ projects a selection into the presence payload shape.
 
 ## Data format
 
-The JSON format is `v: 1`: `meta` (the doc `id`, `title`, the optional
-`avatar`) plus a **flat block map** (`id → block`) with explicit order via
+The JSON format is `v: 1`: the document fields (`id`, `title`, the
+optional `avatar`, `createdAt`) at the top level, plus a **flat block map**
+(`id → block`) with explicit order via
 `children: [blockId]`; nesting (lists, table cells) is `children`. The text
 of a text block is `content: [{ text, marks }]` runs. JSON ↔ Yjs is
 isomorphic — every JSON field has exactly one Yjs image.
