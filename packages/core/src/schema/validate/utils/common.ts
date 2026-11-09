@@ -19,18 +19,22 @@ const isIso8601 = (value: unknown): boolean =>
 const isHexColor = (value: unknown): boolean => typeof value === "string" && HEX_COLOR.test(value);
 
 /** `http://` / `https://` URLs and relative paths; other schemes are
- *  rejected. The check runs over the trimmed form — the browser trims the
- *  leading / trailing C0 controls and spaces (U+0000–U+0020) before the
- *  scheme detection, so an untrimmed check stands the `"\tjavascript:…"`
- *  bypass (the raw string carries no scheme, the browser's does). */
+ *  rejected. The check runs over the browser's normalization of the input:
+ *  the WHATWG URL parser removes ASCII tab / LF / CR (U+0009–U+000D) from
+ *  ANY position and trims the leading / trailing C0 controls and spaces
+ *  (U+0000–U+0020) before the scheme detection — so an unnormalized check
+ *  stands the `"java\tscript:…"` bypass (the raw string carries no scheme
+ *  per the `^[a-z][a-z0-9+.-]*:` test, the browser's does). */
 // eslint-disable-next-line no-control-regex -- the C0 range is the check's subject.
 const CONTROL_TRIM = /^[\u0000-\u0020]+|[\u0000-\u0020]+$/g;
+// eslint-disable-next-line no-control-regex -- the mid-string strip is the check's subject.
+const MID_STRING_CONTROLS = /[\u0009\u000A\u000D]/g;
 
 /** The public link-href contract (the validator's and the consumer
- *  renderer's gate): the trimmed form is an http/https URL or a
+ *  renderer's gate): the normalized form is an http/https URL or a
  *  scheme-less (relative) path; any other scheme is rejected. */
 const isSafeLinkHref = (value: string): boolean => {
-  const trimmed = value.replace(CONTROL_TRIM, "");
+  const trimmed = value.replace(MID_STRING_CONTROLS, "").replace(CONTROL_TRIM, "");
   return trimmed.length > 0 && (WEB_URL.test(trimmed) || !SCHEME_PREFIX.test(trimmed));
 };
 

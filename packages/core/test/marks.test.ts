@@ -186,6 +186,13 @@ describe("mark command errors", () => {
     expect(isSafeLinkHref("javascript:alert(1)")).toBe(false);
     expect(isSafeLinkHref("\tjavascript:alert(1)")).toBe(false);
     expect(isSafeLinkHref("\u0000javascript:alert(1)")).toBe(false);
+    // The WHATWG URL parser removes ASCII tab / LF / CR from ANY position
+    // before the scheme detection — the gate mirrors it, so a mid-string
+    // control cannot hide the scheme ("java\tscript:…" resolves as
+    // "javascript:…" in the browser).
+    expect(isSafeLinkHref("java\tscript:alert(1)")).toBe(false);
+    expect(isSafeLinkHref("java\nscript:alert(1)")).toBe(false);
+    expect(isSafeLinkHref("java\rscript:alert(1)")).toBe(false);
     expect(isSafeLinkHref("data:text/html,<script>alert(1)</script>")).toBe(false);
     expect(isSafeLinkHref("mailto:a@b.c")).toBe(false);
     expect(isSafeLinkHref("")).toBe(false);
