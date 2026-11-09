@@ -350,6 +350,20 @@
 }
 
 /*
+ * The editor root's focus-ring stand: the root is a focus PARK (the
+ * gestures' contract — the drag's release and the gutter's delete park
+ * the focus there so the keyboard's input stays scoped over the editor).
+ * It is reached programmatically only (tabIndex -1 — no Tab focus), so
+ * the browser's default focus ring would stand the visible ring over the
+ * whole document after a drag's release. The ring is suppressed; the
+ * focus itself stays (the keyboard's scoping needs it), and the
+ * individual controls keep their own focus styles.
+ */
+[data-slot="docblocks/editor"]:focus {
+  outline: none;
+}
+
+/*
  * The read-only stand (view / published modes): the editor's content is
  * read-only — the text selection stands no stand (the native range's
  * gesture is an editing's affordance). The caret is already impossible
