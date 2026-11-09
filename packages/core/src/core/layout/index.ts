@@ -1,4 +1,4 @@
-// The layout's cross-unit surface (C6).
+// The layout's cross-unit surface.
 export { localTransact, rootBlockIdOf, rootOrderOf } from "./layout";
 export { loadOriginOf, localOriginOf } from "./origins";
 export type { WritableBlock } from "./models";

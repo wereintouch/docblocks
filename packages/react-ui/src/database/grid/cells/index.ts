@@ -1,4 +1,4 @@
-// The grid's cell renderers' cross-unit surface (C6).
+// The grid's cell renderers' cross-unit surface.
 export { CellDisplay } from "./CellDisplay";
 export { CellEditInput } from "./CellEditInput";
 export { DatabaseCell } from "./DatabaseCell";

@@ -1,4 +1,4 @@
-// The canvas unit's cross-unit surface (C6): the canvas-view renderers, the state
+// The canvas unit's cross-unit surface: the canvas-view renderers, the state
 // store, and the font catalog import canvas through this barrel (one entry per
 // unit). The viewport sub-unit's own barrel (./viewport) still stands for
 // intra-canvas consumers; this re-exports the viewport surface the canvas view
