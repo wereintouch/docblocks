@@ -474,6 +474,24 @@ describe("mdToBlocks — inline marks", () => {
     expect(textOf(block.runs)).toBe("x)");
   });
 
+  it("the href's leading C0 control stands the writer's trimmed stand (the core's mirror, the degrade)", () => {
+    // The browser trims the leading C0 controls before the scheme's
+    // detection — the core's contract checks the trimmed form. The
+    // parser's mirror stands the identical gate (the pass-through over
+    // the core's isSafeLinkHref): a quoted href with the entity-hidden
+    // leading tab decodes to the scheme's form and degrades the run
+    // (the strict writer would otherwise reject the run and abort the
+    // whole multi-block paste over it).
+    const block = single('mail <a href="&#9;javascript:alert(1)">me</a> now');
+    expect(block.runs.filter((r) => r.marks.link !== undefined)).toEqual([]);
+    expect(textOf(block.runs)).toBe("mail me now");
+    // The literal (non-entity) stand: the quoted href with the literal
+    // leading space.
+    const block2 = single('mail <a href=" javascript:alert(1)">me</a> now');
+    expect(block2.runs.filter((r) => r.marks.link !== undefined)).toEqual([]);
+    expect(textOf(block2.runs)).toBe("mail me now");
+  });
+
   it("the backslash escape keeps the punctuation literal", () => {
     const block = single("\\*star\\* and \\#hash");
     expect(textOf(block.runs)).toBe("*star* and #hash");

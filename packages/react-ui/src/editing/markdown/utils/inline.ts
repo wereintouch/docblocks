@@ -5,7 +5,7 @@
  * marks, `<br>` is the soft line break, the other tags drop with their
  * content plain), the autolinks, and the single-pass entity decode.
  */
-import type { MarkSet, TextRun } from "docblocks-core";
+import { type MarkSet, type TextRun, isSafeLinkHref } from "docblocks-core";
 
 import { appendRun, tagEmphasisMarks } from "../../mark-utils";
 import { ENTITY, MARK_HIGHLIGHT, NAMED_ENTITIES, OPEN_TAG, STRAY_CLOSE_TAG, TAG_HREF } from "../constants";
@@ -30,13 +30,16 @@ function decodeEntities(value: string): string {
   });
 }
 
-/** The data model's link href contract (the core's validator stand — the
- *  internal check stands the mirror): the http/https URL or the no-scheme
- *  relative path; the other scheme (the mailto / the javascript / any
- *  custom) stands the degrade (the literal text), not the mark (the
- *  core's InvalidMarkError would abort the paste over it). */
+/** The data model's link href contract — a pass-through over the core's
+ *  public `isSafeLinkHref` (the single stand: the trimmed form is an
+ *  http/https URL or a no-scheme relative path — the browser trims the
+ *  leading C0 controls before the scheme detection, so the trimmed check
+ *  is the writer's contract itself, and a run the parser accepts can
+ *  never be rejected by the strict writer). The other scheme (the mailto
+ *  / the javascript / any custom) stands the degrade (the literal text),
+ *  not the mark. */
 function isLinkHrefOf(href: string): boolean {
-  return href.length > 0 && (/^https?:\/\//i.test(href) || !/^[a-z][a-z0-9+.-]*:/i.test(href));
+  return isSafeLinkHref(href);
 }
 
 /** The open tag at `i` of `text` (the name lower-cased; `null` for a bare `<`). */
