@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type { BlockId, Doc, SyncEmbedBlock as SyncEmbedBlockType } from "docblocks-core";
 
 import { Editor } from "../Editor";
@@ -75,6 +77,22 @@ function SyncEmbedBlock({ id, block }: { id: BlockId; block: SyncEmbedBlockType 
 
   const cyclic = ancestorDocIds.includes(ref.docId) || embedDepth > MAX_EMBED_DEPTH;
   const master = cyclic ? null : (syncEmbedResolver?.(ref) ?? null);
+  // The stale's dynamic stand: the ref's block may be removed from the
+  // master after the embed's mount (the render-time's check stands the
+  // mount's state only). The master's change re-stands the block (the
+  // removal stands the doc-level change — the per-block's observer emits
+  // nothing for a removed block), the re-render re-runs the check and the
+  // broken's placeholder stands over the stale reference. The tick stands
+  // no state of its own (the check runs at the render, the tick only
+  // forces the re-run over the master's transactions).
+  const [masterTick, setMasterTick] = useState(0);
+  const subtreeRef = ref.blockId !== undefined && master !== null;
+  useEffect(() => {
+    if (!subtreeRef || master === null) return;
+    const off = master.onChange(() => setMasterTick((tick) => tick + 1));
+    return off;
+  }, [master, subtreeRef, ref.blockId]);
+  void masterTick; // the tick's purpose is the re-render, not the read
   const stale = master !== null && ref.blockId !== undefined && master.getBlock(ref.blockId) === null;
   const state: SyncEmbedState = cyclic ? "cycle" : master === null || stale ? "broken" : "resolved";
 

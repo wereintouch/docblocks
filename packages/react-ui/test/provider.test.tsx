@@ -414,6 +414,57 @@ describe("the access level and the mode (the effective-mode's resolution)", () =
 describe("the published's stand (the snapshot's render + the placeholder)", () => {
   afterEach(cleanup);
 
+  it("remounts the nested provider over a new snapshot (the stand key's swap, the same snapshot's keep)", () => {
+    // The remount's contract: a new snapshot instance stands a new nested
+    // provider (a new store — the doc's stand must not change over a
+    // mounted provider), the same snapshot stands no re-mount over the
+    // re-render (the key's stable reference keeps the instance).
+    const live = createDoc({ id: "doc-pub-2", createdAt: CREATED_AT });
+    live.insertText(live.insertBlock("paragraph"), 0, "LIVE");
+    const snapshot1 = createDoc({ id: "doc-pub-2", createdAt: CREATED_AT });
+    snapshot1.insertText(snapshot1.insertBlock("paragraph"), 0, "SNAP1");
+    const snapshot2 = createDoc({ id: "doc-pub-2", createdAt: CREATED_AT });
+    snapshot2.insertText(snapshot2.insertBlock("paragraph"), 0, "SNAP2");
+
+    const seenStores: unknown[] = [];
+    function StoreProbe() {
+      const ctx = useEditorContext();
+      seenStores.push(ctx.store);
+      return null;
+    }
+
+    const view = render(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot1}>
+        <StoreProbe />
+        <Editor />
+      </EditorProvider>
+    );
+    const store1 = seenStores[seenStores.length - 1];
+    expect(view.container.textContent).toContain("SNAP1");
+
+    // The same snapshot's re-render: the instance stands (the store's
+    // reference keeps).
+    view.rerender(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot1}>
+        <StoreProbe />
+        <Editor />
+      </EditorProvider>
+    );
+    expect(seenStores[seenStores.length - 1]).toBe(store1);
+
+    // The new snapshot: the key's swap stands the remount (a new store,
+    // the snapshot's content stands over the live's).
+    view.rerender(
+      <EditorProvider doc={live} mode="published" publishedDoc={snapshot2}>
+        <StoreProbe />
+        <Editor />
+      </EditorProvider>
+    );
+    expect(seenStores[seenStores.length - 1]).not.toBe(store1);
+    expect(view.container.textContent).toContain("SNAP2");
+    expect(view.container.textContent).not.toContain("SNAP1");
+  });
+
   it("renders the snapshot's doc read-only (the live's stand off over the published's mode)", () => {
     const live = createDoc({ id: "doc-pub-1", createdAt: CREATED_AT });
     live.insertText(live.insertBlock("paragraph"), 0, "LIVE");

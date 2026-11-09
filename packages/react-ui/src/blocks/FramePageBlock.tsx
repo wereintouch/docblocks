@@ -19,7 +19,7 @@
  */
 import { useStore } from "zustand";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import type { Block, BlockId, FrameBlock } from "docblocks-core";
@@ -141,6 +141,11 @@ function FramePageWindow({
     height: boxH,
   };
   const title = referenced.attrs?.title ?? "";
+  // The frame-chain's references stand memoized (the stable references
+  // keep the window's copies' CanvasItem memo intact over the box's
+  // re-renders — the row's re-measure's stand).
+  const excludedIds = useMemo(() => [frameId], [frameId]);
+  const frameChain = useMemo(() => new Set([frameId]), [frameId]);
 
   return (
     <div
@@ -166,11 +171,13 @@ function FramePageWindow({
         <FrameWindowContent
           surfaceId={surfaceId}
           offset={offset}
-          excludedIds={[frameId]}
           // The frame-chain's stand of the page-frame block: the referenced
           // frame does not render its own box inside its own page window
           // (excludedIds), the nested frames stand with the chain {frameId}.
-          frameChain={new Set([frameId])}
+          // The references stand memoized (the window's copies' CanvasItem
+          // memo over the stable references).
+          excludedIds={excludedIds}
+          frameChain={frameChain}
         />
       </div>
     </div>

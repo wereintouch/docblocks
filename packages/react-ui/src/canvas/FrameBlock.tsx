@@ -19,6 +19,7 @@
  * recursion is finite, no depth limit needed).
  */
 import type { CSSProperties } from "react";
+import { useMemo } from "react";
 
 import type { BlockId } from "docblocks-core";
 
@@ -82,7 +83,12 @@ function FrameBlock({
     outlineOffset: 1,
   };
   // The frame-chain's cycle guard: the window's content stands the
-  // surface's children minus the chain ∪ {self}.
+  // surface's children minus the chain ∪ {self}. The references stand
+  // memoized (the frame's drag re-renders it on every pointermove — the
+  // fresh array / Set references would break the window's copies'
+  // CanvasItem memo and re-render every copy on the drag's pass).
+  const excludedIds = useMemo(() => [...frameChain, id], [frameChain, id]);
+  const childFrameChain = useMemo(() => new Set([...frameChain, id]), [frameChain, id]);
   return (
     <div data-slot="docblocks/frame" data-block-id={id} className="h-full w-full">
       <div
@@ -93,8 +99,8 @@ function FrameBlock({
         <FrameWindowContent
           surfaceId={parentId}
           offset={offset}
-          excludedIds={[...frameChain, id]}
-          frameChain={new Set([...frameChain, id])}
+          excludedIds={excludedIds}
+          frameChain={childFrameChain}
         />
       </div>
       <CanvasTitleChip

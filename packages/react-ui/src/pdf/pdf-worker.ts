@@ -21,4 +21,19 @@ GlobalWorkerOptions.workerSrc = WORKER_URL.toString();
 
 const WASM_URL = new URL("./", WORKER_URL).toString();
 
+// The degradation's stand: the worker file must stand next to this entry
+// (the dist/pdf/ directory served as static assets); a consumer's bundler
+// that rewrites the new URL's reference, or a hosting that drops the
+// asset, breaks the load silently (the preview falls back to the native
+// iframe viewer without a signal). The browser's probe over the worker's
+// URL stands the logged warning when the asset is unreachable (the SSR's
+// stand — no window, no probe — the preview is a browser surface anyway).
+if (typeof window !== "undefined") {
+  fetch(WORKER_URL, { method: "HEAD" }).catch(() => {
+    console.warn(
+      "docblocks: the pdf worker's asset is unreachable over this entry — the pdf preview stands the native viewer's fallback (the worker's load fails). The dist/pdf/ directory must stand served as static assets next to the subpath's entry."
+    );
+  });
+}
+
 export { WASM_URL };
