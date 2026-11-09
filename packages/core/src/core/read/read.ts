@@ -9,7 +9,7 @@ import { BLOCK_REGISTRY, DEFAULT_TABLE_COLUMN_WIDTH, setOwn } from "@docblocks-c
 import type { Block, BlockId, DocJSON, DocMeta, OpaqueBlock, TextRun } from "@docblocks-core/schema";
 
 import { derivedZIndex } from "../commands";
-import { rootBlockIdOf, rootOrderOf } from "../layout";
+import { LAYOUT_BLOCK_KEYS, rootBlockIdOf, rootOrderOf } from "../layout";
 import { normalizeRuns } from "../normalize";
 import { attrsToMarkSet } from "../text-model";
 import type { TextDeltaOp } from "../text-model";
@@ -328,6 +328,36 @@ function readBlock(ydoc: Y.Doc, id: string): Block | null {
       return typeof value === "number" && Number.isFinite(value) ? value : DEFAULT_TABLE_COLUMN_WIDTH;
     });
     block.attrs = { ...(block.attrs ?? {}), columnWidths: derived };
+  }
+
+  // Additive top-level fields of a future minor on a KNOWN type: preserved
+  // as-is so a save never drops data the engine does not know (the
+  // cross-minor stand, the opaque reader's parity). The layout's own keys
+  // stand their typed reads; `parent` is the Yjs-layout-only owner field
+  // and never reaches the JSON. Sorted keys: the Y.Map's iteration order is
+  // process-dependent, so the JSON key order stays deterministic on every
+  // peer.
+  const extra: Array<[string, unknown]> = [];
+  yblock.forEach((value, key) => {
+    if (typeof key === "string" && !LAYOUT_BLOCK_KEYS.has(key)) extra.push([key, value]);
+  });
+  extra.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const [key, value] of extra) {
+    if (value instanceof Y.Text) {
+      // A text field reads like the content: Y.Text -> runs (a plain value
+      // must never leak a live Yjs type).
+      const raw: TextRun[] = [];
+      for (const op of value.toDelta() as TextDeltaOp[]) {
+        if (typeof op.insert !== "string") continue;
+        raw.push({ text: op.insert, marks: attrsToMarkSet(op.attributes) });
+      }
+      const runs = normalizeRuns(raw);
+      if (runs.length > 0) setOwn(block, key, runs);
+      continue;
+    }
+    // The open key comes from the CRDT (the reserved-key's stand — the
+    // own data key, the prototype untouched).
+    setOwn(block, key, readPlainValue(value));
   }
 
   return block as Block;

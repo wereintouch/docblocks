@@ -14,6 +14,21 @@ import { loadOriginOf } from "./origins";
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** The layout's own top-level keys (the spec-gated writers + the CRDT
+ *  owner field): everything else on a block entry is additive data of a
+ *  future minor and stands the generic as-is write (the cross-minor stand). */
+export const LAYOUT_BLOCK_KEYS = new Set([
+  "type",
+  "attrs",
+  "geometry",
+  "content",
+  "children",
+  "rows",
+  "rowOrder",
+  "columnOrder",
+  "parent",
+]);
+
 /** Primitive attr values are stored directly; plain objects become nested Y.Maps, and arrays become Y.Arrays (array elements are stored as-is — the schema keeps them plain). */
 function writeAttrValue(target: AnyMap, key: string, value: unknown): void {
   if (value === undefined) return;
@@ -153,6 +168,16 @@ function writeBlock(blocks: AnyMap, id: string, block: WritableBlock): void {
         }
       }
     }
+  }
+
+  // Additive top-level fields of a future minor on a KNOWN type: written
+  // as-is (the generic storage semantics, the opaque writer's parity) so a
+  // save keeps the data the engine does not know. The layout's own keys
+  // stand their spec-gated writers; `parent` is the CRDT owner field
+  // (`setParents` derives it — the JSON never carries it).
+  for (const [key, value] of Object.entries(block)) {
+    if (LAYOUT_BLOCK_KEYS.has(key)) continue;
+    writeAttrValue(yblock, key, value);
   }
 
   blocks.set(id, yblock);

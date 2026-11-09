@@ -890,4 +890,64 @@ describe("the cross-minor reader stand", () => {
     expect(validateDoc(extended, true).some((e) => e.message.includes("must be a non-empty string"))).toBe(true);
     expect(() => fromJSON(extended)).toThrow(InvalidSnapshotError);
   });
+
+  // Additive top-level fields on a KNOWN type: the same as-is stand as the
+  // opaque one — the lenient load writes them into the layout (the generic
+  // storage semantics), the read passes them through, and a re-save keeps
+  // them (no cross-minor data loss on load -> save).
+  it("additive top-level fields on a known type survive the round trip", () => {
+    const base = createDoc({ id: "pin" });
+    const paraId = base.insertBlock("paragraph");
+    base.insertText(paraId, 0, "hello");
+    const json = base.toJSON();
+    const para = json.blocks[paraId] as Record<string, unknown>;
+    para.futureField = { nested: [1, 2, 3], flag: true };
+    const doc = fromJSON({ ...json, blocks: { ...json.blocks, [paraId]: para } } as DocJSON);
+    const out = doc.toJSON();
+    expect((out.blocks[paraId] as Record<string, unknown>).futureField).toEqual({ nested: [1, 2, 3], flag: true });
+    // The re-save (encode -> load) keeps the field (no loss on save).
+    const again = loadDoc(doc.encode());
+    expect((again.toJSON().blocks[paraId] as Record<string, unknown>).futureField).toEqual({
+      nested: [1, 2, 3],
+      flag: true,
+    });
+  });
+
+  // The wire parity: a peer writes an additive top-level field straight into
+  // the layout (single-authored, like any unknown minor's data) — the local
+  // export keeps it as-is.
+  it("an additive top-level field over the wire stands as-is on read", () => {
+    const a = createDoc({ id: "pin" });
+    const id = a.insertBlock("paragraph");
+    a.insertText(id, 0, "hello");
+    const yblock = a.raw.getMap("blocks").get(id) as Y.Map<unknown>;
+    yblock.set("futureTag", "wire-data");
+    const nested = new Y.Map<unknown>();
+    nested.set("k", "v");
+    yblock.set("futureMeta", nested);
+    const restored = loadDoc(a.encode());
+    const out = restored.toJSON().blocks[id] as Record<string, unknown>;
+    expect(out.futureTag).toBe("wire-data");
+    expect(out.futureMeta).toEqual({ k: "v" });
+  });
+
+  // An unknown mark with a non-boolean primitive value (a future minor's
+  // additive value shape): the reader keeps it as-is on read and re-save —
+  // the `true` and object value shapes are the pinned parity, the
+  // primitive stand completes the as-is contract.
+  it("an unknown mark with a primitive value survives the round trip", () => {
+    const { a, id } = seedParagraph();
+    const content = (a.raw.getMap("blocks").get(id) as Y.Map<unknown>).get("content") as Y.Text;
+    content.format(0, 3, { wavyText: "v", wavyCount: 5 });
+    const restored = loadDoc(a.encode());
+    const runs = (restored.toJSON().blocks[id] as OpaqueBlock).content;
+    expect(runs?.[0]?.marks).toMatchObject({ wavyText: "v", wavyCount: 5 });
+    expect(restored.getText(id)).toBe("abcdef");
+    // The re-save keeps the primitive values (no loss on save).
+    const again = loadDoc(restored.encode());
+    expect((again.toJSON().blocks[id] as OpaqueBlock).content?.[0]?.marks).toMatchObject({
+      wavyText: "v",
+      wavyCount: 5,
+    });
+  });
 });

@@ -54,13 +54,14 @@ function markSetToAttrs(marks: MarkSet): Record<string, unknown> {
  * A Y.Text attribute object as a `MarkSet` (mirrors the snapshot reader:
  * `true` toggles kept, object values reduced to their string fields). The
  * cross-minor stand: an unknown mark name is preserved (its fields pass
- * through as-is, not only the string ones) — the data is not lost on save,
- * the reader/renderer stand the text without it, the strict validator
- * rejects it. A known mark's unknown fields stand the same pass-through
- * (a future minor's additive field on a known mark, any value shape);
- * a known field keeps the string stand (a non-string value on a known
- * field is corrupt data — a future minor cannot change a known field's
- * contract — and is dropped protectively).
+ * through as-is, not only the string ones), and a non-boolean primitive
+ * value (a future minor's additive value shape) is kept as-is — the data
+ * is not lost on save, the reader/renderer stand the text without it, the
+ * strict validator rejects it. A known mark's unknown fields stand the
+ * same pass-through (a future minor's additive field on a known mark, any
+ * value shape); a known field keeps the string stand (a non-string value
+ * on a known field is corrupt data — a future minor cannot change a known
+ * field's contract — and is dropped protectively).
  */
 function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
   const marks = {} as MarkSet;
@@ -84,6 +85,10 @@ function attrsToMarkSet(attributes?: Record<string, unknown> | null): MarkSet {
         setOwn(attrs, key, attrValue);
       }
       setOwn(marks, name, attrs);
+    } else {
+      // A non-boolean primitive (string / number): a future minor's
+      // additive value shape — kept as-is (the cross-minor stand).
+      setOwn(marks, name, value);
     }
   }
   return marks;
