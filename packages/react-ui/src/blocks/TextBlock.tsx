@@ -8,13 +8,14 @@ import type { Block, BlockId } from "docblocks-core";
 import { useCanvasTextEdit } from "../canvas/canvas-text-edit-context";
 import { editorRootOf } from "../editing/dom-offset";
 import { insertParagraphAfter } from "../editing/gutter-plus";
+import { useDeleteBlock } from "../editing/use-delete-block";
 import { useEditorContext } from "../editor-provider";
 import { useBlockContext } from "../shared/providers/block-context";
 import { Button } from "../shared/ui/Button";
 import { Checkbox } from "../shared/ui/Checkbox";
 import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
-import { GripVertical, Plus, TriangleFilled } from "../shared/ui/icons";
+import { GripVertical, Plus, Trash, TriangleFilled } from "../shared/ui/icons";
 import { textOf, useTextInner } from "../text/text-inner";
 import { CALLOUT_ICON_COMPONENTS, calloutIconName } from "./callout-icon";
 import { CodeCaption } from "./code/CodeCaption";
@@ -152,6 +153,7 @@ function TextBlock({
   codeBodyHidden = false,
 }: TextBlockProps) {
   const { doc, store, selection: selectionRef, commandPalettePlaceholder, viewMode } = useEditorContext();
+  const deleteBlock = useDeleteBlock();
   const blockContext = useBlockContext();
   // The cell context (the block's parent is a table cell): the block
   // keeps its text path, but the row chrome (the drag grip) and the
@@ -650,6 +652,30 @@ function TextBlock({
             style={gutterPlusShift}
           >
             <Plus />
+          </Button>
+        )}
+        {/* The row's delete affordance: the hover's trash icon at the row's
+            right edge (centered on the first line, as the grip). The click
+            is a true deletion — the Delete key's image special case (the
+            in-place conversion) stands for the key gesture only. */}
+        {!inCell && !onSurface && !viewMode && (
+          <Button
+            type="button"
+            data-slot="docblocks/gutter-delete"
+            aria-label="Delete block"
+            variant="ghost"
+            size="icon"
+            onClick={(event) => deleteBlock(event.currentTarget, id)}
+            onMouseDown={onControlMouseDown}
+            className={cn(
+              "absolute right-0 top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)]",
+              "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
+              "text-(--docblocks-gutter-color)",
+              "size-5",
+              selected && "opacity-100"
+            )}
+          >
+            <Trash />
           </Button>
         )}
         {block.type === "list-item" && block.attrs.list === "task" && (

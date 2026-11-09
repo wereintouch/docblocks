@@ -9,11 +9,12 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 
 import { BlockNodeView, FlatBlockView, indentOf, insertParagraphAfter, useBlockContext } from "../blocks";
 import { editorRootOf } from "../editing/dom-offset";
+import { useDeleteBlock } from "../editing/use-delete-block";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { Button } from "../shared/ui/Button";
 import { cn } from "../shared/ui/cn";
-import { GripVertical, Plus } from "../shared/ui/icons";
+import { GripVertical, Plus, Trash } from "../shared/ui/icons";
 import { ANIMATE, ENTER, EXIT, TEXT_ROW_TYPES, TRANSITION } from "./constants";
 import type { RowItemProps } from "./models";
 
@@ -42,6 +43,7 @@ const RowItem = memo(
     const dragControls = useDragControls();
     const rowRef = useRef<HTMLDivElement | null>(null);
     const { doc, store, selection: selectionRef, viewMode } = useEditorContext();
+    const deleteBlock = useDeleteBlock();
     const blockContext = useBlockContext();
     const isList = node.kind !== undefined;
     const block = useBlock(node.id);
@@ -223,6 +225,30 @@ const RowItem = memo(
             }}
           >
             <Plus />
+          </Button>
+        )}
+        {/* The row's delete affordance: the hover's trash icon at the row's
+            right edge (centered on the first line, as the grip). The click
+            is a true deletion — the Delete key's image special case (the
+            in-place conversion) stands for the key gesture only. */}
+        {needsRowGutter && (
+          <Button
+            type="button"
+            data-slot="docblocks/gutter-delete"
+            aria-label="Delete block"
+            variant="ghost"
+            size="icon"
+            onClick={(event) => deleteBlock(event.currentTarget, node.id)}
+            onMouseDown={onHandleMouseDown}
+            className={cn(
+              "absolute right-0 top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)]",
+              "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
+              "text-(--docblocks-gutter-color)",
+              "size-5",
+              selected && "opacity-100"
+            )}
+          >
+            <Trash />
           </Button>
         )}
         <BlockNodeView node={node} flat renderBlock={FlatBlockView} />

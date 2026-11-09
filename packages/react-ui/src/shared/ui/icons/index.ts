@@ -88,6 +88,7 @@ export { TextWrap } from "./TextWrap";
 export { Triangle } from "./Triangle";
 export { TriangleAlert } from "./TriangleAlert";
 export { TriangleFilled } from "./TriangleFilled";
+export { Trash } from "./Trash";
 export { Type } from "./Type";
 export { Underline } from "./Underline";
 export { X } from "./X";

@@ -191,7 +191,10 @@ test("the drag's release parks the focus on the editor root with no visible ring
   // browser's default focus ring would stand the visible ring over the
   // whole document after the release — the styles.css stand suppresses
   // it (the focus itself stays, only the ring is gone).
-  const outlineStyle = await a.locator('[data-slot="docblocks/editor"]').first().evaluate((el) => getComputedStyle(el).outlineStyle);
+  const outlineStyle = await a
+    .locator('[data-slot="docblocks/editor"]')
+    .first()
+    .evaluate((el) => getComputedStyle(el).outlineStyle);
   expect(outlineStyle).toBe("none");
 
   await close();

@@ -95,6 +95,7 @@ const ICON_SET = [
   "Triangle",
   "TriangleAlert",
   "TriangleFilled",
+  "Trash",
   "Type",
   "Underline",
   "X",
