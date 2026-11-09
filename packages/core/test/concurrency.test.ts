@@ -33,8 +33,9 @@ const exchange = (a: Doc, b: Doc): void => {
 };
 
 const expectBothPresent = (a: Doc, b: Doc, pa: string, pb: string): void => {
-  // Deep equality: Y.Map key order on concurrent peers is not part of the
-  // converged state (the block content and the root's children order are).
+  // Deep equality: the converged state (the block content and the root's
+  // children order); with the sorted block keys the peers' exports stand
+  // byte-identical too (the standalone pin below).
   expect(a.toJSON()).toEqual(b.toJSON());
   expect(a.toJSON().blocks).toHaveProperty(pa);
   expect(a.toJSON().blocks).toHaveProperty(pb);
@@ -70,6 +71,24 @@ describe("independent createDoc peers converge", () => {
     exchange(a, b);
 
     expectBothPresent(a, b, pa, pb);
+  });
+
+  it("converged peers export byte-identical JSON (the sorted block keys)", () => {
+    const a = createDoc({ id: "d1", createdAt: CREATED_AT, generateId: makeIds("a") });
+    const b = createDoc({ id: "d1", createdAt: CREATED_AT, generateId: makeIds("b") });
+
+    const pa = a.insertBlock("paragraph");
+    a.insertText(pa, 0, "from a");
+    const pb = b.insertBlock("paragraph");
+    b.insertText(pb, 0, "from b");
+
+    exchange(a, b);
+
+    // The export assembles the blocks in sorted id order: the Y.Map's
+    // creation-history order does not leak into the key order, so the
+    // converged peers' exports are byte-identical, not just deep-equal.
+    expect(JSON.stringify(a.toJSON())).toBe(JSON.stringify(b.toJSON()));
+    expect(Object.keys(a.toJSON().blocks)).toEqual([pa, pb, "d1"]);
   });
 
   it("twin fromJSON imports of the same fixture converge after one edit each", () => {

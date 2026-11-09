@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createDoc } from "../src/core";
 import type { Doc } from "../src/core";
@@ -7,7 +7,9 @@ import { localOriginOf } from "../src/core/layout";
 /**
  * Doc.transact: one local transaction = one Yjs update on the wire and one
  * undo step, however many commands it batches. A failing fn rolls the
- * batch back (this Yjs build has no transaction abort) and rethrows.
+ * batch back (this Yjs build has no transaction abort) and rethrows. A
+ * subscription handler's throw (the handlers fire inside the transaction)
+ * is isolated: the committed batch stands and the emission continues.
  */
 
 const CREATED_AT = "2026-01-01T00:00:00Z";
@@ -187,6 +189,49 @@ describe("transact atomicity", () => {
     expect(doc.canUndo).toBe(true);
     doc.undo();
     expect(doc.toJSON()).toEqual(rootOnly);
+  });
+});
+
+describe("the subscription handlers' throws", () => {
+  /** The listener fires inside the Yjs transaction: its throw must not roll
+   *  back the committed batch and must not abort the remaining handlers. */
+  it("a change handler's throw does not roll back the committed batch", () => {
+    const { doc, paragraph } = withParagraph();
+    const before = doc.toJSON();
+
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    doc.onChange(() => {
+      throw new Error("listener boom");
+    });
+
+    // No throw escapes to the caller; the batch is committed and undoable.
+    doc.transact(() => {
+      doc.insertText(paragraph, 0, "kept");
+    });
+
+    expect(doc.getText(paragraph)).toBe("kept");
+    expect(doc.canUndo).toBe(true);
+    doc.undo();
+    expect(doc.toJSON()).toEqual(before);
+    expect(consoleError).toHaveBeenCalled();
+    consoleError.mockRestore();
+  });
+
+  it("a first handler's throw does not abort the second handler's emission", () => {
+    const { doc } = withParagraph();
+    const seen: string[] = [];
+
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    doc.onChange(() => {
+      seen.push("first");
+      throw new Error("first handler boom");
+    });
+    doc.onChange(() => seen.push("second"));
+
+    doc.insertBlock("paragraph");
+
+    expect(seen).toEqual(["first", "second"]);
+    consoleError.mockRestore();
   });
 });
 

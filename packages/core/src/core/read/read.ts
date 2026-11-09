@@ -353,10 +353,17 @@ function toDocJSON(ydoc: Y.Doc): DocJSON {
   const meta = readMeta(ydoc);
   const blocks: Record<string, Block | OpaqueBlock> = {};
   const blocksMap = ydoc.getMap("blocks");
-  blocksMap.forEach((_, id) => {
+  // The blocks are assembled in sorted id order: the Y.Map's iteration order
+  // depends on the creation history, so peers that converge on the same
+  // content would otherwise export the same data in different key orders
+  // (the byte-identical peer export's stand; the JSON's object order is
+  // semantically irrelevant — the children's arrays carry the document
+  // order).
+  const ids = [...blocksMap.keys()].sort();
+  for (const id of ids) {
     const block = readBlockSnapshot(ydoc, id);
     if (block) setOwn(blocks, id, block);
-  });
+  }
   return { ...meta, blocks };
 }
 

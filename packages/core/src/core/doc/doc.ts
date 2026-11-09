@@ -447,6 +447,9 @@ class Doc {
    * propagates. A failed batch still emits a transient `onChange` emission
    * and a partial wire update before the rollback (CRDT property: the
    * rollback is best-effort on the wire; observable state converges).
+   * A subscription handler's throw (the handlers fire inside the
+   * transaction) is isolated — it stands the logged error and never rolls
+   * back a committed batch.
    */
   transact(fn: () => void): void {
     const ydoc = this.#ydoc;
