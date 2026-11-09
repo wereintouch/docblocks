@@ -21,7 +21,7 @@ import {
 } from "../ws-frames";
 import type { WsLike, WsSyncOptions } from "./models";
 import type { PendingStats } from "./models";
-import { defaultWebSocketImpl, parseSelection, swallowDecodeError } from "./parse";
+import { defaultWebSocketImpl, parsePresenceExtras, parseSelection, swallowDecodeError } from "./parse";
 
 /**
  * Standard y-protocols over WebSocket (the y-websocket wire), wire-
@@ -401,6 +401,7 @@ class WsSyncProvider implements SyncProvider {
         peerId: String(clientID),
         selection: parseSelection(state.selection),
         updatedAt: typeof state.updatedAt === "number" ? state.updatedAt : 0,
+        ...parsePresenceExtras(state),
       });
     });
     return peers;

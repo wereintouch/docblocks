@@ -24,6 +24,27 @@ interface PresenceState {
   selection: PresenceSelection | null;
   /** Unix milliseconds. Staleness handling (TTL) is a consumer concern. */
   updatedAt: number;
+  /**
+   * Consumer-provided stable user identity (optional; absent on legacy
+   * peers). `peerId` is the anonymous transport-level identifier —
+   * `userId` is the only addressable identity.
+   */
+  userId?: string;
+  /** Consumer-provided roster display label (optional). */
+  name?: string;
+  /**
+   * Opaque ciphertext selection entries (optional): one per share
+   * target, no target id inside the entry — the recipient tries each
+   * entry with its own decryptor. Absent when the peer shares with
+   * everyone (plaintext `selection`) or not at all.
+   */
+  selections?: string[];
+  /**
+   * Monotonic per-publisher selection publication counter (optional):
+   * the recipient discards a decrypted selection whose `seq` is older
+   * than the last accepted one for the peer (the async decrypt race).
+   */
+  seq?: number;
 }
 
 /**

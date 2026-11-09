@@ -31,6 +31,19 @@ function parseSelection(value: unknown): PresenceSelection | null {
   return null;
 }
 
+/** The sharing-contract presence extras (identity, ciphertext entries, the
+ *  publication counter): defensive validation, absent for legacy peers. */
+function parsePresenceExtras(value: unknown): { userId?: string; name?: string; selections?: string[]; seq?: number } {
+  if (typeof value !== "object" || value === null) return {};
+  const state = value as Record<string, unknown>;
+  const extras: { userId?: string; name?: string; selections?: string[]; seq?: number } = {};
+  if (typeof state.userId === "string") extras.userId = state.userId;
+  if (typeof state.name === "string") extras.name = state.name;
+  if (isStringArray(state.selections)) extras.selections = [...state.selections];
+  if (typeof state.seq === "number") extras.seq = state.seq;
+  return extras;
+}
+
 /** The default socket factory: the global WebSocket, normalized to WsLike. */
 const defaultWebSocketImpl = (url: string): WsLike => {
   const ws = new WebSocket(url);
@@ -53,4 +66,4 @@ const defaultWebSocketImpl = (url: string): WsLike => {
   return like;
 };
 
-export { defaultWebSocketImpl, parseSelection, swallowDecodeError };
+export { defaultWebSocketImpl, parsePresenceExtras, parseSelection, swallowDecodeError };
