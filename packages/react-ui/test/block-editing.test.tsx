@@ -151,6 +151,51 @@ describe("Enter: block split", () => {
     expect(doc.getText(ids[1]!)).toBe("b");
   });
 
+  it("Enter on the empty last line consumes the trailing soft break (no ghost line)", async () => {
+    let li: BlockId = "";
+    const doc = renderDoc((d) => {
+      li = d.insertBlock("list-item", { list: "bullet" });
+      d.insertText(li, 0, "abc\n");
+    });
+    const before = blockCount(doc);
+
+    // The caret stands on the empty last line (after the trailing soft
+    // break — the rendered line anchor carries no logical character).
+    caretAtFlat(li, 4);
+    key(wrapperOf(li), "Enter");
+
+    const ids = doc.getChildren(doc.meta.id);
+    expect(ids).toHaveLength(2);
+    const tailId = ids[1]!;
+    // The gesture consumes the trailing break (the exit parity over the
+    // gesture family): the first block stands without the ghost line, the
+    // new sibling is empty (same type and attrs).
+    expect(doc.getText(li)).toBe("abc");
+    expect(doc.getText(tailId)).toBe("");
+    const tail = doc.getBlock(tailId);
+    expect(tail?.type).toBe("list-item");
+
+    // One undo step restores the single block with the soft break.
+    act(() => {
+      doc.undo();
+    });
+    expect(blockCount(doc)).toBe(before);
+    expect(doc.getText(li)).toBe("abc\n");
+
+    // A mid-text split over a soft break keeps the current stand (the new
+    // block's leading break is the caret's new line — no data is dropped).
+    let p: BlockId = "";
+    const doc2 = renderDoc((d) => {
+      p = d.insertBlock("paragraph");
+      d.insertText(p, 0, "abc\ndef");
+    });
+    caretAtFlat(p, 3);
+    key(wrapperOf(p), "Enter");
+    const ids2 = doc2.getChildren(doc2.meta.id);
+    expect(doc2.getText(p)).toBe("abc");
+    expect(doc2.getText(ids2[1]!)).toBe("\ndef");
+  });
+
   it("a checked task's split spawns an UNCHECKED sibling (the check is not inherited)", () => {
     let t: BlockId = "";
     const doc = renderDoc((d) => {

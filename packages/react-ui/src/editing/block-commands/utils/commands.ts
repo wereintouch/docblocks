@@ -200,7 +200,11 @@ function copyRunsRange(
  *
  * Non-empty: a block of the same type and attrs (the indent included) is
  * inserted right after, the tail text (with marks) moves there, and the
- * tail is deleted.
+ * tail is deleted. A caret on the empty LAST line (the text ends with a
+ * soft line break) consumes that break: the gesture drops it and the new
+ * block stands empty (the quote/callout/code exit parity — without this
+ * the break would survive the split in the first block as a ghost empty
+ * line).
  * Empty: a child block (indent > 0) outdents one level (the type stands,
  * until the indent reaches 0); a root-level non-text block resets its type
  * to a plain paragraph (in place — the type-specific attrs are dropped, the
@@ -241,6 +245,14 @@ function splitAt(doc: Doc, id: BlockId, contextId: BlockId, offset: number): Blo
           return;
         }
         focusId = doc.insertBlock("paragraph", undefined, { parent: contextId, after: id });
+        return;
+      }
+      if (offset > 0 && offset === text.length && text.charCodeAt(offset - 1) === 0x0a) {
+        // The empty LAST line: the gesture consumes the trailing soft line
+        // break (the exit parity over the gesture family) — the new block
+        // stands empty, the ghost line must not survive the split.
+        focusId = insertSameTypeAfter(doc, block, contextId, id);
+        doc.deleteText(id, text.length - 1, text.length);
         return;
       }
       focusId = insertSameTypeAfter(doc, block, contextId, id);
