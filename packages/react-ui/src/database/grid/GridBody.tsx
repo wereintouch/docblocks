@@ -534,7 +534,7 @@ function GridBody({
 
   if (data.phase === "loading") {
     return (
-      <Card data-slot="docblocks/block" data-block-type="database" data-block-id={blockId}>
+      <Card data-slot="docblocks/block" data-block-type="database" data-block-id={blockId} className="min-h-0 flex-1">
         <CardContent data-slot="docblocks/database" data-state="loading" className="p-(--docblocks-block-spacing)">
           <span className="text-(length:--docblocks-font-size) text-(--docblocks-placeholder-color)">
             {t("state.loading")}
@@ -553,8 +553,8 @@ function GridBody({
         data-block-type="database"
         data-block-id={blockId}
         className="
-          my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-          border-(--docblocks-table-border-color) outline-none
+          my-(--docblocks-block-spacing) min-h-0 flex-1 rounded-(--docblocks-radius)
+          border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
         "
       >
         <CardContent
@@ -687,13 +687,13 @@ function GridBody({
       data-block-id={blockId}
       data-state="ready"
       className="
-        my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
-        border-(--docblocks-table-border-color) outline-none
+        my-(--docblocks-block-spacing) flex min-h-0 flex-1 flex-col rounded-(--docblocks-radius)
+        border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
       "
     >
       <CardContent
         data-slot="docblocks/database"
-        className="flex flex-col gap-(--docblocks-block-spacing) p-(--docblocks-block-spacing)"
+        className="flex min-h-0 flex-1 flex-col gap-(--docblocks-block-spacing) p-(--docblocks-block-spacing)"
       >
         <div data-slot="docblocks/database-toolbar" className="flex flex-wrap items-center gap-2">
           {nameDraft !== null ? (
@@ -827,7 +827,7 @@ function GridBody({
           </div>
         </div>
 
-        <ScrollArea data-slot="docblocks/database-grid">
+        <ScrollArea data-slot="docblocks/database-grid" className="min-h-0 flex-1">
           <div
             ref={tableRef}
             data-slot="docblocks/database-table"

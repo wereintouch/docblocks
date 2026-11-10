@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from "react";
 
 import { DocblocksI18nProvider } from "../../i18n";
+import { cn } from "../../shared/ui/cn";
 import type { DatabaseBridge } from "../bridge";
 import { GridBody } from "../grid/GridBody";
 import type { DatabaseTableView } from "./models";
@@ -19,6 +20,12 @@ interface DatabaseTableProps {
   view?: Partial<DatabaseTableView>;
   /** The view's change's hook (the persistence's stand; the patch = the changed's attrs only). */
   onViewChange?: (patch: Partial<DatabaseTableView>) => void;
+  /** The consumer's sizing / layout's classes over the root (the package's
+   *  token's scope's anchor + the flex-column's stand): the width stands the
+   *  consumer's layout (the grid's `w-full`'s parity), and a height-
+   *  constrained root stands the grid's inner scroll (the unconstrained's
+   *  stand is the content's height, as over the document's block). */
+  className?: string;
 }
 
 /**
@@ -30,9 +37,12 @@ interface DatabaseTableProps {
  * prop) + the consumer's persistence over the `onViewChange`'s patch
  * (one patch per change, as the block's `updateBlock` stand). The i18n's
  * scope stands self-contained (the package's instance — the same's stand
- * as the consumer-placed components).
+ * as the consumer-placed components). The sizing's stand is the
+ * consumer's: the `className` over the root (a height-constrained root
+ * stands the grid's inner scroll; the unconstrained's stand is the
+ * content's height).
  */
-function DatabaseTable({ bridge, tableId, readOnly = false, view, onViewChange }: DatabaseTableProps) {
+function DatabaseTable({ bridge, tableId, readOnly = false, view, onViewChange, className }: DatabaseTableProps) {
   const [viewState, setViewState] = useState<Partial<DatabaseTableView>>(view ?? EMPTY_VIEW);
   // The ref mirror stands the async tail's fresh read (the render-time
   // state stands stale over the await).
@@ -60,7 +70,11 @@ function DatabaseTable({ bridge, tableId, readOnly = false, view, onViewChange }
         consumer's convention) still stands the dark's mapping over the
         wrapper.
       */}
-      <div data-slot="docblocks/editor" data-readonly={readOnly ? "true" : undefined}>
+      <div
+        data-slot="docblocks/editor"
+        data-readonly={readOnly ? "true" : undefined}
+        className={cn("flex flex-col", className)}
+      >
         <GridBody
           bridge={bridge}
           tableId={tableId}

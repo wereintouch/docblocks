@@ -73,6 +73,29 @@ test("the standalone root anchors the package's token scope (the computed tokens
     .toBe(2);
 });
 
+test("the consumer's className's constrained root stands the grid's inner scroll", async ({ page }) => {
+  const demo = await demoTable(page);
+  await page.locator(`[data-testid='tables-item'][data-table-id='${demo.id}']`).click();
+  await expect(page.locator("[data-slot='docblocks/database-grid']")).toBeVisible(SETTLE);
+
+  // The unconstrained's stand: the grid stands the content's height
+  // (no inner scroll — the document's block's parity).
+  const unconstrained = await page
+    .locator("[data-slot='docblocks/database-grid']")
+    .evaluate((element) => ({ client: element.clientHeight, scroll: element.scrollHeight }));
+  expect(unconstrained.scroll).toBe(unconstrained.client);
+
+  // The consumer's constraint (the root's height over the component's
+  // `className`): the grid stands the inner scroll over the toolbar +
+  // header + rows.
+  await page.addStyleTag({ content: ".tables-table { height: 120px; }" });
+  const constrained = await page
+    .locator("[data-slot='docblocks/database-grid']")
+    .evaluate((element) => ({ client: element.clientHeight, scroll: element.scrollHeight }));
+  expect(constrained.client).toBeLessThan(120);
+  expect(constrained.scroll).toBeGreaterThan(constrained.client);
+});
+
 test("the create's stand: the list's grow + the grid's render over the new table", async ({ page }) => {
   await page.locator("[data-testid='tables-create-input']").fill("Tasks");
   await page.locator("[data-testid='tables-create']").click();

@@ -246,4 +246,32 @@ describe("DatabaseTable (the standalone's grid over the bridge's table id)", () 
     await settleGrid();
     expect(cell.querySelector("[data-slot='docblocks/database-cell-input']")).toBeNull();
   });
+
+  it("the className's stand over the root + the constrained height's inner scroll's plumbing", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId } = await seedTable(bridge);
+
+    render(<DatabaseTable bridge={bridge} tableId={tableId} className="h-96" />);
+    for (let i = 0; i < 4; i++) await settleGrid();
+
+    // The consumer's classes merge over the root (the package's stand's
+    // flex-column's stand + the consumer's own).
+    const root = document.querySelector<HTMLElement>("[data-slot='docblocks/editor']")!;
+    expect(root.className).toContain("h-96");
+    expect(root.className).toContain("flex");
+    expect(root.className).toContain("flex-col");
+
+    // The grid's chain stands the scroll's plumbing (the constrained's
+    // height's stand: the card's fill + the content's shrink + the
+    // grid's scroll's region); the unconstrained's context stands the
+    // content's height (the e2e's pin over a real layout).
+    const card = document.querySelector<HTMLElement>("[data-slot='docblocks/block'][data-state='ready']")!;
+    expect(card.className).toContain("flex-1");
+    expect(card.className).toContain("min-h-0");
+    expect(card.className).toContain("flex-col");
+    expect(document.querySelector<HTMLElement>("[data-slot='docblocks/database']")!.className).toContain("min-h-0");
+    const grid = document.querySelector<HTMLElement>("[data-slot='docblocks/database-grid']")!;
+    expect(grid.className).toContain("flex-1");
+    expect(grid.className).toContain("min-h-0");
+  });
 });

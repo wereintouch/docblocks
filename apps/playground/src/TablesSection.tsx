@@ -167,7 +167,9 @@ function TablesSection() {
 
         <div className="tables-grid" data-testid="tables-grid">
           {selected !== null ? (
-            <DatabaseTable bridge={databaseBridge} tableId={selected.id} readOnly={readOnly} />
+            // The `className`'s stand (the e2e's sizing's pin injects the
+            // `.tables-table`'s height's constraint over it).
+            <DatabaseTable bridge={databaseBridge} tableId={selected.id} readOnly={readOnly} className="tables-table" />
           ) : (
             <p className="tables-desc">select a table</p>
           )}

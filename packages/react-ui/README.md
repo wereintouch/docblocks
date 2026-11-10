@@ -422,7 +422,8 @@ function TablesSection({ bridge }: { bridge: DatabaseBridge }) {
 }
 ```
 
-- `DatabaseTable({ bridge, tableId, readOnly?, view?, onViewChange? })` —
+- `DatabaseTable({ bridge, tableId, readOnly?, view?, onViewChange?,
+className? })` —
   the live grid over the bridge's table id (the same data stand as the
   document block: the schema, the rows, the live events, the optimistic
   cell layer). The view's settings (`filter`, `columnOrder`,
@@ -430,7 +431,12 @@ function TablesSection({ bridge }: { bridge: DatabaseBridge }) {
   the optional `view` prop at mount); `onViewChange(patch)` receives one
   patch per change for the consumer's persistence (the controlled mode
   stands absent — the state is never external). `readOnly` gates the
-  editing's paths (the read-only block's parity). The component is
+  editing's paths (the read-only block's parity). The sizing's stand is
+  the consumer's: the grid stands the root's width (`w-full`), and the
+  `className` over the root (the component's own classes stand merged
+  over it) — a height-constrained root stands the grid's inner scroll
+  (the unconstrained's stand is the content's height, as over the
+  document's block). The component is
   self-contained: it wraps itself in the package's i18n scope and anchors
   the `--docblocks-*` token scope over its own root, so it themes
   standalone over the consumer's page (the `dark` class over an ancestor
