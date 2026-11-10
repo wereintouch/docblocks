@@ -1,10 +1,12 @@
 /**
  * The page-frame block's renderer: the inline window into the referenced
- * canvas frame's surface — the same window the canvas frame stands
- * (FrameWindowContent over the window's offset; the box's background the
- * canvas's own background + the dot grid phase-aligned to the world's
- * grid; the container's thin rounded border), inlined in the page flow at
- * 1:1 (no fit/zoom controls — the v1 boundary). The box's height is the
+ * canvas frame's surface — the content's mirror (FrameWindowContent over
+ * the window's offset; the box's background the canvas's own background +
+ * the dot grid phase-aligned to the world's grid; the container's thin
+ * rounded border), inlined in the page flow at
+ * 1:1 (no fit/zoom controls — the v1 boundary). The canvas frame stands the
+ * boundary only (a region marker) — this page block is the sole renderer
+ * of the frame's content. The box's height is the
  * referenced frame's 1:1; the width is the frame's width clipped to the
  * row's measured width (the window's center stays at the frame's center —
  * a narrow row clips the wide window horizontally, the offset and the dot
@@ -144,11 +146,11 @@ function FramePageWindow({
     height: boxH,
   };
   const title = referenced.attrs?.title ?? "";
-  // The frame-chain's references stand memoized (the stable references
-  // keep the window's copies' CanvasItem memo intact over the box's
-  // re-renders — the row's re-measure's stand).
+  // The referenced frame's box stands out of its own page window
+  // (excludedIds): a frame does not render its own boundary inside the
+  // window it defines. The reference stands memoized (the window's copies'
+  // CanvasItem memo over the stable reference — the row's re-measure's stand).
   const excludedIds = useMemo(() => [frameId], [frameId]);
-  const frameChain = useMemo(() => new Set([frameId]), [frameId]);
 
   return (
     <div
@@ -174,13 +176,9 @@ function FramePageWindow({
         <FrameWindowContent
           surfaceId={surfaceId}
           offset={offset}
-          // The frame-chain's stand of the page-frame block: the referenced
-          // frame does not render its own box inside its own page window
-          // (excludedIds), the nested frames stand with the chain {frameId}.
-          // The references stand memoized (the window's copies' CanvasItem
-          // memo over the stable references).
+          // The page-frame block's stand: the referenced frame does not
+          // render its own box inside its own page window (excludedIds).
           excludedIds={excludedIds}
-          frameChain={frameChain}
         />
       </div>
     </div>

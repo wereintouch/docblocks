@@ -204,10 +204,9 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // carries none of it as page rows (no surface viewport, no shapes /
   // canvas-text / connector line as rows). The page-frame block renders its
   // window over the canvas content instead: the inert copies stand inside
-  // the window's slot (the frame-chain's stand — the referenced frame A
-  // stands out of its own window, and frame B's copy re-renders the
-  // surface's content inside its own window: 8 shape copies = 4 direct + 4
-  // over frame B's window).
+  // the window's slot (the referenced frame A stands out of its own window;
+  // frame B stands its boundary over the window — the canvas frame's mirror
+  // is gone, so the surface's copies stand once, no nested re-render).
   expect(await doc.locator('[data-block-type="surface"]').count()).toBe(0);
   // The page-frame block's row (the window's wrapper + the box over the
   // canvas's background; the reference's title stands the box's aria).
@@ -217,12 +216,14 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   expect(await pageWindow.count()).toBe(1);
   expect(await pageWindow.getAttribute("aria-label")).toBe("Frame: Frame A");
   // The window's inert copies (the surface's children over the referenced
-  // frame's region, clipped to the box).
-  expect(await pageWindow.locator('[data-slot="docblocks/shape"]').count()).toBe(8);
+  // frame's region, clipped to the box — 4 shapes, frame B's boundary, the
+  // canvas-text, the connector, each once: the canvas frame's boundary
+  // renders no nested window's copy).
+  expect(await pageWindow.locator('[data-slot="docblocks/shape"]').count()).toBe(4);
   expect(await pageWindow.locator('[data-slot="docblocks/frame"]').count()).toBe(1);
-  expect(await pageWindow.locator('[data-block-type="canvas-text"]').count()).toBe(2);
-  expect(await pageWindow.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]').count()).toBe(2);
-  expect(await pageWindow.locator('[data-slot="docblocks/connector-label-chip"]').count()).toBe(2);
+  expect(await pageWindow.locator('[data-block-type="canvas-text"]').count()).toBe(1);
+  expect(await pageWindow.locator('[data-slot="docblocks/connector-layer"] path[data-connector-id]').count()).toBe(1);
+  expect(await pageWindow.locator('[data-slot="docblocks/connector-label-chip"]').count()).toBe(1);
   // And the canvas layer stands nowhere OUTSIDE the window (the page rows
   // carry no canvas element — the copies are the window's content, not
   // rows).
@@ -474,30 +475,23 @@ test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
   await expect(doc.locator('[data-slot="docblocks/frame"]')).toHaveCount(1);
   await expect(doc.locator('[data-slot="docblocks/frame-page-window"]')).toHaveCount(1);
 
-  // The canvas view: the two seeded frames (the viewport windows) + the
-  // window copies the frame-chain's stand (a frame's window shows the
-  // surface's children minus itself — the other frame stands inside each
-  // window at the world's position, clipped out of the box's region but
-  // present in the DOM: frame B in frame A's window and vice versa) +
-  // frame B's copy over the page card's page-frame window (the page
-  // miniature's window is the same window over the canvas's content).
-  // The window's box reads the canvas's tokens: the true window's
-  // clipping (overflow hidden), the canvas's own background (the seamless
-  // continuation over the hidden content), the container's thin rounded
-  // ring (the inset shadow over the group-border token) and the radius
-  // token — the window reads the canvas's surface tokens, no frame of its
-  // own.
+  // The canvas view: the two seeded frames (the region boundaries — the
+  // transparent box, no content copy) + the page miniature's page-frame
+  // window's copy (the frame block's mirror over the canvas's content).
+  // The boundary's box reads the canvas's tokens: the container's thin
+  // rounded ring (the inset shadow over the group-border token) and the
+  // radius token — the boundary is transparent (no content copy, no canvas
+  // background).
   await switchPaneView(page, "a", "canvas");
   const frame = doc.locator('[data-slot="docblocks/frame"]');
-  await expect(frame).toHaveCount(5);
-  const window = doc.locator('[data-slot="docblocks/frame-window"]').first();
-  const windowStyle = await styleProps(window, "overflow", "background-color", "box-shadow", "border-radius");
-  expect(windowStyle["overflow"]).toBe("hidden");
+  await expect(frame).toHaveCount(3);
+  const boundary = doc.locator('[data-slot="docblocks/frame-boundary"]').first();
+  const boundaryStyle = await styleProps(boundary, "box-shadow", "border-radius");
   // The token's own value over a probe element INSIDE the editor root
   // (the --docblocks-* tokens are scoped to the editor's root, not :root —
   // the body's probe resolves them as unset) — the resolved stand over the
-  // box's own read: the background reads the canvas-background token
-  // as-is, the ring the group-border token as the inset shadow's color.
+  // box's own read: the ring the group-border token as the inset shadow's
+  // color.
   const tokenProbe = (styleName: string, value: string) =>
     editor(page)
       .first()
@@ -514,13 +508,10 @@ test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
         },
         [styleName, value]
       );
-  expect(windowStyle["background-color"]).toBe(
-    await tokenProbe("background-color", "var(--docblocks-canvas-background)")
-  );
-  expect(windowStyle["box-shadow"]).toBe(
+  expect(boundaryStyle["box-shadow"]).toBe(
     await tokenProbe("box-shadow", "inset 0 0 0 1px var(--docblocks-canvas-group-border-color)")
   );
-  expect(windowStyle["border-radius"]).toBe(await tokenProbe("border-radius", "var(--docblocks-radius)"));
+  expect(boundaryStyle["border-radius"]).toBe(await tokenProbe("border-radius", "var(--docblocks-radius)"));
 });
 
 test("the document canvas view and the page card read the zone-4 tokens", async ({ page }) => {

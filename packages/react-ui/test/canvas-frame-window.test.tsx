@@ -1,17 +1,20 @@
 // @vitest-environment jsdom
-// The canvas frame's viewport window (the reworked frame): the window's
-// offset math (the world's origin over the box's local point), the dot
-// grid's phase alignment (the world grid over the box's top-left), the
-// frame chain's cycle guard (a frame inside another frame's window; a
-// frame does not render itself), the inert surface layer (the copies'
-// pointer-transparent stand), and the frame's move preview (the window's
-// pan over the still content).
+// The frame window's content (FrameWindowContent — the page-frame block's
+// mirror's render): the window's offset math (the world's origin over the
+// box's local point), the dot grid's phase alignment (the world grid over
+// the box's top-left), the content's exclusion (the referenced frame stands
+// out of its own window), the inert surface layer (the copies'
+// pointer-transparent stand), and the shared title chip (the group's / the
+// frame's slots). The canvas frame stands the boundary only (no content
+// copy) — the mirror's render stands on this component (the page-frame
+// block's stand).
 import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
+import { FrameWindowContent } from "../src/canvas/FrameWindowContent";
 import { DOT_GRID_STEP_PX, frameDotBackground, frameWindowOffset } from "../src/canvas/geometry";
 import { EditorProvider } from "../src/editor-provider";
 
@@ -28,17 +31,9 @@ function canvasIdGenerator(): () => string {
   };
 }
 
-interface Rendered {
-  doc: TestDoc;
-  view: HTMLElement;
-  surface: string;
-  a: string;
-  frame1: string;
-  frame2: string;
-}
-
 /** The window's scene: the surface + a shape + a labeled connector + the
- * two frames (the second's inside the first's window — the chain's stand). */
+ * two frames (the frame1's exclusion's stand — the reference stands out of
+ * its own window). */
 function seedScene(doc: TestDoc): { surface: string; a: string; frame1: string; frame2: string } {
   const surface = doc.insertBlock("surface");
   const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
@@ -55,24 +50,22 @@ function seedScene(doc: TestDoc): { surface: string; a: string; frame1: string; 
   return { surface, a, frame1, frame2 };
 }
 
-function renderScene(): Rendered {
-  const doc = createDoc({ id: "frame-window-doc", createdAt: CREATED_AT, generateId: canvasIdGenerator() });
-  const { surface, a, frame1, frame2 } = seedScene(doc);
+/** Render the frame window's content directly (the page-frame block's
+ * stand — the component's self-contained SurfaceLayer). */
+function renderWindow(
+  doc: TestDoc,
+  surfaceId: string,
+  offset: { left: number; top: number },
+  excludedIds?: readonly string[]
+): HTMLElement {
   const { container } = render(
     <EditorProvider doc={doc}>
-      <Editor view="canvas" />
+      <div style={{ width: 300, height: 200, position: "relative" }}>
+        <FrameWindowContent surfaceId={surfaceId} offset={offset} excludedIds={excludedIds} />
+      </div>
     </EditorProvider>
   );
-  const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
-  if (view === null) throw new Error("the canvas view is missing");
-  return { doc, view, surface, a, frame1, frame2 };
-}
-
-/** The frame's window's content (the query's helper — the missing's error). */
-function windowContent(view: HTMLElement, frameId: string): HTMLElement {
-  const frame = view.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${frameId}"]`);
-  if (frame === null) throw new Error("the frame is missing");
-  const content = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']");
+  const content = container.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']");
   if (content === null) throw new Error("the window's content is missing");
   return content;
 }
@@ -129,15 +122,14 @@ describe("frameDotBackground (the dot grid's phase over the world's grid)", () =
   });
 });
 
-describe("the window's render (the offset / the content's parity)", () => {
+describe("FrameWindowContent's render (the offset / the content's parity)", () => {
   it("stands the content over the window's offset (the shape's world parity)", () => {
-    const { view, frame1, a } = renderScene();
-    const frame = view.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${frame1}"]`)!;
-    // The window's content's anchor (the world's origin's box-local point):
-    // the frame at (100, 50) 300x200 stands the offset (150 - 100, 100 -
+    const doc = createDoc({ id: "frame-window-doc", createdAt: CREATED_AT, generateId: canvasIdGenerator() });
+    const { surface, a } = seedScene(doc);
+    // The frame at (100, 50) 300x200 stands the offset (150 - 100, 100 -
     // 50) = (50, 50).
-    const content = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
-    expect(content).not.toBeNull();
+    const content = renderWindow(doc, surface, { left: 50, top: 50 });
+    // The window's content's anchor (the world's origin's box-local point).
     const anchor = content.firstElementChild as HTMLElement | null;
     expect(anchor?.style.left).toBe("50px");
     expect(anchor?.style.top).toBe("50px");
@@ -149,76 +141,38 @@ describe("the window's render (the offset / the content's parity)", () => {
     expect(copy.style.left).toBe("calc(50% + 10px)");
     expect(copy.style.top).toBe("calc(50% + 20px)");
   });
-
-  it("stands the move's preview (the window's pan over the still content)", () => {
-    const { view, frame1 } = renderScene();
-    const wrapper = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${frame1}"]`)!;
-    const content = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
-    const anchor = content.firstElementChild as HTMLElement | null;
-    expect(anchor?.style.left).toBe("50px");
-    // The press + the drag (the move session — the 3px threshold crossed,
-    // the zoom's 1x scale): the wrapper stands the +30 offset, the
-    // content's offset re-stands (the window's pan — the content stands
-    // over its world's coordinates).
-    fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, buttons: 1, pointerId: 1 });
-    fireEvent.pointerMove(view, { clientX: 40, clientY: 10, buttons: 1, pointerId: 1 });
-    expect(wrapper.style.transform).toBe("translate(-50%, -50%) translate(30px, 0px)");
-    expect(anchor?.style.left).toBe("20px"); // 50 - 30: the origin re-stands
-    expect(anchor?.style.top).toBe("50px"); // no vertical's delta
-    // The release's commit (the one setGeometry over the effective's
-    // stand).
-    fireEvent.pointerUp(view, { pointerId: 1 });
-    const geometry = view.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${frame1}"]`
-    )!.style;
-    expect(geometry.left).toBe("calc(50% + 130px)");
-    expect(geometry.top).toBe("calc(50% + 50px)");
-  });
 });
 
-describe("the frame chain's cycle guard", () => {
-  it("stands the frame inside another frame's window (the chain's growth)", () => {
-    const { view, frame1, frame2, a } = renderScene();
-    // Frame1's window: the surface's children minus frame1 (the frame2's
-    // copy stands — its chain stands {frame1}).
-    const window1 = windowContent(view, frame1);
-    expect(window1.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame2}"]`)).not.toBeNull();
-    expect(window1.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)).not.toBeNull();
+describe("the content's exclusion (the referenced frame's stand out)", () => {
+  it("stands the excluded frame out of the window's content", () => {
+    const doc = createDoc({ id: "frame-exclusion-doc", createdAt: CREATED_AT, generateId: canvasIdGenerator() });
+    const { surface, a, frame1, frame2 } = seedScene(doc);
+    // The frame1's window: the surface's children minus frame1 (the
+    // referenced frame stands out of its own window).
+    const content = renderWindow(doc, surface, { left: 50, top: 50 }, [frame1]);
+    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame2}"]`)).not.toBeNull();
+    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)).not.toBeNull();
     // The frame1 does not stand inside its own window (the self's
     // exclusion).
-    expect(window1.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame1}"]`)).toBeNull();
-  });
-
-  it("stands the nested copy's exclusion (the chain's frames + the self)", () => {
-    const { view, frame1, frame2, a } = renderScene();
-    // The frame2's copy inside the frame1's window: the chain {frame1} +
-    // the self — the content stands the surface's children minus
-    // {frame1, frame2}: the shape + the connector stand, the frames do
-    // not (the recursion's stand — the chain's strict growth).
-    const window1 = windowContent(view, frame1);
-    const nestedFrame2 = window1.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${frame2}"]`
-    )!;
-    const nestedWindow = nestedFrame2.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
-    expect(nestedWindow.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${a}"]`)).not.toBeNull();
-    expect(nestedWindow.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame1}"]`)).toBeNull();
-    expect(nestedWindow.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame2}"]`)).toBeNull();
+    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${frame1}"]`)).toBeNull();
   });
 
   it("stands the labeled connector's chip over the window's content", () => {
-    const { view, frame1 } = renderScene();
-    const window1 = windowContent(view, frame1);
+    const doc = createDoc({ id: "frame-connector-doc", createdAt: CREATED_AT, generateId: canvasIdGenerator() });
+    const { surface, frame1 } = seedScene(doc);
+    const content = renderWindow(doc, surface, { left: 50, top: 50 }, [frame1]);
     // The connector's label's chip stands over the window's content (the
     // world's parity — the chip stands over the line's midpoint).
-    expect(window1.querySelector("[data-connector-label]")).not.toBeNull();
-    expect(window1.querySelector("[data-connector-label]")!.textContent).toBe("bridge");
+    expect(content.querySelector("[data-connector-label]")).not.toBeNull();
+    expect(content.querySelector("[data-connector-label]")!.textContent).toBe("bridge");
   });
 });
 
 describe("the inert's surface layer (the copies' stand)", () => {
   it("stands the content's pointer-transparent and the ports' dots' stand off", () => {
-    const { view, frame1 } = renderScene();
-    const content = windowContent(view, frame1);
+    const doc = createDoc({ id: "frame-inert-doc", createdAt: CREATED_AT, generateId: canvasIdGenerator() });
+    const { surface, frame1 } = seedScene(doc);
+    const content = renderWindow(doc, surface, { left: 50, top: 50 }, [frame1]);
     // The inert's stand: the whole layer's pointer-transparent (the
     // copies' stand is the render only).
     expect(content.className).toContain("pointer-events-none");

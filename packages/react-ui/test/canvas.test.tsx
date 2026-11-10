@@ -249,12 +249,12 @@ describe("canvas scene", () => {
     )!;
     expect(wrapper.style.fontSize).toBe("20px");
     expect(wrapper.style.textAlign).toBe("center");
-    // The text stands twice (the original + the frame's window's copy —
-    // the inert's copy's stand). The inner's stand is the inert's rest
-    // (the edit session's open over the double-click's entry stands the
-    // editable — the press's contract: the single click stands the
-    // selection, no caret).
-    expect(screen.getAllByText("Canvas text").length).toBe(2);
+    // The text stands once (the original — the canvas frame is a region
+    // marker, no content copy). The inner's stand is the rest (the edit
+    // session's open over the double-click's entry stands the editable —
+    // the press's contract: the single click stands the selection, no
+    // caret).
+    expect(screen.getAllByText("Canvas text").length).toBe(1);
     const editable = wrapper.querySelector<HTMLElement>(
       `[data-slot="docblocks/block-content"][data-block-id="${IDS.text}"]`
     )!;
@@ -531,41 +531,26 @@ describe("canvas: the connector's style attrs", () => {
 });
 
 describe("canvas: frame (the viewport window)", () => {
-  it("renders the window (the border / the canvas background / the true clipping) and stands no nested content", () => {
+  it("renders the boundary (the border) and stands no content copy", () => {
     const doc = renderScene({ view: "canvas" });
     const frame = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"]`)!;
     expect(frame).not.toBeNull();
-    const box = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-window']")!;
-    // The true window: the content is clipped at the box.
-    expect(box.className).toContain("overflow-hidden");
+    const box = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-boundary']")!;
+    // The boundary: a transparent region marker (no content copy, no
+    // canvas background, no dot grid — the canvas's own figures stand
+    // behind it).
     expect(box.className).toContain("rounded-(--docblocks-radius)");
-    // The canvas's own background: the color + the 24px dot grid (the
-    // world grid's phase — the box at (300, -120) 260x200 stands the
-    // top-left world corner at (170, -220): the phase 170 mod 24 = 2 →
-    // the dot's half-step offset 12 - 2 = 10; -220's phase 20 →
-    // 12 - 20 + 24 = 16).
-    expect(box.style.backgroundColor).toBe("var(--docblocks-canvas-background)");
-    expect(box.style.backgroundImage).toBe(
-      "radial-gradient(circle, var(--docblocks-canvas-view-dot) 1px, transparent 1px)"
-    );
-    expect(box.style.backgroundSize).toBe("24px 24px");
-    expect(box.style.backgroundPosition).toBe("10px 16px");
+    expect(box.style.backgroundColor).toBe("");
+    expect(box.style.backgroundImage).toBe("");
     // The container's thin rounded border: the 1px inset ring (the resting
     // stand over the canvas group's border token).
     expect(box.style.boxShadow).toBe("inset 0 0 0 1px var(--docblocks-canvas-group-border-color)");
-    // The frame is childless: the content is the surface's window copy, not
-    // the frame's children (the nested-page's stand is gone).
+    // The frame is childless: the boundary stands no nested content.
     expect(doc.getChildren(IDS.frame)).toEqual([]);
     expect(frame.querySelector("h1")).toBeNull();
-    // The window's content stands the surface's items (the inert copy — the
-    // rect stands inside the window, not as a direct surface's item twice:
-    // the copy's wrapper stands inside the window's content's stand).
-    const content = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-window-content']")!;
-    expect(content).not.toBeNull();
-    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${IDS.rect}"]`)).not.toBeNull();
-    // The frame's cycle guard: the frame does not stand inside its own
-    // window.
-    expect(content.querySelector(`[data-slot='docblocks/canvas-item'][data-block-id="${IDS.frame}"]`)).toBeNull();
+    // The boundary stands no mirror's content (the canvas frame is a region
+    // marker — the mirror's render stands on the page-frame block).
+    expect(frame.querySelector("[data-slot='docblocks/frame-window-content']")).toBeNull();
   });
 
   it("stands the selection's outline over the window (the ring's switch to the selection's color)", () => {
@@ -573,7 +558,7 @@ describe("canvas: frame (the viewport window)", () => {
     const wrapper = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]`
     )!;
-    const box = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-window']")!;
+    const box = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-boundary']")!;
     expect(wrapper.hasAttribute("data-selected")).toBe(false);
     expect(box.style.outline).toBe("");
     // The press selects the frame (the window's content is pointer-

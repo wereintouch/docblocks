@@ -20,25 +20,20 @@ import { ConnectorLabelChips } from "./canvas-view/ConnectorLabelChips";
 import { SurfaceLayer } from "./canvas-view/SurfaceLayer";
 
 const EMPTY_IDS: BlockId[] = [];
-const EMPTY_CHAIN: ReadonlySet<BlockId> = new Set();
 
 function FrameWindowContent({
   surfaceId,
   offset,
   excludedIds = EMPTY_IDS,
-  frameChain = EMPTY_CHAIN,
   className,
 }: {
   /** The surface whose children stand the window's content. */
   surfaceId: BlockId;
   /** The box-local position of the surface's world origin (0,0). */
   offset: { left: number; top: number };
-  /** The children the window's content excludes (the frame chain's stand
-   * + the window's own frame). */
+  /** The children the window's content excludes (the window's own frame —
+   *  the reference stands out of its own window). */
   excludedIds?: readonly BlockId[];
-  /** The frames this window renders inside of (the nested frame's chain
-   * stand — the chain grows one id per nesting level). */
-  frameChain?: ReadonlySet<BlockId>;
   className?: string;
 }) {
   const surface = useBlock(surfaceId);
@@ -59,7 +54,6 @@ function FrameWindowContent({
           kbFocusId={null}
           inert
           excludedIds={excludedIds}
-          frameChain={frameChain}
         />
         <ConnectorLabelChips children={children} />
       </div>

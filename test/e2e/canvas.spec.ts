@@ -148,27 +148,8 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
           SETTLE
         )
         .toBe(true);
-      // The frame's window's content stands the surface's layer as inert
-      // copies (the frame A's window over the rounded shape + the note —
-      // the copies' render, clipped to the box; the nested frame's copies'
-      // windows stand inside the outer's content, so the stand's read
-      // stands on the outer's content's text).
-      const windowContent = c
-        .locator(
-          `[data-slot="docblocks/canvas-item"][data-block-id="${frameA}"] [data-slot="docblocks/frame-window-content"]`
-        )
-        .first();
-      await expect
-        .poll(
-          async () => await windowContent.evaluate((el) => el.textContent?.includes("Canvas note") ?? false),
-          SETTLE
-        )
-        .toBe(true);
-      await expect
-        .poll(async () => await windowContent.evaluate((el) => el.textContent?.includes("Shape text") ?? false), SETTLE)
-        .toBe(true);
-      // The originals stand outside the window too (the note's direct
-      // wrapper over the layer — the stand's read excludes the copies).
+      // The originals stand (the note's direct wrapper over the layer —
+      // the frame is a region marker, no content copy).
       const note = await childByStand(pane, client, { type: "canvas-text" });
       expect(note).not.toBeNull();
       await expect
@@ -207,61 +188,6 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
     const { children } = await surfaceInfo(a, "a");
     expect(await canvasItemOrder(a, "a")).toEqual(children);
     expect(await canvasItemOrder(b, "b")).toEqual(children);
-  } finally {
-    await close();
-  }
-});
-
-test("the frame's window copies are inert (the layer stands pointer-transparent) and re-stand live over the wire (the edit's commit re-stands the other pane's copies)", async ({
-  browser,
-}) => {
-  const { a, b, close } = await twoPanes(browser, "ext05-frame-edit");
-  try {
-    await insertType(a, "a", "canvas");
-    await toCanvas(a, "a");
-    await toCanvas(b, "b");
-
-    const frameA = await childByStand(a, "a", { type: "frame", title: "Frame A" });
-    expect(frameA).not.toBeNull();
-    const note = await childByStand(a, "a", { type: "canvas-text" });
-    expect(note).not.toBeNull();
-
-    // The window's content layer stands pointer-transparent (the inert's
-    // stand — the copies' render stands, the interaction stands on the
-    // originals outside the window). The outer's content (the nested
-    // frame's copies' windows stand inside it — the first stand).
-    const windowContent = canvas(a, "a")
-      .locator(
-        `[data-slot="docblocks/canvas-item"][data-block-id="${frameA}"] [data-slot="docblocks/frame-window-content"]`
-      )
-      .first();
-    await expect(windowContent).toHaveCSS("pointer-events", "none");
-
-    // The note's copy stands inside pane A's window before the edit.
-    await expect
-      .poll(async () => await windowContent.evaluate((el) => el.textContent?.includes("Canvas note") ?? false))
-      .toBe(true);
-
-    // Edit the note directly over pane A's doc (the command API) — the
-    // edit's commit stands the original + the window's copies over the
-    // wire (pane B's copies' re-stand).
-    await a.evaluate(
-      ({ note }) => {
-        if (note === null) return;
-        const doc = window.__paneDocs?.a ?? null;
-        if (doc === null) return;
-        doc.insertText(note, doc.getText(note).length, " edited");
-      },
-      { note }
-    );
-    await expect(canvas(b, "b").getByText("Canvas note edited").first()).toBeVisible();
-    await expect
-      .poll(async () => await windowContent.evaluate((el) => el.textContent?.includes("Canvas note edited") ?? false))
-      .toBe(true);
-    // …and pane B's JSON carries the edit (the wire's parity).
-    await expect
-      .poll(async () => b.evaluate((note) => window.__paneDocs?.b?.getText(note) ?? "", note as string), SETTLE)
-      .toBe("Canvas note edited");
   } finally {
     await close();
   }

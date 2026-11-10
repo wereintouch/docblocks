@@ -40,7 +40,6 @@ function SurfaceLayer({
   kbFocusId = null,
   inert = false,
   excludedIds,
-  frameChain,
 }: {
   id: BlockId;
   children: BlockId[];
@@ -66,13 +65,11 @@ function SurfaceLayer({
    *  The layer's content stand at the world's origin (the zero-size box
    *  anchor — the caller's window's offset places the origin). */
   inert?: boolean;
-  /** The children the layer does not render (the frame chain's cycle
-   *  guard — the chain's frames + the window's own frame). The siblings'
-   *  context keeps them (the endpoint's resolution stands the full list). */
+  /** The children the layer does not render (the frame window's excluded's
+   *  stand — the referenced frame stands out of its own page window). The
+   *  siblings' context keeps them (the endpoint's resolution stands the
+   *  full list). */
   excludedIds?: readonly BlockId[];
-  /** The frames this layer renders inside of (the window's cycle guard —
-   *  the frame's renderer carries the chain's stand over its window). */
-  frameChain?: ReadonlySet<BlockId>;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
   // The session's referential identity stands on the four inputs (a
@@ -111,7 +108,6 @@ function SurfaceLayer({
           movePreview={movePreview !== null && movePreview.ids.includes(childId) ? movePreview : null}
           resizeBox={resizePreview !== null && resizePreview.id === childId ? resizePreview.box : null}
           kbFocused={kbFocusId === childId}
-          frameChain={frameChain}
         />
       ))}
       {showPorts && <PortDots id={id} snapped={endpointSnap} />}

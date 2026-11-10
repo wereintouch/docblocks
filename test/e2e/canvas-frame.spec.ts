@@ -1,19 +1,17 @@
-// The canvas frame (the viewport window): the dock's Frame tool (the
-// click's default-size place, the drag-to-size), the window's content
-// (the inert clipped copy of the frame's own surface's children at the
-// world's parity — the figures stand through the window, the originals
-// stand at their own positions, the true window's clipping over the
-// edge-crossing figure), the move's stand (the frame's drag pans the
-// window: the frame's geometry stands the delta, the figures' stand, the
-// content re-stands over the committed offset), the title's idiom (the
-// set-title menu over the selected title-less frame, the chip's
-// double-click inline edit, the empty commit's removal), the delete's
-// no-cascade stand (the frame goes, the figures stand), and the
-// page-frame block via the slash /frame command (the picker's stand — the
-// search over the document's canvas frames, the pick's commit over the
-// wire, the window's render — the figure's copy, the referenced frame's
-// box standing out of its own window, the live's re-stand, the dangling
-// placeholder).
+// The canvas frame (the region boundary): the dock's Frame tool (the
+// click's default-size place, the drag-to-size), the boundary's render (the
+// transparent region marker — the border over the canvas's own background,
+// no content copy: the canvas's own figures stand at their own positions,
+// the frame is a region marker, not a window), the move's stand (the
+// frame's geometry stands the delta, the figures' stand — the content does
+// not ride the box's slide), the title's idiom (the set-title menu over the
+// selected title-less frame, the chip's double-click inline edit, the empty
+// commit's removal), the delete's no-cascade stand (the frame goes, the
+// figures stand), and the page-frame block via the slash /frame command (the
+// picker's stand — the search over the document's canvas frames, the pick's
+// commit over the wire, the window's render — the figure's copy, the
+// referenced frame's box standing out of its own window, the live's
+// re-stand, the dangling placeholder).
 import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, canvasCenter, canvasView, screenAt, toCanvas, twoPanes } from "./helpers";
@@ -47,10 +45,9 @@ async function docBlocks(page: Page, client: "a" | "b"): Promise<Record<string, 
 
 /**
  * The frame's scene (the one surface): a rect + an ellipse fully inside
- * the frame's box region (the window's content's stand — the figures
- * stand through the window) and the frame over the figures' region (the
- * viewport window — the childless box; the window's content is the
- * surface's own content).
+ * the frame's box region and the frame over the figures' region (the
+ * boundary's stand — the childless box; the figures stand at their own
+ * positions, the frame is a region marker, not a container).
  */
 async function seedScene(page: Page, client: "a" | "b"): Promise<{ rect: string; ellipse: string; frame: string }> {
   return page.evaluate(
@@ -80,51 +77,7 @@ async function wireSynced(page: Page, client: "a" | "b", id: string): Promise<vo
   await expect.poll(async () => (await docBlocks(page, client))[id] !== undefined, SETTLE).toBe(true);
 }
 
-/** The frame's item's window content (the inert copy's layer). */
-const windowContent = (page: Page, client: "a" | "b", frame: string) =>
-  canvasView(page, client)
-    .locator(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`)
-    .locator('[data-slot="docblocks/frame-window-content"]');
-
-/** The element boxes: the world's original (the window's copies' stand out) + the window's copy, both in screen px. */
-async function originalAndCopyBoxes(
-  page: Page,
-  client: "a" | "b",
-  blockId: string,
-  frame: string
-): Promise<{
-  original: { x: number; y: number; w: number; h: number };
-  copy: { x: number; y: number; w: number; h: number };
-}> {
-  return page.evaluate(
-    ({ client, blockId, frame }) => {
-      const view = document.querySelector(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-      if (view === null) throw new Error("the canvas view is missing");
-      const shape = (el: Element) => {
-        const box = el.getBoundingClientRect();
-        return { x: box.x, y: box.y, w: box.width, h: box.height };
-      };
-      const items = Array.from(
-        view.querySelectorAll<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${blockId}"]`)
-      );
-      const original = items.find((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null);
-      const copyHost = items.find((el) =>
-        el.closest(
-          `[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`
-        )
-      );
-      if (original === undefined || copyHost === undefined) {
-        throw new Error("the original's / the copy's stand is missing");
-      }
-      const originalShape = original.querySelector<HTMLElement>('[data-slot="docblocks/shape"]') ?? original;
-      const copyShape = copyHost.querySelector<HTMLElement>('[data-slot="docblocks/shape"]') ?? copyHost;
-      return { original: shape(originalShape), copy: shape(copyShape) };
-    },
-    { client, blockId, frame }
-  );
-}
-
-test.describe("the canvas frame (the viewport window)", () => {
+test.describe("the canvas frame (the region boundary)", () => {
   test("the dock's Frame tool: the click's default-size place over the wire (the childless box)", async ({
     browser,
   }) => {
@@ -146,8 +99,7 @@ test.describe("the canvas frame (the viewport window)", () => {
       const blocksB = await docBlocks(b, "b");
       const frame = Object.values(blocksB).find((block) => block.type === "frame")!;
       // The childless box's stand: the default geometry over the wire, no
-      // children (the window's content is the surface's own content — not
-      // the frame's children).
+      // children (the frame is a region marker — not a container).
       expect(frame.geometry).toEqual({ x: 10, y: -10, w: 320, h: 240 });
       expect(frame.children).toBeUndefined();
     } finally {
@@ -185,141 +137,41 @@ test.describe("the canvas frame (the viewport window)", () => {
     }
   });
 
-  test("the window's content stands the surface's children (the inert copies' world parity; the originals stand)", async ({
+  test("the boundary: the frame renders the region marker (the transparent box, the border, no content copy; the figures stand once)", async ({
     browser,
   }) => {
-    const { a, close } = await twoPanes(browser, "frame-window");
+    const { a, close } = await twoPanes(browser, "frame-boundary");
     try {
       await toCanvas(a, "a");
-      const { rect, ellipse, frame } = await seedScene(a, "a");
-      const content = windowContent(a, "a", frame);
-      // The window's copies (the surface's children minus the frame — the
-      // rect + the ellipse stand inside the window at the world's parity).
-      await expect.poll(async () => content.locator('[data-slot="docblocks/shape"]').count()).toBe(2);
-      // The world's parity: the copies' boxes stand the originals' boxes
-      // (the window's offset places the world's origin at the box-local
-      // point — the content stands at the world's coordinates, so a fully
-      // contained figure stands at its own screen position).
-      for (const id of [rect, ellipse]) {
-        const boxes = await originalAndCopyBoxes(a, "a", id, frame);
-        expect(boxes.copy.x).toBeCloseTo(boxes.original.x, 1);
-        expect(boxes.copy.y).toBeCloseTo(boxes.original.y, 1);
-        expect(boxes.copy.w).toBeCloseTo(boxes.original.w, 1);
-        expect(boxes.copy.h).toBeCloseTo(boxes.original.h, 1);
-      }
-      // The copies' inert stand (the pointer-transparent — the interaction
-      // stands on the originals outside the window).
-      expect(await content.evaluate((el) => getComputedStyle(el).pointerEvents)).toBe("none");
-      // The originals stand at their own positions (the window's copies'
-      // stand out of the world's read — the world's read is the originals
-      // only, the copies' inert copies stand inside the window's slot).
-      const worldOnly = await a.evaluate(
-        ({ client, ids, frame }) => {
-          const view = document.querySelector(`[data-testid="doc-${client}"] [data-slot="docblocks/canvas-view"]`);
-          if (view === null) return [];
-          return Array.from(
-            view.querySelectorAll<HTMLElement>(`[data-slot="docblocks/canvas-item"]:not([data-block-id="${frame}"])`)
-          )
-            .filter((el) => el.closest('[data-slot="docblocks/frame-window-content"]') === null)
-            .map((el) => el.dataset.blockId as string)
-            .filter((id) => ids.includes(id));
-        },
-        { client: "a", ids: [rect, ellipse], frame }
-      );
-      expect(worldOnly).toHaveLength(2);
-    } finally {
-      await close();
-    }
-  });
-
-  test("the clip's stand: the window clips the content at the box's edge (the overflow's hidden; the original's stand over the window's border when it is z-above)", async ({
-    browser,
-  }) => {
-    const { a, close } = await twoPanes(browser, "frame-clip");
-    try {
-      await toCanvas(a, "a");
-      // The frame + the rect crossing the frame's RIGHT edge (the rect's
-      // box extends over the window's border). The rect stands AFTER the
-      // frame (the z-above's stand — the paint order over the frame).
-      const { rect, frame } = await a.evaluate(() => {
-        const doc = window.__paneDocs?.a ?? null;
-        if (doc === null) throw new Error("the pane's doc is not mounted");
-        const surface = doc.insertBlock("surface");
-        const frame = doc.insertBlock("frame", undefined, { parent: surface });
-        doc.setGeometry(frame, { x: 0, y: 0, w: 200, h: 120 });
-        const rect = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-        doc.setGeometry(rect, { x: 80, y: 0, w: 120, h: 80 });
-        return { rect, frame };
+      const { rect, frame } = await seedScene(a, "a");
+      const frameItem = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`);
+      await frameItem.waitFor({ state: "visible" });
+      // The boundary: the transparent region marker (no content copy, no
+      // canvas background — the canvas's own figures stand behind it).
+      const boundary = frameItem.locator('[data-slot="docblocks/frame-boundary"]');
+      await expect(boundary).toHaveCount(1);
+      const style = await boundary.evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return { backgroundColor: cs.backgroundColor, boxShadow: cs.boxShadow };
       });
-      const center = await canvasCenter(a, "a");
-      const frameWindow = canvasView(a, "a").locator(
-        `[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window"]`
-      );
-      await frameWindow.waitFor({ state: "visible" });
-      const windowBox = (await frameWindow.boundingBox())!;
-      // The true window's clipping stand (the box's overflow's hidden).
-      const overflow = await frameWindow.evaluate((el) => getComputedStyle(el).overflow);
-      expect(overflow).toBe("hidden");
-      // The copy's element stands the figure's FULL box (the world's
-      // parity — the copy extends over the window's border; the paint
-      // stands clipped by the window's overflow, the element's box stands
-      // the unclipped stand).
-      const boxes = await originalAndCopyBoxes(a, "a", rect, frame);
-      expect(boxes.copy.x).toBeCloseTo(boxes.original.x, 1);
-      expect(boxes.copy.w).toBeCloseTo(boxes.original.w, 1);
-      expect(boxes.copy.x + boxes.copy.w).toBeGreaterThan(windowBox.x + windowBox.width);
-      // The original's stand over the window's border (the z-above's
-      // stand): the point's element inside the overlap region (the rect's
-      // center — inside both the rect and the window) resolves to the
-      // ORIGINAL's item (the window's copy stands out — the original
-      // stands over the window when it is z-above).
-      const topmost = await a.evaluate(
-        ({ x, y, rect, frame }) => {
-          const el = document.elementFromPoint(x, y);
-          if (el === null) return null;
-          const item = el.closest(`[data-slot="docblocks/canvas-item"][data-block-id="${rect}"]`);
-          if (item === null) return null;
-          const inWindow = item.closest(
-            `[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`
-          );
-          return inWindow === null ? "original" : "copy";
-        },
-        {
-          x: center.x + 60,
-          y: center.y + 0,
-          rect,
-          frame,
-        }
-      );
-      expect(topmost).toBe("original");
-      // …and the point OUTSIDE the window (the rect's right part over the
-      // window's border) resolves to the original too (the no-clip's stand
-      // outside the box's region).
-      const outside = await a.evaluate(
-        ({ x, y, rect, frame }) => {
-          const el = document.elementFromPoint(x, y);
-          if (el === null) return null;
-          const item = el.closest(`[data-slot="docblocks/canvas-item"][data-block-id="${rect}"]`);
-          if (item === null) return null;
-          const inWindow = item.closest(
-            `[data-slot="docblocks/canvas-item"][data-block-id="${frame}"] [data-slot="docblocks/frame-window-content"]`
-          );
-          return inWindow === null ? "original" : "copy";
-        },
-        {
-          x: center.x + 120,
-          y: center.y + 0,
-          rect,
-          frame,
-        }
-      );
-      expect(outside).toBe("original");
+      expect(style.backgroundColor).toBe("rgba(0, 0, 0, 0)");
+      expect(style.boxShadow).toContain("inset");
+      // The content copy is absent (the canvas frame is a region marker —
+      // the mirror's render stands on the page-frame block).
+      expect(await frameItem.locator('[data-slot="docblocks/frame-window-content"]').count()).toBe(0);
+      // The figures stand once (the originals, no copy — the boundary does
+      // not duplicate the content).
+      await expect
+        .poll(async () =>
+          canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${rect}"]`).count()
+        )
+        .toBe(1);
     } finally {
       await close();
     }
   });
 
-  test("the move = the pan: the frame's geometry stands the delta, the figures' stand; the content re-stands over the committed offset (the world's parity)", async ({
+  test("the move: the frame's geometry stands the delta, the figures' stand (the boundary's move — the content does not ride the box's slide)", async ({
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "frame-move");
@@ -330,10 +182,9 @@ test.describe("the canvas frame (the viewport window)", () => {
       await wireSynced(b, "b", frame);
       const before = await docBlocks(a, "a");
       const center = await canvasCenter(a, "a");
-      // The frame's INTERIOR press (the window's box is the press's
-      // target — the content's copies stand inert, the background stands
-      // the canvas's own background): a press at the frame's box's empty
-      // spot (no figure under the point) selects + starts the move.
+      // The frame's INTERIOR press (the boundary's box is the press's
+      // target — a spot with no figure under the point) selects the frame
+      // + starts the move.
       const start = screenAt(center, 20, -80);
       await a.mouse.move(start.x, start.y);
       await a.mouse.down();
@@ -344,17 +195,11 @@ test.describe("the canvas frame (the viewport window)", () => {
       await expect
         .poll(async () => (await docBlocks(b, "b"))[frame]?.geometry, SETTLE)
         .toEqual({ x: before[frame]!.geometry!.x + 40, y: before[frame]!.geometry!.y + 20, w: 240, h: 160 });
-      // …and the figures' geometries STAND (the move pans the window — the
-      // content does not ride the box's slide).
+      // …and the figures' geometries STAND (the boundary's move does not
+      // move the figures — the content does not ride the box's slide).
       for (const id of [rect, ellipse]) {
         await expect.poll(async () => (await docBlocks(b, "b"))[id]?.geometry, SETTLE).toEqual(before[id]!.geometry);
       }
-      // The committed stand: the window's content re-stands over the
-      // committed offset (the world's parity — the copy's box stands the
-      // original's box, the content did not move with the box's slide).
-      const boxes = await originalAndCopyBoxes(a, "a", rect, frame);
-      expect(boxes.copy.x).toBeCloseTo(boxes.original.x, 1);
-      expect(boxes.copy.y).toBeCloseTo(boxes.original.y, 1);
     } finally {
       await close();
     }
@@ -370,7 +215,7 @@ test.describe("the canvas frame (the viewport window)", () => {
       const { frame } = await seedScene(a, "a");
       await wireSynced(b, "b", frame);
       const center = await canvasCenter(a, "a");
-      // The frame's INTERIOR press (the window's box's stand) selects the
+      // The frame's INTERIOR press (the boundary's box's stand) selects the
       // frame (the title-less frame's selected stand).
       const start = screenAt(center, 20, -80);
       await a.mouse.click(start.x, start.y);
@@ -422,7 +267,7 @@ test.describe("the canvas frame (the viewport window)", () => {
       const before = await docBlocks(a, "a");
       const center = await canvasCenter(a, "a");
       // The frame's INTERIOR press selects the frame; the Delete removes
-      // it (the window's childless's stand — the removal's no-cascade).
+      // it (the boundary's childless's stand — the removal's no-cascade).
       const start = screenAt(center, 20, -80);
       await a.mouse.click(start.x, start.y);
       await a.keyboard.press("Delete");
@@ -598,8 +443,7 @@ test.describe("the page-frame block (the slash /frame command)", () => {
       // the frame's region — the window's content's inert copy).
       await expect.poll(async () => win.locator('[data-slot="docblocks/shape"]').count()).toBe(1);
       // The referenced frame's OWN box does not stand inside its own page
-      // window (the frame-chain's stand — the reference stands out of its
-      // own window).
+      // window (the reference stands out of its own window).
       expect(await win.locator('[data-slot="docblocks/frame"]').count()).toBe(0);
       // The live's stand: pane B moves the figure — pane A's page window's
       // copy re-stands over the wire (the copy's position's re-stand).
