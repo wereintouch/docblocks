@@ -49,6 +49,30 @@ test("the catalog's list stands the harness's demo table (the seed's settle)", a
   await expect(demoName).toBeVisible(SETTLE);
 });
 
+test("the standalone root anchors the package's token scope (the computed tokens resolve)", async ({ page }) => {
+  const demo = await demoTable(page);
+  await page.locator(`[data-testid='tables-item'][data-table-id='${demo.id}']`).click();
+  await expect(page.locator("[data-slot='docblocks/database-name']")).toBeVisible(SETTLE);
+
+  // The token mapping is declared on the editor root's selector; the
+  // standalone's root stands that scope over the consumer's page (the
+  // section stands outside any document) — the computed custom
+  // properties resolve over the grid (absent the scope, the grid's
+  // token-driven utilities stand unresolved).
+  const scope = page.locator("[data-testid='tables-grid'] [data-slot='docblocks/editor']");
+  await expect
+    .poll(async () => {
+      return scope.evaluate((element) => {
+        const styles = getComputedStyle(element);
+        return [
+          styles.getPropertyValue("--docblocks-block-spacing"),
+          styles.getPropertyValue("--docblocks-table-border-color"),
+        ].filter((value) => value.trim() !== "").length;
+      });
+    }, SETTLE)
+    .toBe(2);
+});
+
 test("the create's stand: the list's grow + the grid's render over the new table", async ({ page }) => {
   await page.locator("[data-testid='tables-create-input']").fill("Tasks");
   await page.locator("[data-testid='tables-create']").click();

@@ -429,7 +429,12 @@ function TablesSection({ bridge }: { bridge: DatabaseBridge }) {
   the optional `view` prop at mount); `onViewChange(patch)` receives one
   patch per change for the consumer's persistence (the controlled mode
   stands absent — the state is never external). `readOnly` gates the
-  editing's paths (the read-only block's parity).
+  editing's paths (the read-only block's parity). The component is
+  self-contained: it wraps itself in the package's i18n scope and anchors
+  the `--docblocks-*` token scope over its own root, so it themes
+  standalone over the consumer's page (the `dark` class over an ancestor
+  follows the shipped dark set — the package's `styles.css` import is the
+  only requirement).
 - `useTableList(bridge)` — `{ tables, loading, error, refresh, create,
 rename }`: the `listTables` catalog (the system tables stand out), the
   `createTable` / `renameTable` mutations (the fresh `operationId` per op;

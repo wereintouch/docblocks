@@ -50,17 +50,29 @@ function DatabaseTable({ bridge, tableId, readOnly = false, view, onViewChange }
 
   return (
     <DocblocksI18nProvider>
-      <GridBody
-        bridge={bridge}
-        tableId={tableId}
-        filter={viewState.filter}
-        columnOrder={viewState.columnOrder}
-        hiddenColumns={viewState.hiddenColumns}
-        columnWidths={viewState.columnWidths}
-        onViewChange={handleViewChange}
-        readColumnOrder={() => viewRef.current.columnOrder}
-        readOnly={readOnly}
-      />
+      {/*
+        The standalone's root stands the package's token scope: the
+        `--docblocks-*` mapping is declared on the editor root over the
+        shipped CSS, and the grid stands outside any document (no editor
+        root over the consumer's page) — without the scope the grid's
+        token-driven utilities (the borders, the paddings, the row's
+        heights) stand unresolved. The `dark` class over an ancestor (the
+        consumer's convention) still stands the dark's mapping over the
+        wrapper.
+      */}
+      <div data-slot="docblocks/editor" data-readonly={readOnly ? "true" : undefined}>
+        <GridBody
+          bridge={bridge}
+          tableId={tableId}
+          filter={viewState.filter}
+          columnOrder={viewState.columnOrder}
+          hiddenColumns={viewState.hiddenColumns}
+          columnWidths={viewState.columnWidths}
+          onViewChange={handleViewChange}
+          readColumnOrder={() => viewRef.current.columnOrder}
+          readOnly={readOnly}
+        />
+      </div>
     </DocblocksI18nProvider>
   );
 }

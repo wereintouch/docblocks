@@ -80,3 +80,111 @@ body {
   font-family: monospace;
   font-size: 11px;
 }
+
+/* The standalone's tables section (`?tables=1`): the harness chrome over
+   the standard tokens (the page stands outside the editor's root — the
+   `--docblocks-*` scope is the standalone table's own stand). */
+.tables-section {
+  font-family: system-ui, sans-serif;
+  padding: 16px;
+  max-width: 1080px;
+}
+
+.tables-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.tables-desc {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.tables-desc code {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.tables-btn {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.tables-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tables-input {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.tables-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  min-width: 220px;
+  align-self: start;
+}
+
+.tables-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.tables-item--selected {
+  background: var(--muted);
+}
+
+.tables-item input {
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.tables-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--muted-foreground);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.tables-link:hover {
+  color: var(--foreground);
+}
+
+.tables-error {
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--destructive);
+}
+
+.tables-grid {
+  min-width: 0;
+}

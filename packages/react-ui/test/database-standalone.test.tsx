@@ -204,6 +204,33 @@ describe("DatabaseTable (the standalone's grid over the bridge's table id)", () 
     expect(order()).toEqual([count, title]);
   });
 
+  it("the root anchors the package's token scope (the standalone stands over the editor root's mapping)", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId } = await seedTable(bridge);
+
+    const first = render(<DatabaseTable bridge={bridge} tableId={tableId} />);
+    await settleGrid();
+    await settleGrid();
+
+    const scope = document.querySelector<HTMLElement>("[data-slot='docblocks/editor']");
+    expect(scope).not.toBeNull();
+    expect(scope!.getAttribute("data-readonly")).toBeNull();
+    // The grid's surface stands inside the scope (the token's cascade's
+    // reach over the standalone's utilities).
+    expect(scope!.querySelector("[data-slot='docblocks/database']")).not.toBeNull();
+    first.unmount();
+    cleanup();
+
+    // The read-only's stand: the suppression's attribute (the page mode's
+    // parity over the read-only's root).
+    render(<DatabaseTable bridge={bridge} tableId={tableId} readOnly />);
+    await settleGrid();
+    await settleGrid();
+    expect(document.querySelector<HTMLElement>("[data-slot='docblocks/editor']")!.getAttribute("data-readonly")).toBe(
+      "true"
+    );
+  });
+
   it("the readOnly's stand: the cell's edit session stands off", async () => {
     const bridge = createMemoryDatabaseBridge();
     const { tableId, title } = await seedTable(bridge);
