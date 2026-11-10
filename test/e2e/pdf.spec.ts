@@ -177,13 +177,52 @@ test("the page navigation: the prev/next buttons + the page indicator over a mul
     expect(await prev.isDisabled()).toBe(true);
 
     // The fullscreen overlay: the toggle opens the overlay (the portal),
-    // the overlay carries the same page navigation + the close button;
-    // the Escape key exits the overlay.
+    // the overlay carries the same page navigation + the close button.
     await fullscreen.click();
     const overlay = a.locator('[data-slot="docblocks/image-pdf-fullscreen-overlay"]');
     await expect(overlay).toBeVisible(SETTLE);
     expect(await overlay.locator('[data-slot="docblocks/image-pdf-page-indicator"]').textContent()).toBe("1 / 3");
     expect(await overlay.locator('[data-slot="docblocks/image-pdf-fullscreen-close"]').count()).toBe(1);
+
+    // The fullscreen's control bar stands the inline's (the thin border +
+    // the rounded corners, the same over both), the minimize icon the only
+    // difference (the fullscreen toggle stands absent over the overlay).
+    const bars = await a.evaluate(() => {
+      const styleOf = (selector: string): { width: string; color: string; radius: string } | null => {
+        const el = document.querySelector(selector);
+        if (el === null) return null;
+        const c = getComputedStyle(el);
+        return { width: c.borderTopWidth, color: c.borderTopColor, radius: c.borderRadius };
+      };
+      return {
+        inline: styleOf('[data-slot="docblocks/image-pdf-preview"] [data-slot="docblocks/image-pdf-controls"]'),
+        overlay: styleOf(
+          '[data-slot="docblocks/image-pdf-fullscreen-overlay"] [data-slot="docblocks/image-pdf-controls"]'
+        ),
+      };
+    });
+    expect(bars.inline, "the inline's control bar stands").not.toBeNull();
+    expect(bars.overlay, "the overlay's control bar stands").not.toBeNull();
+    expect(bars.overlay!.width).toBe(bars.inline!.width);
+    expect(bars.overlay!.color).toBe(bars.inline!.color);
+    expect(bars.overlay!.radius).toBe(bars.inline!.radius);
+    expect(bars.overlay!.width, "the border stands thin (not the 0px / 3px fallback)").not.toBe("0px");
+    expect(await overlay.locator('[data-slot="docblocks/image-pdf-minimize"]').count()).toBe(1);
+    expect(await overlay.locator('[data-slot="docblocks/image-pdf-fullscreen"]').count()).toBe(0);
+
+    // The outside click's exit: a click over the page's canvas stands the
+    // overlay, a click over the overlay's own surface (the background
+    // around the page) closes the fullscreen mode.
+    const canvasBox = (await overlay.locator('[data-slot="docblocks/image-pdf-fullscreen-canvas"]').boundingBox())!;
+    await a.mouse.click(canvasBox.x + canvasBox.width / 2, canvasBox.y + canvasBox.height / 2);
+    await expect(overlay).toBeVisible();
+    const overlayBox = (await overlay.boundingBox())!;
+    await a.mouse.click(overlayBox.x + 5, overlayBox.y + 5);
+    await expect(overlay).toBeHidden(SETTLE);
+
+    // Re-opened, the Escape key exits the overlay.
+    await fullscreen.click();
+    await expect(overlay).toBeVisible(SETTLE);
     await a.keyboard.press("Escape");
     await expect(overlay).toBeHidden(SETTLE);
   } finally {

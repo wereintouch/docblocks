@@ -335,10 +335,18 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
 
   // The fullscreen controls: the prev/next buttons + the page indicator +
   // the minimize button (no fullscreen toggle — it's already fullscreen).
+  // The bar stands the inline's (the thin border + the rounded corners),
+  // the minimize icon the only difference. The border + the radius read
+  // the standard tokens: the overlay is portaled over the document body,
+  // outside the editor's root, where the --docblocks-* tokens are
+  // undefined (an undefined var() falls back to the border's initial
+  // 3px/currentColor + the radius's 0).
   const fullscreenControls = (
     <div
       data-slot="docblocks/image-pdf-controls"
-      className="flex items-center justify-center gap-1 rounded-(--docblocks-radius) bg-(--muted) px-2 py-1"
+      className="
+        flex items-center justify-center gap-1 rounded-(--radius) border border-(--border) bg-(--muted) px-2 py-1
+      "
     >
       <button
         type="button"
@@ -429,9 +437,17 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
             aria-modal="true"
             aria-label={t("code.pdfFullscreen")}
             onClick={(event) => {
-              // The outside click (the overlay's background, not the canvas
-              // or the controls) closes the fullscreen mode.
-              if (event.target === event.currentTarget) setIsFullscreen(false);
+              // A click over the overlay's own surface (the background
+              // around the page) closes the fullscreen mode; the canvas,
+              // the controls, and the close button stand the content's
+              // zone. The container div covers the overlay's inner area,
+              // so its clicks stand as the overlay's (the closest-match
+              // over the content's slots only keeps the page's zone).
+              const target = event.target as HTMLElement | null;
+              if (target === null) return;
+              if (target.closest('[data-slot="docblocks/image-pdf-fullscreen-canvas"]') !== null) return;
+              if (target.closest('[data-slot="docblocks/image-pdf-controls"]') !== null) return;
+              setIsFullscreen(false);
             }}
           >
             <button
@@ -454,11 +470,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
               <canvas
                 ref={fullscreenCanvasRef}
                 data-slot="docblocks/image-pdf-fullscreen-canvas"
-                className="
-                  max-h-full max-w-full rounded-(--docblocks-image-radius)
-                  border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color)
-                  bg-(--background) shadow-lg
-                "
+                className="max-h-full max-w-full border border-(--border) bg-(--background) shadow-lg"
               />
             </div>
             {fullscreenControls}
