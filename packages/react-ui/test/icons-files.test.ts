@@ -65,6 +65,7 @@ const ICON_SET = [
   "Maximize",
   "Menu",
   "MessageSquare",
+  "Minimize",
   "Minus",
   "MousePointer2",
   "Network",

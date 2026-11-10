@@ -3,12 +3,12 @@
  * the first page over the page row; the controls (the previous/next page
  * buttons + the page indicator + the fullscreen toggle) stand a bar under
  * the canvas. The fullscreen mode opens a portal overlay over the viewport
- * (the same page navigation, the page scaled to the viewport, the Escape
- * key / the close button exit). A failure stands the error note over the
- * native iframe fallback (the document stays viewable). The in-flight fetch
- * is aborted on unmount / url change and the render task + document are
- * released, so a torn-down preview leaves no network request or pdf.js
- * worker behind. */
+ * (the page scaled to fill the viewport, the same page navigation, the
+ * Escape key / the close button / the outside click exit). A failure stands
+ * the error note over the native iframe fallback (the document stays
+ * viewable). The in-flight fetch is aborted on unmount / url change and the
+ * render task + document are released, so a torn-down preview leaves no
+ * network request or pdf.js worker behind. */
 import { RenderingCancelledException, getDocument } from "pdfjs-dist";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { createPortal } from "react-dom";
@@ -18,7 +18,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { PdfPreviewProps } from "../editor-provider";
 import { cn } from "../shared/ui/cn";
-import { ChevronLeft, ChevronRight, LoaderCircle, Maximize, TriangleAlert, X } from "../shared/ui/icons";
+import { ChevronLeft, ChevronRight, LoaderCircle, Maximize, Minimize, TriangleAlert, X } from "../shared/ui/icons";
 import { isSafeDownloadHref } from "../shared/utils";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "./constants";
 import { WASM_URL } from "./pdf-worker";
@@ -43,10 +43,34 @@ function renderPageToCanvas(pdf: PDFDocumentProxy, pageNumber: number, canvas: H
   });
 }
 
+/** Render one page to a canvas, scaled to fill the container (the
+ * object-fit: contain behavior — the page's aspect ratio is preserved, the
+ * page fills the container's width or height). Returns the render task. */
+function renderPageToCanvasScaled(
+  pdf: PDFDocumentProxy,
+  pageNumber: number,
+  canvas: HTMLCanvasElement,
+  containerWidth: number,
+  containerHeight: number
+): Promise<RenderTask> {
+  return pdf.getPage(pageNumber).then((page) => {
+    const pageViewport = page.getViewport({ scale: 1 });
+    const scale = Math.min(containerWidth / pageViewport.width, containerHeight / pageViewport.height);
+    const ratio = window.devicePixelRatio || 1;
+    const viewport = page.getViewport({ scale: scale * ratio });
+    canvas.width = Math.max(1, Math.floor(viewport.width));
+    canvas.height = Math.max(1, Math.floor(viewport.height));
+    canvas.style.width = `${Math.max(1, Math.floor(viewport.width / ratio))}px`;
+    canvas.style.height = `${Math.max(1, Math.floor(viewport.height / ratio))}px`;
+    return page.render({ canvas, viewport });
+  });
+}
+
 function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
   const { t } = useTranslation("blocks");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fullscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const fullscreenContainerRef = useRef<HTMLDivElement | null>(null);
   const loadingTaskRef = useRef<PDFDocumentLoadingTask | null>(null);
   const pdfDocRef = useRef<PDFDocumentProxy | null>(null);
   const [phase, setPhase] = useState<PdfPhase>("loading");
@@ -141,33 +165,45 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
   }, [url, currentPage, phase]);
 
   // Render the current page to the fullscreen canvas (while the overlay is
-  // open; the page change re-renders the overlay's canvas in place).
+  // open; the page change re-renders the overlay's canvas in place). The
+  // page is scaled to fill the container (the object-fit: contain
+  // behavior — the page's aspect ratio is preserved, the page fills the
+  // container's width or height).
   useEffect(() => {
     if (!isFullscreen || phase !== "ready") return;
     const pdf = pdfDocRef.current;
     const canvas = fullscreenCanvasRef.current;
-    if (pdf === null || canvas === null) return;
+    const container = fullscreenContainerRef.current;
+    if (pdf === null || canvas === null || container === null) return;
     let cancelled = false;
     let renderTask: RenderTask | null = null;
 
-    const run = async (): Promise<void> => {
-      try {
-        renderTask = await renderPageToCanvas(pdf, currentPage, canvas);
-        await renderTask.promise;
-      } catch (cause) {
-        if (
-          cancelled ||
-          cause instanceof RenderingCancelledException ||
-          (cause instanceof DOMException && cause.name === "AbortError")
-        ) {
-          return;
+    const render = (): void => {
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      if (width === 0 || height === 0) return;
+      void (async (): Promise<void> => {
+        try {
+          renderTask = await renderPageToCanvasScaled(pdf, currentPage, canvas, width, height);
+          await renderTask.promise;
+        } catch (cause) {
+          if (
+            cancelled ||
+            cause instanceof RenderingCancelledException ||
+            (cause instanceof DOMException && cause.name === "AbortError")
+          ) {
+            return;
+          }
         }
-      }
+      })();
     };
 
-    void run();
+    render();
+    const observer = new ResizeObserver(() => render());
+    observer.observe(container);
     return () => {
       cancelled = true;
+      observer.disconnect();
       if (renderTask !== null) renderTask.cancel();
     };
   }, [isFullscreen, currentPage, phase]);
@@ -238,7 +274,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
     );
   }
 
-  const pageControls = (
+  const inlineControls = (
     <div
       data-slot="docblocks/image-pdf-controls"
       className="
@@ -297,6 +333,64 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
     </div>
   );
 
+  // The fullscreen controls: the prev/next buttons + the page indicator +
+  // the minimize button (no fullscreen toggle — it's already fullscreen).
+  const fullscreenControls = (
+    <div
+      data-slot="docblocks/image-pdf-controls"
+      className="flex items-center justify-center gap-1 rounded-(--docblocks-radius) bg-(--muted) px-2 py-1"
+    >
+      <button
+        type="button"
+        data-slot="docblocks/image-pdf-prev"
+        onClick={prevPage}
+        disabled={currentPage <= 1}
+        aria-label={t("code.pdfPrevPage")}
+        className="
+          flex size-6 items-center justify-center rounded-sm text-(--muted-foreground) transition-colors
+          hover:bg-(--accent) hover:text-(--accent-foreground)
+          disabled:pointer-events-none disabled:opacity-40
+        "
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      <span
+        data-slot="docblocks/image-pdf-page-indicator"
+        className="px-1 text-xs text-(--muted-foreground) tabular-nums"
+      >
+        {/* eslint-disable-next-line i18next/no-literal-string -- the page
+            separator is a technical glyph (the same over every locale). */}
+        {currentPage} / {totalPages}
+      </span>
+      <button
+        type="button"
+        data-slot="docblocks/image-pdf-next"
+        onClick={nextPage}
+        disabled={currentPage >= totalPages}
+        aria-label={t("code.pdfNextPage")}
+        className="
+          flex size-6 items-center justify-center rounded-sm text-(--muted-foreground) transition-colors
+          hover:bg-(--accent) hover:text-(--accent-foreground)
+          disabled:pointer-events-none disabled:opacity-40
+        "
+      >
+        <ChevronRight className="size-4" />
+      </button>
+      <button
+        type="button"
+        data-slot="docblocks/image-pdf-minimize"
+        onClick={() => setIsFullscreen(false)}
+        aria-label={t("code.pdfCloseFullscreen")}
+        className="
+          ml-1 flex size-6 items-center justify-center rounded-sm text-(--muted-foreground) transition-colors
+          hover:bg-(--accent) hover:text-(--accent-foreground)
+        "
+      >
+        <Minimize className="size-4" />
+      </button>
+    </div>
+  );
+
   return (
     <div
       data-slot="docblocks/image-pdf-preview"
@@ -305,7 +399,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
       data-phase={phase}
       className="relative mx-0 my-(--docblocks-block-spacing) flex flex-col items-center gap-2"
     >
-      <div className="relative w-full">
+      <div className="relative flex w-full justify-center">
         <canvas
           ref={canvasRef}
           data-slot="docblocks/image-pdf-canvas"
@@ -324,16 +418,21 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
           </div>
         )}
       </div>
-      {phase === "ready" && pageControls}
+      {phase === "ready" && inlineControls}
 
       {isFullscreen &&
         createPortal(
           <div
             data-slot="docblocks/image-pdf-fullscreen-overlay"
-            className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-(--background)/95 p-6"
+            className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-3 bg-(--background)"
             role="dialog"
             aria-modal="true"
             aria-label={t("code.pdfFullscreen")}
+            onClick={(event) => {
+              // The outside click (the overlay's background, not the canvas
+              // or the controls) closes the fullscreen mode.
+              if (event.target === event.currentTarget) setIsFullscreen(false);
+            }}
           >
             <button
               type="button"
@@ -349,9 +448,8 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
               <X className="size-5" />
             </button>
             <div
-              className="
-              flex max-h-[calc(100vh-8rem)] max-w-[calc(100vw-4rem)] items-center justify-center overflow-auto
-            "
+              ref={fullscreenContainerRef}
+              className="flex h-[calc(100vh-6rem)] w-[calc(100vw-4rem)] items-center justify-center overflow-hidden"
             >
               <canvas
                 ref={fullscreenCanvasRef}
@@ -363,7 +461,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
                 "
               />
             </div>
-            {pageControls}
+            {fullscreenControls}
           </div>,
           document.body
         )}

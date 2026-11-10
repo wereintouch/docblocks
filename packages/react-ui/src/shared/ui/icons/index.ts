@@ -57,6 +57,7 @@ export { LoaderCircle } from "./LoaderCircle";
 export { Lock } from "./Lock";
 export { Maximize } from "./Maximize";
 export { Menu } from "./Menu";
+export { Minimize } from "./Minimize";
 export { MessageSquare } from "./MessageSquare";
 export { Minus } from "./Minus";
 export { MousePointer2 } from "./MousePointer2";
