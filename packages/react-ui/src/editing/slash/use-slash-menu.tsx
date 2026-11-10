@@ -13,7 +13,7 @@ import { focusCaretIn, segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
 import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phrase";
 import { SlashMenu } from "./SlashMenu";
-import type { EmbedKind, OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
+import type { OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
 import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply } from "./utils";
 
 /**
@@ -329,7 +329,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   );
 
   const commitEmbed = useCallback(
-    (input: { kind: EmbedKind; src: string }) => {
+    (src: string) => {
       const pending = pendingEmbedRef.current;
       pendingEmbedRef.current = null;
       setEmbedForm(false);
@@ -351,7 +351,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
           }
           const embedId = doc.insertBlock(
             "embed",
-            { kind: input.kind, src: input.src, ...ind },
+            { kind: "iframe", src, ...ind },
             { parent: parentId, after: blockId }
           );
           const sequence = doc.getChildren(parentId);

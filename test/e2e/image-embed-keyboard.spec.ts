@@ -41,7 +41,6 @@ async function insertEmbed(page: Page): Promise<void> {
   const form = page.locator("[data-slot='docblocks/slash-embed-form']");
   const urlInput = form.locator("[data-slot='docblocks/slash-embed-url']");
   await urlInput.fill("https://example.com/embedded");
-  await form.locator("[data-slot='docblocks/slash-embed-kind']").selectOption("github");
   await form.locator("[data-slot='docblocks/slash-embed-insert']").click();
 }
 
@@ -170,15 +169,36 @@ test("the embed's toolbar stands over the keyboard (the focus's reveal, the zoom
     await a.keyboard.press("Enter");
     await expect(zoom).toHaveText("100%", SETTLE);
 
-    // The view's state never reaches the doc (the data's stands invariant
-    // over the pan/zoom's — the wire's and the JSON's stand).
-    const attrs = await a.evaluate(() => {
-      const doc = window.__paneDocs!.a!;
-      const state = doc.toJSON();
-      const embedId = Object.keys(state.blocks).find((id) => state.blocks[id]!.type === "embed")!;
-      return state.blocks[embedId]!.attrs;
-    });
-    expect(attrs).toEqual({ kind: "github", src: "https://example.com/embedded" });
+    // The gesture's rest landed the identity's: the persisted view stands
+    // the identity's either way (the fast keystroke's bursts cancel the
+    // debounce's writes — the attrs stand unwritten — or the rest's write
+    // landed the cleared's null idiom), so the effective's view (the null
+    // idiom's restore) stands the identity.
+    await expect
+      .poll(
+        () =>
+          a.evaluate(() => {
+            const doc = window.__paneDocs!.a!;
+            const state = doc.toJSON();
+            const embedId = Object.keys(state.blocks).find((id) => state.blocks[id]!.type === "embed")!;
+            const attrs = state.blocks[embedId]!.attrs as {
+              kind?: string;
+              src?: string;
+              zoom?: number | null;
+              panX?: number | null;
+              panY?: number | null;
+            };
+            return {
+              kind: attrs.kind,
+              src: attrs.src,
+              zoom: attrs.zoom ?? 1,
+              panX: attrs.panX ?? 0,
+              panY: attrs.panY ?? 0,
+            };
+          }),
+        SETTLE
+      )
+      .toEqual({ kind: "iframe", src: "https://example.com/embedded", zoom: 1, panX: 0, panY: 0 });
   } finally {
     await close();
   }

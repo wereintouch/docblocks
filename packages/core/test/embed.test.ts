@@ -112,6 +112,27 @@ describe("updateBlock", () => {
       attrs: { kind: "html", src: "https://example.com", title: "Page" },
     });
   });
+
+  it("patches the persisted view (the zoom / panX / panY) and clears it over the null idiom", () => {
+    const doc = newDoc();
+    const id = doc.insertBlock("embed", { kind: "iframe", src: "https://example.com" });
+
+    // The non-identity view stands the attrs (the reload's restore).
+    doc.updateBlock(id, { zoom: 1.5, panX: -40, panY: 12 });
+    expect(doc.getBlock(id)).toEqual({
+      type: "embed",
+      attrs: { kind: "iframe", src: "https://example.com", zoom: 1.5, panX: -40, panY: 12 },
+    });
+
+    // The reset stands the null idiom: the attrs are never removed, null =
+    // the view cleared (the reader falls back to the identity).
+    doc.updateBlock(id, { zoom: null, panX: null, panY: null });
+    expect(doc.getBlock(id)).toEqual({
+      type: "embed",
+      attrs: { kind: "iframe", src: "https://example.com", zoom: null, panX: null, panY: null },
+    });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
 });
 
 describe("moveBlock / removeBlock", () => {
@@ -160,6 +181,25 @@ describe("strict validation (validateDoc)", () => {
 
   it("accepts a well-formed embed", () => {
     expect(validateDoc(docWithEmbed({ kind: "loom", src: "https://loom.com/x", title: "Clip" }))).toEqual([]);
+  });
+
+  it("the persisted view's attrs: the finite numbers stand; the null idiom stands; the malformed stand rejected", () => {
+    // The non-identity view and the cleared (the null idiom) stand valid.
+    expect(
+      validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", zoom: 1.5, panX: -40, panY: 12 }))
+    ).toEqual([]);
+    expect(
+      validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", zoom: null, panX: null, panY: null }))
+    ).toEqual([]);
+    // A non-numeric / the non-positive / the non-finite zoom stand rejected.
+    const nonNumeric = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", zoom: "1.5" }));
+    expect(nonNumeric.some((e) => e.path === "blocks.e1.attrs.zoom")).toBe(true);
+    const zero = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", zoom: 0 }));
+    expect(zero.some((e) => e.path === "blocks.e1.attrs.zoom")).toBe(true);
+    const negative = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", zoom: -1 }));
+    expect(negative.some((e) => e.path === "blocks.e1.attrs.zoom")).toBe(true);
+    const nonFinite = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", panX: Number.NaN }));
+    expect(nonFinite.some((e) => e.path === "blocks.e1.attrs.panX")).toBe(true);
   });
 });
 

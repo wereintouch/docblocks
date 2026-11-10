@@ -1,11 +1,11 @@
 /**
- * The slash `Embed` form (the embed-creation affordance):
- * a URL input (auto-focused) + a kind selector (default `iframe` — all kinds
- * render as an iframe in v1; the kind is a renderer hint). The menu stands
- * open over the phrase while the form stands; the commit (the URL's Enter, or
- * the check) lands the phrase strip + the `insertBlock('embed', { kind, src })`
- * in the caller's transact. An empty (or whitespace-only) URL commits nothing
- * (the menu stands open on the phrase — the Image / Database contract).
+ * The slash `Embed` form (the embed-creation affordance): a URL input
+ * (auto-focused) only — the kind stands the `iframe` default (the renderer's
+ * hint; all kinds render as an iframe). The menu stands open over the phrase
+ * while the form stands; the commit (the URL's Enter, or the check) lands the
+ * phrase strip + the `insertBlock('embed', { kind: "iframe", src })` in the
+ * caller's transact. An empty (or whitespace-only) URL commits nothing (the
+ * menu stands open on the phrase — the Image / Database contract).
  */
 import { useTranslation } from "react-i18next";
 
@@ -14,20 +14,18 @@ import { useEffect, useRef, useState } from "react";
 import { isSafeEmbedSrc } from "docblocks-core";
 
 import { DocblocksI18nProvider } from "../../i18n";
-import { BareSelect } from "../../shared/ui/BareSelect";
 import { Button } from "../../shared/ui/Button";
 import { Input } from "../../shared/ui/Input";
 import { Check } from "../../shared/ui/icons";
 import { preventDefault } from "../../shared/utils";
-import type { EmbedKind } from "./models";
 
-/** The embed's kind catalog (the core `EmbedAttrs.kind` enum). */
-const EMBED_KINDS = ["iframe", "github", "figma", "loom", "html"] as const;
+/** The embed's kind (the renderer's hint — the form stands the URL only). */
+const EMBED_KIND_IFRAME = "iframe";
 
 /** The embed form's props (the commit / the cancel — the phrase strip + the
  *  insert commit is the caller's transact). */
 interface SlashEmbedFormProps {
-  onCommit: (input: { kind: EmbedKind; src: string }) => void;
+  onCommit: (src: string) => void;
   onCancel: () => void;
 }
 
@@ -45,7 +43,6 @@ function SlashEmbedForm(props: SlashEmbedFormProps) {
 function SlashEmbedFormInner({ onCommit, onCancel }: SlashEmbedFormProps) {
   const { t } = useTranslation("slash");
   const [url, setUrl] = useState("");
-  const [kind, setKind] = useState<EmbedKind>("iframe");
   const urlInputRef = useRef<HTMLInputElement | null>(null);
 
   // The URL input stands focused when the form stands (the keyboard's insert
@@ -60,8 +57,8 @@ function SlashEmbedFormInner({ onCommit, onCancel }: SlashEmbedFormProps) {
     if (trimmed.length === 0) return;
     // The unsafe scheme stands no commit (the core's write posture rejects
     // it too — the `javascript:` / the foreign `data:`).
-    if (!isSafeEmbedSrc(kind, trimmed)) return;
-    onCommit({ kind, src: trimmed });
+    if (!isSafeEmbedSrc(EMBED_KIND_IFRAME, trimmed)) return;
+    onCommit(trimmed);
   };
 
   // The form's own keys are not the slash query's: stop the propagation (the
@@ -72,10 +69,11 @@ function SlashEmbedFormInner({ onCommit, onCancel }: SlashEmbedFormProps) {
     if (event.key === "Escape") onCancel();
   };
 
-  const canCommit = url.trim().length > 0 && isSafeEmbedSrc(kind, url.trim());
+  const canCommit = url.trim().length > 0 && isSafeEmbedSrc(EMBED_KIND_IFRAME, url.trim());
   // The unsafe-scheme hint (the commit stands rejected over the same rule —
   // the input feedback instead of the silent no-op).
-  const unsafeHint = url.trim().length > 0 && !isSafeEmbedSrc(kind, url.trim()) ? t("embed.unsafeHint") : null;
+  const unsafeHint =
+    url.trim().length > 0 && !isSafeEmbedSrc(EMBED_KIND_IFRAME, url.trim()) ? t("embed.unsafeHint") : null;
 
   const onUrlKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     stopFormKey(event);
@@ -85,7 +83,6 @@ function SlashEmbedFormInner({ onCommit, onCancel }: SlashEmbedFormProps) {
     }
   };
   const onUrlChange = (event: React.ChangeEvent<HTMLInputElement>) => setUrl(event.target.value);
-  const onKindChange = (event: React.ChangeEvent<HTMLSelectElement>) => setKind(event.target.value as EmbedKind);
 
   return (
     <div data-slot="docblocks/slash-embed-form" className="flex w-56 flex-col gap-2 p-1">
@@ -100,32 +97,17 @@ function SlashEmbedFormInner({ onCommit, onCancel }: SlashEmbedFormProps) {
         onKeyDown={onUrlKeyDown}
         onChange={onUrlChange}
       />
-      <div className="flex items-center gap-1">
-        <BareSelect
-          data-slot="docblocks/slash-embed-kind"
-          className="h-7 min-w-0 flex-1 cursor-default rounded-sm px-1"
-          value={kind}
-          onKeyDown={stopFormKey}
-          onChange={onKindChange}
-        >
-          {EMBED_KINDS.map((value) => (
-            <option key={value} value={value}>
-              {value}
-            </option>
-          ))}
-        </BareSelect>
-        <Button
-          data-slot="docblocks/slash-embed-insert"
-          variant="outline"
-          size="icon"
-          className="size-7 cursor-default rounded-sm bg-transparent disabled:cursor-default dark:bg-transparent"
-          disabled={!canCommit}
-          onMouseDown={preventDefault}
-          onClick={commit}
-        >
-          <Check className="size-4" />
-        </Button>
-      </div>
+      <Button
+        data-slot="docblocks/slash-embed-insert"
+        variant="outline"
+        size="icon"
+        className="size-7 cursor-default self-end rounded-sm bg-transparent disabled:cursor-default dark:bg-transparent"
+        disabled={!canCommit}
+        onMouseDown={preventDefault}
+        onClick={commit}
+      >
+        <Check className="size-4" />
+      </Button>
       {unsafeHint !== null && (
         <p data-slot="docblocks/slash-embed-hint" className="px-1 text-xs text-destructive">
           {unsafeHint}

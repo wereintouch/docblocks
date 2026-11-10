@@ -103,7 +103,7 @@ interface SlashMenuProps {
   onFrameCommit: (frameId: string) => void;
   embedForm: boolean;
   onEmbedCancel: () => void;
-  onEmbedCommit: (input: { kind: EmbedKind; src: string }) => void;
+  onEmbedCommit: (src: string) => void;
 }
 
 export type {

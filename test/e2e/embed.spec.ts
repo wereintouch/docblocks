@@ -7,28 +7,6 @@ async function insertType(page: Page, client: "a" | "b", type: string): Promise<
   await insertBlockType(page, client, type);
 }
 
-/**
- * Wait for the doc's guaranteed trailing paragraph (the tail contract: the
- * reserved `${docId}-tail` block) to stand in the pane. The pane's peer stands
- * it over the wire (the remote feed's guard — a pane's own harness insert is a
- * local write, so the pane's own guard does not fire for it), so the stand
- * lands over the wire round-trip; a one-shot read can catch the pane before it
- * converges, so a reference snapshot must wait for it.
- */
-async function waitTrailingParagraph(page: Page, client: "a" | "b"): Promise<void> {
-  await expect
-    .poll(
-      () =>
-        page.evaluate((which: "a" | "b") => {
-          const doc = (which === "a" ? window.__paneDocs?.a : window.__paneDocs?.b) ?? null;
-          if (doc === null) return false;
-          return doc.getBlock(`${doc.toJSON().id}-tail`) !== null;
-        }, client),
-      SETTLE
-    )
-    .toBe(true);
-}
-
 test("an embed inserted in A renders in both panes and reaches the JSON", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "ext01-embed");
 
@@ -99,15 +77,16 @@ test("the slash Embed form inserts an embed block (the phrase strip, one undo st
   await urlInput.fill("   ");
   expect(await form.locator("[data-slot='docblocks/slash-embed-insert']").isDisabled()).toBe(true);
 
-  // Fill the URL, pick a kind, and commit: the phrase strips and the embed
-  // block lands over the wire (the doc holds the URL, the kind, and nothing else).
+  // Fill the URL and commit: the phrase strips and the embed block lands
+  // over the wire (the doc holds the URL and the `iframe` kind, and nothing
+  // else — the form stands the URL only, the kind's default stands the
+  // committed attr).
   await urlInput.fill("https://example.com/embedded");
-  await form.locator("[data-slot='docblocks/slash-embed-kind']").selectOption("github");
   await form.locator("[data-slot='docblocks/slash-embed-insert']").click();
 
   const wrapper = a.locator("[data-block-type='embed']");
   await expect(wrapper).toHaveCount(1, SETTLE);
-  await expect(wrapper).toHaveAttribute("data-kind", "github");
+  await expect(wrapper).toHaveAttribute("data-kind", "iframe");
   const iframe = wrapper.locator('iframe[data-slot="docblocks/embed"]');
   await expect(iframe).toHaveAttribute("src", "https://example.com/embedded");
 
@@ -118,10 +97,10 @@ test("the slash Embed form inserts an embed block (the phrase strip, one undo st
     const embedId = Object.keys(state.blocks).find((id) => state.blocks[id]!.type === "embed")!;
     return state.blocks[embedId]!.attrs;
   });
-  expect(attrs).toEqual({ kind: "github", src: "https://example.com/embedded" });
+  expect(attrs).toEqual({ kind: "iframe", src: "https://example.com/embedded" });
 
   // Pane B receives the embed over the wire.
-  await expect(b.locator("[data-block-type='embed'][data-kind='github']")).toHaveCount(1, SETTLE);
+  await expect(b.locator("[data-block-type='embed'][data-kind='iframe']")).toHaveCount(1, SETTLE);
 
   // The insert is one undo step: Ctrl+Z removes the embed block.
   await a.keyboard.press("Control+z");
@@ -156,7 +135,9 @@ test("the slash Embed form's Escape cancels (commits nothing, the phrase stands)
   await close();
 });
 
-test("the embed's hover toolbar zooms and resets (view state, the doc stands invariant)", async ({ browser }) => {
+test("the embed's toolbar zoom persists over the doc's attrs (the panes share the persisted view)", async ({
+  browser,
+}) => {
   const { a, b, close } = await twoPanes(browser, "ext01-embed-panzoom");
   await insertType(a, "a", "embed");
   const embed = a.locator("[data-block-type='embed']");
@@ -165,36 +146,36 @@ test("the embed's hover toolbar zooms and resets (view state, the doc stands inv
   const iframeB = b.locator('[data-testid="doc-b"] [data-block-type="embed"] iframe[data-slot="docblocks/embed"]');
   await expect(iframe).toHaveAttribute("style", /scale\(1\)/);
 
-  // The doc's state before any pan/zoom (the view state must not reach it).
-  // Wait for the doc's guaranteed trailing paragraph (the tail contract) to
-  // stand first — the pane's peer stands it over the wire round-trip after the
-  // non-text embed, so before/after must stand the same baseline.
-  await waitTrailingParagraph(a, "a");
-  const before = await a.evaluate(() => JSON.stringify(window.__paneDocs!.a!.toJSON()));
+  // The persisted view's read over the block's attrs (the null idiom: the
+  // identity's zoom stands `null` / absent).
+  const zoomAttr = () =>
+    a.evaluate(() => {
+      const doc = window.__paneDocs!.a!;
+      const state = doc.toJSON();
+      const embedId = Object.keys(state.blocks).find((id) => state.blocks[id]!.type === "embed");
+      if (embedId === undefined) return null;
+      const attrs = state.blocks[embedId]!.attrs as { zoom?: number | null };
+      return attrs.zoom ?? null;
+    });
 
-  // Hover reveals the toolbar.
+  // Hover reveals the toolbar. Zoom in: the view stands...
   await embed.hover();
-  const toolbar = embed.locator('[data-slot="docblocks/embed-toolbar"]');
-  await expect(toolbar).toBeVisible(SETTLE);
-
-  // Zoom in: the scale and the label stand, the transform's scale grows.
   await embed.locator('[data-slot="docblocks/embed-zoom-in"]').click();
   await expect(iframe).toHaveAttribute("style", /scale\(1\.2\)/);
   await expect(embed.locator('[data-slot="docblocks/embed-zoom"]')).toHaveText("120%");
 
-  // The other pane's embed stands the identity (the view state is per-editor:
-  // pane A's zoom never reaches pane B's transform).
-  await expect(iframeB).toHaveAttribute("style", /translate\(0px, 0px\) scale\(1\)/, SETTLE);
+  // ...and the debounce lands it over the block's attrs (the persist's
+  // write): the doc holds the view, and pane B's embed adopts it over the
+  // wire (the panes share the persisted view).
+  await expect.poll(zoomAttr, SETTLE).toBeCloseTo(1.2);
+  await expect(iframeB).toHaveAttribute("style", /scale\(1\.2\)/, SETTLE);
 
-  // The doc is untouched: the pan/zoom is pure view state (the wire and the
-  // other pane stand invariant).
-  const after = await a.evaluate(() => JSON.stringify(window.__paneDocs!.a!.toJSON()));
-  expect(after).toBe(before);
-
-  // Reset restores the identity (the scale and the translate return to zero).
+  // The reset stands the cleared view (the null idiom) over the wire.
   await embed.locator('[data-slot="docblocks/embed-zoom-reset"]').click();
   await expect(iframe).toHaveAttribute("style", /translate\(0px, 0px\) scale\(1\)/);
   await expect(embed.locator('[data-slot="docblocks/embed-zoom"]')).toHaveText("100%");
+  await expect(iframeB).toHaveAttribute("style", /translate\(0px, 0px\) scale\(1\)/, SETTLE);
+  await expect.poll(zoomAttr, SETTLE).toBeNull();
 
   await close();
 });
@@ -279,13 +260,13 @@ test("the embed's modifier drag-pan: an Alt-held drag pans the overflow (view st
   await close();
 });
 
-test("a same-origin embed cannot reach the parent's state (the sandbox stands)", async ({ page }) => {
+test("the embed's default sandbox stands the same-origin grant (the app's own storage; the parent's state is reachable)", async ({
+  page,
+}) => {
   await page.goto(`/?client=a&syncUrl=${RELAY}/sandbox-embed-${Math.random().toString(36).slice(2, 8)}`);
   await expect(page.getByTestId("status-a")).toHaveText("connected");
 
-  // Listen for the fixture's postMessage (postMessage works across origins,
-  // so it proves the embedded script ran even though the frame is an opaque
-  // origin — a 404 would never post).
+  // Listen for the fixture's postMessage (the script's run marker).
   await page.evaluate(() => {
     (window as { __sandboxran?: boolean }).__sandboxran = false;
     window.addEventListener("message", (event) => {
@@ -295,10 +276,10 @@ test("a same-origin embed cannot reach the parent's state (the sandbox stands)",
 
   // Insert an embed pointing at the playground-served same-origin fixture
   // (Vite's public dir) as an ABSOLUTE http URL (the write gate's stand —
-  // the src must be an absolute http/https; the origin is the page's own,
-  // so the fixture stays on the parent's origin and attempts to write a
-  // marker to the parent's state (the same-origin attack the guards
-  // against)).
+  // the src must be an absolute http/https). The fixture's origin is the
+  // page's own, so the fixture stands the same-origin stand: it attempts to
+  // write a marker to the parent's state (the grant's posture consequence —
+  // the consumer's `embedSandbox` policy stands the restriction).
   const fixtureUrl = await page.evaluate(() => new URL("sandbox-test-embed.html", window.location.href).href);
   const embedId = await page.evaluate(
     ({ fixtureUrl }) => window.__paneDocs!.a!.insertBlock("embed", { kind: "iframe", src: fixtureUrl }),
@@ -309,16 +290,56 @@ test("a same-origin embed cannot reach the parent's state (the sandbox stands)",
   await expect(iframe).toHaveCount(1, SETTLE);
   await expect(iframe).toHaveAttribute("src", fixtureUrl, SETTLE);
 
-  // The safe default sandbox stands on the iframe: no allow-same-origin, so
-  // the embedded content is an opaque origin.
+  // The default sandbox grants the same-origin (the real-app's stand: the
+  // embedded app's own storage / cookies stand, the app boots like in a
+  // plain tab).
   const sandbox = (await iframe.getAttribute("sandbox")) ?? "";
-  expect(sandbox).not.toContain("allow-same-origin");
+  expect(sandbox).toContain("allow-same-origin");
 
   // The fixture's script ran (the postMessage landed)...
   await expect.poll(() => page.evaluate(() => (window as { __sandboxran?: boolean }).__sandboxran), SETTLE).toBe(true);
 
-  // ...and its same-origin parent access was blocked (the marker never
-  // landed). Without the sandbox the marker would be set.
+  // ...and the same-origin fixture's parent's state is reachable (the
+  // marker landed — the grant's consequence: a same-origin URL reaches the
+  // parent over `window.parent`).
   const marker = await page.evaluate(() => (window as { __sandboxmarker?: string }).__sandboxmarker);
-  expect(marker).toBeUndefined();
+  expect(marker).toBe("pwned");
+});
+
+test("the embed's pan/zoom survives the reload (the persisted view's restore)", async ({ page }) => {
+  const room = `ext01-embed-persist-${Math.random().toString(36).slice(2, 8)}`;
+  await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
+
+  await insertType(page, "a", "embed");
+  const embed = page.locator("[data-block-type='embed']");
+  await expect(embed).toHaveCount(1, SETTLE);
+  const iframe = embed.locator('iframe[data-slot="docblocks/embed"]');
+
+  // The persisted view's read over the block's attrs (the null idiom: the
+  // identity's zoom stands `null` / absent).
+  const zoomAttr = (): Promise<number | null> =>
+    page.evaluate(() => {
+      const doc = window.__paneDocs!.a!;
+      const state = doc.toJSON();
+      const embedId = Object.keys(state.blocks).find((id) => state.blocks[id]!.type === "embed");
+      if (embedId === undefined) return null;
+      const attrs = state.blocks[embedId]!.attrs as { zoom?: number | null };
+      return attrs.zoom ?? null;
+    });
+
+  // Zoom in twice (the toolbar): the view stands, and the debounce's write
+  // lands over the block's attrs (the persist's stand)...
+  await embed.hover();
+  await embed.locator('[data-slot="docblocks/embed-zoom-in"]').click();
+  await embed.locator('[data-slot="docblocks/embed-zoom-in"]').click();
+  await expect(iframe).toHaveAttribute("style", /scale\(1\.44\)/);
+  await expect.poll(zoomAttr, SETTLE).toBeCloseTo(1.44);
+
+  // ...and the reload's stand: the fresh mount's embed restores the
+  // persisted view (the transform stands it — no flash of the identity).
+  await page.reload();
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
+  const restored = page.locator('[data-block-type="embed"] iframe[data-slot="docblocks/embed"]');
+  await expect(restored).toHaveAttribute("style", /scale\(1\.44\)/, SETTLE);
 });

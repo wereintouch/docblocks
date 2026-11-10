@@ -154,6 +154,15 @@ interface EmbedAttrs {
   src: string;
   /** Accessible title; falls back to the kind in the renderer. */
   title?: string;
+  /**
+   * The persisted zoom (the scale factor; 1 = 100%). Absent or `null` = the
+   * identity (the null idiom — attrs are never removed).
+   */
+  zoom?: number | null;
+  /** The persisted horizontal pan offset (px); absent or `null` = 0. */
+  panX?: number | null;
+  /** The persisted vertical pan offset (px); absent or `null` = 0. */
+  panY?: number | null;
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }

@@ -127,6 +127,12 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       kind: { kind: "enum", values: ["iframe", "github", "figma", "loom", "html"], required: true },
       src: { kind: "string", nonEmpty: true, required: true },
       title: { kind: "string" },
+      // The persisted view (the pan/zoom the renderer restores over the
+      // reload): null (or absent) = the identity (the null idiom — attrs
+      // are never removed, null = "view cleared").
+      zoom: { kind: "nullable-number", positive: true },
+      panX: { kind: "nullable-number" },
+      panY: { kind: "nullable-number" },
     },
   },
   "sync-embed": {

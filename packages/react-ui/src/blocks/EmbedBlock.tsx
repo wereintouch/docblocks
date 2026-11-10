@@ -22,11 +22,13 @@ import { clamp, preventDefault } from "../shared/utils";
  * origins). The block is not text-editable, so the wrapper carries no gutter
  * handle.
  *
- * Pan/zoom (view state): the iframe stands a CSS
+ * Pan/zoom (the persisted view): the iframe stands a CSS
  * `translate(x, y) scale(s)` transform (the wrapper clips the overflow). The
- * transform is PURE view state — it is not document data, so `toJSON()`, the
- * wire, and the clipboard never see it (each editor instance owns its own
- * view; the two panes pan/zoom independently). The controls:
+ * view stands the block's `zoom` / `panX` / `panY` attrs (the null idiom:
+ * null / absent = the identity) — the reload restores the view and the wire
+ * carries it over the panes (the panes share the persisted view; a pane's
+ * gesture writes over the doc, the others adopt it). The write is debounced
+ * over the gesture's bursts (one doc write per rest). The controls:
  *
  * - the hover toolbar (zoom in / out, the percent, reset) — always stands;
  * - the wheel — `ctrl`/`cmd` zooms at the cursor, a plain wheel pans
@@ -49,6 +51,8 @@ const EMBED_MAX_SCALE = 4;
 const EMBED_ZOOM_STEP = 1.2;
 /** The wheel's continuous zoom factor (the exponential of the delta, the canvas pinch idiom). */
 const EMBED_WHEEL_ZOOM = 0.002;
+/** The view's persist debounce (the gesture's bursts stand one doc write per rest). */
+const EMBED_PERSIST_DEBOUNCE_MS = 250;
 
 interface EmbedView {
   scale: number;
@@ -58,6 +62,26 @@ interface EmbedView {
 
 /** The identity view: the iframe at its natural size, filling the wrapper. */
 const EMBED_VIEW_IDENTITY: EmbedView = { scale: 1, x: 0, y: 0 };
+
+/** The view over the block's persisted attrs (the null idiom's restore). */
+function viewOfAttrs(
+  zoom: number | null | undefined,
+  panX: number | null | undefined,
+  panY: number | null | undefined
+): EmbedView {
+  return { scale: zoom ?? 1, x: panX ?? 0, y: panY ?? 0 };
+}
+
+/**
+ * The view's wire stand: the gesture's floating-point's residue must not
+ * stand a non-identity's persist (the zoom-out/in's round-trip lands the
+ * 0.9999…'s "identity"). The zoom's round to the label's 1%'s precision,
+ * the pan's to the 0.1 px (the sub-pixel's residue stands the identity).
+ */
+function roundViewValue(value: number, places: number): number {
+  const factor = 10 ** places;
+  return Math.round(value * factor) / factor;
+}
 
 /**
  * Clamp the pan against the scaled embed's overflow. The embed cannot be
@@ -84,14 +108,16 @@ function zoomAtPoint(view: EmbedView, cx: number, cy: number, nextScale: number)
 function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
   const { t } = useTranslation("blocks");
   const { kind, src, title } = block.attrs;
-  // The embed's sandbox: the policy (the consumer's or the safe default) maps
-  // the src to the `sandbox` value; `null` stands no sandbox (a fully trusted
-  // embed). The default is opaque-origin (no `allow-same-origin`), so the
-  // embedded content cannot read the parent's DOM / state.
-  const { embedSandbox } = useEditorContext();
+  // The embed's sandbox: the policy (the consumer's or the default) maps
+  // the src to the `sandbox` value; `null` stands no sandbox (a fully
+  // trusted embed). The default grants the same-origin (the real-app's
+  // own storage), so the embedded content boots like in a plain tab.
+  const { doc, embedSandbox } = useEditorContext();
   const sandbox = embedSandbox(src);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const [view, setView] = useState<EmbedView>(EMBED_VIEW_IDENTITY);
+  // The view stands the block's persisted attrs (the reload's restore), the
+  // null idiom's identity over the absent / the cleared attrs.
+  const [view, setView] = useState<EmbedView>(() => viewOfAttrs(block.attrs.zoom, block.attrs.panX, block.attrs.panY));
   const viewRef = useRef(view);
   viewRef.current = view;
   // The pan modifier (space / alt) held: the iframe yields its pointer events
@@ -171,6 +197,51 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
 
   const resetView = () => setView(EMBED_VIEW_IDENTITY);
   const atIdentity = view.scale === EMBED_VIEW_IDENTITY.scale && view.x === 0 && view.y === 0;
+
+  /**
+   * The persisted view's write (the debounce over the gesture's bursts): the
+   * non-identity view stands the block's attrs (the zoom / panX / panY — the
+   * null idiom: the identity parts stand `null`, the reader's restore), so
+   * the reload / the new tab's embed stands the same view. The values stand
+   * the wire's precision (the 1%'s zoom, the 0.1 px's pan — the rounding's
+   * guard over the floating-point's residue). The no-op stand: a view equal
+   * to the block's own attrs writes nothing (no updatedAt's stamp, no wire
+   * update).
+   */
+  useEffect(() => {
+    const zoom = roundViewValue(view.scale, 2);
+    const x = roundViewValue(view.x, 1);
+    const y = roundViewValue(view.y, 1);
+    if (zoom === (block.attrs.zoom ?? 1) && x === (block.attrs.panX ?? 0) && y === (block.attrs.panY ?? 0)) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      doc.updateBlock(id, { zoom: zoom === 1 ? null : zoom, panX: x === 0 ? null : x, panY: y === 0 ? null : y });
+    }, EMBED_PERSIST_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [view, block.attrs, doc, id]);
+
+  /**
+   * The remote's stand: the panes share the persisted view over the wire — a
+   * pane's peer lands a view different from the local's (the block's attrs
+   * stand the peer's write), so the local's view adopts it. Own writes land
+   * equal to the local's view and stand no adopt. The adopt clamps the
+   * restored pan to the current wrapper (a stale pan over a narrower pane's
+   * clip must not blank the embed).
+   */
+  useEffect(() => {
+    const scale = block.attrs.zoom ?? 1;
+    const x = block.attrs.panX ?? 0;
+    const y = block.attrs.panY ?? 0;
+    const v = viewRef.current;
+    if (scale === v.scale && x === v.x && y === v.y) return;
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    const clamped =
+      rect === undefined || rect.width === 0 || rect.height === 0
+        ? { x, y }
+        : clampEmbedPan(scale, x, y, rect.width, rect.height);
+    setView({ scale, x: clamped.x, y: clamped.y });
+  }, [block.attrs]);
 
   // The modifier drag-pan: the wrapper's pointerdown stands only when the
   // modifier is held (the iframe yields then) and the target is not the

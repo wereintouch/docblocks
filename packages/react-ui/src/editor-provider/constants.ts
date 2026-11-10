@@ -3,15 +3,18 @@
 import type { EmbedSandboxPolicy } from "./models";
 
 /**
- * The safe embed sandbox (the default when no `embedSandbox` policy is
- * supplied): the embedded content stands an opaque origin (no
- * `allow-same-origin`), so it cannot read the parent's DOM, cookies, or state;
- * scripts, forms, and popups still run, so interactive embeds keep working.
- * Grant `allow-same-origin` — and `allow-scripts` together with it — only for
- * trusted origins via the `embedSandbox` policy: that combination lets the
- * frame lift its own sandbox.
+ * The embed sandbox (the default when no `embedSandbox` policy is supplied):
+ * the embedded content runs with its own origin's grants (`allow-same-origin`
+ * — the real-app requirement: a dashboard's own storage / cookies stand,
+ * so the app boots like in a plain tab) + scripts, forms, and popups.
+ * The frame's document stands a separate document either way: a
+ * cross-origin embed cannot reach the parent's DOM or state. The one
+ * posture consequence: a same-origin URL (the page's own origin) reaches
+ * the parent over `window.parent` — the document author's own choice to
+ * embed it. The `embedSandbox` policy stands the restriction (the
+ * opaque-origin stand — no `allow-same-origin` — for the untrusted embeds).
  */
-const DEFAULT_EMBED_SANDBOX = "allow-scripts allow-forms allow-popups";
+const DEFAULT_EMBED_SANDBOX = "allow-scripts allow-same-origin allow-forms allow-popups";
 
 const defaultEmbedSandbox: EmbedSandboxPolicy = () => DEFAULT_EMBED_SANDBOX;
 

@@ -89,25 +89,26 @@ describe("built-in renderer: embed", () => {
     expect(iframe?.getAttribute("src")).toBe("https://example.com/page");
   });
 
-  it("stands the safe default sandbox over the iframe (no same-origin access)", () => {
+  it("stands the default sandbox over the iframe (the same-origin grant — the real-app's own storage stands)", () => {
     renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://example.com/page" }));
     const iframe = document.querySelector<HTMLIFrameElement>('[data-block-type="embed"] iframe');
-    // The safe default: scripts / forms / popups run, but NO allow-same-origin
-    // — the embedded content is an opaque origin and cannot read the parent's
-    // DOM / state.
+    // The default grants the same-origin: the embedded app runs with its own
+    // origin's storage / cookies (the real-app's boot requirement), scripts /
+    // forms / popups stand. The frame's document stands a separate document —
+    // a cross-origin embed cannot reach the parent's DOM or state.
     expect(iframe?.getAttribute("sandbox")).toBe(DEFAULT_EMBED_SANDBOX);
-    expect(iframe?.getAttribute("sandbox")).not.toContain("allow-same-origin");
+    expect(iframe?.getAttribute("sandbox")).toContain("allow-same-origin");
   });
 
-  it("applies the consumer's embedSandbox policy (a trusted origin stands same-origin)", () => {
-    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://trusted.example/page" }), {
-      embedSandbox: (src) =>
-        src.startsWith("https://trusted.example") ? "allow-scripts allow-same-origin" : "allow-scripts",
+  it("applies the consumer's embedSandbox policy (the restriction's stand — the opaque origin over the untrusted)", () => {
+    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://example.com/page" }), {
+      embedSandbox: () => "allow-scripts",
     });
     const iframe = document.querySelector<HTMLIFrameElement>('[data-block-type="embed"] iframe');
-    // The trusted origin's policy stands (the consumer consciously grants
-    // same-origin for it).
-    expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts allow-same-origin");
+    // The consumer's policy stands the opaque-origin's posture (the
+    // allow-same-origin's refuse — the untrusted embed's restriction).
+    expect(iframe?.getAttribute("sandbox")).toBe("allow-scripts");
+    expect(iframe?.getAttribute("sandbox")).not.toContain("allow-same-origin");
   });
 
   it("stands no sandbox when the policy returns null (a fully trusted embed)", () => {
@@ -310,22 +311,67 @@ describe("embed pan/zoom (view state)", () => {
     expect(zoomIn.disabled).toBe(true);
   });
 
-  it("the pan/zoom is PURE view state: the doc, the wire, and toJSON stay invariant", async () => {
+  it("the pan/zoom persists over the block's attrs (the debounce's write; the reload's restore)", async () => {
     const doc = renderEmbed();
-    const before = JSON.stringify(doc.toJSON());
+    const embedId = doc.getChildren(doc.toJSON().id)[0]!;
     const iframe = document.querySelector<HTMLIFrameElement>(EMBED_SELECTOR)!;
     const zoomIn = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-in']")!;
+    const reset = document.querySelector<HTMLButtonElement>("[data-slot='docblocks/embed-zoom-reset']")!;
 
+    // The gesture's bursts stand the view; the doc's write stands the
+    // debounce (the burst's middle: nothing yet).
     await act(async () => {
       fireEvent.click(zoomIn);
     });
     await act(async () => {
       fireEvent.click(zoomIn);
     });
-
     expect(iframe.style.transform).toContain("scale(1.44)");
-    // The doc is untouched: the view state is not document data (one pane's
-    // pan/zoom never reaches the wire or the other pane).
-    expect(JSON.stringify(doc.toJSON())).toBe(before);
+    expect(doc.getBlock(embedId)).toMatchObject({
+      type: "embed",
+      attrs: { kind: "iframe", src: "https://example.com/page" },
+    });
+
+    // The rest: the debounce lands the view over the block's attrs (the
+    // persisted stand — the reload / the new tab's embed stands it; the
+    // identity's parts stand the null idiom).
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 320));
+    });
+    expect(doc.getBlock(embedId)).toMatchObject({
+      type: "embed",
+      attrs: { kind: "iframe", src: "https://example.com/page", zoom: 1.44, panX: null, panY: null },
+    });
+
+    // The reset's stand: the attrs stand the cleared view (the null idiom's
+    // restore: null / absent = the identity).
+    await act(async () => {
+      fireEvent.click(reset);
+    });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 320));
+    });
+    expect(iframe.style.transform).toBe("translate(0px, 0px) scale(1)");
+    expect(doc.getBlock(embedId)).toMatchObject({
+      type: "embed",
+      attrs: { kind: "iframe", src: "https://example.com/page", zoom: null, panX: null, panY: null },
+    });
+  });
+
+  it("restores the persisted view over the mount (the reload's stand)", () => {
+    // The doc stands the persisted view (the peer's / the reload's attrs):
+    // the fresh mount's embed stands it (the view's init over the block's
+    // attrs — no flash of the identity).
+    const doc = renderDoc((d) => {
+      const id = d.insertBlock("embed", { kind: "iframe", src: "https://example.com/page" });
+      d.updateBlock(id, { zoom: 2, panX: -10, panY: 5 });
+    });
+    const iframe = document.querySelector<HTMLIFrameElement>(EMBED_SELECTOR)!;
+    expect(iframe.style.transform).toBe("translate(-10px, 5px) scale(2)");
+    // The restore stands no re-write (the view equals the block's attrs —
+    // the no-op's stand, no wire's update).
+    expect(doc.getBlock(doc.getChildren(doc.toJSON().id)[0]!)).toMatchObject({
+      attrs: { zoom: 2, panX: -10, panY: 5 },
+    });
   });
 });
