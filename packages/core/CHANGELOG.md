@@ -1,5 +1,15 @@
 # docblocks-core
 
+## 0.1.3
+
+### Patch Changes
+
+- 5971d30: `PresenceState` now passes through the awareness payload's sharing
+  contract fields — the consumer user identity (`userId` / `name`), the
+  opaque ciphertext selection entries (`selections`), and the publication
+  counter (`seq`). The ws-provider mapper validates them defensively; a
+  legacy frame keeps its pre-sharing shape.
+
 ## 0.1.2
 
 ### Patch Changes
