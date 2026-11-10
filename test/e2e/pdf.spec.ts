@@ -4,6 +4,9 @@ import { openPane, twoPanes } from "./helpers";
 
 const SETTLE = { timeout: 20_000 };
 const FIXTURE = new URL("./fixtures/sample.pdf", import.meta.url).pathname;
+// A 3-page PDF (the page navigation's pin: the prev/next buttons + the
+// page indicator over a multi-page document).
+const FIXTURE_MULTI_PAGE = new URL("./fixtures/multi-page.pdf", import.meta.url).pathname;
 // A real scanned PDF whose text layers are JBIG2-encoded (a JPEG background
 // image plus separate JBIG2 glyph/signature layers). It exercises the JBIG2
 // decoder path: without a resolvable wasmUrl the worker drops those layers and
@@ -121,6 +124,68 @@ test("the jbig2 text layers of a scanned pdf stand in the canvas preview", async
       return width === 0 || height === 0 ? -1 : dark / total;
     });
     expect(darkFrac).toBeGreaterThan(0.01);
+  } finally {
+    await context.close();
+  }
+});
+
+test("the page navigation: the prev/next buttons + the page indicator over a multi-page pdf", async ({ browser }) => {
+  const context = await browser.newContext();
+  const a = await context.newPage();
+  const room = `pdf-nav-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await openPane(a, "a", room, { first: true });
+    const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
+    await target.click();
+    await a.keyboard.type("/image");
+    await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
+    await uploadPdf(a, FIXTURE_MULTI_PAGE);
+
+    // The preview settles into the ready phase (the 3-page document).
+    const shell = a.locator('[data-slot="docblocks/image-pdf-preview"]');
+    await expect(shell).toHaveAttribute("data-phase", "ready", SETTLE);
+
+    // The control bar stands over the ready phase: the page indicator
+    // (1 / 3), the prev button (disabled on the first page), the next
+    // button (enabled), the fullscreen toggle.
+    const indicator = a.locator('[data-slot="docblocks/image-pdf-page-indicator"]');
+    await expect(indicator).toHaveText("1 / 3", SETTLE);
+    const prev = a.locator('[data-slot="docblocks/image-pdf-prev"]');
+    const next = a.locator('[data-slot="docblocks/image-pdf-next"]');
+    const fullscreen = a.locator('[data-slot="docblocks/image-pdf-fullscreen"]');
+    expect(await prev.isDisabled()).toBe(true);
+    expect(await next.isDisabled()).toBe(false);
+    expect(await fullscreen.count()).toBe(1);
+
+    // The next button advances the page (2 / 3); the prev button unlocks.
+    await next.click();
+    await expect(indicator).toHaveText("2 / 3", SETTLE);
+    expect(await prev.isDisabled()).toBe(false);
+    expect(await next.isDisabled()).toBe(false);
+
+    // The next button reaches the last page (3 / 3) and disables itself.
+    await next.click();
+    await expect(indicator).toHaveText("3 / 3", SETTLE);
+    expect(await next.isDisabled()).toBe(true);
+
+    // The prev button walks back (2 / 3, then 1 / 3); the prev button
+    // disables on the first page.
+    await prev.click();
+    await expect(indicator).toHaveText("2 / 3", SETTLE);
+    await prev.click();
+    await expect(indicator).toHaveText("1 / 3", SETTLE);
+    expect(await prev.isDisabled()).toBe(true);
+
+    // The fullscreen overlay: the toggle opens the overlay (the portal),
+    // the overlay carries the same page navigation + the close button;
+    // the Escape key exits the overlay.
+    await fullscreen.click();
+    const overlay = a.locator('[data-slot="docblocks/image-pdf-fullscreen-overlay"]');
+    await expect(overlay).toBeVisible(SETTLE);
+    expect(await overlay.locator('[data-slot="docblocks/image-pdf-page-indicator"]').textContent()).toBe("1 / 3");
+    expect(await overlay.locator('[data-slot="docblocks/image-pdf-fullscreen-close"]').count()).toBe(1);
+    await a.keyboard.press("Escape");
+    await expect(overlay).toBeHidden(SETTLE);
   } finally {
     await context.close();
   }
