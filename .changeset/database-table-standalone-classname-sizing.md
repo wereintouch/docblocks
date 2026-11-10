@@ -1,5 +1,5 @@
 ---
-"docblocks-react-ui": minor
+"docblocks-react-ui": patch
 ---
 
 The standalone `DatabaseTable` gains a `className` prop: the consumer's
