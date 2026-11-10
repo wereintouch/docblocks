@@ -55,6 +55,7 @@ export { ListChecks } from "./ListChecks";
 export { ListOrdered } from "./ListOrdered";
 export { LoaderCircle } from "./LoaderCircle";
 export { Lock } from "./Lock";
+export { Maximize } from "./Maximize";
 export { Menu } from "./Menu";
 export { MessageSquare } from "./MessageSquare";
 export { Minus } from "./Minus";

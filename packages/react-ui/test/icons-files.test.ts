@@ -62,6 +62,7 @@ const ICON_SET = [
   "ListOrdered",
   "LoaderCircle",
   "Lock",
+  "Maximize",
   "Menu",
   "MessageSquare",
   "Minus",

@@ -35,7 +35,11 @@
     "wrap": "Wrap long lines",
     "rendering": "rendering…",
     "pdfPreviewUnavailable": "PDF preview unavailable ({error}). Showing the built-in viewer.",
-    "pdfLoading": "loading preview…"
+    "pdfLoading": "loading preview…",
+    "pdfPrevPage": "Previous page",
+    "pdfNextPage": "Next page",
+    "pdfFullscreen": "Expand to fullscreen",
+    "pdfCloseFullscreen": "Close fullscreen"
   },
   "image": {
     "placeholder": "image",

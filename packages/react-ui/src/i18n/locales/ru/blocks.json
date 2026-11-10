@@ -35,7 +35,11 @@
     "wrap": "Переносить длинные строки",
     "rendering": "Рисование…",
     "pdfPreviewUnavailable": "Превью PDF недоступно ({error}). Показан встроенный просмотрщик.",
-    "pdfLoading": "Загрузка превью…"
+    "pdfLoading": "Загрузка превью…",
+    "pdfPrevPage": "Предыдущая страница",
+    "pdfNextPage": "Следующая страница",
+    "pdfFullscreen": "Развернуть на весь экран",
+    "pdfCloseFullscreen": "Закрыть полноэкранный режим"
   },
   "image": {
     "placeholder": "изображение",
