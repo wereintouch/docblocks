@@ -1,5 +1,107 @@
 # docblocks-react-ui
 
+## 0.4.0
+
+### Minor Changes
+
+- 1b15901: The `embed` block's hover toolbar gains a URL-edit affordance (the
+  editing mode's stand): the pencil button opens a panel over the
+  toolbar with the current `src` pre-filled — the Enter / check's
+  commit writes the `src` over the block's attrs (the iframe's
+  navigation over the new src; the unsafe-scheme's and the empty's
+  no-commit stand the slash form's rule, the unchanged's no-op writes
+  nothing), the Escape / x's cancel closes the panel without a write.
+  The read-only's stand gates the button off.
+  
+  The slash `Embed` form's visual stands the check over the URL input's
+  right end (one row — the input fills the width, the commit button
+  sits at its right edge instead of a row below).
+- 48ef4fb: The `embed` block's height stands the stretchable stand: the
+  `--docblocks-embed-height` token (300 px) is the default — the minimum,
+  and the block's bottom edge stands the resize handle (the hover reveal's
+  grip bar, the `cursor-row-resize`'s stand, the keyboard's arrows over
+  the 16 px's step — the slider's aria). The drag stretches the wrapper's
+  height over the gesture (the live's stand), and the rest's commit stands
+  the block's new `height` attr (px; absent or `null` = the token's
+  default — the null idiom's stand, so the reload restores the stretched
+  stand and the panes share it over the wire). The stretch only stands
+  over the minimum (the drag over it clamps, the clear stands the `null`'s
+  write); the read-only's stand gates the handle off.
+- 0791efb: The `embed` block's slash form stands the URL input only (the kind's
+  selector stood removed — the kind's default stands the `iframe`, the
+  renderer's hint over the single-iframe stand). The `data:text/html`
+  snippet's stand (the former `html` kind's purpose over the form) is no
+  longer reachable over the form; the `html` kind stands a valid data
+  kind over the direct insert / the wire.
+  
+  The default embed sandbox's stand changes: it now grants
+  `allow-same-origin` (with the `allow-scripts`), so the embedded app
+  boots with its own origin's storage / cookies (the real-app's
+  requirement — the dashboards' class stands). The frame's document stands
+  a separate document either way (a cross-origin's embed cannot reach the
+  parent's DOM or state); the posture's consequence stands the same-origin
+  URL's reach over the parent's state. The consumer's `embedSandbox`
+  policy stands the restriction (the opaque-origin's stand, the
+  `allow-same-origin`'s refuse).
+  
+  The embed's pan/zoom stands the block's persisted attrs (the `zoom` /
+  `panX` / `panY` over the core's new attrs): the reload / the new tab's
+  embed restores the view, and the panes share the persisted view over
+  the wire (a pane's gesture writes over the doc, the other's adopt it).
+  The write's debounce stands over the gesture's bursts (one doc write
+  per rest); the values stand the wire's precision (the 1% zoom, the
+  0.1 px pan — the floating-point's residue's guard).
+
+### Patch Changes
+
+- c5d0360: The canvas frame stands a pure region boundary — it renders no content
+  copy. The frame renders the boundary (the transparent box, the border, the
+  optional title chip); the interior is transparent, so the canvas content
+  that falls under the box stands once over the surface (no mirror, no
+  inert copies, no nested frame windows). The page-frame block's window is
+  the only mirror of the canvas content — the clipped, inert cut over the
+  page.
+  
+  This changes the frame's visual contract: a frame no longer re-renders the
+  surface's children inside its box (the former viewport-window behavior),
+  and the page-frame block's window no longer carries the nested frame
+  window's copies (a frame inside the referenced frame now stands its
+  boundary over the window, not a second cut of the content).
+- c8be627: Fix the caret's re-seat over a text block after the focus stood in an
+  embedded iframe (the embed's click): the cross-block selection's
+  mousedown suppression no longer stands over such a press — the
+  mousedown's default is the browser's focus move out of the frame, and
+  suppressing it left the editor's document unfocused (no visible caret,
+  the keystrokes' no-stand; only a double-click recovered it). The
+  press now lets the default stand (the native focus move + the caret's
+  seat) and tears the selection session down.
+- 14e72c1: The page row's delete affordance stands the gutter's right offset over
+  every block type: the hover's trash icon stands at the row's right edge,
+  the same offset from the block content as the grip (the gutter's left
+  offset, mirrored to the right) — over the text rows (paragraph, quote,
+  heading, callout, list-item, code) as the non-text rows. The icon no
+  longer overlaps the block's content zone.
+- 9f789c9: The PDF preview (the `./pdf` subpath's `PdfFirstPage`) gains page
+  navigation + a fullscreen mode. The inline view stands a control bar under
+  the canvas: the previous/next page buttons (disabled at the first/last
+  page), the page indicator, and the fullscreen toggle. The fullscreen mode
+  opens a portal overlay over the viewport (the page scaled to the
+  viewport, the same page navigation; the control bar stands the inline's
+  — the thin border + the rounded corners, the minimize icon the only
+  difference). The Escape key, the close button, and a click over the
+  overlay's own surface (the background around the page) exit the fullscreen
+  mode; a click over the page or the control bar stands it. The inline +
+  the fullscreen views share the page state, so a page switch in either
+  re-renders both.
+- b3f2e54: The slash `File` command's label resolves over the slash catalog (the
+  missing key stood the raw `blocks.file` in the menu); the orphaned
+  `Image` key stands removed. The embed form's hint stands the URL-only
+  form's wording (the `html` kind's snippet is no longer the form's
+  purpose — the kind's selector stood removed).
+- Updated dependencies [0791efb]
+- Updated dependencies [48ef4fb]
+  - docblocks-core@0.2.0
+
 ## 0.3.1
 
 ### Patch Changes
