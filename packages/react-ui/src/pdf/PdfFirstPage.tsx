@@ -31,11 +31,7 @@ type PdfPhase = "loading" | "ready" | "error";
  * render task (the caller awaits its promise + cancels it on teardown).
  * Does NOT await the promise itself, so the caller can cancel the in-flight
  * render before it completes. */
-function renderPageToCanvas(
-  pdf: PDFDocumentProxy,
-  pageNumber: number,
-  canvas: HTMLCanvasElement,
-): Promise<RenderTask> {
+function renderPageToCanvas(pdf: PDFDocumentProxy, pageNumber: number, canvas: HTMLCanvasElement): Promise<RenderTask> {
   return pdf.getPage(pageNumber).then((page) => {
     const ratio = window.devicePixelRatio || 1;
     const viewport = page.getViewport({ scale: ratio });
@@ -352,9 +348,11 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
             >
               <X className="size-5" />
             </button>
-            <div className="
+            <div
+              className="
               flex max-h-[calc(100vh-8rem)] max-w-[calc(100vw-4rem)] items-center justify-center overflow-auto
-            ">
+            "
+            >
               <canvas
                 ref={fullscreenCanvasRef}
                 data-slot="docblocks/image-pdf-fullscreen-canvas"
