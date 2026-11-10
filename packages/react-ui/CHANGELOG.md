@@ -1,5 +1,33 @@
 # docblocks-react-ui
 
+## 0.4.2
+
+### Patch Changes
+
+- 90b529c: The callout's management moves from the format toolbar to the block's own
+  affordance: the marker-zone icon stands a button (edit mode only) whose
+  click opens the block's management menu (the type presets, the background
+  palette, the icon catalog) beside the icon. The menu manages the block's
+  attrs, not the selection's marks, so it stands for an empty callout (no
+  text selection needed). The format toolbar over a callout's text range
+  keeps the shared text marks and the alignment only (the callout's section
+  is removed). The background palette gains the custom swatch: the `ColorPicker`
+  primitive (the native `input type="color"` + the strict `#rrggbb` hex
+  field) commits one `updateBlock({ color })` per pick (one undo step, one
+  wire update); the close without a commit discards the draft. The read-only
+  stands (view / published) render the icon without a button (no pointer
+  events, the editing-surface parity).
+- f482152: The Enter's split over the empty LAST line stands the exit's parity: the
+  caret on an empty line at the text's end (the block's text ends with a
+  soft line break) consumes that break with the gesture — the first block
+  stands without the ghost empty line, the new sibling (the same type and
+  attrs) stands empty. Before the fix the break survived the split in the
+  first block as a rendered empty line that the line-boundary gestures
+  (Home / End / the selection's deletes) do not reach. The quote /
+  callout / code gesture family's exit stand (the same block over its
+  own Enter handler) was the reference; the mid-text split's stand is
+  unchanged (the new block's leading break is the caret's new line).
+
 ## 0.4.1
 
 ### Patch Changes
