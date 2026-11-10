@@ -459,3 +459,78 @@ test("the embed's pan/zoom survives the reload (the persisted view's restore)", 
   const restored = page.locator('[data-block-type="embed"] iframe[data-slot="docblocks/embed"]');
   await expect(restored).toHaveAttribute("style", /scale\(1\.44\)/, SETTLE);
 });
+
+test("a text's press after the iframe's focus stands the focus's move out of the frame (the caret's re-seat)", async ({
+  page,
+}) => {
+  const room = `ext01-embed-iframe-focus-${Math.random().toString(36).slice(2, 8)}`;
+  await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
+  await expect(page.getByTestId("status-a")).toHaveText("connected");
+
+  // The same-origin fixture's embed (the frame's document's focus's
+  // stand — the click's seat stands the frame's focus).
+  const fixtureUrl = await page.evaluate(() => new URL("sandbox-test-embed.html", window.location.href).href);
+  await page.evaluate((fixtureUrl) => {
+    window.__paneDocs!.a!.insertBlock("embed", { kind: "iframe", src: fixtureUrl });
+  }, fixtureUrl);
+  const iframe = page.locator('[data-block-type="embed"] iframe[data-slot="docblocks/embed"]');
+  await expect(iframe).toHaveCount(1, SETTLE);
+  await expect(iframe).toBeVisible(SETTLE);
+
+  // The click inside the iframe: the frame's document stands focused (the
+  // parent's activeElement stands the iframe element).
+  await iframe.click();
+  await expect.poll(() => page.evaluate(() => document.activeElement?.tagName === "IFRAME"), SETTLE).toBe(true);
+
+  // A single press over a text inner: the focus's move out of the frame
+  // stands (the mousedown's default — the editor's mousedown suppression
+  // would leave the document unfocused: the caret's seat over the unfocused
+  // document, no visible caret, the keys' no-stand).
+  const inner = page.locator('[data-slot="docblocks/block-content"]').first();
+  await inner.click();
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            document.activeElement instanceof HTMLElement &&
+            document.activeElement.closest('[data-slot="docblocks/block-content"]') !== null
+        ),
+      SETTLE
+    )
+    .toBe(true);
+
+  // The caret's stand: the collapsed selection over the inner (the keys'
+  // reach stands).
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const selection = window.getSelection();
+          return (
+            selection !== null &&
+            selection.rangeCount > 0 &&
+            selection.isCollapsed &&
+            (selection.anchorNode instanceof Element
+              ? selection.anchorNode.closest('[data-slot="docblocks/block-content"]')
+              : null) !== null
+          );
+        }),
+      SETTLE
+    )
+    .toBe(true);
+
+  // The keys' reach: the type lands over the inner (the pre-fix's stand was
+  // the frame's focus — the type's no-stand over the parent).
+  await page.keyboard.type("Focus after iframe");
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const inner = document.querySelector('[data-slot="docblocks/block-content"]');
+          return inner !== null && inner.textContent === "Focus after iframe";
+        }),
+      SETTLE
+    )
+    .toBe(true);
+});

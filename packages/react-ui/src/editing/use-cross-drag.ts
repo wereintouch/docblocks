@@ -116,6 +116,15 @@ function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): Dra
  * soft-break lines) itself — a permanent capture listener, independent of
  * the session (the real pointer's third press starts no session: the
  * pointer's detail stands 3 and the session guard returns).
+ *
+ * The iframe's focus exception: a press while the document's focus stands
+ * in a frame (the embed's iframe) tears the session down and lets the
+ * mousedown's default stand — the default's focus move out of the frame
+ * is the editor's document's focus, and suppressing it would seat the
+ * caret over the unfocused document (no visible caret, the keys' no-
+ * stand). The browser's native caret's seat stands the press; a double
+ * press over the focused frame stands the same stand over the detail's
+ * check.
  */
 function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
   const sessionRef = useRef<CrossDragSession | null>(null);
@@ -177,12 +186,28 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
       if (session === null || root === null || event.button !== 0) return;
       const target = event.target instanceof Element ? event.target : null;
       if (target === null || !root.contains(target)) return;
-      if (event.detail >= 2) {
+      const tearDown = () => {
         sessionRef.current = null;
         window.removeEventListener("pointermove", move);
         window.removeEventListener("pointerup", end);
         window.removeEventListener("pointercancel", end);
         window.removeEventListener("mousedown", mousedown, true);
+      };
+      if (event.detail >= 2) {
+        tearDown();
+        return;
+      }
+      // The iframe holds the document's focus (the press stands over the
+      // editor, the focus stands in a frame): the mousedown's default
+      // action is the browser's focus move out of the frame — suppressing
+      // it would leave the editor's document unfocused (the session's
+      // caret's seat stands over the unfocused document: no visible caret,
+      // the keys' no-stand). The browser's native caret's seat the press,
+      // so the session's torn down (the unsuppressed mousedown starts the
+      // browser's own selection drag, which the editor's cross seat would
+      // fight).
+      if (document.activeElement instanceof HTMLIFrameElement) {
+        tearDown();
         return;
       }
       event.preventDefault();
@@ -235,6 +260,11 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
       if (target === null || !root.contains(target)) return;
       const inner = target.closest<HTMLElement>('[data-slot="docblocks/block-content"]');
       if (inner === null || inner.closest('[data-slot="docblocks/editor"]') !== root) return;
+      // The iframe's focus stand (the mousedown's tear-down's parity):
+      // the default's suppression would keep the document's focus in the
+      // frame (the seat's no-stand over the unfocused document), so the
+      // browser's native paragraph's select + the focus's move stand.
+      if (document.activeElement instanceof HTMLIFrameElement) return;
       const blockId = inner.dataset.blockId as BlockId;
       // The native triple press selects the visual line of a pre-wrap
       // block (one soft-break line); the whole-block select is the
