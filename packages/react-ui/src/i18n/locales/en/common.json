@@ -19,5 +19,9 @@
   "access": {
     "notPublished": "This document has not been published yet.",
     "notPublishedHint": "Readers see the document only after it has been published."
+  },
+  "colorPicker": {
+    "aria": "Color picker",
+    "hexAria": "Hex color value"
   }
 }

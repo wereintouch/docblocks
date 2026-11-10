@@ -18,7 +18,8 @@ import { ScrollArea } from "../shared/ui/ScrollArea";
 import { cn } from "../shared/ui/cn";
 import { GripVertical, Plus, Trash, TriangleFilled } from "../shared/ui/icons";
 import { textOf, useTextInner } from "../text/text-inner";
-import { CALLOUT_ICON_COMPONENTS, calloutIconName } from "./callout-icon";
+import { CalloutBlockMenu } from "./CalloutBlockMenu";
+import { calloutIconName } from "./callout-icon";
 import { CodeCaption } from "./code/CodeCaption";
 import { CodeHighlight } from "./code/CodeHighlight";
 import { isHighlightable } from "./code/code-highlight";
@@ -372,11 +373,6 @@ function TextBlock({
   const calloutColorOverride = typeof calloutColor === "string" && calloutColor !== "" ? calloutColor : undefined;
   const effectiveCalloutIcon =
     block.type === "callout" ? calloutIconName(block.attrs?.icon, calloutVariant) : undefined;
-  const CalloutIcon = effectiveCalloutIcon !== undefined ? CALLOUT_ICON_COMPONENTS[effectiveCalloutIcon] : undefined;
-  const calloutBorder =
-    block.type === "callout"
-      ? (calloutColorOverride ?? `var(--docblocks-callout-border-color-${calloutVariant})`)
-      : undefined;
   const calloutStyle =
     block.type === "callout" && calloutColorOverride !== undefined
       ? {
@@ -707,22 +703,7 @@ function TextBlock({
             "
           />
         )}
-        {block.type === "callout" && CalloutIcon !== undefined && (
-          <span
-            data-slot="docblocks/callout-icon"
-            aria-hidden
-            className="pointer-events-none absolute flex items-center justify-center"
-            style={{
-              top: "var(--docblocks-callout-padding-y)",
-              left: "var(--docblocks-callout-padding-x)",
-              width: "var(--docblocks-callout-icon-size)",
-              height: "var(--docblocks-callout-icon-size)",
-              color: calloutBorder,
-            }}
-          >
-            <CalloutIcon style={{ width: "100%", height: "100%" }} />
-          </span>
-        )}
+        {block.type === "callout" && <CalloutBlockMenu id={id} block={block} />}
         {(flatMarkerIsNumber || flatMarkerIsBullet) && (
           <span data-slot="docblocks/row-marker" data-cycle={cycle} data-kind={block.attrs.list}>
             {flatMarkerIsNumber && number !== undefined ? numberMarkerLabel(number, cycle) : null}

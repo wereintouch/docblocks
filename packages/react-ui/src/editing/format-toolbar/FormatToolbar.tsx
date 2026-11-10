@@ -40,10 +40,8 @@ import { useTranslation } from "react-i18next";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { CALLOUT_ICONS } from "docblocks-core";
 import type { Block, TextAlign } from "docblocks-core";
 
-import { CALLOUT_ICON_COMPONENTS, CALLOUT_PRESET_ICONS, calloutIconName } from "../../blocks";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock, useSelection } from "../../hooks";
 import { Button } from "../../shared/ui/Button";
@@ -86,7 +84,6 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const barRef = useRef<HTMLDivElement | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [listMenuOpen, setListMenuOpen] = useState(false);
-  const [calloutMenuOpen, setCalloutMenuOpen] = useState(false);
   const [target, setTarget] = useState<PaletteTarget>("highlight");
 
   // The toolbar's target: a range inside a single block, or a cross-block
@@ -113,7 +110,6 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   useEffect(() => {
     setPaletteOpen(false);
     setListMenuOpen(false);
-    setCalloutMenuOpen(false);
   }, [selectionKey]);
 
   // Anchor the bar above the selection rect (below it when there is no
@@ -258,31 +254,10 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
     restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
   };
 
-  // The callout's controls (single-block callout target only). The type
-  // (preset) switch is one transact (the variant + the overrides reset to
-  // null — the preset resets the individual overrides); the color / icon are
-  // individual overrides (the variant stands — the preset identity is kept).
-  // A no-op stand writes nothing (one action is one updateBlock: one undo
-  // step, one wire update).
-  const onCalloutPreset = (variant: "info" | "warning" | "danger"): void => {
-    if (range.kind !== "single" || single.type !== "callout") return;
-    const a = single.attrs ?? {};
-    const noOverride = (a.color ?? null) === null && (a.icon ?? null) === null;
-    if ((a.variant ?? "info") === variant && noOverride) return; // no-op
-    doc.transact(() => doc.updateBlock(range.blockId, { variant, color: null, icon: null }));
-  };
-  const onCalloutColor = (color: string | null): void => {
-    if (range.kind !== "single" || single.type !== "callout") return;
-    setCalloutMenuOpen(false); // the pick's stand: the callout menu's close
-    if ((single.attrs?.color ?? null) === color) return; // no-op
-    doc.updateBlock(range.blockId, { color });
-  };
-  const onCalloutIcon = (icon: string | null): void => {
-    if (range.kind !== "single" || single.type !== "callout") return;
-    setCalloutMenuOpen(false);
-    if ((single.attrs?.icon ?? null) === icon) return; // no-op
-    doc.updateBlock(range.blockId, { icon });
-  };
+  // The callout's controls (the type preset / the background / the icon)
+  // stand the block's own management menu (the clickable marker-zone icon —
+  // the CalloutBlockMenu): the toolbar for a callout's text range is the
+  // shared text marks + the alignment only.
 
   const markActive = (mark: FormatMark): boolean =>
     range.kind === "cross"
@@ -319,10 +294,6 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const toggleMarkAt = (mark: Parameters<typeof onToggleMark>[0]) => () => onToggleMark(mark);
   const alignAt = (align: Parameters<typeof onAlign>[0]) => () => onAlign(align);
   const listOptionAt = (option: Parameters<typeof onListOption>[0]) => () => onListOption(option);
-  const calloutPresetAt = (variant: Parameters<typeof onCalloutPreset>[0]) => () => onCalloutPreset(variant);
-  const noneCalloutColor = () => onCalloutColor(null);
-  const calloutIconAt = (name: Parameters<typeof onCalloutIcon>[0]) => () => onCalloutIcon(name);
-  const clearCalloutIcon = () => onCalloutIcon(null);
   const selectTarget = (target: Parameters<typeof setTarget>[0]) => () => setTarget(target);
   const nonePaletteValue = () => onPaletteValue(null);
 
@@ -426,110 +397,6 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             </DropdownMenu>
           </>
         )}
-      {!cross && single.type === "callout" && (
-        <>
-          <Separator orientation="vertical" className="h-5" />
-          <Popover modal={false} open={calloutMenuOpen} onOpenChange={setCalloutMenuOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                title={t("formatToolbar.callout.trigger")}
-                aria-label={t("formatToolbar.callout.trigger")}
-                className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
-              >
-                <MenuIcon className="size-4" />
-              </Button>
-            </PopoverTrigger>
-            {/* The portaled content keeps the bar's mousedown guard: a default
-              mousedown would blur the editable and kill the selection the
-              gesture is about to re-seat. Outside dismiss (pointer and focus)
-              is suppressed — the editor owns the focus, and the selection
-              state owns the visibility. */}
-            <PopoverContent
-              align="start"
-              sideOffset={MENU_SIDE_OFFSET_PX}
-              data-slot="docblocks/format-callout-menu"
-              className="w-auto p-2"
-              onMouseDown={preventDefault}
-              onPointerDownOutside={preventDefault}
-              onFocusOutside={preventDefault}
-            >
-              {/* Type (the preset: the variant + the overrides reset to the
-                preset — one transact). */}
-              <div role="group" aria-label={t("formatToolbar.callout.typeAria")} className="flex gap-1">
-                {(["info", "warning", "danger"] as const).map((variant) => {
-                  const active = (single.attrs?.variant ?? "info") === variant;
-                  const PresetIcon = CALLOUT_ICON_COMPONENTS[CALLOUT_PRESET_ICONS[variant]];
-                  return (
-                    <Button
-                      key={variant}
-                      variant="ghost"
-                      size="sm"
-                      data-callout-type-btn={variant}
-                      aria-pressed={active}
-                      aria-label={t("formatToolbar.callout.variant", { variant })}
-                      title={t("formatToolbar.callout.variant", { variant })}
-                      className={cn("h-7", active && ACTIVE_ITEM_CLASS)}
-                      onClick={calloutPresetAt(variant)}
-                    >
-                      {PresetIcon !== undefined && <PresetIcon className="size-4" />}
-                    </Button>
-                  );
-                })}
-              </div>
-              {/* Color (the override; the transparent swatch = the preset). */}
-              <div className="mt-2 border-t border-border pt-2">
-                <ColorSwatches
-                  colors={palette}
-                  current={single.attrs?.color ?? null}
-                  onSelect={onCalloutColor}
-                  label={t("formatToolbar.palette.callout")}
-                  allowNone
-                  noneActive={(single.attrs?.color ?? null) === null}
-                  onSelectNone={noneCalloutColor}
-                />
-              </div>
-              {/* Icon (the catalog grid; "Preset" = the variant's icon). */}
-              <div className="mt-2 border-t border-border pt-2">
-                <div role="group" aria-label={t("formatToolbar.callout.iconAria")} className="grid grid-cols-6 gap-1">
-                  {CALLOUT_ICONS.map((name) => {
-                    const Icon = CALLOUT_ICON_COMPONENTS[name];
-                    const active = calloutIconName(single.attrs?.icon, single.attrs?.variant ?? "info") === name;
-                    if (Icon === undefined) return null; // the drift test keeps this in step
-                    return (
-                      <Button
-                        key={name}
-                        variant="ghost"
-                        size="icon"
-                        data-callout-icon-btn={name}
-                        aria-pressed={active}
-                        aria-label={`${name} icon`}
-                        title={name}
-                        className={cn("size-7", active && ACTIVE_ITEM_CLASS)}
-                        onClick={calloutIconAt(name)}
-                      >
-                        <Icon className="size-4" />
-                      </Button>
-                    );
-                  })}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    data-callout-icon-preset
-                    aria-label={t("formatToolbar.callout.presetIcon")}
-                    title={t("formatToolbar.callout.presetIcon")}
-                    className={cn("col-span-6 h-7 text-xs", (single.attrs?.icon ?? null) === null && ACTIVE_ITEM_CLASS)}
-                    onClick={clearCalloutIcon}
-                  >
-                    {t("formatToolbar.callout.preset")}
-                  </Button>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </>
-      )}
       <Separator orientation="vertical" className="h-5" />
       <Popover modal={false} open={paletteOpen} onOpenChange={setPaletteOpen}>
         <PopoverTrigger asChild>

@@ -1,28 +1,43 @@
-// The callout's controls (the list-type menu's callout target): the type
-// (preset) switch, the color override, and the icon override commit one
-// updateBlock each (one undo step, one wire update) and reach the other
-// pane; the preset switch resets the overrides. The icon grid stands the
-// full catalog.
-import { type Page, expect, test } from "@playwright/test";
+// The callout's controls (the block menu over the clickable marker-zone
+// icon): the type (preset) switch, the color override (the swatches + the
+// custom's picker), and the icon override commit one updateBlock each
+// (one undo step, one wire update) and reach the other pane; the preset
+// switch resets the overrides. The menu stands for an empty callout (no
+// text selection needed). The toolbar over the callout's text stands the
+// shared marks + the alignment only (the callout's section stands the
+// block's menu). The view's mode renders the icon without a button.
+import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, twoPanes } from "./helpers";
+import { SETTLE, openPane, twoPanes } from "./helpers";
 
 /** The pane's floating format toolbar. */
 const toolbar = (page: Page, client: "a" | "b") =>
   page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/format-toolbar"]`);
 
+/** The pane's callout's icon button (the block menu's trigger). */
+const iconButton = (page: Page, client: "a" | "b") =>
+  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/callout-icon-button"]`);
+
+/** The portaled block menu (the document's body's stand). */
+const menu = (page: Page) => page.locator('[data-slot="docblocks/callout-menu"]');
+
 /** Seed a callout (with a text run) in the pane; returns the block id. */
-async function seedCallout(page: Page, client: "a" | "b", attrs: Record<string, unknown>): Promise<string> {
+async function seedCallout(
+  page: Page,
+  client: "a" | "b",
+  attrs: Record<string, unknown>,
+  text?: string
+): Promise<string> {
   return page.evaluate(
-    ({ client, attrs }) => {
+    ({ client, attrs, text }) => {
       const docs = window.__paneDocs;
       const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
       if (doc === null) throw new Error("the pane's doc is not mounted");
       const id = doc.insertBlock("callout", attrs);
-      doc.insertText(id, 0, "note");
+      if (text !== undefined) doc.insertText(id, 0, text);
       return id;
     },
-    { client, attrs }
+    { client, attrs, text }
   );
 }
 
@@ -59,21 +74,15 @@ async function selectCalloutText(page: Page, client: "a" | "b", id: string): Pro
 
 test("the type switch reaches the other pane (the preset resets the overrides)", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "callout-type");
-  const coId = await seedCallout(a, "a", { variant: "info", color: "#ff0000", icon: "star" });
+  const coId = await seedCallout(a, "a", { variant: "info", color: "#ff0000", icon: "star" }, "note");
   await expect.poll(async () => (await calloutAttrs(a, "a", coId))?.variant, SETTLE).toBe("info");
 
-  await selectCalloutText(a, "a", coId);
-  const bar = toolbar(a, "a");
-  await expect(bar).toBeVisible();
-  // The callout target stands the callout menu, not the list-type radio menu.
-  await expect(bar.locator('button[aria-label="Callout"]')).toBeVisible();
-  await expect(bar.locator('button[aria-label="List type"]')).toHaveCount(0);
-
-  // Open the menu (a click — the radix Popover trigger) and pick the preset.
-  await bar.locator('button[aria-label="Callout"]').click();
-  const menu = a.locator('[data-slot="docblocks/format-callout-menu"]');
-  await expect(menu).toBeVisible();
-  await menu.locator('[data-callout-type-btn="danger"]').click();
+  // Open the block's menu over the icon (no text selection needed).
+  await iconButton(a, "a").click();
+  await expect(menu(a)).toBeVisible();
+  // The callout target stands the block's menu, not the toolbar's section.
+  await expect(a.locator('[data-slot="docblocks/format-toolbar"] [data-callout-type-btn]')).toHaveCount(0);
+  await menu(a).locator('[data-callout-type-btn="danger"]').click();
 
   const aAttrs = await calloutAttrs(a, "a", coId);
   expect(aAttrs).toMatchObject({ variant: "danger", color: null, icon: null });
@@ -86,13 +95,10 @@ test("the type switch reaches the other pane (the preset resets the overrides)",
 
 test("the icon override reaches the other pane (the variant stands)", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "callout-icon");
-  const coId = await seedCallout(a, "a", { variant: "warning" });
-  await selectCalloutText(a, "a", coId);
-  const bar = toolbar(a, "a");
-  await bar.locator('button[aria-label="Callout"]').click();
-  const menu = a.locator('[data-slot="docblocks/format-callout-menu"]');
-  await expect(menu).toBeVisible();
-  await menu.locator('[data-callout-icon-btn="star"]').click();
+  const coId = await seedCallout(a, "a", { variant: "warning" }, "note");
+  await iconButton(a, "a").click();
+  await expect(menu(a)).toBeVisible();
+  await menu(a).locator('[data-callout-icon-btn="star"]').click();
 
   const aAttrs = await calloutAttrs(a, "a", coId);
   expect(aAttrs).toMatchObject({ variant: "warning", icon: "star" });
@@ -104,16 +110,13 @@ test("the icon override reaches the other pane (the variant stands)", async ({ b
 
 test("the color override applies a hex and clears with the none swatch", async ({ browser }) => {
   const { a, b, close } = await twoPanes(browser, "callout-color");
-  const coId = await seedCallout(a, "a", {});
-  await selectCalloutText(a, "a", coId);
-  const bar = toolbar(a, "a");
-  await bar.locator('button[aria-label="Callout"]').click();
-  const menu = a.locator('[data-slot="docblocks/format-callout-menu"]');
-  await expect(menu).toBeVisible();
+  const coId = await seedCallout(a, "a", {}, "note");
+  await iconButton(a, "a").click();
+  await expect(menu(a)).toBeVisible();
 
   // The first swatch is a theme token; the commit resolves it to a hex (the
   // pick's stand closes the menu — the next action reopens it).
-  await menu.locator('[data-color="var(--docblocks-palette-red)"]').click();
+  await menu(a).locator('[data-color="var(--docblocks-palette-red)"]').click();
   const aColor = (await calloutAttrs(a, "a", coId))?.color;
   expect(aColor).toMatch(/^#[0-9a-f]{6}$/i);
   // The other pane stands the same hex.
@@ -121,9 +124,9 @@ test("the color override applies a hex and clears with the none swatch", async (
 
   // Clear with the none swatch (the preset per variant): reopen the menu
   // (the pick's close stands) and pick the none.
-  await bar.locator('button[aria-label="Callout"]').click();
-  await expect(menu).toBeVisible();
-  await menu.locator('[data-slot="docblocks/palette-none"]').click();
+  await iconButton(a, "a").click();
+  await expect(menu(a)).toBeVisible();
+  await menu(a).locator('[data-slot="docblocks/palette-none"]').click();
   expect((await calloutAttrs(a, "a", coId))?.color ?? null).toBe(null);
   await expect.poll(async () => (await calloutAttrs(b, "b", coId))?.color, SETTLE).toBe(null);
   await close();
@@ -131,14 +134,92 @@ test("the color override applies a hex and clears with the none swatch", async (
 
 test("the icon grid stands the full catalog", async ({ browser }) => {
   const { a, close } = await twoPanes(browser, "callout-grid");
-  const coId = await seedCallout(a, "a", {});
+  await seedCallout(a, "a", {}, "note");
+  await iconButton(a, "a").click();
+  await expect(menu(a)).toBeVisible();
+  // One button per catalog icon (18) + the preset entry.
+  await expect(menu(a).locator("[data-callout-icon-btn]")).toHaveCount(18);
+  await expect(menu(a).locator("[data-callout-icon-preset]")).toHaveCount(1);
+  await close();
+});
+
+test("the menu stands for an empty callout (no text selection)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "callout-empty");
+  const coId = await seedCallout(a, "a", { variant: "info" });
+  await expect.poll(async () => (await calloutAttrs(a, "a", coId))?.variant, SETTLE).toBe("info");
+
+  // No text, no selection: the icon's press opens the menu (the block's
+  // attrs' management needs no selection).
+  await iconButton(a, "a").click();
+  await expect(menu(a)).toBeVisible();
+  await menu(a).locator('[data-callout-type-btn="danger"]').click();
+  expect((await calloutAttrs(a, "a", coId))?.variant).toBe("danger");
+  await expect.poll(async () => (await calloutAttrs(b, "b", coId))?.variant, SETTLE).toBe("danger");
+  await close();
+});
+
+test("the custom color's hex commits over the field's Enter (the wire's stand)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "callout-custom-color");
+  const coId = await seedCallout(a, "a", { variant: "info" }, "note");
+
+  await iconButton(a, "a").click();
+  await expect(menu(a)).toBeVisible();
+  // The custom swatch's press: the picker's section stands over the menu's
+  // background row (the menu's stand).
+  await menu(a).locator('[data-slot="docblocks/palette-custom"]').click();
+  const field = menu(a).locator('[data-slot="docblocks/callout-color-picker"] input[aria-label="Hex color value"]');
+  await expect(field).toBeVisible();
+  await field.fill("#1a2b3c");
+  await field.press("Enter");
+
+  expect((await calloutAttrs(a, "a", coId))?.color).toBe("#1a2b3c");
+  await expect.poll(async () => (await calloutAttrs(b, "b", coId))?.color, SETTLE).toBe("#1a2b3c");
+  // The apply stands the menu's close.
+  await expect(menu(a)).toHaveCount(0);
+  await close();
+});
+
+test("the toolbar over the callout's text stands no callout section", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "callout-toolbar");
+  const coId = await seedCallout(a, "a", {}, "note");
   await selectCalloutText(a, "a", coId);
   const bar = toolbar(a, "a");
-  await bar.locator('button[aria-label="Callout"]').click();
-  const menu = a.locator('[data-slot="docblocks/format-callout-menu"]');
-  await expect(menu).toBeVisible();
-  // One button per catalog icon (18) + the preset entry.
-  await expect(menu.locator("[data-callout-icon-btn]")).toHaveCount(18);
-  await expect(menu.locator("[data-callout-icon-preset]")).toHaveCount(1);
+  await expect(bar).toBeVisible();
+  // The shared marks + the alignment stand; the callout's trigger (the
+  // former's menu's entry) and the list-type menu are both absent.
+  await expect(bar.locator('button[data-mark="bold"]')).toBeVisible();
+  await expect(bar.locator('button[aria-label="Callout"]')).toHaveCount(0);
+  await expect(bar.locator('button[aria-label="List type"]')).toHaveCount(0);
+  // The block's menu stands the icon's button (the text's selection's stand).
+  await expect(iconButton(a, "a")).toBeVisible();
   await close();
+});
+
+test("the view's mode stands the icon without a button (no pointer events)", async ({
+  browser,
+}: {
+  browser: Browser;
+}) => {
+  const context = await browser.newContext();
+  const page = await context.newPage();
+  await openPane(page, "a", "callout-readonly");
+  const coId = await page.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) throw new Error("the pane's doc is not mounted");
+    const id = doc.insertBlock("callout", { variant: "warning", icon: "star" });
+    doc.insertText(id, 0, "note");
+    return id;
+  });
+  try {
+    await expect(iconButton(page, "a")).toBeVisible();
+    // The mode's switcher (the DocHeader's stand): the view's mode.
+    await page.locator('[data-slot="docblocks/doc-header-mode"] button[aria-label="View mode"]').click();
+    await expect(page.locator('[data-slot="docblocks/editor"]').first()).toHaveAttribute("data-readonly", "true");
+    // The read-only's stand: the icon's zone stands (the stand's render),
+    // the button (the pointer events' stand) is absent.
+    await expect(page.locator(`[data-block-id="${coId}"] [data-slot="docblocks/callout-icon"]`)).toBeVisible();
+    await expect(iconButton(page, "a")).toHaveCount(0);
+  } finally {
+    await context.close();
+  }
 });

@@ -6,6 +6,7 @@ export { Calendar, CalendarDayButton } from "./Calendar";
 export { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "./Card";
 export { Checkbox } from "./Checkbox";
 export { normalizeHex, resolveColorToHex, rgbToHex } from "./color-utils";
+export { ColorPicker } from "./ColorPicker";
 export { ColorSwatches } from "./ColorSwatches";
 export { AVATAR_EMOJI } from "./emoji-catalog";
 export type { AvatarEmoji } from "./emoji-catalog";
