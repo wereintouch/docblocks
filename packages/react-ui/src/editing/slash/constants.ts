@@ -55,7 +55,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
     attrs: { language: "mermaid" },
   },
   { label: "Divider", labelKey: "blocks.divider", icon: SquareSplitVertical, type: "divider" },
-  { label: "Image", labelKey: "blocks.image", icon: ImageIcon, type: "image" },
+  { label: "File", labelKey: "blocks.file", icon: ImageIcon, type: "image" },
   { label: "Embed", labelKey: "blocks.embed", icon: Link, type: "embed" },
   { label: "Database", labelKey: "blocks.database", icon: Database, type: "database" },
   { label: "Frame", labelKey: "blocks.frame", icon: Frame, type: "frame" },

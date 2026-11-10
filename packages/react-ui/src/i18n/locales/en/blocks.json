@@ -41,6 +41,9 @@
     "pdfFullscreen": "Expand to fullscreen",
     "pdfCloseFullscreen": "Close fullscreen"
   },
+  "file": {
+    "label": "File"
+  },
   "image": {
     "placeholder": "image",
     "document": "document",

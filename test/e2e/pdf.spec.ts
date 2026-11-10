@@ -27,7 +27,7 @@ async function imageAttrs(page: Page, client: "a" | "b"): Promise<Record<string,
 /** Pick the slash Image and deliver a PDF fixture (the upload path). */
 async function uploadPdf(page: Page, fixture: string): Promise<void> {
   const chooserPromise = page.waitForEvent("filechooser");
-  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "Image" }).click();
+  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "File" }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles(fixture);
 }
@@ -38,7 +38,7 @@ test("the pdf subtype stands the first-page canvas preview after the upload", as
     // Upload the PDF through the slash Image path (pane A's store).
     const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
     await target.click();
-    await a.keyboard.type("/image");
+    await a.keyboard.type("/file");
     await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
     await uploadPdf(a, FIXTURE);
 
@@ -96,7 +96,7 @@ test("the jbig2 text layers of a scanned pdf stand in the canvas preview", async
     // Upload the scanned (JBIG2) PDF through the slash Image path.
     const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
     await target.click();
-    await a.keyboard.type("/image");
+    await a.keyboard.type("/file");
     await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
     await uploadPdf(a, FIXTURE_JBIG2);
 
@@ -137,7 +137,7 @@ test("the page navigation: the prev/next buttons + the page indicator over a mul
     await openPane(a, "a", room, { first: true });
     const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
     await target.click();
-    await a.keyboard.type("/image");
+    await a.keyboard.type("/file");
     await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
     await uploadPdf(a, FIXTURE_MULTI_PAGE);
 

@@ -18,7 +18,7 @@ async function imageAttrs(page: Page, client: "a" | "b"): Promise<Record<string,
 /** Pick the slash Image and deliver the fixture (the upload path). */
 async function uploadFixture(page: Page): Promise<void> {
   const chooserPromise = page.waitForEvent("filechooser");
-  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "Image" }).click();
+  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "File" }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles(FIXTURE);
 }
@@ -65,7 +65,7 @@ test("the delete key over the selected image converts it to an empty paragraph (
 
   const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
   await target.click();
-  await a.keyboard.type("/image");
+  await a.keyboard.type("/file");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
   await uploadFixture(a);
 
@@ -127,7 +127,7 @@ test("the image figure: the click's selection ring, the port resize, and the hov
 
   const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
   await target.click();
-  await a.keyboard.type("/image");
+  await a.keyboard.type("/file");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible(SETTLE);
   await uploadFixture(a);
 

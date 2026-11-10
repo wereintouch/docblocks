@@ -25,7 +25,7 @@ async function imageAttrs(page: Page, client: "a" | "b"): Promise<Record<string,
 /** Pick the slash Image and deliver the fixture (the upload path). */
 async function uploadFixture(page: Page): Promise<void> {
   const chooserPromise = page.waitForEvent("filechooser");
-  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "Image" }).click();
+  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "File" }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles(FIXTURE);
 }
@@ -58,7 +58,7 @@ test("the image's figure + menu stand over the keyboard (the focus's selection, 
     // Seed the image (the upload path, over the wire).
     const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
     await target.click();
-    await a.keyboard.type("/image");
+    await a.keyboard.type("/file");
     await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible(SETTLE);
     await uploadFixture(a);
     const img = a.locator('img[data-slot="docblocks/image"]');

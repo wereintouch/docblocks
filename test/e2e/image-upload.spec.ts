@@ -54,7 +54,7 @@ async function imageSrcInDoc(page: Page, client: "a" | "b"): Promise<string | nu
 /** Pick the "Image" slash command and deliver the fixture file to the picker. */
 async function uploadFixture(page: Page): Promise<void> {
   const chooserPromise = page.waitForEvent("filechooser");
-  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "Image" }).click();
+  await page.locator('[data-slot="docblocks/slash-item"]', { hasText: "File" }).click();
   const chooser = await chooserPromise;
   await chooser.setFiles(FIXTURE);
 }
@@ -66,7 +66,7 @@ test("the slash Image upload: the phrase strip + the image after the caret block
   const target = inner(a, "a");
   await target.click();
 
-  await a.keyboard.type("/image");
+  await a.keyboard.type("/file");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible();
   await uploadFixture(a);
 
@@ -92,7 +92,7 @@ test("the slash Image upload: the phrase strip + the image after the caret block
   // the image and the trailing paragraph drop, the phrase comes back.
   await a.keyboard.press("Control+z");
   await expect(a.locator("img[data-slot='docblocks/image']")).toHaveCount(0);
-  await expect(target).toHaveText("/image");
+  await expect(target).toHaveText("/file");
   await close();
 });
 
@@ -103,7 +103,7 @@ test("the key syncs over the wire; the other pane's store renders the placeholde
   const target = inner(a, "a");
   await target.click();
 
-  await a.keyboard.type("/image");
+  await a.keyboard.type("/file");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible();
   await uploadFixture(a);
   await expect(a.locator("img[data-slot='docblocks/image']")).toBeVisible();
@@ -124,20 +124,20 @@ test("a refused upload commits nothing (the menu stands open on the phrase)", as
   const target = inner(a, "a");
   await target.click();
 
-  await a.keyboard.type("/image");
+  await a.keyboard.type("/file");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible();
 
   // Refuse the picker (the unhandled chooser is auto-cancelled): the doc
   // stands untouched (no image block, the phrase intact) and the menu stays
   // open.
-  await a.locator('[data-slot="docblocks/slash-item"]', { hasText: "Image" }).click();
+  await a.locator('[data-slot="docblocks/slash-item"]', { hasText: "File" }).click();
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible();
   await expect(a.locator("img[data-slot='docblocks/image']")).toHaveCount(0);
-  await expect(target).toHaveText("/image");
+  await expect(target).toHaveText("/file");
 
   // A later Escape closes the menu with the phrase still in the doc.
   await a.keyboard.press("Escape");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toHaveCount(0);
-  await expect(target).toHaveText("/image");
+  await expect(target).toHaveText("/file");
   await close();
 });
