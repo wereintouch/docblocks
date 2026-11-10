@@ -87,20 +87,18 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
     doc.updateBlock(id, { icon: name });
   };
 
-  const onIconPreset = (): void => {
-    setMenuOpen(false);
-    if (icon === null) return; // no-op
-    doc.updateBlock(id, { icon: null });
-  };
-
   // Keep a mousedown on the icon from moving the text caret (the selection
   // stands alive over the open — the gutter controls' parity).
   const onControlMouseDown = useCallback((event: ReactMouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
   }, []);
 
+  // The icon's zone: vertically centered over the block (the first-line's
+  // top-align stood before — the multi-line callout's icon floated over the
+  // text's start).
   const iconStyle: CSSProperties = {
-    top: "var(--docblocks-callout-padding-y)",
+    top: "50%",
+    transform: "translateY(-50%)",
     left: "var(--docblocks-callout-padding-x)",
     width: "var(--docblocks-callout-icon-size)",
     height: "var(--docblocks-callout-icon-size)",
@@ -205,7 +203,7 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
               </div>
             )}
           </div>
-          {/* Icon (the catalog grid; "Preset" = the variant's icon). */}
+          {/* Icon (the catalog grid; the type preset resets the override). */}
           <div className="mt-2 border-t border-border pt-2">
             <div role="group" aria-label={t("formatToolbar.callout.iconAria")} className="grid grid-cols-6 gap-1">
               {CALLOUT_ICONS.map((name) => {
@@ -228,17 +226,6 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
                   </Button>
                 );
               })}
-              <Button
-                variant="ghost"
-                size="sm"
-                data-callout-icon-preset
-                aria-label={t("formatToolbar.callout.presetIcon")}
-                title={t("formatToolbar.callout.presetIcon")}
-                className={cn("col-span-6 h-7 text-xs", icon === null && "bg-accent text-accent-foreground")}
-                onClick={onIconPreset}
-              >
-                {t("formatToolbar.callout.preset")}
-              </Button>
             </div>
           </div>
         </PopoverContent>

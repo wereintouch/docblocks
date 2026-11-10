@@ -146,14 +146,16 @@ describe("the callout's block menu (the marker-zone icon's button)", () => {
     expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).toBeNull();
   });
 
-  it("the icon preset clears the override (icon: null, the variant stands)", () => {
+  it("the type preset clears the icon override (the variant stands, the override resets)", () => {
     let co: BlockId = "";
     const doc = renderDoc((d) => {
       co = d.insertBlock("callout", { variant: "warning", icon: "star" });
       d.insertText(co, 0, "note");
     });
-    pressCalloutControl("[data-callout-icon-preset]");
-    expect(calloutAttrsOf(doc, co)).toMatchObject({ variant: "warning", icon: null });
+    // The current variant's re-pick stands the preset's reset (the override
+    // clears — the former's "Preset" icon's row's stand).
+    pressCalloutControl('[data-callout-type-btn="warning"]');
+    expect(calloutAttrsOf(doc, co)).toMatchObject({ variant: "warning", icon: null, color: null });
   });
 
   it("clears the color override with the none swatch (the variant stands)", () => {

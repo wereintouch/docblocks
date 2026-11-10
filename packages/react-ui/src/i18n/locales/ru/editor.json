@@ -37,12 +37,9 @@
       "paragraph": "Текст"
     },
     "callout": {
-      "trigger": "Выноска",
       "typeAria": "Тип выноски",
       "variant": "Выноска: {variant}",
-      "iconAria": "Иконка выноски",
-      "presetIcon": "Иконка по умолчанию",
-      "preset": "По умолчанию"
+      "iconAria": "Иконка выноски"
     },
     "color": {
       "trigger": "Цвет текста и фона",

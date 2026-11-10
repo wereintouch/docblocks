@@ -137,9 +137,10 @@ test("the icon grid stands the full catalog", async ({ browser }) => {
   await seedCallout(a, "a", {}, "note");
   await iconButton(a, "a").click();
   await expect(menu(a)).toBeVisible();
-  // One button per catalog icon (18) + the preset entry.
+  // One button per catalog icon (18); the former's "Preset"'s row stands no
+  // stand (the type preset resets the icon's override).
   await expect(menu(a).locator("[data-callout-icon-btn]")).toHaveCount(18);
-  await expect(menu(a).locator("[data-callout-icon-preset]")).toHaveCount(1);
+  await expect(menu(a).locator("[data-callout-icon-preset]")).toHaveCount(0);
   await close();
 });
 

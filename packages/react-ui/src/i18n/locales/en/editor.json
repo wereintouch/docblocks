@@ -37,12 +37,9 @@
       "paragraph": "Text"
     },
     "callout": {
-      "trigger": "Callout",
       "typeAria": "Callout type",
       "variant": "{variant} callout",
-      "iconAria": "Callout icon",
-      "presetIcon": "Preset icon",
-      "preset": "Preset"
+      "iconAria": "Callout icon"
     },
     "color": {
       "trigger": "Text and background color",
