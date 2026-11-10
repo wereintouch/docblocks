@@ -9,7 +9,7 @@
     "code": "Code block",
     "codeMermaid": "Code block (mermaid)",
     "divider": "Divider",
-    "image": "Image",
+    "file": "File",
     "embed": "Embed",
     "database": "Database",
     "frame": "Frame",
@@ -37,6 +37,6 @@
   },
   "embed": {
     "urlPlaceholder": "Embed URL (https://…)",
-    "unsafeHint": "Only absolute https://… (the html kind stands the data:text/html snippet)."
+    "unsafeHint": "Only absolute http(s):// URLs are supported."
   }
 }

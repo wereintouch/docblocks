@@ -9,7 +9,7 @@
     "code": "Блок кода",
     "codeMermaid": "Блок кода (mermaid)",
     "divider": "Разделитель",
-    "image": "Изображение",
+    "file": "Файл",
     "embed": "Встраивание",
     "database": "База данных",
     "frame": "Фрейм",
@@ -37,6 +37,6 @@
   },
   "embed": {
     "urlPlaceholder": "URL встраивания (https://…)",
-    "unsafeHint": "Только абсолютный https://… (вид html принимает сниппет data:text/html)."
+    "unsafeHint": "Поддерживаются только абсолютные URL http(s)://."
   }
 }
