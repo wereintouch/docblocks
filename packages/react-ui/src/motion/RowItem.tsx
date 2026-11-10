@@ -242,13 +242,17 @@ const RowItem = memo(
             size="icon"
             onClick={(event) => deleteBlock(event.currentTarget, node.id)}
             onMouseDown={onHandleMouseDown}
+            // The delete icon stands at the row's right edge, the same
+            // offset from the block content as the grip (the gutter's
+            // left offset, mirrored to the right).
             className={cn(
-              "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)] right-0",
+              "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)]",
               "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
               "text-(--docblocks-gutter-color)",
               "size-5",
               selected && "opacity-100"
             )}
+            style={{ right: "var(--docblocks-gutter-left)" }}
           >
             <Trash />
           </Button>
