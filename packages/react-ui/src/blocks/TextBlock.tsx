@@ -659,7 +659,9 @@ function TextBlock({
         {/* The row's delete affordance: the hover's trash icon at the row's
             right edge (centered on the first line, as the grip). The click
             is a true deletion — the Delete key's image special case (the
-            in-place conversion) stands for the key gesture only. */}
+            in-place conversion) stands for the key gesture only. The icon
+            stands the same offset from the block content as the grip (the
+            gutter's left offset, mirrored to the right). */}
         {!inCell && !onSurface && !viewMode && (
           <Button
             type="button"
@@ -670,12 +672,13 @@ function TextBlock({
             onClick={(event) => deleteBlock(event.currentTarget, id)}
             onMouseDown={onControlMouseDown}
             className={cn(
-              "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)] right-0",
+              "absolute top-[calc((var(--docblocks-line-box-height)-var(--docblocks-gutter-size))/2)]",
               "cursor-pointer rounded-full opacity-0 group-hover:opacity-100",
               "text-(--docblocks-gutter-color)",
               "size-5",
               selected && "opacity-100"
             )}
+            style={{ right: "var(--docblocks-gutter-left)" }}
           >
             <Trash />
           </Button>
