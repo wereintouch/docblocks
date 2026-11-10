@@ -7,7 +7,8 @@ import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
-import { Minus, Plus, RotateCcw } from "../shared/ui/icons";
+import { Input } from "../shared/ui/Input";
+import { Check, Minus, Pen, Plus, RotateCcw, X } from "../shared/ui/icons";
 import { clamp, preventDefault } from "../shared/utils";
 
 /**
@@ -39,6 +40,10 @@ import { clamp, preventDefault } from "../shared/utils";
  * over the gesture's bursts (one doc write per rest). The controls:
  *
  * - the hover toolbar (zoom in / out, the percent, reset) — always stands;
+ * - the toolbar's URL edit (the editing mode's stand): the panel over the
+ *   toolbar changes the `src` (the safe non-empty's write — the unsafe's
+ *   rejection over the slash form's rule; the iframe's navigation over the
+ *   new src, the view's / the height's attrs stand untouched);
  * - the wheel — `ctrl`/`cmd` zooms at the cursor, a plain wheel pans
  *   vertically (content opposite to the delta, the canvas idiom);
  * - the modifier drag — a `space` / `alt`-held pointer drag pans (the iframe
@@ -167,6 +172,52 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
   // iframe's own interaction).
   const [panModifier, setPanModifier] = useState(false);
   const panSession = useRef<{ pointerId: number; lastX: number; lastY: number } | null>(null);
+  // The URL's edit (the toolbar's edit affordance): the panel stands the
+  // current src pre-filled, the commit stands the `src` attr's write (the
+  // iframe's navigation over the new src), the cancel stands the close.
+  const [editOpen, setEditOpen] = useState(false);
+  const [draft, setDraft] = useState(src);
+  const editInputRef = useRef<HTMLInputElement | null>(null);
+
+  /** The edit's open: the draft stands the block's own src (the cancel's restore). */
+  const openEdit = () => {
+    setDraft(src);
+    setEditOpen(true);
+  };
+  const closeEdit = () => setEditOpen(false);
+
+  // The edit's input stands focused when the panel stands (the keyboard's
+  // flow: the edit's click, the URL's type, the Enter / check's commit).
+  useEffect(() => {
+    if (editOpen) editInputRef.current?.focus();
+  }, [editOpen]);
+
+  const trimmedDraft = draft.trim();
+  const canSave = trimmedDraft.length > 0 && isSafeEmbedSrc(kind, trimmedDraft);
+  // The unsafe-scheme hint (the commit stands rejected over the same rule —
+  // the input feedback instead of the silent no-op, the slash form's parity).
+  const editHint = trimmedDraft.length > 0 && !isSafeEmbedSrc(kind, trimmedDraft) ? t("embed.unsafeHint") : null;
+
+  /** The edit's commit: the safe non-empty draft stands the `src`'s write.
+   *  The unchanged draft writes nothing (no updatedAt's stamp, no wire update). */
+  const commitEdit = () => {
+    if (!canSave) return;
+    if (trimmedDraft !== src) doc.updateBlock(id, { src: trimmedDraft });
+    setEditOpen(false);
+  };
+
+  // The edit's own keys are not the page's hotkeys: stop the propagation
+  // (the mode's switch / the canvas's shortcuts would fire over the typed
+  // letters). Enter commits, Escape cancels.
+  const onEditKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+    if (event.key === "Enter") {
+      event.preventDefault();
+      commitEdit();
+    } else if (event.key === "Escape") {
+      closeEdit();
+    }
+  };
 
   // Track the pan modifier (space / alt) on the window: the iframe stands
   // `pointer-events: none` while it is held, so the wrapper's pointer session
@@ -510,7 +561,80 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
         >
           <RotateCcw className="size-4" />
         </Button>
+        {/* The URL's edit (the editing surface's gate: the read-only's stands absent). */}
+        {!viewMode && (
+          <>
+            <div className="mx-0.5 h-4 w-px bg-(--docblocks-divider-border-color)" aria-hidden />
+            <Button
+              data-slot="docblocks/embed-edit-url"
+              variant="ghost"
+              size="icon"
+              aria-label={t("embed.editUrl")}
+              className="size-6 cursor-default rounded-sm text-(--docblocks-text-color)"
+              onMouseDown={preventDefault}
+              onClick={openEdit}
+            >
+              <Pen className="size-4" />
+            </Button>
+          </>
+        )}
       </div>
+      {/* The URL's edit panel (the toolbar's stand over the top-right's): the
+          input's pre-fill over the current src, the Enter / check's commit
+          (the `src`'s write, the unsafe's no-commit), the Escape / x's cancel. */}
+      {!viewMode && editOpen && (
+        <div
+          data-slot="docblocks/embed-edit"
+          className="
+            absolute top-8 right-1.5 z-10 flex w-56 flex-col gap-1.5 rounded-(--docblocks-radius)
+            border-(length:--docblocks-divider-border-width) border-(--docblocks-divider-border-color)
+            bg-(--docblocks-page-card-background) p-1.5 text-(--docblocks-text-color)
+            shadow-(--docblocks-formatbar-shadow)
+          "
+        >
+          <div className="flex items-center gap-1">
+            <Input
+              size="sm"
+              ref={editInputRef}
+              type="text"
+              data-slot="docblocks/embed-edit-input"
+              className="h-7 flex-1 rounded-sm"
+              placeholder={t("embed.srcPlaceholder")}
+              value={draft}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) => setDraft(event.target.value)}
+              onKeyDown={onEditKeyDown}
+            />
+            <Button
+              data-slot="docblocks/embed-edit-save"
+              variant="ghost"
+              size="icon"
+              aria-label={t("embed.saveUrl")}
+              className="size-7 shrink-0 cursor-default rounded-sm text-(--docblocks-text-color) disabled:opacity-50"
+              disabled={!canSave}
+              onMouseDown={preventDefault}
+              onClick={commitEdit}
+            >
+              <Check className="size-4" />
+            </Button>
+            <Button
+              data-slot="docblocks/embed-edit-cancel"
+              variant="ghost"
+              size="icon"
+              aria-label={t("embed.cancelEdit")}
+              className="size-7 shrink-0 cursor-default rounded-sm text-(--docblocks-text-color)"
+              onMouseDown={preventDefault}
+              onClick={closeEdit}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          {editHint !== null && (
+            <p data-slot="docblocks/embed-edit-hint" className="px-1 text-xs text-destructive">
+              {editHint}
+            </p>
+          )}
+        </div>
+      )}
       {/* The bottom-edge's resize handle (the stretch's stand): the hover /
           focus's reveal (the grip's bar), the drag's live's height + the doc's
           write over the rest (the `height` attr's stand, the panes' shared

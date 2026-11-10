@@ -86,28 +86,36 @@ function SlashEmbedFormInner({ onCommit, onCancel }: SlashEmbedFormProps) {
 
   return (
     <div data-slot="docblocks/slash-embed-form" className="flex w-56 flex-col gap-2 p-1">
-      <Input
-        size="sm"
-        ref={urlInputRef}
-        type="text"
-        data-slot="docblocks/slash-embed-url"
-        className="rounded-sm"
-        placeholder={t("embed.urlPlaceholder")}
-        value={url}
-        onKeyDown={onUrlKeyDown}
-        onChange={onUrlChange}
-      />
-      <Button
-        data-slot="docblocks/slash-embed-insert"
-        variant="outline"
-        size="icon"
-        className="size-7 cursor-default self-end rounded-sm bg-transparent disabled:cursor-default dark:bg-transparent"
-        disabled={!canCommit}
-        onMouseDown={preventDefault}
-        onClick={commit}
-      >
-        <Check className="size-4" />
-      </Button>
+      {/* The URL's input + the check's commit stand one row (the check stands
+          the input's right end, the hint's stand over the row). */}
+      <div className="flex items-center gap-1">
+        <Input
+          size="sm"
+          ref={urlInputRef}
+          type="text"
+          data-slot="docblocks/slash-embed-url"
+          className="h-7 flex-1 rounded-sm"
+          placeholder={t("embed.urlPlaceholder")}
+          value={url}
+          onKeyDown={onUrlKeyDown}
+          onChange={onUrlChange}
+        />
+        <Button
+          data-slot="docblocks/slash-embed-insert"
+          variant="outline"
+          size="icon"
+          className="
+            size-7 shrink-0 cursor-default rounded-sm bg-transparent
+            disabled:cursor-default
+            dark:bg-transparent
+          "
+          disabled={!canCommit}
+          onMouseDown={preventDefault}
+          onClick={commit}
+        >
+          <Check className="size-4" />
+        </Button>
+      </div>
       {unsafeHint !== null && (
         <p data-slot="docblocks/slash-embed-hint" className="px-1 text-xs text-destructive">
           {unsafeHint}

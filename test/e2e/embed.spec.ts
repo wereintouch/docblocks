@@ -315,9 +315,10 @@ test("the embed's bottom-edge resize stretches the block (the persisted height: 
   await expect(wrapper).toHaveCount(1, SETTLE);
 
   // The height's read over the block's attrs (the null idiom: the default's
-  // stand stands `null` / absent).
+  // stand stands `null` / absent). Each pane's doc stands read over its own
+  // page (the harness's `__paneDocs` exposes the page's own doc only).
   const heightAttr = (client: "a" | "b") =>
-    a.evaluate((which: "a" | "b") => {
+    (client === "a" ? a : b).evaluate((which: "a" | "b") => {
       const doc = (which === "a" ? window.__paneDocs?.a : window.__paneDocs?.b) ?? null;
       if (doc === null) return null;
       const state = doc.toJSON();
@@ -365,6 +366,58 @@ test("the embed's bottom-edge resize stretches the block (the persisted height: 
   await expect
     .poll(() => restored.evaluate((el) => el.getBoundingClientRect().height), SETTLE)
     .toBeCloseTo(stretchedHeight, 0);
+
+  await close();
+});
+
+test("the toolbar's edit changes the embed's URL (the commit's write over the wire; the cancel's no-write)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ext01-embed-editurl");
+  await insertType(a, "a", "embed");
+  const embed = a.locator("[data-block-type='embed']");
+  await expect(embed).toHaveCount(1, SETTLE);
+  const iframe = embed.locator('iframe[data-slot="docblocks/embed"]');
+
+  // The src's read over the block's attrs (each pane's doc stands read over
+  // its own page — the harness's `__paneDocs` exposes the page's own doc only).
+  const src = (client: "a" | "b") =>
+    (client === "a" ? a : b).evaluate((which: "a" | "b") => {
+      const doc = (which === "a" ? window.__paneDocs?.a : window.__paneDocs?.b) ?? null;
+      if (doc === null) return null;
+      const state = doc.toJSON();
+      const embedId = Object.keys(state.blocks).find((id) => state.blocks[id]!.type === "embed");
+      if (embedId === undefined) return null;
+      const attrs = state.blocks[embedId]!.attrs as { src?: string };
+      return attrs.src ?? null;
+    }, client);
+
+  // The edit's open: the hover's reveal + the button's click stands the panel
+  // over the current src (the pre-fill's stand), the input's focused.
+  await embed.hover();
+  await embed.locator('[data-slot="docblocks/embed-edit-url"]').click();
+  const input = embed.locator('[data-slot="docblocks/embed-edit-input"]');
+  await expect(input).toBeFocused(SETTLE);
+  expect(await input.inputValue()).toContain("data:text/html");
+
+  // The commit's Enter: the new src stands the doc's write + the iframe's
+  // navigation, and pane B adopts it over the wire (the panes' shared src).
+  await input.fill("https://example.com/embedded");
+  await input.press("Enter");
+  await expect(iframe).toHaveAttribute("src", "https://example.com/embedded");
+  await expect.poll(() => src("a"), SETTLE).toBe("https://example.com/embedded");
+  const iframeB = b.locator('[data-testid="doc-b"] [data-block-type="embed"] iframe[data-slot="docblocks/embed"]');
+  await expect(iframeB).toHaveAttribute("src", "https://example.com/embedded", SETTLE);
+  await expect.poll(() => src("b"), SETTLE).toBe("https://example.com/embedded");
+
+  // The cancel's stand: the panel's open, the draft's change, the Escape's
+  // close writes nothing (the src's untouched, the panel's gone).
+  await embed.hover();
+  await embed.locator('[data-slot="docblocks/embed-edit-url"]').click();
+  await embed.locator('[data-slot="docblocks/embed-edit-input"]').fill("https://example.com/other");
+  await embed.locator('[data-slot="docblocks/embed-edit-input"]').press("Escape");
+  await expect(embed.locator('[data-slot="docblocks/embed-edit"]')).toBeHidden(SETTLE);
+  expect(await src("a")).toBe("https://example.com/embedded");
 
   await close();
 });
