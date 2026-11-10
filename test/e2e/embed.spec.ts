@@ -306,6 +306,69 @@ test("the embed's default sandbox stands the same-origin grant (the app's own st
   expect(marker).toBe("pwned");
 });
 
+test("the embed's bottom-edge resize stretches the block (the persisted height: the wire's adopt + the reload's restore)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ext01-embed-resize");
+  await insertType(a, "a", "embed");
+  const wrapper = a.locator("[data-block-type='embed']");
+  await expect(wrapper).toHaveCount(1, SETTLE);
+
+  // The height's read over the block's attrs (the null idiom: the default's
+  // stand stands `null` / absent).
+  const heightAttr = (client: "a" | "b") =>
+    a.evaluate((which: "a" | "b") => {
+      const doc = (which === "a" ? window.__paneDocs?.a : window.__paneDocs?.b) ?? null;
+      if (doc === null) return null;
+      const state = doc.toJSON();
+      const embedId = Object.keys(state.blocks).find((id) => state.blocks[id]!.type === "embed");
+      if (embedId === undefined) return null;
+      const attrs = state.blocks[embedId]!.attrs as { height?: number | null };
+      return attrs.height ?? null;
+    }, client);
+
+  // The default's stand: the token's height (the minimum's stand).
+  const defaultHeight = await wrapper.evaluate((el) => el.getBoundingClientRect().height);
+  expect(await heightAttr("a")).toBeNull();
+
+  // The hover's reveal stands the handle (the grip's bar's stand); the
+  // bottom-edge's drag down 120 px stands the stretch...
+  await wrapper.hover();
+  const handle = wrapper.locator('[data-slot="docblocks/embed-resize"]');
+  await expect(handle).toBeAttached();
+  const box = (await wrapper.boundingBox())!;
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height - 4; // the handle's band (the bottom's 8 px)
+  await a.mouse.move(startX, startY);
+  await a.mouse.down();
+  await a.mouse.move(startX, startY + 120, { steps: 5 });
+  await a.mouse.up();
+
+  // ...the wrapper's height stands the stretch, and the rest's write lands
+  // the px over the block's attrs (the persist's stand).
+  const stretchedHeight = await wrapper.evaluate((el) => el.getBoundingClientRect().height);
+  expect(stretchedHeight).toBeGreaterThan(defaultHeight);
+  await expect.poll(() => heightAttr("a"), SETTLE).toBeCloseTo(stretchedHeight, 0);
+
+  // The wire's adopt: pane B's embed stands the stretched height over the
+  // peer's write (the panes' shared view).
+  const wrapperB = b.locator('[data-testid="doc-b"] [data-block-type="embed"]');
+  await expect
+    .poll(() => wrapperB.evaluate((el) => el.getBoundingClientRect().height), SETTLE)
+    .toBeCloseTo(stretchedHeight, 0);
+
+  // The reload's stand: the fresh mount's embed restores the stretched
+  // height (the transform's stand: no flash of the default).
+  await a.reload();
+  await expect(a.getByTestId("status-a")).toHaveText("connected");
+  const restored = a.locator("[data-block-type='embed']");
+  await expect
+    .poll(() => restored.evaluate((el) => el.getBoundingClientRect().height), SETTLE)
+    .toBeCloseTo(stretchedHeight, 0);
+
+  await close();
+});
+
 test("the embed's pan/zoom survives the reload (the persisted view's restore)", async ({ page }) => {
   const room = `ext01-embed-persist-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&syncUrl=${RELAY}/${room}`);

@@ -163,6 +163,12 @@ interface EmbedAttrs {
   panX?: number | null;
   /** The persisted vertical pan offset (px); absent or `null` = 0. */
   panY?: number | null;
+  /**
+   * The persisted height (px; the block's stretched stand). Absent or
+   * `null` = the default (the `--docblocks-embed-height` token's stand —
+   * the minimum; the resize only stretches over it).
+   */
+  height?: number | null;
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }

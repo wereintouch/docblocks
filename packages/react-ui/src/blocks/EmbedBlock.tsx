@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { isSafeEmbedSrc } from "docblocks-core";
 import type { BlockId, EmbedBlock as EmbedBlockType } from "docblocks-core";
@@ -15,12 +15,20 @@ import { clamp, preventDefault } from "../shared/utils";
  * only (all kinds render as an iframe; per-kind card renderers come later),
  * so an unknown kind (newer data) still renders the same iframe. `src` is a
  * URL, not a blob key: the consumer's blob resolver does not apply. The
- * iframe stands a `sandbox` attribute — the safe default (no
- * `allow-same-origin`, so the embedded content is an opaque origin and cannot
- * read the parent's DOM / state; scripts, forms, and popups still run) or the
- * consumer's `embedSandbox` policy (grant `allow-same-origin` only for trusted
- * origins). The block is not text-editable, so the wrapper carries no gutter
+ * iframe stands a `sandbox` attribute — the default grants the same-origin
+ * (the embedded app's own storage / cookies stand, so the real apps boot
+ * like in a plain tab) or the consumer's `embedSandbox` policy (the
+ * opaque-origin's restriction over the untrusted, `null` for the fully
+ * trusted). The block is not text-editable, so the wrapper carries no gutter
  * handle.
+ *
+ * Height (the stretched stand): the wrapper's height stands the
+ * `--docblocks-embed-height` token (the default — the minimum). The
+ * bottom-edge resize handle (the hover reveal, the keyboard's arrows)
+ * stretches it over the minimum; the stretched px stand the block's
+ * `height` attr (the null idiom: null / absent = the token's default), so
+ * the reload restores it and the panes share it over the wire (the commit
+ * stands the gesture's rest — one write per drag, one per key press).
  *
  * Pan/zoom (the persisted view): the iframe stands a CSS
  * `translate(x, y) scale(s)` transform (the wrapper clips the overflow). The
@@ -53,6 +61,10 @@ const EMBED_ZOOM_STEP = 1.2;
 const EMBED_WHEEL_ZOOM = 0.002;
 /** The view's persist debounce (the gesture's bursts stand one doc write per rest). */
 const EMBED_PERSIST_DEBOUNCE_MS = 250;
+/** The height's fallback minimum (px): the `--docblocks-embed-height` token's default (the non-CSS environment's stand — jsdom). */
+const EMBED_MIN_HEIGHT = 300;
+/** The resize handle's key step (px per arrow press). */
+const EMBED_RESIZE_KEY_STEP = 16;
 
 interface EmbedView {
   scale: number;
@@ -105,6 +117,17 @@ function zoomAtPoint(view: EmbedView, cx: number, cy: number, nextScale: number)
   return { scale: nextScale, x: cx - (cx - view.x) * factor, y: cy - (cy - view.y) * factor };
 }
 
+/**
+ * The height's wire stand: the token's minimum over the wrapper (the
+ * themed token's stand), the fallback's default over the non-CSS's stand
+ * (jsdom's empty computed value).
+ */
+function readEmbedMinHeight(wrapper: HTMLElement): number {
+  const raw = getComputedStyle(wrapper).getPropertyValue("--docblocks-embed-height");
+  const value = Number.parseFloat(raw);
+  return Number.isFinite(value) && value > 0 ? value : EMBED_MIN_HEIGHT;
+}
+
 function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
   const { t } = useTranslation("blocks");
   const { kind, src, title } = block.attrs;
@@ -112,7 +135,7 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
   // the src to the `sandbox` value; `null` stands no sandbox (a fully
   // trusted embed). The default grants the same-origin (the real-app's
   // own storage), so the embedded content boots like in a plain tab.
-  const { doc, embedSandbox } = useEditorContext();
+  const { doc, embedSandbox, viewMode } = useEditorContext();
   const sandbox = embedSandbox(src);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   // The view stands the block's persisted attrs (the reload's restore), the
@@ -120,6 +143,25 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
   const [view, setView] = useState<EmbedView>(() => viewOfAttrs(block.attrs.zoom, block.attrs.panX, block.attrs.panY));
   const viewRef = useRef(view);
   viewRef.current = view;
+  // The stretched height's stand (the null idiom: null = the token's
+  // default — the minimum). The drag updates the state live, the rest's
+  // commit stands the doc's write; the peer's write stands the adopt.
+  const [height, setHeight] = useState<number | null>(block.attrs.height ?? null);
+  const heightRef = useRef(height);
+  heightRef.current = height;
+  // The token's minimum (the themed's stand): the wrapper's computed value
+  // over the mount, the fallback's default over the non-CSS's environment.
+  const [tokenMin, setTokenMin] = useState(EMBED_MIN_HEIGHT);
+  // The resize's session (the drag's start: the pointer's Y, the wrapper's
+  // rect's height, the token's minimum's snapshot; the live's last height —
+  // the commit's stand, the render's no-wait).
+  const resizeSession = useRef<{
+    pointerId: number;
+    startY: number;
+    startHeight: number;
+    min: number;
+    lastHeight: number;
+  } | null>(null);
   // The pan modifier (space / alt) held: the iframe yields its pointer events
   // to the wrapper so a modifier + drag pans (an unmodified drag reaches the
   // iframe's own interaction).
@@ -243,6 +285,90 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
     setView({ scale, x: clamped.x, y: clamped.y });
   }, [block.attrs]);
 
+  /** The token's minimum's measure (the themed's stand) over the mount. */
+  useLayoutEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (wrapper === null) return;
+    setTokenMin(readEmbedMinHeight(wrapper));
+  }, []);
+
+  /**
+   * The remote's stand over the height: the panes share the stretched stand
+   * over the wire — a pane's peer lands a height different from the local's
+   * (the block's `height` attr's stand the peer's write), so the local's
+   * state adopts it. Own commits land equal to the local's state and stand
+   * no adopt.
+   */
+  useEffect(() => {
+    const attrHeight = block.attrs.height ?? null;
+    if (attrHeight === heightRef.current) return;
+    setHeight(attrHeight);
+  }, [block.attrs]);
+
+  // The bottom-edge's resize: the drag's stand (the wrapper's height's live
+  // update, the doc's write over the rest). The pointerdown stands only the
+  // left button; the stopPropagation's guard stands the wrapper's pan
+  // session's no-start (the modifier's drag over the handle).
+  const onResizePointerDown = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    const wrapper = wrapperRef.current;
+    if (wrapper === null) return;
+    const min = readEmbedMinHeight(wrapper);
+    const rect = wrapper.getBoundingClientRect();
+    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+    resizeSession.current = {
+      pointerId: event.pointerId,
+      startY: event.clientY,
+      startHeight: rect.height,
+      min,
+      lastHeight: rect.height,
+    };
+  };
+
+  const onResizePointerMove = (event: React.PointerEvent) => {
+    const session = resizeSession.current;
+    if (session === null || event.pointerId !== session.pointerId) return;
+    const next = Math.max(session.startHeight + (event.clientY - session.startY), session.min);
+    session.lastHeight = next;
+    setHeight(next);
+  };
+
+  const endResize = (event: React.PointerEvent) => {
+    const session = resizeSession.current;
+    if (session === null || event.pointerId !== session.pointerId) return;
+    (event.target as HTMLElement).releasePointerCapture?.(event.pointerId);
+    resizeSession.current = null;
+    const committed = Math.round(session.lastHeight);
+    if (committed <= session.min) {
+      if ((block.attrs.height ?? null) !== null) doc.updateBlock(id, { height: null });
+    } else if (committed !== (block.attrs.height ?? null)) {
+      doc.updateBlock(id, { height: committed });
+    }
+  };
+
+  // The keyboard's stand (the slider's idiom): the arrows stretch / shrink
+  // over the step (the clamp's stand over the token's minimum), the commit's
+  // rest stands one key press. The preventDefault's guard stands the
+  // page's no-scroll over the arrows.
+  const onResizeKeyDown = (event: React.KeyboardEvent) => {
+    const wrapper = wrapperRef.current;
+    if (wrapper === null) return;
+    const min = readEmbedMinHeight(wrapper);
+    const delta =
+      event.key === "ArrowDown" ? EMBED_RESIZE_KEY_STEP : event.key === "ArrowUp" ? -EMBED_RESIZE_KEY_STEP : null;
+    if (delta === null) return;
+    event.preventDefault();
+    const current = Math.max(heightRef.current ?? min, min);
+    const next = Math.max(current + delta, min);
+    setHeight(next <= min ? null : next);
+    if (next <= min) {
+      if ((block.attrs.height ?? null) !== null) doc.updateBlock(id, { height: null });
+    } else if (next !== (block.attrs.height ?? null)) {
+      doc.updateBlock(id, { height: next });
+    }
+  };
+
   // The modifier drag-pan: the wrapper's pointerdown stands only when the
   // modifier is held (the iframe yields then) and the target is not the
   // toolbar (its buttons keep their own click).
@@ -288,7 +414,10 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
         rounded-(--docblocks-radius) border-(length:--docblocks-divider-border-width)
         border-(--docblocks-divider-border-color) outline-none
       "
-      style={{ cursor: panModifier ? (panSession.current !== null ? "grabbing" : "grab") : undefined }}
+      style={{
+        ...(height !== null ? { height: Math.max(height, tokenMin) } : {}),
+        cursor: panModifier ? (panSession.current !== null ? "grabbing" : "grab") : undefined,
+      }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endPan}
@@ -382,6 +511,35 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
           <RotateCcw className="size-4" />
         </Button>
       </div>
+      {/* The bottom-edge's resize handle (the stretch's stand): the hover /
+          focus's reveal (the grip's bar), the drag's live's height + the doc's
+          write over the rest (the `height` attr's stand, the panes' shared
+          view). The read-only's stand: the handle stands absent (the
+          editing surface's gate). */}
+      {!viewMode && (
+        <div
+          data-slot="docblocks/embed-resize"
+          role="slider"
+          aria-orientation="vertical"
+          aria-valuemin={tokenMin}
+          aria-valuenow={Math.max(height ?? tokenMin, tokenMin)}
+          aria-label={t("embed.resizeHeight")}
+          tabIndex={0}
+          className="
+            absolute inset-x-0 bottom-0 z-10 flex h-2 cursor-row-resize items-end justify-center opacity-0
+            transition-opacity outline-none
+            group-focus-within:opacity-100
+            group-hover:opacity-100
+          "
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={endResize}
+          onPointerCancel={endResize}
+          onKeyDown={onResizeKeyDown}
+        >
+          <div className="mb-0.5 h-0.5 w-10 rounded-full bg-(--docblocks-divider-border-color)" />
+        </div>
+      )}
     </div>
   );
 }

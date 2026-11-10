@@ -133,6 +133,9 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       zoom: { kind: "nullable-number", positive: true },
       panX: { kind: "nullable-number" },
       panY: { kind: "nullable-number" },
+      // The stretched stand (px): the default (the token's minimum) over the
+      // absent / the null (the null idiom).
+      height: { kind: "nullable-number", positive: true },
     },
   },
   "sync-embed": {

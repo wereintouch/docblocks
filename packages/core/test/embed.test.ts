@@ -133,6 +133,27 @@ describe("updateBlock", () => {
     });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
+
+  it("patches the stretched height and clears it over the null idiom (the default's stand)", () => {
+    const doc = newDoc();
+    const id = doc.insertBlock("embed", { kind: "iframe", src: "https://example.com" });
+
+    // The stretched stand stands the attr (the px over the token's minimum).
+    doc.updateBlock(id, { height: 500 });
+    expect(doc.getBlock(id)).toEqual({
+      type: "embed",
+      attrs: { kind: "iframe", src: "https://example.com", height: 500 },
+    });
+
+    // The reset to the default's stand: the null idiom (the reader falls
+    // back to the token's default — the minimum).
+    doc.updateBlock(id, { height: null });
+    expect(doc.getBlock(id)).toEqual({
+      type: "embed",
+      attrs: { kind: "iframe", src: "https://example.com", height: null },
+    });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
 });
 
 describe("moveBlock / removeBlock", () => {
@@ -191,6 +212,9 @@ describe("strict validation (validateDoc)", () => {
     expect(
       validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", zoom: null, panX: null, panY: null }))
     ).toEqual([]);
+    // The stretched height and the cleared (the null idiom) stand valid.
+    expect(validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", height: 500 }))).toEqual([]);
+    expect(validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", height: null }))).toEqual([]);
     // A non-numeric / the non-positive / the non-finite zoom stand rejected.
     const nonNumeric = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", zoom: "1.5" }));
     expect(nonNumeric.some((e) => e.path === "blocks.e1.attrs.zoom")).toBe(true);
@@ -200,6 +224,11 @@ describe("strict validation (validateDoc)", () => {
     expect(negative.some((e) => e.path === "blocks.e1.attrs.zoom")).toBe(true);
     const nonFinite = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", panX: Number.NaN }));
     expect(nonFinite.some((e) => e.path === "blocks.e1.attrs.panX")).toBe(true);
+    // The non-numeric / the non-positive height stand rejected.
+    const badHeight = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", height: "500" }));
+    expect(badHeight.some((e) => e.path === "blocks.e1.attrs.height")).toBe(true);
+    const zeroHeight = validateDoc(docWithEmbed({ kind: "iframe", src: "https://example.com", height: 0 }));
+    expect(zeroHeight.some((e) => e.path === "blocks.e1.attrs.height")).toBe(true);
   });
 });
 

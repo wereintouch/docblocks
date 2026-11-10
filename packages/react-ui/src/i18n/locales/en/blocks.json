@@ -51,7 +51,8 @@
   "embed": {
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
-    "zoomReset": "Reset zoom"
+    "zoomReset": "Reset zoom",
+    "resizeHeight": "Resize embed height"
   },
   "syncEmbed": {
     "broken": "The master document for this synced block is unavailable.",
