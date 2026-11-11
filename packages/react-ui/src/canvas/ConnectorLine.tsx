@@ -17,7 +17,13 @@ import { useBlock } from "../hooks";
 import { useBlockContext } from "../shared/providers/block-context";
 import { Link } from "../shared/ui/icons";
 import { SURFACE_BG } from "./canvas-view/constants";
-import { CONNECT_COLOR, HIT_STROKE_WIDTH, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "./connector-constants";
+import {
+  CONNECT_COLOR,
+  HIT_BOX_PAD_PX,
+  HIT_STROKE_WIDTH,
+  SNAP_BADGE_LIFT,
+  SNAP_BADGE_RADIUS,
+} from "./connector-constants";
 import type { CanvasSession } from "./connector-session-context";
 import { CanvasSessionContext } from "./connector-session-context";
 import { arrowDefId, connectorStrokeOf, connectorStrokeWidthOf } from "./connector-utils";
@@ -38,7 +44,11 @@ import {
  * `interactive` toggles the hit path: the canvas view is interactive
  * (the line is selectable, the endpoints draggable), the page view's
  * embedded surface stands it inert (no selection / dragging there — the
- * bands must not intercept the content's clicks).
+ * bands must not intercept the content's clicks). The hit path's `d`
+ * is returned alongside the content: the hit path renders in its own
+ * bbox-sized svg — the webkit does not hit-test the overflow-visible
+ * content over the 1x1 svg's box, so the line is not clickable from
+ * there without the box.
  */
 function connectorLineOf(
   surfaceId: BlockId,
@@ -49,7 +59,7 @@ function connectorLineOf(
   selected: boolean,
   interactive: boolean,
   session: CanvasSession
-): ReactNode {
+): { content: ReactNode; hitD: string | null } | null {
   const attrs = block.attrs;
   if (attrs === undefined) return null; // lenient data without attrs: no line
 
@@ -242,39 +252,53 @@ function connectorLineOf(
   // attribute cannot carry var()).
   const pathStyle: CSSProperties = { stroke: stroke };
 
-  return (
-    <>
-      <path
-        data-connector-id={connectorId}
-        data-selected={selected || undefined}
-        d={path}
-        markerEnd={endMarkerId !== null ? `url(#${endMarkerId})` : undefined}
-        markerStart={startMarkerId !== null ? `url(#${startMarkerId})` : undefined}
-        strokeWidth={strokeWidth}
-        fill="none"
-        strokeDasharray={dash}
-        strokeLinecap={attrs.strokeStyle === "dot" ? "round" : undefined}
-        style={pathStyle}
-      />
-      {/* The hit path: the wide invisible stroke the line clicks on (the
-          visible path's pointer events stay the svg root's none — only
-          the hit path stands pointer-events stroke). The page view stands
-          it inert (interactive: false — the line is not selectable
-          there, the wide band must not intercept the content's clicks). */}
-      {interactive && (
+  return {
+    content: (
+      <>
         <path
-          data-connector-hit={connectorId}
+          data-connector-id={connectorId}
+          data-selected={selected || undefined}
           d={path}
-          stroke="transparent"
-          strokeWidth={HIT_STROKE_WIDTH}
+          markerEnd={endMarkerId !== null ? `url(#${endMarkerId})` : undefined}
+          markerStart={startMarkerId !== null ? `url(#${startMarkerId})` : undefined}
+          strokeWidth={strokeWidth}
           fill="none"
-          pointerEvents="stroke"
-          className="cursor-pointer"
+          strokeDasharray={dash}
+          strokeLinecap={attrs.strokeStyle === "dot" ? "round" : undefined}
+          style={pathStyle}
         />
-      )}
-      {snapBadge}
-    </>
-  );
+        {snapBadge}
+      </>
+    ),
+    hitD: interactive ? path : null,
+  };
+}
+
+/** The path's points' bounding box (the surface's center-anchor space):
+ * the `d`'s M/L's coordinates (the plain numbers' parse — the builder's
+ * template's format). The hit path's svg box must contain the stroke:
+ * the webkit hit-tests only inside the svg's own box, so the hit path
+ * needs a bbox-sized svg over the 1x1 draw layer (draw-only there). */
+function hitBoxOf(d: string): { x: number; y: number; w: number; h: number } | null {
+  const numbers = d
+    .replace(/[A-Za-z]/g, " ")
+    .split(/\s+/)
+    .map(Number.parseFloat)
+    .filter((value) => Number.isFinite(value));
+  if (numbers.length < 4) return null;
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < numbers.length; i += 2) {
+    const x = numbers[i] ?? 0;
+    const y = numbers[i + 1] ?? 0;
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
 /**
@@ -287,9 +311,12 @@ function connectorLineOf(
  * CanvasItem's wrapper stands at the surface's origin), the shared
  * arrowhead defs (the surface's hidden defs svg) stand the markers.
  *
- * The SVG itself is pointer-events none; the per-line hit path (the wide
- * transparent stroke) is pointer-events stroke — the line is
- * click-selectable, the empty canvas around it is not.
+ * The SVG is pointer-events none: the visible path is draw-only. The
+ * per-line hit path (the wide transparent stroke, pointer-events stroke)
+ * renders in its own bbox-sized svg — the webkit hit-tests only inside
+ * the svg's own box, so the 1x1 overflow-visible layer is not
+ * click-selectable there; the chromium and the firefox reach the
+ * overflow, so the box change alters no behavior there.
  */
 function ConnectorLine({ id, interactive = true }: { id: BlockId; interactive?: boolean }) {
   const { store } = useEditorContext();
@@ -320,22 +347,59 @@ function ConnectorLine({ id, interactive = true }: { id: BlockId; interactive?: 
     [block, chromeKey, context.parentId, context.siblings, id, interactive, selected, session, store]
   );
   if (content === null) return null;
+  // The hit path's svg's box (the path's bbox over the pad — the hit
+  // stroke's half width + the arrowhead's overshoot; the box's empty
+  // area is pointer-events none, the stroke's band stands the click).
+  const hitBox = content.hitD !== null ? hitBoxOf(content.hitD) : null;
   return (
-    <svg
-      data-slot="docblocks/connector-layer"
-      data-block-id={id}
-      style={{
-        position: "absolute",
-        left: "50%",
-        top: "50%",
-        width: 1,
-        height: 1,
-        overflow: "visible",
-        pointerEvents: "none",
-      }}
-    >
-      {content}
-    </svg>
+    <>
+      <svg
+        data-slot="docblocks/connector-layer"
+        data-block-id={id}
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: "50%",
+          width: 1,
+          height: 1,
+          overflow: "visible",
+          pointerEvents: "none",
+        }}
+      >
+        {content.content}
+      </svg>
+      {content.hitD !== null && hitBox !== null && (
+        <svg
+          data-slot="docblocks/connector-hit-layer"
+          data-block-id={id}
+          style={{
+            position: "absolute",
+            left: `calc(50% + ${hitBox.x - HIT_BOX_PAD_PX}px)`,
+            top: `calc(50% + ${hitBox.y - HIT_BOX_PAD_PX}px)`,
+            width: hitBox.w + 2 * HIT_BOX_PAD_PX,
+            height: hitBox.h + 2 * HIT_BOX_PAD_PX,
+            overflow: "visible",
+            pointerEvents: "none",
+          }}
+        >
+          <g transform={`translate(${HIT_BOX_PAD_PX - hitBox.x}, ${HIT_BOX_PAD_PX - hitBox.y})`}>
+            {/* The hit path: the wide invisible stroke the line clicks on
+                (the click's read stands the `data-connector-hit`'s
+                attribute over the event's target — the box's seat is the
+                webkit's hit-test's stand, not a behavior's change). */}
+            <path
+              data-connector-hit={id}
+              d={content.hitD}
+              stroke="transparent"
+              strokeWidth={HIT_STROKE_WIDTH}
+              fill="none"
+              pointerEvents="stroke"
+              className="cursor-pointer"
+            />
+          </g>
+        </svg>
+      )}
+    </>
   );
 }
 

@@ -24,6 +24,11 @@ const DEFAULT_STROKE_WIDTH = 1;
 const SELECTED_WIDTH_BUMP = 1;
 /** The invisible hit path's width (a wide enough stroke to click the line). */
 const HIT_STROKE_WIDTH = 12;
+/** The hit path's svg box's padding beyond the path's bbox (canvas px:
+ * the hit stroke's half width + the arrowhead's overshoot — the box must
+ * contain the hit-testable stroke; the webkit hit-tests only inside the
+ * svg's own box). */
+const HIT_BOX_PAD_PX = 16;
 /** The arrowhead's length (canvas px, the marker's coordinate space). */
 const ARROW_SIZE = 11;
 /** The circle endpoint's radius (canvas px, the marker's coordinate space). */
@@ -43,6 +48,7 @@ export {
   DEFAULT_STROKE_WIDTH,
   SELECTED_WIDTH_BUMP,
   HIT_STROKE_WIDTH,
+  HIT_BOX_PAD_PX,
   ARROW_SIZE,
   CIRCLE_ENDPOINT_RADIUS,
   SNAP_BADGE_RADIUS,
