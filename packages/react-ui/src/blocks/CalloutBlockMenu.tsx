@@ -13,8 +13,10 @@
  * focus stands the gesture). The pick's stand closes the menu over the
  * color and the icon's apply (the type preset stays open). The custom
  * swatch's press toggles the picker's inline section over the menu's
- * background row; the close without a commit (the cancel) discards the
- * draft — the menu's unmount stands it.
+ * background row; a close without an explicit commit (the Esc / the
+ * dismiss) applies the last scrubbed value (the picker's unmount commits
+ * it; the grid's custom swatch carries a non-preset current value as its
+ * own dot).
  */
 import { useTranslation } from "react-i18next";
 

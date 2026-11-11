@@ -242,7 +242,30 @@ describe("the callout's custom color picker (the custom swatch's inline section)
     expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).toBeNull();
   });
 
-  it("stands no write for the cancel's close (the draft's discard)", () => {
+  it("commits the scrubbed value over the close without a commit (the grid shows the new current)", () => {
+    let co: BlockId = "";
+    const doc = renderDoc((d) => {
+      co = d.insertBlock("callout", {});
+      d.insertText(co, 0, "note");
+    });
+    const picker = openPicker();
+    const native = picker.querySelector<HTMLInputElement>('input[aria-label="Color picker"]');
+    expect(native, "the native's input should stand").not.toBeNull();
+    // The live scrub updates the draft only (no write over the scrub).
+    act(() => {
+      fireEvent.input(native!, { target: { value: "#336699" } });
+    });
+    expect(calloutAttrsOf(doc, co)?.color ?? null).toBe(null);
+    // The close without an explicit commit (the Esc) applies the scrubbed
+    // value (the write, one undo step).
+    act(() => {
+      fireEvent.keyDown(picker, { key: "Escape" });
+    });
+    expect(calloutAttrsOf(doc, co)?.color).toBe("#336699");
+    expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).toBeNull();
+  });
+
+  it("writes nothing for the close over the untouched picker (no scrubbed draft)", () => {
     let co: BlockId = "";
     const doc = renderDoc((d) => {
       co = d.insertBlock("callout", {});
@@ -250,20 +273,41 @@ describe("the callout's custom color picker (the custom swatch's inline section)
     });
     const picker = openPicker();
     const before = doc.encode();
-    const native = picker.querySelector<HTMLInputElement>('input[aria-label="Color picker"]');
-    expect(native, "the native's input should stand").not.toBeNull();
-    // The live scrub (no doc write over the scrub).
-    act(() => {
-      fireEvent.input(native!, { target: { value: "#336699" } });
-    });
-    expect(calloutAttrsOf(doc, co)?.color ?? null).toBe(null);
-    // The cancel's close (the Esc) stands the discard: the wire's bytes are
-    // invariant.
+    // The untouched close (the Esc, no scrub) commits nothing: the wire's
+    // bytes are invariant (the draft's neutral default does not write).
     act(() => {
       fireEvent.keyDown(picker, { key: "Escape" });
     });
     expect(doc.encode()).toStrictEqual(before);
+    expect(calloutAttrsOf(doc, co)?.color ?? null).toBe(null);
     expect(document.querySelector('[data-slot="docblocks/callout-menu"]')).toBeNull();
+  });
+
+  it("commits the scrubbed value over the section's toggle's close (the grid shows the new current)", () => {
+    let co: BlockId = "";
+    const doc = renderDoc((d) => {
+      co = d.insertBlock("callout", {});
+      d.insertText(co, 0, "note");
+    });
+    const picker = openPicker();
+    const native = picker.querySelector<HTMLInputElement>('input[aria-label="Color picker"]');
+    expect(native, "the native's input should stand").not.toBeNull();
+    act(() => {
+      fireEvent.input(native!, { target: { value: "#ff5500" } });
+    });
+    // The toggle's close (the custom swatch's second press): the section's
+    // unmount commits the scrubbed value; the menu stays open and the
+    // grid's custom swatch carries the non-preset value (the dot).
+    const custom = menuOf().querySelector('[data-slot="docblocks/palette-custom"]');
+    expect(custom, "the custom swatch should stand").not.toBeNull();
+    act(() => {
+      custom!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    expect(calloutAttrsOf(doc, co)?.color).toBe("#ff5500");
+    expect(document.querySelector('[data-slot="docblocks/callout-color-picker"]')).toBeNull();
+    const dot = menuOf().querySelector<HTMLElement>('[data-slot="docblocks/palette-custom-current"]');
+    expect(dot, "the custom swatch's dot should be over the non-preset value").not.toBeNull();
+    expect(getComputedStyle(dot!).backgroundColor).toBe("rgb(255, 85, 0)");
   });
 });
 

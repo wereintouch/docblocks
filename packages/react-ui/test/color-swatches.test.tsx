@@ -166,6 +166,32 @@ describe("ColorSwatches (the shared palette)", () => {
     expect(customClicked).toEqual([true]);
   });
 
+  it("the custom swatch carries the current value over the non-preset color (the dot over the rainbow)", () => {
+    // A current color that matches no entry: the dot stands over the
+    // rainbow with the current's own color (the row's highlight shows a
+    // preset's match only).
+    render(
+      <ColorSwatches colors={HEX_PALETTE} current="#ff5500" onSelect={() => undefined} label="fill" allowCustom />
+    );
+    const dot = document.querySelector<HTMLElement>('[data-slot="docblocks/palette-custom-current"]');
+    expect(dot, "the dot should be over the non-preset current").not.toBeNull();
+    expect(getComputedStyle(dot!).backgroundColor).toBe("rgb(255, 85, 0)");
+    cleanup();
+
+    // A current color that matches an entry: the row's highlight shows it
+    // (no dot). Uppercase input normalizes to the same comparison.
+    render(
+      <ColorSwatches colors={HEX_PALETTE} current="#F59E0B" onSelect={() => undefined} label="fill" allowCustom />
+    );
+    expect(document.querySelector('[data-slot="docblocks/palette-custom-current"]')).toBeNull();
+    expect(swatches()[1]!.getAttribute("aria-pressed")).toBe("true");
+    cleanup();
+
+    // The absent current: no dot.
+    render(<ColorSwatches colors={HEX_PALETTE} onSelect={() => undefined} label="fill" allowCustom />);
+    expect(document.querySelector('[data-slot="docblocks/palette-custom-current"]')).toBeNull();
+  });
+
   it("a consumer formatPalette override stands (the entries render as-is)", () => {
     const override = ["#123456", "#654321"];
     render(<ColorSwatches colors={override} onSelect={() => undefined} label="fill" />);

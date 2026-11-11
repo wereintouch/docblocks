@@ -11,7 +11,10 @@
  * Two opt-in extras (off by default): the transparent ("no color") swatch
  * (a theme-background circle crossed by a thin `--destructive` line —
  * reports `onSelectNone`) and the custom swatch (a rainbow circle that
- * reports `onCustom`; the full picker it opens is built on first use).
+ * reports `onCustom`; the full picker it opens is built on first use). A
+ * current value that matches no entry (a non-preset custom color) shows a
+ * small dot of its own over the custom swatch — the row's highlight shows
+ * a preset's match only, so the dot is the custom value's marker.
  */
 import { useTranslation } from "react-i18next";
 
@@ -87,6 +90,14 @@ function ColorSwatchesInner({
     return entryHex === currentHex;
   };
 
+  // The custom value's dot (above): the current color that no entry
+  // matches is not the row's selection — the custom swatch carries it.
+  const currentHex = current === null || current === undefined ? null : normalizeHex(current);
+  const customCarriesCurrent =
+    allowCustom &&
+    currentHex !== null &&
+    !colors.some((entry, index) => (normalizeHex(entry) ?? resolved[index] ?? null) === currentHex);
+
   const selectSwatch = (entry: string) => (event: React.MouseEvent<HTMLButtonElement>) => {
     const hex = resolveColorToHex(entry, event.currentTarget);
     if (hex !== null) onSelect(hex);
@@ -152,12 +163,23 @@ function ColorSwatchesInner({
           data-color="custom"
           aria-label={t("common:color.custom")}
           title={t("common:color.custom")}
-          className="size-5 rounded-full border border-(--border) transition-none"
+          className="relative size-5 rounded-full border border-(--border) transition-none"
           style={{
             background: "conic-gradient(red, orange, yellow, green, cyan, blue, magenta, red)",
           }}
           onClick={onCustom}
-        />
+        >
+          {customCarriesCurrent && currentHex !== null && (
+            <span
+              aria-hidden
+              data-slot="docblocks/palette-custom-current"
+              className="
+                absolute top-1/2 left-1/2 size-3 -translate-x-1/2 -translate-y-1/2 rounded-full border border-(--border)
+              "
+              style={{ background: currentHex }}
+            />
+          )}
+        </Button>
       )}
     </div>
   );
