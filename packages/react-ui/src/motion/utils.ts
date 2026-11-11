@@ -10,11 +10,15 @@ import { segmentRange } from "../editing/block-commands";
  * event's clientY, or the last changed touch's (the touch release event
  * carries no coordinate of its own). Null when the event stands no
  * usable coordinate (the measurement is stale — the caller keeps the
- * preview or skips the commit).
+ * preview or skips the commit). The touch's stand is duck-typed over
+ * `changedTouches`: the global `TouchEvent` is absent on the no-touch
+ * Safari (a desktop Safari on macOS), so the `instanceof` stand throws a
+ * ReferenceError over every drag callback.
  */
 function pointerYOf(event: PointerEvent | MouseEvent | TouchEvent): number | null {
-  if (event instanceof TouchEvent) {
-    const touch = event.changedTouches[event.changedTouches.length - 1];
+  if ("changedTouches" in event) {
+    const touches = event.changedTouches;
+    const touch = touches[touches.length - 1];
     return touch === null || touch === undefined ? null : touch.clientY;
   }
   return event.clientY;
