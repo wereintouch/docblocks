@@ -1,5 +1,58 @@
 # docblocks-react-ui
 
+## 0.4.5
+
+### Patch Changes
+
+- 468f457: The callout's custom color picker commits the last scrubbed value when
+  the picker section closes without an explicit commit (the former close
+  discarded the draft); an untouched picker still commits nothing. The
+  swatch grid's custom swatch carries the current color when it matches
+  no preset (a small dot over the rainbow swatch).
+- 55f51fc: A DOM selection outside a text-editable inside the canvas view maps to
+  none over the page's selection mapping. The engine's focus move over a
+  canvas item (the mousedown's default focuses the non-editable — the
+  firefox's behavior) fires a selectionchange whose blocks mapping would
+  flag the focused item: the stray selection tinted the picked shape
+  over the canvas' own selection state (the two-click pick's first
+  pick). The canvas manages its selection over the explicit press; the
+  page card's editable keeps the mapping.
+- 745f1d7: The redo of a remounting step (a type change) restores the pre-change
+  selection seat: the redo's stack item carries the pre-undo snapshot,
+  which over a remount is the lost-caret residue (none/blocks) rather
+  than the pre-change seat. The redo falls back to the seat the matching
+  undo restored when the item's own snapshot is not a text selection and
+  the undo itself restored a text seat (the remount's case); a non-text
+  undo restoration (the canvas' blocks selection) is a legitimate
+  pre-undo selection and the redo restores its own snapshot. The view's
+  history reseat window suppresses the remount's transient selection loss
+  over the undo/redo, and the reseat re-runs when the restoration's
+  emission lands.
+- 7bc9512: The shared popover's enter and exit animations now run: the classes were
+  keyed on `data-open` / `data-closed` attributes that Radix does not set
+  (it sets `data-state="open" | "closed"`), so the animations never applied
+  and the content teleported in. The closed content now gets
+  `pointer-events-none` for the exit animation, so a fading popover does
+  not swallow the press landing over its area.
+- 00d4596: The canvas connector's line is clickable in webkit (Safari): the wide
+  invisible hit path renders in its own svg sized to the path's bounding
+  box over the 1x1 center-anchor draw layer. The webkit hit-tests only
+  inside an svg's own box (the overflow-visible content of the 1x1 layer
+  is draw-only there), so the line was not selectable by a click over
+  there. The chromium and the firefox reach the overflow, so the box
+  change alters no behavior over them.
+- 4e1bee5: The cross-block selection stands over the engines that clamp the DOM
+  selection across contenteditable boundaries (webkit / Safari): the
+  selection writes (the keyboard extension, the drag's seat) use a
+  document-ordered Range instead of the Selection endpoint setters (the
+  clamping writes), and the cross-block reads (the arrow at the text's
+  edge, the range's extension) use the range's far endpoint when the
+  selection's focus reads clamped into the anchor's editable. The
+  selection's mapping reads the cross-editable range from its endpoints
+  instead of the anchor / focus nodes.
+- Updated dependencies [745f1d7]
+  - docblocks-core@0.2.2
+
 ## 0.4.4
 
 ### Patch Changes
