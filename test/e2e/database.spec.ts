@@ -2497,6 +2497,12 @@ test("the long text's cell: the double press stands the floating 6-row editor (t
     const textarea = a.locator("[data-slot='docblocks/database-cell-multiline']");
     await expect(textarea).toBeVisible(SETTLE);
     expect(await cell.locator("[data-slot='docblocks/database-cell-display']").count()).toBe(0);
+    // The enter animation's zoom scales the box during the settle window:
+    // the seat's and geometry's measures wait for the transform to settle.
+    const editorContent = a.locator(
+      "[data-slot='popover-content']:has([data-slot='docblocks/database-cell-multiline'])"
+    );
+    await expect(editorContent).toHaveCSS("transform", "none");
     const metrics = await textarea.evaluate((el) => {
       const ta = el as HTMLTextAreaElement;
       const lineHeight = parseFloat(getComputedStyle(ta).lineHeight);
@@ -2528,9 +2534,6 @@ test("the long text's cell: the double press stands the floating 6-row editor (t
     // box's width stands the cell's (the box = the column's width), the
     // box's stand is opaque (the popover's background — the covered rows
     // stand none through it).
-    const editorContent = a.locator(
-      "[data-slot='popover-content']:has([data-slot='docblocks/database-cell-multiline'])"
-    );
     const editorBox = (await editorContent.boundingBox())!;
     expect(editorBox.y).toBeLessThan(restBox.y);
     expect(restBox.y - editorBox.y).toBeLessThanOrEqual(14);

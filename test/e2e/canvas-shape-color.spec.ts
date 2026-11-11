@@ -120,11 +120,12 @@ test.describe("the shape color toolbar", () => {
       // not close on an outside click, so the fill palette stands open
       // until the toolbar's own state closes it — the stroke trigger's
       // open must close the fill (a per-section state would let both
-      // palettes stand at once).
+      // palettes stand at once). The fill's exit animation delays
+      // unmounting, so the absence requires a settle.
       await a.locator('[data-slot="docblocks/shape-toolbar-fill"]').click();
       expect(await a.locator('[data-slot="docblocks/shape-fill-palette"]').count()).toBe(1);
       await a.locator('[data-slot="docblocks/shape-toolbar-stroke"]').click();
-      expect(await a.locator('[data-slot="docblocks/shape-fill-palette"]').count()).toBe(0);
+      await expect(a.locator('[data-slot="docblocks/shape-fill-palette"]')).toHaveCount(0);
       expect(await a.locator('[data-slot="docblocks/shape-stroke-palette"]').count()).toBe(1);
 
       // The invalid draft: no apply (the value stands absent). A real

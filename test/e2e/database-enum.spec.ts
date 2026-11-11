@@ -510,8 +510,11 @@ test("the options' block stands the standard's font, the shared color's palette 
     await expect(form).toBeVisible(SETTLE);
 
     // The form's width's stand (the w-72's 288 px — the popover's box's
-    // stand over the form's inner's content).
+    // stand over the form's inner's content). The enter animation's zoom
+    // scales the box during the settle window, so the box's measure waits
+    // for the transform to settle.
     const formPopover = a.locator("[data-slot='popover-content']").last();
+    await expect(formPopover).toHaveCSS("transform", "none");
     const formBox = await formPopover.boundingBox();
     expect(formBox!.width).toBeCloseTo(288, 0);
 
