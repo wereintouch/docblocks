@@ -139,9 +139,13 @@ function seatedIn(el: HTMLElement): boolean {
  * the user's and stops the watch — it is never clobbered. The offsets are
  * the gesture's pre-move ones: a structural gesture never edits the
  * block's text, so they remain valid. `scope` confines the lookup to one
- * editor root (a page can render the same doc in several).
+ * editor root (a page can render the same doc in several). The deadline
+ * stands the remount's commit window over the engine's scheduling (the
+ * firefox's engine commits the remount slower over the load) — the watch
+ * stops at the first seated attempt or the user's selection, so the
+ * length is the residue's watch lifetime only.
  */
-const RESTORE_DEADLINE_MS = 600;
+const RESTORE_DEADLINE_MS = 2000;
 
 function restoreSelectionIn(
   doc: Doc,

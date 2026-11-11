@@ -70,7 +70,7 @@ function EditorProviderStand({
   const [store] = useState(() => createEditorStore(doc, rootId));
   const docRef = useRef(doc);
   const rootIdRef = useRef(rootId);
-  const selectionRef = useRef<SelectionRef>({ view: null });
+  const selectionRef = useRef<SelectionRef>({ view: null, reseatUntil: { current: 0 } });
   // The raw enclosing context (nullable): the inheritance source for the
   // renderers, resolvers, and the cycle-guard chain/depth.
   const parentContext = useContext(EditorContext);

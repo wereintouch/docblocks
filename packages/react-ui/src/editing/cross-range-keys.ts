@@ -46,6 +46,19 @@ function handleCrossRangeKey(
     if (moved) syncDomSelection(root, doc, view);
     return true;
   }
+  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+    // The plain arrow over the cross range: the browser's collapse of the
+    // range to a caret stands the DOM's own stand (the firefox's engine
+    // does not collapse the cross selection) — the collapse stands the
+    // selection API's stand: the caret at the range's focus end; the
+    // selectionchange mapping then updates the view (the toolbar's
+    // dismiss).
+    const domSelection = window.getSelection();
+    if (domSelection === null || domSelection.rangeCount === 0 || domSelection.focusNode === null) return false;
+    event.preventDefault();
+    domSelection.collapse(domSelection.focusNode, domSelection.focusOffset);
+    return true;
+  }
   if (event.key === "Delete" || event.key === "Backspace") {
     event.preventDefault();
     const result = doc.deleteTextRange(selection.from, selection.to);

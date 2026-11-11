@@ -101,7 +101,16 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
    */
   const pendingRef = useRef<
     | { runs: TextRun[]; restore: { from: number; to: number | null } }
-    | { runs: TextRun[]; cross: { startIsLocal: boolean; localOffset: number; farNode: Node; farOffset: number } }
+    | {
+        runs: TextRun[];
+        cross: {
+          startIsLocal: boolean;
+          localOffset: number;
+          farNode: Node;
+          farOffset: number;
+          farBlockId: string | null;
+        };
+      }
     | null
   >(null);
 
@@ -195,13 +204,24 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
       const from = caretOffsetIn(el, range.startContainer, range.startOffset);
       const to = caretOffsetIn(el, range.endContainer, range.endOffset);
       // The cross end's capture (the far end's node + offset, valid until
-      // the far block's own rebuild): the local end is this block's inside
-      // endpoint, the far end the other's.
-      const crossCapture = (): { startIsLocal: boolean; localOffset: number; farNode: Node; farOffset: number } => ({
+      // the far block's own rebuild; the far block's id stands the remap
+      // when the rebuild ran concurrently): the local end is this block's
+      // inside endpoint, the far end the other's.
+      const farContainer = startInside ? range.endContainer : range.startContainer;
+      const farHost = farContainer.nodeType === Node.TEXT_NODE ? farContainer.parentElement : (farContainer as Element);
+      const farBlockId = farHost?.closest("[data-block-id]")?.getAttribute("data-block-id") ?? null;
+      const crossCapture = (): {
+        startIsLocal: boolean;
+        localOffset: number;
+        farNode: Node;
+        farOffset: number;
+        farBlockId: string | null;
+      } => ({
         startIsLocal: startInside,
         localOffset: startInside ? from : to,
-        farNode: startInside ? range.endContainer : range.startContainer,
+        farNode: farContainer,
         farOffset: startInside ? range.endOffset : range.startOffset,
+        farBlockId,
       });
       if (nextText === prevText) {
         if (startInside && endInside) {
@@ -267,26 +287,41 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
       appliedRef.current = block;
       if ("cross" in pending) {
         // The cross end's re-establish: the rebuild detached the local
-        // end's nodes (the browser drops the cross selection over them). The
-        // far end's node stands unless the far block's own rebuild ran
-        // (its pending then stands the re-establish — this end's far node
-        // is the far's local). The selection may have left the range
-        // between the capture and this commit — the rebuild alone is the
-        // convergence then.
+        // end's nodes (the browser drops the cross selection over them).
+        // The far end's node stands unless the far block's own rebuild ran
+        // concurrently (its far node then stands the remap over the far
+        // block's current inner — the mark/attrs-only change leaves the
+        // far text standing, the offset valid as-is; the remap makes the
+        // re-establish order-independent over the two blocks' commits).
+        // The selection may have left the range between the capture and
+        // this commit — the rebuild alone is the convergence then.
+        const cross = pending.cross;
+        let farNode = cross.farNode;
+        let farOffset = cross.farOffset;
+        if (!document.contains(farNode) && cross.farBlockId !== null) {
+          const scope = el.closest('[data-slot="docblocks/editor"]') ?? document;
+          const farInner = scope.querySelector<HTMLElement>(
+            `[data-block-id="${CSS.escape(cross.farBlockId)}"][data-slot="docblocks/block-content"]`
+          );
+          if (farInner !== null) {
+            const remap = locatePosition(farInner, cross.farOffset);
+            farNode = remap.node;
+            farOffset = remap.offset;
+          }
+        }
         const selection = window.getSelection();
         const stands =
           selection !== null &&
           selection.rangeCount > 0 &&
-          (selection.containsNode(pending.cross.farNode, true) || selectionOrphaned());
-        if (stands && document.contains(pending.cross.farNode)) {
-          const local = locatePosition(el, pending.cross.localOffset);
-          const cross = pending.cross;
+          (selection.containsNode(farNode, true) || selectionOrphaned());
+        if (stands && document.contains(farNode)) {
+          const local = locatePosition(el, cross.localOffset);
           const range = document.createRange();
           if (cross.startIsLocal) {
             range.setStart(local.node, local.offset);
-            range.setEnd(cross.farNode, cross.farOffset);
+            range.setEnd(farNode, farOffset);
           } else {
-            range.setStart(cross.farNode, cross.farOffset);
+            range.setStart(farNode, farOffset);
             range.setEnd(local.node, local.offset);
           }
           selection.removeAllRanges();

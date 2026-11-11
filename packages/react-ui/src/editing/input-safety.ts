@@ -270,7 +270,21 @@ function useBlockInput({
       const domSelection = window.getSelection();
       if (selection.kind !== "blocks" && mappedRoot instanceof HTMLElement && domSelection !== null) {
         const fresh = mapDomSelection(mappedRoot, domSelection, doc);
-        if (!selectionsEqual(fresh, selection)) view.set(fresh);
+        if (!selectionsEqual(fresh, selection)) {
+          // The history reseat's window (the undo/redo's remount stands
+          // the engine's transient selection loss): the fresh non-text
+          // mapping stands the remount's residue (the engine's anchor's
+          // wander over the wrapper — the blocks' stand, the none's
+          // stand), not the user's clear — the push is suppressed over
+          // the window (a history hotkey pressed over the inner would
+          // then read the residue for its inverse's snapshot). The user's
+          // gutter's click stands the wrapper's focus (no inner's keydown),
+          // so the stand touches the residue only.
+          const residue = fresh.kind !== "text" && Date.now() < selectionRef.reseatUntil.current;
+          if (!residue) {
+            view.set(fresh);
+          }
+        }
         selection = view.get();
         root = mappedRoot;
       }
@@ -518,7 +532,20 @@ function useBlockInput({
         if (domSelection === null || domSelection.rangeCount === 0 || !domSelection.isCollapsed) return;
         if (domSelection.anchorNode === null || !inner.contains(domSelection.anchorNode)) return;
         const offset = caretOffsetIn(inner, domSelection.anchorNode, domSelection.anchorOffset);
-        if (offset !== 0) return; // inside the block: the input diff path handles it
+        if (offset !== 0) {
+          // The trailing line-break anchor's caret (the text ends with the
+          // break): the native engine eats the rendered anchor span (the
+          // firefox's stand) instead of the break, so the break's deletion
+          // stands the command's stand (one transact, engine-neutral).
+          const text = doc.getText(id);
+          if (offset === text.length && text.endsWith("\n")) {
+            event.preventDefault();
+            doc.deleteText(id, offset - 1, offset);
+            focusCaretIn(id, offset - 1, editorRootOf(inner));
+            return;
+          }
+          return; // inside the block: the input diff path handles it
+        }
         // The cell context: Backspace at the line start is a no-op — no
         // merge with the previous in-cell paragraph and no exit.
         if (inCell) return;
