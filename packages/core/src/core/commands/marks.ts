@@ -81,10 +81,13 @@ function setMark(ydoc: Y.Doc, blockId: string, from: number, to: number, mark: M
   localTransact(ydoc, () => {
     if (exclusive) {
       // An exclusive mark replaces every other mark on the range: the other
-      // names stand null (drop them) and the mark itself is set.
+      // names stand null (drop them) and the mark itself is set. The range's
+      // length is to - from (the Y.Text format's second argument is a length
+      // — a `to` there stands the from-anchored `to` characters and extends
+      // the text with line breaks over the overhang).
       const clear: Record<string, unknown> = {};
       for (const other of ALL_MARK_NAMES) if (other !== name) clear[other] = null;
-      content.format(from, to, { ...clear, [name]: value });
+      content.format(from, to - from, { ...clear, [name]: value });
     } else {
       // A non-exclusive mark skips characters that carry an exclusive mark.
       for (const span of exclusiveFreeSpans(content, from, to)) {
@@ -107,8 +110,10 @@ function unsetMark(ydoc: Y.Doc, blockId: string, from: number, to: number, name:
   if (from === to) return; // no-op
 
   localTransact(ydoc, () => {
-    // Setting the attribute to null drops it (Yjs has no `unformat`).
-    content.format(from, to, { [name]: null });
+    // Setting the attribute to null drops it (Yjs has no `unformat`). The
+    // length is to - from — a `to` there would be treated as a length
+    // from the start and extend the text over the overhang.
+    content.format(from, to - from, { [name]: null });
   });
 }
 

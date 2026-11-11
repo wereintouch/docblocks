@@ -108,9 +108,88 @@ describe("setMark", () => {
     doc.setMark(id, 0, 20, { type: "bold" });
     expect(doc.getRuns(id)).toEqual([{ text: "Help us sync faster!", marks: { bold: true } }]);
   });
+
+  it("the range stands the length contract: no text growth over a tail range (the Y.Text format's length argument)", () => {
+    // The Y.Text format takes (start, length) — a `to` as the second argument
+    // formats the from-anchored `to` characters and extends the text with line
+    // breaks over the overhang. The ranges below stand from + to > total.
+    const doc = newDoc();
+    const p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "one two");
+
+    // The non-exclusive set over the second word (the toolbar's mark apply).
+    doc.setMark(p, 4, 7, { type: "bold" });
+    expect(doc.getRuns(p)).toEqual([
+      { text: "one ", marks: {} },
+      { text: "two", marks: { bold: true } },
+    ]);
+    expect(doc.getTextLength(p)).toBe(7);
+
+    // The exclusive set (code) over the same range: the overhang would
+    // extend the text with four line breaks and code-mark them.
+    doc.setMark(p, 0, 4, { type: "code" });
+    expect(doc.getTextLength(p)).toBe(7);
+    expect(doc.getRuns(p)).toEqual([
+      { text: "one ", marks: { code: true } },
+      { text: "two", marks: { bold: true } },
+    ]);
+
+    // A mid-text exclusive range stands the exact [from, to) bounds (no
+    // over-marking of the tail characters).
+    const p2 = doc.insertBlock("paragraph");
+    doc.insertText(p2, 0, "hello world");
+    doc.setMark(p2, 2, 6, { type: "code" });
+    expect(doc.getTextLength(p2)).toBe(11);
+    expect(doc.getRuns(p2)).toEqual([
+      { text: "he", marks: {} },
+      { text: "llo ", marks: { code: true } },
+      { text: "world", marks: {} },
+    ]);
+  });
+
+  it("a mention over a tail range stands the exact bounds (no over-marked tail run)", () => {
+    const doc = newDoc();
+    const p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "open the doc");
+    // "the" over (5, 8): from + to = 13 > 12 — the overhang range (the old
+    // call formatted [5, 13) and over-marked the tail characters).
+    doc.setMark(p, 5, 8, { type: "mention", kind: "doc", id: "d1", label: "the" });
+    expect(doc.getTextLength(p)).toBe(12);
+    expect(doc.getRuns(p)).toEqual([
+      { text: "open ", marks: {} },
+      { text: "the", marks: { mention: { kind: "doc", id: "d1", label: "the" } } },
+      { text: " doc", marks: {} },
+    ]);
+  });
 });
 
 describe("unsetMark", () => {
+  it("the toggle-off over a tail range stands the text (the set then the immediate unset)", () => {
+    // The editor's mark toggle over the second word of a two-word block:
+    // the set then the immediate unset. The unset's format range is the
+    // length contract's pin — a `to` as the length extended the text with
+    // line breaks over the overhang (the ghost lines' source).
+    const doc = newDoc();
+    const p = doc.insertBlock("paragraph");
+    doc.insertText(p, 0, "one two");
+    doc.setMark(p, 4, 7, { type: "bold" });
+    doc.unsetMark(p, 4, 7, "bold");
+    expect(doc.getText(p)).toBe("one two");
+    expect(doc.getTextLength(p)).toBe(7);
+    expect(doc.getRuns(p)).toEqual([{ text: "one two", marks: {} }]);
+
+    // The strike parity over the same range.
+    doc.setMark(p, 4, 7, { type: "strike" });
+    doc.unsetMark(p, 4, 7, "strike");
+    expect(doc.getText(p)).toBe("one two");
+
+    // The exclusive toggle-off: the code mark set then unset over the range.
+    doc.setMark(p, 4, 7, { type: "code" });
+    doc.unsetMark(p, 4, 7, "code");
+    expect(doc.getText(p)).toBe("one two");
+    expect(doc.getTextLength(p)).toBe(7);
+  });
+
   it("removes only the named mark, keeping the others", () => {
     const { doc, id } = markedDoc();
     doc.setMark(id, 8, 12, { type: "bold" });

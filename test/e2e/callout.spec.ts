@@ -203,7 +203,11 @@ test("the view's mode stands the icon without a button (no pointer events)", asy
 }) => {
   const context = await browser.newContext();
   const page = await context.newPage();
-  await openPane(page, "a", "callout-readonly");
+  // The per-run room's suffix (the twoPanes' parity): the spec re-runs
+  // accumulate a callout over the fixed room's name (the relay's rooms
+  // persist over the dev server's lifetime) and the button's locator
+  // stands strict over several blocks.
+  await openPane(page, "a", `callout-readonly-${Math.random().toString(36).slice(2, 8)}`);
   const coId = await page.evaluate(() => {
     const doc = window.__paneDocs?.a ?? null;
     if (doc === null) throw new Error("the pane's doc is not mounted");
