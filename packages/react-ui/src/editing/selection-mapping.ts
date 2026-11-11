@@ -54,6 +54,23 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
   const range = domSelection.getRangeAt(0);
   const anchorBlock = textBlockOf(anchorNode, root);
   const focusBlock = textBlockOf(focusNode, root);
+  // A selection outside a text-editable inside the canvas view maps to
+  // none: the canvas manages its own selection (the explicit press), and
+  // the engine's focus move over a canvas item (the mousedown's default
+  // focuses the non-editable — the firefox's behavior) fires a
+  // selectionchange whose blocks mapping would flag the focused item
+  // over the canvas' own state. The editing surfaces inside the canvas
+  // (the shape's text edit, the canvas-text's edit, the page card's
+  // editable) keep the mapping: their focus move re-writes the focused
+  // item's selection, so the toolbar survives the edit.
+  const anchorHostEl = anchorNode instanceof Element ? anchorNode : (anchorNode.parentElement ?? null);
+  if (
+    anchorHostEl?.closest('[data-slot="docblocks/canvas-view"]') !== null &&
+    anchorBlock === null &&
+    editableOfNode(anchorNode) === null
+  ) {
+    return { kind: "none" };
+  }
   // The cross-editable stand (the webkit's clamped focus): when the range
   // spans two editables, the anchor/focus read-back may place the far
   // endpoint inside the anchor's own editable (the engine's selection API

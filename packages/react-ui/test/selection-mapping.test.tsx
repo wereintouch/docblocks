@@ -257,6 +257,36 @@ describe("DOM selection mapping (cross-block ranges)", () => {
     expect(mapped).toEqual({ kind: "blocks", ids: [d1, d2], anchorId: d1 });
   });
 
+  it("a non-editable selection inside the canvas view maps to none (the engine's focus default)", () => {
+    let p1: BlockId = "";
+    const doc = renderDoc((d) => {
+      p1 = d.insertBlock("paragraph");
+      d.insertText(p1, 0, "alpha");
+    });
+
+    // The canvas view's chrome over the root: the engine's focus move
+    // over a canvas item (the mousedown's default focuses the
+    // non-editable) leaves a collapsed selection over the item. The
+    // canvas manages its own selection (the explicit press), so the
+    // mapping must not flag the focused item over the page's selection.
+    const root = rootOf();
+    const canvasView = document.createElement("div");
+    canvasView.setAttribute("data-slot", "docblocks/canvas-view");
+    const item = document.createElement("div");
+    item.setAttribute("data-slot", "docblocks/canvas-item");
+    item.setAttribute("data-block-id", "shape-1");
+    canvasView.appendChild(item);
+    root.appendChild(canvasView);
+
+    const range = document.createRange();
+    range.setStart(item, 0);
+    range.collapse(true);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    expect(mapDomSelection(root, selection, doc)).toEqual({ kind: "none" });
+  });
+
   it("a collapsed selection inside one block stays a caret", () => {
     let p1: BlockId = "";
     const doc = renderDoc((d) => {
