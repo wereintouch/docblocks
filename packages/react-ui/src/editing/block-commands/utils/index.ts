@@ -11,6 +11,7 @@ export {
   splitAt,
 } from "./commands";
 export {
+  applyDomSelection,
   extendSelectionTo,
   focusCaretIn,
   focusCaretInElement,

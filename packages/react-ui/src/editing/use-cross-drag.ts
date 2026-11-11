@@ -3,6 +3,7 @@ import type { PointerEvent } from "react";
 
 import type { BlockId, Doc } from "docblocks-core";
 
+import { applyDomSelection } from "./block-commands";
 import { locatePosition } from "./dom-offset";
 
 interface DragPosition {
@@ -30,7 +31,7 @@ function seatCrossSelection(anchor: DragPosition, position: DragPosition): void 
   const anchorBefore = (anchor.node.compareDocumentPosition(position.node) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
   const base = anchorBefore || anchor.offset !== 0 ? anchor : position;
   const focus = base === anchor ? position : anchor;
-  window.getSelection()?.setBaseAndExtent(base.node, base.offset, focus.node, focus.offset);
+  applyDomSelection(base.node, base.offset, focus.node, focus.offset);
 }
 
 /**

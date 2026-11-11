@@ -54,6 +54,45 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
   const range = domSelection.getRangeAt(0);
   const anchorBlock = textBlockOf(anchorNode, root);
   const focusBlock = textBlockOf(focusNode, root);
+  // The cross-editable stand (the webkit's clamped focus): when the range
+  // spans two editables, the anchor/focus read-back may place the far
+  // endpoint inside the anchor's own editable (the engine's selection API
+  // clamps it there); the range's document-order endpoints are faithful
+  // across the boundary, so they stand the derivation. The direction's
+  // read-back stands the range's (the engine's clamped focus carries no
+  // direction) — the core model is document-ordered.
+  const startEditable = editableOfNode(range.startContainer);
+  const endEditable = range.startContainer === range.endContainer ? startEditable : editableOfNode(range.endContainer);
+  if (startEditable !== null && endEditable !== null && startEditable !== endEditable) {
+    const first: Endpoint = {
+      node: range.startContainer,
+      offset: range.startOffset,
+      textBlock: textBlockOf(range.startContainer, root),
+    };
+    const last: Endpoint = {
+      node: range.endContainer,
+      offset: range.endOffset,
+      textBlock: textBlockOf(range.endContainer, root),
+    };
+    if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range)) {
+      return mapBlocksSelection(root, domSelection, anchorBlock);
+    }
+    const from = resolveEndpoint(doc, root, first, "first");
+    const to = resolveEndpoint(doc, root, last, "last");
+    if (from === null || to === null) return mapBlocksSelection(root, domSelection, anchorBlock);
+    if (from.blockId === to.blockId && from.offset === to.offset) {
+      return { kind: "text", from, to: null };
+    }
+    // The direction's read-back (the faithful anchor's stand): the clamped
+    // engine's anchor reads as the range's start — no reverse there.
+    const anchorIsFirst = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+    return {
+      kind: "text",
+      from,
+      to,
+      ...(!anchorIsFirst ? { reverse: true } : {}),
+    };
+  }
   if (anchorBlock !== null && focusBlock === anchorBlock) {
     return mapTextSelection(anchorBlock, anchorNode, anchorOffset, focusNode, focusOffset);
   }
@@ -316,12 +355,15 @@ function syncDomSelection(root: HTMLElement, doc: Doc, view: SelectionView): voi
  * not — the mapping must not clobber a `blocks` view there.
  */
 function domSelectionInEditable(domSelection: Selection | null): boolean {
-  if (domSelection === null || domSelection.rangeCount === 0) return false;
-  const elementOf = (node: Node | null): Element | null =>
-    node instanceof Element ? node : node === null ? null : node.parentElement;
-  const anchor = elementOf(domSelection.anchorNode);
-  const focus = elementOf(domSelection.focusNode);
-  return anchor?.closest('[contenteditable="true"]') !== null && focus?.closest('[contenteditable="true"]') !== null;
+  const anchor = editableOfNode(domSelection?.anchorNode ?? null);
+  const focus = editableOfNode(domSelection?.focusNode ?? null);
+  return anchor !== null && focus !== null;
+}
+
+/** The contenteditable that owns a node (the node's element or its parent's), or null. */
+function editableOfNode(node: Node | null): Element | null {
+  const element = node === null ? null : node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return element?.closest('[contenteditable="true"]') ?? null;
 }
 
 export { domSelectionInEditable, mapDomSelection, selectionsEqual, syncDomSelection };

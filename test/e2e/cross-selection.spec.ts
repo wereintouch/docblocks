@@ -158,10 +158,31 @@ async function caretToLineEdge(page: Page, edge: "start" | "end"): Promise<void>
       sel.removeAllRanges();
       sel.addRange(range);
     } else {
-      // The extend's stand over the cross-editable (the firefox engine's
-      // Selection.extend throws over the contenteditable boundary): the
-      // setBaseAndExtent keeps the anchor, moves the focus end.
-      sel.setBaseAndExtent(sel.anchorNode, sel.anchorOffset, targetNode, targetOff);
+      // The extend's stand over the cross-editable: a Range built from the
+      // anchor to the edge endpoint (the engine's setBaseAndExtent clamps
+      // the far endpoint into the anchor's own editable — the webkit's
+      // stand — and Selection.extend throws over the boundary — the
+      // firefox's stand). The document order is stated over a probe range
+      // (a backward set is not normalized by the engines).
+      const base = sel.anchorNode;
+      if (base === null) return;
+      const baseProbe = document.createRange();
+      baseProbe.setStart(base, sel.anchorOffset);
+      baseProbe.collapse(true);
+      const targetProbe = document.createRange();
+      targetProbe.setStart(targetNode, targetOff);
+      targetProbe.collapse(true);
+      const baseFirst = baseProbe.compareBoundaryPoints(Range.END_TO_START, targetProbe) <= 0;
+      const range = document.createRange();
+      if (baseFirst) {
+        range.setStart(base, sel.anchorOffset);
+        range.setEnd(targetNode, targetOff);
+      } else {
+        range.setStart(targetNode, targetOff);
+        range.setEnd(base, sel.anchorOffset);
+      }
+      sel.removeAllRanges();
+      sel.addRange(range);
     }
   }, edge);
 }
@@ -383,14 +404,20 @@ test("a divider inside the composed chain is skipped by the extension and remove
   await a.keyboard.press("Enter");
   await expect(inners(a, "a")).toHaveCount(2);
   await insertBlockType(a, "a", "divider");
+  // The non-text tail stands its guaranteed trailing paragraph over the
+  // wire (the remote peer's guard): the guard's paragraph lands at the
+  // sequence's end, so the next insert's position pins the chain — wait
+  // for the guard's write to converge before the paragraph insert (the
+  // guard's and the insert's race is engine-timing-dependent, so the
+  // layout stand is the settled 4-block chain, not the engine's luck).
+  await expect.poll(async () => (await blocksOf(a, "a")).length, SETTLE).toBe(4);
   await insertBlockType(a, "a", "paragraph");
   await inners(a, "a").last().click();
   await a.keyboard.type("three four");
-  // The harness inserts land at the sequence's end: the non-text tail
-  // stands its guaranteed trailing paragraph (the remote peer's guard
-  // writes it over the wire). Wait for it to land (a one-shot read can
-  // catch A before the guard's write converges under full-suite load),
-  // then capture the blocks: p1, p2, the divider, the tail paragraph, p3.
+  // The harness inserts land at the sequence's end. Wait for the
+  // convergence (a one-shot read can catch A before the settle under
+  // full-suite load), then capture the blocks: p1, p2, the divider, the
+  // tail paragraph, p3.
   await expect.poll(async () => (await blocksOf(a, "a")).length, SETTLE).toBe(5);
   const blocks = await blocksOf(a, "a");
   const p1 = blocks[0]!;

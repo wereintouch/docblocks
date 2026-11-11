@@ -1,6 +1,7 @@
 import type { BlockId, Doc, Selection, TextPoint } from "docblocks-core";
 
-import { caretOffsetIn, editorRootOf, locatePosition, textBlockOfNode } from "./dom-offset";
+import { applyDomSelection } from "./block-commands";
+import { caretOffsetIn, editorRootOf, effectiveFocusEnd, locatePosition, textBlockOfNode } from "./dom-offset";
 
 /**
  * The keyboard extension of a cross-block text range: move the selection's
@@ -21,8 +22,14 @@ function extendRangeFocusEnd(doc: Doc, selection: Selection, key: string): boole
   if (selection.kind !== "text" || selection.to === null) return false;
   const domSelection = window.getSelection();
   if (domSelection === null || domSelection.rangeCount === 0) return false;
-  const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
-  if (anchorNode === null || focusNode === null) return false;
+  const { anchorNode, anchorOffset } = domSelection;
+  if (anchorNode === null) return false;
+  // The cross-editable stand (the webkit's clamped focus): the effective
+  // focus end stands the range's far endpoint over the clamped read-back.
+  const effective = effectiveFocusEnd(domSelection);
+  if (effective === null) return false;
+  const focusNode = effective.node;
+  const focusOffset = effective.offset;
   const scope = editorRootOf(focusNode);
 
   // The focus end is one of the range's points — the point whose block's
@@ -70,7 +77,7 @@ function extendRangeFocusEnd(doc: Doc, selection: Selection, key: string): boole
   );
   if (target === null) return false;
   const position = locatePosition(target, next.offset);
-  domSelection.setBaseAndExtent(anchorNode, anchorOffset, position.node, position.offset);
+  applyDomSelection(anchorNode, anchorOffset, position.node, position.offset);
   return true;
 }
 

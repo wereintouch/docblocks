@@ -204,8 +204,46 @@ function selectionOrphaned(): boolean {
   return node !== document && !document.contains(node);
 }
 
+/**
+ * The selection's focus end as the editor reads it: the engine's
+ * `focusNode` / `focusOffset` — except when the range crosses a
+ * contenteditable boundary and the focus reads back inside the anchor's
+ * own editable (the webkit's clamped focus read-back: the engine clamps
+ * the far endpoint there, so the anchor/focus pair cannot express the
+ * cross range). The range's endpoints stand the derivation then: the
+ * engine's range is faithful across the boundary even when the
+ * anchor/focus read-back is not. The direction is the range's (the
+ * clamped engine's anchor reads as the range's start) — the focus end is
+ * the range's far endpoint over the anchor's, whatever its order.
+ */
+function effectiveFocusEnd(domSelection: Selection): { node: Node; offset: number } | null {
+  if (domSelection.rangeCount === 0) return null;
+  const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
+  if (focusNode === null || anchorNode === null) return null;
+  const range = domSelection.getRangeAt(0);
+  const anchorEditable = editableOfNode(anchorNode);
+  const startEditable = editableOfNode(range.startContainer);
+  const endEditable = range.startContainer === range.endContainer ? startEditable : editableOfNode(range.endContainer);
+  const crosses = startEditable !== null && endEditable !== null && startEditable !== endEditable;
+  if (crosses && anchorEditable !== null && anchorEditable.contains(focusNode)) {
+    // The clamped stand: the far endpoint is the range's, not the read-back's.
+    const anchorIsRangeStart = range.startContainer === anchorNode && range.startOffset === anchorOffset;
+    return anchorIsRangeStart
+      ? { node: range.endContainer, offset: range.endOffset }
+      : { node: range.startContainer, offset: range.startOffset };
+  }
+  return { node: focusNode, offset: focusOffset };
+}
+
+/** The contenteditable that owns a node (the node's element or its parent's), or null. */
+function editableOfNode(node: Node | null): Element | null {
+  const element = node === null ? null : node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+  return element?.closest('[contenteditable="true"]') ?? null;
+}
+
 export {
   caretOffsetIn,
+  effectiveFocusEnd,
   editorRootOf,
   locatePosition,
   logicalTextOf,

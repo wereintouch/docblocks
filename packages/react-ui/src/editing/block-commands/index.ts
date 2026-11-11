@@ -7,6 +7,7 @@
  * move is a DOM-only effect scheduled for the next frame.
  */
 export {
+  applyDomSelection,
   ensureTrailingParagraph,
   extendSelectionTo,
   findParentId,

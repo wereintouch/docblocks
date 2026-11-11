@@ -7,7 +7,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
 import { extendSelectionTo, focusCaretIn, moveSegmentInSequence, segmentRange } from "../block-commands";
-import { caretOffsetIn, editorRootOf, textBlockOfNode } from "../dom-offset";
+import { caretOffsetIn, editorRootOf, effectiveFocusEnd, textBlockOfNode } from "../dom-offset";
 import { syncDomSelection } from "../selection-mapping";
 import type { BlockKeyboardProps, FormatMark } from "./models";
 import { cellDescendTarget, findSiblingTextBlock, markToggleAction, parentBlockIdOf } from "./utils";
@@ -134,8 +134,16 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
       if (selectionRef.view?.get().kind === "blocks") return;
       const domSelection = window.getSelection();
       if (domSelection === null || domSelection.rangeCount === 0) return;
-      const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
-      if (anchorNode === null || focusNode === null) return;
+      const { anchorNode, anchorOffset } = domSelection;
+      if (anchorNode === null) return;
+      // The cross-editable stand (the webkit's clamped focus): the effective
+      // focus end stands the range's far endpoint over the clamped
+      // read-back (the extension chains over the intermediate blocks then,
+      // the edge check over the far block, not the clamped one).
+      const effective = effectiveFocusEnd(domSelection);
+      if (effective === null) return;
+      const focusNode = effective.node;
+      const focusOffset = effective.offset;
       // The focus end's block — not necessarily this one: after a cross
       // extension the browser re-focuses the anchor's editable, so the
       // next gesture keydown dispatches from the anchor block and the

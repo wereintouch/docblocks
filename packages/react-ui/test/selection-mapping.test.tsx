@@ -112,6 +112,37 @@ describe("DOM selection mapping (cross-block ranges)", () => {
     });
   });
 
+  it("maps the cross range from the range's endpoints when the focus reads clamped (the webkit's stand)", () => {
+    let p1: BlockId = "";
+    let p2: BlockId = "";
+    const doc = renderDoc((d) => {
+      p1 = d.insertBlock("paragraph");
+      d.insertText(p1, 0, "one world");
+      p2 = d.insertBlock("paragraph");
+      d.insertText(p2, 0, "another world");
+    });
+    const a = textNodeOf(p1);
+    const b = textNodeOf(p2);
+    const range = document.createRange();
+    range.setStart(a, 1);
+    range.setEnd(b, 0);
+    // The engine's clamped read-back: the anchor and the focus stand in the
+    // anchor's own editable (the range carries the far endpoint).
+    const clamped = {
+      anchorNode: a,
+      anchorOffset: 1,
+      focusNode: a,
+      focusOffset: 9,
+      rangeCount: 1,
+      getRangeAt: () => range,
+    } as unknown as Selection;
+    expect(mapDomSelection(rootOf(), clamped, doc)).toEqual({
+      kind: "text",
+      from: { blockId: p1, offset: 1 },
+      to: { blockId: p2, offset: 0 },
+    });
+  });
+
   it("the engine fills the blocks chain on set (the mapping never computes it)", () => {
     let p1: BlockId = "";
     let p2: BlockId = "";

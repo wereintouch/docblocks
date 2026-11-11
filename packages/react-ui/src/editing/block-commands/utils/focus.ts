@@ -248,6 +248,44 @@ function reseatHistorySelection(doc: Doc, view: SelectionView, scope: ParentNode
 }
 
 /**
+ * Stand a DOM selection over (base, focus) — across the contenteditable
+ * boundary included: the selection is built as one document-ordered Range
+ * and added whole. The engine's `setBaseAndExtent` / `extend` cannot put an
+ * endpoint in ANOTHER editable — the webkit clamps the far endpoint to the
+ * anchor's own editable (the call stands, the range does not cross); the
+ * Range's endpoints are faithful across the boundary. The anchor/focus
+ * READ-BACK may still be clamped in that engine — the mapping's stand
+ * (`selection-mapping`'s cross-editable branch) reads the range there.
+ * The direction's read-back stands the range's (the anchor reads as the
+ * range's start): the core model is document-ordered, so the direction
+ * carries no behavior.
+ */
+function applyDomSelection(baseNode: Node, baseOffset: number, focusNode: Node, focusOffset: number): void {
+  const selection = window.getSelection();
+  if (selection === null) return;
+  // The document order, stated explicitly: a backward set is not
+  // normalized by the engines (the later start collapses the range to
+  // itself), so the order is resolved up front over a probe range.
+  const baseProbe = document.createRange();
+  baseProbe.setStart(baseNode, baseOffset);
+  baseProbe.collapse(true);
+  const focusProbe = document.createRange();
+  focusProbe.setStart(focusNode, focusOffset);
+  focusProbe.collapse(true);
+  const baseFirst = baseProbe.compareBoundaryPoints(Range.END_TO_START, focusProbe) <= 0;
+  const range = document.createRange();
+  if (baseFirst) {
+    range.setStart(baseNode, baseOffset);
+    range.setEnd(focusNode, focusOffset);
+  } else {
+    range.setStart(focusNode, focusOffset);
+    range.setEnd(baseNode, baseOffset);
+  }
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+/**
  * Re-base the browser's selection anchor at (anchorNode, anchorOffset) and
  * put the focus end at the flat offset in the target block (DOM-only: the
  * doc is untouched). The browser's shift+arrow cannot cross a contenteditable
@@ -259,18 +297,17 @@ function reseatHistorySelection(doc: Doc, view: SelectionView, scope: ParentNode
  * selection, not the focus. A no-op when the target element is not rendered.
  */
 function extendSelectionTo(anchorNode: Node, anchorOffset: number, blockId: BlockId, offset: number): void {
-  const domSelection = window.getSelection();
-  if (domSelection === null) return;
   const scope = editorRootOf(anchorNode);
   const el = scope.querySelector<HTMLElement>(
     `[data-block-id="${CSS.escape(blockId)}"][data-slot="docblocks/block-content"]`
   );
   if (el === null) return;
   const target = locatePosition(el, offset);
-  domSelection.setBaseAndExtent(anchorNode, anchorOffset, target.node, target.offset);
+  applyDomSelection(anchorNode, anchorOffset, target.node, target.offset);
 }
 
 export {
+  applyDomSelection,
   extendSelectionTo,
   focusCaretIn,
   focusCaretInElement,
