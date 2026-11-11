@@ -1,0 +1,12 @@
+{
+  // The node-side tooling files (the Playwright config): no DOM, the node
+  // globals (process) over the node types. Kept out of the workspace and
+  // e2e projects (they type the browser-side code). Named tsconfig.json
+  // (the canonical root name) so the editor's tsserver picks it up — the
+  // tsconfig.* variants are not discovered by every editor's project scan.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "include": ["playwright.config.ts"]
+}
