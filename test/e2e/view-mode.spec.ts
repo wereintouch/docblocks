@@ -8,7 +8,7 @@
 // read-only's stand.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, canvasCenter, insertBlockType, openPane, seedShape, twoPanes } from "./helpers";
+import { RELAY, SETTLE, canvasCenter, editorContext, insertBlockType, openPane, seedShape, twoPanes } from "./helpers";
 
 interface PaneJson {
   meta: { title: string; avatar: string | null };
@@ -49,7 +49,7 @@ test("the view mode stands the page read-only (the caret's and the write's stand
 }: {
   browser: Browser;
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const page = await context.newPage();
   await openPane(page, "a", "vm-page");
   try {
@@ -90,7 +90,7 @@ test("the view mode stands the canvas read-only (the dock's stand off, the zoom'
 }: {
   browser: Browser;
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const page = await context.newPage();
   const room = `vm-canvas-${Math.random().toString(36).slice(2, 8)}`;
   await openPane(page, "a", room, { url: `/?client=a&syncUrl=${RELAY}/${room}&canvas=1` });
@@ -122,7 +122,7 @@ test("the empty text chains collapse over the view's modes (the edit's mode stan
 }: {
   browser: Browser;
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const page = await context.newPage();
   await openPane(page, "a", "vm-collapse");
   try {
@@ -197,7 +197,7 @@ test("the presence's overlay stands off over the view's mode (the peer's caret s
 });
 
 test("the table's and the cell's read-only stands over the view's modes", async ({ browser }: { browser: Browser }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const page = await context.newPage();
   await openPane(page, "a", "vm-table");
   try {

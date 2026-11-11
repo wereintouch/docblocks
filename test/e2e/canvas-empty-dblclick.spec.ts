@@ -15,7 +15,17 @@
 // the card; the card's content keeps the page's two-click contract).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, canvasCenter, canvasView, openPane, outCount, screenAtZoom, toCanvas, twoPanes } from "./helpers";
+import {
+  SETTLE,
+  canvasCenter,
+  canvasView,
+  editorContext,
+  openPane,
+  outCount,
+  screenAtZoom,
+  toCanvas,
+  twoPanes,
+} from "./helpers";
 
 /** The zoom toolbar (scoped to the pane's canvas view). */
 const zoomToolbar = (page: Page, client: "a" | "b") =>
@@ -201,7 +211,7 @@ test.describe("the canvas empty-area double-click (the ghost text block's entry)
   });
 
   test("the page card's blank body stands no ghost (the selection's clear, the doc's stand)", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await editorContext(browser);
     const page = await context.newPage();
     const room = `canvas-ghost-card-${Math.random().toString(36).slice(2, 8)}`;
     try {

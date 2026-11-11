@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, openPane } from "./helpers";
+import { SETTLE, editorContext, openPane } from "./helpers";
 
 /** The enum / the multi-enum's stand: the picker's width's clamp (the
  * cell's floor, the option's drive, the 220 px's ceiling), the rows'
@@ -88,7 +88,7 @@ const pickerPopover = (page: Page) => page.locator("[data-slot='popover-content'
 test("the enum's picker width stands the clamp (the cell's floor, the option's drive, the 220 px's ceiling)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `enum01-width-${Math.random().toString(36).slice(2, 8)}`);
@@ -187,7 +187,7 @@ test("the enum's picker width stands the clamp (the cell's floor, the option's d
 test("the picker's rows stand the selection (the current value's highlight; the empty's clear's highlight)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `enum02-select-${Math.random().toString(36).slice(2, 8)}`);
@@ -258,7 +258,7 @@ test("the picker's rows stand the selection (the current value's highlight; the 
 test("the enum's overflow's stand: the single press stands the picker (the clipped value; the wide cell keeps the double press)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `enum03-overflow-${Math.random().toString(36).slice(2, 8)}`);
@@ -367,7 +367,7 @@ test("the enum's overflow's stand: the single press stands the picker (the clipp
 test("the multi's overflow stretches the list (the clipped chips' tall's stand; the wide's stand stays the compact)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `enum04-tall-${Math.random().toString(36).slice(2, 8)}`);
@@ -492,7 +492,7 @@ test("the multi's overflow stretches the list (the clipped chips' tall's stand; 
 test("the options' block stands the standard's font, the shared color's palette and the grip's live reorder", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `enum05-form-${Math.random().toString(36).slice(2, 8)}`);
@@ -593,7 +593,7 @@ test("the options' block stands the standard's font, the shared color's palette 
 test("the picker's contracts stand (the search's autofocus; the filter; the single's pick; the multi's toggle; the row's height)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `enum06-contract-${Math.random().toString(36).slice(2, 8)}`);

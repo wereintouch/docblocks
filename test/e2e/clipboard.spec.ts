@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, pasteFromClipboard, twoPanes } from "./helpers";
+import { SETTLE, insertBlockType, pasteFromClipboard, seedClipboardPayload, twoPanes } from "./helpers";
 
 /** The inner contenteditables of the pane's text blocks, in order. */
 function inners(page: Page, client: "a" | "b") {
@@ -13,24 +13,20 @@ async function selectLeft(page: Page, n: number): Promise<void> {
 }
 
 /**
- * Seed the clipboard with the rich content a default copy of the block
- * would carry (its innerHTML as text/html plus the plain text). Headless
- * Chromium does not write the system clipboard from a keyboard copy, so
- * the copy side is simulated; the paste side uses the real clipboard.
+ * Seed the page's paste payload with the rich content a default copy of the
+ * block would carry (its innerHTML as text/html plus the plain text). The
+ * copy side is simulated (the headless engine does not write the system
+ * clipboard from a keyboard copy); the paste side is the real pipeline.
  */
 async function copyBlockToClipboard(page: Page, client: "a" | "b"): Promise<void> {
-  await page.evaluate(async (client) => {
+  const payload = await page.evaluate((client) => {
     const inner = document.querySelector<HTMLElement>(
       `[data-testid="doc-${client}"] [data-slot="docblocks/block-content"]`
     );
     if (inner === null) throw new Error("the pane should have a block");
-    await navigator.clipboard.write([
-      new ClipboardItem({
-        "text/html": new Blob([`<html><body>${inner.innerHTML}</body></html>`], { type: "text/html" }),
-        "text/plain": new Blob([inner.textContent ?? ""], { type: "text/plain" }),
-      }),
-    ]);
+    return { html: `<html><body>${inner.innerHTML}</body></html>`, plain: inner.textContent ?? "" };
   }, client);
+  await seedClipboardPayload(page, payload);
 }
 
 /**

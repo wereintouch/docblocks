@@ -8,7 +8,7 @@
 // block's menu). The view's mode renders the icon without a button.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, openPane, twoPanes } from "./helpers";
+import { SETTLE, editorContext, openPane, twoPanes } from "./helpers";
 
 /** The pane's floating format toolbar. */
 const toolbar = (page: Page, client: "a" | "b") =>
@@ -201,7 +201,7 @@ test("the view's mode stands the icon without a button (no pointer events)", asy
 }: {
   browser: Browser;
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const page = await context.newPage();
   // The per-run room's suffix (the twoPanes' parity): the spec re-runs
   // accumulate a callout over the fixed room's name (the relay's rooms

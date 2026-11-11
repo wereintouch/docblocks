@@ -8,7 +8,7 @@
 // until the quote is empty, then it resets to a paragraph).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, outCount } from "./helpers";
+import { RELAY, SETTLE, editorContext, outCount } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -17,8 +17,8 @@ import { RELAY, SETTLE, outCount } from "./helpers";
  */
 async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);

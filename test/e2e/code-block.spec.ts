@@ -8,7 +8,14 @@
 // wrap-off alignment).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE } from "./helpers";
+import {
+  RELAY,
+  SETTLE,
+  editorContext,
+  grantClipboardPermissions,
+  interceptClipboardWrites,
+  readClipboardPayload,
+} from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -17,8 +24,8 @@ import { RELAY, SETTLE } from "./helpers";
  */
 async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
@@ -174,17 +181,18 @@ test("a language pick in A writes the attr — the label stands in B over the wi
 test("copy writes the indented plain text to the clipboard with the circle-check feedback", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "ux16-code-copy");
   const context = a.context();
-  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await grantClipboardPermissions(context);
   const id = await seedCode(a, "a", "if ok:\n\tgo()");
   await a.waitForTimeout(600);
 
   const block = blockWrapper(a, "a", id);
   await block.hover();
   const copy = block.locator('[data-slot="docblocks/code-copy"]');
+  await interceptClipboardWrites(a);
   await copy.click();
   // The feedback flips while the write lands.
   await expect(copy).toHaveAttribute("data-copied", "true");
-  const text = await a.evaluate(() => navigator.clipboard.readText());
+  const text = (await readClipboardPayload(a)).plain;
   // The indentation stands, no line numbers (the numbers are a rendered
   // affordance, not text).
   expect(text).toBe("if ok:\n\tgo()");

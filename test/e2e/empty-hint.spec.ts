@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY } from "./helpers";
+import { RELAY, editorContext } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -9,7 +9,7 @@ import { RELAY } from "./helpers";
  */
 async function openPane(browser: Browser, seed: string): Promise<{ a: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
+  const contextA = await editorContext(browser);
   const a = await contextA.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
   await expect(a.getByTestId("status-a")).toHaveText("connected");

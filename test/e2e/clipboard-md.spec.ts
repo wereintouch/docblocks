@@ -1,6 +1,13 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, pasteFromClipboard } from "./helpers";
+import {
+  RELAY,
+  SETTLE,
+  editorContext,
+  grantClipboardPermissions,
+  pasteFromClipboard,
+  seedClipboardPayload,
+} from "./helpers";
 
 /**
  * The multi-block markdown paste (the `text/plain` branch, always-parsed):
@@ -20,10 +27,10 @@ const PASTE_MD = ["## Title", "", "text **bold** tail", "", "- one", "- [x] done
 
 async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  await contextA.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await contextB.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
+  await grantClipboardPermissions(contextA);
+  await grantClipboardPermissions(contextB);
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
@@ -57,26 +64,14 @@ function rootBlocks(page: Page, client: "a" | "b") {
   );
 }
 
-/** Seed the clipboard with the plain text only (no html: the markdown branch is the one under test). */
+/** Seed the page's paste payload with the plain text only (no html: the markdown branch is the one under test). */
 async function writePlainClipboard(page: Page, text: string): Promise<void> {
-  await page.evaluate(async (text) => {
-    await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }) })]);
-  }, text);
+  await seedClipboardPayload(page, { plain: text });
 }
 
-/** Seed the clipboard with BOTH payloads (the code copied from an editor: the html + the plain). */
+/** Seed the page's paste payload with BOTH payloads (the code copied from an editor: the html + the plain). */
 async function writeCodeClipboard(page: Page, plain: string, html: string): Promise<void> {
-  await page.evaluate(
-    async (arg) => {
-      await navigator.clipboard.write([
-        new ClipboardItem({
-          "text/html": new Blob([arg.html], { type: "text/html" }),
-          "text/plain": new Blob([arg.plain], { type: "text/plain" }),
-        }),
-      ]);
-    },
-    { plain, html }
-  );
+  await seedClipboardPayload(page, { plain, html });
 }
 
 /** Paste the OS clipboard into the focused element (headless Chromium does not synthesize the paste event). */

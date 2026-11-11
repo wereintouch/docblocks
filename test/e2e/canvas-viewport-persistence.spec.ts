@@ -7,7 +7,7 @@
 // Pure view state — the doc's own data stands.
 import { type Page, expect, test } from "@playwright/test";
 
-import { canvasView, openPane, switchPaneView, toCanvas } from "./helpers";
+import { canvasView, editorContext, openPane, switchPaneView, toCanvas } from "./helpers";
 
 /** Switch the pane to the canvas view (the harness's view toggle). */
 
@@ -58,7 +58,7 @@ async function zoomIn3(page: Page, client: "a" | "b"): Promise<void> {
 
 test.describe("the canvas viewport's persistence (the localStorage's map)", () => {
   test("the first entry stands the fit (the fit's math; the clean storage's default)", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await editorContext(browser);
     const page = await context.newPage();
     const room = `canvas-vp-fit-${Math.random().toString(36).slice(2, 8)}`;
     try {
@@ -86,7 +86,7 @@ test.describe("the canvas viewport's persistence (the localStorage's map)", () =
   });
 
   test("the change's commit stands over the reload (the restore, not the fit)", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await editorContext(browser);
     const page = await context.newPage();
     const room = `canvas-vp-reload-${Math.random().toString(36).slice(2, 8)}`;
     try {
@@ -116,7 +116,7 @@ test.describe("the canvas viewport's persistence (the localStorage's map)", () =
   });
 
   test("the new tab stands the restore (the shared origin's storage)", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await editorContext(browser);
     const page = await context.newPage();
     const room = `canvas-vp-tab-${Math.random().toString(36).slice(2, 8)}`;
     try {
@@ -144,7 +144,7 @@ test.describe("the canvas viewport's persistence (the localStorage's map)", () =
   });
 
   test("the page/canvas switch stands the restore (the state's keep)", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await editorContext(browser);
     const page = await context.newPage();
     const room = `canvas-vp-switch-${Math.random().toString(36).slice(2, 8)}`;
     try {

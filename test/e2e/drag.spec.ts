@@ -106,7 +106,11 @@ async function dragGutterTo(page: Page, client: "a" | "b", index: number, toX: n
   await handle.hover();
   const from = await handle.boundingBox();
   if (from === null) throw new Error("the gutter has no box");
-  await pressDragTo(page, from.x, from.y + from.height / 2, toX, toY);
+  // The press stands the handle's center: over the handle's edge pixel the
+  // engines' hit-test diverges (the firefox's edge stands the element below,
+  // so the press misses the handle's gutter and the drag's session stands no
+  // start).
+  await pressDragTo(page, from.x + from.width / 2, from.y + from.height / 2, toX, toY);
 }
 
 test("a gutter drag reorders the block, syncs to the other pane, and undoes as one step", async ({ browser }) => {
@@ -316,7 +320,7 @@ test("a list row at indent 1 drags within its level (the indent stands) and sync
   if (handleBox === null) throw new Error("the gutter has no box");
   const fromY = handleBox.y + handleBox.height / 2;
   const toY = n1Box.y + n1Box.height * 0.25; // well above the n1 row's center
-  await a.mouse.move(handleBox.x, fromY);
+  await a.mouse.move(handleBox.x + handleBox.width / 2, fromY);
   await a.mouse.down();
   for (let i = 1; i <= 12; i++) {
     await a.mouse.move(n1Box.x + 40, fromY - ((fromY - toY) * i) / 12);
@@ -663,11 +667,11 @@ test("the drag's live preview stands the moving row at the seam's candidate (the
   const p1Box = (await rowOf(p1!).boundingBox())!;
   const toX = p1Box.x + 30;
   const toY = p1Box.y + 6;
-  await a.mouse.move(from.x, from.y + from.height / 2);
+  await a.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await a.mouse.down();
   for (let i = 1; i <= 12; i += 1) {
     await a.mouse.move(
-      from.x + (toX - from.x) * (i / 12),
+      from.x + from.width / 2 + (toX - (from.x + from.width / 2)) * (i / 12),
       from.y + from.height / 2 + (toY - (from.y + from.height / 2)) * (i / 12)
     );
     await a.waitForTimeout(30);
@@ -722,10 +726,11 @@ test("a peer deleting the dragged row mid-drag leaves the pane resynced (no stuc
     const toY = lastRow.y + lastRow.height + 30;
 
     // The drag: press the handle, move the row below the last one...
-    await a.mouse.move(from.x, fromY);
+    const fromX = from.x + from.width / 2; // the handle's center (the edge pixel's hit-test stands engine-divergent)
+    await a.mouse.move(fromX, fromY);
     await a.mouse.down();
     for (let i = 1; i <= 10; i += 1) {
-      await a.mouse.move(from.x, fromY + ((toY - fromY) * i) / 10);
+      await a.mouse.move(fromX, fromY + ((toY - fromY) * i) / 10);
       await a.waitForTimeout(30);
     }
     // ...and the peer deletes the dragged row while the pointer is down.
@@ -819,7 +824,13 @@ test("a page drag over a table crosses the row in the root sequence; the cell's 
     await handle.hover();
     const from = await handle.boundingBox();
     if (from === null) throw new Error("the gutter has no box");
-    await pressDragTo(a, from.x, from.y + from.height / 2, afterBox.x + 20, tableBox.y + tableBox.height / 4);
+    await pressDragTo(
+      a,
+      from.x + from.width / 2,
+      from.y + from.height / 2,
+      afterBox.x + 20,
+      tableBox.y + tableBox.height / 4
+    );
 
     // The order stands: "after" at the front, the rest (the table + the
     // tail paragraph, if it stood) in their relative order — in both

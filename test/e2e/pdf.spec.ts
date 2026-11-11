@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { openPane, twoPanes } from "./helpers";
+import { editorContext, openPane, twoPanes } from "./helpers";
 
 const SETTLE = { timeout: 20_000 };
 const FIXTURE = new URL("./fixtures/sample.pdf", import.meta.url).pathname;
@@ -88,7 +88,7 @@ test("the pdf subtype stands the first-page canvas preview after the upload", as
 });
 
 test("the jbig2 text layers of a scanned pdf stand in the canvas preview", async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   const room = `jbig2-${Math.random().toString(36).slice(2, 8)}`;
   try {
@@ -130,7 +130,7 @@ test("the jbig2 text layers of a scanned pdf stand in the canvas preview", async
 });
 
 test("the page navigation: the prev/next buttons + the page indicator over a multi-page pdf", async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   const room = `pdf-nav-${Math.random().toString(36).slice(2, 8)}`;
   try {

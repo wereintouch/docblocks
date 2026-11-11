@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, openPane, twoPanes } from "./helpers";
+import { SETTLE, editorContext, insertBlockType, openPane, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -327,7 +327,7 @@ test("Backspace on an empty child list item outdents; on an empty root paragraph
 });
 
 test("a reload does not re-seed the room (the content is stable across reloads)", async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   const room = `ui03b-reload-${Math.random().toString(36).slice(2, 8)}`;
   await openPane(a, "a", room);

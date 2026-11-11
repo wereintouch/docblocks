@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, openPane } from "./helpers";
+import { SETTLE, editorContext, insertBlockType, openPane } from "./helpers";
 
 /**
  * The security stand of the `./mermaid` subpath: the one
@@ -109,7 +109,7 @@ async function setHostileSource(page: Page, source: string): Promise<void> {
 }
 
 test("the hostile sources stand no live script, handler, or active URL in the rendered svg", async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   // The execution canary: a hostile payload that ever RUNS stands a
   // dialog (the alert's stand) — the dismissal records it.

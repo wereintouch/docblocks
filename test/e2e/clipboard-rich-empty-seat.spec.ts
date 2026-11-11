@@ -1,6 +1,13 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, pasteFromClipboard } from "./helpers";
+import {
+  RELAY,
+  SETTLE,
+  editorContext,
+  grantClipboardPermissions,
+  pasteFromClipboard,
+  seedClipboardPayload,
+} from "./helpers";
 
 /**
  * The rich `text/html` paste into an empty seat (the copy of the editor's
@@ -31,10 +38,10 @@ const COMPUTED_STYLE_HTML =
 
 async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  await contextA.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await contextB.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
+  await grantClipboardPermissions(contextA);
+  await grantClipboardPermissions(contextB);
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
@@ -68,17 +75,9 @@ async function rootBlocks(page: Page, client: "a" | "b") {
   );
 }
 
-/** Seed the OS clipboard with an explicit html + plain payload (either may be null). */
+/** Seed the page's paste payload with an explicit html + plain payload (either may be null). */
 async function seedClipboard(page: Page, html: string | null, plain: string | null): Promise<void> {
-  await page.evaluate(
-    async ({ html, plain }) => {
-      const types: Record<string, Blob> = {};
-      if (html !== null) types["text/html"] = new Blob([html], { type: "text/html" });
-      if (plain !== null) types["text/plain"] = new Blob([plain], { type: "text/plain" });
-      await navigator.clipboard.write([new ClipboardItem(types)]);
-    },
-    { html, plain }
-  );
+  await seedClipboardPayload(page, { html: html ?? undefined, plain: plain ?? undefined });
 }
 
 /**

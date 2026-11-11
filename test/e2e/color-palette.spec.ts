@@ -7,7 +7,7 @@
 // the selected swatch stands the accent border (the theme's primary).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, canvasCenter, openPane, switchPaneView } from "./helpers";
+import { SETTLE, canvasCenter, editorContext, openPane, switchPaneView } from "./helpers";
 
 // The palette's order: the seven pastel tokens, then the theme's
 // background.
@@ -58,7 +58,7 @@ interface ThemeTokens {
 }
 
 async function openPage(browser: Browser): Promise<{ page: Page; close: () => Promise<void> }> {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const page = await context.newPage();
   await openPane(page, "a", `palette-${Math.random().toString(36).slice(2, 8)}`);
   return {

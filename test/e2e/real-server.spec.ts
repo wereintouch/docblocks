@@ -4,7 +4,7 @@ import http from "node:http";
 import { WebSocketServer } from "ws";
 import { docs, setupWSConnection } from "y-websocket/bin/utils";
 
-import { SETTLE, openPane } from "./helpers";
+import { SETTLE, editorContext, openPane } from "./helpers";
 
 // The bin/utils subpath ships CommonJS without type declarations (typed by ./y-websocket.d.ts).
 
@@ -84,14 +84,18 @@ async function expectDocContains(page: Page, client: "a" | "b", text: string): P
 }
 
 test("A's text reaches B through the standard server", async ({ browser }) => {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  // The engine's load-time connection's drop stand (the firefox's engine
+  // drops the WS's attempt over the load; the harness's reconnect stands
+  // the retry) — the settle stands the drop's window.
+  test.setTimeout(120_000);
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
   const doc = `smoke-a2b-${Math.random().toString(36).slice(2, 8)}`;
   const url = paneUrl("a", doc);
-  await openPane(pageA, "a", "", { url });
-  await openPane(pageB, "b", "", { url: paneUrl("b", doc) });
+  await openPane(pageA, "a", "", { url, settle: { timeout: 45_000 } });
+  await openPane(pageB, "b", "", { url: paneUrl("b", doc), settle: { timeout: 45_000 } });
 
   // Typing goes into the real editor (the first block in reading order).
   const firstA = pageA.locator('[data-testid="doc-a"] [data-block-type="paragraph"]').first();
@@ -104,14 +108,16 @@ test("A's text reaches B through the standard server", async ({ browser }) => {
 });
 
 test("B's text reaches A through the standard server", async ({ browser }) => {
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  // The engine's load-time connection's drop stand (the A's test's stand).
+  test.setTimeout(120_000);
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
   const doc = `smoke-b2a-${Math.random().toString(36).slice(2, 8)}`;
   const url = paneUrl("b", doc);
-  await openPane(pageA, "a", "", { url: paneUrl("a", doc) });
-  await openPane(pageB, "b", "", { url });
+  await openPane(pageA, "a", "", { url: paneUrl("a", doc), settle: { timeout: 45_000 } });
+  await openPane(pageB, "b", "", { url, settle: { timeout: 45_000 } });
 
   const firstB = pageB.locator('[data-testid="doc-b"] [data-block-type="paragraph"]').first();
   await firstB.click();

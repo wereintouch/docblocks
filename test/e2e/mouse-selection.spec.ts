@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, outCount } from "./helpers";
+import { RELAY, editorContext, outCount } from "./helpers";
 
 /**
  * The mouse selection gestures: a double-click selects the word under the
@@ -24,7 +24,7 @@ import { RELAY, outCount } from "./helpers";
  */
 async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
+  const contextA = await editorContext(browser);
   const a = await contextA.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
   await expect(a.getByTestId("status-a")).toHaveText("connected");

@@ -172,9 +172,9 @@ test("the embed's toolbar zoom persists over the doc's attrs (the panes share th
 
   // The reset stands the cleared view (the null idiom) over the wire.
   await embed.locator('[data-slot="docblocks/embed-zoom-reset"]').click();
-  await expect(iframe).toHaveAttribute("style", /translate\(0px, 0px\) scale\(1\)/);
+  await expect(iframe).toHaveAttribute("style", /translate\(0px(, 0px)?\)\s*scale\(1\)/);
   await expect(embed.locator('[data-slot="docblocks/embed-zoom"]')).toHaveText("100%");
-  await expect(iframeB).toHaveAttribute("style", /translate\(0px, 0px\) scale\(1\)/, SETTLE);
+  await expect(iframeB).toHaveAttribute("style", /translate\(0px(, 0px)?\)\s*scale\(1\)/, SETTLE);
   await expect.poll(zoomAttr, SETTLE).toBeNull();
 
   await close();
@@ -207,9 +207,11 @@ test("the embed's wheel: ctrl/cmd zooms at the cursor, a plain wheel pans (view 
   await embed.dispatchEvent("wheel", { deltaY: 300, deltaMode: 0, clientX: cx, clientY: cy });
   const afterPan = (await iframe.getAttribute("style")) ?? "";
   expect(afterPan).not.toBe(beforePan);
-  // The y translate moved (the vertical pan stood).
+  // The y translate moved (the vertical pan stood). The translate's
+  // serialization stands engine-dependent (the firefox's engine omits the
+  // zero second argument), so the parse takes the optional argument.
   const parseY = (s: string): number =>
-    Number.parseFloat(s.match(/translate\((-?[\d.]+)px, (-?[\d.]+)px\)/)?.[2] ?? "0");
+    Number.parseFloat(s.match(/translate\((-?[\d.]+)px(?:,\s*(-?[\d.]+)px)?\)/)?.[2] ?? "0");
   expect(parseY(afterPan)).not.toBe(parseY(beforePan));
 
   await close();
@@ -245,7 +247,7 @@ test("the embed's modifier drag-pan: an Alt-held drag pans the overflow (view st
   const afterAlt = (await iframe.getAttribute("style")) ?? "";
   expect(afterAlt).not.toBe(beforeAlt);
   const parseX = (s: string): number =>
-    Number.parseFloat(s.match(/translate\((-?[\d.]+)px, (-?[\d.]+)px\)/)?.[1] ?? "0");
+    Number.parseFloat(s.match(/translate\((-?[\d.]+)px(?:,\s*(-?[\d.]+)px)?\)/)?.[1] ?? "0");
   expect(parseX(afterAlt)).toBeLessThan(parseX(beforeAlt));
 
   // An unmodified drag does NOT pan: the iframe keeps its own interaction

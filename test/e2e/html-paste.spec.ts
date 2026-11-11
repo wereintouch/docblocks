@@ -1,6 +1,13 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, pasteFromClipboard } from "./helpers";
+import {
+  RELAY,
+  SETTLE,
+  editorContext,
+  grantClipboardPermissions,
+  pasteFromClipboard,
+  seedClipboardPayload,
+} from "./helpers";
 
 /**
  * The inline html tags in the `text/plain` paste (the unified pass with the
@@ -15,10 +22,10 @@ import { RELAY, SETTLE, pasteFromClipboard } from "./helpers";
 
 async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
-  await contextA.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await contextB.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
+  await grantClipboardPermissions(contextA);
+  await grantClipboardPermissions(contextB);
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);
@@ -72,11 +79,9 @@ function runsOf(page: Page, client: "a" | "b", blockId: string) {
   );
 }
 
-/** Seed the clipboard with the plain text only (no html payload). */
+/** Seed the page's paste payload with the plain text only (no html payload). */
 async function writePlainClipboard(page: Page, text: string): Promise<void> {
-  await page.evaluate(async (text) => {
-    await navigator.clipboard.write([new ClipboardItem({ "text/plain": new Blob([text], { type: "text/plain" }) })]);
-  }, text);
+  await seedClipboardPayload(page, { plain: text });
 }
 
 /** Paste the OS clipboard into the focused element (headless Chromium does not synthesize the paste event). */

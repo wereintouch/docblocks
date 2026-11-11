@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { editorContext } from "./helpers";
+
 test("playground shell loads", async ({ page }) => {
   // Its own room: a manually left-over tab must not pollute the sync specs.
   await page.goto(`/?syncUrl=ws://localhost:5199/smoke-${Math.random().toString(36).slice(2, 8)}`);
@@ -10,7 +12,7 @@ test("playground shell loads", async ({ page }) => {
 test("the stale persisted bridge's snapshot adopts the canonical demo's stand (the seed's upsert)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const page = await context.newPage();
   // The stale stand planted BEFORE the app's load (the persisted v2
   // snapshot: the Demo's table over the standing rows' pk's ids — the

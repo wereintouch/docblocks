@@ -12,7 +12,16 @@
 //
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, openPane, outCount, twoPanes } from "./helpers";
+import {
+  SETTLE,
+  editorContext,
+  grantClipboardPermissions,
+  interceptClipboardWrites,
+  openPane,
+  outCount,
+  readClipboardPayload,
+  twoPanes,
+} from "./helpers";
 
 /** The wire log's outbound doc-update count (awareness frames are not logged). */
 
@@ -635,12 +644,14 @@ test("the seam resize: the release commits one width (B JSON); the 50 px floor; 
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.widths, SETTLE).toEqual([160, 150]);
 
     // The drag far left clamps to the 50 px floor (the release commits the
-    // clamped value — one command per release).
+    // clamped value — one command per release). The release stands in the
+    // viewport: the firefox engine's pointer capture loses the release
+    // over the off-screen coordinates.
     const seamBox2 = await seam(a, 0).boundingBox();
     if (seamBox2 === null) throw new Error("the seam has no box");
     const sx2 = seamBox2.x + seamBox2.width / 2;
     const sy2 = seamBox2.y + seamBox2.height / 2;
-    await dragTo(a, { x: sx2, y: sy2 }, { x: sx2 - 500, y: sy2 });
+    await dragTo(a, { x: sx2, y: sy2 }, { x: Math.max(10, sx2 - 500), y: sy2 });
     await expect.poll(async () => (await tableSnapshot(b, "b", tableId))?.widths, SETTLE).toEqual([50, 150]);
 
     // One undo step reverts the last commit.
@@ -705,10 +716,10 @@ test("the cell context menu: copy (the plain text, the blocks joined), paste (on
   browser,
 }) => {
   const room = `ux18-table-ctx-${Math.random().toString(36).slice(2, 8)}`;
-  const context = await browser.newContext();
-  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: "http://localhost:5173" });
+  const context = await editorContext(browser);
+  await grantClipboardPermissions(context);
   const a = await context.newPage();
-  const bContext = await browser.newContext();
+  const bContext = await editorContext(browser);
   const b = await bContext.newPage();
   await openPane(a, "a", room);
   await openPane(b, "b", room);
@@ -733,20 +744,26 @@ test("the cell context menu: copy (the plain text, the blocks joined), paste (on
     await expect.poll(async () => findTableId(b, "b"), SETTLE).not.toBeNull();
 
     // Copy: the plain text (the blocks joined with the line break).
+    await interceptClipboardWrites(a);
     await rightClickCell(a, 0, 0, 2);
     await expect(cellMenu(a)).toBeVisible();
     await cellMenu(a).getByText("Copy", { exact: true }).click();
-    await expect.poll(async () => a.evaluate(() => navigator.clipboard.readText()), SETTLE).toBe("l1\nl2");
+    await expect.poll(async () => (await readClipboardPayload(a)).plain, SETTLE).toBe("l1\nl2");
 
     // Paste: the markdown degrades in the cell to ONE paragraph (the
-    // literal text — no heading, no second block) in the empty cell.
-    await a.evaluate(() => navigator.clipboard.writeText("# Head\ntext"));
-    await rightClickCell(a, 1, 1, 2);
-    await expect(cellMenu(a)).toBeVisible();
-    await cellMenu(a).getByText("Paste", { exact: true }).click();
-    await expect
-      .poll(async () => (await tableSnapshot(b, "b", tableId))?.rows[1]?.[1], SETTLE)
-      .toMatchObject({ blocks: 1, text: "# Head\ntext" });
+    // literal text — no heading, no second block) in the empty cell. The
+    // cell's paste reads the OS clipboard, so it stands the grantable-read
+    // engine's stand (the chromium's project — the firefox/webkit's
+    // clipboard read takes no Playwright grant).
+    if (context.browser()?.browserType().name() === "chromium") {
+      await a.evaluate(() => navigator.clipboard.writeText("# Head\ntext"));
+      await rightClickCell(a, 1, 1, 2);
+      await expect(cellMenu(a)).toBeVisible();
+      await cellMenu(a).getByText("Paste", { exact: true }).click();
+      await expect
+        .poll(async () => (await tableSnapshot(b, "b", tableId))?.rows[1]?.[1], SETTLE)
+        .toMatchObject({ blocks: 1, text: "# Head\ntext" });
+    }
 
     // Clear: the cell's children cascade out (B sees the empty cell).
     await rightClickCell(a, 0, 0, 2);

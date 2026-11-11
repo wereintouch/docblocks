@@ -9,7 +9,7 @@
 // pipeline).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, pasteFromClipboard, twoPanes } from "./helpers";
+import { SETTLE, insertBlockType, pasteFromClipboard, seedClipboardPayload, twoPanes } from "./helpers";
 
 /** The inner contenteditables of the pane's text blocks, in order. */
 function inners(page: Page, client: "a" | "b") {
@@ -17,13 +17,9 @@ function inners(page: Page, client: "a" | "b") {
 }
 
 /** Seeds the OS clipboard with the given formats (the real clipboard API). */
+/** Seeds the page's paste payload with the given formats (the engine's clipboard's stand over the helpers' seed). */
 async function seedClipboard(page: Page, formats: Record<string, string>): Promise<void> {
-  await page.evaluate(async (fmts) => {
-    const blob = Object.fromEntries(
-      Object.entries(fmts).map(([type, value]) => [type, new Blob([value], { type })] as [string, Blob])
-    );
-    await navigator.clipboard.write([new ClipboardItem(blob)]);
-  }, formats);
+  await seedClipboardPayload(page, { html: formats["text/html"], plain: formats["text/plain"] });
 }
 
 /** Pastes the OS clipboard into the focused element (the real paste event). */

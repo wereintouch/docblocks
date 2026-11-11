@@ -9,7 +9,7 @@
 // follows the selection).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, openPane, switchPaneView, twoPanes } from "./helpers";
+import { SETTLE, editorContext, openPane, switchPaneView, twoPanes } from "./helpers";
 
 /** Seed a surface + two rects (the line runs through the canvas center). */
 async function seedLine(page: Page, client: "a" | "b"): Promise<void> {
@@ -712,7 +712,7 @@ test("the label's chip stands on the curve for the curved variant (the dist-to-c
 test("the label chip's frame stands the line (the width over the strokeWidth attr, the style over the strokeStyle — the dynamic stand; the label's padding; the endpoint figures' sizes)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   const room = `chipframe-${Math.random().toString(36).slice(2, 8)}`;
   try {

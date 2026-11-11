@@ -1,6 +1,6 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, openPane, twoPanes } from "./helpers";
+import { SETTLE, editorContext, insertBlockType, openPane, twoPanes } from "./helpers";
 
 /** Insert one v1 type at the root through the pane's harness control. */
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {
@@ -77,7 +77,7 @@ async function diagramHasNode(page: Page, client: "a" | "b", node: string): Prom
 }
 
 test("the diagram follows the editor's theme (EXT-02: the dark stand + a flip re-renders)", async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     // A unique room per run (the twoPanes suffix stand): the relay keeps the

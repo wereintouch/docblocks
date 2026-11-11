@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, outCount } from "./helpers";
+import { RELAY, editorContext, outCount } from "./helpers";
 
 /**
  * The "/" slash command menu (the reworked model): the "/" is regular doc
@@ -24,8 +24,8 @@ import { RELAY, outCount } from "./helpers";
  */
 async function openPanes(browser: Browser, seed: string): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const room = `${seed}-${Math.random().toString(36).slice(2, 8)}`;
-  const contextA = await browser.newContext();
-  const contextB = await browser.newContext();
+  const contextA = await editorContext(browser);
+  const contextB = await editorContext(browser);
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   await a.goto(`/?client=a&syncUrl=${RELAY}/${room}`);

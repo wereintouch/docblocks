@@ -6,10 +6,10 @@
 // guard. The consume is canvas-only: the page view's wheel keeps scrolling.
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { openPane, switchPaneView } from "./helpers";
+import { editorContext, openPane, switchPaneView } from "./helpers";
 
 async function onePane(browser: Browser, room: string): Promise<{ a: Page; close: () => Promise<void> }> {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
   await openPane(a, "a", uniqueRoom);

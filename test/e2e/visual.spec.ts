@@ -49,8 +49,7 @@ test("the catalog renders the light and dark goldens", async ({ page }) => {
   // rasterization differs per OS and per engine — the shots stand the
   // chromium project's darwin's runs only, the local's machine, the
   // macos's runner).
-  if (test.info().project.name !== "chromium" || process.platform !== "darwin")
-    test.skip();
+  if (test.info().project.name !== "chromium" || process.platform !== "darwin") test.skip();
   await openCatalogPane(page);
   // The harness loads dark by default; the light golden clears the `.dark`
   // class first (the dark shot below re-adds it).

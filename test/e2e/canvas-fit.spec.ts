@@ -6,7 +6,7 @@
 // the reset / the steps stand over the fit's stand.
 import { type Page, expect, test } from "@playwright/test";
 
-import { canvasView, openPane, toCanvas } from "./helpers";
+import { canvasView, editorContext, openPane, toCanvas } from "./helpers";
 
 /** Switch the pane to the canvas view (the harness's view toggle). */
 
@@ -45,7 +45,7 @@ async function seedScene(page: Page): Promise<void> {
 
 test.describe("the canvas fit button", () => {
   test("frames the content at the fit's zoom (every item stands in the viewport)", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await editorContext(browser);
     const page = await context.newPage();
     const room = `canvas-fit-${Math.random().toString(36).slice(2, 8)}`;
     try {
@@ -111,7 +111,7 @@ test.describe("the canvas fit button", () => {
   });
 
   test("stands the no-op over the empty canvas (the zoom and the pan keep)", async ({ browser }) => {
-    const context = await browser.newContext();
+    const context = await editorContext(browser);
     const page = await context.newPage();
     const room = `canvas-fit-empty-${Math.random().toString(36).slice(2, 8)}`;
     try {

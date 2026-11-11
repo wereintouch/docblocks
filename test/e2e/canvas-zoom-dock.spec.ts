@@ -1,6 +1,16 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, blockShapes, canvasCenter, canvasView, openPane, seedShape, toCanvas, twoPanes } from "./helpers";
+import {
+  SETTLE,
+  blockShapes,
+  canvasCenter,
+  canvasView,
+  editorContext,
+  openPane,
+  seedShape,
+  toCanvas,
+  twoPanes,
+} from "./helpers";
 
 /** Switch the pane to the canvas view (the harness's view toggle). */
 
@@ -717,7 +727,7 @@ test.describe("the canvas dock", () => {
 test("the zoom toolbar's width stands fixed over the percentage's digit change (the fit/zoom-out/zoom-in buttons stand put; the 25%–400% steps + the reset stand)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   const room = `zoomfixed-${Math.random().toString(36).slice(2, 8)}`;
   try {

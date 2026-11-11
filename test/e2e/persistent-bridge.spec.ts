@@ -7,7 +7,7 @@
 // save → reload keeps the original table id.
 import { type Page, expect, test } from "@playwright/test";
 
-import { openPane } from "./helpers";
+import { editorContext, openPane } from "./helpers";
 
 /** Whether the bridge holds a table of the given id (the seed's readiness
  * is awaited by the bridge's reads). */
@@ -20,7 +20,7 @@ const hasTableId = (page: Page, tableId: string) =>
   }, tableId);
 
 test("the persistent bridge keeps the table id across a rename and a reload", async ({ browser }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   const room = `persist-${Math.random().toString(36).slice(2, 8)}`;
   try {

@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, openPane, twoPanes } from "./helpers";
+import { SETTLE, editorContext, insertBlockType, openPane, twoPanes } from "./helpers";
 
 /** Insert one v1 type at the root through the pane's harness control. */
 async function insertType(page: Page, client: "a" | "b", type: string): Promise<void> {
@@ -534,7 +534,7 @@ async function twoPanesSharedContext(
   browser: Browser,
   room: string
 ): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
   const a = await context.newPage();
   const b = await context.newPage();
@@ -552,7 +552,7 @@ async function twoPanesSharedContext(
 test("the bridge is live: the pane's own row mutation delivers the write's envelope over its own subscription and the grid refetches (no doc wire)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-bridge-live-" + Math.random().toString(36).slice(2, 8));
@@ -648,7 +648,7 @@ test("the bridge is live: the pane's own row mutation delivers the write's envel
 test("the display name: the rename renames the table (the bridge's attribute) — every block over the tableId stands it", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-table-name-" + Math.random().toString(36).slice(2, 8));
@@ -805,7 +805,7 @@ test("the header: the type stands in the menu only, the widths align with the ro
 test("the create's column order stands the creation order (the new stands last); the create keeps the committed columnOrder intact (the visible order stands complete)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-colorder-" + Math.random().toString(36).slice(2, 8));
@@ -917,7 +917,7 @@ test("the create's column order stands the creation order (the new stands last);
 test("the header's name stands the px-2 padding (the text stands over the data's text; the rename stands)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-header-pad-" + Math.random().toString(36).slice(2, 8));
@@ -1009,7 +1009,7 @@ test("the header's name stands the px-2 padding (the text stands over the data's
 test("the enum cell stands the package's EnumPicker (the pick commits over the pane's bridge; the doc stands); the number cell suppresses the spin buttons", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-cells-" + Math.random().toString(36).slice(2, 8));
@@ -1082,7 +1082,7 @@ test("the enum cell stands the package's EnumPicker (the pick commits over the p
 test("the date cell stands the DatePicker (the pick commits over the pane's bridge); the grid scroller stands the thin scrollbar", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-datecell-" + Math.random().toString(36).slice(2, 8));
@@ -1285,7 +1285,7 @@ test("two grids on one page stand their own measurement (the seam's commit reads
 test("the datetime cell stands the calendar + the time box (the time/date order, the same-day toggle; the commit over the pane's bridge)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-datetimecell-" + Math.random().toString(36).slice(2, 8));
@@ -1394,7 +1394,7 @@ test("the datetime cell stands the calendar + the time box (the time/date order,
 test("the cell's press model: the single press selects, the double press edits, the drag stands the region, the Delete clears (the commit over the pane's bridge)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-cellmodel-" + Math.random().toString(36).slice(2, 8));
@@ -1632,7 +1632,7 @@ test("the cell's press model: the single press selects, the double press edits, 
 test("the cell's mouse-blur: the typed draft commits over the other cell's / the outside press (the focus model stands)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-mouseblur-" + Math.random().toString(36).slice(2, 8));
@@ -1713,7 +1713,7 @@ test("the cell's mouse-blur: the typed draft commits over the other cell's / the
 test("the number column: the create form's attributes stand the cell's display (the prefix / the thousands over the pane's bridge; the raw number stays the data)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-numbercol-" + Math.random().toString(36).slice(2, 8));
@@ -1784,7 +1784,7 @@ test("the number column: the create form's attributes stand the cell's display (
 test("the add-column form's ref stand (the enum's options editor over the hidden system table; the row-link's table pick — the existing + the new-table flows)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-refpick-" + Math.random().toString(36).slice(2, 8));
@@ -1900,7 +1900,7 @@ test("the add-column form's ref stand (the enum's options editor over the hidden
 test("the add-column form stands for every type (the name over the create; the Escape closes without the create)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-addcolumnform-" + Math.random().toString(36).slice(2, 8));
@@ -1974,7 +1974,7 @@ test("the cell's pickers stand the unified row height (the enum / the multi-enum
   // A single pane: the heights are the computed styles (no sync needed);
   // a unique room (the relay keeps the room's doc for the dev server's
   // lifetime).
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `ext04-pickheight-${Math.random().toString(36).slice(2, 8)}`);
@@ -2120,7 +2120,7 @@ test("the grid's rows stand the constant height (every column type fits the stan
   // A single pane: the heights are the bounding boxes (no sync needed);
   // a unique room (the relay keeps the room's doc for the dev server's
   // lifetime).
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `ext04-rowheight-${Math.random().toString(36).slice(2, 8)}`);
@@ -2323,7 +2323,7 @@ test("the grid's rows stand the constant height (every column type fits the stan
 test("the bridge's state survives the tab's reload (the harness's persistent bridge: the tables / the rows / the row-link ids stand over the restore)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", `ext04-persist-${Math.random().toString(36).slice(2, 8)}`);
@@ -2432,7 +2432,7 @@ test("the bridge's state survives the tab's reload (the harness's persistent bri
 test("the long text's cell: the double press stands the floating 6-row editor (the Baserow's stand: the box over the cell's top edge, the width = the cell's, the rows stand no shift, the covered rows' stand opaque; the Enter's break; the outside press's commit; the Escape's cancel)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-multiline-" + Math.random().toString(36).slice(2, 8));
@@ -2649,7 +2649,7 @@ test("the long text's cell: the double press stands the floating 6-row editor (t
 test("the multi-enum / the multi row-links: the empty cell stands the multi editor (the first pick's array; the two picks' stand over the pane's bridge; the single's pick stands the scalar; the undo's per toggle)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-multiselect-" + Math.random().toString(36).slice(2, 8));
@@ -2871,7 +2871,7 @@ test("the multi-enum / the multi row-links: the empty cell stands the multi edit
 test("the enum's create form (the options' editor: the reorder / the color / the delete; the system table stands hidden; the chip's stand; the picker's contract; the undo)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-enumform-" + Math.random().toString(36).slice(2, 8));
@@ -3073,7 +3073,7 @@ test("the enum's create form (the options' editor: the reorder / the color / the
 test("the enum's edit form (the options' diff: the values stand; the names / the order / the colors update)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "ext04-enumedit-" + Math.random().toString(36).slice(2, 8));
@@ -3596,7 +3596,7 @@ test("the cell's value stands the column type's align (the number's right; the b
 test("the header's type icon stands left of the name (the 10 types' icon set; the muted token's color; the px-2 stands)", async ({
   browser,
 }) => {
-  const context = await browser.newContext();
+  const context = await editorContext(browser);
   const a = await context.newPage();
   try {
     await openPane(a, "a", "db-typeicon-" + Math.random().toString(36).slice(2, 8));
