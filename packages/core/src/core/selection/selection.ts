@@ -32,6 +32,14 @@ class SelectionView {
   #pendingChange: Change | null = null;
   /** The selection before the in-flight local/undo-transaction (undo-caret snapshot). */
   #pendingBefore: Selection | null = null;
+  /**
+   * The selection the most recent undo restored. The matching redo (popped
+   * from the redo stack) restores it when the redo item's own snapshot is
+   * the remount residue (a type change's forward remount loses the DOM
+   * caret, so the redo item captured the residue's none/blocks, not the
+   * pre-change seat).
+   */
+  #lastUndoRestored: Selection | null = null;
   /** Document subscriptions, all released by destroy(). */
   #unsubDocChange: () => void;
   #onBeforeTransaction: (transaction: Transaction) => void;
@@ -72,13 +80,27 @@ class SelectionView {
     // snapshot would stand a selection the view cannot seat (the rebase
     // stands then).
     this.#onStackItemPopped = (event) => {
-      const saved = event.stackItem.meta.get(this.#metaKey);
+      let saved = event.stackItem.meta.get(this.#metaKey);
       if (saved === undefined) return; // captured before this view existed: rebase stands
+      // The redo's item (popped from the redo stack) carries the pre-undo
+      // snapshot; over a remounting step (a type change) that snapshot is
+      // the forward remount's residue — the lost DOM caret's none/blocks —
+      // not the pre-change seat. Fall back to the selection the matching
+      // undo restored (the pre-change seat) when the item's own snapshot is
+      // not a text selection.
+      if (event.type === "redo" && (saved as Selection).kind !== "text" && this.#lastUndoRestored !== null) {
+        saved = this.#lastUndoRestored;
+      }
       const restored = this.#restoreableSelection(saved as Selection);
       if (restored === null) return;
       this.#state = restored;
       this.#emit();
       this.#reconcileTracking();
+      if (event.type === "undo") {
+        // Record the seat this undo restored: the matching redo (popped from
+        // the redo stack) restores it when its own snapshot is a residue.
+        this.#lastUndoRestored = restored;
+      }
     };
     ydoc.on("beforeTransaction", this.#onBeforeTransaction);
     ydoc.on("afterTransaction", this.#onAfterTransaction);
@@ -123,6 +145,7 @@ class SelectionView {
     this.#pendingChange = null;
     this.#pendingDeltas = new Map();
     this.#pendingBefore = null;
+    this.#lastUndoRestored = null;
   }
 
   /** Subscribe to selection changes (set, rebase, undo/redo restore). Returns unsubscribe. */

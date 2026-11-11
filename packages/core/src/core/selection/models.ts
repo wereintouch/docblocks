@@ -31,7 +31,11 @@ type Selection =
     }
   | { kind: "blocks"; ids: BlockId[]; anchorId: BlockId };
 
-/** Undo-manager event payload (structural subset: the stack item's meta map). */
-type StackItemEventLike = { stackItem: { meta: Map<unknown, unknown> } };
+/**
+ * Undo-manager event payload (structural subset: the stack item's meta map +
+ * the pop direction — "undo" = popped from the undo stack, "redo" = popped
+ * from the redo stack).
+ */
+type StackItemEventLike = { stackItem: { meta: Map<unknown, unknown> }; type: "undo" | "redo" };
 
 export type { Selection, StackItemEventLike, TextPoint };
