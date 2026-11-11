@@ -81,9 +81,9 @@ interface ColumnDragSession {
  *  at the right edge of) and the press-time width the delta applies to;
  *  `width` is the live (clamped) width the preview renders and the release
  *  commits; `widthsAtStart` stands the untouched columns' measured widths
- *  at the session's start (the release's WYSIWYG stand reads them — the
- *  drag's preview shrinks the flexible (1fr) columns live, so the release
- *  over the live DOM would stand the shrunken stand). */
+ *  at the session's start (the release's WYSIWYG stand reads them); the
+ *  session's `widths` lock every column over that measurement (the
+ *  preview's source — the flexible columns' live shrink is kept off). */
 interface GridColumnResizeSession {
   col: number;
   startX: number;
@@ -91,6 +91,10 @@ interface GridColumnResizeSession {
   width: number;
   visible: string[];
   widthsAtStart: number[];
+  /** The session's locked widths (the preview's source — the flexible
+   * columns' rendered width at the press, the dragged column's live
+   * width). */
+  widths: number[];
 }
 
 export type { AddColumnFormDraft, AddColumnTypeEntry, ColumnDragSession, GridColumnResizeSession, EnumOptionDraft };

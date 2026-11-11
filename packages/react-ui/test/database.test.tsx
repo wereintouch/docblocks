@@ -1198,12 +1198,15 @@ describe("the grid's cells (the type editors)", () => {
     // stands until the release), the release commits the widths (one
     // updateBlock). The jsdom rects stand zero: the start width is the
     // default, the delta stands the new width, the untouched columns stand
-    // the default.
+    // the default. The preview locks every column over its rendered width
+    // (no 1fr over the session — the flexible columns' stand no live
+    // shrink).
     fireEvent.pointerDown(seam()!, { clientX: 100, clientY: 5 });
     fireEvent.pointerMove(seam()!, { clientX: 160, clientY: 5 });
     expect(dbAttrs().columnWidths).toBeUndefined();
     const table = document.querySelector<HTMLElement>("[data-slot='docblocks/database-table']");
     expect(table!.style.gridTemplateColumns).toContain("172px");
+    expect(table!.style.gridTemplateColumns).not.toContain("1fr");
     fireEvent.pointerUp(seam()!, { clientX: 160, clientY: 5 });
     await settleGrid();
     expect(dbAttrs().columnWidths).toEqual([172, 112, 112, 112]);
@@ -1226,11 +1229,11 @@ describe("the grid's cells (the type editors)", () => {
     expect(dbAttrs().columnWidths).toEqual([172, 112, 112, 112]);
   });
 
-  it("the seam release stands the untouched's start measurement (the drag's preview shrink stands no commit)", async () => {
+  it("the seam release stands the untouched's start measurement (the preview's lock stands the commit's source)", async () => {
     // The one-shot stand: over the fresh block (no columnWidths) the drag's
-    // preview stands the flexible (1fr) columns' shrink live; the release
-    // must stand the start's measurement (the pre-drag layout), not the
-    // shrunken stand (the "the rest stand narrowed" stand).
+    // preview locks the flexible (1fr) columns over their start's
+    // measurement; the release must stand the same measurement (the
+    // pre-drag layout) — not a re-measurement over the drag's layout.
     const { doc, db } = await renderGrid();
     const dbAttrs = () => (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
     const headers = Array.from(document.querySelectorAll<HTMLElement>("[data-slot='docblocks/database-header-cell']"));

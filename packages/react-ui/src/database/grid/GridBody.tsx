@@ -848,8 +848,10 @@ function GridBody({
               gridAutoRows: "var(--docblocks-database-row-height)",
               gridTemplateColumns: `${columns
                 .map((_, index) => {
-                  const preview =
-                    resizePreview !== null && resizePreview.col === index ? resizePreview.width : undefined;
+                  // The session's locked width (every column — the flexible
+                  // ones' live shrink is kept off) over the committed / the
+                  // flexible track.
+                  const preview = resizePreview !== null ? resizePreview.widths[index] : undefined;
                   const width = preview ?? columnWidths?.[index];
                   return width !== undefined ? `${width}px` : "minmax(7rem, 1fr)";
                 })
