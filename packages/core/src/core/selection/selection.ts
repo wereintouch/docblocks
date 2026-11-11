@@ -85,10 +85,17 @@ class SelectionView {
       // The redo's item (popped from the redo stack) carries the pre-undo
       // snapshot; over a remounting step (a type change) that snapshot is
       // the forward remount's residue — the lost DOM caret's none/blocks —
-      // not the pre-change seat. Fall back to the selection the matching
-      // undo restored (the pre-change seat) when the item's own snapshot is
-      // not a text selection.
-      if (event.type === "redo" && (saved as Selection).kind !== "text" && this.#lastUndoRestored !== null) {
+      // not the pre-change seat. The residue only occurs when the matching
+      // undo restored a TEXT seat (the remounted block's lost caret); a
+      // non-text undo restoration (the canvas's blocks' selection) stands
+      // the legitimate pre-undo selection, and the redo's own snapshot is
+      // it. Fall back to the undo's restoration only in the text case.
+      if (
+        event.type === "redo" &&
+        this.#lastUndoRestored !== null &&
+        this.#lastUndoRestored.kind === "text" &&
+        (saved as Selection).kind !== "text"
+      ) {
         saved = this.#lastUndoRestored;
       }
       const restored = this.#restoreableSelection(saved as Selection);
