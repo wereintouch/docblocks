@@ -1,5 +1,15 @@
 # docblocks-react-ui
 
+## 0.4.4
+
+### Patch Changes
+
+- ae88381: The motion drag's pointer-Y helper no longer tests the event against the
+  global `TouchEvent` (the `instanceof` stand): the global is absent on the
+  no-touch Safari (a desktop Safari on macOS), so every drag callback threw
+  a `ReferenceError` and the block drag-reorder failed there. The touch's
+  stand is duck-typed over the event's own `changedTouches` property.
+
 ## 0.4.3
 
 ### Patch Changes
