@@ -7,7 +7,7 @@ CORE := -w packages/core
 UI := -w packages/react-ui
 PG := -w apps/playground
 
-.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations build build-core test test-core test-ui unit unit-f e2e e2e-file dev-gate check full dev clean
+.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations build build-core test test-core test-ui unit unit-f e2e e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full dev clean
 
 help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -61,12 +61,27 @@ test-ui: ## Unit tests: docblocks-react-ui
 unit: ## All unit tests (vitest, ~10s wall) — the e2e stands separate (make e2e / e2e-file)
 	npm test
 
-e2e: ## Playwright E2E (playground consumes react-ui from dist — make build first)
+e2e: ## Playwright E2E over the chromium project (playground consumes react-ui from dist — make build first)
 	npm run test:e2e
 
-e2e-file: ## E2E a single spec (make e2e-file F=test/e2e/canvas-connectors.spec.ts)
-	@test -n "$(F)" || { echo "usage: make e2e-file F=<spec path>"; exit 1; }
-	npm run test:e2e -- $(F)
+e2e-ff: ## Playwright E2E over the firefox project
+	npm run test:e2e:firefox
+
+e2e-webkit: ## Playwright E2E over the webkit project (the closest-to-Safari engine)
+	npm run test:e2e:webkit
+
+e2e-all: ## Playwright E2E over every browser project (chromium + firefox + webkit)
+	npm run test:e2e:all
+
+e2e-file: ## E2E a single spec (make e2e-file F=test/e2e/canvas-connectors.spec.ts; B=chromium|firefox|webkit, default chromium)
+	@test -n "$(F)" || { echo "usage: make e2e-file F=<spec path> [B=chromium|firefox|webkit]"; exit 1; }
+	B ?= chromium
+	case "$(B)" in \
+		chromium) npm run test:e2e -- $(F);; \
+		firefox) npm run test:e2e:firefox -- $(F);; \
+		webkit) npm run test:e2e:webkit -- $(F);; \
+		*) echo "B must be chromium, firefox or webkit"; exit 1;; \
+	esac
 
 unit-f: ## Unit tests: a single file (make unit-f F=packages/react-ui/test/canvas.test.tsx; F=apps/playground/test/database-bridge.test.ts)
 	@test -n "$(F)" || { echo "usage: make unit-f F=<test file>"; exit 1; }

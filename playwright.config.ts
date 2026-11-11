@@ -26,6 +26,17 @@ export default defineConfig({
   // the PLAYWRIGHT_WORKERS env (the local default stays four).
   workers: Number(process.env.PLAYWRIGHT_WORKERS ?? 4),
   retries: 0,
+  // The browser matrix: chromium is the baseline (the visual's goldens and
+  // the CI's e2e stand over it); firefox and webkit are the cross-engine
+  // coverage (the webkit build stands the closest-to-Safari engine Playwright
+  // can drive — the branded Safari is undrivable, Playwright relies on
+  // patches the branded build rejects). A single-browser run selects its
+  // project (the `test:e2e`'s default stands chromium, the CI's parity).
+  projects: [
+    { name: "chromium", use: { browserName: "chromium" } },
+    { name: "firefox", use: { browserName: "firefox" } },
+    { name: "webkit", use: { browserName: "webkit" } },
+  ],
   use: {
     baseURL: "http://localhost:5173",
   },
