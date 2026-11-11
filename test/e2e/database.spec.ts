@@ -2914,16 +2914,18 @@ test("the enum's create form (the options' editor: the reorder / the color / the
     };
     await addOption("low");
     await addOption("high");
-    // The grip's drag stands the live reorder (the high stands first).
+    // The grip's drag stands the live reorder (the high stands first). The
+    // crossing stands decisive over the engine (the webkit's frame's
+    // schedule): a full pitch over the first grip's edge, slow steps.
     const grips = form.locator("[data-slot='docblocks/database-enum-option-grip']");
     const first = await grips.nth(0).boundingBox();
     const last = await grips.nth(1).boundingBox();
-    if (first === null || last === null) throw new Error("the grip's box stands none");
+    if (first === null || last === null) throw new Error("the grip's box is null");
     await a.mouse.move(last.x + last.width / 2, last.y + last.height / 2);
     await a.mouse.down();
-    await a.mouse.move(first.x + first.width / 2, first.y + first.height / 2 - 6, { steps: 8 });
+    await a.mouse.move(first.x + first.width / 2, first.y - 4, { steps: 24 });
     await a.mouse.up();
-    await a.waitForTimeout(100);
+    await a.waitForTimeout(400); // the back-out's settle (the sibling's parity)
     const namesAfter = await form
       .locator("[data-slot='docblocks/database-enum-option-name']")
       .evaluateAll((elements) => elements.map((element) => (element as HTMLInputElement).value));

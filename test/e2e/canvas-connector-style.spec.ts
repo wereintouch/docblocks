@@ -748,13 +748,19 @@ test("the label chip's frame stands the line (the width over the strokeWidth att
     // (the data's 3), the frame's style = the line's dash stand (the CSS's
     // dashed mapping), the label's padding over the 3px 8px's stand.
     const chipStyle = async () => {
-      const s = await chip.evaluate((el) => getComputedStyle(el));
-      return {
-        width: s.borderTopWidth,
-        style: s.borderTopStyle,
-        padTop: s.paddingTop,
-        padLeft: s.paddingLeft,
-      };
+      // The properties are read over the evaluate (the returned plain
+      // object): the raw CSSStyleDeclaration's properties are on the
+      // prototype, and the non-chromium engines' serialization drops
+      // them over the locator's return.
+      return chip.evaluate((el) => {
+        const s = getComputedStyle(el);
+        return {
+          width: s.borderTopWidth,
+          style: s.borderTopStyle,
+          padTop: s.paddingTop,
+          padLeft: s.paddingLeft,
+        };
+      });
     };
     expect(await chipStyle()).toEqual({ width: "3px", style: "dashed", padTop: "3px", padLeft: "8px" });
     // The line's own stand (the width's data follow — the frame's parity).

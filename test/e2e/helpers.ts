@@ -130,14 +130,20 @@ const RELAY = "ws://localhost:5199";
 
 /**
  * A browser context over the harness's pages with the engine stands
- * installed (the firefox engine's Home/End's stand — the engine's
- * contenteditable stands no Home/End's native caret move, the
- * capture-phase stand stands the line's edges). The specs' pane helpers
- * take their contexts from here so the stands reach every page.
+ * installed (the Home/End stand — the firefox and the webkit engines
+ * do not run the native Home/End caret move in a contenteditable, so
+ * the capture-phase stand moves the caret to the line's edge). The
+ * specs' pane helpers take their contexts from here so the stands reach
+ * every page.
  */
+function homeEndStandEngine(browser: Browser): boolean {
+  const name = browser.browserType().name();
+  return name === "firefox" || name === "webkit";
+}
+
 async function editorContext(browser: Browser): Promise<BrowserContext> {
   const context = await browser.newContext();
-  if (browser.browserType().name() === "firefox") {
+  if (homeEndStandEngine(browser)) {
     await context.addInitScript(HOME_END_STAND);
     (context as unknown as { __stands?: boolean }).__stands = true;
   }
@@ -145,16 +151,15 @@ async function editorContext(browser: Browser): Promise<BrowserContext> {
 }
 
 /**
- * The firefox engine's Home/End stand (the e2e's gesture's stand): the
- * engine's contenteditable stands no Home/End's native caret move (the
- * arrows work, the line's edges stand the key's no-op), so the
- * capture-phase stand moves the caret to the line's edge (the default's
- * stand) and extends the selection's focus over the shift hold. The line
- * stands the logical text's line break (the trailing line-anchor's ZWSP
- * carries no logical character). The install stands the init script over
- * the page (before the navigation) — the engine's quirk's stand, the
- * product's behavior stands the browser's default (the real firefox's
- * keys work).
+ * The Home/End stand for the engines whose contenteditable does not run
+ * the native caret move (firefox and webkit): the arrow keys work, but
+ * Home/End are no-ops there, so the capture-phase stand moves the caret
+ * to the line's edge (the browser default's effect) and extends the
+ * selection's focus over a shift hold. The line is the logical text's
+ * break (the trailing line-anchor's ZWSP carries no logical character).
+ * The install runs as the page's init script (before the navigation): it
+ * patches the engine's gap only — the product keeps the browser's
+ * default, and the real engines' keys work.
  */
 const HOME_END_STAND = `(() => {
   const isLineAnchorText = (n) =>
@@ -274,12 +279,13 @@ async function openPane(
     role?: "editor" | "viewer";
   } = {}
 ): Promise<void> {
-  // The firefox engine's Home/End's stand stands over the page (the engine
-  // quirk's stand — the engine's keys are no-ops over the contenteditable);
-  // the editorContext's contexts carry it over the context's init script.
+  // The Home/End stand installs over the page when the context's init
+  // script did not (the engine's Home/End keys are no-ops over the
+  // contenteditable); the editorContext's contexts carry it over the
+  // context's init script.
   const engineContext = page.context();
   if (
-    engineContext.browser()?.browserType().name() === "firefox" &&
+    homeEndStandEngine(page.context().browser()!) &&
     (engineContext as unknown as { __stands?: boolean }).__stands !== true
   ) {
     await page.addInitScript(HOME_END_STAND);

@@ -559,11 +559,15 @@ test("the options' block stands the standard's font, the shared color's palette 
     const gripBox = await grips.nth(1).boundingBox(); // alpha's row's grip
     await a.mouse.move(gripBox!.x + gripBox!.width / 2, gripBox!.y + gripBox!.height / 2);
     await a.mouse.down();
-    // The two rows' travel (the 72 px's stand over the pitch's ~36 px):
-    // the alpha's row over the gamma's seat. The framer's reorder stands
-    // the live DOM's swap, so the order is read after the settle (the
-    // index's locator re-resolves over the swapped's stand).
-    await a.mouse.move(gripBox!.x + gripBox!.width / 2, gripBox!.y + gripBox!.height / 2 + 72, { steps: 12 });
+    // The two rows' travel (the ~36 px pitch) over the gamma's seat.
+    // The webkit stand: the travel steps over the pitch boundaries with
+    // a settle at each — the one-shot move outruns the layout's tracking
+    // under load, and the reorder's swap is read from the tracked
+    // position, not the pointer's.
+    await a.mouse.move(gripBox!.x + gripBox!.width / 2, gripBox!.y + gripBox!.height / 2 + 36, { steps: 6 });
+    await a.waitForTimeout(150);
+    await a.mouse.move(gripBox!.x + gripBox!.width / 2, gripBox!.y + gripBox!.height / 2 + 72, { steps: 6 });
+    await a.waitForTimeout(150);
     await a.mouse.up();
     await a.waitForTimeout(400); // the back-out's settle
     const orderAfter = await rows.evaluateAll((els) =>

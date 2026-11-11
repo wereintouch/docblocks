@@ -127,9 +127,14 @@ test("a drag that would land a non-text segment at the sequence's end stands the
   const lastBox = (await rows.last().boundingBox())!;
   await a.mouse.move(hBox.x + hBox.width / 2, hBox.y + hBox.height / 2);
   await a.mouse.down();
-  for (let i = 1; i <= 12; i += 1) {
-    await a.mouse.move(hBox.x + hBox.width / 2, hBox.y + ((lastBox.y + lastBox.height - 4 - hBox.y) * i) / 12);
+  // The webkit's drag's stand: the synthetic pointer's steps outrun the
+  // row's layout tracking (the row lags behind the pointer), so the
+  // release's seat lands short. The slow steps and the settle before the
+  // release keep the row's seat with the pointer's position.
+  for (let i = 1; i <= 24; i += 1) {
+    await a.mouse.move(hBox.x + hBox.width / 2, hBox.y + ((lastBox.y + lastBox.height - 4 - hBox.y) * i) / 24);
   }
+  await a.waitForTimeout(400);
   await a.mouse.up();
   await expect
     .poll(async () => (await rootTypes(a)) ?? [], SETTLE)
