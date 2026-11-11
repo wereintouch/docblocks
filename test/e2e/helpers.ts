@@ -300,13 +300,16 @@ async function openPane(
  * The pane's connection's settle with the engine's load-time connection's
  * drop stand (the firefox's engine drops the WS's attempt made during the
  * page's load, the provider stands no auto-reconnect — the harness's
- * reconnect control stands the retry). The click stands the second
- * attempt; the engine-independent chromium's first attempt lands (the
- * click never fires there).
+ * reconnect control stands the retry). The retry is periodic (not a
+ * single shot) — over the load the page's mount and the first reconnect's
+ * attempt may both land in the drop's window, so the retry repeats until
+ * the settle's end. The engine-independent chromium's first attempt lands
+ * (the click never fires there).
  */
 async function connectedStatus(page: Page, client: "a" | "b", status: Locator, timeout: number): Promise<void> {
   const start = Date.now();
-  let retried = false;
+  let lastRetry = 0;
+  const retryInterval = Math.max(5_000, timeout / 3);
   for (;;) {
     const text = await status.textContent().catch(() => null);
     if (text === "connected") return;
@@ -315,11 +318,12 @@ async function connectedStatus(page: Page, client: "a" | "b", status: Locator, t
         `the pane's status stands "${text ?? "(none)"}" over the ${timeout} ms settle (the connected's stand)`
       );
     }
-    if (!retried && Date.now() - start >= timeout / 2) {
+    const now = Date.now();
+    if (now - lastRetry >= retryInterval) {
       const button = page.getByTestId(`reconnect-${client}`).first();
       if ((await button.count()) > 0) {
         await button.click().catch(() => {});
-        retried = true;
+        lastRetry = now;
       }
     }
     await page.waitForTimeout(500);
