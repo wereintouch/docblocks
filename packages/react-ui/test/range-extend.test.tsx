@@ -106,7 +106,10 @@ describe("extendSelectionTo (the cross edge's extension)", () => {
     expect(range.startOffset).toBe(0);
     // The target's seat may stand on the inner element's own offset 0
     // (before the first child) — the logical point is the same.
-    const endEl = range.endContainer.nodeType === Node.ELEMENT_NODE ? (range.endContainer as Element) : range.endContainer.parentElement;
+    const endEl =
+      range.endContainer.nodeType === Node.ELEMENT_NODE
+        ? (range.endContainer as Element)
+        : range.endContainer.parentElement;
     expect(endEl).toBe(innerOf(p2));
     expect(range.endOffset).toBe(0);
   });
