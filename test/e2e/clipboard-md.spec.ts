@@ -3,6 +3,7 @@ import { type Browser, type Page, expect, test } from "@playwright/test";
 import {
   RELAY,
   SETTLE,
+  caretIn,
   editorContext,
   grantClipboardPermissions,
   pasteFromClipboard,
@@ -210,22 +211,20 @@ test("the caret lands at the end of the pasted content", async ({ browser }) => 
     await pasteFromClipboard(a);
     await expect.poll(async () => (await rootBlocks(a, "a"))?.length, SETTLE).toBe(5);
 
-    // the active element is the last pasted block's inner (the quote)
+    // the caret stands in the last pasted block's inner (the quote — the
+    // shared page container is the focused element, the caret's seat is
+    // the live selection's)
     await expect
-      .poll(
-        async () =>
-          a.evaluate(
-            ({ client }) => {
-              const doc = window.__paneDocs?.[client];
-              const root = doc?.getChildren(doc?.meta.id ?? "");
-              const last = root?.[root.length - 1];
-              const el = document.activeElement;
-              return last !== null && el?.getAttribute("data-block-id") === last;
-            },
-            { client: "a" as const }
-          ),
-        SETTLE
-      )
+      .poll(async () => {
+        const last = await a.evaluate(() => {
+          const doc = window.__paneDocs?.a;
+          if (doc === undefined || doc === null) return null;
+          const root = doc.getChildren(doc.meta.id);
+          return root.length === 0 ? null : (root[root.length - 1] ?? null);
+        });
+        if (last === null) return false;
+        return caretIn(a, `[data-block-id="${last}"][data-slot="docblocks/block-content"]`);
+      }, SETTLE)
       .toBe(true);
 
     // typing lands in the last block

@@ -116,6 +116,7 @@ function BlockCaption({ id, caption, slot, ariaLabel, placeholder }: BlockCaptio
       <span
         data-slot={slot}
         aria-label={ariaLabel}
+        contentEditable={false}
         className="
           mx-auto my-1 block w-[90%] text-center text-[0.8125em] text-muted-foreground
           dark:text-muted-foreground

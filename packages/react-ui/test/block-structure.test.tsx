@@ -292,8 +292,9 @@ describe("blocks selection (gutter)", () => {
 
     key(wrapperOf(p1), "ArrowDown");
     expect(storeSelection()).toEqual({ kind: "blocks", ids: [p2], anchorId: p2 });
-    // Focus follows the selection (DOM-only).
-    expect(document.activeElement).toBe(wrapperOf(p2));
+    // The focus's park (the span model: the wrappers are not focusable,
+    // the editor root holds the focus over the blocks' navigation).
+    expect(document.activeElement).toBe(wrapperOf(p2).closest('[data-slot="docblocks/editor"]'));
 
     key(wrapperOf(p2), "ArrowUp");
     expect(storeSelection()).toEqual({ kind: "blocks", ids: [p1], anchorId: p1 });

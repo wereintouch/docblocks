@@ -365,16 +365,26 @@ function syncDomSelection(root: HTMLElement, doc: Doc, view: SelectionView): voi
 }
 
 /**
- * Whether the DOM selection's endpoints stand inside a contenteditable
+ * Whether the DOM selection's endpoints stand inside a block's editable
  * (of any editor root): the caret is live in an editable, so the
  * selection's mapping expresses a real edit position. A selection
  * collapsed outside the editables (the chrome, the stale residue) does
- * not — the mapping must not clobber a `blocks` view there.
+ * not — the mapping must not clobber a `blocks` view there. Neither does
+ * a caret parked at a pure page-container position (the page's single
+ * editable container is an editable, but the caret stands in no block —
+ * the reseat's transient, the gutter's focus park).
  */
 function domSelectionInEditable(domSelection: Selection | null): boolean {
-  const anchor = editableOfNode(domSelection?.anchorNode ?? null);
-  const focus = editableOfNode(domSelection?.focusNode ?? null);
-  return anchor !== null && focus !== null;
+  // A caret parked at a pure page-container position (the gutter's click
+  // focus, a remount's transient) is not a live edit position: the page's
+  // single editable container is the editable, but the caret stands in no
+  // block, so the mapping must not clobber a `blocks` view there.
+  const inText = (node: Node | null): boolean => {
+    const editable = editableOfNode(node);
+    if (editable === null) return false;
+    return editable.getAttribute("data-slot") !== "docblocks/page";
+  };
+  return inText(domSelection?.anchorNode ?? null) && inText(domSelection?.focusNode ?? null);
 }
 
 /** The contenteditable that owns a node (the node's element or its parent's), or null. */

@@ -307,9 +307,18 @@ test("typing over the cross range replaces it; one Control+z restores it", async
   // The seam caret is seated on the next frame (the structural change
   // removed the block the focus sat in) — settle it before the undo
   // hotkey, which the editor root receives by bubbling from the focus.
+  // The seated caret stands inside the second block's inner (the page's
+  // single editable's focus is the container, the caret's block is read
+  // over the live selection's anchor).
   await expect
     .poll(
-      async () => a.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("data-block-id") ?? ""),
+      async () =>
+        a.evaluate((id) => {
+          const selection = window.getSelection();
+          if (selection === null || selection.anchorNode === null) return "";
+          const inner = document.querySelector(`[data-block-id="${id}"] [data-slot='docblocks/block-content']`);
+          return inner !== null && inner.contains(selection.anchorNode) ? id : "";
+        }, second.id),
       SETTLE
     )
     .toBe(second.id);
@@ -505,13 +514,10 @@ test("a cross paste replaces the range at the seam (one undo step)", async ({ br
 
   // The seam caret is seated on the next frame (the replace removed the
   // block the focus sat in) — settle it before the undo hotkey, which the
-  // editor root receives by bubbling from the focus.
-  await expect
-    .poll(
-      async () => a.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("data-block-id") ?? ""),
-      SETTLE
-    )
-    .toBe(second.id);
+  // editor root receives by bubbling from the focus. The seat is read over
+  // the live selection's range (the page's single editable's focus is the
+  // container, the caret's block stands in the range's endpoints).
+  await expect.poll(async () => (await domSelection(a))?.startBlock ?? "", SETTLE).toBe(second.id);
 
   // ONE undo step restores the whole replace (delete + insert were one
   // transaction); redo re-applies it.
@@ -585,13 +591,10 @@ test("a rich cross paste materializes the blocks at the seam (the seam block sta
 
   // The seam caret stands at the end of the last pasted block (the m2
   // block — the landing of the material) — settle it before the undo
-  // hotkey, which the editor root receives by bubbling from the focus.
-  await expect
-    .poll(
-      async () => a.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute("data-block-id") ?? ""),
-      SETTLE
-    )
-    .toBe(m2!.id);
+  // hotkey, which the editor root receives by bubbling from the focus. The
+  // seat is read over the live selection's range (the page's single
+  // editable's focus is the container).
+  await expect.poll(async () => (await domSelection(a))?.startBlock ?? "", SETTLE).toBe(m2!.id);
 
   // ONE undo step restores the whole replace (the delete + the material
   // were one transaction); redo re-applies it.
@@ -682,21 +685,25 @@ test("a mouse drag composes the cross selection (and the in-block drag stands)",
   expect(after.startBlock).toBe(first.id);
   expect(after.endBlock).toBe(second.id);
   // The toolbar stands over the cross range, and the document focus stands
-  // inside the editor (on the base's block — setBaseAndExtent moves the
-  // document focus to the base's editable; the keys bubble to the root
-  // handlers regardless of the focused block).
+  // inside the editor (the page's single editable container — the caret's
+  // anchor block is the dragged range's block, the keys bubble to the root
+  // handlers regardless of the caret's block).
   await expect(toolbar(a, "a")).toBeVisible();
-  const activeBlock = await a.evaluate(
-    () => document.activeElement?.closest?.("[data-block-id]")?.getAttribute("data-block-id") ?? ""
-  );
-  expect([first.id, second.id]).toContain(activeBlock);
-  // The clamped engine (the webkit project — the WebKit engine keeps the
-  // selection's highlight inside the anchor editable) draws the far block's
-  // overlay box; the crossing engines (chromium / firefox) stand no box
-  // (the native highlight crosses — no double highlight).
+  const anchorBlock = await a.evaluate(() => {
+    const selection = window.getSelection();
+    if (selection === null || selection.anchorNode === null) return "";
+    const host =
+      selection.anchorNode.nodeType === Node.ELEMENT_NODE
+        ? (selection.anchorNode as Element)
+        : (selection.anchorNode.parentElement ?? null);
+    return host?.closest("[data-block-id]")?.getAttribute("data-block-id") ?? "";
+  });
+  expect([first.id, second.id]).toContain(anchorBlock);
+  // The shared page editable: the native highlight crosses the blocks'
+  // boundaries natively over every engine (the WebKit family's clamp only
+  // applies between sibling editables) — no overlay segments over any.
   const rootA = a.locator('[data-slot="docblocks/editor"]').first();
-  const overlayCount = test.info().project.name === "webkit" ? 1 : 0;
-  await expect(rootA.locator('[data-slot="docblocks/selection-segment"]')).toHaveCount(overlayCount);
+  await expect(rootA.locator('[data-slot="docblocks/selection-segment"]')).toHaveCount(0);
 
   // The delete of the dragged range removes the covered text over the
   // wire: the endpoint blocks keep their uncovered parts (block 1 the

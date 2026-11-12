@@ -9,6 +9,7 @@ function PlaceholderBlock({ type }: { type: BlockType }) {
     <Card
       data-slot="docblocks/placeholder"
       data-block-type={type}
+      contentEditable={false}
       className="my-(--docblocks-block-spacing) outline-none"
     >
       <CardContent>

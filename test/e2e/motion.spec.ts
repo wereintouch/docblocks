@@ -69,11 +69,11 @@ async function sampleCaretBounds(page: Page, ms: number): Promise<CaretBoundsSam
   return samples;
 }
 
-/** The caret's final seat in pane A (the selection's anchor host + offset, the focus, the placeholder's content). */
+/** The caret's final seat in pane A (the selection's anchor host + offset, the caret's seat over the last block, the placeholder's content). The shared page container is the focused element (the span model) — the caret's block is the live selection's, so the last-block check reads the selection over the last row's inner, not the active element. */
 async function caretSeat(page: Page): Promise<{
   anchorBlockId: string | null;
   anchorOffset: number;
-  activeIsLastCe: boolean;
+  caretInLastCe: boolean;
   placeholder: string | null;
   rowCount: number;
 }> {
@@ -85,10 +85,16 @@ async function caretSeat(page: Page): Promise<{
     const rows = document.querySelectorAll('[data-slot="docblocks/row"]');
     const lastRow = rows[rows.length - 1] as HTMLElement | undefined;
     const lastCe = lastRow?.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]') ?? null;
+    let caretInLastCe = false;
+    if (sel !== null && sel.rangeCount > 0 && lastCe !== null) {
+      const range = sel.getRangeAt(0);
+      caretInLastCe =
+        lastCe.contains(sel.anchorNode) || lastCe.contains(range.startContainer) || lastCe.contains(range.endContainer);
+    }
     return {
       anchorBlockId: ce?.dataset.blockId ?? null,
       anchorOffset: sel === null ? -1 : sel.anchorOffset,
-      activeIsLastCe: document.activeElement === lastCe,
+      caretInLastCe,
       placeholder: lastCe !== null ? getComputedStyle(lastCe, "::before").content : null,
       rowCount: rows.length,
     };
@@ -458,7 +464,7 @@ test("a deletion above the caret stands the caret inside the document's bounds o
     expect(seat.rowCount).toBe(2);
     expect(seat.anchorBlockId).toBe(survivorId);
     expect(seat.anchorOffset).toBe(0);
-    expect(seat.activeIsLastCe).toBe(true);
+    expect(seat.caretInLastCe).toBe(true);
     expect(seat.placeholder).toContain("Type '/' for commands");
 
     await close();
@@ -545,7 +551,7 @@ test("a deletion above the caret over the tall doc stands the bounds and the scr
     expect(seat.rowCount).toBe(14);
     expect(seat.anchorBlockId).toBe(survivorId);
     expect(seat.anchorOffset).toBe(0);
-    expect(seat.activeIsLastCe).toBe(true);
+    expect(seat.caretInLastCe).toBe(true);
     expect(seat.placeholder).toContain("Type '/' for commands");
 
     await close();

@@ -45,7 +45,22 @@ test("a non-text tail stands the editable trailing paragraph; the tail is deleta
   // Backspace over the trailing line is the delete affordance).
   const inner = tailInner(a);
   await inner.click();
-  await expect(inner).toBeFocused();
+  // The caret's home (the shared page editable's focus is the container —
+  // the seat is read over the live selection's anchor, not the focused
+  // element).
+  await expect
+    .poll(async () =>
+      a.evaluate(() => {
+        const selection = window.getSelection();
+        if (selection === null || selection.anchorNode === null) return false;
+        const paragraphs = document.querySelectorAll<HTMLElement>(
+          '[data-testid="doc-a"] [data-block-type="paragraph"] [data-slot="docblocks/block-content"]'
+        );
+        const last = paragraphs[paragraphs.length - 1];
+        return last !== undefined && last.contains(selection.anchorNode);
+      })
+    )
+    .toBe(true);
   await a.keyboard.press("Backspace");
   await expect(docA.locator('[data-block-type="database"]')).toHaveCount(0);
   await expect(b.locator('[data-block-type="database"]')).toHaveCount(0);

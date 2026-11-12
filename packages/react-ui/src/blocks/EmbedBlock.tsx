@@ -460,6 +460,9 @@ function EmbedBlock({ id, block }: { id: BlockId; block: EmbedBlockType }) {
       data-block-type="embed"
       data-block-id={id}
       data-kind={kind}
+      // The island's boundary: the frame's content is out of the page's
+      // editable flow (the caret and the selection never stand in it).
+      contentEditable={false}
       className="
         group relative my-(--docblocks-block-spacing) h-(--docblocks-embed-height) overflow-hidden
         rounded-(--docblocks-radius) border-(length:--docblocks-divider-border-width)

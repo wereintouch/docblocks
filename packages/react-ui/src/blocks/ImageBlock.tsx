@@ -378,6 +378,9 @@ function ImageFigure({ id, block, url, name }: { id: BlockId; block: ImageBlockT
         data-align={align}
         data-selected={selected ? "true" : undefined}
         tabIndex={0}
+        // The island's boundary: the figure is chrome, never text (the
+        // caret and the selection never stand in it).
+        contentEditable={false}
         className={cn(
           "group relative",
           alignClass,

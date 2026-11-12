@@ -5,6 +5,7 @@ import type { BlockId, Doc } from "docblocks-core";
 
 import { applyDomSelection } from "./block-commands";
 import { locatePosition } from "./dom-offset";
+import { isPageSurfaceInner } from "./page-surface";
 
 interface DragPosition {
   blockId: BlockId;
@@ -161,11 +162,27 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
       // document focus on the base's editable itself — a focus() on the
       // other block would collapse the cross selection, and the keys
       // bubble to the root handlers regardless of the focused block.
-      if (session.moved && session.last !== null) seatCrossSelection(session.anchor, session.last);
-      else if (!session.moved) {
-        window
-          .getSelection()
-          ?.setBaseAndExtent(session.anchor.node, session.anchor.offset, session.anchor.node, session.anchor.offset);
+      const seat = () => {
+        if (session.moved && session.last !== null) seatCrossSelection(session.anchor, session.last);
+        else
+          window
+            .getSelection()
+            ?.setBaseAndExtent(session.anchor.node, session.anchor.offset, session.anchor.node, session.anchor.offset);
+      };
+      seat();
+      // The focus's recovery (the span model): the suppressed mousedown's
+      // default dropped the browser's focus move (a plain press over the
+      // inner leaves the document's focus where it stood, and the keys
+      // would land outside the editor). The seat's editable takes the
+      // focus (the inner over a text's seat, the container over a gap's);
+      // the focus move collapses the DOM selection to the editable's
+      // start, so the seat is re-established over it.
+      const seatNode = window.getSelection()?.anchorNode ?? session.anchor.node;
+      const seatElement = seatNode instanceof Element ? seatNode : (seatNode.parentElement ?? null);
+      const editable = seatElement?.closest<HTMLElement>('[contenteditable="true"]') ?? null;
+      if (editable !== null && document.activeElement !== editable) {
+        editable.focus();
+        seat();
       }
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
@@ -250,6 +267,63 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
     },
     [doc, rootRef]
   );
+
+  // The page flow's mousedown guard (the span model): the page container
+  // is one shared editable, and over it the browser's native selection
+  // gesture (the mousedown's default) outruns the user-select none (the
+  // editable's selection stands over the grid's cells' display, the
+  // header's chrome, the figure's frame — the drag's text's selection).
+  // The default is suppressed over the island's chrome (the press's
+  // handlers own the gesture); the controls (their focus stand) and the
+  // islands' own editables (the cells' inners — the native editing
+  // stands, the word/line's select over them) keep their defaults. The
+  // page's text inners stand the session's own guard (the single press's
+  // suppression, the multi-click's native word/line's select).
+  useEffect(() => {
+    const guard = (event: MouseEvent) => {
+      const root = rootRef.current;
+      if (root === null || event.button !== 0) return;
+      const target = event.target instanceof Element ? event.target : null;
+      if (target === null || !root.contains(target)) return;
+      if (document.activeElement instanceof HTMLIFrameElement) return;
+      if (target.closest('[data-slot="docblocks/page"]') === null) return;
+      const control = target.closest("input, textarea, select, button");
+      if (control !== null) return;
+      const island = target.closest('[contenteditable="false"]');
+      const editable = target.closest('[contenteditable="true"]');
+      if (island !== null && editable !== null && island.contains(editable)) return;
+      // The focus over the island's own editable or form control (the
+      // cell's input's draft, the cell's inner): the default's suppression
+      // would keep the focus (the blur's commit stands no), so the default
+      // runs (the blur's commit, the native editing over the cell's own
+      // editable). The island's focusable chrome (the table's focus) is
+      // not the island's editable: its nearest editable is the shared page
+      // container, and the default's suppression stands over it.
+      const active = document.activeElement;
+      const activeIsland = active instanceof HTMLElement ? active.closest('[contenteditable="false"]') : null;
+      const activeEditable = active instanceof HTMLElement ? active.closest('[contenteditable="true"]') : null;
+      if (
+        active instanceof HTMLElement &&
+        (active.matches("input, textarea") ||
+          (activeIsland !== null && activeEditable !== null && activeIsland.contains(activeEditable)))
+      )
+        return;
+      // The island's chrome (the grid's cells' display, the table's
+      // frame, the header's chrome): the native selection's gesture
+      // stands no — over the shared editable the user-select none loses.
+      if (island === null && editable instanceof HTMLElement && isPageSurfaceInner(editable)) return; // the page's text inner: the session's guard stands
+      event.preventDefault();
+      // The focus's park (the keys' reach): the suppressed default dropped
+      // the browser's focus move; a focus standing outside the editor
+      // would leave the keys landing on nothing (the detached's button
+      // over the menu's close). The editor root takes it (a non-editable
+      // focus does not touch the selection).
+      const a = document.activeElement;
+      if (root !== null && (a === null || !root.contains(a))) root.focus();
+    };
+    window.addEventListener("mousedown", guard, true);
+    return () => window.removeEventListener("mousedown", guard, true);
+  }, [rootRef]);
 
   // A session that outlives its pointer (the window closed over a
   // captured pointer) is torn down with the effect's cleanup.

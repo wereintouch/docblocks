@@ -686,6 +686,12 @@ function GridBody({
       data-block-type="database"
       data-block-id={blockId}
       data-state="ready"
+      // The island's boundary (the span model): the grid's cell editables
+      // sit behind this non-editable wrapper (the browser focuses the
+      // cell's own inner, the cell's keys stand their own handlers) and
+      // the chrome (the toolbar, the headers) stands no native selection
+      // gesture over the shared editable.
+      contentEditable={false}
       className="
         my-(--docblocks-block-spacing) flex min-h-0 flex-1 flex-col rounded-(--docblocks-radius)
         border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none

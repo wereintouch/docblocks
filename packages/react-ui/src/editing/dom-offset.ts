@@ -109,7 +109,20 @@ function caretOffsetIn(root: HTMLElement, node: Node | null, offset: number): nu
  * line).
  */
 function locatePosition(root: HTMLElement, flatOffset: number): DomPosition {
-  if (flatOffset <= 0) return { node: root, offset: 0 };
+  if (flatOffset <= 0) {
+    // The start resolves to the first text node where one stands (not a
+    // line anchor): the caret over an element container's offset 0 renders
+    // as a zero rect in the engines (the range's bounding box is the
+    // text-position's), and the text anchor keeps the read-back's domain
+    // (the caretOffsetIn's walk is the text anchor's native path).
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let current = walker.nextNode();
+    while (current !== null) {
+      if (!isLineAnchor(current)) return { node: current, offset: 0 };
+      current = walker.nextNode();
+    }
+    return { node: root, offset: 0 };
+  }
   const anchor = lineAnchorOf(root);
   // The anchor is a seat for the final empty line only while it is still
   // trailing (the browser may have inserted content after it, making it a

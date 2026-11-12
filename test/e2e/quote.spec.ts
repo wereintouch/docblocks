@@ -8,7 +8,7 @@
 // until the quote is empty, then it resets to a paragraph).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, SETTLE, editorContext, outCount } from "./helpers";
+import { RELAY, SETTLE, caretIn, editorContext, outCount } from "./helpers";
 
 /**
  * A unique room per test: the relay keeps rooms for the dev server's
@@ -193,9 +193,12 @@ test("Enter: a non-empty line is a break; the empty last line exits; the empty m
   expect(ids).toHaveLength(3);
   expect(ids[1]).toBe(quoteId);
   expect((await blockOf(a, "a", ids[2]!))?.type).toBe("paragraph");
-  // The caret stands in the new paragraph (the gesture's focus move).
-  const paragraph = a.locator(`[data-block-id="${ids[2]}"] [data-slot="docblocks/block-content"]`);
-  await expect(paragraph).toBeFocused();
+  // The caret stands in the new paragraph (the gesture's focus move — the
+  // shared page container is the focused element, the caret's seat is the
+  // live selection's).
+  await expect
+    .poll(() => caretIn(a, `[data-block-id="${ids[2]}"] [data-slot="docblocks/block-content"]`), SETTLE)
+    .toBe(true);
   // The exit is one composed command — wait for B to stand the same two
   // blocks over the wire (a one-shot read can catch B mid-convergence).
   await expect.poll(async () => (await blockOf(b, "b", ids[2]!))?.type, SETTLE).toBe("paragraph");
@@ -319,8 +322,12 @@ test("the callout shares the quote interactivity", async ({ browser }) => {
   expect(ids).toHaveLength(3); // the starter + the callout + the new paragraph
   expect(ids[1]).toBe(calloutId);
   expect((await blockOf(a, "a", ids[2]!))?.type).toBe("paragraph");
-  // The caret stands in the new paragraph (the gesture's focus move).
-  await expect(a.locator(`[data-block-id="${ids[2]!}"] [data-slot="docblocks/block-content"]`)).toBeFocused();
+  // The caret stands in the new paragraph (the gesture's focus move — the
+  // shared page container is the focused element, the caret's seat is the
+  // live selection's).
+  await expect
+    .poll(() => caretIn(a, `[data-block-id="${ids[2]!}"] [data-slot="docblocks/block-content"]`), SETTLE)
+    .toBe(true);
   // The exit traveled the wire — wait for B to stand the callout + text
   // (one-shot reads can catch B mid-convergence).
   await expect.poll(async () => (await blockOf(b, "b", calloutId))?.type, SETTLE).toBe("callout");

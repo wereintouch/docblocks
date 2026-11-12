@@ -9,6 +9,7 @@ import type { Block, BlockId } from "docblocks-core";
 import { useCanvasTextEdit } from "../canvas/canvas-text-edit-context";
 import { editorRootOf } from "../editing/dom-offset";
 import { insertParagraphAfter } from "../editing/gutter-plus";
+import { parkEditorFocus } from "../editing/page-surface";
 import { useDeleteBlock } from "../editing/use-delete-block";
 import { useEditorContext } from "../editor-provider";
 import { useBlockContext } from "../shared/providers/block-context";
@@ -273,7 +274,11 @@ function TextBlock({
       } else {
         view.set({ kind: "blocks", ids: [id], anchorId: id });
       }
-      wrapperRef.current?.focus();
+      // The editor root's focus park (the selection keys' reach): the
+      // wrapper is not focusable in the shared-editable model (a focusable
+      // wrapper would stand the mousedown's focus fallback's landing and
+      // seat a caret over the blocks' view).
+      if (wrapperRef.current !== null) parkEditorFocus(wrapperRef.current);
     },
     [blockContext, doc, id, selectionRef]
   );
@@ -616,7 +621,14 @@ function TextBlock({
         data-align={alignOf(block)}
         data-depth={block.type === "list-item" ? cycle : undefined}
         data-selected={selected ? "true" : undefined}
-        tabIndex={0}
+        // No tabIndex: the wrapper stands inside the page's single editable
+        // (the span model) — a focusable wrapper would stand the mousedown's
+        // focus fallback's landing over the block-chrome's presses (the
+        // browser focuses the nearest focusable element when the control's
+        // focus default is suppressed), and a focus inside the editable
+        // seats a caret (the selection's mapping would then clobber the
+        // blocks' view). The keys stand over the container's focus (the
+        // page surface's dispatch) or the editor root's park.
         className={cn("group", wrapperClass)}
         style={calloutStyle}
         onKeyDown={onKeydown}
@@ -697,6 +709,7 @@ function TextBlock({
           <div
             data-slot="docblocks/quote-rule"
             aria-hidden
+            contentEditable={false}
             className="
               pointer-events-none absolute top-0 bottom-0 left-0 w-(--docblocks-quote-border-width)
               bg-(--docblocks-quote-border-color)
@@ -705,7 +718,16 @@ function TextBlock({
         )}
         {block.type === "callout" && <CalloutBlockMenu id={id} block={block} />}
         {(flatMarkerIsNumber || flatMarkerIsBullet) && (
-          <span data-slot="docblocks/row-marker" data-cycle={cycle} data-kind={block.attrs.list}>
+          <span
+            data-slot="docblocks/row-marker"
+            data-cycle={cycle}
+            data-kind={block.attrs.list}
+            // The label is chrome over the shared page editable: unselectable
+            // and caret-less (a caret in the label would type over the label
+            // itself — the island's stand, the selection's highlight skips it).
+            contentEditable={false}
+            className="select-none"
+          >
             {flatMarkerIsNumber && number !== undefined ? numberMarkerLabel(number, cycle) : null}
           </span>
         )}

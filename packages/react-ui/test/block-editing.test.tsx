@@ -471,9 +471,10 @@ describe("Backspace: block merge", () => {
     window.getSelection()!.addRange(emptyRange);
     const prevented = key(wrapperOf(p), "Backspace");
 
-    // Not suppressed: the gesture found no merge (the browser default on a
-    // collapsed caret at the block start is itself a no-op).
-    expect(prevented).toBe(true);
+    // Suppressed: the gesture found no merge, and the native default is
+    // not run (the nested editable's line-backspace would mutate the page
+    // container's DOM over the span model).
+    expect(prevented).toBe(false);
     expect(doc.getBlock(surfaceId)).not.toBeNull();
     expect(doc.getBlock(shapeId)).not.toBeNull();
     expect(doc.getChildren(surfaceId)).toEqual([shapeId]);
@@ -534,9 +535,10 @@ describe("Backspace: block merge", () => {
     caretAtFlat(x, 0);
     const prevented = key(wrapperOf(x), "Backspace");
 
-    // Not suppressed: the gesture found no merge (the browser default on a
-    // collapsed caret at the block start is itself a no-op).
-    expect(prevented).toBe(true);
+    // Suppressed: the gesture found no merge, and the native default is
+    // not run (the nested editable's line-backspace would mutate the page
+    // container's DOM over the span model).
+    expect(prevented).toBe(false);
     expect(blockCount(doc)).toBe(before);
     expect(doc.getBlock(dividerId)).not.toBeNull();
     expect(doc.getBlock(x)).not.toBeNull();
@@ -555,7 +557,7 @@ describe("Backspace: block merge", () => {
     caretAtFlat(p, 0);
     const prevented = key(wrapperOf(p), "Backspace");
 
-    expect(prevented).toBe(true); // not suppressed: the browser default runs
+    expect(prevented).toBe(false); // suppressed: the no-merge stand does not run the native default
     expect(blockCount(doc)).toBe(before);
     expect(doc.getText(p)).toBe("x");
   });

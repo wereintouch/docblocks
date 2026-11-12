@@ -26,6 +26,11 @@ function DatabaseBlock({ id, block }: { id: BlockId; block: DatabaseBlockType })
       data-slot="docblocks/block"
       data-block-type="database"
       data-block-id={id}
+      // The island's boundary: the grid's cell editables sit behind this
+      // non-editable wrapper (the browser focuses the cell's own inner,
+      // the cell's keys stand their own handlers) and the header's
+      // labels are chrome.
+      contentEditable={false}
       className="
         my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
         border-(--docblocks-table-border-color) outline-none

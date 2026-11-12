@@ -85,9 +85,10 @@ test.describe("the page row's delete affordance", () => {
     await expect(wrapper(b, "b", dividerId)).toHaveCount(0, SETTLE);
 
     // The focus never drops to the document: the gesture parks it inside
-    // the editor (the tail guarantee's caret or the root's park).
+    // the editor (the tail guarantee's caret over the page's single
+    // editable container, or the root's park).
     const activeSlot = await a.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset?.slot ?? null);
-    expect(["docblocks/editor", "docblocks/block-content"]).toContain(activeSlot);
+    expect(["docblocks/editor", "docblocks/page", "docblocks/block-content"]).toContain(activeSlot);
 
     // The wrapper count stands (the deletion never stands the empty doc).
     expect(await wrappers(a, "a").count()).toBeGreaterThan(0);

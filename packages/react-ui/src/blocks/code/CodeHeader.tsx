@@ -117,6 +117,26 @@ interface CodeHeaderProps {
 function CodeHeader({ id, block, center }: CodeHeaderProps) {
   const { t } = useTranslation("blocks");
   const { doc, store, viewMode } = useEditorContext();
+
+  // The caret's inside-state (the typing's strip): the focus stands on the
+  // page container over the span model, so the wrapper's focus-within never
+  // stands while the code's text is typed — the state reads the caret's
+  // block from the live selection instead (the anchor over the block's
+  // inner).
+  const [caretInside, setCaretInside] = useState(false);
+  useEffect(() => {
+    const onChange = () => {
+      const anchor = window.getSelection()?.anchorNode ?? null;
+      const element = anchor instanceof Element ? anchor : (anchor?.parentElement ?? null);
+      const inner =
+        element?.closest<HTMLElement>(`[data-block-id="${CSS.escape(id)}"] [data-slot="docblocks/block-content"]`) ??
+        null;
+      setCaretInside(inner !== null);
+    };
+    onChange();
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, [id]);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [moreOpen, setMoreOpen] = useState(false);
@@ -202,14 +222,14 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
   return (
     <div
       data-slot="docblocks/code-header"
+      contentEditable={false}
       className={cn(
-        `
-          group/code mb-1 flex items-center justify-between gap-2 border-b border-transparent pb-1 text-[0.8125em]
-          group-focus-within:border-border
-          group-hover:border-border
-        `,
-        // The open menus keep the row's strip with the controls.
-        menuOpen && "border-border"
+        "group/code mb-1 flex items-center justify-between gap-2 border-b pb-1 text-[0.8125em]",
+        // The strip's border reveal: the hover, the controls' focus, the
+        // caret's inside-state (the typing), the open menus.
+        caretInside || menuOpen
+          ? "border-border"
+          : "border-transparent group-focus-within:border-border group-hover:border-border"
       )}
       // Keep the caret: a default mousedown would move the focus out of the
       // editable (the controls are chrome, never the text).

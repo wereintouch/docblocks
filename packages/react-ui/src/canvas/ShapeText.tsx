@@ -123,7 +123,10 @@ function ShapeText({ id, block, box }: { id: BlockId; block: ShapeBlockView; box
       contentEditable
       data-slot="docblocks/shape-text-edit"
       suppressContentEditableWarning
-      className="w-full outline-none"
+      // The edit's caret's line: the empty draft stands a visible line
+      // (the firefox's empty contenteditable collapses to a zero height
+      // before the first input's line box).
+      className="min-h-[1em] w-full outline-none"
       onKeyDown={onEditKeyDown}
       // innerText maps the <br> soft breaks to \n (the read stand);
       // textContent is the jsdom fallback (innerText stands layout-only).

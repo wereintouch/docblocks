@@ -297,9 +297,9 @@ describe("cross-block arrow navigation", () => {
     const selection = viewSelection();
     expect(selection.kind).toBe("blocks");
     if (selection.kind === "blocks") expect(selection.ids).toEqual([p2]);
-    // The caret gesture did not run: the DOM selection left p1 (the
-    // selection navigation focuses the next wrapper) but did not land
-    // inside p2's inner editable.
+    // The caret gesture did not run: the DOM selection left p1 (the focus
+    // park collapses it to the editor root over the span model's
+    // unfocusable wrappers) and did not land inside p2's inner editable.
     const sel = window.getSelection()!;
     expect(innerOf(p1).contains(sel.anchorNode)).toBe(false);
     expect(innerOf(p2).contains(sel.anchorNode)).toBe(false);

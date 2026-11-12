@@ -100,8 +100,10 @@ async function setHostileSource(page: Page, source: string): Promise<void> {
   await block.first().hover();
   await block.first().locator('[data-mermaid-mode-button="code"]').click();
   const inner = block.locator('[data-slot="docblocks/block-content"]');
-  await inner.click();
-  await page.keyboard.press("ControlOrMeta+a");
+  // The triple press's whole-block selection (the Ctrl+A stands no block
+  // scope over the shared page's editable — the whole document's
+  // selection): the delete commits the empty text over the DOM's diff.
+  await inner.click({ clickCount: 3 });
   await page.keyboard.press("Backspace");
   await pastePlainText(page, source);
   await block.first().hover();

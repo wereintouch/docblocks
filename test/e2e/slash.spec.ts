@@ -1,6 +1,6 @@
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { RELAY, editorContext, outCount } from "./helpers";
+import { RELAY, SETTLE, caretIn, editorContext, outCount } from "./helpers";
 
 /**
  * The "/" slash command menu (the reworked model): the "/" is regular doc
@@ -219,14 +219,15 @@ test("a divider landing at the document end gets a trailing empty paragraph (the
     { id: expect.any(String), type: "paragraph" },
   ]);
   // The caret seats in the trailing paragraph in the next frame (the
-  // post-apply focus move) — wait for it before typing.
+  // post-apply focus move) — wait for it before typing. The shared page
+  // container is the focused element; the caret's seat is the live
+  // selection's.
   const trailingId = suffix?.[1]?.id ?? "";
   expect(trailingId).toEqual(expect.any(String));
   const trailingInner = a.locator(`[data-block-id="${trailingId}"] [data-slot="docblocks/block-content"]`);
-  await a.waitForFunction(() => {
-    const ae = document.activeElement;
-    return ae instanceof HTMLElement && ae.getAttribute("data-slot") === "docblocks/block-content";
-  });
+  await expect
+    .poll(() => caretIn(a, `[data-block-id="${trailingId}"] [data-slot="docblocks/block-content"]`), SETTLE)
+    .toBe(true);
   await trailingInner.click();
   await a.keyboard.type("hello");
   const text = await a.evaluate((id) => {
@@ -346,12 +347,12 @@ test("the query filters; zero matches hide the list; deleting back brings it (th
   await expect(menu(a)).toBeVisible();
   await expect(menu(a).locator('[role="menuitem"]')).toHaveCount(3);
   await expect(menu(a).locator('[role="menuitem"]')).toHaveText(["Heading 1", "Heading 2", "Heading 3"]);
-  await expect(target).toBeFocused();
+  await expect.poll(() => caretIn(a, "[data-testid='doc-a'] [data-slot='docblocks/block-content']"), SETTLE).toBe(true);
 
   // Zero matches: the list disappears (no placeholder).
   await a.keyboard.type("zz");
   await expect(menu(a)).toHaveCount(0);
-  await expect(target).toBeFocused();
+  await expect.poll(() => caretIn(a, "[data-testid='doc-a'] [data-slot='docblocks/block-content']"), SETTLE).toBe(true);
   await expect(target).toHaveText("/heazz");
 
   // Deleting back to a match brings the list (the state never closed — the
@@ -361,7 +362,7 @@ test("the query filters; zero matches hide the list; deleting back brings it (th
   await expect(target).toHaveText("/hea");
   await expect(menu(a)).toBeVisible();
   await expect(menu(a).locator('[role="menuitem"]')).toHaveCount(3);
-  await expect(target).toBeFocused();
+  await expect.poll(() => caretIn(a, "[data-testid='doc-a'] [data-slot='docblocks/block-content']"), SETTLE).toBe(true);
   await close();
 });
 
@@ -376,7 +377,7 @@ test("Esc keeps the phrase in the text; the existing / never re-triggers; a new 
   await expect(menu(a)).toHaveCount(0);
   // The phrase stands in the doc as plain text (the block is editable as usual).
   await expect(target).toHaveText("/head");
-  await expect(target).toBeFocused();
+  await expect.poll(() => caretIn(a, "[data-testid='doc-a'] [data-slot='docblocks/block-content']"), SETTLE).toBe(true);
 
   // Moving the caret back to the same "/" (no new "/" keypress) does not
   // re-open the menu.

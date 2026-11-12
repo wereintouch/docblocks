@@ -290,8 +290,19 @@ test("Backspace on an empty child list item outdents; on an empty root paragraph
     )
     .toMatchObject({ type: "paragraph", indent: 1 });
   // The type reset remounts the row (li -> div): wait for the caret to be
-  // re-seated in the new contenteditable before the next key.
-  await expect(inners(a, "a").nth(2)).toBeFocused();
+  // re-seated in the new contenteditable before the next key. The seat is
+  // read over the live selection's anchor (the page's single editable's
+  // focus is the container).
+  const innerSeat = (n: number) =>
+    a.evaluate((idx) => {
+      const selection = window.getSelection();
+      if (selection === null || selection.anchorNode === null) return false;
+      const inner = document.querySelectorAll<HTMLElement>(
+        '[data-testid="doc-a"] [data-slot="docblocks/block-content"]'
+      )[idx];
+      return inner !== undefined && inner.contains(selection.anchorNode);
+    }, n);
+  await expect.poll(() => innerSeat(2)).toBe(true);
 
   // The next Backspace outdents (the type stands: a paragraph at the root
   // level).
@@ -310,7 +321,7 @@ test("Backspace on an empty child list item outdents; on an empty root paragraph
       SETTLE
     )
     .toBe(0);
-  await expect(inners(a, "a").nth(2)).toBeFocused();
+  await expect.poll(() => innerSeat(2)).toBe(true);
 
   // Backspace on the empty root paragraph (the page has more than one
   // block): the block is removed.
@@ -375,12 +386,14 @@ test("a no-op Tab keeps the caret in the text (the focus does not escape)", asyn
   await a.waitForTimeout(300);
   expect(await a.locator("[data-testid='wire-a'] li", { hasText: " out " }).count()).toBe(outBefore);
   // The browser's default Tab (focus to the next focusable element) is
-  // suppressed: the focus stays in the block's contenteditable.
-  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/block-content");
+  // suppressed: the focus stays in the page's single editable (the shared
+  // page container — the caret's block is not the focused element in the
+  // span model).
+  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/page");
 
   // A no-op Shift+Tab on the top level behaves the same.
   await a.keyboard.press("Shift+Tab");
-  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/block-content");
+  expect(await a.evaluate(() => document.activeElement?.getAttribute("data-slot"))).toBe("docblocks/page");
 
   await close();
 });

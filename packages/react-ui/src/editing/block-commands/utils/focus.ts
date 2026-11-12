@@ -7,7 +7,7 @@
  */
 import type { BlockId, Doc, SelectionView } from "docblocks-core";
 
-import { editorRootOf, locatePosition, logicalTextOf, restoreSelection } from "../../dom-offset";
+import { caretOffsetIn, editorRootOf, locatePosition, logicalTextOf, restoreSelection } from "../../dom-offset";
 
 /** Run `fn` in the next animation frame (setTimeout where frames do not exist). */
 function afterFrame(fn: () => void): void {
@@ -32,8 +32,13 @@ function liveScope(scope: ParentNode): ParentNode {
  * structural gesture (the element must be rendered); `scope` confines the
  * lookup to one editor root (a page can render the same doc in several).
  */
-function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = document): void {
+function focusCaretIn(blockId: BlockId, offset: number, scope: ParentNode = document, guard?: () => boolean): void {
   afterFrame(() => {
+    // The frame-time guard (the caller's validity check): the frame's
+    // window may have outlived the seat's reason (a competing reseat or
+    // the user's gesture since the schedule) — the guard's veto skips
+    // the seat instead of clobbering the live state.
+    if (guard !== undefined && !guard()) return;
     // The original's inner stands the id's query (the frame's window's
     // inert copy stands the same id over the copy — the frame's view-back
     // order stands it first in the DOM); the window-content's exclusion
@@ -122,6 +127,24 @@ function seatedIn(el: HTMLElement): boolean {
 }
 
 /**
+ * Whether the DOM selection sits in the element AT the requested flat
+ * offsets (a collapsed caret at `from`, a span over [from, to)). A
+ * selection inside the element at a different seat (a competing re-seat's
+ * transient — the container's re-seat lands at the block's edge while
+ * the history's seat is the pre-gesture's) is not the gesture's seat:
+ * the watch re-seats over it instead of stopping.
+ */
+function seatedAt(el: HTMLElement, from: number, to: number | null): boolean {
+  if (!seatedIn(el)) return false;
+  const sel = window.getSelection();
+  if (sel === null || sel.rangeCount === 0 || sel.anchorNode === null || sel.focusNode === null) return false;
+  const anchorOffset = caretOffsetIn(el, sel.anchorNode, sel.anchorOffset);
+  if (to === null) return anchorOffset === from;
+  const focusOffset = caretOffsetIn(el, sel.focusNode, sel.focusOffset);
+  return (anchorOffset === from && focusOffset === to) || (anchorOffset === to && focusOffset === from);
+}
+
+/**
  * Restore a text range (a caret when `to` is null) inside a block's inner
  * editable after a structural gesture (a Tab/Shift+Tab indent, a list-type
  * swap) that remounts the block's subtree: the old editable is gone and
@@ -194,7 +217,7 @@ function restoreSelectionIn(
       .filter((el) => isSurvivorInner(el, blockType))
       .filter((el) => logicalTextOf(el) === doc.getText(blockId));
     const el = inners.length === 1 ? (inners[0] as HTMLElement) : null;
-    if (el !== null && seatedIn(el)) {
+    if (el !== null && seatedAt(el, from, to)) {
       // The selection may stand in the rebuilt inner while the focus is
       // stranded elsewhere (the remount takes the focus, not the seat):
       // focus lands the caret.

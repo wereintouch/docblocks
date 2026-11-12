@@ -253,7 +253,7 @@ describe("Tab: nesting of any text block (the gesture generalization)", () => {
     caretAtFlat(p1, 0);
     const prevented = key(wrapperOf(p1), "Backspace");
 
-    expect(prevented).toBe(true); // no-op: the browser default stands
+    expect(prevented).toBe(false); // no-op: the native default is not run (the span model's line-backspace guard)
     expect(doc.getChildren(doc.meta.id)).toEqual([p1, p2]);
     expect(doc.getText(p1)).toBe("one");
     expect(doc.getText(p2)).toBe("two");

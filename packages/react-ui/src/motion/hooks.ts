@@ -5,6 +5,20 @@
 import { useEffect, useRef } from "react";
 
 /**
+ * Whether the event's target is a text-editing surface of the page model:
+ * the page's single editable container (the shared-editable's keys/inputs
+ * target it, never a block's inner) or a block's own inner (the isolated
+ * surfaces' cells stand their own focused inner).
+ */
+function isPageTextTarget(target: Element | null): boolean {
+  if (target === null) return false;
+  return (
+    target.closest('[data-slot="docblocks/page"]') !== null ||
+    target.closest('[data-slot="docblocks/block-content"]') !== null
+  );
+}
+
+/**
  * The grip typing flag: the editor root holds `data-docblocks-typing` from
  * the first text keypress in its own content until the first pointer move
  * or the focus leaving the editor — the stylesheet's unlayered rule hides
@@ -23,7 +37,7 @@ function useTypingFlag(rootRef: { current: HTMLDivElement | null }) {
     const onKeydown = (event: KeyboardEvent) => {
       const target = event.target instanceof Element ? event.target : null;
       if (target === null || target.closest('[data-slot="docblocks/editor"]') !== root) return;
-      if (target.closest('[data-slot="docblocks/block-content"]') === null) return;
+      if (isPageTextTarget(target) === false) return;
       // A text keypress only: a control key (Tab, the arrows, the mod
       // hotkeys) is a gesture, not typing.
       if (event.key.length !== 1 || event.key === "\t" || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -64,7 +78,7 @@ function useEnterAnimationGate(rootRef: { current: HTMLDivElement | null }) {
       const target = event.target instanceof Element ? event.target : null;
       if (target === null) return false;
       if (target.closest('[data-slot="docblocks/editor"]') !== root) return false;
-      return target.closest('[data-slot="docblocks/block-content"]') !== null;
+      return isPageTextTarget(target);
     };
     const onKeydown = (event: KeyboardEvent) => {
       if (event.key.length !== 1 || event.metaKey || event.ctrlKey || event.altKey) return;

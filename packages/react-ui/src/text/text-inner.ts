@@ -40,6 +40,7 @@ import {
 import { useBlockInput } from "../editing/input-safety";
 import { useBlockKeyboard } from "../editing/keyboard";
 import { useMentionMenuApi } from "../editing/mention";
+import { isPageSurfaceInner, usePageSurface } from "../editing/page-surface";
 import { useSlashMenuApi } from "../editing/slash";
 import { diffTexts, rebaseOffset } from "../editing/text-diff";
 import { useEditorContext } from "../editor-provider";
@@ -346,7 +347,54 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
     }
   });
 
+  // The page surface's dispatch registration (the container-level
+  // handlers' source over this block's gestures and commit).
+  // The hint's caret's state (the span model): the inner's own :focus
+  // stands no more (the focus stands on the page container), so the
+  // attribute carries the "the caret stands here" state to the empty
+  // hint's rule.
+  useEffect(() => {
+    const el = innerRef.current;
+    if (el === null) return;
+    const update = () => {
+      const anchor = window.getSelection()?.anchorNode ?? null;
+      el.toggleAttribute("data-caret-inside", anchor !== null && el.contains(anchor));
+    };
+    update();
+    document.addEventListener("selectionchange", update);
+    return () => document.removeEventListener("selectionchange", update);
+  }, []);
+
+  usePageSurfaceRegistration(id, innerRef, { onKeydown, onInput: commitDomDelta, onPaste });
+
   return { innerRef, onInput: commitDomDelta, onPaste, onKeydown };
+}
+
+/**
+ * The page surface's registration: the per-block handlers stand in the
+ * editor instance's surface registry (the container-level dispatch's
+ * source) while the inner is a page-surface text block (the isolated
+ * surfaces — the cells, the nested editors — keep their own inner-bound
+ * handlers and stand no registration over the outer scope). The entry
+ * updates over every handler's identity change; the unmount unregisters.
+ */
+function usePageSurfaceRegistration(
+  id: BlockId,
+  innerRef: RefObject<HTMLDivElement | null>,
+  handlers: {
+    onKeydown: (event: ReactKeyboardEvent<HTMLElement>) => void;
+    onInput: () => void;
+    onPaste: (event: ReactClipboardEvent<HTMLElement>) => void;
+  }
+): void {
+  const registry = usePageSurface();
+  const { onKeydown, onInput, onPaste } = handlers;
+  useEffect(() => {
+    const inner = innerRef.current;
+    if (registry === null || inner === null || isPageSurfaceInner(inner) === false) return;
+    registry.register(id, { onKeydown, onInput, onPaste });
+    return () => registry.unregister(id);
+  }, [registry, id, innerRef, onKeydown, onInput, onPaste]);
 }
 
 export { textOf, useTextInner };

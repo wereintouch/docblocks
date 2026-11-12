@@ -348,8 +348,23 @@ test("Enter on a non-empty code line is a line break; the empty last line exits"
   const ids = await rootIds(a, "a");
   expect(ids).toHaveLength(3);
   expect((await blockOf(a, "a", ids[2]!))?.type).toBe("paragraph");
-  const paragraph = pane(a, "a").locator(`[data-block-id="${ids[2]}"] [data-slot="docblocks/block-content"]`);
-  await expect(paragraph).toBeFocused();
+  // The exit re-seats the caret into the next paragraph (the seat is read
+  // over the live selection's anchor — the page's single editable's focus
+  // is the container).
+  await expect
+    .poll(
+      async () =>
+        a.evaluate((id) => {
+          const selection = window.getSelection();
+          if (selection === null || selection.anchorNode === null) return false;
+          const inner = document.querySelector<HTMLElement>(
+            `[data-block-id="${id}"] [data-slot='docblocks/block-content']`
+          );
+          return inner !== null && inner.contains(selection.anchorNode);
+        }, ids[2]),
+      SETTLE
+    )
+    .toBe(true);
   // The exit traveled the wire — wait for B to stand it (one-shot reads
   // can catch B mid-convergence).
   await expect.poll(async () => (await blockOf(b, "b", ids[2]!))?.type, SETTLE).toBe("paragraph");

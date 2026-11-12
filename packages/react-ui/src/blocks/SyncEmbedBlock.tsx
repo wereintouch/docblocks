@@ -104,6 +104,9 @@ function SyncEmbedBlock({ id, block }: { id: BlockId; block: SyncEmbedBlockType 
       data-block-id={id}
       data-state={state}
       data-doc-id={ref.docId}
+      // The island's boundary: the nested editor (and the placeholder's)
+      // content is out of the page's editable flow.
+      contentEditable={false}
       className="
         my-(--docblocks-block-spacing) rounded-(--docblocks-radius) border-(length:--docblocks-table-border-width)
         border-(--docblocks-table-border-color) outline-none

@@ -20,8 +20,9 @@ import {
 } from "./block-commands";
 import { applyMdPaste, applyRichPaste, plainTextOfHtml } from "./clipboard";
 import { handleCrossRangeKey } from "./cross-range-keys";
-import { caretOffsetIn, editorRootOf, restoreSelection } from "./dom-offset";
+import { caretOffsetIn, editorRootOf, effectiveFocusEnd, logicalTextOf, restoreSelection } from "./dom-offset";
 import { useMentionMenuApi } from "./mention";
+import { isPageSurfaceInner, parkEditorFocus } from "./page-surface";
 import { mapDomSelection, selectionsEqual } from "./selection-mapping";
 import { useSlashMenuApi } from "./slash";
 
@@ -170,7 +171,11 @@ function useBlockInput({
       const selection = window.getSelection();
       if (selection === null || selection.rangeCount === 0) return;
       const range = selection.getRangeAt(0);
-      const el = event.currentTarget;
+      // The inner over the closure (not the event's currentTarget — the
+      // container-level dispatch stands the event over the page's
+      // container, whose text offsets are not the block's).
+      const el = innerRef.current;
+      if (el === null) return;
       if (!el.contains(range.startContainer) || !el.contains(range.endContainer)) return;
       const anchor = caretOffsetIn(el, range.startContainer, range.startOffset);
       const focus = caretOffsetIn(el, range.endContainer, range.endOffset);
@@ -289,6 +294,52 @@ function useBlockInput({
         root = mappedRoot;
       }
 
+      // Home/End over the shared page inner (the span model): the browser's
+      // native line Home/End runs over the outer editable's (the page
+      // container's) lines, and over the inner's own edge the native move
+      // escapes the inner (the line's edge stands the container's flow,
+      // the shift's extend stands the neighboring blocks' residue). The
+      // product owns the move over the block's own logical line (the soft
+      // break's edge). The island's inners (the table cells' own
+      // editables) keep the browser's native stand.
+      if (
+        isPageSurfaceInner(inner) &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.altKey &&
+        (event.key === "Home" || event.key === "End") &&
+        selection.kind === "text" &&
+        (selection.to === null || selection.to.blockId === selection.from.blockId)
+      ) {
+        const homeDom = window.getSelection();
+        if (homeDom !== null && homeDom.rangeCount > 0) {
+          const logical = logicalTextOf(inner);
+          const endpoint = homeDom.isCollapsed
+            ? { node: homeDom.anchorNode, offset: homeDom.anchorOffset }
+            : effectiveFocusEnd(homeDom);
+          if (endpoint !== null) {
+            const caret = caretOffsetIn(inner, endpoint.node, endpoint.offset);
+            const lineStart = logical.lastIndexOf("\n", caret - 1) + 1;
+            const breakIndex = logical.indexOf("\n", caret);
+            const lineEnd = breakIndex === -1 ? logical.length : breakIndex;
+            const target = event.key === "Home" ? lineStart : lineEnd;
+            event.preventDefault();
+            if (event.shiftKey) {
+              // The shift's extend keeps the anchor (over a collapsed
+              // selection the anchor is the caret, over a range the
+              // browser's anchor stand): the focus end takes the edge.
+              const anchorFlat = caretOffsetIn(inner, homeDom.anchorNode, homeDom.anchorOffset);
+              restoreSelection(inner, Math.min(anchorFlat, target), Math.max(anchorFlat, target));
+            } else {
+              // The caret's move (the plain key over a range collapses to
+              // the edge, the browser's stand).
+              restoreSelection(inner, target, null);
+            }
+            return;
+          }
+        }
+      }
+
       // A cross-block text range: the range operations own the keys —
       // shift+arrow/home/end move the selection's focus end (the browser
       // cannot extend a selection across a contenteditable boundary),
@@ -339,8 +390,11 @@ function useBlockInput({
             if (nextId !== undefined) {
               event.preventDefault();
               view.set({ kind: "blocks", ids: [nextId], anchorId: nextId });
-              const root = wrapperRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]');
-              root?.querySelector<HTMLElement>(`[data-block-id="${CSS.escape(nextId)}"]`)?.focus();
+              // The wrappers are not focusable over the span model (the
+              // mousedown's focus fallback would seat a caret over the
+              // blocks' view): the focus parks on the editor root when it
+              // stands outside the editor.
+              if (wrapperRef.current !== null) parkEditorFocus(wrapperRef.current);
             }
           }
         }
@@ -527,6 +581,32 @@ function useBlockInput({
         return;
       }
 
+      // Delete / Backspace over a non-collapsed in-block range: the
+      // command commits the deletion (one transact, the caret re-seats at
+      // the range's start). The native range deletion runs in the focus's
+      // context: over the shared page editable the focus can stand in the
+      // container (the programmatic focus cannot move into a nested
+      // editable), and the nested line-deletion then mutates the
+      // container's DOM (the inner's row) instead of the block's text.
+      if ((event.key === "Backspace" || event.key === "Delete") && !event.nativeEvent.isComposing) {
+        const rangeSelection = window.getSelection();
+        if (rangeSelection !== null && rangeSelection.rangeCount > 0 && !rangeSelection.isCollapsed) {
+          const range = rangeSelection.getRangeAt(0);
+          if (inner.contains(range.startContainer) && inner.contains(range.endContainer)) {
+            const anchor = caretOffsetIn(inner, range.startContainer, range.startOffset);
+            const focus = caretOffsetIn(inner, range.endContainer, range.endOffset);
+            const from = Math.min(anchor, focus);
+            const to = Math.max(anchor, focus);
+            if (from !== to) {
+              event.preventDefault();
+              doc.deleteText(id, from, to);
+              restoreSelection(inner, from, null);
+            }
+            return;
+          }
+        }
+      }
+
       if (event.key === "Backspace" && !event.nativeEvent.isComposing) {
         const domSelection = window.getSelection();
         if (domSelection === null || domSelection.rangeCount === 0 || !domSelection.isCollapsed) return;
@@ -546,17 +626,29 @@ function useBlockInput({
           }
           return; // inside the block: the input diff path handles it
         }
-        // The cell context: Backspace at the line start is a no-op — no
-        // merge with the previous in-cell paragraph and no exit.
-        if (inCell) return;
+        // The native line-backspace (a collapsed caret at the offset 0
+        // over the nested editable): the default action would mutate the
+        // page container's DOM (the block's row over the span model)
+        // outside the engine's writer — the no-op paths suppress it.
+        // The cell context: no merge with the previous in-cell paragraph
+        // and no exit.
+        if (inCell) {
+          event.preventDefault();
+          return;
+        }
         // A non-empty quote/callout/code never merges with the previous
         // block: the Backspace keeps deleting the block's own characters
         // (line breaks included) until it is empty, and the empty-block
         // gesture below then resets it to a paragraph.
-        if ((blockType === "quote" || blockType === "callout" || blockType === "code") && doc.getTextLength(id) > 0)
+        if ((blockType === "quote" || blockType === "callout" || blockType === "code") && doc.getTextLength(id) > 0) {
+          event.preventDefault();
           return;
+        }
         const merged = mergeWithPrevious(doc, id, context.parentId);
-        if (merged === null) return;
+        if (merged === null) {
+          event.preventDefault();
+          return;
+        }
         event.preventDefault();
         focusCaretIn(merged.blockId, merged.offset, editorRootOf(inner));
         return;

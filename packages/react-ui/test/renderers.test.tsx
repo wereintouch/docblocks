@@ -109,8 +109,10 @@ describe("block renderer registry", () => {
     const paragraphId = Object.keys(p).find((key) => p[key]?.type === "paragraph")!;
     const custom = screen.getByTestId("custom-paragraph");
     expect(custom.getAttribute("data-custom-id")).toBe(paragraphId);
-    // The built-in element is gone with it.
+    // The built-in element is gone with it (the page's container editable
+    // stands — the built-in's block-content inner is what is asserted
+    // absent, not any contenteditable of the page).
     expect(document.querySelector(`[data-block-id="${paragraphId}"]`)).toBeNull();
-    expect(document.querySelector("[contenteditable]")).toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/block-content"]')).toBeNull();
   });
 });

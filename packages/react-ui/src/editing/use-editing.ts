@@ -5,8 +5,16 @@ import type { Doc, Selection, SelectionView } from "docblocks-core";
 
 import { entrySequenceParent } from "../blocks";
 import { useEditorContext } from "../editor-provider";
-import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection, reseatHistorySelection } from "./block-commands";
+import {
+  ensureTrailingParagraph,
+  focusCaretIn,
+  moveSegmentInSequence,
+  removeBlocksSelection,
+  reseatHistorySelection,
+  segmentRange,
+} from "./block-commands";
 import { crossRangeClipboardContent, segmentOf } from "./cross-copy";
+import { containerCaretNeedsReseat, reseatContainerCaret } from "./page-surface";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
 import { useCrossDrag } from "./use-cross-drag";
 
@@ -41,7 +49,14 @@ function scheduleHistoryReseat(doc: Doc, view: SelectionView | null, root: HTMLD
   const unsubscribe = view.onChange((selection: Selection) => {
     if (!alive) return;
     if (selection.kind !== "text") return;
-    run();
+    // The frame's delay over the emit's read: the emit may be the
+    // transaction's rebase (the intermediate state the popped event's
+    // restoration overwrites in the same commit phase) — the frame stands
+    // the commit's settle, and the read gets the restored state, not the
+    // rebased residue (a residue seat lands at the block's edge over the
+    // pre-gesture's and outlives the watch's deadline).
+    if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => alive && run());
+    else window.setTimeout(() => alive && run(), 0);
   });
   window.setTimeout(() => {
     alive = false;
@@ -85,6 +100,31 @@ function useEditing(): EditingHandle {
       const root = rootRef.current;
       const view = selectionRef.view;
       if (root === null || view === null) return;
+      // The page container's own caret (the transient stand over a gap
+      // click / a remount residue): re-seat it into the nearest block's
+      // edge before the mapping reads it (the reseat's own selectionchange
+      // stands the mapping over the seated caret). Skipped over a `blocks`
+      // view (the blocks selection's caret is parked, not a stranded one —
+      // the reseat's inner landing would hand the mapping a text view
+      // clobbering the blocks' stand).
+      const pageContainer = root.querySelector<HTMLElement>("[data-slot='docblocks/page']");
+      const pageSelection = window.getSelection();
+      // The history's reseat window (the undo/redo's remount) owns the
+      // post-remount carets: the container's re-seat must not race it
+      // (its edge seat lands at the block's start while the history's
+      // seat is the pre-gesture's, and the late transient would clobber
+      // the corrected seat).
+      if (
+        pageContainer !== null &&
+        view.get().kind !== "blocks" &&
+        Date.now() >= selectionRef.reseatUntil.current &&
+        pageSelection !== null &&
+        pageSelection.isCollapsed &&
+        containerCaretNeedsReseat(pageContainer, pageSelection.anchorNode)
+      ) {
+        reseatContainerCaret(pageContainer, root, doc);
+        return;
+      }
       const next = mapDomSelection(root, window.getSelection(), doc);
       const current = view.get();
       // A `blocks` view (the gutter / canvas selection) has no DOM
@@ -110,6 +150,16 @@ function useEditing(): EditingHandle {
       // paths: the Escape, the editor's outside's focus, the gutter's
       // click's own set).
       if (next.kind !== "text" && Date.now() < selectionRef.reseatUntil.current) return;
+      // The history reseat's window suppresses the remount's transient text
+      // mapping too: the remount collapses the DOM selection to an
+      // element-position anchor (the inner's edge, the row) that maps as a
+      // text caret at the block's start and would clobber the restored
+      // seat. A text-node anchor is a live seat (the user's or the
+      // reseat's own) and stands.
+      if (next.kind === "text" && Date.now() < selectionRef.reseatUntil.current) {
+        const anchor = window.getSelection()?.anchorNode ?? null;
+        if (anchor === null || anchor.nodeType !== Node.TEXT_NODE) return;
+      }
       // The view emits even on no-op sets — only push a real change.
       if (!selectionsEqual(next, view.get())) view.set(next);
     };
@@ -186,6 +236,51 @@ function useEditing(): EditingHandle {
           event.preventDefault();
           view.set({ kind: "none" });
           return;
+        }
+        // mod+shift+arrow (the single block's derived segment's move): the
+        // shared page model's focus parks on the editor root (or stands on
+        // the page container), so the key's target stands one of them and
+        // the per-block inner's handler (the text row's stand) owns the
+        // descent from a wrapper / inner target — the root takes the move
+        // only over its own targets (no double fire over the inner's path).
+        if (root !== null) {
+          const pageContainer = root.querySelector<HTMLElement>("[data-slot='docblocks/page']");
+          const isOwnTarget = event.target === root || event.target === pageContainer;
+          if (
+            isOwnTarget &&
+            (event.metaKey || event.ctrlKey) &&
+            event.shiftKey &&
+            (event.key === "ArrowUp" || event.key === "ArrowDown") &&
+            selection.ids.length === 1 &&
+            selection.ids[0] !== undefined
+          ) {
+            const id = selection.ids[0]!;
+            const siblings = doc.getChildren(rootBlockId);
+            if (siblings.includes(id)) {
+              const segment = segmentRange(doc, rootBlockId, id);
+              if (segment !== null) {
+                const length = segment.end - segment.start;
+                const isSurface = (candidate: (typeof siblings)[number]): boolean =>
+                  doc.getBlock(candidate)?.type === "surface";
+                let target: number | null = null;
+                if (event.key === "ArrowUp") {
+                  let i = segment.start - 1;
+                  while (i >= 0 && isSurface(siblings[i]!)) i -= 1;
+                  if (i >= 0) target = i;
+                } else {
+                  let j = segment.end;
+                  while (j < siblings.length && isSurface(siblings[j]!)) j += 1;
+                  if (j < siblings.length) target = j + 1;
+                }
+                if (target !== null) {
+                  event.preventDefault();
+                  moveSegmentInSequence(doc, rootBlockId, segment.start, length, target);
+                  view.set({ kind: "blocks", ids: [id], anchorId: id });
+                  return;
+                }
+              }
+            }
+          }
         }
       }
     }

@@ -484,7 +484,16 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
   );
 
   return (
-    <div ref={frameRef} data-slot="docblocks/table-scroll" className="group relative my-(--docblocks-block-spacing)">
+    <div
+      ref={frameRef}
+      data-slot="docblocks/table-scroll"
+      // The island's boundary: the cell's editables sit behind this
+      // non-editable wrapper (the browser focuses the cell's own inner,
+      // the cell's keys stand their own handlers) and the table's chrome
+      // is out of the page's editable flow.
+      contentEditable={false}
+      className="group relative my-(--docblocks-block-spacing)"
+    >
       <div ref={scrollRef} className="scrollbar-thin [scrollbar-color:var(--border)_transparent] overflow-x-auto">
         <div className="relative w-max pt-5 pl-5" onPointerMove={onContentPointerMove} onPointerLeave={clearHover}>
           <table

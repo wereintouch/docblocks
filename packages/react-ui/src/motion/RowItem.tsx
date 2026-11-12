@@ -10,6 +10,7 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 
 import { BlockNodeView, FlatBlockView, indentOf, insertParagraphAfter, useBlockContext } from "../blocks";
 import { editorRootOf } from "../editing/dom-offset";
+import { parkEditorFocus } from "../editing/page-surface";
 import { useDeleteBlock } from "../editing/use-delete-block";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
@@ -103,9 +104,12 @@ const RowItem = memo(
         } else {
           view.set({ kind: "blocks", ids: [id], anchorId: id });
         }
-        // The row takes the focus: the selection keys (Delete/Backspace/
-        // Escape) bubble to the editor root's handler.
-        rowRef.current?.focus();
+        // The editor root's focus park (the selection keys' reach): only
+        // when the focus stands outside the editor — a focus move over the
+        // already-focused page container would blur it and the engine
+        // would collapse the selection to the editable's start (a text
+        // mapping clobbering the blocks' stand).
+        if (rowRef.current !== null) parkEditorFocus(rowRef.current);
       },
       [blockContext, doc, node.id, selectionRef]
     );
@@ -132,7 +136,13 @@ const RowItem = memo(
         data-slot="docblocks/row"
         data-selected={selected ? "true" : undefined}
         value={node.id}
-        tabIndex={0}
+        // No tabIndex: the row stands inside the page's single editable —
+        // a focusable row would stand the mousedown's focus fallback's
+        // landing over the button press (the browser focuses the nearest
+        // focusable ancestor when the button's focus default is
+        // suppressed), and a focus inside the editable seats a caret (the
+        // selection's mapping would then clobber the blocks' view). The
+        // row's keys stand over the container's focus (or the root's park).
         initial={animated ? ENTER : false}
         animate={ANIMATE}
         exit={EXIT}
@@ -181,6 +191,7 @@ const RowItem = memo(
             aria-label={t("row.selectBlock")}
             variant="ghost"
             size="icon"
+            contentEditable={false}
             onClick={onGutterClick}
             onMouseDown={onHandleMouseDown}
             // The left edge stands at the row's left step (the indent steps

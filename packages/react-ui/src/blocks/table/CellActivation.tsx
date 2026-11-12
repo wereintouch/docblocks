@@ -109,6 +109,12 @@ function CellActivation({ cellId }: { cellId: BlockId }) {
     // suppressed — the layer stays content-free until the first input).
     // An IME-composed Enter commits the candidate and flows to onInput.
     if (event.key === "Enter" && !event.nativeEvent.isComposing) event.preventDefault();
+    // Backspace is a no-op over the layer (nothing to delete): the native
+    // line-backspace crosses the editable boundary over the shared page
+    // ancestor and seats the caret in the container's position, where the
+    // input guard swallows the next character. The suppression keeps the
+    // seat in the layer.
+    if (event.key === "Backspace") event.preventDefault();
   };
 
   return (

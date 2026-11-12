@@ -14,9 +14,10 @@ import {
 } from "./blocks";
 import type { FlatNode } from "./blocks";
 import { EnumOptionsMotionSlot } from "./database";
-import { CrossSelectionOverlay } from "./editing/CrossSelectionOverlay";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "./editing/mention";
+import { PageSurfaceProvider, usePageSurfaceDispatch } from "./editing/page-surface";
+import type { PageSurfaceHandlersMap } from "./editing/page-surface";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/use-editing";
 import { useEditorContext } from "./editor-provider";
@@ -66,6 +67,16 @@ interface EditorProps {
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
   const { doc, store, rootBlockId, viewMode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
+  const pageRef = useRef<HTMLDivElement | null>(null);
+  // The page surface's handlers map (the container dispatch's source +
+  // the per-block registration's target — one map per editor instance,
+  // identity-stable; the dispatch binding and the provider read the same
+  // map, the dispatch hook running outside the provider's subtree).
+  const surfaceMapRef = useRef<PageSurfaceHandlersMap | null>(null);
+  if (surfaceMapRef.current === null) surfaceMapRef.current = new Map();
+  // The page surface's container-level dispatch (the single page
+  // editable's keys/inputs target the container, not the blocks' inners).
+  const surface = usePageSurfaceDispatch(pageRef, doc, surfaceMapRef.current);
   // The sequence-structure stamp (the derivation's key): a text-only edit
   // stands nothing here — the edited row re-renders through its own
   // subscription, the row list and the rows' framer fibers stand.
@@ -189,33 +200,42 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                     // padding (the gutter band stands inside the column, so
                     // the grip follows the content's edge, not the
                     // viewport's). The canvas view owns its own viewport and
-                    // is unpadded.
-                    <div
-                      data-slot="docblocks/page"
-                      className="
-                        mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
-                      "
-                    >
-                      <RowList
-                        order={order}
-                        nodesById={nodesById}
-                        layoutSlide={layoutSlide || draggingKey !== null}
-                        draggingKey={draggingKey}
-                        previewIndent={previewIndent}
-                        animated={enterGate.current}
-                        onReorder={onRowReorder}
-                        onDragStart={onRowDragStart}
-                        onDragMove={onRowDragMove}
-                        onDragEnd={onRowDragEnd}
-                      />
-                    </div>
+                    // is unpadded. The container is the page's single
+                    // editable (the edit's mode): the native selection
+                    // crosses the blocks' boundaries natively over every
+                    // engine (the WebKit family's cross-editable's clamp
+                    // stands between sibling editables only) — the
+                    // per-block handlers stand dispatched over the surface
+                    // registry (the container's target's stand).
+                    <PageSurfaceProvider map={surfaceMapRef.current}>
+                      <div
+                        ref={pageRef}
+                        data-slot="docblocks/page"
+                        contentEditable={!viewMode}
+                        suppressContentEditableWarning
+                        onKeyDown={surface.onKeyDown}
+                        onInput={surface.onInput}
+                        onPaste={surface.onPaste}
+                        className="
+                          mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
+                        "
+                      >
+                        <RowList
+                          order={order}
+                          nodesById={nodesById}
+                          layoutSlide={layoutSlide || draggingKey !== null}
+                          draggingKey={draggingKey}
+                          previewIndent={previewIndent}
+                          animated={enterGate.current}
+                          onReorder={onRowReorder}
+                          onDragStart={onRowDragStart}
+                          onDragMove={onRowDragMove}
+                          onDragEnd={onRowDragEnd}
+                        />
+                      </div>
+                    </PageSurfaceProvider>
                   )}
-                  {viewMode ? null : (
-                    <>
-                      <CrossSelectionOverlay rootRef={rootRef} />
-                      <PresenceCaretOverlay rootRef={rootRef} />
-                    </>
-                  )}
+                  {viewMode ? null : <PresenceCaretOverlay rootRef={rootRef} />}
                 </BlockContext.Provider>
               </FormatPaletteContext.Provider>
             </SlashMenuContext.Provider>

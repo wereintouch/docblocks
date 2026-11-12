@@ -77,6 +77,7 @@ function FramePageBlock({ id }: { id: BlockId }) {
         data-slot="docblocks/frame-page-missing"
         data-block-type="frame"
         data-block-id={id}
+        contentEditable={false}
         className="
           mx-0 my-(--docblocks-block-spacing) rounded-(--docblocks-radius)
           border-(length:--docblocks-table-border-width) border-dashed border-(--docblocks-table-border-color)
@@ -160,6 +161,9 @@ function FramePageWindow({
       data-block-id={id}
       tabIndex={0}
       onMouseDown={preventDefault}
+      // The island's boundary: the window's content (the clipped surface's
+      // copy) is out of the page's editable flow.
+      contentEditable={false}
       className="
         my-(--docblocks-block-spacing) outline-none
         focus-visible:outline-(length:--docblocks-canvas-selection-border-width) focus-visible:outline-offset-1

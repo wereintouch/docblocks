@@ -122,7 +122,12 @@ function CalloutBlockMenu({ id, block }: CalloutBlockMenuProps) {
   }
 
   return (
-    <span data-slot="docblocks/callout-icon" className="absolute flex items-center justify-center" style={iconStyle}>
+    <span
+      data-slot="docblocks/callout-icon"
+      className="absolute flex items-center justify-center"
+      style={iconStyle}
+      contentEditable={false}
+    >
       <Popover
         modal={false}
         open={menuOpen}

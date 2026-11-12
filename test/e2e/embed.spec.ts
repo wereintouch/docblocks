@@ -487,7 +487,9 @@ test("a text's press after the iframe's focus stands the focus's move out of the
   // A single press over a text inner: the focus's move out of the frame
   // stands (the mousedown's default — the editor's mousedown suppression
   // would leave the document unfocused: the caret's seat over the unfocused
-  // document, no visible caret, the keys' no-stand).
+  // document, no visible caret, the keys' no-stand). The focus lands in
+  // the editor (the shared page container or the inner — the span model's
+  // focus stand), and the caret seats in the inner.
   const inner = page.locator('[data-slot="docblocks/block-content"]').first();
   await inner.click();
   await expect
@@ -496,7 +498,8 @@ test("a text's press after the iframe's focus stands the focus's move out of the
         page.evaluate(
           () =>
             document.activeElement instanceof HTMLElement &&
-            document.activeElement.closest('[data-slot="docblocks/block-content"]') !== null
+            (document.activeElement.closest('[data-slot="docblocks/block-content"]') !== null ||
+              document.activeElement.closest('[data-slot="docblocks/page"]') !== null)
         ),
       SETTLE
     )

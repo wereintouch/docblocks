@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, twoPanes } from "./helpers";
+import { SETTLE, caretIn, twoPanes } from "./helpers";
 
 const FIXTURE = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
 
@@ -91,18 +91,11 @@ test("the delete key over the selected image converts it to an empty paragraph (
   await expect.poll(async () => blockTypeInDoc(a, "a", imageId), SETTLE).toBe("paragraph");
   await expect.poll(async () => blockTypeInDoc(b, "b", imageId), SETTLE).toBe("paragraph");
 
-  // The caret seats in the survivor's inner (the converted paragraph).
+  // The caret seats in the survivor's inner (the converted paragraph —
+  // the shared page container is the focused element, the caret's seat is
+  // the live selection's).
   await expect
-    .poll(
-      async () =>
-        a.evaluate((id) => {
-          const inner = document.querySelector<HTMLElement>(
-            `[data-block-id="${id}"][data-slot="docblocks/block-content"]`
-          );
-          return inner !== null && document.activeElement === inner;
-        }, imageId),
-      SETTLE
-    )
+    .poll(() => caretIn(a, `[data-block-id="${imageId}"][data-slot="docblocks/block-content"]`), SETTLE)
     .toBe(true);
 
   // Typing now edits the paragraph (the image is gone from the data).

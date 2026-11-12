@@ -208,12 +208,14 @@ test("an invalid diagram keeps no svg and shows the error state", async ({ brows
   const blockA = mermaidBlock(a, "a");
 
   // Replace the seed with an incomplete diagram IN THE CODE MODE (the
-  // editable stands there): select-all, delete (the DOM input diff commits
-  // the empty text), then paste the invalid text (the multi-line input
-  // route for code blocks, see pastePlainText).
+  // editable stands there): the triple press's whole-block selection, the
+  // delete (the DOM input diff commits the empty text), then paste the
+  // invalid text (the multi-line input's route for code blocks, see
+  // pastePlainText). The Ctrl+A stands no block scope over the shared
+  // page's editable (the whole document's selection), so the block's
+  // clear stands the product's triple press.
   const inner = blockA.locator('[data-slot="docblocks/block-content"]');
-  await inner.click();
-  await a.keyboard.press("ControlOrMeta+a");
+  await inner.click({ clickCount: 3 });
   await a.keyboard.press("Backspace");
   await pastePlainText(a, "graph TD\n A -->");
 
