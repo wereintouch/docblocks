@@ -19,6 +19,7 @@ import type { Doc } from "docblocks-core";
 import { entrySequenceParent } from "../blocks";
 import type { FlatNode } from "../blocks";
 import { segmentRange } from "../editing/block-commands";
+import { caretOffsetIn, restoreSelection, textBlockOfNode } from "../editing/dom-offset";
 import type { EditorStore } from "../state";
 import { SLIDE_SETTLE_MS } from "./constants";
 import { type DropRow, clampTailSeatCrossing, commitFlatDrag, dropCandidateIndent, sameIds } from "./reorder";
@@ -56,6 +57,15 @@ function useMotionDrag({
   // session's start — the pointermove's seam pass stands the session's stand,
   // the container is invariant over the drag: no structural commit mid-drag).
   const entryContainerRef = useRef<{ rootBlockId: BlockId; value: BlockId } | null>(null);
+  // A drag move actually ran (framer's onDrag fired): the release's
+  // browser click (down and up over the same element) is then a drop,
+  // not a gutter click, and the release's click guard suppresses it.
+  const movedRef = useRef(false);
+  // The user's text seat over the drag start (the release restores it —
+  // the browser's release over the drag's non-editable chrome would
+  // otherwise collapse the selection to the page container and the
+  // container's reseat would land the caret at the nearest block start).
+  const preDragSeatRef = useRef<{ blockId: BlockId; from: number; to: number | null } | null>(null);
 
   /**
    * Keep the layout slide armed for the settle window after a drag or a
@@ -172,9 +182,53 @@ function useMotionDrag({
     [doc, nodesById, rootBlockId, rootRef]
   );
 
-  /** The row's drag start: the slide arms, the row lifts (the zIndex), the entry's container resolves (the session's stand). */
+  /**
+   * The row's drag start: the slide arms, the row lifts (the zIndex),
+   * the entry's container resolves (the session's stand), the user's
+   * text seat captures (the release's restore input), and the release's
+   * click guard arms — it must stand at the drag's START (not the end):
+   * the browser fires the release's click before framer delivers
+   * onDragEnd, so a guard installed at the end misses it. The guard lets
+   * a plain click through (no drag move ran) and suppresses the release
+   * of a moved drag over non-text chrome: the click's default would
+   * collapse the document's selection to the drop point (the caret's
+   * jump out of the user's text block), and the gutter's handler would
+   * stand a residual blocks selection (the row's highlight) over a
+   * gesture that is a drop, not a click. A release over a text inner is
+   * not suppressed (the native click's caret seat there is the user's
+   * drop gesture, and the restore's guard keeps it).
+   */
   const onRowDragStart = useCallback(
     (id: BlockId) => {
+      movedRef.current = false;
+      const selection = window.getSelection();
+      let seat: { blockId: BlockId; from: number; to: number | null } | null = null;
+      if (selection !== null && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const anchorInner = textBlockOfNode(range.startContainer);
+        const focusInner = textBlockOfNode(range.endContainer);
+        // One inner only: a cross-inner range is the cross-drag's own
+        // gesture contract, not a drag-reorder's restore target.
+        if (anchorInner !== null && anchorInner === focusInner) {
+          const blockId = anchorInner.dataset.blockId;
+          if (blockId !== undefined) {
+            const from = caretOffsetIn(anchorInner, range.startContainer, range.startOffset);
+            const to = selection.isCollapsed ? null : caretOffsetIn(anchorInner, range.endContainer, range.endOffset);
+            seat = { blockId, from, to };
+          }
+        }
+      }
+      preDragSeatRef.current = seat;
+      const suppress = (click: Event) => {
+        if (!movedRef.current) return;
+        const target = click.target instanceof Element ? click.target : null;
+        if (target !== null && target.closest('[data-slot="docblocks/block-content"]') !== null) return;
+        movedRef.current = false;
+        click.preventDefault();
+        click.stopPropagation();
+      };
+      window.addEventListener("click", suppress, { capture: true, once: true });
+      window.setTimeout(() => window.removeEventListener("click", suppress, true), 2000);
       armSlide();
       setDraggingKey(id);
       setPreviewIndent(null);
@@ -191,6 +245,7 @@ function useMotionDrag({
    */
   const onRowDragMove = useCallback(
     (id: BlockId, event: PointerEvent | MouseEvent | TouchEvent) => {
+      movedRef.current = true;
       const pointerY = pointerYOf(event);
       if (pointerY === null) return;
       const candidate = seamCandidateAt(id, pointerY);
@@ -211,12 +266,46 @@ function useMotionDrag({
    */
   const onRowDragEnd = useCallback(
     (id: BlockId, event: PointerEvent | MouseEvent | TouchEvent) => {
+      movedRef.current = false;
       armSlide();
       setDraggingKey(null);
-      // Park the focus on the editor root (the gesture's contract — like
-      // the gutter's delete): the undo / redo hotkeys stay reachable after
-      // the release (the drag's pointer capture leaves the focus on body).
-      rootRef.current?.focus({ preventScroll: true });
+      // The user's seat restore (or the root's focus park): synchronous
+      // over the release, ahead of the commit's early returns — a no-op
+      // or stale drop still restores the seat (the browser's release
+      // over the drag's chrome collapses the selection either way). A
+      // frame-deferred restore raced the container's own reseat (the
+      // release's collapse seats the caret at the nearest block start
+      // first, and the restore's live-seat guard mistook the reseat for
+      // the user's drop). Synchronous: the restore precedes the release's
+      // native click seat (a drop over a text inner still wins — the
+      // click's caret seat is the newer one) and overwrites the
+      // reseat's nearest-start seat (the user's seat is the newer one).
+      const seat = preDragSeatRef.current;
+      preDragSeatRef.current = null;
+      if (seat !== null) {
+        const scope = rootRef.current ?? document;
+        const inner =
+          Array.from(
+            scope.querySelectorAll<HTMLElement>(
+              `[data-block-id="${CSS.escape(seat.blockId)}"][data-slot="docblocks/block-content"]`
+            )
+          ).find((candidate) => !candidate.closest('[data-slot="docblocks/frame-window-content"]')) ?? null;
+        // The focus over the restore (the house pattern): a focus after
+        // the selection's write would reseat the caret over it. The seat's
+        // block vanished over the drag (a peer's delete) — the park stands.
+        if (inner !== null && inner.isConnected) {
+          inner.focus();
+          restoreSelection(inner, seat.from, seat.to);
+        } else {
+          rootRef.current?.focus({ preventScroll: true });
+        }
+      } else {
+        // Park the focus on the editor root (the gesture's contract — like
+        // the gutter's delete): the undo / redo hotkeys stay reachable
+        // after the release (the drag's pointer capture leaves the focus
+        // on body).
+        rootRef.current?.focus({ preventScroll: true });
+      }
       const pointerY = pointerYOf(event);
       setPreviewIndent(null);
       if (pointerY === null) return; // a stale release measurement — the resync stands

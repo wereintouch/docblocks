@@ -8,7 +8,7 @@
 // rows) issue no command.
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, outCount, twoPanes } from "./helpers";
+import { SETTLE, caretIn, insertBlockType, outCount, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -186,9 +186,11 @@ test("the drag's release parks the focus on the editor root with no visible ring
   if (handleBox === null) throw new Error("the first wrapper's gutter has no box");
   await dragGutterTo(a, "a", 0, handleBox.x, handleBox.y + 4);
 
-  // The gesture's contract: the release parks the focus on the editor
-  // root (the keyboard's input stays scoped over the editor after the
-  // pointer capture leaves it on body).
+  // The gesture's contract over the no-seat release (the drag's press
+  // stood over no text selection): the focus parks on the editor root
+  // (the keyboard's input stays scoped over the editor after the pointer
+  // capture leaves it on body). A release over a captured text seat
+  // restores the seat instead (the release's restore test below).
   await expect(a.locator('[data-slot="docblocks/editor"]').first()).toBeFocused();
 
   // The park is programmatic (the root's tabIndex -1 — no Tab focus): the
@@ -200,6 +202,54 @@ test("the drag's release parks the focus on the editor root with no visible ring
     .first()
     .evaluate((el) => getComputedStyle(el).outlineStyle);
   expect(outlineStyle).toBe("none");
+
+  await close();
+});
+
+test("the drag's release restores the user's text seat and leaves no residual selection", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "drag-release-seat");
+
+  await expect(wrappers(a, "a")).toHaveCount(1);
+  await insertBlockType(a, "a", "paragraph");
+  await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
+  await a.keyboard.type("one");
+  await insertBlockType(a, "a", "paragraph");
+  await currentWrapper(a, "a").locator('[data-slot="docblocks/block-content"]').first().click();
+  await a.keyboard.type("two");
+  await expect(wrappers(a, "a")).toHaveCount(3);
+
+  // The user's caret stands in the first block (the starter — the drag's
+  // neighbor, not the dragged row).
+  const seatWrapper = wrappers(a, "a").nth(0);
+  const seatId = await wrapperId(a, "a", 0);
+  expect(seatId).not.toBe("");
+  const [otherIdA, otherIdB] = [await wrapperId(a, "a", 1), await wrapperId(a, "a", 2)];
+  const textsBefore = await Promise.all([otherIdA, otherIdB].map((id) => rowOf(a, id).innerText()));
+  await seatWrapper.locator('[data-slot="docblocks/block-content"]').first().click();
+
+  // Drag the last block above the seat (the release stands over the
+  // page's top chrome — a non-text drop point).
+  const handleBox = await gutter(a, "a", 2).boundingBox();
+  const seatBox = await seatWrapper.boundingBox();
+  if (handleBox === null || seatBox === null) throw new Error("the drag's boxes are absent");
+  await dragGutterTo(a, "a", 2, handleBox.x, seatBox.y - 14);
+  await a.waitForTimeout(500);
+
+  // The release's browser click is a drop, not a gutter click: no
+  // residual blocks selection (the row's highlight).
+  await expect(a.locator('[data-slot="docblocks/row"][data-selected="true"]')).toHaveCount(0);
+
+  // The caret restored to the user's seat (the block's inner — not the
+  // page container's edge, where the browser's release over the drag's
+  // chrome would collapse it).
+  expect(await caretIn(a, `[data-block-id="${seatId}"][data-slot="docblocks/block-content"]`)).toBe(true);
+
+  // The seat is live: the next input lands in the seat's block (the
+  // click's seat offset, not the end — the other blocks stand).
+  await a.keyboard.type("!");
+  const textsAfter = [await rowOf(a, otherIdA).innerText(), await rowOf(a, otherIdB).innerText()];
+  expect(textsAfter).toEqual(textsBefore);
+  expect((await rowOf(a, seatId).innerText()).includes("!")).toBe(true);
 
   await close();
 });
