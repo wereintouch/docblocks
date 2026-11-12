@@ -207,6 +207,8 @@ const entry = await import("docblocks-react-ui");
 const mermaid = await import("docblocks-react-ui/mermaid");
 const pdf = await import("docblocks-react-ui/pdf");
 if (typeof entry.Editor !== "function") throw new Error("the base entry did not export the Editor");
+if (typeof entry.DocblocksI18nProvider !== "function")
+  throw new Error("the base entry did not export the DocblocksI18nProvider");
 if (typeof mermaid.MermaidCodeRenderer !== "function")
   throw new Error("the mermaid subpath did not export the renderer");
 if (typeof pdf.PdfFirstPage !== "function") throw new Error("the pdf subpath did not export the preview");

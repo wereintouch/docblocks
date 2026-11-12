@@ -550,11 +550,40 @@ and pan are view state — they never reach the document.
 ### Localization
 
 The editor's UI strings ship localized (en + ru). The language is
-consumer-driven — the package reads the `<html lang>` attribute (the `ru*`
-prefix stands the Russian stand; the absent / unknown language falls back
+consumer-driven: by default the package reads the `<html lang>` attribute
+(the `ru*` prefix picks Russian; the absent / unknown language falls back
 to English) and follows the attribute's change at runtime (the editor
-re-renders over the flip). There is no `locale` prop — the document's
-language is the consumer's, set on `<html>`.
+re-renders over the flip).
+
+**Controlled locale (SSR / hydration).** For server-rendered consumers
+the `<html lang>` read is unavailable on the server, so the server render
+would take English while the first client render takes the browser's
+language — a hydration mismatch for any `ru` document. The
+`DocblocksI18nProvider` accepts an optional `locale` prop that pins the
+subtree's language explicitly (the consumer passes its own resolved
+locale — the same value on the server and the first client render):
+
+```tsx
+import { DocblocksI18nProvider } from "docblocks-react-ui";
+
+<DocblocksI18nProvider locale={locale}>{/* the header + the editor */}</DocblocksI18nProvider>;
+```
+
+- The passed locale is normalized over the same rules as the attribute
+  read: `ru*` → `ru`, `en*` / unknown / empty → `en`.
+- A nested `DocblocksI18nProvider` without a `locale` inherits the
+  outer's instance — the package's internal scopes (`DocHeader`,
+  `EditorProvider`, the standalone `DatabaseTable`) keep the consumer's
+  locale without threading it through each component.
+- The controlled mode runs its own `i18next` instance (one per provider,
+  keyed by the normalized locale — a locale change selects the new
+  instance and re-renders the subtree). It never mutates the legacy
+  attribute-driven instance and never touches the consumer's global
+  `i18next`, so concurrent subtrees over different locales stay
+  isolated. The locale is UI state only — it never reaches the document,
+  the CRDT, or the transport.
+- Outside a controlled provider, the provider without a `locale` keeps
+  the attribute-driven behavior above.
 
 The package runs its **own** `i18next` instance (the shipped catalogs,
 `i18next` + `react-i18next` are runtime dependencies) under the

@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 import { cleanup, render, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { hydrateRoot } from "react-dom/client";
+import { renderToString } from "react-dom/server";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { act } from "react";
 
 import { createDoc } from "docblocks-core";
 
+import { DocHeader } from "../src/DocHeader";
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
-import { docblocksI18n, resolveDocblocksLang } from "../src/i18n";
+import { DocblocksI18nProvider, docblocksI18n, resolveDocblocksLang } from "../src/i18n";
 // The shipped catalogs (the parity's stand: the en/ru key sets must match,
 // and every value stands a non-empty string — the consumer renders the
 // language over the <html lang> attribute, the catalogs are the only
@@ -141,6 +146,66 @@ describe("the editor's chrome over the language", () => {
         expect(document.querySelector('[data-slot="docblocks/gutter-plus"]')?.getAttribute("aria-label")).toBe(
           "Add block below"
         ),
+      { timeout: 3000 }
+    );
+  });
+});
+
+describe("the controlled locale's provider (the hydration's parity + the inheritance)", () => {
+  it("the SSR's markup and the hydration's render agree over the same locale (no hydration mismatch)", async () => {
+    const doc = createDoc({ id: "doc-i18n-hydration", createdAt: CREATED_AT });
+    const element = (
+      <DocblocksI18nProvider locale="ru">
+        <DocHeader view="page" onViewChange={() => {}} doc={doc} />
+      </DocblocksI18nProvider>
+    );
+    const markup = renderToString(<div id="rb">{element}</div>);
+    document.body.innerHTML = markup;
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await act(async () => {
+        hydrateRoot(document.getElementById("rb")!, element);
+      });
+    } finally {
+      errorSpy.mockRestore();
+    }
+    expect(document.querySelector('[aria-label="Вид документа"]')).not.toBeNull();
+    expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("the nested uncontrolled provider inherits the outer's locale over the opposite <html lang>", async () => {
+    document.documentElement.lang = "ru";
+    const doc = createDoc({ id: "doc-i18n-inherit", createdAt: CREATED_AT });
+    render(
+      <DocblocksI18nProvider locale="en">
+        <DocblocksI18nProvider>
+          <DocHeader view="page" onViewChange={() => {}} doc={doc} />
+        </DocblocksI18nProvider>
+      </DocblocksI18nProvider>
+    );
+    await waitFor(() =>
+      expect(document.querySelector('[aria-label="Document view"]'), "the en's inheritance").not.toBeNull()
+    );
+  });
+
+  it("the locale's prop change at runtime re-renders the subtree over the new instance", async () => {
+    const doc = createDoc({ id: "doc-i18n-runtime", createdAt: CREATED_AT });
+    const view = render(
+      <DocblocksI18nProvider locale="ru">
+        <DocHeader view="page" onViewChange={() => {}} doc={doc} />
+      </DocblocksI18nProvider>
+    );
+    await waitFor(
+      () => expect(document.querySelector('[aria-label="Вид документа"]'), "the ru's initial").not.toBeNull(),
+      { timeout: 3000 }
+    );
+    view.rerender(
+      <DocblocksI18nProvider locale="en">
+        <DocHeader view="page" onViewChange={() => {}} doc={doc} />
+      </DocblocksI18nProvider>
+    );
+    await waitFor(
+      () => expect(document.querySelector('[aria-label="Document view"]'), "the en's re-render").not.toBeNull(),
       { timeout: 3000 }
     );
   });
