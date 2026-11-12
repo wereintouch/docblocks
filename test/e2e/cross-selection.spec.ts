@@ -690,6 +690,13 @@ test("a mouse drag composes the cross selection (and the in-block drag stands)",
     () => document.activeElement?.closest?.("[data-block-id]")?.getAttribute("data-block-id") ?? ""
   );
   expect([first.id, second.id]).toContain(activeBlock);
+  // The clamped engine (the webkit project — the WebKit engine keeps the
+  // selection's highlight inside the anchor editable) draws the far block's
+  // overlay box; the crossing engines (chromium / firefox) stand no box
+  // (the native highlight crosses — no double highlight).
+  const rootA = a.locator('[data-slot="docblocks/editor"]').first();
+  const overlayCount = test.info().project.name === "webkit" ? 1 : 0;
+  await expect(rootA.locator('[data-slot="docblocks/selection-segment"]')).toHaveCount(overlayCount);
 
   // The delete of the dragged range removes the covered text over the
   // wire: the endpoint blocks keep their uncovered parts (block 1 the

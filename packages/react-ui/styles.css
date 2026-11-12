@@ -48,6 +48,7 @@
  * docblocks/block-content, docblocks/gutter, docblocks/list,
  * docblocks/list-item, docblocks/nested, docblocks/placeholder,
  * docblocks/presence-caret, docblocks/presence-range,
+ * docblocks/selection-segment,
  * docblocks/quote-rule,
  * docblocks/slash-menu,
  * docblocks/database-cell,
@@ -282,6 +283,11 @@
   --docblocks-presence-caret-saturation: 70%;
   --docblocks-presence-caret-lightness: 45%;
   --docblocks-presence-range-opacity: 0.25;
+
+  /* The own cross-block selection's overlay segments (the clamped engine's
+   * stand — the engine's default selection's blue; the selection's color is
+   * engine-owned, so no standard token maps to it). */
+  --docblocks-own-selection-background: rgba(18, 126, 217, 0.35);
 }
 
 /*

@@ -14,6 +14,7 @@ import {
 } from "./blocks";
 import type { FlatNode } from "./blocks";
 import { EnumOptionsMotionSlot } from "./database";
+import { CrossSelectionOverlay } from "./editing/CrossSelectionOverlay";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { MentionMenuContext, useMentionMenu } from "./editing/mention";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
@@ -209,7 +210,12 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                       />
                     </div>
                   )}
-                  {viewMode ? null : <PresenceCaretOverlay rootRef={rootRef} />}
+                  {viewMode ? null : (
+                    <>
+                      <CrossSelectionOverlay rootRef={rootRef} />
+                      <PresenceCaretOverlay rootRef={rootRef} />
+                    </>
+                  )}
                 </BlockContext.Provider>
               </FormatPaletteContext.Provider>
             </SlashMenuContext.Provider>
