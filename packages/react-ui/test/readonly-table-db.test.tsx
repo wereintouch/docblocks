@@ -54,6 +54,36 @@ describe("the table's read-only stand (the view / published's modes)", () => {
     expect(container.querySelector('[data-slot="docblocks/gutter"]')).toBeNull();
   });
 
+  it("the read-only's empty cell renders the height's placeholder (the edit's minimum row height's parity; no activation layer)", () => {
+    const doc = createDoc({ id: "doc-rt-1b", createdAt: CREATED_AT });
+    const tableId = doc.insertBlock("table", { cols: 2 });
+    const rowId = doc.insertBlock("table-row", undefined, { parent: tableId });
+    doc.insertBlock("table-cell", undefined, { parent: rowId });
+    const { container } = render(
+      <EditorProvider doc={doc} mode="view">
+        <Editor />
+      </EditorProvider>
+    );
+    const placeholder = container.querySelector('[data-slot="docblocks/cell-empty"]');
+    expect(placeholder, "the placeholder should render").not.toBeNull();
+    expect(placeholder?.textContent).toBe("\u200b");
+    expect(container.querySelector('[data-slot="docblocks/cell-activation"]')).toBeNull();
+
+    // The edit's mode parity: the activation layer renders, the placeholder
+    // does not.
+    const doc2 = createDoc({ id: "doc-rt-1c", createdAt: CREATED_AT });
+    const tableId2 = doc2.insertBlock("table", { cols: 2 });
+    const rowId2 = doc2.insertBlock("table-row", undefined, { parent: tableId2 });
+    doc2.insertBlock("table-cell", undefined, { parent: rowId2 });
+    const { container: editContainer } = render(
+      <EditorProvider doc={doc2}>
+        <Editor />
+      </EditorProvider>
+    );
+    expect(editContainer.querySelector('[data-slot="docblocks/cell-activation"]')).not.toBeNull();
+    expect(editContainer.querySelector('[data-slot="docblocks/cell-empty"]')).toBeNull();
+  });
+
   it("stands the editable's stand over the edit's mode (the add chips' parity)", () => {
     const doc = createDoc({ id: "doc-rt-2", createdAt: CREATED_AT });
     doc.insertBlock("table");

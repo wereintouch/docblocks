@@ -20,9 +20,11 @@
  *
  * The row/column handles: hovering a cell reveals the column handle (above
  * the column) and the row handle (left of the row). A press and drag
- * reorders (the live preview is a transform on the dragged row/cell; the
- * release commits moveTableRow / moveTableColumn — one command; a stale
- * drop issues none). A press without a drag opens the handle's menu (the
+ * reorders (the live preview is a transform on the dragged row/column's
+ * cells — the `<tr>` is not a CSS transformable element — with the card's
+ * background over the uncolored cells; the release commits moveTableRow /
+ * moveTableColumn — one command; a stale drop issues none). A press without
+ * a drag opens the handle's menu (the
  * background color palette with the conditional remove, insert / move /
  * duplicate / clear / delete). The add-row / add-column chips
  * (hover/focus-revealed, like the code header's controls) drive the core's

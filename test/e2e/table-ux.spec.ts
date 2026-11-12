@@ -594,15 +594,19 @@ test("the row drag moves the row over the wire (B); the parting preview stands m
     await a.mouse.move(startX, startY);
     await a.mouse.down();
     // Past row 1's midpoint (the landing boundary crossed): the dragged
-    // row follows the pointer, row 1 stands shifted up.
+    // row's cells follow the pointer (the row's drag applies over the
+    // cells — the `<tr>` is not a CSS transformable element), row 1's
+    // cells shift up.
     await a.mouse.move(startX, startY + (targetY - startY) * 0.95, { steps: 6 });
     await a.waitForTimeout(300);
     const midStands = await a.evaluate(() => {
       const table = document.querySelector<HTMLTableElement>('table[data-slot="docblocks/table"]');
-      return Array.from(table!.querySelectorAll<HTMLElement>("tbody > tr")).map((tr) => tr.style.transform);
+      return Array.from(table!.querySelectorAll<HTMLTableRowElement>("tbody > tr")).map(
+        (tr) => tr.querySelector<HTMLTableCellElement>("td")?.style.transform ?? ""
+      );
     });
-    expect(midStands[0]).toMatch(/translateY\((\d+(\.\d+)?px)\)/);
-    expect(midStands[1]).toMatch(/translateY\(-\d+(\.\d+)?px\)/);
+    expect(midStands[0]).toMatch(/translate\(0px, \d+(\.\d+)?px\)/);
+    expect(midStands[1]).toMatch(/translate\(0px, -\d+(\.\d+)?px\)/);
     // No doc write mid-drag: the wire count stands.
     expect(await outCount(a, "a")).toBe(outBefore);
     await a.mouse.move(startX, targetY, { steps: 4 });

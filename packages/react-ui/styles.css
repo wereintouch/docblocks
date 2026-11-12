@@ -218,6 +218,12 @@
   --docblocks-table-border-color: var(--border, rgba(175, 184, 193, 0.4));
   --docblocks-table-border-width: 1px;
   --docblocks-table-cell-padding: 4px 8px;
+  /* The dragged row / column's cell (the drag preview's card): the
+     elevated surface's background + the shadow — the card must read on
+     every theme's background (the monochrome theme's card / the page's
+     colors do not differ). */
+  --docblocks-table-drag-background: var(--card, #ffffff);
+  --docblocks-table-drag-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   /* The database grid's standard row height (the fixed row track: every
      column type stands the one height — the cell's trigger / the input fit
      the content box, the row never grows over its content). */
@@ -316,6 +322,8 @@
   --docblocks-code-token-variable: #ffa657;
   --docblocks-divider-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-table-border-color: var(--border, rgba(110, 118, 129, 0.65));
+  --docblocks-table-drag-background: var(--card, #27272a);
+  --docblocks-table-drag-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
 
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #6e7681) 15%, transparent);

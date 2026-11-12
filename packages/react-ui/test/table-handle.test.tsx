@@ -345,6 +345,50 @@ describe("the handle drag (the press-drag-release commits the move)", () => {
     fireEvent.pointerUp(rowHandle(0), { clientX: 40, clientY: 60, pointerId: 1 });
   });
 
+  it("the mid-drag preview transforms the dragged column's cells (the tr carries none) and cards the dragged cell", () => {
+    renderTableDoc(3, 3, [120, 140, 90]);
+    // The column drag (the pointer's 100 px right): the dragged column's
+    // cells follow the pointer with the card's background (the empty cell's
+    // move must read), the stationary column's cells take the parting shift
+    // (the transition, no card), and the tr carries no transform (the tr
+    // is not a CSS transformable element).
+    fireEvent.pointerDown(colHandle(0), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+    const draggedCell = cellAt(0, 0);
+    expect(draggedCell.style.transform).toBe("translate(100px, 0px)");
+    expect(draggedCell.style.background).toContain("--docblocks-table-drag-background");
+    expect(draggedCell.style.boxShadow).toContain("--docblocks-table-drag-shadow");
+    expect(draggedCell.style.zIndex).toBe("10");
+    const shiftedCell = cellAt(0, 1);
+    expect(shiftedCell.style.transform).toBe("translate(-120px, 0px)");
+    expect(shiftedCell.style.transition).toContain("transform");
+    expect(shiftedCell.style.background).toBe("");
+    for (const tr of document.querySelectorAll<HTMLTableRowElement>("tbody > tr")) {
+      expect(tr.style.transform).toBe("");
+    }
+    fireEvent.pointerUp(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+    // The preview clears on the release (the commit's re-render keeps the
+    // fresh geometry, no residual transform).
+    expect(cellAt(0, 0).style.transform).toBe("");
+  });
+
+  it("the mid-drag preview moves the dragged row's cells (the tr carries no transform)", () => {
+    renderTableDoc(3, 3, [120, 140, 90]);
+    // The row drag (the pointer's 60 px down): the dragged row's cells
+    // follow on the y (the tr carries no transform — the row's transform
+    // applies over the cells only).
+    fireEvent.pointerDown(rowHandle(0), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(rowHandle(0), { clientX: 0, clientY: 60, pointerId: 1 });
+    const draggedRowCell = cellAt(0, 0);
+    expect(draggedRowCell.style.transform).toBe("translate(0px, 60px)");
+    expect(draggedRowCell.style.background).toContain("--docblocks-table-drag-background");
+    expect(draggedRowCell.style.zIndex).toBe("10");
+    for (const tr of document.querySelectorAll<HTMLTableRowElement>("tbody > tr")) {
+      expect(tr.style.transform).toBe("");
+    }
+    fireEvent.pointerUp(rowHandle(0), { clientX: 0, clientY: 60, pointerId: 1 });
+  });
+
   it("a no-op drop (back into the same position) issues no command", () => {
     const { doc, tableId } = renderTableDoc(3, 2, [111, 100, 100]);
     press(colHandle(0), { x: 10, y: 0 });

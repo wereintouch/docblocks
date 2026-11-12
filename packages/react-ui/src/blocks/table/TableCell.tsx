@@ -1,5 +1,8 @@
-/** The table's cell renderer (the drag transform, the column/row
- * background stands) + the cell's own-content layer. */
+/** The table's cell renderer (the row / column drag's transform — the cell
+ * is the transform's element: the `<tr>` is not a CSS transformable
+ * element, so the row's drag applies over the row's cells; the dragged
+ * cell's card background; the column/row's background is kept) + the cell's
+ * own-content layer. */
 import { memo, useEffect, useRef } from "react";
 import type { CSSProperties } from "react";
 
@@ -21,10 +24,15 @@ const TableCell = memo(function TableCell({
   id,
   dragX,
   dragShifted,
+  rowDy,
+  rowShifted,
 }: {
   id: BlockId;
   dragX: number;
   dragShifted: boolean;
+  /** The row drag's dy (the row's transform over the cell). */
+  rowDy: number;
+  rowShifted: boolean;
 }) {
   const cell = useBlock(id);
   // The read-only stand (view / published): the cell's activation layer's
@@ -36,14 +44,24 @@ const TableCell = memo(function TableCell({
   // The cell background: the column color over the row color (the column
   // wins; removing it reveals the row's color).
   const background = cell.attrs?.columnColor ?? cell.attrs?.rowColor;
+  const hasDrag = dragX !== 0 || rowDy !== 0;
+  // The dragged row / column's cell (the pointer's live follow; the
+  // stationary cells take the parting shift): the card takes a background
+  // over the uncolored cells — the empty cell's borders alone do not read
+  // as the moving card.
+  const dragged = hasDrag && !dragShifted && !rowShifted;
   const style: CSSProperties = {
     ...(background !== undefined ? { background } : {}),
-    ...(dragX !== 0
+    ...(dragged && background === undefined
+      ? { background: "var(--docblocks-table-drag-background, transparent)" }
+      : {}),
+    ...(dragged ? { boxShadow: "var(--docblocks-table-drag-shadow, none)" } : {}),
+    ...(hasDrag
       ? {
-          transform: `translateX(${dragX}px)`,
+          transform: `translate(${dragX}px, ${rowDy}px)`,
           position: "relative" as const,
-          zIndex: dragShifted ? undefined : 10,
-          transition: dragShifted ? DRAG_TRANSITION : undefined,
+          zIndex: dragged ? 10 : undefined,
+          transition: dragged ? undefined : DRAG_TRANSITION,
         }
       : {}),
   };
@@ -65,9 +83,21 @@ const TableCell = memo(function TableCell({
         {hasOwnText ? <CellContent id={id} block={cell} /> : null}
         {/* The cell's activation layer (the empty cell's caret's seat):
             the read-only stand (view / published) stands no layer (the
-            cell is not editable there). */}
-        {children.length === 0 && !hasOwnText && !viewMode ? (
-          <CellActivation cellId={id} />
+            cell is not editable there) — the empty's placeholder keeps
+            the edit's minimum row height (the activation layer's
+            footprint: one line's height). */}
+        {children.length === 0 && !hasOwnText ? (
+          viewMode ? (
+            <span
+              aria-hidden
+              data-slot="docblocks/cell-empty"
+              className="my-(--docblocks-block-spacing) block whitespace-pre-wrap"
+            >
+              {"\u200b"}
+            </span>
+          ) : (
+            <CellActivation cellId={id} />
+          )
         ) : (
           <BlockGroups ids={children} />
         )}
