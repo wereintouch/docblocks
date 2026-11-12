@@ -7,7 +7,14 @@ const dir = import.meta.dirname;
 // (package.json exports -> dist/), so the root `check` builds packages
 // before running tests.
 export default defineConfig({
-  test: { environment: "node" },
+  test: {
+    environment: "node",
+    // The jsdom's Range's rect API's suite-level stub (the deferred
+    // selectionchange's reseat's stand): the setup runs over every test
+    // file, the node's files skip it over the undefined Range (the
+    // setup's own guard).
+    setupFiles: [path.resolve(dir, "test/setup.ts")],
+  },
   resolve: {
     alias: {
       // The harness's in-memory reference bridge stands as the database
