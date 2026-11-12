@@ -1,5 +1,51 @@
 # docblocks-react-ui
 
+## 0.4.7
+
+### Patch Changes
+
+- e065e49: The `DocblocksI18nProvider` (exported from the package entry) accepts an
+  optional `locale` prop: the controlled mode for server-rendered
+  consumers, where the `<html lang>` read is unavailable on the server and
+  the first client render would take a different language (the hydration
+  mismatch). The passed locale is normalized over the existing rules
+  (`ru*` → `ru`, `en*` / unknown / empty → `en`), the provider creates its
+  own synchronously initialized `i18next` instance keyed by the normalized
+  value (a locale change selects the new instance and re-renders the
+  subtree), and a nested provider without a `locale` inherits the outer's
+  instance. The controlled mode never mutates the legacy attribute-driven
+  instance and never touches the consumer's global `i18next`, so
+  concurrent subtrees over different locales stay isolated; the locale is
+  UI state only. Outside a controlled provider, the attribute-driven
+  behavior is unchanged.
+- 3223722: The page view now edits over one shared `contenteditable` surface (the
+  page's container), with each text block's inner a nested editable: the
+  native selection crosses block boundaries in every engine, and the
+  block's handlers receive the container-level events through a dispatch
+  that resolves the active block from the live selection. The follow-up
+  keys run in the shared surface's context, so the in-block range's
+  Delete / Backspace commits as a command (the caret re-seats at the
+  range's start), the empty cell's activation layer suppresses the
+  line-backspace, and the Home / End over a page text block resolve the
+  block's own line edges. The gutter-handle drag's release keeps the
+  user's text seat: the browser's release over the drag's non-editable
+  chrome would collapse the selection to the page container (and the
+  release's click would stand a residual blocks selection), so the drag
+  session suppresses the release's click over non-text chrome and
+  restores the captured seat on the release (a drop over a text inner
+  seats the caret at the drop point instead).
+- aa7ffb3: The table's row/column drag preview now applies the transform over the
+  dragged row/column's cells instead of the row element (the `<tr>` is not
+  a CSS transformable element — the engine may ignore the row's
+  transform, leaving the preview dead while the handle follows the
+  pointer). The dragged cell reads as a lifted card (a `--card`
+  background + a `--docblocks-table-drag-shadow` box shadow over the
+  uncolored cells, behind the cell's own row/column color), so the
+  preview is visible over an empty table. The read-only modes render an
+  empty table cell's placeholder (one line, matching the activation
+  layer's footprint), keeping the edit mode's minimum row height in the
+  view/published views.
+
 ## 0.4.6
 
 ### Patch Changes
