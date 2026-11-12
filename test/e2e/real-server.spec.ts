@@ -15,7 +15,11 @@ import { SETTLE, editorContext, openPane } from "./helpers";
  * `?syncUrl=`.
  */
 
-const PREFERRED_PORT = 1234;
+// An OS-assigned port: a fixed preferred port can collide with a local
+// service on the same machine (a service bound to the IPv4 loopback while
+// the dual-stack bind takes the IPv6 half leaves the browser's WS upgrade
+// on the other service's door), and the pane's URL is built from the
+// resolved port either way.
 
 let server: http.Server;
 let wss: WebSocketServer;
@@ -32,7 +36,7 @@ test.beforeAll(async () => {
   });
   server = httpServer;
   wss = relay;
-  port = await listen(httpServer, PREFERRED_PORT);
+  port = await listen(httpServer, 0);
 });
 
 test.afterAll(async () => {

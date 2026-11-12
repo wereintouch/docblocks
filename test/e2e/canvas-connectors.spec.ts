@@ -973,10 +973,25 @@ test.describe("the connector arrows", () => {
       const badge = a.locator(`[data-connector-snap-badge="${connId}"]`);
       await expect(badge).toHaveCount(1);
       // The badge's circle stands the port point + the east normal's
-      // offset (400 + 16, 100).
-      const badgeBox = (await badge.boundingBox())!;
-      expect(Math.abs(badgeBox.x + badgeBox.width / 2 - (center.x + 416))).toBeLessThan(2);
-      expect(Math.abs(badgeBox.y + badgeBox.height / 2 - (center.y + 100))).toBeLessThan(2);
+      // offset (400 + 16, 100). The firefox's layout rect of the svg's
+      // element over the 1x1 overflow svg is stale mid-drag (the
+      // attributes are current, the rect does not flush), so the
+      // firefox asserts the circle's own geometry in the world space.
+      if (test.info().project.name === "firefox") {
+        const pos = await badge
+          .locator("circle")
+          .first()
+          .evaluate((el) => ({
+            x: Number.parseFloat(el.getAttribute("cx") ?? "0"),
+            y: Number.parseFloat(el.getAttribute("cy") ?? "0"),
+          }));
+        expect(pos.x).toBeCloseTo(416, 1);
+        expect(pos.y).toBeCloseTo(100, 1);
+      } else {
+        const badgeBox = (await badge.boundingBox())!;
+        expect(Math.abs(badgeBox.x + badgeBox.width / 2 - (center.x + 416))).toBeLessThan(2);
+        expect(Math.abs(badgeBox.y + badgeBox.height / 2 - (center.y + 100))).toBeLessThan(2);
+      }
       await a.mouse.up();
       await expect
         .poll(async () => fullEndpointAttrs(a, "a", connId), SETTLE)
