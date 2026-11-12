@@ -357,9 +357,14 @@
  * the browser's default focus ring would stand the visible ring over the
  * whole document after a drag's release. The ring is suppressed; the
  * focus itself stays (the keyboard's scoping needs it), and the
- * individual controls keep their own focus styles.
+ * individual controls keep their own focus styles. The page's container
+ * stands the same stand over the shared editable's surface: the click's
+ * seat and the re-seat's park land the focus in it (the nested inners
+ * keep the focus over the engines that cannot move it into them), and
+ * the default's auto ring would draw the frame over the whole column.
  */
-[data-slot="docblocks/editor"]:focus {
+[data-slot="docblocks/editor"]:focus,
+[data-slot="docblocks/page"]:focus {
   outline: none;
 }
 
