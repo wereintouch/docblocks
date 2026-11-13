@@ -18,3 +18,11 @@ if (typeof Range !== "undefined" && typeof Range.prototype.getBoundingClientRect
       toJSON: () => null,
     }) as DOMRect;
 }
+
+// jsdom has no object-url implementation; the deterministic stand keeps the
+// blob renderers exercisable without a browser.
+let objectUrlSequence = 0;
+if (typeof URL !== "undefined" && typeof URL.createObjectURL !== "function") {
+  URL.createObjectURL = () => `blob:test-${++objectUrlSequence}`;
+  URL.revokeObjectURL = () => {};
+}

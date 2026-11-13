@@ -1,13 +1,13 @@
 import { type Doc, type MarkSet, createDoc } from "docblocks-core";
 
-import { EMBED_SRC, seedCanvas, seedCatalogDatabase } from "./insert-blocks";
+import { CATALOG_FILE_KEY, EMBED_SRC, seedCanvas, seedCatalogDatabase } from "./insert-blocks";
 import { CATALOG_MASTER_ID } from "./master";
 
 /** The fixed pane doc identity (the e2e room/doc conventions rely on it). */
 const DOC_ID = "d1";
 const DOC_CREATED_AT = "2026-01-01T00:00:00Z";
 
-/** The fixed image key the catalog uses (the harness's blob map resolves it to a data: URL). */
+/** The fixed image id the catalog resolves through the harness blob store. */
 const CATALOG_IMAGE_KEY = "demo-image";
 
 /** Heading levels 1..6, one block each. */
@@ -156,6 +156,7 @@ function buildCatalogDoc(doc: Doc): void {
     }
 
     doc.insertBlock("image", { src: CATALOG_IMAGE_KEY });
+    doc.insertBlock("file", { fileId: CATALOG_FILE_KEY });
     doc.insertBlock("divider");
 
     // Embed: the fixed harness src (the data: URL renders a tiny inline page

@@ -1,12 +1,11 @@
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import type { BlockId, ImageBlock as ImageBlockType, TextAlign } from "docblocks-core";
 
-import type { BlobRef } from "../blob-store";
 import { CANVAS_SELECTION_OUTLINE } from "../canvas/canvas-view/constants";
 import { useEditorContext } from "../editor-provider";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "../pdf/constants";
@@ -26,13 +25,8 @@ import { isSafeDownloadHref } from "../shared/utils";
 import { clamp, preventDefault } from "../shared/utils";
 import { BlockCaption, requestBlockCaption } from "./BlockCaption";
 import { FileCard } from "./FileCard";
-
-/** The placeholder card's shared classes (the unknown-key and loading states). */
-const PLACEHOLDER_CLASS = `
-  mx-0 my-(--docblocks-block-spacing) rounded-(--docblocks-radius)
-  border-(length:--docblocks-table-border-width) border-dashed border-(--docblocks-table-border-color)
-  outline-none
-`;
+import { BLOB_PLACEHOLDER_CLASS } from "./blob-styles";
+import { useBlobFile } from "./use-blob-file";
 
 /** The figure's minimum display width (the port drag's floor; px). */
 const MIN_IMAGE_WIDTH_PX = 20;
@@ -62,35 +56,17 @@ const IMAGE_PORT_CORNERS: { corner: ImagePortCorner; cursor: string }[] = [
 
 /**
  * An image: the <img> src comes from the consumer's blob store (the key is
- * opaque; resolution is a consumer-side concern). The store's metadata
- * decides the rendering — the block never guesses: an image subtype
- * stands the <img>, a pdf an iframe viewer, a file the download card.
- * While the key is unknown (or the resolve is in flight) the block renders
+ * opaque; resolution is a consumer-side concern). The store's MIME metadata
+ * decides the rendering: images stand the <img>, PDF an iframe viewer, and
+ * legacy non-image payloads the download card. While the id is unknown or
+ * the get is in flight the block renders
  * a structural placeholder card instead of a broken <img>.
  */
 function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   const { t } = useTranslation("blocks");
-  const { blobStore, pdfPreview } = useEditorContext();
+  const { pdfPreview } = useEditorContext();
   const src = block.attrs.src;
-  const [ref, setRef] = useState<BlobRef | null>(null);
-
-  // The async resolve (store-driven): a stale result never lands — the
-  // effect re-runs on the src or store change and drops the pending one.
-  useEffect(() => {
-    let alive = true;
-    setRef(null);
-    void (async () => {
-      try {
-        const resolved = await blobStore.resolve(src);
-        if (alive) setRef(resolved);
-      } catch {
-        if (alive) setRef(null);
-      }
-    })();
-    return () => {
-      alive = false;
-    };
-  }, [blobStore, src]);
+  const ref = useBlobFile(src);
 
   if (ref === null) {
     return (
@@ -98,7 +74,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
         data-slot="docblocks/image-placeholder"
         data-block-type="image"
         data-block-id={id}
-        className={PLACEHOLDER_CLASS}
+        className={BLOB_PLACEHOLDER_CLASS}
       >
         <CardContent className="flex flex-col items-center gap-2 text-center">
           <ImageIcon className="size-6" />
@@ -109,20 +85,18 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   }
 
   const { url, meta } = ref;
-  const name = block.attrs.name ?? meta.name;
-  if (meta.subtype === "pdf") {
+  const name = meta.name;
+  if (meta.mimeType === "application/pdf") {
     // The consumer's PDF preview renderer (the `pdfPreview` provider prop)
     // takes over the whole figure; without it the native iframe stands.
     if (pdfPreview !== null) {
       const Preview = pdfPreview;
-      return <Preview id={id} url={url} name={name} />;
+      return <Preview id={id} blockType="image" url={url} name={name} />;
     }
-    // The native iframe stands only over the embeddable scheme (the
-    // hostile-store gate): the data / blob / javascript urls stand the
-    // download card (their bytes are never executed over the frame's
-    // context).
+    // The native iframe stands over http(s) or the library-owned object URL;
+    // other schemes stand the download card.
     if (!isEmbeddablePdfUrl(url)) {
-      return <FileCard id={id} block={block} url={url} name={name} subtype="pdf" />;
+      return <FileCard id={id} fileId={src} blockType="image" url={url} name={name} subtype="pdf" />;
     }
     return (
       <iframe
@@ -140,8 +114,8 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
       />
     );
   }
-  if (meta.subtype === "file") {
-    return <FileCard id={id} block={block} url={url} name={name} subtype="file" />;
+  if (!meta.mimeType.startsWith("image/")) {
+    return <FileCard id={id} fileId={src} blockType="image" url={url} name={name} subtype="file" />;
   }
   return <ImageFigure id={id} block={block} url={url} name={name} />;
 }

@@ -30,6 +30,8 @@ import type {
   DividerBlock,
   EmbedAttrs,
   EmbedBlock,
+  FileAttrs,
+  FileBlock,
   HeadingAttrs,
   HeadingBlock,
   ImageAttrs,
@@ -57,6 +59,7 @@ type Block =
   | WithGeometry<TableRowBlock>
   | WithGeometry<TableCellBlock>
   | WithGeometry<ImageBlock>
+  | WithGeometry<FileBlock>
   | WithGeometry<EmbedBlock>
   | WithGeometry<SyncEmbedBlock>
   | WithGeometry<DividerBlock>
@@ -91,6 +94,7 @@ type BlockAttrsPatch = Partial<
     CodeAttrs &
     TableAttrs &
     ImageAttrs &
+    FileAttrs &
     EmbedAttrs &
     SyncEmbedAttrs &
     DatabaseAttrs &

@@ -18,7 +18,7 @@ async function uploadTextAttachment(page: Page): Promise<void> {
     mimeType: "text/plain",
     buffer: Buffer.from("attachment body", "utf8"),
   });
-  await expect(page.locator('[data-slot="docblocks/image-file"][data-subtype="file"]')).toBeVisible(SETTLE);
+  await expect(page.locator('[data-slot="docblocks/file-card"][data-subtype="file"]')).toBeVisible(SETTLE);
 }
 
 async function rootBlockIds(page: Page): Promise<string[]> {
@@ -38,7 +38,7 @@ test("a generic attachment uploads with its file name, renames, and downloads in
   try {
     await uploadTextAttachment(page);
 
-    const card = page.locator('[data-testid="doc-a"] [data-slot="docblocks/image-file"][data-subtype="file"]');
+    const card = page.locator('[data-testid="doc-a"] [data-slot="docblocks/file-card"][data-subtype="file"]');
     await expect(card.locator('[data-slot="docblocks/file-name"]')).toHaveText("notes.txt");
     await expect(card.locator('[data-slot="docblocks/file-icon"]')).toBeVisible();
     await expect(card.locator('[data-slot="docblocks/file-download"]')).toHaveAttribute("download", "notes.txt");
@@ -47,13 +47,14 @@ test("a generic attachment uploads with its file name, renames, and downloads in
         () =>
           page.evaluate(() => {
             const doc = window.__paneDocs?.a;
-            const block = Object.values(doc?.toJSON().blocks ?? {}).find((entry) => entry.type === "image");
-            return block?.attrs && "name" in block.attrs ? block.attrs.name : null;
+            const block = Object.values(doc?.toJSON().blocks ?? {}).find((entry) => entry.type === "file");
+            return block?.attrs && "fileId" in block.attrs ? block.attrs.fileId : null;
           }),
         SETTLE
       )
-      .toBe("notes.txt");
+      .toBe("blob-1");
 
+    const beforeRename = await page.evaluate(() => JSON.stringify(window.__paneDocs?.a?.toJSON()));
     await card.locator('[data-slot="docblocks/file-rename"]').click();
     const input = card.locator('[data-slot="docblocks/file-name-input"]');
     await input.fill("renamed-notes.txt");
@@ -63,6 +64,7 @@ test("a generic attachment uploads with its file name, renames, and downloads in
       "download",
       "renamed-notes.txt"
     );
+    expect(await page.evaluate(() => JSON.stringify(window.__paneDocs?.a?.toJSON()))).toBe(beforeRename);
 
     const editedDownloadPromise = page.waitForEvent("download");
     await card.locator('[data-slot="docblocks/file-download"]').click();
@@ -90,21 +92,23 @@ test("deleting an attachment seats the caret in the next block and one undo rest
   await openPane(page, "a", "file-attachment-delete");
   try {
     await uploadTextAttachment(page);
-    const [imageId, nextId] = await rootBlockIds(page);
-    expect(imageId).toBeDefined();
+    const [attachmentId, nextId] = await rootBlockIds(page);
+    expect(attachmentId).toBeDefined();
     expect(nextId).toBeDefined();
 
-    const row = page.locator(`[data-testid="doc-a"] [data-slot="docblocks/row"]:has([data-block-id="${imageId}"])`);
+    const row = page.locator(
+      `[data-testid="doc-a"] [data-slot="docblocks/row"]:has([data-block-id="${attachmentId}"])`
+    );
     await row.hover();
     await row.locator('[data-slot="docblocks/gutter-delete"]').click();
-    await expect(page.locator(`[data-testid="doc-a"] [data-block-id="${imageId}"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-testid="doc-a"] [data-block-id="${attachmentId}"]`)).toHaveCount(0);
     await expect
       .poll(() => caretIn(page, `[data-block-id="${nextId}"][data-slot="docblocks/block-content"]`), SETTLE)
       .toBe(true);
 
     await page.keyboard.press("Control+z");
-    await expect(page.locator(`[data-testid="doc-a"] [data-block-id="${imageId}"]`)).toBeVisible(SETTLE);
-    expect(await rootBlockIds(page)).toEqual([imageId, nextId]);
+    await expect(page.locator(`[data-testid="doc-a"] [data-block-id="${attachmentId}"]`)).toBeVisible(SETTLE);
+    expect(await rootBlockIds(page)).toEqual([attachmentId, nextId]);
   } finally {
     await context.close();
   }

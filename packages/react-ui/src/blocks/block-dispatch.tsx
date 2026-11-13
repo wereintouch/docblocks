@@ -11,6 +11,7 @@ import type { Block, BlockId } from "docblocks-core";
 
 import { DatabaseBlock } from "./DatabaseBlock";
 import { EmbedBlock } from "./EmbedBlock";
+import { FileBlock } from "./FileBlock";
 import { FramePageBlock } from "./FramePageBlock";
 import { ImageBlock } from "./ImageBlock";
 import { PlaceholderBlock } from "./PlaceholderBlock";
@@ -122,6 +123,8 @@ function dispatchBuiltIn(
       );
     case "image":
       return <ImageBlock id={id} block={block} />;
+    case "file":
+      return <FileBlock id={id} block={block} />;
     case "database":
       return <DatabaseBlock id={id} block={block} />;
     case "embed":

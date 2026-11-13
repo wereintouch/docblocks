@@ -13,14 +13,13 @@
  * stands no stand over the frame — the download card stands the fallback. */
 const PDF_VIEWER_SANDBOX = "";
 
-/** The iframe's embeddable-url gate: only the http(s) scheme may stand the
- * viewer's iframe. The data / blob / javascript schemes (and the
- * unparseable url) stand the download-only fallback — the consumer's
- * document bytes are never executed in the frame's context. */
+/** The iframe's embeddable-url gate: http(s) and the library-owned blob URL
+ * may stand the viewer's iframe. Data / javascript schemes and unparseable
+ * URLs stand the download-only fallback. */
 function isEmbeddablePdfUrl(url: string): boolean {
   try {
     const scheme = new URL(url).protocol;
-    return scheme === "http:" || scheme === "https:";
+    return scheme === "http:" || scheme === "https:" || scheme === "blob:";
   } catch {
     return false;
   }

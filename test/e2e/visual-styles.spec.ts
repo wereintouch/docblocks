@@ -183,7 +183,12 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
   // Image: the fixed key resolved by the harness's blob map.
   const img = doc.locator('img[data-slot="docblocks/image"]');
   expect(await img.count()).toBe(1);
-  expect((await img.getAttribute("src")) ?? "").toContain("data:image/svg+xml");
+  expect((await img.getAttribute("src")) ?? "").toMatch(/^blob:/);
+
+  const file = doc.locator('[data-slot="docblocks/file-card"]');
+  await expect(file).toHaveCount(1);
+  await expect(file.locator('[data-slot="docblocks/file-name"]')).toHaveText("catalog.txt");
+  await expect(file.locator('[data-slot="docblocks/file-download"]')).toHaveAttribute("download", "catalog.txt");
 
   // Embed: the fixed data: URL src and the kind on the wrapper.
   const embed = doc.locator('iframe[data-slot="docblocks/embed"]');
@@ -253,8 +258,8 @@ test("the catalog covers every v1 block structure", async ({ page }) => {
       .locator(`[data-block-id="${id}"]`)
       .first()
       .evaluate((el) => getComputedStyle(el.parentElement!).paddingLeft);
-  expect(await rowPaddingOf("c0064")).toBe("24px");
-  expect(await rowPaddingOf("c0065")).toBe("48px");
+  expect(await rowPaddingOf("c0065")).toBe("24px");
+  expect(await rowPaddingOf("c0066")).toBe("48px");
   expect(await doc.locator('[data-slot="docblocks/nested"]').count()).toBe(0);
 });
 

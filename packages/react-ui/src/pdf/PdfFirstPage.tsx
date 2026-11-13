@@ -1,4 +1,4 @@
-/** The PDF preview of one `pdf`-subtype image block: fetch the resolved
+/** The PDF preview of one file block: fetch the resolved
  * blob, render the pages to a canvas via pdfjs-dist. The inline view stands
  * the first page over the page row; the controls (the previous/next page
  * buttons + the page indicator + the fullscreen toggle) stand a bar under
@@ -66,7 +66,7 @@ function renderPageToCanvasScaled(
   });
 }
 
-function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
+function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
   const { t } = useTranslation("blocks");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fullscreenCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -230,7 +230,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
       <div
         data-slot="docblocks/image-pdf-preview"
         data-block-id={id}
-        data-block-type="image"
+        data-block-type={blockType}
         data-phase="error"
         className="mx-0 my-(--docblocks-block-spacing)"
       >
@@ -250,7 +250,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
             data-subtype="pdf"
             sandbox={PDF_VIEWER_SANDBOX}
             src={url}
-            title={name ?? "document"}
+            title={name}
             className="
               block aspect-video w-full rounded-(--docblocks-image-radius)
               border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
@@ -260,14 +260,14 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
           <a
             data-slot="docblocks/image-pdf-download"
             href={url}
-            download={name ?? undefined}
+            download={name}
             className="inline-block text-sm underline underline-offset-2"
           >
-            {name ?? "document"}
+            {name}
           </a>
         ) : (
           <span data-slot="docblocks/image-pdf-download" className="inline-block text-sm">
-            {name ?? "document"}
+            {name}
           </span>
         )}
       </div>
@@ -403,7 +403,7 @@ function PdfFirstPage({ id, url, name }: PdfPreviewProps) {
     <div
       data-slot="docblocks/image-pdf-preview"
       data-block-id={id}
-      data-block-type="image"
+      data-block-type={blockType}
       data-phase={phase}
       className="relative mx-0 my-(--docblocks-block-spacing) flex flex-col items-center gap-2"
     >

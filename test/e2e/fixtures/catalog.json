@@ -490,16 +490,22 @@
       }
     },
     "c0047": {
-      "type": "divider"
+      "type": "file",
+      "attrs": {
+        "fileId": "demo-file"
+      }
     },
     "c0048": {
+      "type": "divider"
+    },
+    "c0049": {
       "type": "embed",
       "attrs": {
         "kind": "html",
         "src": "data:text/html,%3Chtml%3E%3Cbody%3E%3Cp%3Eembedded%20page%3C%2Fp%3E%3C%2Fbody%3E%3C%2Fhtml%3E"
       }
     },
-    "c0049": {
+    "c0050": {
       "type": "sync-embed",
       "attrs": {
         "ref": {
@@ -507,7 +513,7 @@
         }
       }
     },
-    "c0050": {
+    "c0051": {
       "type": "database",
       "attrs": {
         "tableId": "table-catalog-demo"
@@ -515,7 +521,7 @@
       "rows": {},
       "rowOrder": []
     },
-    "c0051": {
+    "c0052": {
       "type": "surface",
       "geometry": {
         "x": 0,
@@ -523,9 +529,9 @@
         "w": 900,
         "h": 500
       },
-      "children": ["c0052", "c0053", "c0054", "c0055", "c0056", "c0057", "c0058", "c0059"]
+      "children": ["c0053", "c0054", "c0055", "c0056", "c0057", "c0058", "c0059", "c0060"]
     },
-    "c0052": {
+    "c0053": {
       "type": "frame",
       "attrs": {
         "title": "Frame A"
@@ -537,7 +543,7 @@
         "h": 160
       }
     },
-    "c0053": {
+    "c0054": {
       "type": "frame",
       "attrs": {
         "title": "Frame B"
@@ -549,7 +555,7 @@
         "h": 120
       }
     },
-    "c0054": {
+    "c0055": {
       "type": "shape",
       "attrs": {
         "fill": "rgba(9, 105, 218, 0.2)",
@@ -563,7 +569,7 @@
         "h": 80
       }
     },
-    "c0055": {
+    "c0056": {
       "type": "shape",
       "attrs": {
         "variant": "ellipse",
@@ -576,7 +582,7 @@
         "h": 80
       }
     },
-    "c0056": {
+    "c0057": {
       "type": "shape",
       "attrs": {
         "variant": "diamond",
@@ -589,7 +595,7 @@
         "h": 90
       }
     },
-    "c0057": {
+    "c0058": {
       "type": "shape",
       "attrs": {
         "fontFamily": "Inter",
@@ -607,7 +613,7 @@
         "h": 60
       }
     },
-    "c0058": {
+    "c0059": {
       "type": "canvas-text",
       "attrs": {
         "textColor": "#b45309",
@@ -627,26 +633,26 @@
         }
       ]
     },
-    "c0059": {
+    "c0060": {
       "type": "connector",
       "attrs": {
         "end": {
-          "blockId": "c0054"
+          "blockId": "c0055"
         },
         "label": "relates to",
         "start": {
-          "blockId": "c0052"
+          "blockId": "c0053"
         },
         "zIndex": 6
       }
     },
-    "c0060": {
+    "c0061": {
       "type": "frame",
       "attrs": {
-        "frameId": "c0052"
+        "frameId": "c0053"
       }
     },
-    "c0061": {
+    "c0062": {
       "type": "paragraph",
       "content": [
         {
@@ -716,7 +722,7 @@
         }
       ]
     },
-    "c0062": {
+    "c0063": {
       "type": "paragraph",
       "content": [
         {
@@ -725,7 +731,7 @@
         }
       ]
     },
-    "c0063": {
+    "c0064": {
       "type": "paragraph",
       "content": [
         {
@@ -734,7 +740,7 @@
         }
       ]
     },
-    "c0064": {
+    "c0065": {
       "type": "paragraph",
       "attrs": {
         "indent": 1
@@ -746,7 +752,7 @@
         }
       ]
     },
-    "c0065": {
+    "c0066": {
       "type": "list-item",
       "attrs": {
         "indent": 1,
@@ -801,12 +807,13 @@
         "c0049",
         "c0050",
         "c0051",
-        "c0060",
+        "c0052",
         "c0061",
         "c0062",
         "c0063",
         "c0064",
-        "c0065"
+        "c0065",
+        "c0066"
       ]
     }
   }

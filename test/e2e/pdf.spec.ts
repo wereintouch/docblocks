@@ -13,13 +13,13 @@ const FIXTURE_MULTI_PAGE = new URL("./fixtures/multi-page.pdf", import.meta.url)
 // the page renders as a bare (mostly-white) background image.
 const FIXTURE_JBIG2 = new URL("./fixtures/scan-jbig2.pdf", import.meta.url).pathname;
 
-/** The pane's image block's attrs from the harness global (its own letter). */
-async function imageAttrs(page: Page, client: "a" | "b"): Promise<Record<string, unknown> | null> {
+/** The pane's file block attrs from the harness global (its own letter). */
+async function fileAttrs(page: Page, client: "a" | "b"): Promise<Record<string, unknown> | null> {
   return page.evaluate((c) => {
     const doc = c === "a" ? window.__paneDocs?.a : window.__paneDocs?.b;
     if (doc === null || doc === undefined) return null;
     const json = doc.toJSON();
-    const block = Object.values(json.blocks).find((entry) => entry.type === "image");
+    const block = Object.values(json.blocks).find((entry) => entry.type === "file");
     return block?.attrs ?? null;
   }, client);
 }
@@ -72,16 +72,16 @@ test("the pdf subtype stands the first-page canvas preview after the upload", as
     });
     expect(painted).toBe(true);
 
-    // The document holds only the opaque key (the bytes are consumer-side):
-    // the src is the store's key, not a data url.
-    const attrs = await imageAttrs(a, "a");
+    // The document holds only the consumer's file id, never bytes or metadata.
+    const attrs = await fileAttrs(a, "a");
     expect(attrs).not.toBeNull();
-    expect(typeof attrs!.src).toBe("string");
-    expect(attrs!.src).not.toMatch(/^data:/);
+    expect(typeof attrs!.fileId).toBe("string");
+    expect(attrs!.name).toBeUndefined();
+    expect(attrs!.mimeType).toBeUndefined();
 
-    // Pane B's store holds no blob (the upload was pane A's): B's figure
-    // stands the placeholder card — the slot is the wire pin.
-    await expect(b.locator('[data-slot="docblocks/image-placeholder"]')).toHaveCount(1, SETTLE);
+    // Pane B's store holds no blob (the upload was pane A's): B renders the
+    // file placeholder for the same file id.
+    await expect(b.locator('[data-slot="docblocks/file-placeholder"]')).toHaveCount(1, SETTLE);
   } finally {
     await close();
   }

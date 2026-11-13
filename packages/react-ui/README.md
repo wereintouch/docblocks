@@ -86,7 +86,7 @@ a bare `tsc`-only setup needs a one-line `declare module "*.css"` shim.
 Everything the editor needs from the consumer is injected as an
 `EditorProvider` prop; every prop except `doc` is optional. The only
 built-in default is the blob store (a shared in-memory stand — the
-uploads resolve as data urls for the JS session, cleared on reload); the
+uploads stay in memory for the JS session, cleared on reload); the
 other props degrade gracefully over their absence (the external-form
 database block stands the not-connected placeholder and the `/database`
 slash command is hidden without a bridge; the `sync-embed` block stands
@@ -99,11 +99,10 @@ mention catalog). The full props list:
 | `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs).                                                                                                                                                                                                   |
 | `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                                                                                                                                                                                                                               |
 | `blobStore?`                 | The blob bridge for image / pdf / file blocks (see below).                                                                                                                                                                                                                                                                             |
-| `blobResolver?`              | Legacy view-only resolver (key → src string). Wrapped as a store: no upload, subtype `image`. Prefer `blobStore`.                                                                                                                                                                                                                      |
 | `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                                                                                                                                                                                 |
 | `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                                                                                                                                                                            |
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). The opaque-origin restriction stands over this policy.                                                  |
-| `pdfPreview?`                | A first-page preview component for `pdf`-subtype image blocks (see below).                                                                                                                                                                                                                                                             |
+| `pdfPreview?`                | A first-page preview component for PDF file blocks (and legacy PDF image blocks).                                                                                                                                                                                                                                                      |
 | `mentionProvider?`           | The `@` mention picker's search catalog (see below).                                                                                                                                                                                                                                                                                   |
 | `rootBlockId?`               | Render the entry list of this block instead of the document root (the subtree view). Must not change after mount.                                                                                                                                                                                                                      |
 | `commandPalettePlaceholder?` | The empty-block hint text (default `Type '/' for commands`).                                                                                                                                                                                                                                                                           |
@@ -316,50 +315,45 @@ anonymous plaintext selection over the room — the 0.2.0 behavior).
 
 ### Blobs
 
-The document holds only an opaque blob key (`image.src`); the bytes live
-where the consumer stored them. `BlobStore` (the `blobStore` prop) is the
-only path key → url and file → key, in both directions:
+File-backed blocks hold only consumer-owned ids: `file.attrs.fileId` for
+attachments and PDFs, and `image.attrs.src` for inline images. Bytes, names,
+and MIME types never enter the document. `BlobStore` is the only bridge
+between those ids and the stored objects:
 
 ```ts
+interface BlobMeta {
+  name: string;
+  mimeType: string;
+}
+
 interface BlobStore {
-  resolve(key: string): Promise<{
-    url: string;
-    meta: { subtype: "image" | "pdf" | "file"; name?: string; type?: string; size?: number };
-  }>;
-  upload(file: File | Blob, meta?: Partial<BlobMeta>): Promise<string>;
-  rename?(key: string, name: string): Promise<void>; // optional storage-metadata notification
-  remove?(key: string): Promise<void>; // optional gc
+  get(fileId: string): Promise<{ blob: Blob; meta: BlobMeta }>;
+  upload(file: File): Promise<string>;
+  rename(fileId: string, name: string): Promise<BlobMeta>;
+  subscribe(fileId: string, onChange: () => void): () => void;
+  remove?(fileId: string): Promise<void>;
 }
 ```
 
-- `resolve` rejects an unknown key — the block stands its structural
-  placeholder card until the promise resolves.
-- The UI renders from `meta.subtype` and never guesses: `image` is an
-  `<img>`, `pdf` the first-page preview (the `./pdf` subpath, or the native
-  iframe without it), `file` the download card. The consumer decides the
-  subtype on both directions (`upload` may override the mime-derived
-  default via `meta.subtype`).
-- The file picker accepts arbitrary files. An upload stores the original
-  `file.name` in the block's optional `image.attrs.name`; older blocks fall
-  back to `resolve().meta.name`, then to the opaque key. Generic `file` blobs
-  render a card with file and download icons. Editors can rename the card;
-  the new name is committed to the document, syncs to peers, and becomes the
-  download's suggested filename. Read-only modes keep download available and
-  hide renaming.
-- After a local rename, the editor calls optional `rename(key, name)` with the
-  stable blob key and the committed name. Consumers can use it to update
-  object-storage metadata such as S3 `Content-Disposition`. The callback is
-  not called for remote updates or undo/redo. A rejection leaves the document
-  name intact and displays a non-blocking error in the card.
-- Browsers may ignore an anchor's `download` filename for cross-origin URLs.
-  For S3 and other cross-origin stores, set the response's
-  `Content-Disposition: attachment; filename=...` metadata in `rename` (and
-  during upload) when the downloaded filename must be enforced by the server.
-- Without `blobStore` / `blobResolver`, the editor uses a shared
-  in-memory store (uploads stand data urls for the JS session, cleared on
-  reload), so the upload path works out of the box. `createMemoryBlobStore`
-  and `blobSubtypeOf` are exported for consumers who want the same
-  behavior under their own prop.
+- `get` rejects an unknown id; the block renders a placeholder while loading
+  or when the id is unavailable. The library creates an object URL for the
+  returned blob and revokes it on replacement or unmount.
+- The file picker accepts arbitrary files. New `image/*` uploads create an
+  `image` block; other MIME types, including `application/pdf`, create a
+  `file` block. PDF files render through `pdfPreview` or the sandboxed native
+  iframe; other files render a card with file and download icons.
+- `meta.name` is the authoritative display and suggested download name.
+  Editors rename through `rename(fileId, name)`; the document JSON does not
+  change and document undo/redo does not revert storage renames. The store
+  notifies `subscribe` listeners after rename or replacement, so every open
+  view reloads the current blob and metadata. A rejection keeps the previous
+  name and displays an inline error. Read-only modes hide rename and keep
+  download available.
+- Consumers can also update S3 `Content-Disposition` in `rename` when direct
+  storage URLs outside the library must carry the same filename.
+- Without `blobStore`, the editor uses a shared in-memory store, cleared on
+  page reload. `createMemoryBlobStore` is exported for consumers that want the
+  same behavior in their own store composition.
 
 ### Database
 
@@ -535,8 +529,8 @@ const blockRenderers: BlockRendererMap = {
 
 ### PDF preview
 
-`pdfPreview` is a component that renders a `pdf`-subtype image block's
-resolved blob as a client-side first-page preview. The `./pdf` subpath
+`pdfPreview` is a component that renders a PDF file block's bytes as a
+client-side first-page preview. The `./pdf` subpath
 provides one over `pdfjs-dist` (a required peer):
 
 ```tsx
@@ -547,11 +541,11 @@ import { PdfFirstPage } from "docblocks-react-ui/pdf";
 </EditorProvider>;
 ```
 
-The renderer receives `{ id, url, name }` (`id` is the block id, `url` the
-resolved blob url, `name` the blob's display name) and should stamp
-`data-block-id={id} data-block-type="image"` on its rendered root, like the
-other block renderers. Without the prop a `pdf`-subtype block stands the
-native iframe viewer; a failed preview render falls back to it, so the
+The renderer receives `{ id, blockType, url, name }`: the block id, `file` for
+new PDF blocks or `image` for legacy ones, the library-owned object URL, and
+the store's authoritative name. It stamps `data-block-id={id}` and
+`data-block-type={blockType}` on its root. Without the prop a PDF block stands
+the native iframe viewer; a failed preview render falls back to it, so the
 document always stays viewable.
 
 ### Mentions

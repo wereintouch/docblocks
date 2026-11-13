@@ -130,11 +130,16 @@ interface TableCellAttrs {
   rowColor?: string;
 }
 
+interface FileAttrs {
+  /** Consumer-owned file id; the blob and its metadata live outside the document. */
+  fileId: string;
+  /** Nesting depth in the page sequence (default 0). */
+  indent?: PageIndent;
+}
+
 interface ImageAttrs {
   /** Opaque blob key (resolved by the consumer). */
   src: string;
-  /** The attachment's display and suggested download name; absent = the blob store's metadata name. */
-  name?: string;
   /** The display width in px (the aspect ratio stands — the height
    *  follows); absent or `null` = the editor's full width. The renderer
    *  never draws the figure wider than the editor. */
@@ -234,6 +239,11 @@ interface ImageBlock {
   attrs: ImageAttrs;
 }
 
+interface FileBlock {
+  type: "file";
+  attrs: FileAttrs;
+}
+
 interface EmbedBlock {
   type: "embed";
   attrs: EmbedAttrs;
@@ -284,6 +294,8 @@ export type {
   DividerBlock,
   EmbedAttrs,
   EmbedBlock,
+  FileAttrs,
+  FileBlock,
   HeadingAttrs,
   HeadingBlock,
   ImageAttrs,

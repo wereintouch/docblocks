@@ -28,7 +28,7 @@ type SlashCommand =
   | (SlashCommandBase & { type: "callout" })
   | (SlashCommandBase & { type: "code"; attrs?: { language?: string } })
   | (SlashCommandBase & { type: "divider" })
-  | (SlashCommandBase & { type: "image" })
+  | (SlashCommandBase & { type: "file" })
   | (SlashCommandBase & { type: "embed" })
   | (SlashCommandBase & { type: "database" })
   | (SlashCommandBase & { type: "frame" })
@@ -86,8 +86,8 @@ interface SlashMenuProps {
   onHover: (index: number) => void;
   onPick: (index: number) => void;
   onClose: () => void;
-  onImageFile: (file: File | null) => void;
-  imageClickRef: RefObject<{ open: () => void } | null>;
+  onFile: (file: File | null) => void;
+  fileClickRef: RefObject<{ open: () => void } | null>;
   databasePick: boolean;
   /** Whether the `database` command stands (a `databaseBridge` was supplied
    *  to the editor). The command is hidden when the bridge is absent — the

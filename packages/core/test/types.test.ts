@@ -16,12 +16,14 @@ import type {
   DatabaseColumn,
   DividerAttrs,
   EmbedAttrs,
+  FileAttrs,
   FrameAttrs,
   Geometry,
   HeadingAttrs,
   ImageAttrs,
   ListItemAttrs,
   MarkSet,
+  PageIndent,
   ParagraphAttrs,
   ShapeAttrs,
   SurfaceAttrs,
@@ -40,6 +42,7 @@ describe("block registry", () => {
       "database",
       "divider",
       "embed",
+      "file",
       "frame",
       "group",
       "heading",
@@ -90,6 +93,7 @@ describe("block registry", () => {
       "code",
       "table",
       "image",
+      "file",
       "embed",
       "sync-embed",
       "divider",
@@ -130,6 +134,7 @@ describe("block registry", () => {
       "database",
       "divider",
       "embed",
+      "file",
       "frame",
       "group",
       "heading",
@@ -156,6 +161,7 @@ describe("block registry", () => {
       "database",
       "divider",
       "embed",
+      "file",
       "frame",
       "heading",
       "image",
@@ -184,6 +190,7 @@ describe("block registry", () => {
       "database",
       "divider",
       "embed",
+      "file",
       "heading",
       "image",
       "paragraph",
@@ -225,6 +232,11 @@ describe("type shapes", () => {
     expectTypeOf<ImageAttrs["width"]>().toEqualTypeOf<number | null | undefined>();
   });
 
+  it("file carries only the consumer's file id and the page indent", () => {
+    expectTypeOf<FileAttrs["fileId"]>().toEqualTypeOf<string>();
+    expectTypeOf<FileAttrs["indent"]>().toEqualTypeOf<PageIndent | undefined>();
+  });
+
   it("maps each mark to its own value type", () => {
     expectTypeOf<MarkSet["bold"]>().toEqualTypeOf<true | undefined>();
     expectTypeOf<MarkSet["link"]>().toEqualTypeOf<{ href: string } | undefined>();
@@ -232,7 +244,7 @@ describe("type shapes", () => {
     expectTypeOf<MarkSet["highlight"]>().toEqualTypeOf<{ value?: string } | undefined>();
   });
 
-  it("exposes the 21-type block union", () => {
+  it("exposes the 22-type block union", () => {
     expectTypeOf<BlockType>().toEqualTypeOf<
       | "root"
       | "paragraph"
@@ -245,6 +257,7 @@ describe("type shapes", () => {
       | "table-row"
       | "table-cell"
       | "image"
+      | "file"
       | "embed"
       | "sync-embed"
       | "divider"

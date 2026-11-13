@@ -5,7 +5,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from "react";
 import { BLOCK_REGISTRY, createSelection, presenceSelectionOf } from "docblocks-core";
 import type { Doc, PresenceState, Selection } from "docblocks-core";
 
-import { getDefaultBlobStore, legacyBlobStore } from "../blob-store";
+import { getDefaultBlobStore } from "../blob-store";
 import type { BlobStore } from "../blob-store";
 import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
@@ -51,7 +51,6 @@ function EditorProviderStand({
   doc,
   provider,
   blockRenderers,
-  blobResolver,
   blobStore,
   databaseBridge,
   syncEmbedResolver,
@@ -289,16 +288,11 @@ function EditorProviderStand({
     };
   }, [provider, store]);
 
-  // The effective blob bridge: the explicit store wins; the legacy
-  // resolver wraps as a view-only store; neither falls back to the
-  // enclosing store, then the shared default in-memory store.
+  // The explicit store wins; otherwise inherit the enclosing store or use
+  // the shared in-memory default.
   const effectiveBlobStore = useMemo<BlobStore>(
-    () =>
-      blobStore ??
-      (blobResolver !== undefined
-        ? legacyBlobStore(blobResolver)
-        : (parentContext?.blobStore ?? getDefaultBlobStore())),
-    [blobStore, blobResolver, parentContext]
+    () => blobStore ?? parentContext?.blobStore ?? getDefaultBlobStore(),
+    [blobStore, parentContext]
   );
 
   // The effective database bridge: the explicit bridge wins, else the

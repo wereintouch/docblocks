@@ -25,8 +25,8 @@ export type {
 export { DocHeader } from "./DocHeader";
 export { DocblocksI18nProvider } from "./i18n";
 export type { DocblocksI18nProviderProps } from "./i18n";
-export { blobSubtypeOf, createMemoryBlobStore } from "./blob-store";
-export type { BlobMeta, BlobRef, BlobSubtype, BlobStore } from "./blob-store";
+export { createMemoryBlobStore } from "./blob-store";
+export type { BlobMeta, BlobRef, BlobStore } from "./blob-store";
 export {
   BASELINE_CAPABILITIES,
   BRIDGE_ERROR_CODES,

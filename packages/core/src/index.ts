@@ -102,6 +102,8 @@ export type {
   Geometry,
   GroupAttrs,
   GroupBlock,
+  FileAttrs,
+  FileBlock,
   HeadingAttrs,
   HeadingBlock,
   ImageAttrs,

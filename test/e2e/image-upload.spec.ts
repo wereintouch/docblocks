@@ -86,7 +86,7 @@ test("the slash File upload replaces the phrase-only block and adds one trailing
   const img = a.locator("img[data-slot='docblocks/image']");
   await expect(img).toBeVisible();
   const src = (await img.getAttribute("src")) ?? "";
-  expect(src.startsWith("data:image/png")).toBe(true);
+  expect(src.startsWith("blob:")).toBe(true);
   expect(await img.getAttribute("data-subtype")).toBe("image");
   await expect(target).toHaveText("");
 
@@ -95,7 +95,7 @@ test("the slash File upload replaces the phrase-only block and adds one trailing
   const srcInDoc = await imageSrcInDoc(a, "a");
   expect(srcInDoc).not.toBeNull();
   expect(srcInDoc).not.toBe(src);
-  expect(src.startsWith("data:image/png")).toBe(true);
+  expect(src.startsWith("blob:")).toBe(true);
 
   // One undo step (the phrase strip + the insert stand in one transact):
   // the image and the trailing paragraph drop, the phrase comes back.

@@ -25,10 +25,12 @@ type EmbedSandboxPolicy = (src: string) => string | null;
 interface PdfPreviewProps {
   /** The block's id — the renderer stamps it on its root, like the other block renderers. */
   id: BlockId;
-  /** The resolved blob url (the store's resolve result). */
+  /** The owning block type (file for new PDFs, image for legacy PDF blocks). */
+  blockType: "file" | "image";
+  /** The library-owned object URL for the PDF bytes. */
   url: string;
-  /** The blob's display name (absent when the store has none). */
-  name?: string;
+  /** The store's authoritative display name. */
+  name: string;
 }
 
 /** A PDF first-page preview renderer: a component over a resolved `pdf` blob. */
@@ -183,26 +185,10 @@ interface EditorProviderProps {
    */
   blockRenderers?: BlockRendererMap;
   /**
-   * Optional resolver of an image's blob key to an img src; without it the
-   * image renders a placeholder.
-   *
-   * Like `blockRenderers`, the value is read per render into the provider
-   * context: pass a stable reference (module-level or memoized) so the
-   * context does not churn on every provider render.
-   */
-  blobResolver?: (key: string) => string;
-  /**
-   * Optional blob bridge: resolves a blob key to its displayable url and
-   * metadata, and uploads a file to a new key (the slash Image path and
-   * the future attachment blocks write the key only after the upload
-   * resolved). Without it — and without `blobResolver` — the editor uses
-   * the shared default in-memory store (uploads stand data urls for the
-   * JS session; a page reload clears them), so the upload path works
-   * out of the box.
-   *
-   * Like `blobResolver`, the value is read per render into the provider
-   * context: pass a stable reference. A nested provider that supplies
-   * none inherits the enclosing store.
+   * Optional blob bridge: returns bytes + authoritative metadata by file id,
+   * uploads and renames files, and notifies open views about store changes.
+   * Without it the editor uses the shared default in-memory store, cleared on
+   * page reload. Pass a stable reference; nested providers inherit it.
    */
   blobStore?: BlobStore;
   /**
@@ -230,10 +216,9 @@ interface EditorProviderProps {
    */
   syncEmbedResolver?: SyncEmbedResolver;
   /**
-   * Optional PDF first-page preview renderer: a component that renders a
-   * `pdf`-subtype image block's resolved blob as a client-side first-page
-   * preview (the `./pdf` subpath provides one over pdfjs-dist, an optional
-   * peer). Without it the block stands the native iframe viewer.
+   * Optional PDF first-page preview renderer for file blocks and legacy PDF
+   * image blocks. The component receives the library-owned object URL and the
+   * store's authoritative metadata. Without it the native iframe stands.
    *
    * Like `blockRenderers`, the value is read per render into the provider
    * context: pass a stable reference (the component is module-level). A

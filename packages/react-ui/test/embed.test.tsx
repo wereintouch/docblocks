@@ -25,7 +25,6 @@ function ContextCapture() {
 function renderDoc(
   prepare: (doc: TestDoc) => void,
   options?: {
-    blobResolver?: (key: string) => string;
     blockRenderers?: BlockRendererMap;
     embedSandbox?: (src: string) => string | null;
     mode?: "edit" | "view" | "published";
@@ -36,7 +35,6 @@ function renderDoc(
   render(
     <EditorProvider
       doc={doc}
-      blobResolver={options?.blobResolver}
       blockRenderers={options?.blockRenderers}
       embedSandbox={options?.embedSandbox}
       mode={options?.mode}
@@ -82,10 +80,8 @@ describe("built-in renderer: embed", () => {
     expect(iframe?.getAttribute("title")).toBe("Design");
   });
 
-  it("does not apply the blob resolver (src is a URL, not a blob key)", () => {
-    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://example.com/page" }), {
-      blobResolver: () => "https://resolved.example/other",
-    });
+  it("keeps the embed src as a URL, not a blob id", () => {
+    renderDoc((doc) => doc.insertBlock("embed", { kind: "iframe", src: "https://example.com/page" }));
 
     const iframe = document.querySelector<HTMLIFrameElement>('[data-block-type="embed"] iframe');
     expect(iframe?.getAttribute("src")).toBe("https://example.com/page");

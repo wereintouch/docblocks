@@ -39,7 +39,7 @@ test("structurally inserted blocks render in the other pane", async ({ browser }
   await expect(doc.locator('hr[data-slot="docblocks/divider"]')).toHaveCount(1);
   const img = doc.locator('img[data-slot="docblocks/image"]');
   await expect(img).toHaveCount(1);
-  expect(await img.getAttribute("src")).toContain("data:image/svg+xml");
+  expect(await img.getAttribute("src")).toMatch(/^blob:/);
   await expect(img).toBeVisible();
 
   await close();

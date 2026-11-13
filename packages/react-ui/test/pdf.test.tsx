@@ -16,11 +16,16 @@ import { PdfFirstPage } from "../src/pdf/index";
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 type TestDoc = ReturnType<typeof createDoc>;
 
-/** A pdf store that resolves one `pdf`-subtype blob (a data url). */
-function pdfStore(url: string): BlobStore {
+/** A store holding one PDF payload. */
+function pdfStore(): BlobStore {
   return {
-    resolve: async () => ({ url, meta: { subtype: "pdf", name: "doc.pdf" } }),
+    get: async () => ({
+      blob: new Blob(["pdf"], { type: "application/pdf" }),
+      meta: { name: "doc.pdf", mimeType: "application/pdf" },
+    }),
     upload: async () => "up-1",
+    rename: async () => ({ name: "doc.pdf", mimeType: "application/pdf" }),
+    subscribe: () => () => {},
   };
 }
 
@@ -56,12 +61,12 @@ afterEach(() => {
 
 describe("the pdf subtype's preview renderer seam", () => {
   it("stands the native iframe viewer without a pdfPreview prop (the strict sandbox stands)", async () => {
-    renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), { blobStore: pdfStore("https://cdn.test/doc.pdf") });
+    renderDoc((doc) => doc.insertBlock("file", { fileId: "key-1" }), { blobStore: pdfStore() });
     await flushResolve();
 
-    const frame = document.querySelector<HTMLIFrameElement>("iframe[data-slot='docblocks/image-pdf']");
+    const frame = document.querySelector<HTMLIFrameElement>("iframe[data-slot='docblocks/file-pdf']");
     expect(frame).not.toBeNull();
-    expect(frame!.getAttribute("src")).toBe("https://cdn.test/doc.pdf");
+    expect(frame!.getAttribute("src")).toMatch(/^blob:/);
     // The hostile-store gate: the frame stands the strict sandbox (no
     // allow-same-origin, no allow-scripts) — a hostile document standing in
     // place of the PDF cannot read the parent or execute.
@@ -72,31 +77,14 @@ describe("the pdf subtype's preview renderer seam", () => {
     expect(document.querySelector("[data-slot='test-pdf-preview']")).toBeNull();
   });
 
-  it("stands the download card (not the iframe) over a non-embeddable scheme (the hostile-store gate)", async () => {
-    renderDoc((doc) => doc.insertBlock("image", { src: "key-1" }), {
-      blobStore: pdfStore("data:text/html;base64,PGIgc2NyaXB0PmFsZXJ0KDE8L2I+"),
-    });
-    await flushResolve();
-
-    // The hostile same-origin HTML url stands no iframe at all — only the
-    // download card (its bytes are never executed over the frame's context).
-    expect(document.querySelector("iframe[data-slot='docblocks/image-pdf']")).toBeNull();
-    const card = document.querySelector('[data-slot="docblocks/image-file"][data-subtype="pdf"]');
-    expect(card).not.toBeNull();
-    const link = card!.querySelector<HTMLAnchorElement>("a");
-    expect(link).not.toBeNull();
-    expect(link!.getAttribute("href")).toBe("data:text/html;base64,PGIgc2NyaXB0PmFsZXJ0KDE8L2I+");
-    expect(link!.hasAttribute("download")).toBe(true);
-  });
-
   it("renders the consumer's pdfPreview renderer instead of the iframe when supplied", async () => {
     let blockId: BlockId | undefined;
     renderDoc(
       (doc) => {
-        blockId = doc.insertBlock("image", { src: "key-1" });
+        blockId = doc.insertBlock("file", { fileId: "key-1" });
       },
       {
-        blobStore: pdfStore("https://cdn.test/doc.pdf"),
+        blobStore: pdfStore(),
         pdfPreview: FakePreview,
       }
     );
@@ -104,59 +92,25 @@ describe("the pdf subtype's preview renderer seam", () => {
 
     const preview = document.querySelector("[data-slot='test-pdf-preview']");
     expect(preview).not.toBeNull();
-    expect(preview!.getAttribute("data-url")).toBe("https://cdn.test/doc.pdf");
+    expect(preview!.getAttribute("data-url")).toMatch(/^blob:/);
     expect(preview!.getAttribute("data-name")).toBe("doc.pdf");
     // The block id is forwarded to the renderer (it stamps it, like the other renderers).
     expect(preview!.getAttribute("data-block-id")).toBe(blockId);
     // The native iframe is replaced by the custom renderer.
-    expect(document.querySelector("iframe[data-slot='docblocks/image-pdf']")).toBeNull();
+    expect(document.querySelector("iframe[data-slot='docblocks/file-pdf']")).toBeNull();
   });
 });
 
 describe("PdfFirstPage (the ./pdf subpath)", () => {
-  it("falls back to the download link on a render failure over a non-embeddable url (the hostile-store gate)", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
-
-    let blockId: BlockId | undefined;
-    renderDoc(
-      (doc) => {
-        blockId = doc.insertBlock("image", { src: "key-1" });
-      },
-      {
-        blobStore: pdfStore("data:application/pdf;base64,AAAA"),
-        pdfPreview: PdfFirstPage,
-      }
-    );
-
-    // The fetch rejects on a microtask: the preview settles into the error
-    // phase. The data url stands no iframe (the hostile-store gate) — the
-    // error note + the download link stand.
-    await screen.findByText(/PDF preview unavailable/);
-
-    const shell = document.querySelector('[data-slot="docblocks/image-pdf-preview"][data-phase="error"]');
-    expect(shell).not.toBeNull();
-    // The preview shell stamps the block id + type (the repo-wide block DOM contract).
-    expect(shell!.getAttribute("data-block-id")).toBe(blockId);
-    expect(shell!.getAttribute("data-block-type")).toBe("image");
-    const note = document.querySelector('[data-slot="docblocks/image-pdf-error"]');
-    expect(note).not.toBeNull();
-    expect(note!.textContent).toContain("network down");
-    expect(document.querySelector("iframe[data-slot='docblocks/image-pdf']")).toBeNull();
-    const link = document.querySelector<HTMLAnchorElement>("[data-slot='docblocks/image-pdf-download']");
-    expect(link).not.toBeNull();
-    expect(link!.getAttribute("href")).toBe("data:application/pdf;base64,AAAA");
-    expect(link!.hasAttribute("download")).toBe(true);
-  });
-
   it("falls back to the strict-sandboxed native iframe on a render failure over an embeddable url", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("network down")));
 
     renderDoc(
       (doc) => {
-        doc.insertBlock("image", { src: "key-1" });
+        doc.insertBlock("file", { fileId: "key-1" });
       },
       {
-        blobStore: pdfStore("https://cdn.test/doc.pdf"),
+        blobStore: pdfStore(),
         pdfPreview: PdfFirstPage,
       }
     );
@@ -165,9 +119,8 @@ describe("PdfFirstPage (the ./pdf subpath)", () => {
 
     const frame = document.querySelector<HTMLIFrameElement>("iframe[data-slot='docblocks/image-pdf']");
     expect(frame).not.toBeNull();
-    expect(frame!.getAttribute("src")).toBe("https://cdn.test/doc.pdf");
-    // The same strict sandbox stands the error-fallback frame (both the
-    // hostile same-origin HTML and the hostile blob url are neutralized).
+    expect(frame!.getAttribute("src")).toMatch(/^blob:/);
+    // The strict sandbox also stands on the error-fallback frame.
     expect(frame!.hasAttribute("sandbox")).toBe(true);
     const sandbox = frame!.getAttribute("sandbox") ?? "";
     expect(sandbox).not.toContain("allow-same-origin");
@@ -194,7 +147,7 @@ describe("PdfFirstPage fetch cancellation (unmount / url change)", () => {
     const { mock, calls } = pendingFetch();
     vi.stubGlobal("fetch", mock);
 
-    const { unmount } = render(<PdfFirstPage id="b1" url="https://a.test/doc.pdf" name="doc.pdf" />);
+    const { unmount } = render(<PdfFirstPage id="b1" blockType="file" url="https://a.test/doc.pdf" name="doc.pdf" />);
     await act(async () => {});
 
     expect(calls).toHaveLength(1);
@@ -210,13 +163,13 @@ describe("PdfFirstPage fetch cancellation (unmount / url change)", () => {
     const { mock, calls } = pendingFetch();
     vi.stubGlobal("fetch", mock);
 
-    const { rerender } = render(<PdfFirstPage id="b1" url="https://a.test/doc.pdf" name="doc.pdf" />);
+    const { rerender } = render(<PdfFirstPage id="b1" blockType="file" url="https://a.test/doc.pdf" name="doc.pdf" />);
     await act(async () => {});
     expect(calls).toHaveLength(1);
     const signalA = calls[0]!.signal;
     expect(signalA.aborted).toBe(false);
 
-    rerender(<PdfFirstPage id="b1" url="https://b.test/doc.pdf" name="doc.pdf" />);
+    rerender(<PdfFirstPage id="b1" blockType="file" url="https://b.test/doc.pdf" name="doc.pdf" />);
     await act(async () => {});
 
     // The new url's fetch stands un-aborted; the superseded one is dropped.

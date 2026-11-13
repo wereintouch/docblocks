@@ -53,6 +53,8 @@ export type {
   DividerBlock,
   EmbedAttrs,
   EmbedBlock,
+  FileAttrs,
+  FileBlock,
   FrameAttrs,
   FrameBlock,
   Geometry,

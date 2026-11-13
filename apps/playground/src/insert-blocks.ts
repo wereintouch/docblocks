@@ -30,6 +30,8 @@ type InsertableType = (typeof INSERTABLE_TYPES)[number];
 
 /** The fixed image key the harness inserts; its src is a small inline SVG. */
 const IMAGE_KEY = "demo-image";
+/** The fixed generic attachment the catalog renders. */
+const CATALOG_FILE_KEY = "demo-file";
 
 /** The fixed embed src the harness inserts (a one-line html page — the
  * `html` kind's data URL snippet, the write gate's only data-scheme stand). */
@@ -381,13 +383,21 @@ function seedCanvas(doc: Doc): { surface: BlockId; frame: BlockId } {
   return { surface, frame };
 }
 
-/** Fixed key -> inline data: URL (a small SVG data URI). */
-const BLOB_SOURCES: Record<string, string> = {
-  [IMAGE_KEY]:
-    "data:image/svg+xml," +
-    encodeURIComponent(
-      "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='80'><rect width='120' height='80' fill='#0969da'/></svg>"
+/** Fixed file id -> the catalog image's bytes and metadata. */
+const BLOB_REFS: Record<string, BlobRef> = {
+  [IMAGE_KEY]: {
+    blob: new Blob(
+      [
+        "<svg xmlns='http://www.w3.org/2000/svg' width='120' height='80'><rect width='120' height='80' fill='#0969da'/></svg>",
+      ],
+      { type: "image/svg+xml" }
     ),
+    meta: { name: "catalog.svg", mimeType: "image/svg+xml" },
+  },
+  [CATALOG_FILE_KEY]: {
+    blob: new Blob(["Catalog attachment"], { type: "text/plain" }),
+    meta: { name: "catalog.txt", mimeType: "text/plain" },
+  },
 };
 
 /** The in-memory half of the harness's blob store (the slash Image uploads). */
@@ -398,13 +408,13 @@ const memoryBlobs = createMemoryBlobStore();
  * then the in-memory uploads (one per page — the A/B panes share it).
  */
 const blobStore: BlobStore = {
-  resolve: async (key: string): Promise<BlobRef> => {
-    const url = BLOB_SOURCES[key];
-    if (url !== undefined) return { url, meta: { subtype: "image" } };
-    return memoryBlobs.resolve(key);
+  get: async (fileId): Promise<BlobRef> => {
+    return BLOB_REFS[fileId] ?? memoryBlobs.get(fileId);
   },
-  upload: (file, meta) => memoryBlobs.upload(file, meta),
-  remove: (key) => memoryBlobs.remove?.(key) ?? Promise.resolve(),
+  upload: (file) => memoryBlobs.upload(file),
+  rename: (fileId, name) => memoryBlobs.rename(fileId, name),
+  subscribe: (fileId, onChange) => memoryBlobs.subscribe(fileId, onChange),
+  remove: (fileId) => memoryBlobs.remove?.(fileId) ?? Promise.resolve(),
 };
 
 /**
@@ -476,6 +486,7 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
 
 export {
   blobStore,
+  CATALOG_FILE_KEY,
   databaseBridge,
   EMBED_SRC,
   insertBlockOf,

@@ -45,6 +45,7 @@ describe("insertBlock", () => {
     const c1 = doc.insertBlock("table-cell", undefined, { parent: row });
     const c2 = doc.insertBlock("table-cell", undefined, { parent: row });
     const image = doc.insertBlock("image", { src: "blobs/x.png" });
+    const file = doc.insertBlock("file", { fileId: "file-1" });
     const embed = doc.insertBlock("embed", { kind: "iframe", src: "https://example.com" });
     const sync = doc.insertBlock("sync-embed", { ref: { docId: "master-1", blockId: "b9" } });
     const database = doc.insertBlock("database", {
@@ -61,7 +62,22 @@ describe("insertBlock", () => {
     const frame = doc.insertBlock("frame", undefined, { parent: surface });
     const canvasText = doc.insertBlock("canvas-text", undefined, { parent: surface });
 
-    expect(doc.getChildren("r")).toEqual([p, h, li, q, c, code, table, image, embed, sync, database, divider, surface]);
+    expect(doc.getChildren("r")).toEqual([
+      p,
+      h,
+      li,
+      q,
+      c,
+      code,
+      table,
+      image,
+      file,
+      embed,
+      sync,
+      database,
+      divider,
+      surface,
+    ]);
     expect(doc.getChildren(table)).toEqual([row]);
     expect(doc.getChildren(row)).toEqual([c1, c2]);
     expect(doc.getChildren(surface)).toEqual([shape, connector, frame, canvasText]);
@@ -69,6 +85,7 @@ describe("insertBlock", () => {
     expect(doc.getBlock(li)).toEqual({ type: "list-item", attrs: { list: "bullet" } });
     expect(doc.getBlock(q)).toEqual({ type: "quote", attrs: { align: "center" } });
     expect(doc.getBlock(image)).toEqual({ type: "image", attrs: { src: "blobs/x.png" } });
+    expect(doc.getBlock(file)).toEqual({ type: "file", attrs: { fileId: "file-1" } });
     expect(doc.getBlock(embed)).toEqual({ type: "embed", attrs: { kind: "iframe", src: "https://example.com" } });
     expect(doc.getBlock(sync)).toEqual({ type: "sync-embed", attrs: { ref: { docId: "master-1", blockId: "b9" } } });
     expect(doc.getBlock(database)).toEqual({
@@ -367,19 +384,17 @@ describe("updateBlock", () => {
     expect(doc.getBlock(img)).toEqual({ type: "image", attrs });
   });
 
-  it("stores the attachment display name as document data", () => {
+  it("stores only the file id in a file block", () => {
     const doc = newDoc();
-    const img = doc.insertBlock("image", { src: "blob-1", name: "report.xlsx" });
-    expect(doc.getBlock(img)).toEqual({ type: "image", attrs: { src: "blob-1", name: "report.xlsx" } });
+    const file = doc.insertBlock("file", { fileId: "file-1" });
+    expect(doc.getBlock(file)).toEqual({ type: "file", attrs: { fileId: "file-1" } });
+    expect(doc.toJSON().blocks[file]).toEqual({ type: "file", attrs: { fileId: "file-1" } });
 
-    doc.updateBlock(img, { name: "renamed.xlsx" });
-    expect(doc.toJSON().blocks[img]).toEqual({
-      type: "image",
-      attrs: { src: "blob-1", name: "renamed.xlsx" },
-    });
+    doc.updateBlock(file, { fileId: "file-2" });
+    expect(doc.getBlock(file)).toEqual({ type: "file", attrs: { fileId: "file-2" } });
     doc.undo();
-    expect(doc.getBlock(img)).toEqual({ type: "image", attrs: { src: "blob-1", name: "report.xlsx" } });
-    expect(() => doc.updateBlock(img, { name: "" })).toThrow(InvalidAttrsError);
+    expect(doc.getBlock(file)).toEqual({ type: "file", attrs: { fileId: "file-1" } });
+    expect(() => doc.updateBlock(file, { fileId: "" })).toThrow(InvalidAttrsError);
   });
 
   it("sets the text align on the text block types (an attr-less paragraph gains an attrs object)", () => {

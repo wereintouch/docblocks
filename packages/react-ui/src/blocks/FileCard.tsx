@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
-import type { BlockId, ImageBlock } from "docblocks-core";
+import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
@@ -14,17 +14,18 @@ import { isSafeDownloadHref } from "../shared/utils";
 
 interface FileCardProps {
   id: BlockId;
-  block: ImageBlock;
+  fileId: string;
+  blockType: "file" | "image";
   url: string;
-  name?: string;
+  name: string;
   subtype: "file" | "pdf";
 }
 
-/** A downloadable blob card with a document-backed display name. */
-function FileCard({ id, block, url, name, subtype }: FileCardProps) {
+/** A downloadable blob card with a store-backed display name. */
+function FileCard({ id, fileId, blockType, url, name, subtype }: FileCardProps) {
   const { t } = useTranslation("blocks");
-  const { blobStore, doc, viewMode } = useEditorContext();
-  const displayName = name ?? block.attrs.src;
+  const { blobStore, viewMode } = useEditorContext();
+  const displayName = name;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(displayName);
   const [renameFailed, setRenameFailed] = useState(false);
@@ -60,9 +61,8 @@ function FileCard({ id, block, url, name, subtype }: FileCardProps) {
 
     const operation = ++operationRef.current;
     try {
-      doc.updateBlock(id, { name: nextName });
-      setRenameFailed(false);
-      await blobStore.rename?.(block.attrs.src, nextName);
+      await blobStore.rename(fileId, nextName);
+      if (mountedRef.current && operation === operationRef.current) setRenameFailed(false);
     } catch {
       if (mountedRef.current && operation === operationRef.current) setRenameFailed(true);
     }
@@ -96,8 +96,8 @@ function FileCard({ id, block, url, name, subtype }: FileCardProps) {
 
   return (
     <Card
-      data-slot="docblocks/image-file"
-      data-block-type="image"
+      data-slot="docblocks/file-card"
+      data-block-type={blockType}
       data-block-id={id}
       data-subtype={subtype}
       contentEditable={false}

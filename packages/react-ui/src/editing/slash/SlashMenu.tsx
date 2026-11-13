@@ -32,8 +32,8 @@ function SlashMenu({
   onHover,
   onPick,
   onClose,
-  onImageFile,
-  imageClickRef,
+  onFile,
+  fileClickRef,
   databasePick,
   databaseAvailable,
   onDatabasePickCancel,
@@ -55,11 +55,11 @@ function SlashMenu({
   // the derivation (and the menu) stays live until the file lands.
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   useEffect(() => {
-    imageClickRef.current = { open: () => fileInputRef.current?.click() };
+    fileClickRef.current = { open: () => fileInputRef.current?.click() };
     return () => {
-      imageClickRef.current = null;
+      fileClickRef.current = null;
     };
-  }, [imageClickRef]);
+  }, [fileClickRef]);
 
   // The derivation, live (the block text from the store + the caret from
   // the DOM selection — the browser settles the DOM before the store
@@ -132,7 +132,7 @@ function SlashMenu({
     const files = event.target.files;
     const file = files !== null && files.length > 0 ? (files[0] ?? null) : null;
     event.target.value = "";
-    onImageFile(file);
+    onFile(file);
   };
   const hoverAt = (index: number) => () => onHover(index);
   const pickAt = (index: number) => () => onPick(index);

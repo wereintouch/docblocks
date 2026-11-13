@@ -35,8 +35,8 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   // The slash Image upload: the picker's open ref (registered by the
   // menu's hidden file input) + the pending pick context (the caret block
   // and the slash anchor), committed on the file pick.
-  const imageClickRef = useRef<{ open: () => void } | null>(null);
-  const pendingImageRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
+  const fileClickRef = useRef<{ open: () => void } | null>(null);
+  const pendingFileRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
   // The slash Database picker: the open flag (the menu panel stands the
   // picker over the phrase) + the pending pick context, committed on the
   // table pick.
@@ -130,12 +130,11 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       // a filtered-down list keeps the last item active.
       const command = items.length === 0 ? undefined : items[Math.min(index, items.length - 1)];
       if (command === undefined) return;
-      // The image is an upload insert: the menu stays open (the phrase is
-      // intact, the derivation stays live) while the picker stands; the
-      // commit (phrase strip + the insert) lands on the file pick.
-      if (command.type === "image") {
-        pendingImageRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
-        imageClickRef.current?.open();
+      // The file command is an upload insert: the menu stays open (the phrase
+      // stays live) while the picker stands; the commit lands on the file pick.
+      if (command.type === "file") {
+        pendingFileRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
+        fileClickRef.current?.open();
         return;
       }
       // The database is a picker insert: the menu stands open (the phrase
@@ -189,16 +188,16 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
    * seats there). A refused or cancelled pick commits nothing (the menu
    * stays open on the phrase).
    */
-  const handleImageFile = useCallback(
+  const handleFile = useCallback(
     (file: File | null) => {
-      const pending = pendingImageRef.current;
-      pendingImageRef.current = null;
+      const pending = pendingFileRef.current;
+      pendingFileRef.current = null;
       if (pending === null || file === null) return;
       const { blockId, parentId, slashOffset } = pending;
       if (doc.getBlock(blockId) === null) return;
       void (async () => {
         try {
-          const key = await blobStore.upload(file, { name: file.name });
+          const fileId = await blobStore.upload(file);
           const scope = rootRef.current ?? document;
           try {
             doc.transact(() => {
@@ -216,11 +215,10 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
               const segment = segmentRange(doc, parentId, blockId);
               const replace = stripped === "" && segment !== null && segment.end === segment.start + 1;
               if (!replace && hasPhrase) doc.deleteText(blockId, slashOffset, queryEnd);
-              const imageId = doc.insertBlock(
-                "image",
-                { src: key, ...(file.name !== "" ? { name: file.name } : {}), ...ind },
-                { parent: parentId, after: blockId }
-              );
+              const position = { parent: parentId, after: blockId };
+              const attachmentId = file.type.startsWith("image/")
+                ? doc.insertBlock("image", { src: fileId, ...ind }, position)
+                : doc.insertBlock("file", { fileId, ...ind }, position);
               // Inserting after the phrase-only block and then removing it
               // keeps the attachment at the same sequence slot.
               if (replace) {
@@ -228,12 +226,12 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
                 rootRef.current?.focus();
               }
               const sequence = doc.getChildren(parentId);
-              if (sequence[sequence.length - 1] === imageId) {
-                const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: imageId });
+              if (sequence[sequence.length - 1] === attachmentId) {
+                const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: attachmentId });
                 focusCaretIn(trailingId, 0, scope);
               } else if (replace) {
-                const imageIndex = sequence.indexOf(imageId);
-                const nextId = sequence.slice(imageIndex + 1).find((id) => {
+                const attachmentIndex = sequence.indexOf(attachmentId);
+                const nextId = sequence.slice(attachmentIndex + 1).find((id) => {
                   const next = doc.getBlock(id);
                   return next !== null && BLOCK_REGISTRY[next.type].content;
                 });
@@ -248,8 +246,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
           }
           close();
         } catch {
-          // The upload was refused (or the legacy resolver holds no upload
-          // path): nothing commits; the menu stands open on the phrase.
+          // The upload was refused: nothing commits; the menu stays open on the phrase.
         }
       })();
     },
@@ -545,8 +542,8 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         onHover={hover}
         onPick={pick}
         onClose={close}
-        onImageFile={handleImageFile}
-        imageClickRef={imageClickRef}
+        onFile={handleFile}
+        fileClickRef={fileClickRef}
         databasePick={databasePick}
         databaseAvailable={databaseAvailable}
         onDatabasePickCancel={cancelDatabasePick}

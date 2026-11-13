@@ -5,7 +5,7 @@
 // the release) / the hover menu (the download, the caption, the align
 // controls).
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { act } from "react";
 
@@ -18,8 +18,13 @@ import { EditorProvider, useEditorContext } from "../src/editor-provider";
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
 const IMAGE_STORE: BlobStore = {
-  resolve: async () => ({ url: "https://cdn.test/pic.png", meta: { subtype: "image", name: "pic.png" } }),
+  get: async () => ({
+    blob: new Blob(["pic"], { type: "image/png" }),
+    meta: { name: "pic.png", mimeType: "image/png" },
+  }),
   upload: async () => "up-1",
+  rename: async () => ({ name: "pic.png", mimeType: "image/png" }),
+  subscribe: () => () => {},
 };
 
 /** Seed the image (optionally with the view attrs), render, return the ids. */
@@ -279,7 +284,7 @@ describe("the hover menu (the download, the caption, the align)", () => {
     await flushResolve();
     const link = document.querySelector<HTMLAnchorElement>('[data-slot="docblocks/image-download"]');
     expect(link).not.toBeNull();
-    expect(link!.getAttribute("href")).toBe("https://cdn.test/pic.png");
+    expect(link!.getAttribute("href")).toMatch(/^blob:/);
     expect(link!.getAttribute("download")).toBe("pic.png");
   });
 
@@ -311,165 +316,5 @@ describe("the hover menu (the download, the caption, the align)", () => {
     // The already-active pick is a no-op (the attrs stand as they are).
     fireEvent.click(center!);
     expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", align: "center" });
-  });
-});
-describe("the generic file attachment card", () => {
-  function renderFileDoc(options?: {
-    name?: string;
-    mode?: "edit" | "view";
-    rename?: (key: string, name: string) => Promise<void>;
-  }) {
-    const doc = createDoc({ id: "doc-file", createdAt: CREATED_AT });
-    const imageId = doc.insertBlock("image", { src: "key-1", ...(options?.name ? { name: options.name } : {}) });
-    const store: BlobStore = {
-      resolve: async () => ({
-        url: "https://cdn.test/original.xlsx",
-        meta: { subtype: "file", name: "original.xlsx" },
-      }),
-      upload: async () => "up-1",
-      ...(options?.rename ? { rename: options.rename } : {}),
-    };
-    render(
-      <EditorProvider doc={doc} blobStore={store} mode={options?.mode ?? "edit"}>
-        <Editor />
-      </EditorProvider>
-    );
-    return { doc, imageId };
-  }
-
-  function cardOf(): HTMLElement {
-    const card = document.querySelector<HTMLElement>('[data-slot="docblocks/image-file"][data-subtype="file"]');
-    expect(card, "the file card should render").not.toBeNull();
-    return card!;
-  }
-
-  it("shows the original file name, a file icon, and a separate download action", async () => {
-    renderFileDoc();
-    await flushResolve();
-    const card = cardOf();
-    expect(card.querySelector('[data-slot="docblocks/file-name"]')?.textContent).toBe("original.xlsx");
-    expect(card.querySelector('[data-slot="docblocks/file-icon"]')).not.toBeNull();
-    const download = card.querySelector<HTMLAnchorElement>('[data-slot="docblocks/file-download"]');
-    expect(download).not.toBeNull();
-    expect(download?.getAttribute("href")).toBe("https://cdn.test/original.xlsx");
-    expect(download?.getAttribute("download")).toBe("original.xlsx");
-  });
-
-  it("commits the editor's name to the document and notifies the consumer once", async () => {
-    const rename = vi.fn(async () => {});
-    const { doc, imageId } = renderFileDoc({ rename });
-    await flushResolve();
-
-    fireEvent.click(cardOf().querySelector<HTMLElement>('[data-slot="docblocks/file-rename"]')!);
-    const input = screen.getByLabelText("File name");
-    fireEvent.change(input, { target: { value: "renamed.xlsx" } });
-    await act(async () => {
-      fireEvent.keyDown(input, { key: "Enter" });
-    });
-
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1", name: "renamed.xlsx" });
-    expect(cardOf().querySelector('[data-slot="docblocks/file-name"]')?.textContent).toBe("renamed.xlsx");
-    expect(cardOf().querySelector('[data-slot="docblocks/file-download"]')?.getAttribute("download")).toBe(
-      "renamed.xlsx"
-    );
-    expect(rename).toHaveBeenCalledTimes(1);
-    expect(rename).toHaveBeenCalledWith("key-1", "renamed.xlsx");
-  });
-
-  it("keeps the document name and shows an error when the consumer's rename rejects", async () => {
-    const rename = vi.fn(async () => {
-      throw new Error("storage unavailable");
-    });
-    const { doc, imageId } = renderFileDoc({ rename });
-    await flushResolve();
-
-    fireEvent.click(cardOf().querySelector<HTMLElement>('[data-slot="docblocks/file-rename"]')!);
-    const input = screen.getByLabelText("File name");
-    fireEvent.change(input, { target: { value: "renamed.xlsx" } });
-    await act(async () => {
-      fireEvent.keyDown(input, { key: "Enter" });
-    });
-
-    expect(imageAttrs(doc, imageId)?.name).toBe("renamed.xlsx");
-    expect(screen.getByRole("alert").textContent).toContain("storage metadata update failed");
-  });
-
-  it("cancels an edit with Escape without writing or notifying", async () => {
-    const rename = vi.fn(async () => {});
-    const { doc, imageId } = renderFileDoc({ rename });
-    await flushResolve();
-
-    fireEvent.click(cardOf().querySelector<HTMLElement>('[data-slot="docblocks/file-rename"]')!);
-    const input = screen.getByLabelText("File name");
-    fireEvent.change(input, { target: { value: "discard.xlsx" } });
-    fireEvent.keyDown(input, { key: "Escape" });
-    fireEvent.blur(input);
-
-    expect(imageAttrs(doc, imageId)).toEqual({ src: "key-1" });
-    expect(rename).not.toHaveBeenCalled();
-    expect(cardOf().querySelector('[data-slot="docblocks/file-name"]')?.textContent).toBe("original.xlsx");
-  });
-
-  it("keeps download available to readers while hiding the rename action", async () => {
-    renderFileDoc({ name: "published.xlsx", mode: "view" });
-    await flushResolve();
-    const card = cardOf();
-    expect(card.querySelector('[data-slot="docblocks/file-name"]')?.textContent).toBe("published.xlsx");
-    expect(card.querySelector('[data-slot="docblocks/file-rename"]')).toBeNull();
-    expect(card.querySelector('[data-slot="docblocks/file-download"]')?.getAttribute("download")).toBe(
-      "published.xlsx"
-    );
-  });
-});
-
-describe("the download href's scheme gate (the hostile consumer's BlobStore url)", () => {
-  // The download cards / the toolbar's download carry the consumer's resolved
-  // url into the anchor's href: the executable schemes stand no anchor (the
-  // `javascript:` runs on the click — the `download` attribute stands no
-  // neutralization), the name stands the plain text / the disabled button.
-  function renderHostileDoc(subtype: "image" | "pdf" | "file") {
-    const doc = createDoc({ id: "doc-hostile", createdAt: CREATED_AT });
-    const imageId = doc.insertBlock("image", { src: "key-1" });
-    const store: BlobStore = {
-      resolve: async () => ({ url: "javascript:alert(1)", meta: { subtype, name: "evil.pdf" } }),
-      upload: async () => "up-1",
-    };
-    render(
-      <EditorProvider doc={doc} blobStore={store}>
-        <Editor />
-      </EditorProvider>
-    );
-    return imageId;
-  }
-
-  it("stands the file card's name over the plain text (no anchor)", async () => {
-    renderHostileDoc("file");
-    await flushResolve();
-    const card = document.querySelector<HTMLElement>('[data-slot="docblocks/image-file"][data-subtype="file"]');
-    expect(card).not.toBeNull();
-    expect(card!.querySelector("a")).toBeNull();
-    expect(card!.textContent).toContain("evil.pdf");
-  });
-
-  it("stands the pdf download card's name over the plain text (no anchor)", async () => {
-    renderHostileDoc("pdf");
-    await flushResolve();
-    const card = document.querySelector<HTMLElement>('[data-slot="docblocks/image-file"][data-subtype="pdf"]');
-    expect(card).not.toBeNull();
-    expect(card!.querySelector("a")).toBeNull();
-    expect(card!.textContent).toContain("evil.pdf");
-    // The iframe stands no mount (the non-embeddable scheme).
-    expect(document.querySelector('[data-slot="docblocks/image-pdf"] iframe')).toBeNull();
-  });
-
-  it("stands the image figure's download over the disabled button (no anchor)", async () => {
-    renderHostileDoc("image");
-    await flushResolve();
-    const figure = document.querySelector<HTMLElement>('[data-slot="docblocks/image-figure"]');
-    expect(figure).not.toBeNull();
-    const download = figure!.querySelector<HTMLElement>('[data-slot="docblocks/image-download"]');
-    expect(download).not.toBeNull();
-    expect(download!.tagName).toBe("BUTTON");
-    expect((download as HTMLButtonElement).disabled).toBe(true);
   });
 });

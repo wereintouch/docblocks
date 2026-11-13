@@ -49,10 +49,11 @@
     "downloadTitle": "Download"
   },
   "file": {
+    "placeholder": "file",
     "name": "File name",
     "rename": "Rename the file",
     "download": "Download the file",
-    "renameFailed": "The file name is saved in the document, but the storage metadata update failed."
+    "renameFailed": "The storage rename failed. The previous file name is still shown."
   },
   "embed": {
     "zoomIn": "Zoom in",

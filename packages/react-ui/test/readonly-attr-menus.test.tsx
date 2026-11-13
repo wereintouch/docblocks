@@ -19,10 +19,15 @@ import { EditorProvider } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
-/** The blob store stub (the image's url + the image's subtype). */
+/** The image blob store stub. */
 const blobStore: BlobStore = {
-  resolve: async () => ({ url: "https://cdn.test/pic.png", meta: { subtype: "image", name: "pic.png" } }),
+  get: async () => ({
+    blob: new Blob(["pic"], { type: "image/png" }),
+    meta: { name: "pic.png", mimeType: "image/png" },
+  }),
   upload: async () => "up-1",
+  rename: async () => ({ name: "pic.png", mimeType: "image/png" }),
+  subscribe: () => () => {},
 };
 
 /** Flush the async blob resolve (the promise settles on a microtask). */

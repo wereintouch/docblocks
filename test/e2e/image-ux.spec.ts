@@ -174,7 +174,7 @@ test("the image figure: the click's selection ring, the port resize, and the hov
   await expect.poll(async () => await menu.evaluate((el) => getComputedStyle(el).opacity), SETTLE).toBe("1");
 
   const download = menu.locator('[data-slot="docblocks/image-download"]');
-  await expect(download).toHaveAttribute("href", /^data:image\//);
+  await expect(download).toHaveAttribute("href", /^blob:/);
   await expect(download).toHaveAttribute("download", "upload-test.png");
 
   // The caption (the code block's caption idiom): the button stands the line,
