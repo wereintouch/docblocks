@@ -55,7 +55,16 @@ const TableCell = memo(function TableCell({
     ...(dragged && background === undefined
       ? { background: "var(--docblocks-table-drag-background, transparent)" }
       : {}),
-    ...(dragged ? { boxShadow: "var(--docblocks-table-drag-shadow, none)" } : {}),
+    ...(dragged
+      ? {
+          // The dragged card's boundary: the collapsed cell's borders stand
+          // on the table's layout and do not travel over the transform —
+          // the card keeps a thin inset outline (the cell's line stand)
+          // in the same shadow as the drag's elevation.
+          boxShadow:
+            "var(--docblocks-table-drag-shadow, none), inset 0 0 0 var(--docblocks-table-border-width) var(--docblocks-table-border-color)",
+        }
+      : {}),
     ...(hasDrag
       ? {
           transform: `translate(${dragX}px, ${rowDy}px)`,

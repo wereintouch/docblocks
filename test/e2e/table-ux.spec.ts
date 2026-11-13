@@ -622,6 +622,51 @@ test("the row drag moves the row over the wire (B); the parting preview stands m
   }
 });
 
+test("the mid-drag preview's card keeps the cell's boundary (the inset outline resolves over the drag shadow)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "table-drag-boundary");
+  try {
+    await seedTable(
+      a,
+      "a",
+      [
+        ["a1", "a2", "a3"],
+        ["b1", "b2", "b3"],
+      ],
+      [120, 140, 90]
+    );
+    // Drag the column 0 handle mid-drag (no release): the dragged cell's
+    // card keeps a thin inset outline (the collapsed borders do not travel
+    // over the transform) resolved over the drag's elevation, and the
+    // dragged chip follows the pointer with no left/top transition.
+    await seedHover(a, 0, colChipSel(0));
+    const handleBox = await colHandle(a, 0).boundingBox();
+    if (handleBox === null) throw new Error("the column handle has no box");
+    const from = { x: handleBox.x + handleBox.width / 2, y: handleBox.y + handleBox.height / 2 };
+    await a.mouse.move(from.x, from.y);
+    await a.mouse.down();
+    await a.mouse.move(from.x + 80, from.y, { steps: 6 });
+    await a.waitForTimeout(300);
+    const stands = await a.evaluate(() => {
+      const cell = document.querySelector<HTMLTableCellElement>("td[data-block-id]");
+      const chip = document.querySelector<HTMLElement>(`[data-slot="docblocks/table-col-handle"][data-index="0"]`);
+      if (cell === null || chip === null) return null;
+      return { shadow: getComputedStyle(cell).boxShadow, chipTransition: chip.style.transition };
+    });
+    if (stands === null) throw new Error("the mid-drag cell and chip should stand");
+    // The inset outline resolves to a real shadow (the var's stand, not
+    // the none's fallback) over the drag's elevation's list.
+    expect(stands.shadow).toContain("inset");
+    expect(stands.shadow).not.toBe("none");
+    // The dragged chip's left/top transition stands gone (the lag's stand).
+    expect(stands.chipTransition).toBe("");
+    await a.mouse.up();
+  } finally {
+    await close();
+  }
+});
+
 test("the seam resize: the release commits one width (B JSON); the 50 px floor; the undo reverts", async ({
   browser,
 }) => {

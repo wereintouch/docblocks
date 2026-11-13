@@ -96,7 +96,7 @@ function HandleMenu({
           style={{
             left: left + dragDx,
             top: top + dragDy,
-            ...(dragTransition !== undefined ? { transition: HANDLE_DRAG_TRANSITION } : {}),
+            ...(dragTransition !== undefined && !dragging ? { transition: HANDLE_DRAG_TRANSITION } : {}),
           }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}

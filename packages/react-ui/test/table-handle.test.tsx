@@ -389,6 +389,63 @@ describe("the handle drag (the press-drag-release commits the move)", () => {
     fireEvent.pointerUp(rowHandle(0), { clientX: 0, clientY: 60, pointerId: 1 });
   });
 
+  it("the dragged cell keeps a thin inset boundary over the drag shadow (the collapsed borders do not travel)", () => {
+    const { doc, tableId } = renderTableDoc(3, 3, [120, 140, 90]);
+    // The column drag (the pointer's 100 px right): the dragged cell's
+    // card keeps a thin inset outline (the cell's line stand) in the same
+    // shadow as the drag shadow — the collapsed cell's borders stand on
+    // the table's layout and do not travel over the transform.
+    fireEvent.pointerDown(colHandle(0), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+    const draggedCell = cellAt(0, 0);
+    expect(draggedCell.style.boxShadow).toContain("--docblocks-table-drag-shadow");
+    expect(draggedCell.style.boxShadow).toContain(
+      "inset 0 0 0 var(--docblocks-table-border-width) var(--docblocks-table-border-color)"
+    );
+    // The preview clears on the release: the boundary stands with the drag.
+    fireEvent.pointerUp(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+    expect(cellAt(0, 0).style.boxShadow).toBe("");
+    // The row drag's dragged cells stand the same boundary.
+    fireEvent.pointerDown(rowHandle(0), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(rowHandle(0), { clientX: 0, clientY: 60, pointerId: 1 });
+    expect(cellAt(0, 0).style.boxShadow).toContain("inset 0 0 0 var(--docblocks-table-border-width)");
+    expect(cellAt(0, 1).style.boxShadow).toContain("inset 0 0 0 var(--docblocks-table-border-width)");
+    fireEvent.pointerUp(rowHandle(0), { clientX: 0, clientY: 60, pointerId: 1 });
+
+    // A colored card keeps both its background and the same boundary.
+    act(() => doc.setTableColumnColor(tableId, 0, "#ff0000"));
+    fireEvent.pointerDown(colHandle(0), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+    expect(cellAt(0, 0).style.background).toBe("rgb(255, 0, 0)");
+    expect(cellAt(0, 0).style.boxShadow).toContain("inset 0 0 0 var(--docblocks-table-border-width)");
+    fireEvent.pointerUp(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+  });
+
+  it("the dragged handle stands no left/top transition (the drag's stationary handles keep it)", () => {
+    renderTableDoc(3, 3, [120, 140, 90]);
+    // At rest the chips keep their positional transition (a seam resize
+    // glides); only the actively dragged chip suppresses it.
+    expect(colHandle(0).style.transition).toBe("left 120ms ease-out, top 120ms ease-out");
+    expect(rowHandle(0).style.transition).toBe("left 120ms ease-out, top 120ms ease-out");
+    // The column drag (the pointer's 100 px right): the dragged chip
+    // follows the pointer with no transition (its lag stands over the
+    // dragged cells' none), the stationary chips keep it.
+    fireEvent.pointerDown(colHandle(0), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+    expect(colHandle(0).style.transition).toBe("");
+    expect(colHandle(1).style.transition).toBe("left 120ms ease-out, top 120ms ease-out");
+    expect(colHandle(2).style.transition).toBe("left 120ms ease-out, top 120ms ease-out");
+    fireEvent.pointerUp(colHandle(0), { clientX: 100, clientY: 0, pointerId: 1 });
+    // The row drag: the dragged chip stands no transition, the
+    // stationary's keep it.
+    fireEvent.pointerDown(rowHandle(0), { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerMove(rowHandle(0), { clientX: 0, clientY: 60, pointerId: 1 });
+    expect(rowHandle(0).style.transition).toBe("");
+    expect(rowHandle(1).style.transition).toBe("left 120ms ease-out, top 120ms ease-out");
+    expect(rowHandle(2).style.transition).toBe("left 120ms ease-out, top 120ms ease-out");
+    fireEvent.pointerUp(rowHandle(0), { clientX: 0, clientY: 60, pointerId: 1 });
+  });
+
   it("a no-op drop (back into the same position) issues no command", () => {
     const { doc, tableId } = renderTableDoc(3, 2, [111, 100, 100]);
     press(colHandle(0), { x: 10, y: 0 });
