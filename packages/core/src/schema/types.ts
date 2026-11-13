@@ -133,6 +133,8 @@ interface TableCellAttrs {
 interface ImageAttrs {
   /** Opaque blob key (resolved by the consumer). */
   src: string;
+  /** The attachment's display and suggested download name; absent = the blob store's metadata name. */
+  name?: string;
   /** The display width in px (the aspect ratio stands — the height
    *  follows); absent or `null` = the editor's full width. The renderer
    *  never draws the figure wider than the editor. */

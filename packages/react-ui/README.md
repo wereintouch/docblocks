@@ -327,6 +327,7 @@ interface BlobStore {
     meta: { subtype: "image" | "pdf" | "file"; name?: string; type?: string; size?: number };
   }>;
   upload(file: File | Blob, meta?: Partial<BlobMeta>): Promise<string>;
+  rename?(key: string, name: string): Promise<void>; // optional storage-metadata notification
   remove?(key: string): Promise<void>; // optional gc
 }
 ```
@@ -338,6 +339,22 @@ interface BlobStore {
   iframe without it), `file` the download card. The consumer decides the
   subtype on both directions (`upload` may override the mime-derived
   default via `meta.subtype`).
+- The file picker accepts arbitrary files. An upload stores the original
+  `file.name` in the block's optional `image.attrs.name`; older blocks fall
+  back to `resolve().meta.name`, then to the opaque key. Generic `file` blobs
+  render a card with file and download icons. Editors can rename the card;
+  the new name is committed to the document, syncs to peers, and becomes the
+  download's suggested filename. Read-only modes keep download available and
+  hide renaming.
+- After a local rename, the editor calls optional `rename(key, name)` with the
+  stable blob key and the committed name. Consumers can use it to update
+  object-storage metadata such as S3 `Content-Disposition`. The callback is
+  not called for remote updates or undo/redo. A rejection leaves the document
+  name intact and displays a non-blocking error in the card.
+- Browsers may ignore an anchor's `download` filename for cross-origin URLs.
+  For S3 and other cross-origin stores, set the response's
+  `Content-Disposition: attachment; filename=...` metadata in `rename` (and
+  during upload) when the downloaded filename must be enforced by the server.
 - Without `blobStore` / `blobResolver`, the editor uses a shared
   in-memory store (uploads stand data urls for the JS session, cleared on
   reload), so the upload path works out of the box. `createMemoryBlobStore`

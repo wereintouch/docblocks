@@ -42,6 +42,7 @@ const ICON_SET = [
   "Ellipsis",
   "EllipsisVertical",
   "Eye",
+  "File",
   "Fill",
   "Flag",
   "Frame",

@@ -367,6 +367,21 @@ describe("updateBlock", () => {
     expect(doc.getBlock(img)).toEqual({ type: "image", attrs });
   });
 
+  it("stores the attachment display name as document data", () => {
+    const doc = newDoc();
+    const img = doc.insertBlock("image", { src: "blob-1", name: "report.xlsx" });
+    expect(doc.getBlock(img)).toEqual({ type: "image", attrs: { src: "blob-1", name: "report.xlsx" } });
+
+    doc.updateBlock(img, { name: "renamed.xlsx" });
+    expect(doc.toJSON().blocks[img]).toEqual({
+      type: "image",
+      attrs: { src: "blob-1", name: "renamed.xlsx" },
+    });
+    doc.undo();
+    expect(doc.getBlock(img)).toEqual({ type: "image", attrs: { src: "blob-1", name: "report.xlsx" } });
+    expect(() => doc.updateBlock(img, { name: "" })).toThrow(InvalidAttrsError);
+  });
+
   it("sets the text align on the text block types (an attr-less paragraph gains an attrs object)", () => {
     const doc = newDoc();
     const p = doc.insertBlock("paragraph");

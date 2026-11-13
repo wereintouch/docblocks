@@ -211,7 +211,11 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
                 while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
                 doc.deleteText(blockId, slashOffset, queryEnd);
               }
-              const imageId = doc.insertBlock("image", { src: key, ...ind }, { parent: parentId, after: blockId });
+              const imageId = doc.insertBlock(
+                "image",
+                { src: key, ...(file.name !== "" ? { name: file.name } : {}), ...ind },
+                { parent: parentId, after: blockId }
+              );
               const sequence = doc.getChildren(parentId);
               if (sequence[sequence.length - 1] === imageId) {
                 const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: imageId });

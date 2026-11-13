@@ -25,6 +25,7 @@ import {
 import { isSafeDownloadHref } from "../shared/utils";
 import { clamp, preventDefault } from "../shared/utils";
 import { BlockCaption, requestBlockCaption } from "./BlockCaption";
+import { FileCard } from "./FileCard";
 
 /** The placeholder card's shared classes (the unknown-key and loading states). */
 const PLACEHOLDER_CLASS = `
@@ -108,44 +109,20 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   }
 
   const { url, meta } = ref;
+  const name = block.attrs.name ?? meta.name;
   if (meta.subtype === "pdf") {
     // The consumer's PDF preview renderer (the `pdfPreview` provider prop)
     // takes over the whole figure; without it the native iframe stands.
     if (pdfPreview !== null) {
       const Preview = pdfPreview;
-      return <Preview id={id} url={url} name={meta.name} />;
+      return <Preview id={id} url={url} name={name} />;
     }
     // The native iframe stands only over the embeddable scheme (the
     // hostile-store gate): the data / blob / javascript urls stand the
     // download card (their bytes are never executed over the frame's
     // context).
     if (!isEmbeddablePdfUrl(url)) {
-      return (
-        <Card
-          data-slot="docblocks/image-file"
-          data-block-type="image"
-          data-block-id={id}
-          data-subtype="pdf"
-          className={PLACEHOLDER_CLASS}
-        >
-          <CardContent className="flex items-center justify-center gap-2">
-            <ImageIcon className="size-4 shrink-0" />
-            {isSafeDownloadHref(url) ? (
-              <a
-                href={url}
-                download={meta.name ?? src}
-                className="max-w-60 truncate text-sm underline underline-offset-2"
-              >
-                {meta.name ?? src}
-              </a>
-            ) : (
-              // The executable-scheme stand (the consumer's hostile url — the
-              // `javascript:` stands no anchor, the name stands the plain text).
-              <span className="max-w-60 truncate text-sm">{meta.name ?? src}</span>
-            )}
-          </CardContent>
-        </Card>
-      );
+      return <FileCard id={id} block={block} url={url} name={name} subtype="pdf" />;
     }
     return (
       <iframe
@@ -155,7 +132,7 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
         data-subtype="pdf"
         sandbox={PDF_VIEWER_SANDBOX}
         src={url}
-        title={meta.name ?? t("image.document")}
+        title={name ?? t("image.document")}
         className="
           my-(--docblocks-block-spacing) block aspect-video w-full rounded-(--docblocks-image-radius)
           border-(length:--docblocks-table-border-width) border-(--docblocks-table-border-color) outline-none
@@ -164,34 +141,9 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
     );
   }
   if (meta.subtype === "file") {
-    return (
-      <Card
-        data-slot="docblocks/image-file"
-        data-block-type="image"
-        data-block-id={id}
-        data-subtype="file"
-        className={PLACEHOLDER_CLASS}
-      >
-        <CardContent className="flex items-center justify-center gap-2">
-          <ImageIcon className="size-4 shrink-0" />
-          {isSafeDownloadHref(url) ? (
-            <a
-              href={url}
-              download={meta.name ?? src}
-              className="max-w-60 truncate text-sm underline underline-offset-2"
-            >
-              {meta.name ?? src}
-            </a>
-          ) : (
-            // The executable-scheme stand (the consumer's hostile url stands
-            // no anchor, the name stands the plain text).
-            <span className="max-w-60 truncate text-sm">{meta.name ?? src}</span>
-          )}
-        </CardContent>
-      </Card>
-    );
+    return <FileCard id={id} block={block} url={url} name={name} subtype="file" />;
   }
-  return <ImageFigure id={id} block={block} url={url} name={meta.name} />;
+  return <ImageFigure id={id} block={block} url={url} name={name} />;
 }
 
 /**

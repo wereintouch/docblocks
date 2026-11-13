@@ -159,7 +159,6 @@ function SlashMenu({
       <Input
         ref={fileInputRef}
         type="file"
-        accept="image/*,application/pdf"
         data-slot="docblocks/slash-file-input"
         className="
           pointer-events-none absolute h-0 w-0 border-0 bg-transparent p-0 opacity-0 shadow-none

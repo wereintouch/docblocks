@@ -105,6 +105,9 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
     rows: false,
     attrs: {
       src: { kind: "string", nonEmpty: true, required: true },
+      // The attachment's document-level display name; absent = the blob
+      // store's metadata name. This overrides the download's suggested name.
+      name: { kind: "string", nonEmpty: true },
       // The display width in px (the figure's aspect ratio stands — the
       // height follows); absent or null = the editor's full width. The
       // renderer never draws the figure wider than the editor (the

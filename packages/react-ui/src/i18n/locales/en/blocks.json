@@ -48,6 +48,12 @@
     "download": "Download the image",
     "downloadTitle": "Download"
   },
+  "file": {
+    "name": "File name",
+    "rename": "Rename the file",
+    "download": "Download the file",
+    "renameFailed": "The file name is saved in the document, but the storage metadata update failed."
+  },
   "embed": {
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",

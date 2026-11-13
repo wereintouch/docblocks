@@ -35,6 +35,7 @@ export { Elbow } from "./Elbow";
 export { Ellipsis } from "./Ellipsis";
 export { EllipsisVertical } from "./EllipsisVertical";
 export { Eye } from "./Eye";
+export { File } from "./File";
 export { Fill } from "./Fill";
 export { Flag } from "./Flag";
 export { Frame } from "./Frame";

@@ -138,7 +138,8 @@ isomorphic — every JSON field has exactly one Yjs image.
 The v1 registry covers the page types (`paragraph`, `quote`, `heading`,
 `list-item`, `callout`, `code`, `divider`, `image`, `embed`, `table` /
 `table-row` / `table-cell`, `database`), the five canvas types (`surface`,
-`shape`, `connector`, `frame`, `canvas-text`), and `root`; the v1 marks
+`shape`, `connector`, `frame`, `canvas-text`), and `root`. An `image` block holds the opaque blob key in `attrs.src` and an
+optional document-backed display/download name in `attrs.name`; the v1 marks
 are `bold`, `italic`, `strike`, `underline`, `code` (exclusive), `link`,
 `color`, `highlight`, and `mention`. The type lists stand exported
 (`PAGE_BLOCK_TYPES`, `LEAF_BLOCK_TYPES`, `BLOCK_REGISTRY`,

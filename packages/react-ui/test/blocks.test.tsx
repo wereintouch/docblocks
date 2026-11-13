@@ -168,7 +168,8 @@ describe("built-in renderers: image", () => {
     const link = card!.querySelector("a");
     expect(link).not.toBeNull();
     expect(link!.getAttribute("href")).toBe("https://cdn.test/a.xlsx");
-    expect(link!.textContent).toBe("a.xlsx");
+    expect(link!.getAttribute("download")).toBe("a.xlsx");
+    expect(card!.querySelector('[data-slot="docblocks/file-name"]')?.textContent).toBe("a.xlsx");
   });
 
   it("renders the placeholder when the store rejects the key", async () => {

@@ -43,6 +43,12 @@ interface BlobStore {
    *  The consumer may extend or override `meta` (it decides the subtype).
    *  Throws a typed error on the backend's refusal. */
   upload(file: File | Blob, meta?: Partial<BlobMeta>): Promise<string>;
+  /**
+   * Optional rename notification after the document's display name changes.
+   * The key stays stable; consumers can update storage metadata such as S3
+   * Content-Disposition. A rejection leaves the committed document name intact.
+   */
+  rename?(key: string, name: string): Promise<void>;
   /** Optional: drop the bit (gc). Not required by the v contract. */
   remove?(key: string): Promise<void>;
 }
