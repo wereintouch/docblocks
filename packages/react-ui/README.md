@@ -400,6 +400,13 @@ and reorders them by dragging their grips or pressing ArrowUp/ArrowDown on a
 focused grip. Header drag and the popover share one full column order, and
 visible column widths follow the moved column.
 
+The grid's **Filter** control edits a recursive and/or condition tree: one
+row per condition (the field / the operator / the value over the column's
+annotation, a single line), the nested groups over bordered cards, and the
+conditions and the groups bound by the group's left connector line. The
+logic's labels stand the UI's locale (en/ru). `Apply` commits the draft as
+the view's `filter` attr (the block's write stand); `Clear` resets it.
+
 When an inserted row does not match the active filter, the grid keeps it
 visible with an orange outline while its initial edit session has focus. The
 row leaves the filtered view when focus moves elsewhere; the bridge data is
@@ -443,7 +450,10 @@ className? })` —
   the optional `view` prop at mount); `onViewChange(patch)` receives one
   patch per change for the consumer's persistence (the controlled mode
   stands absent — the state is never external). `readOnly` gates the
-  editing's paths (the read-only block's parity). The sizing's stand is
+  editing's paths (the read-only block's parity). The standalone's grid
+  stands no table-name display — the consumer's own visual element (the
+  section's list / the heading) stands the name; the document block's
+  grid keeps the live name + the rename over it. The sizing's stand is
   the consumer's: the grid stands the root's width (`w-full`), and the
   `className` over the root (the component's own classes stand merged
   over it) — a height-constrained root stands the grid's inner scroll

@@ -115,7 +115,10 @@ describe("DatabaseTable (the standalone's grid over the bridge's table id)", () 
     render(<DatabaseTable bridge={bridge} tableId={tableId} />);
     for (let i = 0; i < 4; i++) await settleGrid();
 
-    expect(document.querySelector("[data-slot='docblocks/database-name']")?.textContent).toBe("Tasks");
+    // The standalone's stand (the consumer's own page): the table's name
+    // stands off — the grid is the consumer's own visual element (the
+    // consumer's heading stands the name), so the toolbar keeps no name.
+    expect(document.querySelector("[data-slot='docblocks/database-name']")).toBeNull();
     expect(
       document.querySelector(`[data-slot='docblocks/database-header-cell'][data-column-id='${title}']`)?.textContent
     ).toContain("Title");

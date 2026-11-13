@@ -72,12 +72,15 @@
   "filter": {
     "empty": "Нет столбцов для фильтрации.",
     "logic": "Логика фильтра",
+    "and": "И",
+    "or": "ИЛИ",
     "matchAll": "выполнены все условия",
     "matchAny": "выполнено любое из условий",
-    "nestedGroup": "Вложенная группа ({logic})",
     "removeGroup": "Удалить группу",
     "condition": "+ Условие",
     "group": "+ Группа",
+    "groupHeader": "Группа {index}",
+    "removeCondition": "Удалить условие",
     "valuePlaceholder": "значение, значение"
   },
   "picker": {

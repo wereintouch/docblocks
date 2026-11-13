@@ -52,7 +52,7 @@ test("the catalog's list stands the harness's demo table (the seed's settle)", a
 test("the standalone root anchors the package's token scope (the computed tokens resolve)", async ({ page }) => {
   const demo = await demoTable(page);
   await page.locator(`[data-testid='tables-item'][data-table-id='${demo.id}']`).click();
-  await expect(page.locator("[data-slot='docblocks/database-name']")).toBeVisible(SETTLE);
+  await expect(page.locator("[data-slot='docblocks/database-toolbar']")).toBeVisible(SETTLE);
 
   // The token mapping is declared on the editor root's selector; the
   // standalone's root stands that scope over the consumer's page (the
@@ -117,12 +117,15 @@ test("the create's stand: the list's grow + the grid's render over the new table
     .toBe(true);
 });
 
-test("the section's rename commits to the bridge; the grid's name stands live", async ({ page }) => {
+test("the section's rename commits to the bridge (the standalone's grid stands no name display)", async ({ page }) => {
   const demo = await demoTable(page);
 
-  // Select the demo table + wait for the grid's settle.
+  // Select the demo table + wait for the grid's settle. The standalone's
+  // grid stands no table-name display (the consumer's own visual element —
+  // the section's list stands the name), so the toolbar's settle marker
+  // stands the grid's slot.
   await page.locator(`[data-testid='tables-item'][data-table-id='${demo.id}']`).click();
-  await expect(page.locator("[data-slot='docblocks/database-name']")).toHaveText("Demo", SETTLE);
+  await expect(page.locator("[data-slot='docblocks/database-toolbar']")).toBeVisible(SETTLE);
 
   // The section's rename (the useTableList's stand).
   await page.locator(`[data-testid='tables-item'][data-table-id='${demo.id}'] [data-testid='tables-rename']`).click();
@@ -146,8 +149,9 @@ test("the section's rename commits to the bridge; the grid's name stands live", 
     )
     .toBe("Renamed Demo");
 
-  // The grid's display name stands live over the table event.
-  await expect(page.locator("[data-slot='docblocks/database-name']")).toHaveText("Renamed Demo", SETTLE);
+  // The grid's name display stands off over the rename (the name's absence
+  // stands live — no grid re-render stands it back).
+  await expect(page.locator("[data-slot='docblocks/database-name']")).toHaveCount(0, SETTLE);
 });
 
 test("the cell's edit over the standalone's grid commits to the bridge", async ({ page }) => {

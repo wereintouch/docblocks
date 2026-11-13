@@ -31,13 +31,7 @@ import { EnumOptionsEditor } from "./EnumOptionsEditor";
 import { HeaderCell } from "./HeaderCell";
 import { DatabaseCell, RowMenuCell } from "./cells";
 import { columnTypeIcon } from "./column-type-icon";
-import {
-  ADD_COLUMN_TYPES,
-  GRID_HISTORY_BUTTON,
-  NEW_TABLE_PICK,
-  PICKER_SIDE_OFFSET_PX,
-  REF_NONE_PICK,
-} from "./constants";
+import { ADD_COLUMN_TYPES, NEW_TABLE_PICK, PICKER_SIDE_OFFSET_PX, REF_NONE_PICK } from "./constants";
 import type { AddColumnFormDraft, AddColumnTypeEntry, EnumOptionDraft } from "./models";
 import { useBridgeTables } from "./use-bridge-tables";
 import { useEnumOptionsMotion } from "./use-enum-options-motion";
@@ -525,6 +519,11 @@ function GridBody({
   //     table's attribute — every block over the tableId stands it live;
   //     the block's legacy `name` attr is ignored over the display).
   const displayName = data.table?.name ?? tableId;
+  // The standalone's stand (the block's id's absence — the consumer's own
+  // page's table): the table's name stands off — the standalone's grid is
+  // the consumer's own visual element (the consumer's heading stands the
+  // name), so the toolbar keeps no name display or rename over it.
+  const showName = blockId !== undefined;
 
   const pendingRow =
     data.pendingRow !== null && !data.rows.some((row) => row.rowId === data.pendingRow?.rowId) ? data.pendingRow : null;
@@ -757,44 +756,48 @@ function GridBody({
         className="flex min-h-0 flex-1 flex-col gap-(--docblocks-block-spacing) p-(--docblocks-block-spacing)"
       >
         <div data-slot="docblocks/database-toolbar" className="flex flex-wrap items-center gap-2">
-          {nameDraft !== null ? (
-            <Input
-              size="sm"
-              data-slot="docblocks/database-name-input"
-              className={cn(
-                GRID_CHROME_FRAME,
-                "h-auto min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size) font-(--docblocks-heading-font-weight)"
-              )}
-              value={nameDraft}
-              autoFocus
-              onChange={onNameChange}
-              onBlur={onNameBlur}
-              onKeyDown={onNameKeyDown}
-            />
-          ) : readOnly ? (
-            // The read-only stand (view / published): the name's display is
-            // plain (the rename's entry is off).
-            <span data-slot="docblocks/database-name" className="font-(--docblocks-heading-font-weight)">
-              {displayName}
-            </span>
-          ) : (
-            <Button
-              data-slot="docblocks/database-name"
-              variant="ghost"
-              size="sm"
-              title={t("common:rename")}
-              className={
-                // The frame-less stand (the look's own: no border) — the
-                // primitive's chrome frame stands off.
-                " h-auto cursor-text border-0 bg-transparent px-1 text-(length:--docblocks-font-size) " +
-                "font-(--docblocks-heading-font-weight) hover:bg-transparent hover:opacity-70 " +
-                "hover:text-inherit dark:bg-transparent dark:hover:bg-transparent"
-              }
-              onClick={beginNameEdit}
-            >
-              {displayName}
-            </Button>
-          )}
+          {showName &&
+            (nameDraft !== null ? (
+              <Input
+                size="sm"
+                data-slot="docblocks/database-name-input"
+                className={cn(
+                  GRID_CHROME_FRAME,
+                  `
+                    h-auto min-w-32 px-1 py-0.5 text-(length:--docblocks-font-size)
+                    font-(--docblocks-heading-font-weight)
+                  `
+                )}
+                value={nameDraft}
+                autoFocus
+                onChange={onNameChange}
+                onBlur={onNameBlur}
+                onKeyDown={onNameKeyDown}
+              />
+            ) : readOnly ? (
+              // The read-only stand (view / published): the name's display is
+              // plain (the rename's entry is off).
+              <span data-slot="docblocks/database-name" className="font-(--docblocks-heading-font-weight)">
+                {displayName}
+              </span>
+            ) : (
+              <Button
+                data-slot="docblocks/database-name"
+                variant="ghost"
+                size="sm"
+                title={t("common:rename")}
+                className={
+                  // The frame-less stand (the look's own: no border) — the
+                  // primitive's chrome frame stands off.
+                  " h-auto cursor-text border-0 bg-transparent px-1 text-(length:--docblocks-font-size) " +
+                  "font-(--docblocks-heading-font-weight) hover:bg-transparent hover:opacity-70 " +
+                  "hover:text-inherit dark:bg-transparent dark:hover:bg-transparent"
+                }
+                onClick={beginNameEdit}
+              >
+                {displayName}
+              </Button>
+            ))}
           <Badge data-slot="docblocks/database-count" variant="secondary">
             {data.rows.length} {t("rowCount", { count: data.rows.length })}
           </Badge>
@@ -806,7 +809,6 @@ function GridBody({
                   variant="outline"
                   size="sm"
                   data-disabled={data.canUndo ? undefined : true}
-                  className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
                   disabled={!data.canUndo}
                   onClick={undoStep}
                 >
@@ -817,7 +819,6 @@ function GridBody({
                   variant="outline"
                   size="sm"
                   data-disabled={data.canRedo ? undefined : true}
-                  className={cn(GRID_CHROME_FRAME, GRID_BUTTON_HOVER, GRID_HISTORY_BUTTON)}
                   disabled={!data.canRedo}
                   onClick={redoStep}
                 >
@@ -831,11 +832,6 @@ function GridBody({
                 columnOrder={columnOrder}
                 hiddenColumns={hiddenColumns}
                 columnWidths={columnWidths}
-                triggerClassName={cn(
-                  GRID_CHROME_FRAME,
-                  GRID_BUTTON_HOVER,
-                  "h-auto px-2 py-0.5 text-xs font-normal shadow-none"
-                )}
                 onViewChange={updateView}
               />
             )}
@@ -847,17 +843,12 @@ function GridBody({
                     variant="outline"
                     size="sm"
                     data-active={filter !== undefined && filter.conditions.length > 0 ? "true" : undefined}
-                    className={cn(
-                      GRID_CHROME_FRAME,
-                      GRID_BUTTON_HOVER,
-                      "h-auto px-2 py-0.5 text-xs font-normal shadow-none"
-                    )}
                   >
                     {t("toolbar.filter")}
                     {filter !== undefined && filter.conditions.length > 0 ? " •" : ""}
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent align="end" className="w-96">
+                <PopoverContent align="end" className="w-fit max-w-xl min-w-110">
                   <div className="flex flex-col gap-(--docblocks-block-spacing)">
                     <FilterBuilder
                       value={filterDraft}
@@ -865,19 +856,8 @@ function GridBody({
                       onChange={setFilterDraft}
                       refTableData={refTableData}
                     />
-                    <div className="flex items-center justify-between gap-2">
-                      <Button
-                        data-slot="docblocks/filter-clear"
-                        variant="outline"
-                        size="sm"
-                        className="
-                          cursor-pointer bg-transparent px-2 py-1 text-xs font-normal shadow-none
-                          hover:bg-transparent hover:opacity-70
-                          dark:bg-transparent
-                          dark:hover:bg-transparent
-                        "
-                        onClick={resetFilterDraft}
-                      >
+                    <div className="flex items-center gap-2">
+                      <Button data-slot="docblocks/filter-clear" variant="outline" size="sm" onClick={resetFilterDraft}>
                         {t("common:clear")}
                       </Button>
                       <Button
@@ -885,11 +865,7 @@ function GridBody({
                         variant="outline"
                         size="sm"
                         disabled={!filterIsComplete(filterDraft, data.table.columns)}
-                        className="
-                          cursor-pointer bg-accent px-2 py-1 text-xs font-normal
-                          hover:opacity-70
-                          disabled:cursor-default disabled:opacity-40
-                        "
+                        className="bg-accent text-accent-foreground"
                         onClick={applyFilter}
                       >
                         {t("toolbar.apply")}

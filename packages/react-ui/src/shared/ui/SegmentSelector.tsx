@@ -41,6 +41,7 @@ function SegmentSelector<T extends string>({
   pillSlot,
   buttonAttrName,
   size = "icon",
+  pillClassName,
 }: {
   options: readonly SegmentOption<T>[];
   value: T;
@@ -55,6 +56,9 @@ function SegmentSelector<T extends string>({
   /** The button's stand: `icon` (the size-6 icon seat, the default) or
    * `text` (the text label's stand — the compact h-6 label button). */
   size?: SegmentSelectorSize;
+  /** The call site's pill class stand (merged over the default's
+   * `bg-accent`/`dark:bg-ring` — the theme-specific accent's stand). */
+  pillClassName?: string;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   /** The sliding pill's geometry (the active button's position and size in the list). */
@@ -117,12 +121,17 @@ function SegmentSelector<T extends string>({
           // pill blends with the track — the dark's stand takes the `ring`
           // token's brighter stand (it reads over the track, and the active
           // icon's `text-foreground` reads over it — the token's own contrast,
-          // the consumer's theme or the fallback literal).
-          className="
-            absolute top-0 left-0 rounded-md bg-accent shadow-sm transition-[transform,width,height] duration-200
-            ease-[cubic-bezier(0.34,1.56,0.64,1)]
-            dark:bg-ring
-          "
+          // the consumer's theme or the fallback literal). The call site's
+          // `pillClassName` merges over the stand (the accent's theme stand
+          // takes the `bg-accent` over both themes).
+          className={cn(
+            `
+              absolute top-0 left-0 rounded-md bg-accent shadow-sm transition-[transform,width,height] duration-200
+              ease-[cubic-bezier(0.34,1.56,0.64,1)]
+              dark:bg-ring
+            `,
+            pillClassName
+          )}
           style={{
             transform: `translate(${pill.left}px, ${pill.top}px)`,
             width: pill.width,

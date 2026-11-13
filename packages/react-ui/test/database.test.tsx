@@ -26,6 +26,7 @@ import type { RefTableDataMap } from "../src/database/grid/use-ref-tables";
 import { newMutationContext, useDatabaseTable } from "../src/database/use-database-table";
 import { DatabaseSlashPicker } from "../src/editing/slash/DatabaseSlashPicker";
 import { EditorProvider } from "../src/editor-provider";
+import { DocblocksI18nProvider } from "../src/i18n";
 
 // The radix Select drives the cell's pick through the pointer-capture API
 // (setPointerCapture / hasPointerCapture), which jsdom does not implement.
@@ -3311,6 +3312,56 @@ describe("the filter builder — the ref value inputs (the enum's dict options /
     ]);
     fireEvent.change(ownerSelect, { target: { value: "r-people-1" } });
     expect(payloads.at(-1)?.conditions[0]?.value).toBe("r-people-1");
+  });
+});
+
+describe("the filter builder — the group's structure (the localized's logic, the group's card, the connector's line)", () => {
+  const cols: BridgeColumn[] = [
+    { id: "name", name: "Name", type: "text" },
+    { id: "done", name: "Done", type: "checkbox" },
+  ];
+
+  function Harness({ payload }: { payload: DatabaseFilterPayload | null }) {
+    const [draft, setDraft] = useState<DatabaseFilterPayload | null>(payload);
+    return <FilterBuilder value={draft} columns={cols} onChange={setDraft} />;
+  }
+
+  it("stands the en's logic's labels + the group's numbered header + the connector's line (the en's default)", () => {
+    render(
+      <Harness
+        payload={{
+          logic: "and",
+          conditions: [{ columnId: "name", op: "is", value: "x" }],
+          groups: [{ logic: "or", conditions: [] }],
+        }}
+      />
+    );
+    // The logic's pills stand the catalog's labels (the hard-coded's "AND" /
+    // "OR" stand stands the en's default only) — the top-level group's
+    // selector (the first in the DOM; the nested's group stands its own).
+    const logic = document.querySelector<HTMLElement>("[data-slot='docblocks/filter-logic']");
+    expect([...logic!.querySelectorAll("button")].map((entry) => entry.textContent)).toEqual(["AND", "OR"]);
+    // The nested's group stands the numbered's header + the remove's entry
+    // (the former's "AND nested group"'s label stands none).
+    expect(document.querySelector("[data-slot='docblocks/filter-group-header']")?.textContent).toBe("Group 1");
+    expect(document.querySelector("[data-slot='docblocks/filter-remove-group']")).not.toBeNull();
+    // Every body's item stands its share of the group's connector line (the
+    // tick + the vertical's segment over the row / the card's gutter — the
+    // direct children; the card's subtree's pill stands its own aria-hidden).
+    const row = document.querySelector<HTMLElement>("[data-slot='docblocks/filter-condition']");
+    expect(row?.querySelectorAll(":scope > span[aria-hidden]").length).toBe(2);
+    const card = document.querySelector<HTMLElement>("[data-slot='docblocks/filter-nested']");
+    expect(card?.querySelectorAll(":scope > span[aria-hidden]").length).toBe(2);
+  });
+
+  it("stands the ru's labels over the ru's locale (the logic's pills + the group's header)", () => {
+    render(
+      <DocblocksI18nProvider locale="ru">
+        <Harness payload={{ logic: "and", conditions: [{ columnId: "done", op: "is" }], groups: [] }} />
+      </DocblocksI18nProvider>
+    );
+    const ruLogic = document.querySelector<HTMLElement>("[data-slot='docblocks/filter-logic']");
+    expect([...ruLogic!.querySelectorAll("button")].map((entry) => entry.textContent)).toEqual(["И", "ИЛИ"]);
   });
 });
 

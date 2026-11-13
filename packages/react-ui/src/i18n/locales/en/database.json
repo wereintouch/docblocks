@@ -72,12 +72,15 @@
   "filter": {
     "empty": "No columns to filter on.",
     "logic": "Filter logic",
+    "and": "AND",
+    "or": "OR",
     "matchAll": "match all of the conditions",
     "matchAny": "match any of the conditions",
-    "nestedGroup": "{logic} nested group",
     "removeGroup": "Remove group",
     "condition": "+ Condition",
     "group": "+ Group",
+    "groupHeader": "Group {index}",
+    "removeCondition": "Remove condition",
     "valuePlaceholder": "value, value"
   },
   "picker": {
