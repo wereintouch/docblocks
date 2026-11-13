@@ -1,5 +1,12 @@
 # docblocks-core
 
+## 0.3.0
+
+### Minor Changes
+
+- 8f6a3d6: - Add first-class file blocks with consumer-owned file ids, live rename subscriptions, reader downloads, and PDF previews.
+  - Replace URL-based blob resolution with Blob+metadata stores and remove the legacy `blobResolver` prop.
+
 ## 0.2.2
 
 ### Patch Changes

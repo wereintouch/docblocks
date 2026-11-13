@@ -1,5 +1,20 @@
 # docblocks-react-ui
 
+## 0.6.0
+
+### Minor Changes
+
+- 8b0f589: Add a zoom bar to the PDF preview's fullscreen mode: a separate pill to the left of the page controls with the zoom in/out buttons (over the fitted scale, 25%-400% bounds), the scale indicator, the fit-width and the fit-height buttons (the page's width/height fills the viewport's width/height, the overflow scrolls). The fullscreen mode pages with the left/right arrow keys, locks the body's scroll while open (the wheel over the overlay no longer scrolls the page behind), and stands a fixed-width page indicator (a digit count change no longer shifts the page buttons). The preview chrome stands no text selection (the page indicator and the controls are not document content), so selecting the page numbers can no longer flag the block or pull up the format toolbar.
+- 7f26c1a: Localize the empty-block command palette placeholder for Russian locales while preserving consumer overrides.
+- 8f6a3d6: - Add first-class file blocks with consumer-owned file ids, live rename subscriptions, reader downloads, and PDF previews.
+  - Replace URL-based blob resolution with Blob+metadata stores and remove the legacy `blobResolver` prop.
+
+### Patch Changes
+
+- 16e10af: Fix attachment insertion and deletion gestures: replace phrase-only slash blocks, keep removal and the trailing paragraph in one undo step, and seat the caret on a surviving text block.
+- Updated dependencies [8f6a3d6]
+  - docblocks-core@0.3.0
+
 ## 0.5.0
 
 ### Minor Changes
