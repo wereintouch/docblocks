@@ -4,7 +4,8 @@
  * buttons + the page indicator + the fullscreen toggle) stand a bar under
  * the canvas. The fullscreen mode opens a portal overlay over the viewport
  * (the page scaled to fill the viewport, the same page navigation, the zoom
- * bar — the zoom in/out buttons over the scale + the fit-width — a separate
+ * bar — the zoom in/out buttons over the scale + the fit-width / the
+ * fit-height — a separate
  * pill to the left of the page controls, the Escape key / the arrow keys /
  * the close button / the outside click exit). The overlay's open locks the
  * body's scroll (a wheel over the fixed portal chains to the document's
@@ -36,6 +37,7 @@ import {
   Minus,
   Plus,
   StretchHorizontal,
+  StretchVertical,
   TriangleAlert,
   X,
 } from "../shared/ui/icons";
@@ -286,6 +288,19 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
     void pdf.getPage(currentPage).then((page) => {
       const pageViewport = page.getViewport({ scale: 1 });
       setFullscreenZoom(clamp(width / pageViewport.width, ZOOM_MIN, ZOOM_MAX));
+    });
+  }, [currentPage]);
+  // The fit-height's stand: the page's height fills the container's height
+  // (the horizontal overflow scrolls over the container's scroller).
+  const fitHeight = useCallback((): void => {
+    const pdf = pdfDocRef.current;
+    const container = fullscreenContainerRef.current;
+    if (pdf === null || container === null) return;
+    const height = container.clientHeight;
+    if (height === 0) return;
+    void pdf.getPage(currentPage).then((page) => {
+      const pageViewport = page.getViewport({ scale: 1 });
+      setFullscreenZoom(clamp(height / pageViewport.height, ZOOM_MIN, ZOOM_MAX));
     });
   }, [currentPage]);
   const openFullscreen = useCallback((): void => {
@@ -579,6 +594,18 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
         "
       >
         <StretchHorizontal className="size-4" />
+      </button>
+      <button
+        type="button"
+        data-slot="docblocks/image-pdf-fit-height"
+        onClick={fitHeight}
+        aria-label={t("code.pdfFitHeight")}
+        className="
+          flex size-6 items-center justify-center rounded-sm text-(--muted-foreground) transition-colors
+          hover:bg-(--accent) hover:text-(--accent-foreground)
+        "
+      >
+        <StretchVertical className="size-4" />
       </button>
     </div>
   );

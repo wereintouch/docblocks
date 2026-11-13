@@ -343,6 +343,17 @@ test("the fullscreen zoom bar: the zoom in/out + the fit-width over a separate p
     expect(fitWidthCanvas, "the fit-width out-scales the contain's fit").toBeGreaterThan(fitCanvasWidth);
     const scroll = await container.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
     expect(scroll.scrollHeight, "the vertical overflow scrolls").toBeGreaterThan(scroll.clientHeight);
+
+    // The fit-height's button (next to the fit-width's): the page's
+    // height fills the container's height — the fit-width's out-scale
+    // stands dropped (the width shrinks back over the fit-width's).
+    const fitHeight = zoomBar.locator('[data-slot="docblocks/image-pdf-fit-height"]');
+    await fitHeight.click();
+    await expect
+      .poll(async () => Math.abs((await canvas.boundingBox())!.height - containerBox.height) <= 1, SETTLE)
+      .toBe(true);
+    const fitHeightWidth = (await canvas.boundingBox())!.width;
+    expect(fitHeightWidth, "the fit-width's out-scale stands dropped").toBeLessThan(fitWidthCanvas);
   } finally {
     await context.close();
   }

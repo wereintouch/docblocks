@@ -42,7 +42,8 @@
     "pdfCloseFullscreen": "Закрыть полноэкранный режим",
     "pdfZoomIn": "Увеличить масштаб",
     "pdfZoomOut": "Уменьшить масштаб",
-    "pdfFitWidth": "Вписать по ширине"
+    "pdfFitWidth": "Вписать по ширине",
+    "pdfFitHeight": "Вписать по высоте"
   },
   "image": {
     "placeholder": "изображение",

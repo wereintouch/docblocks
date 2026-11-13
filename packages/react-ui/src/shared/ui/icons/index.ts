@@ -81,6 +81,7 @@ export { SquareSplitVertical } from "./SquareSplitVertical";
 export { SquareText } from "./SquareText";
 export { Star } from "./Star";
 export { StretchHorizontal } from "./StretchHorizontal";
+export { StretchVertical } from "./StretchVertical";
 export { Strikethrough } from "./Strikethrough";
 export { Stroke } from "./Stroke";
 export { Table } from "./Table";

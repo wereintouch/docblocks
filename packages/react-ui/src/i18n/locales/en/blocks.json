@@ -42,7 +42,8 @@
     "pdfCloseFullscreen": "Close fullscreen",
     "pdfZoomIn": "Zoom in",
     "pdfZoomOut": "Zoom out",
-    "pdfFitWidth": "Fit width"
+    "pdfFitWidth": "Fit width",
+    "pdfFitHeight": "Fit height"
   },
   "image": {
     "placeholder": "image",
