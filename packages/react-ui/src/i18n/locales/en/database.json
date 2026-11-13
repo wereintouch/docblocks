@@ -13,7 +13,12 @@
     "undo": "Undo",
     "redo": "Redo",
     "filter": "Filter",
+    "columns": "Columns",
     "apply": "Apply"
+  },
+  "columns": {
+    "move": "Move {name}",
+    "visibility": "Show {name}"
   },
   "columnTypes": {
     "text": "Text",

@@ -5,7 +5,7 @@
  * column drag / the column resize sessions. */
 import { useTranslation } from "react-i18next";
 
-import { Fragment, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BlockId, DatabaseFilterPayload } from "docblocks-core";
 
@@ -26,6 +26,7 @@ import type { BatchOp, BridgeColumn } from "../bridge";
 import { ENUM_OPTION_COLOR_COLUMN, ENUM_OPTION_NAME_COLUMN } from "../bridge";
 import { FilterBuilder, emptyFilter, filterIsComplete } from "../filter-builder";
 import { newMutationContext, useDatabaseTable } from "../use-database-table";
+import { ColumnManager } from "./ColumnManager";
 import { EnumOptionsEditor } from "./EnumOptionsEditor";
 import { HeaderCell } from "./HeaderCell";
 import { DatabaseCell, RowMenuCell } from "./cells";
@@ -489,6 +490,7 @@ function GridBody({
   };
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const tableRef = useRef<HTMLDivElement | null>(null);
+  const pendingDismissTimerRef = useRef<number | null>(null);
 
   const columns = visibleColumns(data.table?.columns, columnOrder, hiddenColumns);
 
@@ -501,6 +503,10 @@ function GridBody({
 
   const { drag, onColumnPointerDown, onColumnPointerMove, onColumnPointerUp } = useGridColumnDrag({
     columns,
+    allColumns: data.table?.columns,
+    columnOrder,
+    hiddenColumns,
+    columnWidths,
     updateView,
     tableRef,
   });
@@ -520,7 +526,10 @@ function GridBody({
   //     the block's legacy `name` attr is ignored over the display).
   const displayName = data.table?.name ?? tableId;
 
-  const rows = data.rows;
+  const pendingRow =
+    data.pendingRow !== null && !data.rows.some((row) => row.rowId === data.pendingRow?.rowId) ? data.pendingRow : null;
+  const pendingRowId = pendingRow?.rowId ?? null;
+  const rows = pendingRow === null ? data.rows : [...data.rows, pendingRow];
 
   const {
     editingCell,
@@ -531,6 +540,42 @@ function GridBody({
     onTableKeyDown,
     onTablePaste,
   } = useGridCellInteraction({ rows, columns, data, tableRef, readOnly });
+
+  const pendingEditKey =
+    pendingRowId !== null && columns[0] !== undefined ? cellKeyOf(pendingRowId, columns[0].id) : null;
+  useEffect(() => {
+    if (pendingEditKey !== null) setEditingCell(pendingEditKey);
+  }, [pendingEditKey, setEditingCell]);
+
+  const dismissPending = useCallback(() => {
+    if (pendingRowId === null) return;
+    setEditingCell(null);
+    if (pendingDismissTimerRef.current !== null) window.clearTimeout(pendingDismissTimerRef.current);
+    // The editor commits its draft when the session closes; the row stays
+    // mounted through that effect and leaves the filtered view afterwards.
+    pendingDismissTimerRef.current = window.setTimeout(() => {
+      data.dismissPendingRow(pendingRowId);
+      pendingDismissTimerRef.current = null;
+    }, 0);
+  }, [pendingRowId, data.dismissPendingRow, setEditingCell]);
+
+  useEffect(() => {
+    if (pendingRowId === null) return;
+    const onDown = (event: PointerEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target === null) return;
+      if (target.closest("[data-radix-popper-content-wrapper], [data-filter-pending='true']") !== null) return;
+      dismissPending();
+    };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown, true);
+      if (pendingDismissTimerRef.current !== null) {
+        window.clearTimeout(pendingDismissTimerRef.current);
+        pendingDismissTimerRef.current = null;
+      }
+    };
+  }, [pendingRowId, dismissPending]);
 
   if (data.phase === "loading") {
     return (
@@ -635,8 +680,10 @@ function GridBody({
     void data.renameColumn(column.id, renameName).catch(() => undefined);
   const columnEditOptions = (column: BridgeColumn) =>
     column.refKind === "enum" && column.refTableId !== undefined ? () => openColumnFormEdit(column) : undefined;
-  const columnHide = (column: BridgeColumn) => () =>
+  const columnHide = (column: BridgeColumn) => () => {
+    if (columns.length <= 1) return;
     updateView({ hiddenColumns: [...(hiddenColumns ?? []), column.id] });
+  };
   const columnShow = (column: BridgeColumn) => () =>
     updateView({ hiddenColumns: (hiddenColumns ?? []).filter((entryId) => entryId !== column.id) });
   const columnDelete = (column: BridgeColumn) => () => void data.deleteColumn(column.id).catch(() => undefined);
@@ -669,6 +716,14 @@ function GridBody({
     setEditingCell(cellKey);
   };
   const cellEditEnd = () => setEditingCell(null);
+  const onTableBlur = (event: React.FocusEvent<HTMLDivElement>) => {
+    if (pendingRowId === null) return;
+    const next = event.relatedTarget;
+    if (!(next instanceof Node)) return;
+    if (tableRef.current?.contains(next)) return;
+    if (next instanceof Element && next.closest("[data-radix-popper-content-wrapper]") !== null) return;
+    dismissPending();
+  };
   const rowMoveUp = (row: (typeof rows)[number]) => () => {
     const index = rows.indexOf(row);
     if (index > 0) void data.moveRow(row.rowId, rows[index - 1]!.rowId).catch(() => undefined);
@@ -741,7 +796,7 @@ function GridBody({
             </Button>
           )}
           <Badge data-slot="docblocks/database-count" variant="secondary">
-            {rows.length} {t("rowCount", { count: rows.length })}
+            {data.rows.length} {t("rowCount", { count: data.rows.length })}
           </Badge>
           <div className="ml-auto flex items-center gap-2">
             {readOnly ? null : (
@@ -769,6 +824,20 @@ function GridBody({
                   {t("toolbar.redo")}
                 </Button>
               </>
+            )}
+            {readOnly ? null : (
+              <ColumnManager
+                columns={data.table.columns}
+                columnOrder={columnOrder}
+                hiddenColumns={hiddenColumns}
+                columnWidths={columnWidths}
+                triggerClassName={cn(
+                  GRID_CHROME_FRAME,
+                  GRID_BUTTON_HOVER,
+                  "h-auto px-2 py-0.5 text-xs font-normal shadow-none"
+                )}
+                onViewChange={updateView}
+              />
             )}
             {readOnly ? null : (
               <Popover open={filterOpen} onOpenChange={onFilterOpenChange}>
@@ -844,6 +913,7 @@ function GridBody({
             className="grid w-full outline-none select-none"
             onKeyDown={onTableKeyDown}
             onPaste={onTablePaste}
+            onBlur={onTableBlur}
             // The fixed row track (the standard row height): every row —
             // over any column type mix — stands the one height (the header
             // stands its own auto row; the enum's trigger fits the content
@@ -1143,6 +1213,7 @@ function GridBody({
                       colIndex={index}
                       first={index === 0}
                       lastRow={row.rowId === lastRowId}
+                      filterPending={row.rowId === pendingRowId}
                       dragDx={drag !== null && drag.id === column.id ? drag.dx : dragShiftOf(index)}
                       dragShifted={drag !== null && drag.id !== column.id}
                       selected={selectedCells.has(key)}
@@ -1168,6 +1239,7 @@ function GridBody({
                   // stand is off (the track stands the empty's stand).
                   <div
                     data-slot="docblocks/database-row-menu"
+                    data-filter-pending={row.rowId === pendingRowId ? "true" : undefined}
                     className={cn(
                       `
                         flex w-10 items-center justify-center border-l-(length:--docblocks-table-border-width)
@@ -1181,12 +1253,17 @@ function GridBody({
                     row={row}
                     rowMenu={rowMenu}
                     setRowMenu={setRowMenu}
-                    canMoveUp={rows.indexOf(row) > 0}
-                    canMoveDown={rows.indexOf(row) < rows.length - 1}
+                    canMoveUp={row.rowId !== pendingRowId && rows.indexOf(row) > 0}
+                    canMoveDown={
+                      row.rowId !== pendingRowId &&
+                      rows.indexOf(row) < rows.length - 1 &&
+                      rows[rows.indexOf(row) + 1]?.rowId !== pendingRowId
+                    }
                     onMoveUp={rowMoveUp(row)}
                     onMoveDown={rowMoveDown(row)}
                     onRemove={rowRemove(row)}
                     lastRow={row.rowId === lastRowId}
+                    filterPending={row.rowId === pendingRowId}
                   />
                 )}
               </Fragment>

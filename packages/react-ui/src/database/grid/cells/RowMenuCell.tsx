@@ -23,6 +23,7 @@ interface RowMenuCellProps {
   onMoveDown: () => void;
   onRemove: () => void;
   lastRow: boolean;
+  filterPending: boolean;
 }
 /** The row's menu track (the trailing grid column). */
 function RowMenuCell({
@@ -35,6 +36,7 @@ function RowMenuCell({
   onMoveDown,
   onRemove,
   lastRow,
+  filterPending,
 }: RowMenuCellProps) {
   const { t } = useTranslation("database");
   const onRowMenuChange = (open: boolean) => setRowMenu(open ? row.rowId : null);
@@ -42,6 +44,8 @@ function RowMenuCell({
   return (
     <div
       data-slot="docblocks/database-row-menu"
+      data-row-id={row.rowId}
+      data-filter-pending={filterPending ? "true" : undefined}
       className={cn(
         `
           flex w-10 items-center justify-center border-l-(length:--docblocks-table-border-width)

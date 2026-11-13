@@ -305,6 +305,146 @@ describe("the data provider hook — the bootstrap + the stream's stands", () =>
     expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("New");
   });
 
+  it("keeps a filtered-out insert pending until it is dismissed", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const filter = {
+      logic: "and" as const,
+      conditions: [{ columnId: seeded.nameColumnId, op: "is", value: "Alice" }],
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId, filter));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+    expect(result.current.rows).toHaveLength(1);
+
+    const rowId = await result.current.insertRow({ [seeded.nameColumnId]: "Bob" });
+    await waitFor(() => expect(result.current.pendingRow?.rowId).toBe(rowId));
+    expect(result.current.rows).toHaveLength(1);
+    expect(result.current.pendingRow?.cells[seeded.nameColumnId]).toBe("Bob");
+    await waitFor(() => expect(result.current.revisionOf(rowId)).toBeDefined());
+
+    result.current.dismissPendingRow();
+    await waitFor(() => expect(result.current.pendingRow).toBeNull());
+    const snapshot = await bridge.snapshotTable(seeded.tableId, {});
+    expect(snapshot.page.rows.some((row) => row.id === rowId)).toBe(true);
+  });
+
+  it("does not mark a matching insert as pending before its snapshot arrives", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    let snapshotCalls = 0;
+    let releaseSnapshot: () => void = () => undefined;
+    const snapshotGate = new Promise<void>((resolve) => {
+      releaseSnapshot = resolve;
+    });
+    const wrapped: DatabaseBridge = {
+      ...bridge,
+      snapshotTable: async (tableId: string, query: PageQuery) => {
+        snapshotCalls += 1;
+        if (snapshotCalls >= 2) await snapshotGate;
+        return bridge.snapshotTable(tableId, query);
+      },
+    } as unknown as DatabaseBridge;
+    const filter = {
+      logic: "and" as const,
+      conditions: [{ columnId: seeded.nameColumnId, op: "is", value: "Alice" }],
+    };
+    const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId, filter));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+
+    await result.current.insertRow({ [seeded.nameColumnId]: "Alice" });
+    expect(result.current.pendingRow).toBeNull();
+    releaseSnapshot();
+    await waitFor(() => expect(result.current.rows).toHaveLength(2));
+    expect(result.current.pendingRow).toBeNull();
+  });
+
+  it("normalizes a pending row when an edit makes it match the filter", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const filter = {
+      logic: "and" as const,
+      conditions: [{ columnId: seeded.nameColumnId, op: "is", value: "Alice" }],
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId, filter));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+
+    const rowId = await result.current.insertRow({ [seeded.nameColumnId]: "Bob" });
+    await waitFor(() => expect(result.current.pendingRow?.rowId).toBe(rowId));
+    await result.current.updateRow(rowId, { [seeded.nameColumnId]: "Alice" });
+    await waitFor(() => {
+      expect(result.current.pendingRow).toBeNull();
+      expect(result.current.rows).toHaveLength(2);
+    });
+    expect(result.current.rows.at(-1)?.cells[seeded.nameColumnId]).toBe("Alice");
+  });
+
+  it("clears a pending insert when the row is removed", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const filter = {
+      logic: "and" as const,
+      conditions: [{ columnId: seeded.nameColumnId, op: "is", value: "Alice" }],
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId, filter));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+
+    const rowId = await result.current.insertRow({ [seeded.nameColumnId]: "Bob" });
+    await waitFor(() => expect(result.current.pendingRow?.rowId).toBe(rowId));
+    await result.current.removeRow(rowId);
+    await waitFor(() => expect(result.current.pendingRow).toBeNull());
+    const snapshot = await bridge.snapshotTable(seeded.tableId, {});
+    expect(snapshot.page.rows.some((row) => row.id === rowId)).toBe(false);
+  });
+
+  it("restores pending cells when their update is rejected", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const wrapped = new Proxy(bridge, {
+      get(target, property, receiver) {
+        if (property === "batchRows") {
+          return async (tableId: string, input: { ops: BatchOp[] }, context: MutationContext) => {
+            if (input.ops.some((op) => op.op === "update")) {
+              throw new BridgeError("unavailable", "The update was rejected.");
+            }
+            return target.batchRows(tableId, input, context);
+          };
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    }) as DatabaseBridge;
+    const filter = {
+      logic: "and" as const,
+      conditions: [{ columnId: seeded.nameColumnId, op: "is", value: "Alice" }],
+    };
+    const { result } = renderHook(() => useDatabaseTable(wrapped, seeded.tableId, filter));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+
+    const rowId = await result.current.insertRow({ [seeded.nameColumnId]: "Bob" });
+    await waitFor(() => expect(result.current.pendingRow?.rowId).toBe(rowId));
+    await expect(result.current.updateRow(rowId, { [seeded.nameColumnId]: "Changed" })).rejects.toMatchObject({
+      code: "unavailable",
+    });
+    await waitFor(() => expect(result.current.pendingRow?.cells[seeded.nameColumnId]).toBe("Bob"));
+  });
+
+  it("clears a pending insert when its undo removes the row", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const seeded = await seed(bridge);
+    const filter = {
+      logic: "and" as const,
+      conditions: [{ columnId: seeded.nameColumnId, op: "is", value: "Alice" }],
+    };
+    const { result } = renderHook(() => useDatabaseTable(bridge, seeded.tableId, filter));
+    await waitFor(() => expect(result.current.phase).toBe("ready"));
+
+    const rowId = await result.current.insertRow({ [seeded.nameColumnId]: "Bob" });
+    await waitFor(() => expect(result.current.pendingRow?.rowId).toBe(rowId));
+    await result.current.undo();
+    await waitFor(() => expect(result.current.pendingRow).toBeNull());
+    const snapshot = await bridge.snapshotTable(seeded.tableId, {});
+    expect(snapshot.page.rows.some((row) => row.id === rowId)).toBe(false);
+  });
+
   it("the mixed paste stands the one batch (the updates + the overflow's creates) + the one undo", async () => {
     const bridge = createMemoryDatabaseBridge();
     const seeded = await seed(bridge); // Alice, Bob

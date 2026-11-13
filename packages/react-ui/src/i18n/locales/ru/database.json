@@ -13,7 +13,12 @@
     "undo": "Отменить",
     "redo": "Повторить",
     "filter": "Фильтр",
+    "columns": "Колонки",
     "apply": "Применить"
+  },
+  "columns": {
+    "move": "Переместить {name}",
+    "visibility": "Показать {name}"
   },
   "columnTypes": {
     "text": "Текст",

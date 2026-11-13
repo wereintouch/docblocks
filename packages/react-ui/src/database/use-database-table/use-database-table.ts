@@ -70,6 +70,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const [phase, setPhase] = useState<DatabaseTablePhase>("loading");
   const [table, setTable] = useState<BridgeTableDescription | null>(null);
   const [rows, setRows] = useState<DatabaseTableRow[]>([]);
+  const [pendingRow, setPendingRow] = useState<DatabaseTableRow | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<BridgeErrorCode | null>(null);
@@ -79,6 +80,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
 
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
+  const pendingRowRef = useRef(pendingRow);
+  pendingRowRef.current = pendingRow;
   // The wire schema (the reference / number display the column ops'
   // patches and inverses read the current values from).
   const descriptionRef = useRef<TableDescription | null>(null);
@@ -138,9 +141,16 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       columns: snapshot.columns.map((column) => ({ ...column })),
       schemaRevision: snapshot.schemaRevision,
     };
+    const visibleIds = new Set(snapshot.page.rows.map((row) => row.id));
+    const pendingBefore = pendingRowRef.current;
+    const pendingRevision = pendingBefore === null ? undefined : revisionsRef.current.get(pendingBefore.rowId);
     revisionsRef.current = new Map(snapshot.page.rows.map((row) => [row.id, row.revision]));
+    if (pendingBefore !== null && !visibleIds.has(pendingBefore.rowId) && pendingRevision !== undefined) {
+      revisionsRef.current.set(pendingBefore.rowId, pendingRevision);
+    }
     setTable(descriptionToGrid(snapshot));
     setRows(snapshot.page.rows.map((row) => ({ rowId: row.id, cells: { ...row.cells } })));
+    setPendingRow((current) => (current !== null && visibleIds.has(current.rowId) ? null : current));
     setNextCursor(snapshot.page.nextCursor);
     if (clearError) {
       setError(null);
@@ -154,6 +164,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   // chain stands the full rebaseline (the fresh snapshot + the
   // re-subscription over the fresh `R`).
   useEffect(() => {
+    setPendingRow(null);
     let disposed = false;
     let handle: SubscriptionHandle | null = null;
     let lastSeenSeq: number | null = null;
@@ -166,6 +177,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     // phase stands broken (the grid's error surface over the dead table).
     const die = (operationError: unknown): void => {
       setRows([]);
+      setPendingRow(null);
       setNextCursor(null);
       revisionsRef.current = new Map();
       if (handle !== null) handle.unsubscribe();
@@ -307,19 +319,23 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     [bump]
   );
 
-  const refresh = useCallback(() => {
-    void (async () => {
-      const token = ++loadTokenRef.current;
-      try {
-        const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
-        if (token !== loadTokenRef.current) return;
-        applySnapshot(snapshot);
-      } catch {
-        // A refetch failure keeps the current state (the same stand as the
-        // subscription's refetch).
-      }
-    })();
-  }, [bridge, tableId, filterKey]);
+  const refresh = useCallback(
+    (onApplied?: (snapshot: TableSnapshot) => void) => {
+      void (async () => {
+        const token = ++loadTokenRef.current;
+        try {
+          const snapshot = await bridge.snapshotTable(tableId, { filter, limit: PAGE_SIZE });
+          if (token !== loadTokenRef.current) return;
+          applySnapshot(snapshot);
+          onApplied?.(snapshot);
+        } catch {
+          // A refetch failure keeps the current state (the same stand as the
+          // subscription's refetch).
+        }
+      })();
+    },
+    [bridge, tableId, filterKey]
+  );
 
   // The row's live revision (the CAS's stand — the draft session's open
   // pin reads it at the session's open; the mid-session's refetch
@@ -347,6 +363,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       // logical operation), so every inverse stands the row the last
       // forward actually created.
       let liveRowId: string;
+      let createdCells: Record<string, unknown> = {};
+      let createdRevision: string | undefined;
       try {
         const receipt = await bridge.batchRows(
           tableId,
@@ -358,6 +376,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
           throw new BridgeError("unavailable", "The insert's receipt carries no created row.");
         }
         liveRowId = created.id;
+        createdCells = { ...created.cells };
+        createdRevision = created.revision;
         for (const [id, revision] of Object.entries(receipt.revisions)) revisionsRef.current.set(id, revision);
       } catch (operationError) {
         noteError(operationError);
@@ -382,7 +402,14 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         bridge,
         tableId
       );
-      refresh();
+      const insertedRowId = liveRowId;
+      refresh((snapshot) => {
+        if (snapshot.page.rows.some((row) => row.id === insertedRowId)) return;
+        if (createdRevision !== undefined) revisionsRef.current.set(insertedRowId, createdRevision);
+        const inserted = { rowId: insertedRowId, cells: { ...createdCells } };
+        pendingRowRef.current = inserted;
+        setPendingRow(inserted);
+      });
       return liveRowId;
     },
     [bridge, tableId, pushUndo, refresh]
@@ -391,6 +418,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   const updateRow = useCallback(
     async (rowId: string, cells: Record<string, unknown>, expectedRevision?: string) => {
       const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      const pendingSnapshot = pendingRowRef.current;
       const current = rowsRef.current.find((row) => row.rowId === rowId);
       const cleaned: Record<string, unknown> = {};
       for (const [key, value] of Object.entries(cells)) if (value !== undefined) cleaned[key] = value;
@@ -405,6 +433,9 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       }
       setRows((rows) =>
         rows.map((row) => (row.rowId === rowId ? { ...row, cells: { ...row.cells, ...cleaned } } : row))
+      );
+      setPendingRow((current) =>
+        current?.rowId === rowId ? { ...current, cells: { ...current.cells, ...cleaned } } : current
       );
       try {
         const receipt = await bridge.batchRows(
@@ -461,6 +492,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         refresh();
       } catch (operationError) {
         setRows(snapshot);
+        setPendingRow(pendingSnapshot);
         noteError(operationError);
         refresh();
         throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
@@ -473,6 +505,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     async (updates: Array<{ rowId: string; cells: Record<string, unknown> }>) => {
       if (updates.length === 0) return;
       const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      const pendingSnapshot = pendingRowRef.current;
       // The pre-operation cells of the touched rows (the inverse's
       // restore).
       const before = new Map(rowsRef.current.map((row) => [row.rowId, row.cells]));
@@ -501,6 +534,11 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
           return patch === undefined ? row : { ...row, cells: { ...row.cells, ...patch } };
         })
       );
+      setPendingRow((current) => {
+        if (current === null) return null;
+        const patch = byId.get(current.rowId);
+        return patch === undefined ? current : { ...current, cells: { ...current.cells, ...patch } };
+      });
       try {
         const receipt = await bridge.batchRows(
           tableId,
@@ -551,6 +589,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         refresh();
       } catch (operationError) {
         setRows(snapshot);
+        setPendingRow(pendingSnapshot);
         noteError(operationError);
         refresh();
         throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
@@ -566,6 +605,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       setRows((rows) => rows.filter((entry) => entry.rowId !== rowId));
       try {
         await bridge.batchRows(tableId, { ops: [{ op: "delete", rowId, ...casOf(rowId) }] }, newMutationContext());
+        setPendingRow((current) => (current?.rowId === rowId ? null : current));
         // Without the `rowRestore` capability the removal is NOT undoable:
         // it never enters the stack (a destructing removal stands no data to restore).
         if (row !== undefined && capabilitiesRef.current.includes("rowRestore")) {
@@ -668,6 +708,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
       const { updates, creates, beforeRowId } = input;
       if (updates.length === 0 && creates.length === 0) return [];
       const snapshot = rowsRef.current.map((row) => ({ rowId: row.rowId, cells: { ...row.cells } }));
+      const pendingSnapshot = pendingRowRef.current;
       // The pre-operation cells of the updated rows (the inverse's
       // restore).
       const before = new Map(rowsRef.current.map((row) => [row.rowId, row.cells]));
@@ -693,6 +734,11 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
             return patch === undefined ? row : { ...row, cells: { ...row.cells, ...patch } };
           })
         );
+        setPendingRow((current) => {
+          if (current === null) return null;
+          const patch = byId.get(current.rowId);
+          return patch === undefined ? current : { ...current, cells: { ...current.cells, ...patch } };
+        });
       }
       // The created rows' identity (the inverse's delete + the redo's
       // fresh-id re-create stand the rows the last commit actually
@@ -760,7 +806,10 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
         refresh();
         return liveRowIds;
       } catch (operationError) {
-        if (updatesChanged) setRows(snapshot);
+        if (updatesChanged) {
+          setRows(snapshot);
+          setPendingRow(pendingSnapshot);
+        }
         noteError(operationError);
         refresh();
         throw toBridgeError(operationError); // the typed stand: the code stands the retry / the clear's decision
@@ -1084,6 +1133,12 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
   }, [bridge, tableId, nextCursor, refresh]);
 
   const retry = useCallback(() => setLoadVersion((version) => version + 1), []);
+  const dismissPendingRow = useCallback((rowId?: string) => {
+    setPendingRow((current) => {
+      if (current === null || (rowId !== undefined && current.rowId !== rowId)) return current;
+      return null;
+    });
+  }, []);
 
   const undo = useCallback(async () => {
     // The in-flight stand: a re-entrant undo (the second press over the
@@ -1093,6 +1148,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     const ops = undoStackRef.current;
     const op = ops[ops.length - 1];
     if (op === undefined) return;
+    setPendingRow(null);
     // The identity at the call's time: a relink (the bridge / the tableId
     // change) over the in-flight inverse re-stands the history (the stacks
     // stand cleared, historyRef stands the new one) — the post-await
@@ -1146,6 +1202,7 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     const ops = redoStackRef.current;
     const op = ops[ops.length - 1];
     if (op === undefined) return;
+    setPendingRow(null);
     const identity = { bridge: historyRef.current.bridge, tableId: historyRef.current.tableId };
     const sameIdentity = () =>
       historyRef.current.bridge === identity.bridge && historyRef.current.tableId === identity.tableId;
@@ -1196,6 +1253,8 @@ function useDatabaseTable(bridge: DatabaseBridge, tableId: string, filter?: Data
     phase,
     table,
     rows,
+    pendingRow,
+    dismissPendingRow,
     revisionOf,
     nextCursor,
     error,

@@ -395,6 +395,18 @@ package root: `BridgeError` (the structured error type) with
 `isDatabaseBridge`, and `useDatabaseTable(bridge, tableId, filter?)` — the
 grid controller for a consumer-owned grid over the bridge.
 
+The grid's **Columns** control lists every column, restores hidden columns,
+and reorders them by dragging their grips or pressing ArrowUp/ArrowDown on a
+focused grip. Header drag and the popover share one full column order, and
+visible column widths follow the moved column.
+
+When an inserted row does not match the active filter, the grid keeps it
+visible with an orange outline while its initial edit session has focus. The
+row leaves the filtered view when focus moves elsewhere; the bridge data is
+unchanged. `useDatabaseTable` exposes this transient row as `pendingRow` and
+`dismissPendingRow(rowId?)` for consumer-owned grids implementing the same
+interaction.
+
 ### Standalone database table
 
 The database's UI stands outside any document as well — the

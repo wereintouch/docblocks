@@ -228,6 +228,8 @@
      column type stands the one height — the cell's trigger / the input fit
      the content box, the row never grows over its content). */
   --docblocks-database-row-height: 32px;
+  /* The locally inserted row that stays visible outside the active filter. */
+  --docblocks-database-pending-row-border-color: #d97706;
 
   /* Image. */
   --docblocks-image-radius: 0;
@@ -324,6 +326,7 @@
   --docblocks-table-border-color: var(--border, rgba(110, 118, 129, 0.65));
   --docblocks-table-drag-background: var(--card, #27272a);
   --docblocks-table-drag-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --docblocks-database-pending-row-border-color: #f59e0b;
   --docblocks-selected-background: color-mix(in srgb, var(--accent, #388bfd) 15%, transparent);
 
   --docblocks-canvas-background: color-mix(in srgb, var(--muted, #6e7681) 15%, transparent);
@@ -606,4 +609,27 @@
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: baseline;
+}
+
+/* The flat grid has no row element: the pending row's outline is composed
+   over its cells, with the outer vertical edges on the first and last track. */
+[data-slot="docblocks/database-cell"][data-filter-pending="true"],
+[data-slot="docblocks/database-row-menu"][data-filter-pending="true"] {
+  box-shadow:
+    inset 0 1px 0 var(--docblocks-database-pending-row-border-color),
+    inset 0 -1px 0 var(--docblocks-database-pending-row-border-color);
+}
+
+[data-slot="docblocks/database-cell"][data-filter-pending="true"][data-col="0"] {
+  box-shadow:
+    inset 2px 0 0 var(--docblocks-database-pending-row-border-color),
+    inset 0 1px 0 var(--docblocks-database-pending-row-border-color),
+    inset 0 -1px 0 var(--docblocks-database-pending-row-border-color);
+}
+
+[data-slot="docblocks/database-row-menu"][data-filter-pending="true"] {
+  box-shadow:
+    inset -2px 0 0 var(--docblocks-database-pending-row-border-color),
+    inset 0 1px 0 var(--docblocks-database-pending-row-border-color),
+    inset 0 -1px 0 var(--docblocks-database-pending-row-border-color);
 }

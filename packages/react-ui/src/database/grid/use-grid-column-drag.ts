@@ -13,17 +13,31 @@ import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
 import type { BridgeColumn } from "../bridge";
 import { DRAG_START_THRESHOLD_PX } from "./constants";
 import type { ColumnDragSession } from "./models";
+import { moveVisibleColumn, normalizeColumnOrder, reorderItems } from "./utils";
 
 interface GridColumnDragDeps {
   /** The visible columns (the press-time snapshot's source). */
   columns: BridgeColumn[];
+  /** The full schema and view state used by the full-permutation commit. */
+  allColumns: BridgeColumn[] | undefined;
+  columnOrder?: string[];
+  hiddenColumns?: string[];
+  columnWidths?: number[];
   /** The view's commit (the column order's `updateBlock`). */
   updateView: (patch: Record<string, unknown>) => void;
   /** The table element (the live DOM — the drop measurement reads it). */
   tableRef: RefObject<HTMLDivElement | null>;
 }
 
-function useGridColumnDrag({ columns, updateView, tableRef }: GridColumnDragDeps) {
+function useGridColumnDrag({
+  columns,
+  allColumns,
+  columnOrder,
+  hiddenColumns,
+  columnWidths,
+  updateView,
+  tableRef,
+}: GridColumnDragDeps) {
   // The column drag session (the header cell's press).
   const [drag, setDrag] = useState<{ id: string; dx: number; toIndex: number | null; startWidth: number } | null>(null);
   const dragSession = useRef<ColumnDragSession | null>(null);
@@ -49,6 +63,7 @@ function useGridColumnDrag({ columns, updateView, tableRef }: GridColumnDragDeps
       index,
       startX: event.clientX,
       ids: columns.map((entry) => entry.id),
+      order: normalizeColumnOrder(allColumns, columnOrder),
       started: false,
       startWidth: event.currentTarget.getBoundingClientRect().width,
     };
@@ -110,16 +125,17 @@ function useGridColumnDrag({ columns, updateView, tableRef }: GridColumnDragDeps
     // the press (a peer added / removed / renamed-structurally a column
     // mid-drag invalidates the drop — no commit, the grid resyncs).
     if (!columns.map((entry) => entry.id).every((value, i) => session.ids[i] === value)) return;
+    if (!normalizeColumnOrder(allColumns, columnOrder).every((value, i) => session.order[i] === value)) return;
     // The drop position among the stationary columns (the live preview's
     // measurement, re-read at the release).
     const toIndex = columnDropIndexAt(event.clientX, session.columnId);
     if (toIndex === null || toIndex === session.index) return;
-    // The commit: the visible order with the dragged column at the drop
-    // index (the hidden columns keep the schema tail — the attr lists the
-    // visible order only).
-    const ids = session.ids.filter((value) => value !== session.columnId);
-    ids.splice(toIndex, 0, session.columnId);
-    updateView({ columnOrder: ids });
+    // The visible drop maps into the full order, so hidden columns keep
+    // their positions and the positional widths follow the visible move.
+    updateView({
+      columnOrder: moveVisibleColumn(allColumns, columnOrder, hiddenColumns, session.columnId, toIndex),
+      ...(columnWidths !== undefined ? { columnWidths: reorderItems(columnWidths, session.index, toIndex) } : {}),
+    });
   };
 
   // --- The cell selection (pure view state): the single click stands the

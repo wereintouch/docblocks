@@ -72,6 +72,8 @@ interface ColumnDragSession {
   startX: number;
   /** The visible column id sequence at the press (the stale-drop guard). */
   ids: string[];
+  /** The full column id sequence, including hidden columns. */
+  order: string[];
   /** The drag has crossed the threshold (a sub-threshold press is a click). */
   started: boolean;
   /** The dragged column's width at the press (the parting preview's shift step). */

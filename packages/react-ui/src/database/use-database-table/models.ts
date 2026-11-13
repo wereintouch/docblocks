@@ -32,6 +32,10 @@ interface UseDatabaseTable {
   table: BridgeTableDescription | null;
   /** The loaded rows in the row order. */
   rows: DatabaseTableRow[];
+  /** The latest inserted row while it stays outside the filtered page. */
+  pendingRow: DatabaseTableRow | null;
+  /** Ends the inserted row's temporary visibility outside the filtered page. */
+  dismissPendingRow(rowId?: string): void;
   /** The row's live revision (the CAS's stand — the draft session's open
    *  pin reads it at the session's open). */
   revisionOf(rowId: string): Revision | undefined;

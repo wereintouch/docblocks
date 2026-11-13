@@ -7,32 +7,68 @@ import type { BridgeColumn } from "../bridge";
 import type { NumberFormatAttrs } from "../number-format";
 import type { AddColumnFormDraft, AddColumnTypeEntry } from "./models";
 
-/** The block's visible columns: the `columnOrder` attr first (the
- *  additive columns not listed keep the schema order), the hidden
- *  columns dropped. */
+/** The full known id order: explicit ids first, then new schema columns. */
+function normalizeColumnOrder(columns: BridgeColumn[] | undefined, columnOrder?: string[]): string[] {
+  const all = columns ?? [];
+  const byId = new Map(all.map((column) => [column.id, column]));
+  const ordered: string[] = [];
+  for (const id of columnOrder ?? []) {
+    if (!byId.has(id) || ordered.includes(id)) continue;
+    ordered.push(id);
+    byId.delete(id);
+  }
+  for (const column of byId.values()) ordered.push(column.id);
+  return ordered;
+}
+
+/** The block's visible columns: the full order minus the hidden ids. */
 function visibleColumns(
   columns: BridgeColumn[] | undefined,
   columnOrder?: string[],
   hiddenColumns?: string[]
 ): BridgeColumn[] {
-  const all = columns ?? [];
+  const byId = new Map((columns ?? []).map((column) => [column.id, column]));
   const hidden = new Set(hiddenColumns ?? []);
-  // The hidden columns stand out of the view entirely (the byId remainder
-  // includes only the visible ones).
-  const byId = new Map(all.filter((column) => !hidden.has(column.id)).map((column) => [column.id, column]));
-  const ordered: BridgeColumn[] = [];
-  if (columnOrder !== undefined) {
-    for (const id of columnOrder) {
-      const column = byId.get(id);
-      if (column !== undefined) {
-        ordered.push(column);
-        byId.delete(id);
-      }
-    }
+  return normalizeColumnOrder(columns, columnOrder).flatMap((id) => {
+    const column = byId.get(id);
+    return column === undefined || hidden.has(id) ? [] : [column];
+  });
+}
+
+/** One immutable list move; an invalid or identity move returns the input. */
+function reorderItems<T>(items: T[], fromIndex: number, toIndex: number): T[] {
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= items.length || toIndex >= items.length) {
+    return items;
   }
-  // The remainder (the columns the order does not list, the schema order).
-  for (const column of byId.values()) ordered.push(column);
-  return ordered;
+  const next = [...items];
+  const [moved] = next.splice(fromIndex, 1);
+  if (moved === undefined) return items;
+  next.splice(toIndex, 0, moved);
+  return next;
+}
+
+/** A visible header drop mapped into the full order without moving hidden ids over an anchor. */
+function moveVisibleColumn(
+  columns: BridgeColumn[] | undefined,
+  columnOrder: string[] | undefined,
+  hiddenColumns: string[] | undefined,
+  columnId: string,
+  toIndex: number
+): string[] {
+  const fullOrder = normalizeColumnOrder(columns, columnOrder);
+  const visibleIds = visibleColumns(columns, columnOrder, hiddenColumns).map((column) => column.id);
+  const stationary = visibleIds.filter((id) => id !== columnId);
+  if (stationary.length === visibleIds.length || toIndex < 0 || toIndex > stationary.length) return fullOrder;
+  const next = fullOrder.filter((id) => id !== columnId);
+  const targetId = stationary[toIndex];
+  if (targetId !== undefined) {
+    next.splice(next.indexOf(targetId), 0, columnId);
+    return next;
+  }
+  const anchorId = stationary.at(-1);
+  if (anchorId === undefined) return fullOrder;
+  next.splice(next.indexOf(anchorId) + 1, 0, columnId);
+  return next;
 }
 /** The number input's step stand: the explicit `decimals` stands the
  *  `10^-decimals` step; the absent stand follows the integer types only
@@ -145,7 +181,10 @@ export {
   emptyColumnForm,
   hasTime,
   numberDisplayAttrs,
+  moveVisibleColumn,
+  normalizeColumnOrder,
   numberStepFor,
   parseCellDateTime,
+  reorderItems,
   visibleColumns,
 };

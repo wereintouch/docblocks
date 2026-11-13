@@ -172,6 +172,36 @@ describe("DatabaseTable (the standalone's grid over the bridge's table id)", () 
     expect(document.querySelector(`[data-slot='docblocks/database-cell'][data-column-id='${count}']`)).toBeNull();
   });
 
+  it("the columns popover restores a hidden column and guards the last visible one", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId, title, count } = await seedTable(bridge);
+    const onViewChange = vi.fn();
+
+    render(
+      <DatabaseTable bridge={bridge} tableId={tableId} view={{ hiddenColumns: [count] }} onViewChange={onViewChange} />
+    );
+    for (let i = 0; i < 4; i++) await settleGrid();
+
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-columns']")!);
+    const visibleTitle = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-column-visibility'][data-column-id='${title}']`
+    )!;
+    const hiddenCount = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-column-visibility'][data-column-id='${count}']`
+    )!;
+    expect(visibleTitle.getAttribute("data-state")).toBe("checked");
+    expect(visibleTitle.hasAttribute("disabled")).toBe(true);
+    expect(hiddenCount.getAttribute("data-state")).toBe("unchecked");
+
+    fireEvent.click(hiddenCount);
+    await settleGrid();
+    expect(onViewChange).toHaveBeenCalledWith({ hiddenColumns: [] });
+    expect(
+      document.querySelector(`[data-slot='docblocks/database-header-cell'][data-column-id='${count}']`)
+    ).not.toBeNull();
+    expect(document.querySelector("[data-slot='docblocks/database-columns-content']")).not.toBeNull();
+  });
+
   it("the header's drag's commit stands the onViewChange's patch (the internal state's merge)", async () => {
     const bridge = createMemoryDatabaseBridge();
     const { tableId, title, count } = await seedTable(bridge);

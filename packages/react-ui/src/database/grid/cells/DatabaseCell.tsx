@@ -53,6 +53,8 @@ interface DatabaseCellProps {
   colIndex: number;
   first: boolean;
   lastRow: boolean;
+  /** The inserted row's temporary visibility outside the active filter. */
+  filterPending: boolean;
   dragDx: number;
   /** A stationary column's cell of an in-flight drag (the parting shift's transition). */
   dragShifted: boolean;
@@ -91,6 +93,7 @@ function DatabaseCell({
   colIndex,
   first,
   lastRow,
+  filterPending,
   dragDx,
   dragShifted,
   selected,
@@ -137,6 +140,17 @@ function DatabaseCell({
   const openValueRef = useRef<string | null>(null);
   const openDateRef = useRef<Date | null>(null);
   const openRevisionRef = useRef<string | undefined>(undefined);
+
+  // A grid-initiated edit (a newly inserted row) uses the same draft and
+  // revision initialization as the double-press entry.
+  useEffect(() => {
+    if (!editing || (!isText && !isNumber) || openValueRef.current !== null) return;
+    textCancelledRef.current = false;
+    textSettledRef.current = false;
+    openValueRef.current = rawValue;
+    openRevisionRef.current = revision;
+    setTextDraft(rawValue);
+  }, [editing]);
 
   // The multi-line edit's caret seat (the autoFocus's start seat): the
   // session's open focuses the editor and seats the caret at the value's
@@ -523,6 +537,8 @@ function DatabaseCell({
     <div
       data-slot="docblocks/database-cell"
       data-key={cellKeyOf(rowId, column.id)}
+      data-row-id={rowId}
+      data-filter-pending={filterPending ? "true" : undefined}
       data-row={rowIndex}
       data-col={colIndex}
       data-column-id={column.id}

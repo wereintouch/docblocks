@@ -802,6 +802,153 @@ test("the header: the type stands in the menu only, the widths align with the ro
   await close();
 });
 
+test("a filtered-out inserted row keeps the orange outline until focus leaves", async ({ browser }) => {
+  const context = await editorContext(browser);
+  const a = await context.newPage();
+  try {
+    await openPane(a, "a", "db-filtered-insert", { light: true });
+    const { tableId, titleId } = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const ctx = () => ({ operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() });
+      const table = await bridge.createTable({ name: "Filtered insert" }, ctx());
+      const tableId = table.result.id;
+      const title = await bridge.createColumn(
+        tableId,
+        { column: { name: "Title", type: "text", position: 0, nullable: true } },
+        ctx()
+      );
+      const titleId = title.result.id;
+      await bridge.batchRows(
+        tableId,
+        { ops: [{ op: "create", row: { [titleId]: "shown" }, beforeRowId: null }] },
+        ctx()
+      );
+      window.__paneDocs!.a!.insertBlock("database", {
+        tableId,
+        filter: { logic: "and", conditions: [{ columnId: titleId, op: "is", value: "shown" }] },
+      });
+      return { tableId, titleId };
+    });
+    await expect(a.locator("[data-slot='docblocks/database-grid']")).toHaveCount(1, SETTLE);
+
+    await a.locator("[data-slot='docblocks/database-add-row']").click();
+    const pending = a.locator("[data-slot='docblocks/database-cell'][data-filter-pending='true']");
+    await expect(pending).toHaveCount(1, SETTLE);
+    const light = await pending.evaluate((el) => ({
+      token: getComputedStyle(el).getPropertyValue("--docblocks-database-pending-row-border-color").trim(),
+      shadow: getComputedStyle(el).boxShadow,
+    }));
+    expect(light.token).toBe("#d97706");
+    expect(light.shadow).not.toBe("none");
+    await a.evaluate(() => document.documentElement.classList.add("dark"));
+    const dark = await pending.evaluate((el) => ({
+      token: getComputedStyle(el).getPropertyValue("--docblocks-database-pending-row-border-color").trim(),
+      shadow: getComputedStyle(el).boxShadow,
+    }));
+    expect(dark.token).toBe("#f59e0b");
+    expect(dark.shadow).not.toBe(light.shadow);
+    await a.evaluate(() => document.documentElement.classList.remove("dark"));
+
+    const editor = a.locator("[data-slot='docblocks/database-cell-multiline']");
+    await expect(editor).toBeFocused(SETTLE);
+    await editor.fill("outside the filter");
+    await a.locator("[data-slot='docblocks/database-columns']").click();
+    await expect(pending).toHaveCount(0, SETTLE);
+    await expect
+      .poll(
+        () =>
+          a.evaluate(
+            async ({ tableId, titleId }) => {
+              const snapshot = await window.__bridge!.snapshotTable(tableId, {});
+              return snapshot.page.rows.some((row) => row.cells[titleId] === "outside the filter");
+            },
+            { tableId, titleId }
+          ),
+        SETTLE
+      )
+      .toBe(true);
+  } finally {
+    await context.close();
+  }
+});
+
+test("the columns popover restores hidden columns and reorders by keyboard and mouse", async ({ browser }) => {
+  const context = await editorContext(browser);
+  const a = await context.newPage();
+  try {
+    await openPane(a, "a", "db-column-manager");
+    const { dbId, ids } = await a.evaluate(async () => {
+      const bridge = window.__bridge!;
+      const ctx = () => ({ operationId: crypto.randomUUID(), issuedAt: new Date().toISOString() });
+      const table = await bridge.createTable({ name: "Column manager" }, ctx());
+      const tableId = table.result.id;
+      const ids: string[] = [];
+      for (const [position, name] of ["Alpha", "Beta", "Gamma"].entries()) {
+        const column = await bridge.createColumn(
+          tableId,
+          { column: { name, type: "text", position, nullable: true } },
+          ctx()
+        );
+        ids.push(column.result.id);
+      }
+      await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [ids[0]!]: "row" }, beforeRowId: null }] }, ctx());
+      const dbId = window.__paneDocs!.a!.insertBlock("database", {
+        tableId,
+        columnOrder: ids,
+        hiddenColumns: [ids[1]!],
+        columnWidths: [120, 140],
+      });
+      return { dbId, ids };
+    });
+    const [alpha, beta, gamma] = ids;
+    await expect(a.locator("[data-slot='docblocks/database-grid']")).toHaveCount(1, SETTLE);
+    await a.locator("[data-slot='docblocks/database-columns']").click();
+    const content = a.locator("[data-slot='docblocks/database-columns-content']");
+    await expect(content).toBeVisible(SETTLE);
+    expect(await content.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe("rgba(0, 0, 0, 0)");
+
+    const betaVisibility = content.locator(
+      `[data-slot='docblocks/database-column-visibility'][data-column-id='${beta}']`
+    );
+    await expect(betaVisibility).toHaveAttribute("data-state", "unchecked");
+    await betaVisibility.click();
+    await expect(a.locator(`[data-slot='docblocks/database-header-cell'][data-column-id='${beta}']`)).toHaveCount(
+      1,
+      SETTLE
+    );
+    await expect(content).toBeVisible();
+    await a.evaluate((id) => window.__paneDocs!.a!.updateBlock(id, { columnWidths: [120, 130, 140] }), dbId);
+
+    const grip = (columnId: string) =>
+      content.locator(`[data-slot='docblocks/database-column-move'][data-column-id='${columnId}']`);
+    const headerOrder = () =>
+      a
+        .locator("[data-slot='docblocks/database-header-cell']")
+        .evaluateAll((cells) => cells.map((cell) => cell.getAttribute("data-column-id")));
+    await grip(alpha!).focus();
+    await a.keyboard.press("ArrowDown");
+    await expect.poll(headerOrder, SETTLE).toEqual([beta, alpha, gamma]);
+    await expect(content).toBeVisible();
+
+    const from = (await grip(alpha!).boundingBox())!;
+    const target = (await grip(gamma!).boundingBox())!;
+    await a.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await a.mouse.down();
+    await a.mouse.move(target.x + target.width / 2, target.y + target.height + 12, { steps: 12 });
+    await a.mouse.up();
+    await expect.poll(headerOrder, SETTLE).toEqual([beta, gamma, alpha]);
+
+    const attrs = await a.evaluate((id) => {
+      const block = window.__paneDocs!.a!.toJSON().blocks[id];
+      return block?.type === "database" ? block.attrs : null;
+    }, dbId);
+    expect(attrs?.columnOrder).toEqual([beta, gamma, alpha]);
+    expect(attrs?.columnWidths).toEqual([130, 140, 120]);
+  } finally {
+    await context.close();
+  }
+});
+
 test("the create's column order stands the creation order (the new stands last); the create keeps the committed columnOrder intact (the visible order stands complete)", async ({
   browser,
 }) => {

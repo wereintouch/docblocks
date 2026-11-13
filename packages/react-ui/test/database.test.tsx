@@ -1037,6 +1037,102 @@ describe("the grid's header (the table's name, the column menu, the column drag)
     await settleGrid();
     expect(dbAttrs()?.columnOrder).toEqual([cols.n, cols.done, cols.status, cols.title]);
   });
+
+  it("the header's drag preserves hidden column slots and rebases visible widths", async () => {
+    const { doc, db, cols } = await renderGrid();
+    act(() => {
+      doc.updateBlock(db, {
+        columnOrder: [cols.title, cols.n, cols.done, cols.status],
+        hiddenColumns: [cols.n],
+        columnWidths: [120, 130, 140],
+      });
+    });
+    await settleGrid();
+    const header = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-header-cell'][data-column-id='${cols.title}']`
+    )!;
+
+    fireEvent.pointerDown(header, { clientX: 100, clientY: 5 });
+    fireEvent.pointerMove(header, { clientX: 160, clientY: 5 });
+    fireEvent.pointerUp(header, { clientX: 160, clientY: 5 });
+    await settleGrid();
+
+    const attrs = (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
+    expect(attrs.columnOrder).toEqual([cols.n, cols.done, cols.status, cols.title]);
+    expect(attrs.columnWidths).toEqual([130, 140, 120]);
+  });
+
+  it("the columns popover reorders the full order and rebases visible widths", async () => {
+    const { doc, db, cols } = await renderGrid();
+    act(() => {
+      doc.updateBlock(db, {
+        columnOrder: [cols.title, cols.n, cols.done, cols.status],
+        hiddenColumns: [cols.n],
+        columnWidths: [120, 130, 140],
+      });
+    });
+    await settleGrid();
+
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-columns']")!);
+    const hiddenGrip = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-column-move'][data-column-id='${cols.n}']`
+    )!;
+    fireEvent.keyDown(hiddenGrip, { key: "ArrowDown" });
+    await settleGrid();
+    const hiddenMoveAttrs = (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
+    expect(hiddenMoveAttrs.columnOrder).toEqual([cols.title, cols.done, cols.n, cols.status]);
+    expect(hiddenMoveAttrs.columnWidths).toEqual([120, 130, 140]);
+    fireEvent.keyDown(hiddenGrip, { key: "ArrowUp" });
+    await settleGrid();
+
+    const grip = document.querySelector<HTMLElement>(
+      `[data-slot='docblocks/database-column-move'][data-column-id='${cols.done}']`
+    )!;
+    fireEvent.keyDown(grip, { key: "ArrowDown" });
+    await settleGrid();
+
+    const attrs = (doc.getBlock(db) as DatabaseBlock | null)?.attrs ?? {};
+    expect(attrs.columnOrder).toEqual([cols.title, cols.n, cols.status, cols.done]);
+    expect(attrs.columnWidths).toEqual([120, 140, 130]);
+    expect(document.querySelector("[data-slot='docblocks/database-columns-content']")).not.toBeNull();
+  });
+
+  it("a filtered-out insert stays editable with an orange border until the outside press", async () => {
+    const bridge = createMemoryDatabaseBridge();
+    const { tableId, cols } = await seedGrid(bridge);
+    renderDoc(
+      (doc) =>
+        doc.insertBlock("database", {
+          tableId,
+          filter: { logic: "and", conditions: [{ columnId: cols.title, op: "is", value: "a" }] },
+        }),
+      undefined,
+      bridge
+    );
+    await settleGrid();
+
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/database-add-row']")!);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-cell'][data-filter-pending='true']") !== null,
+      "the pending row"
+    );
+    const editor = document.querySelector<HTMLTextAreaElement>("[data-slot='docblocks/database-cell-multiline']");
+    expect(editor).not.toBeNull();
+    expect(document.activeElement).toBe(editor);
+
+    await act(async () => {
+      fireEvent.change(editor!, { target: { value: "c" } });
+    });
+    fireEvent.pointerDown(document.body);
+    await until(
+      () => document.querySelector("[data-slot='docblocks/database-cell'][data-filter-pending='true']") === null,
+      "the pending row's dismissal"
+    );
+
+    const snapshot = await bridge.snapshotTable(tableId, {});
+    expect(snapshot.page.rows).toHaveLength(3);
+    expect(snapshot.page.rows.at(-1)?.cells[cols.title]).toBe("c");
+  });
 });
 
 describe("the grid's cells (the type editors)", () => {
