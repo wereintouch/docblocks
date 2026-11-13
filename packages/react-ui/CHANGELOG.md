@@ -1,5 +1,26 @@
 # docblocks-react-ui
 
+## 0.5.0
+
+### Minor Changes
+
+- 3d0b793: Add a database column manager for restoring hidden columns and reordering the full column list by mouse or keyboard while preserving visible column widths. Keep a newly inserted row visible with a themed orange outline when it does not match the active filter until editing loses focus.
+- ca80cd1: Rebuild the database filter menu over the library's field style: the
+  condition's field / operator / value stand a single line over styled
+  controls in a widened popover, the conditions and the nested group cards
+  are bound by the group's left connector line, the AND/OR logic's labels
+  stand the UI's locale and the active pill takes the prominent `primary`
+  token's fill (the white's stand over the neutral's dark theme), and the
+  footer's apply/clear stand over a separator line. The grid toolbar's undo/redo/columns/filter buttons
+  stand the standard toolbar height and rounding, and the standalone
+  `DatabaseTable` renders no table name (the consumer's own visual element
+  stands the name — the document block's grid keeps the live name and the
+  rename).
+
+### Patch Changes
+
+- 87a2cc9: Preserve thin cell boundaries in native table drag previews with or without a cell background, and keep the dragged handle aligned with the moving row or column by removing its positional animation lag.
+
 ## 0.4.7
 
 ### Patch Changes
