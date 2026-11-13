@@ -6,7 +6,9 @@
  * the value and the `onChange` behavior (the no-op-on-current guard is the
  * caller's). The pill's travel runs a back-out easing (a slight overshoot
  * that settles into the measured stand — the end position stands exact,
- * the overshoot is the animation only).
+ * the overshoot is the animation only). The pill's fill runs a theme
+ * variant: `accent` (the default's soft highlight) or `primary` (the
+ * prominent fill — the active label stands the `primary-foreground`).
  */
 import { useLayoutEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -24,6 +26,7 @@ interface SegmentOption<T extends string> {
 }
 
 type SegmentSelectorSize = "icon" | "text";
+type SegmentPillTheme = "accent" | "primary";
 
 interface PillGeometry {
   left: number;
@@ -41,7 +44,7 @@ function SegmentSelector<T extends string>({
   pillSlot,
   buttonAttrName,
   size = "icon",
-  pillClassName,
+  pillTheme = "accent",
 }: {
   options: readonly SegmentOption<T>[];
   value: T;
@@ -56,9 +59,12 @@ function SegmentSelector<T extends string>({
   /** The button's stand: `icon` (the size-6 icon seat, the default) or
    * `text` (the text label's stand — the compact h-6 label button). */
   size?: SegmentSelectorSize;
-  /** The call site's pill class stand (merged over the default's
-   * `bg-accent`/`dark:bg-ring` — the theme-specific accent's stand). */
-  pillClassName?: string;
+  /** The pill's fill stand: `accent` (the default — the soft `accent`
+   * highlight, the `ring` token over the neutral dark theme where the
+   * `accent` == `muted`'s track) or `primary` (the prominent `primary`
+   * token's fill over both themes; the active label stands the
+   * `primary-foreground` over it). */
+  pillTheme?: SegmentPillTheme;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   /** The sliding pill's geometry (the active button's position and size in the list). */
@@ -102,6 +108,11 @@ function SegmentSelector<T extends string>({
 
   const selectOption = (value: (typeof options)[number]["value"]) => () => onChange(value);
 
+  /** The active button's label stand (over the pill's fill): the `primary`
+   * pill's stand reads the `primary-foreground`, the `accent` pill's stand
+   * reads the `foreground`. */
+  const activeLabelClass = pillTheme === "primary" ? "text-primary-foreground" : "text-foreground";
+
   return (
     <div
       ref={listRef}
@@ -114,23 +125,18 @@ function SegmentSelector<T extends string>({
         <span
           data-slot={pillSlot}
           aria-hidden
-          // The pill's background stands the standard `accent` token (the
-          // soft-highlight — the `background`'s stand was the dark theme's
-          // near-black, darker than the track's `muted` and "gloomy"); the
-          // neutral theme's `accent` == `muted` (the track), so the dark's
-          // pill blends with the track — the dark's stand takes the `ring`
-          // token's brighter stand (it reads over the track, and the active
-          // icon's `text-foreground` reads over it — the token's own contrast,
-          // the consumer's theme or the fallback literal). The call site's
-          // `pillClassName` merges over the stand (the accent's theme stand
-          // takes the `bg-accent` over both themes).
+          // The pill's fill stands the theme variant: `accent` is the soft
+          // highlight (the `accent` token — the neutral theme's `accent`
+          // == `muted` (the track) over the dark, so the dark's stand takes
+          // the `ring` token's brighter stand); `primary` is the prominent
+          // fill (the `primary` token over both themes — the white's stand
+          // over the neutral's dark theme, the consumer's theme's parity).
           className={cn(
             `
-              absolute top-0 left-0 rounded-md bg-accent shadow-sm transition-[transform,width,height] duration-200
+              absolute top-0 left-0 rounded-md shadow-sm transition-[transform,width,height] duration-200
               ease-[cubic-bezier(0.34,1.56,0.64,1)]
-              dark:bg-ring
             `,
-            pillClassName
+            pillTheme === "primary" ? "bg-primary" : "bg-accent dark:bg-ring"
           )}
           style={{
             transform: `translate(${pill.left}px, ${pill.top}px)`,
@@ -157,7 +163,7 @@ function SegmentSelector<T extends string>({
               focus-visible:outline-ring
             `,
             size === "icon" ? "size-6" : "h-6 px-2 text-xs",
-            value === option.value ? "text-foreground" : "hover:text-foreground",
+            value === option.value ? activeLabelClass : "hover:text-foreground",
             option.disabled && "cursor-not-allowed text-muted-foreground/50 hover:text-muted-foreground/50"
           )}
           onClick={selectOption(option.value)}
@@ -170,4 +176,4 @@ function SegmentSelector<T extends string>({
 }
 
 export { SegmentSelector };
-export type { SegmentOption, SegmentSelectorSize };
+export type { SegmentOption, SegmentPillTheme, SegmentSelectorSize };

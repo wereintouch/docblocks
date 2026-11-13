@@ -124,7 +124,10 @@ function FilterGroup({ payload, columns, depth, logicOptions, onChange, refTable
           pillSlot="docblocks/filter-logic-pill"
           buttonAttrName="filter-logic"
           size="text"
-          pillClassName="dark:bg-accent"
+          // The pill's prominent fill's stand (the `primary` token — the
+          // white's stand over the neutral's dark theme, the consumer's
+          // theme's parity).
+          pillTheme="primary"
         />
         <span className="text-xs text-muted-foreground">
           {payload.logic === "and" ? t("filter.matchAll") : t("filter.matchAny")}

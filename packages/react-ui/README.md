@@ -404,7 +404,8 @@ The grid's **Filter** control edits a recursive and/or condition tree: one
 row per condition (the field / the operator / the value over the column's
 annotation, a single line), the nested groups over bordered cards, and the
 conditions and the groups bound by the group's left connector line. The
-logic's labels stand the UI's locale (en/ru). `Apply` commits the draft as
+logic's labels stand the UI's locale (en/ru), the active pill over the
+prominent `primary` fill. `Apply` commits the draft as
 the view's `filter` attr (the block's write stand); `Clear` resets it.
 
 When an inserted row does not match the active filter, the grid keeps it

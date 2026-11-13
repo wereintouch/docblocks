@@ -856,7 +856,11 @@ function GridBody({
                       onChange={setFilterDraft}
                       refTableData={refTableData}
                     />
-                    <div className="flex items-center gap-2">
+                    {/* The footer's stand: the apply/clear over the separator's line (not stuck to the add rows). */}
+                    <div
+                      data-slot="docblocks/filter-footer"
+                      className="flex items-center gap-2 border-t border-border pt-2"
+                    >
                       <Button data-slot="docblocks/filter-clear" variant="outline" size="sm" onClick={resetFilterDraft}>
                         {t("common:clear")}
                       </Button>

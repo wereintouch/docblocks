@@ -849,6 +849,25 @@ test("the filter menu: the single-line's condition, the connector's line, the gr
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(tickBg).not.toBe("rgba(0, 0, 0, 0)");
 
+    // The logic's pill stands the prominent's fill (not the track's muted's
+    // stand — the pill reads as the selection's highlight).
+    const pillBg = await popover
+      .locator("[data-slot='docblocks/filter-logic-pill']")
+      .first()
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const trackBg = await popover
+      .locator("[data-slot='docblocks/filter-logic']")
+      .first()
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(pillBg).not.toBe(trackBg);
+
+    // The footer's apply/clear stand over the separator's line (not stuck to
+    // the add rows).
+    const footerBorder = await popover
+      .locator("[data-slot='docblocks/filter-footer']")
+      .evaluate((el) => getComputedStyle(el).borderTopWidth);
+    expect(footerBorder).toBe("1px");
+
     // The nested's group stands the numbered's header + the remove's entry +
     // its own logic's selector over the card.
     await a.locator("[data-slot='docblocks/filter-add-group']").first().click();
