@@ -6,6 +6,7 @@
 CORE := -w packages/core
 UI := -w packages/react-ui
 PG := -w apps/playground
+B ?= chromium
 
 .PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations build build-core test test-core test-ui unit unit-f e2e e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full dev clean
 
@@ -75,7 +76,6 @@ e2e-all: ## Playwright E2E over every browser project (chromium + firefox + webk
 
 e2e-file: ## E2E a single spec (make e2e-file F=test/e2e/canvas-connectors.spec.ts; B=chromium|firefox|webkit, default chromium)
 	@test -n "$(F)" || { echo "usage: make e2e-file F=<spec path> [B=chromium|firefox|webkit]"; exit 1; }
-	B ?= chromium
 	case "$(B)" in \
 		chromium) npm run test:e2e -- $(F);; \
 		firefox) npm run test:e2e:firefox -- $(F);; \
