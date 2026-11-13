@@ -39,7 +39,10 @@
     "pdfPrevPage": "Предыдущая страница",
     "pdfNextPage": "Следующая страница",
     "pdfFullscreen": "Развернуть на весь экран",
-    "pdfCloseFullscreen": "Закрыть полноэкранный режим"
+    "pdfCloseFullscreen": "Закрыть полноэкранный режим",
+    "pdfZoomIn": "Увеличить масштаб",
+    "pdfZoomOut": "Уменьшить масштаб",
+    "pdfFitWidth": "Вписать по ширине"
   },
   "image": {
     "placeholder": "изображение",

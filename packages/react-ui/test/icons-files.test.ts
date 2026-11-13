@@ -87,6 +87,7 @@ const ICON_SET = [
   "SquareSplitVertical",
   "SquareText",
   "Star",
+  "StretchHorizontal",
   "Strikethrough",
   "Stroke",
   "Table",

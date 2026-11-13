@@ -229,3 +229,118 @@ test("the page navigation: the prev/next buttons + the page indicator over a mul
     await context.close();
   }
 });
+
+test("the fullscreen zoom bar: the zoom in/out + the fit-width over a separate pill to the left of the page controls", async ({
+  browser,
+}) => {
+  const context = await editorContext(browser);
+  const a = await context.newPage();
+  const room = `pdf-zoom-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await openPane(a, "a", room, { first: true });
+    const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
+    await target.click();
+    await a.keyboard.type("/file");
+    await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
+    await uploadPdf(a, FIXTURE_MULTI_PAGE);
+
+    const shell = a.locator('[data-slot="docblocks/image-pdf-preview"]');
+    await expect(shell).toHaveAttribute("data-phase", "ready", SETTLE);
+
+    // The preview's chrome stands no text selection: the page numbers / the
+    // controls' text is not document content (a mouse selection over it
+    // would flag the block / pull the format toolbar over a non-text
+    // range). The inline bar's computed user-select stands none (it stands
+    // over the page indicator + the buttons' text, the root wrapper's
+    // inheritable guard).
+    const inlineUserSelect = await a.evaluate(() => {
+      const el = document.querySelector(
+        '[data-slot="docblocks/image-pdf-preview"] [data-slot="docblocks/image-pdf-controls"]'
+      );
+      return el === null ? null : getComputedStyle(el).userSelect;
+    });
+    expect(inlineUserSelect, "the inline's control bar stands the unselectable text").toBe("none");
+
+    await a.locator('[data-slot="docblocks/image-pdf-fullscreen"]').click();
+    const overlay = a.locator('[data-slot="docblocks/image-pdf-fullscreen-overlay"]');
+    await expect(overlay).toBeVisible(SETTLE);
+
+    // The zoom bar stands a separate pill to the left of the page's
+    // controls, the same style (the border's width/color + the radius
+    // stand the controls' over the portaled overlay), and stands no
+    // selection over its own text (the percent's indicator).
+    const zoomBar = overlay.locator('[data-slot="docblocks/image-pdf-zoom"]');
+    const pageControls = overlay.locator('[data-slot="docblocks/image-pdf-controls"]');
+    await expect(zoomBar).toBeVisible(SETTLE);
+    const zoomBox = (await zoomBar.boundingBox())!;
+    const controlsBox = (await pageControls.boundingBox())!;
+    expect(zoomBox.x + zoomBox.width, "the zoom's pill stands to the left of the page controls").toBeLessThanOrEqual(
+      controlsBox.x
+    );
+    const styles = await a.evaluate(() => {
+      const styleOf = (selector: string) => {
+        const el = document.querySelector(selector);
+        if (el === null) return null;
+        const c = getComputedStyle(el);
+        return { width: c.borderTopWidth, color: c.borderTopColor, radius: c.borderRadius, userSelect: c.userSelect };
+      };
+      return {
+        zoom: styleOf('[data-slot="docblocks/image-pdf-fullscreen-overlay"] [data-slot="docblocks/image-pdf-zoom"]'),
+        controls: styleOf(
+          '[data-slot="docblocks/image-pdf-fullscreen-overlay"] [data-slot="docblocks/image-pdf-controls"]'
+        ),
+      };
+    });
+    expect(styles.zoom, "the zoom's pill stands").not.toBeNull();
+    expect(styles.controls, "the page controls' pill stands").not.toBeNull();
+    expect(styles.zoom!.width).toBe(styles.controls!.width);
+    expect(styles.zoom!.color).toBe(styles.controls!.color);
+    expect(styles.zoom!.radius).toBe(styles.controls!.radius);
+    expect(styles.zoom!.userSelect, "the zoom's pill stands the unselectable text").toBe("none");
+    expect(styles.controls!.userSelect, "the page controls' pill stands the unselectable text").toBe("none");
+
+    const zoomIn = zoomBar.locator('[data-slot="docblocks/image-pdf-zoom-in"]');
+    const zoomOut = zoomBar.locator('[data-slot="docblocks/image-pdf-zoom-out"]');
+    const fitWidth = zoomBar.locator('[data-slot="docblocks/image-pdf-fit-width"]');
+    const indicator = zoomBar.locator('[data-slot="docblocks/image-pdf-zoom-indicator"]');
+    const canvas = overlay.locator('[data-slot="docblocks/image-pdf-fullscreen-canvas"]');
+    const container = overlay.locator('[data-slot="docblocks/image-pdf-fullscreen-container"]');
+    await expect(indicator).toHaveText(/^\d+%$/, SETTLE);
+
+    // The zoom in grows the page over the fit's stand (the contain's fit
+    // stands on the fresh open); a click over the zoom's pill is the
+    // content's zone — the overlay stands (not the outside's exit); the
+    // indicator tracks the scale (it stands the fit's percent, not the
+    // fresh-open's default, and moves with the step).
+    const fitCanvasWidth = (await canvas.boundingBox())!.width;
+    const fitIndicator = (await indicator.textContent())!;
+    await zoomIn.click();
+    await expect.poll(async () => (await canvas.boundingBox())!.width, SETTLE).toBeGreaterThan(fitCanvasWidth);
+    await expect(overlay).toBeVisible();
+    await expect.poll(async () => (await indicator.textContent())!, SETTLE).not.toBe(fitIndicator);
+
+    // The zoom out steps back to the fit's stand (the step's inverse over
+    // the same base); the indicator tracks the scale.
+    await zoomOut.click();
+    await expect(indicator).toHaveText(fitIndicator, SETTLE);
+    await expect
+      .poll(async () => Math.abs((await canvas.boundingBox())!.width - fitCanvasWidth) <= 1, SETTLE)
+      .toBe(true);
+
+    // The fit-width's button: the page's width fills the container's
+    // width (the page is portrait over the wide container, so the fit
+    // stands the height — the fit-width out-scales it; the vertical
+    // overflow scrolls over the container's scroller).
+    const containerBox = (await container.boundingBox())!;
+    await fitWidth.click();
+    await expect
+      .poll(async () => Math.abs((await canvas.boundingBox())!.width - containerBox.width) <= 1, SETTLE)
+      .toBe(true);
+    const fitWidthCanvas = (await canvas.boundingBox())!.width;
+    expect(fitWidthCanvas, "the fit-width out-scales the contain's fit").toBeGreaterThan(fitCanvasWidth);
+    const scroll = await container.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
+    expect(scroll.scrollHeight, "the vertical overflow scrolls").toBeGreaterThan(scroll.clientHeight);
+  } finally {
+    await context.close();
+  }
+});

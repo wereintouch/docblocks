@@ -39,7 +39,10 @@
     "pdfPrevPage": "Previous page",
     "pdfNextPage": "Next page",
     "pdfFullscreen": "Expand to fullscreen",
-    "pdfCloseFullscreen": "Close fullscreen"
+    "pdfCloseFullscreen": "Close fullscreen",
+    "pdfZoomIn": "Zoom in",
+    "pdfZoomOut": "Zoom out",
+    "pdfFitWidth": "Fit width"
   },
   "image": {
     "placeholder": "image",
