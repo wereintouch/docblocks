@@ -9,7 +9,6 @@ import { getDefaultBlobStore } from "../blob-store";
 import type { BlobStore } from "../blob-store";
 import type { DatabaseBridge } from "../database";
 import { ensureTrailingParagraph } from "../editing/block-commands";
-import { COMMAND_PALETTE_PLACEHOLDER } from "../editing/slash";
 import { DocblocksI18nProvider } from "../i18n";
 import { buildPresencePayload, resolvePeerSelection } from "../presence";
 import { createEditorStore } from "../state";
@@ -320,8 +319,7 @@ function EditorProviderStand({
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
       embedDepth: parent === null ? 0 : parent.embedDepth + 1,
-      commandPalettePlaceholder:
-        commandPalettePlaceholder ?? parent?.commandPalettePlaceholder ?? COMMAND_PALETTE_PLACEHOLDER,
+      commandPalettePlaceholder: commandPalettePlaceholder ?? parent?.commandPalettePlaceholder ?? null,
       accessLevel: effectiveAccessLevel,
       mode: effectiveMode,
       viewMode: effectiveMode !== "edit",

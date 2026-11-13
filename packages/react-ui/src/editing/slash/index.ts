@@ -70,7 +70,7 @@
  */
 export { SlashMenuContext, useSlashMenuApi } from "./context";
 export { useSlashMenu } from "./use-slash-menu";
-export { COMMAND_PALETTE_PLACEHOLDER, SLASH_COMMANDS } from "./constants";
+export { SLASH_COMMANDS } from "./constants";
 export { deriveSlash, filterCommands, planSlashApply } from "./utils";
 export { DatabaseSlashPicker } from "./DatabaseSlashPicker";
 export { FrameSlashPicker } from "./FrameSlashPicker";

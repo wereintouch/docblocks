@@ -121,6 +121,22 @@ describe("the package's i18n instance", () => {
 });
 
 describe("the editor's chrome over the language", () => {
+  it("localizes the empty block's command hint and follows the language flip", async () => {
+    document.documentElement.lang = "ru";
+    const doc = createDoc({ id: "doc-i18n-placeholder", createdAt: CREATED_AT });
+    doc.insertBlock("paragraph");
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+
+    const inner = document.querySelector('[data-slot="docblocks/block-content"]');
+    await waitFor(() => expect(inner?.getAttribute("data-placeholder")).toBe("Введите «/» для команд"));
+    document.documentElement.lang = "en";
+    await waitFor(() => expect(inner?.getAttribute("data-placeholder")).toBe("Type '/' for commands"));
+  });
+
   it("stands the ru's aria-labels at lang=ru and follows back to the en's", async () => {
     const doc = createDoc({ id: "doc-i18n", createdAt: CREATED_AT });
     const id = doc.insertBlock("paragraph");

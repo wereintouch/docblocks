@@ -1,4 +1,5 @@
 {
+  "commandPalettePlaceholder": "Type '/' for commands",
   "docHeader": {
     "pageView": "Page view",
     "canvasView": "Canvas view",

@@ -156,6 +156,7 @@ function TextBlock({
   codeBodyHidden = false,
 }: TextBlockProps) {
   const { t } = useTranslation("blocks");
+  const { t: tEditor } = useTranslation("editor");
   const { doc, store, selection: selectionRef, commandPalettePlaceholder, viewMode } = useEditorContext();
   const deleteBlock = useDeleteBlock();
   const blockContext = useBlockContext();
@@ -473,7 +474,9 @@ function TextBlock({
       // the entry affordance; a placed empty box is removed on the
       // caret's loss, not filled in).
       data-placeholder={
-        block.type === "code" || inCell || block.type === "canvas-text" ? undefined : commandPalettePlaceholder
+        block.type === "code" || inCell || block.type === "canvas-text"
+          ? undefined
+          : (commandPalettePlaceholder ?? tEditor("commandPalettePlaceholder"))
       }
       className={innerClass}
       onInput={commitDomDelta}

@@ -1,4 +1,5 @@
 {
+  "commandPalettePlaceholder": "Введите «/» для команд",
   "docHeader": {
     "pageView": "Вид страницы",
     "canvasView": "Вид холста",

@@ -20,13 +20,6 @@ import {
 } from "../../shared/ui/icons";
 import type { SlashCommand } from "./models";
 
-/**
- * The empty-block hint text: shown while the caret sits in a text block
- * with no content, pointing at the "/" command palette (the
- * `commandPalettePlaceholder` provider prop overrides it).
- */
-const COMMAND_PALETTE_PLACEHOLDER = "Type '/' for commands";
-
 /** The v1 command list (filterable by the typed query). The `label` is the
  *  command's canonical en identity (the filter's primary text); the
  *  `labelKey` is the menu's display label over the current language. */
@@ -62,4 +55,4 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { label: "Table", labelKey: "blocks.table", icon: Table, type: "table" },
 ];
 
-export { COMMAND_PALETTE_PLACEHOLDER, SLASH_COMMANDS };
+export { SLASH_COMMANDS };

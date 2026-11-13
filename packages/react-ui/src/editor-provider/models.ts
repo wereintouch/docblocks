@@ -124,8 +124,8 @@ interface EditorContextValue {
   ancestorDocIds: readonly string[];
   /** The number of enclosing editor renders (the sync-embed cycle depth bound). */
   embedDepth: number;
-  /** The empty-block hint text (the default points at the slash command palette). */
-  commandPalettePlaceholder: string;
+  /** The consumer's empty-block hint override; null selects the localized default. */
+  commandPalettePlaceholder: string | null;
   /** The consumer's access level (the effective stand: the own prop, else the enclosing one, else "editor"). */
   accessLevel: AccessLevel;
   /** The effective document mode (resolved: a viewer stands "published" over any stand; a nested provider without its own `mode` inherits the enclosing one). */
@@ -254,10 +254,9 @@ interface EditorProviderProps {
    */
   rootBlockId?: BlockId;
   /**
-   * The command palette placeholder hint text, shown while the caret sits
-   * in a text block with no content; defaults to "Type '/' for commands"
-   * (`COMMAND_PALETTE_PLACEHOLDER`). A nested provider that supplies none
-   * inherits the enclosing value, like the resolvers.
+   * The command palette placeholder override, shown while the caret sits in
+   * an empty text block. The default comes from the editor locale. A nested
+   * provider that supplies none inherits the enclosing override.
    */
   commandPalettePlaceholder?: string;
   /**
