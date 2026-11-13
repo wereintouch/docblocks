@@ -6,7 +6,7 @@
 // document — the undo hotkey's reach).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, twoPanes } from "./helpers";
+import { SETTLE, caretIn, insertBlockType, twoPanes } from "./helpers";
 
 function pane(page: Page, client: "a" | "b") {
   return page.locator(`[data-testid="doc-${client}"]`);
@@ -84,11 +84,16 @@ test.describe("the page row's delete affordance", () => {
     await expect(wrapper(a, "a", dividerId)).toHaveCount(0);
     await expect(wrapper(b, "b", dividerId)).toHaveCount(0, SETTLE);
 
-    // The focus never drops to the document: the gesture parks it inside
-    // the editor (the tail guarantee's caret over the page's single
-    // editable container, or the root's park).
-    const activeSlot = await a.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset?.slot ?? null);
-    expect(["docblocks/editor", "docblocks/page", "docblocks/block-content"]).toContain(activeSlot);
+    // The caret rides the structural remount's frame into the next surviving
+    // text block (the page's container may own the DOM focus).
+    const nextId = await a.evaluate(() => {
+      const doc = window.__paneDocs?.a;
+      return doc == null ? null : doc.getChildren(doc.meta.id)[1];
+    });
+    expect(nextId).toBeDefined();
+    await expect
+      .poll(() => caretIn(a, `[data-block-id="${nextId}"][data-slot="docblocks/block-content"]`), SETTLE)
+      .toBe(true);
 
     // The wrapper count stands (the deletion never stands the empty doc).
     expect(await wrappers(a, "a").count()).toBeGreaterThan(0);

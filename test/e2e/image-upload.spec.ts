@@ -8,8 +8,9 @@ const FIXTURE = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
  * The slash Image upload (the blob bridge): the "Image"
  * command opens the file picker over the open menu, the upload resolves
  * against the consumer's blob store before any doc write, and one transact
- * commits the trigger phrase strip + the image insert after the caret block
- * (a trailing empty paragraph when the image takes the sequence's end).
+ * commits the phrase-only block's replacement by the image (or the phrase
+ * strip + insert after a non-empty block), with a trailing empty paragraph
+ * when the image takes the sequence's end.
  * The doc holds only the committed key: the bytes are a consumer-side
  * concern, so the other pane (its own page, its own default in-memory
  * store) syncs the key and renders the placeholder when its store does not
@@ -59,9 +60,7 @@ async function uploadFixture(page: Page): Promise<void> {
   await chooser.setFiles(FIXTURE);
 }
 
-test("the slash Image upload: the phrase strip + the image after the caret block, one undo step", async ({
-  browser,
-}) => {
+test("the slash File upload replaces the phrase-only block and adds one trailing paragraph", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "ux-img-s1");
   const target = inner(a, "a");
   await target.click();
@@ -70,10 +69,20 @@ test("the slash Image upload: the phrase strip + the image after the caret block
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible();
   await uploadFixture(a);
 
-  // The menu closes; the image lands after the stripped caret block and a
-  // trailing empty paragraph seats the caret (the image is not editable and
-  // takes the sequence's end).
+  // The menu closes; the phrase-only caret block is replaced by the image,
+  // and a trailing empty paragraph seats the caret. No empty block remains
+  // before the attachment.
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toHaveCount(0);
+  await expect
+    .poll(
+      () =>
+        a.evaluate(() => {
+          const doc = window.__paneDocs?.a;
+          return doc?.getChildren(doc.meta.id).map((id) => doc.getBlock(id)?.type) ?? [];
+        }),
+      SETTLE
+    )
+    .toEqual(["image", "paragraph"]);
   const img = a.locator("img[data-slot='docblocks/image']");
   await expect(img).toBeVisible();
   const src = (await img.getAttribute("src")) ?? "";

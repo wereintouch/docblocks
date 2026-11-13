@@ -8,11 +8,10 @@
  * the row is part of one (the Delete key's gesture parity); otherwise the
  * row alone.
  *
- * The gesture stands the Delete key's tail contract: over the document
- * root the caret re-seats on the trailing paragraph's guarantee;
- * otherwise the focus parks on the editor root (the deleted rows unmount
- * and the browser would drop the focus to the document — the undo hotkey
- * must still reach the doc from the park).
+ * The removal and the root's trailing-paragraph stand share one undo step.
+ * The caret re-seats on the next surviving text block, then the previous one
+ * or the stood tail. Without a text survivor the focus parks on the editor
+ * root, keeping the undo hotkey reachable after the deleted rows unmount.
  */
 import { useCallback } from "react";
 
@@ -20,7 +19,7 @@ import type { BlockId } from "docblocks-core";
 
 import { entrySequenceParent } from "../blocks";
 import { useEditorContext } from "../editor-provider";
-import { ensureTrailingParagraph, focusCaretIn, removeBlocksSelection } from "./block-commands";
+import { focusCaretIn, removeBlocksSelection } from "./block-commands";
 import { editorRootOf } from "./dom-offset";
 
 function useDeleteBlock(): (button: HTMLElement, blockId: BlockId) => void {
@@ -32,15 +31,12 @@ function useDeleteBlock(): (button: HTMLElement, blockId: BlockId) => void {
       if (view === null) return;
       const current = view.get();
       const ids = current.kind === "blocks" && current.ids.includes(blockId) ? current.ids : [blockId];
-      removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), ids);
+      const caret = removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), ids);
       view.set({ kind: "none" });
       const root = editorRootOf(button);
-      if (rootBlockId === doc.meta.id) {
-        const trailingId = ensureTrailingParagraph(doc, doc.meta.id);
-        if (trailingId !== null) {
-          focusCaretIn(trailingId, 0, root);
-          return;
-        }
+      if (caret !== null) {
+        focusCaretIn(caret.blockId, caret.offset, root ?? document);
+        return;
       }
       if (root instanceof HTMLElement) root.focus();
     },

@@ -71,6 +71,7 @@ describe("the page row's delete affordance (the hover's trash icon)", () => {
     );
     const button = deleteButtonOf(container, image);
     expect(button, "the delete button stands on the image row").toBeDefined();
+    const before = doc.toJSON();
 
     fireEvent.click(button as HTMLElement);
 
@@ -80,6 +81,37 @@ describe("the page row's delete affordance (the hover's trash icon)", () => {
     const children = doc.getChildren(doc.meta.id);
     expect(children).toHaveLength(1);
     expect(doc.getBlock(children[0] as BlockId)?.type).toBe("paragraph");
+
+    doc.undo();
+    expect(doc.toJSON()).toEqual(before);
+  });
+
+  it("restores an attachment and its trailing paragraph in one undo step", () => {
+    const doc = createDoc({ id: "doc-2-tail-undo", createdAt: CREATED_AT });
+    const image: BlockId = doc.insertBlock("image", { src: "blob-key" });
+
+    const { container } = render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+    const children = doc.getChildren(doc.meta.id);
+    const trailing = children[1];
+    expect(trailing, "the provider stands the attachment's trailing paragraph").toBeDefined();
+    const before = doc.toJSON();
+
+    const gutterOf = (blockId: string) => {
+      const block = wrapperOf(container, blockId);
+      const row = block?.closest('[data-slot="docblocks/row"]') ?? block;
+      return row?.querySelector<HTMLElement>('[data-slot="docblocks/gutter"]');
+    };
+    fireEvent.click(gutterOf(image) as HTMLElement);
+    fireEvent.click(gutterOf(trailing as string) as HTMLElement, { shiftKey: true });
+    fireEvent.click(deleteButtonOf(container, image) as HTMLElement);
+
+    expect(doc.getBlock(image)).toBeNull();
+    doc.undo();
+    expect(doc.toJSON()).toEqual(before);
   });
 
   it("deletes the whole blocks selection when the row is part of it", () => {

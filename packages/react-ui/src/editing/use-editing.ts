@@ -6,7 +6,6 @@ import type { Doc, Selection, SelectionView } from "docblocks-core";
 import { entrySequenceParent } from "../blocks";
 import { useEditorContext } from "../editor-provider";
 import {
-  ensureTrailingParagraph,
   focusCaretIn,
   moveSegmentInSequence,
   removeBlocksSelection,
@@ -213,19 +212,11 @@ function useEditing(): EditingHandle {
             focusCaretIn(first, 0, root ?? document);
             return;
           }
-          removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), selection.ids);
+          const caret = removeBlocksSelection(doc, entrySequenceParent(doc, rootBlockId), selection.ids);
           view.set({ kind: "none" });
-          // The document root's tail guarantee (the gesture's one
-          // transact stands the stand): the removal stands a non-text last
-          // block (or the empty sequence) — the empty paragraph stands
-          // after it and the caret seats there (the typeable home; the
-          // undo hotkey still reaches the editor from the row's focus).
-          if (rootBlockId === doc.meta.id) {
-            const trailingId = ensureTrailingParagraph(doc, doc.meta.id);
-            if (trailingId !== null && root !== null) {
-              focusCaretIn(trailingId, 0, root);
-              return;
-            }
+          if (caret !== null) {
+            focusCaretIn(caret.blockId, caret.offset, root ?? document);
+            return;
           }
           // The deleted rows unmount and the browser would drop the focus to
           // the document: park it on the editor root (the undo hotkey reach).

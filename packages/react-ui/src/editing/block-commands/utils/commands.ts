@@ -72,12 +72,25 @@ function segmentRange(doc: Doc, contextId: BlockId, id: BlockId): { start: numbe
  * segment (its deeper followers) goes with it — the core's removeBlock
  * cascades the segment, so the removals run head-first and skip what a
  * previous cascade already took. One transact (one undo step, one wire
- * update). A surface in the selection is skipped: it is a canvas layer
- * (not rendered in the page view), and the page gesture's removal would
- * cascade the whole surface (its figures) — the surface's removal is the
- * core API's, not a page gesture's.
+ * update), including the document root's trailing-paragraph stand. A surface
+ * in the selection is skipped: it is a canvas layer (not rendered in the page
+ * view), and the page gesture's removal would cascade the whole surface (its
+ * figures) — the surface's removal is the core API's, not a page gesture's.
+ *
+ * The returned caret home is the next surviving text block, then the previous
+ * one, then the stood trailing paragraph. Null means the caller parks focus on
+ * the editor root to keep the undo hotkey reachable.
  */
-function removeBlocksSelection(doc: Doc, parentId: BlockId, ids: BlockId[]): void {
+function removeBlocksSelection(
+  doc: Doc,
+  parentId: BlockId,
+  ids: BlockId[]
+): { blockId: BlockId; offset: number } | null {
+  const before = doc.getChildren(parentId);
+  const indexes = ids.map((id) => before.indexOf(id)).filter((index) => index >= 0);
+  if (indexes.length === 0) return null;
+  const removalIndex = Math.min(...indexes);
+
   doc.transact(() => {
     for (const blockId of ids) {
       const block = doc.getBlock(blockId);
@@ -91,7 +104,25 @@ function removeBlocksSelection(doc: Doc, parentId: BlockId, ids: BlockId[]): voi
         if (segId !== undefined && doc.getBlock(segId) !== null) doc.removeBlock(segId);
       }
     }
+    if (parentId === doc.meta.id) ensureTrailingParagraph(doc, parentId);
   });
+
+  const survivors = doc.getChildren(parentId);
+  for (let i = removalIndex; i < survivors.length; i += 1) {
+    const id = survivors[i];
+    const block = id === undefined ? null : doc.getBlock(id);
+    if (id !== undefined && block !== null && BLOCK_REGISTRY[block.type].content) {
+      return { blockId: id, offset: 0 };
+    }
+  }
+  for (let i = Math.min(removalIndex - 1, survivors.length - 1); i >= 0; i -= 1) {
+    const id = survivors[i];
+    const block = id === undefined ? null : doc.getBlock(id);
+    if (id !== undefined && block !== null && BLOCK_REGISTRY[block.type].content) {
+      return { blockId: id, offset: doc.getText(id).length };
+    }
+  }
+  return null;
 }
 
 /**

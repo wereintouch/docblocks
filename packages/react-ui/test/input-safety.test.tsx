@@ -713,7 +713,7 @@ describe("the code paste target (the raw text)", () => {
 });
 
 describe("the blocks (gutter) selection removal", () => {
-  it("the delete key removes the selected rows and parks the focus on the editor root", () => {
+  it("the delete key removes the selected row and seats the caret in the next text block", async () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     const p1 = doc.insertBlock("paragraph");
     doc.insertText(p1, 0, "one");
@@ -744,17 +744,15 @@ describe("the blocks (gutter) selection removal", () => {
       fireEvent.keyDown(wrapper!, { key: "Delete" });
     });
 
-    // The selected row is gone (the doc and the DOM); the tail's text
-    // block stands (the stand's no stand), so the focus parks on the
-    // editor root (the undo hotkey reach).
     expect(doc.getBlock(p1)).toBeNull();
     expect(doc.getBlock(p2)).not.toBeNull();
     expect(document.querySelector(`[data-block-id="${p1}"]`)).toBeNull();
 
-    // The deleted row unmounted with the focus: the editor root stands
-    // focused so the undo hotkey reaches the doc.
-    const root = document.querySelector<HTMLElement>('[data-slot="docblocks/editor"]');
-    expect(document.activeElement).toBe(root);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    const nextInner = document.querySelector(`[data-block-id="${p2}"][data-slot="docblocks/block-content"]`);
+    expect(document.activeElement).toBe(nextInner);
   });
 
   it("the delete key over the non-text tail stands the trailing empty paragraph (the caret's home)", () => {

@@ -7,7 +7,6 @@ import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 import type { BlockContextValue } from "../blocks";
 import { useEditorContext } from "../editor-provider";
 import {
-  ensureTrailingParagraph,
   findParentId,
   focusCaretIn,
   indentIn,
@@ -354,22 +353,16 @@ function useBlockInput({
         // The wrapper is focused (gutter click): the selection keys act on it.
         if (event.key === "Delete" || event.key === "Backspace") {
           event.preventDefault();
-          removeBlocksSelection(doc, context.parentId, selection.ids);
+          const caret = removeBlocksSelection(doc, context.parentId, selection.ids);
           view.set({ kind: "none" });
-          // The document root's tail guarantee (the gesture's one
-          // transact stands the stand): the removal stands a non-text last
-          // block (or the empty sequence) — the empty paragraph stands
-          // after it and the caret seats there (the typeable home).
-          if (context.parentId === rootBlockId && rootBlockId === doc.meta.id) {
-            const trailingId = ensureTrailingParagraph(doc, doc.meta.id);
-            if (trailingId !== null) {
-              focusCaretIn(trailingId, 0, wrapperRef.current?.closest("[data-slot='docblocks/editor']") ?? document);
-              return;
-            }
+          const editorRoot = wrapperRef.current?.closest("[data-slot='docblocks/editor']") ?? document;
+          if (caret !== null) {
+            focusCaretIn(caret.blockId, caret.offset, editorRoot);
+            return;
           }
           // The deleted rows unmount and the browser would drop the focus to
           // the document: park it on the editor root (the undo hotkey reach).
-          wrapperRef.current?.closest<HTMLElement>('[data-slot="docblocks/editor"]')?.focus();
+          if (editorRoot instanceof HTMLElement) editorRoot.focus();
           return;
         }
         if (event.key === "Escape") {

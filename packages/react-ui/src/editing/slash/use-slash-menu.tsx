@@ -6,7 +6,7 @@ import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BlockId } from "docblocks-core";
-import { InvalidAttrsError, InvalidOperationError } from "docblocks-core";
+import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
 import { focusCaretIn, segmentRange } from "../block-commands";
@@ -182,11 +182,12 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   /**
    * The file pick of the slash Image command: the upload runs first (the
    * doc holds only a committed key), then one transact — the trigger
-   * phrase strip (when it still stands at its anchor) + the image insert
-   * after the caret block, a trailing empty paragraph when the image
-   * takes the sequence's end (the caret seats there), and the caret
-   * re-seat. A refused or cancelled pick commits nothing (the menu stays
-   * open on the phrase).
+   * phrase strip (when it still stands at its anchor) + the image insert.
+   * A phrase-only block without a derived segment is replaced at its slot;
+   * otherwise the image lands after the caret block. A trailing empty
+   * paragraph stands when the image takes the sequence's end (the caret
+   * seats there). A refused or cancelled pick commits nothing (the menu
+   * stays open on the phrase).
    */
   const handleImageFile = useCallback(
     (file: File | null) => {
@@ -206,20 +207,37 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
               const indent = indentOf(current);
               const ind = indent !== 0 ? { indent } : {};
               const text = blockTextOf(current);
-              if (text.charAt(slashOffset) === "/") {
-                let queryEnd = slashOffset + 1;
+              const hasPhrase = text.charAt(slashOffset) === "/";
+              let queryEnd = slashOffset + 1;
+              if (hasPhrase) {
                 while (queryEnd < text.length && !isQueryBoundary(text.charAt(queryEnd))) queryEnd += 1;
-                doc.deleteText(blockId, slashOffset, queryEnd);
               }
+              const stripped = hasPhrase ? text.slice(0, slashOffset) + text.slice(queryEnd) : text;
+              const segment = segmentRange(doc, parentId, blockId);
+              const replace = stripped === "" && segment !== null && segment.end === segment.start + 1;
+              if (!replace && hasPhrase) doc.deleteText(blockId, slashOffset, queryEnd);
               const imageId = doc.insertBlock(
                 "image",
                 { src: key, ...(file.name !== "" ? { name: file.name } : {}), ...ind },
                 { parent: parentId, after: blockId }
               );
+              // Inserting after the phrase-only block and then removing it
+              // keeps the attachment at the same sequence slot.
+              if (replace) {
+                doc.removeBlock(blockId);
+                rootRef.current?.focus();
+              }
               const sequence = doc.getChildren(parentId);
               if (sequence[sequence.length - 1] === imageId) {
                 const trailingId = doc.insertBlock("paragraph", ind, { parent: parentId, after: imageId });
                 focusCaretIn(trailingId, 0, scope);
+              } else if (replace) {
+                const imageIndex = sequence.indexOf(imageId);
+                const nextId = sequence.slice(imageIndex + 1).find((id) => {
+                  const next = doc.getBlock(id);
+                  return next !== null && BLOCK_REGISTRY[next.type].content;
+                });
+                if (nextId !== undefined) focusCaretIn(nextId, 0, scope);
               } else {
                 focusCaretIn(blockId, slashOffset, scope);
               }
