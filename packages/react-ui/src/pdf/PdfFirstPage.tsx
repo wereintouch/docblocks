@@ -5,15 +5,19 @@
  * the canvas. The fullscreen mode opens a portal overlay over the viewport
  * (the page scaled to fill the viewport, the same page navigation, the zoom
  * bar — the zoom in/out buttons over the scale + the fit-width — a separate
- * pill to the left of the page controls, the Escape key / the close button
- * / the outside click exit). The preview's chrome stands no text selection
- * (`select-none`): the page indicator's and the controls' text is not
- * document content, and a selection stood there would flag the block / pull
- * the format toolbar over a non-text range. A failure stands the error note
- * over the native iframe fallback (the document stays viewable). The
- * in-flight fetch is aborted on unmount / url change and the render task +
- * document are released, so a torn-down preview leaves no network request
- * or pdf.js worker behind. */
+ * pill to the left of the page controls, the Escape key / the arrow keys /
+ * the close button / the outside click exit). The overlay's open locks the
+ * body's scroll (a wheel over the fixed portal chains to the document's
+ * scroll container — the page behind must not scroll). The page indicator's
+ * and the scale's numbers stand a fixed width (the digit count's change
+ * must not shift the buttons). The preview's chrome stands no text
+ * selection (`select-none`): the page indicator's and the controls' text
+ * is not document content, and a selection stood there would flag the
+ * block / pull the format toolbar over a non-text range. A failure stands
+ * the error note over the native iframe fallback (the document stays
+ * viewable). The in-flight fetch is aborted on unmount / url change and
+ * the render task + document are released, so a torn-down preview leaves
+ * no network request or pdf.js worker behind. */
 import { RenderingCancelledException, getDocument } from "pdfjs-dist";
 import type { PDFDocumentLoadingTask, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { createPortal } from "react-dom";
@@ -244,16 +248,6 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
     };
   }, [isFullscreen, currentPage, phase, fullscreenZoom]);
 
-  // The Escape key closes the fullscreen overlay.
-  useEffect(() => {
-    if (!isFullscreen) return;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setIsFullscreen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isFullscreen]);
-
   const prevPage = useCallback((): void => {
     setCurrentPage((page) => Math.max(1, page - 1));
   }, []);
@@ -301,6 +295,45 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
     setFullscreenScale(1);
     setIsFullscreen(true);
   }, []);
+
+  // The Escape key closes the fullscreen overlay; the arrow keys stand the
+  // page's navigation (left = the previous, right = the next). A caret in
+  // a form field keeps the arrow's own stand: the overlay's modal cover
+  // stands no live focus in the document's editables (its focus is the
+  // parked page's container or an overlay's control — no editing stand
+  // there). The parked page's container is contenteditable, so the
+  // guard is the field's only, not the editable's.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === "Escape") {
+        setIsFullscreen(false);
+        return;
+      }
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target !== null && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      event.preventDefault();
+      if (event.key === "ArrowLeft") prevPage();
+      else nextPage();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isFullscreen, prevPage, nextPage]);
+
+  // The body's scroll lock over the open overlay: the overlay is a fixed
+  // portal, so a wheel over its surface (outside the scroller, or over the
+  // scroller's limit) chains to the document's scroll container — the page
+  // behind would scroll. The body's overflow stands restored on the close.
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const body = document.body;
+    const previous = body.style.overflow;
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = previous;
+    };
+  }, [isFullscreen]);
 
   if (phase === "error") {
     return (
@@ -377,9 +410,14 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
         data-slot="docblocks/image-pdf-page-indicator"
         className="px-1 text-xs text-(--muted-foreground) tabular-nums"
       >
-        {/* eslint-disable-next-line i18next/no-literal-string -- the page
-            separator is a technical glyph (the same over every locale). */}
-        {currentPage} / {totalPages}
+        {/* The page number stands a fixed width (the total's digit
+            count): the digit count's change (1 → 2) must not shift the
+            buttons. */}
+        <span className="inline-block text-right" style={{ minWidth: `${Math.max(1, String(totalPages).length)}ch` }}>
+          {currentPage}
+        </span>
+        {" / "}
+        {totalPages}
       </span>
       <button
         type="button"
@@ -444,9 +482,14 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
         data-slot="docblocks/image-pdf-page-indicator"
         className="px-1 text-xs text-(--muted-foreground) tabular-nums"
       >
-        {/* eslint-disable-next-line i18next/no-literal-string -- the page
-            separator is a technical glyph (the same over every locale). */}
-        {currentPage} / {totalPages}
+        {/* The page number stands a fixed width (the total's digit
+            count): the digit count's change (1 → 2) must not shift the
+            buttons. */}
+        <span className="inline-block text-right" style={{ minWidth: `${Math.max(1, String(totalPages).length)}ch` }}>
+          {currentPage}
+        </span>
+        {" / "}
+        {totalPages}
       </span>
       <button
         type="button"
@@ -507,9 +550,8 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
       </button>
       <span
         data-slot="docblocks/image-pdf-zoom-indicator"
-        className="px-1 text-xs text-(--muted-foreground) tabular-nums"
+        className="inline-block min-w-[4ch] px-1 text-right text-xs text-(--muted-foreground) tabular-nums"
       >
-        {}
         {Math.round(fullscreenScale * 100)}%
       </span>
       <button

@@ -7,6 +7,9 @@ const FIXTURE = new URL("./fixtures/sample.pdf", import.meta.url).pathname;
 // A 3-page PDF (the page navigation's pin: the prev/next buttons + the
 // page indicator over a multi-page document).
 const FIXTURE_MULTI_PAGE = new URL("./fixtures/multi-page.pdf", import.meta.url).pathname;
+// A 12-page PDF (the page number's fixed-width pin: the two-digit page
+// numbers must not shift the control bar over the digit count's change).
+const FIXTURE_MULTI_PAGE_12 = new URL("./fixtures/multi-page-12.pdf", import.meta.url).pathname;
 // A real scanned PDF whose text layers are JBIG2-encoded (a JPEG background
 // image plus separate JBIG2 glyph/signature layers). It exercises the JBIG2
 // decoder path: without a resolvable wasmUrl the worker drops those layers and
@@ -340,6 +343,66 @@ test("the fullscreen zoom bar: the zoom in/out + the fit-width over a separate p
     expect(fitWidthCanvas, "the fit-width out-scales the contain's fit").toBeGreaterThan(fitCanvasWidth);
     const scroll = await container.evaluate((el) => ({ scrollHeight: el.scrollHeight, clientHeight: el.clientHeight }));
     expect(scroll.scrollHeight, "the vertical overflow scrolls").toBeGreaterThan(scroll.clientHeight);
+  } finally {
+    await context.close();
+  }
+});
+
+test("the fullscreen mode: the arrow keys' page navigation + the body's scroll lock + the page number's fixed width", async ({
+  browser,
+}) => {
+  const context = await editorContext(browser);
+  const a = await context.newPage();
+  const room = `pdf-keys-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await openPane(a, "a", room, { first: true });
+    const target = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]').first();
+    await target.click();
+    await a.keyboard.type("/file");
+    await expect(a.locator('[data-slot="docblocks/slash-menu"]').first()).toBeVisible(SETTLE);
+    await uploadPdf(a, FIXTURE_MULTI_PAGE_12);
+
+    const shell = a.locator('[data-slot="docblocks/image-pdf-preview"]');
+    await expect(shell).toHaveAttribute("data-phase", "ready", SETTLE);
+
+    await a.locator('[data-slot="docblocks/image-pdf-fullscreen"]').click();
+    const overlay = a.locator('[data-slot="docblocks/image-pdf-fullscreen-overlay"]');
+    await expect(overlay).toBeVisible(SETTLE);
+    const indicator = overlay.locator('[data-slot="docblocks/image-pdf-page-indicator"]');
+    await expect(indicator).toHaveText("1 / 12", SETTLE);
+
+    // The body's scroll lock: a wheel over the fixed portal must not chain
+    // to the document's scroll container (the page behind stands).
+    const bodyOverflow = await a.evaluate(() => getComputedStyle(document.body).overflow);
+    expect(bodyOverflow, "the body's scroll stands locked over the open overlay").toBe("hidden");
+
+    // The arrow keys stand the page's navigation (right = the next, left
+    // = the previous). The focus stands the parked page's container (the
+    // editor's focus park) or an overlay's control — both stand the
+    // navigation (no live caret behind the modal overlay).
+    await a.keyboard.press("ArrowRight");
+    await expect(indicator).toHaveText("2 / 12", SETTLE);
+    await a.keyboard.press("ArrowLeft");
+    await expect(indicator).toHaveText("1 / 12", SETTLE);
+
+    // The page number stands a fixed width: the digit count's change
+    // (1 → 10) must not shift the control bar.
+    const controls = overlay.locator('[data-slot="docblocks/image-pdf-controls"]');
+    const firstWidth = (await controls.boundingBox())!.width;
+    for (let i = 0; i < 9; i++) await controls.locator('[data-slot="docblocks/image-pdf-next"]').click();
+    await expect(indicator).toHaveText("10 / 12", SETTLE);
+    const tenthWidth = (await controls.boundingBox())!.width;
+    expect(
+      Math.abs(tenthWidth - firstWidth),
+      "the control bar's width stands over the digit count's change"
+    ).toBeLessThanOrEqual(1);
+
+    // The close stands the body's overflow restored (the overlay's lock is
+    // the inline's, not the consumer's).
+    await a.keyboard.press("Escape");
+    await expect(overlay).toBeHidden(SETTLE);
+    const restored = await a.evaluate(() => document.body.style.overflow);
+    expect(restored, "the body's overflow stands restored on the close").toBe("");
   } finally {
     await context.close();
   }
