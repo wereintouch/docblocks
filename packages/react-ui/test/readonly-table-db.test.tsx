@@ -134,38 +134,55 @@ describe("the table's read-only stand (the view / published's modes)", () => {
   });
 });
 
-describe("the database's grid read-only stand (the view's mode)", () => {
+describe("the database's grid read-only stand (the view / published's modes)", () => {
   afterEach(cleanup);
 
-  it("stands the grid's data rendered and the editing's chrome off (the view's mode)", async () => {
-    const bridge = createMemoryDatabaseBridge();
-    const tableId = (await bridge.createTable({ name: "Frozen" }, ctx())).result.id;
-    const title = (
-      await bridge.createColumn(
-        tableId,
-        { column: { name: "Title", type: "text", position: 0, nullable: true } },
-        ctx()
-      )
-    ).result.id;
-    await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [title]: "a row" }, beforeRowId: null }] }, ctx());
-    const doc = createDoc({ id: "doc-rt-4", createdAt: CREATED_AT });
-    doc.insertBlock("database", { tableId });
-    const { container } = render(
-      <EditorProvider doc={doc} mode="view" databaseBridge={bridge}>
-        <Editor />
-      </EditorProvider>
-    );
-    await settleGrid();
-    // The data's stand: the rows render over the bridge's read (the read-only
-    // stand is the editing's path, not the data's render).
-    expect(container.textContent).toContain("a row");
-    expect(container.querySelector('[data-slot="docblocks/database-add-row"]')).toBeNull();
-    expect(container.querySelector('[data-slot="docblocks/database-undo"]')).toBeNull();
-    expect(container.querySelector('[data-slot="docblocks/database-redo"]')).toBeNull();
-    expect(container.querySelector('[data-slot="docblocks/database-filter"]')).toBeNull();
-    expect(container.querySelector('[data-slot="docblocks/database-add-column-trigger"]')).toBeNull();
-    expect(container.querySelector('[data-slot="docblocks/database-row-menu-trigger"]')).toBeNull();
-    // The name's display stands plain (the rename's entry is off).
-    expect(container.querySelector('[data-slot="docblocks/database-name"] input')).toBeNull();
-  });
+  it.each(["view", "published"] as const)(
+    "stands the data rendered and the editing's chrome off (%s)",
+    async (mode) => {
+      const bridge = createMemoryDatabaseBridge();
+      const tableId = (await bridge.createTable({ name: "Frozen" }, ctx())).result.id;
+      const title = (
+        await bridge.createColumn(
+          tableId,
+          { column: { name: "Title", type: "text", position: 0, nullable: true } },
+          ctx()
+        )
+      ).result.id;
+      await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [title]: "a row" }, beforeRowId: null }] }, ctx());
+      const doc = createDoc({ id: "doc-rt-4", createdAt: CREATED_AT });
+      doc.insertBlock("database", { tableId });
+      const { container } = render(
+        <EditorProvider
+          doc={doc}
+          mode={mode}
+          publishedDoc={mode === "published" ? doc : undefined}
+          databaseBridge={bridge}
+        >
+          <Editor />
+        </EditorProvider>
+      );
+      await settleGrid();
+      // The data's stand: the rows render over the bridge's read (the read-only
+      // stand is the editing's path, not the data's render).
+      expect(container.textContent).toContain("a row");
+      expect(container.querySelector('[data-slot="docblocks/database-add-row"]')).toBeNull();
+      expect(container.querySelector('[data-slot="docblocks/database-undo"]')).toBeNull();
+      expect(container.querySelector('[data-slot="docblocks/database-redo"]')).toBeNull();
+      expect(container.querySelector('[data-slot="docblocks/database-filter"]')).toBeNull();
+      expect(container.querySelector('[data-slot="docblocks/database-add-column-trigger"]')).toBeNull();
+      expect(container.querySelector('[data-slot="docblocks/database-add-column"] svg')).toBeNull();
+      expect(container.querySelector('[data-slot="docblocks/database-row-menu-trigger"]')).toBeNull();
+      const header = container.querySelector<HTMLElement>(
+        `[data-slot="docblocks/database-header-cell"][data-column-id="${title}"]`
+      );
+      expect(header).not.toBeNull();
+      expect(header?.className).not.toContain("cursor-grab");
+      expect(header?.className).not.toContain("active:cursor-grabbing");
+      expect(header?.querySelector('[data-slot="docblocks/database-column-menu"]')).toBeNull();
+      expect(header?.querySelector('[data-slot="docblocks/database-col-resize"]')).toBeNull();
+      // The name's display stands plain (the rename's entry is off).
+      expect(container.querySelector('[data-slot="docblocks/database-name"] input')).toBeNull();
+    }
+  );
 });

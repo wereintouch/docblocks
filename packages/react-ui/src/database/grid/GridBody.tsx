@@ -917,6 +917,7 @@ function GridBody({
             {columns.map((column, index) => (
               <HeaderCell
                 key={column.id}
+                readOnly={readOnly}
                 column={column}
                 colIndex={index}
                 first={index === 0}
@@ -950,13 +951,7 @@ function GridBody({
                 border-(--docblocks-table-border-color)
               "
             >
-              {readOnly ? (
-                // The read-only stand (view / published): the column's
-                // addition's entry is off (the plus stands inert).
-                <span className="flex size-6 items-center justify-center text-(--docblocks-placeholder-color)">
-                  <Plus className="size-4" />
-                </span>
-              ) : (
+              {!readOnly && (
                 <DropdownMenu modal={false} open={addingColumn} onOpenChange={setAddingColumn}>
                   <DropdownMenuTrigger asChild>
                     <Button

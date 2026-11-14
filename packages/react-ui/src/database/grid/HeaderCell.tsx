@@ -16,6 +16,8 @@ import { columnTypeIcon } from "./column-type-icon";
 import { GRID_DRAG_TRANSITION, PICKER_SIDE_OFFSET_PX } from "./constants";
 
 interface HeaderCellProps {
+  /** The read-only stand renders the column label without editing affordances. */
+  readOnly?: boolean;
   column: BridgeColumn;
   colIndex: number;
   first: boolean;
@@ -48,6 +50,7 @@ interface HeaderCellProps {
  *  content: the editable name line (the rename commits on the blur / the
  *  Enter), the type line (read-only), and the show / hide / delete items. */
 function HeaderCell({
+  readOnly = false,
   column,
   colIndex,
   first,
@@ -120,15 +123,15 @@ function HeaderCell({
       }
       className={cn(
         `
-          relative flex min-w-0 cursor-grab items-center gap-1 border-b-(length:--docblocks-table-border-width)
+          relative flex min-w-0 items-center gap-1 border-b-(length:--docblocks-table-border-width)
           border-(--docblocks-table-border-color) bg-muted/40 px-2 py-1 select-none
-          active:cursor-grabbing
         `,
+        !readOnly && "cursor-grab active:cursor-grabbing",
         !first && "border-l-(length:--docblocks-table-border-width)"
       )}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
+      onPointerDown={readOnly ? undefined : onPointerDown}
+      onPointerMove={readOnly ? undefined : onPointerMove}
+      onPointerUp={readOnly ? undefined : onPointerUp}
     >
       <ColumnIcon className="size-4 shrink-0 text-muted-foreground" />
       <span
@@ -138,84 +141,88 @@ function HeaderCell({
       >
         {column.name}
       </span>
-      <div className="ml-auto flex shrink-0 items-center">
-        <DropdownMenu modal={false} open={menuOpen} onOpenChange={onMenuChange}>
-          <DropdownMenuTrigger asChild>
-            <Button
-              data-slot="docblocks/database-column-menu"
-              variant="ghost"
-              size="icon"
-              className="
-                size-5 cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
-                hover:bg-transparent hover:text-(--docblocks-text-color)
-                dark:hover:bg-transparent
-              "
-            >
-              <Ellipsis className="size-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="start"
-            sideOffset={PICKER_SIDE_OFFSET_PX}
-            className="flex w-52 flex-col gap-2 p-2"
-          >
-            <div className="flex flex-col gap-1">
-              <Input
-                size="sm"
-                data-slot="docblocks/database-rename-input"
-                className="border-0 bg-muted/60 px-2 py-1 text-foreground select-text focus:bg-muted"
-                value={nameDraft}
-                onChange={onNameChange}
-                onFocus={focusName}
-                onBlur={commitRename}
-                onKeyDown={onNameKeyDown}
-              />
-              <span
-                data-slot="docblocks/database-column-type"
-                className="flex items-center gap-1 px-1.5 text-xs text-muted-foreground"
+      {!readOnly && (
+        <div className="ml-auto flex shrink-0 items-center">
+          <DropdownMenu modal={false} open={menuOpen} onOpenChange={onMenuChange}>
+            <DropdownMenuTrigger asChild>
+              <Button
+                data-slot="docblocks/database-column-menu"
+                variant="ghost"
+                size="icon"
+                className="
+                  size-5 cursor-pointer rounded-(--docblocks-radius) p-0.5 text-(--docblocks-placeholder-color)
+                  hover:bg-transparent hover:text-(--docblocks-text-color)
+                  dark:hover:bg-transparent
+                "
               >
-                <ColumnIcon className="size-3.5 shrink-0" />
-                {column.type}
-              </span>
-            </div>
-            <Separator />
-            {onEditOptions !== undefined && (
-              <DropdownMenuItem data-slot="docblocks/database-column-edit-options" onClick={onEditOptionsPress}>
-                {t("header.editOptions")}
+                <Ellipsis className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              sideOffset={PICKER_SIDE_OFFSET_PX}
+              className="flex w-52 flex-col gap-2 p-2"
+            >
+              <div className="flex flex-col gap-1">
+                <Input
+                  size="sm"
+                  data-slot="docblocks/database-rename-input"
+                  className="border-0 bg-muted/60 px-2 py-1 text-foreground select-text focus:bg-muted"
+                  value={nameDraft}
+                  onChange={onNameChange}
+                  onFocus={focusName}
+                  onBlur={commitRename}
+                  onKeyDown={onNameKeyDown}
+                />
+                <span
+                  data-slot="docblocks/database-column-type"
+                  className="flex items-center gap-1 px-1.5 text-xs text-muted-foreground"
+                >
+                  <ColumnIcon className="size-3.5 shrink-0" />
+                  {column.type}
+                </span>
+              </div>
+              <Separator />
+              {onEditOptions !== undefined && (
+                <DropdownMenuItem data-slot="docblocks/database-column-edit-options" onClick={onEditOptionsPress}>
+                  {t("header.editOptions")}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={hidden ? onShow : onHide}>
+                {hidden ? t("header.show") : t("header.hide")}
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem onClick={hidden ? onShow : onHide}>
-              {hidden ? t("header.show") : t("header.hide")}
-            </DropdownMenuItem>
-            <DropdownMenuItem data-destructive onClick={onDeletePress}>
-              {t("header.delete")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-      <div
-        data-slot="docblocks/database-col-resize"
-        data-index={colIndex}
-        className={cn(
-          // The strip stands centered on the cell's right edge (the 3 px
-          // over each side): the seam's line is the hit zone's middle, so
-          // the pointer over the border stands the stable col-resize.
-          `
-            absolute top-0 -right-0.75 z-10 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity
-            hover:opacity-100
-          `,
-          resizing && "opacity-100"
-        )}
-        onPointerDown={onResizePointerDown}
-        onPointerMove={onResizePointerMove}
-        onPointerUp={onResizePointerUp}
-        onPointerCancel={onResizePointerCancel}
-      >
+              <DropdownMenuItem data-destructive onClick={onDeletePress}>
+                {t("header.delete")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
+      {!readOnly && (
         <div
-          data-slot="docblocks/database-col-resize-line"
-          className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded bg-(--muted-foreground)"
-        />
-      </div>
+          data-slot="docblocks/database-col-resize"
+          data-index={colIndex}
+          className={cn(
+            // The strip stands centered on the cell's right edge (the 3 px
+            // over each side): the seam's line is the hit zone's middle, so
+            // the pointer over the border stands the stable col-resize.
+            `
+              absolute top-0 -right-0.75 z-10 h-full w-1.5 cursor-col-resize opacity-0 transition-opacity
+              hover:opacity-100
+            `,
+            resizing && "opacity-100"
+          )}
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+          onPointerCancel={onResizePointerCancel}
+        >
+          <div
+            data-slot="docblocks/database-col-resize-line"
+            className="absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded bg-(--muted-foreground)"
+          />
+        </div>
+      )}
     </div>
   );
 }
