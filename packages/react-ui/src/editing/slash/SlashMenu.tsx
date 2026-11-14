@@ -4,13 +4,11 @@
  *  viewport-bottom flip). */
 import { useTranslation } from "react-i18next";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { useBlock } from "../../hooks";
-import { Input } from "../../shared/ui/Input";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
-import { LoaderCircle } from "../../shared/ui/icons";
 import { preventDefault } from "../../shared/utils";
 import { locatePosition } from "../dom-offset";
 import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
@@ -33,9 +31,6 @@ function SlashMenu({
   onHover,
   onPick,
   onClose,
-  onFile,
-  fileClickRef,
-  fileUpload,
   databasePick,
   databaseAvailable,
   onDatabasePickCancel,
@@ -50,18 +45,6 @@ function SlashMenu({
   const { t } = useTranslation("slash");
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
-
-  // The hidden file input of the Image command: a programmatic click
-  // opens the picker (no pointer events reach the menu), and it stands
-  // while the menu is open — the phrase stays intact during the pick, so
-  // the derivation (and the menu) stays live until the file lands.
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  useEffect(() => {
-    fileClickRef.current = { open: () => fileInputRef.current?.click() };
-    return () => {
-      fileClickRef.current = null;
-    };
-  }, [fileClickRef]);
 
   // The derivation, live (the block text from the store + the caret from
   // the DOM selection — the browser settles the DOM before the store
@@ -130,12 +113,6 @@ function SlashMenu({
   }, [active, visible, position]);
 
   if (!visible) return null;
-  const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    const file = files !== null && files.length > 0 ? (files[0] ?? null) : null;
-    event.target.value = "";
-    onFile(file);
-  };
   const hoverAt = (index: number) => () => onHover(index);
   const pickAt = (index: number) => () => onPick(index);
 
@@ -158,17 +135,6 @@ function SlashMenu({
             }
       }
     >
-      <Input
-        ref={fileInputRef}
-        type="file"
-        data-slot="docblocks/slash-file-input"
-        className="
-          pointer-events-none absolute h-0 w-0 border-0 bg-transparent p-0 opacity-0 shadow-none
-          file:h-0
-          dark:bg-transparent
-        "
-        onChange={onFileChange}
-      />
       {embedForm ? (
         <SlashEmbedForm onCommit={onEmbedCommit} onCancel={onEmbedCancel} />
       ) : framePick ? (
@@ -192,19 +158,10 @@ function SlashMenu({
               onMouseDown={preventDefault}
               onClick={pickAt(index)}
             >
-              {command.type === "file" && fileUpload === "uploading" ? (
-                <LoaderCircle className="size-4 animate-spin" />
-              ) : (
-                <command.icon className="size-4" />
-              )}
+              <command.icon className="size-4" />
               {t(command.labelKey)}
             </div>
           ))}
-          {fileUpload === "failed" ? (
-            <p data-slot="docblocks/slash-file-error" role="alert" className="px-2 py-1.5 text-xs text-destructive">
-              {t("file.uploadFailed")}
-            </p>
-          ) : null}
         </>
       )}
     </ScrollArea>

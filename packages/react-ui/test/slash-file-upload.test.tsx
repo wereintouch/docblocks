@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-// The slash File command's upload state: the in-flight upload stands the
-// item's spinner over the open menu (the menu stands not pickable — the
-// commit lands on the file's pick), and a refused upload commits nothing
-// (the menu stays open on the phrase, the failed stand's error line names
-// the failure).
+// The slash File command's upload stand: the File's pick closes the
+// popover and the phrase block's row stands the skeleton (the spinner's
+// rotation over the picker's open and the in-flight upload); a refused
+// upload commits nothing (the failed stand's error line stands over the
+// skeleton — the stand's click dismisses it); a cancelled picker stands
+// no event of its own (the dialog's close's page-focus clears the stand).
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -69,6 +70,11 @@ function deliverFile(file: File): void {
   fireEvent.change(input!, { target: { files: [file] } });
 }
 
+/** The phrase block's upload skeleton stand. */
+function skeleton(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('[data-slot="docblocks/file-upload-skeleton"]');
+}
+
 function typesOf(doc: TestDoc): string[] {
   return Object.values(doc.toJSON().blocks).map((block) => String(block.type));
 }
@@ -79,7 +85,7 @@ afterEach(() => {
 });
 
 describe("the upload's stands", () => {
-  it("the in-flight upload stands the item's spinner, and the menu's not-pickable stand over it", async () => {
+  it("the File's pick closes the popover, the phrase's row stands the skeleton, and the commit lands on the file's pick", async () => {
     let resolveUpload: ((id: string) => void) | null = null;
     const store: BlobStore = {
       ...createMemoryBlobStore(),
@@ -93,29 +99,36 @@ describe("the upload's stands", () => {
     const before = doc.toJSON();
 
     fireEvent.click(menuItem("File"));
-    deliverFile(new File(["png"], "pic.png", { type: "image/png" }));
     await act(async () => {});
 
-    // The spinner stands over the File's item (the upload's in flight).
-    expect(menuItem("File").querySelector(".animate-spin")).not.toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/slash-file-error"]')).toBeNull();
-
-    // The menu stands not pickable: the competing command commits nothing.
-    fireEvent.click(menuItem("Text"));
+    // The popover stands closed; the phrase block's row stands the
+    // skeleton (the spinner's rotation) over its content.
+    expect(document.querySelector('[data-slot="docblocks/slash-menu"]')).toBeNull();
+    const stand = skeleton();
+    expect(stand, "the skeleton's stand should stand over the phrase block").not.toBeNull();
+    expect(stand!.getAttribute("data-block-id")).toBe(para);
+    expect(stand!.getAttribute("data-state")).toBe("picker");
+    expect(stand!.querySelector(".animate-spin")).not.toBeNull();
+    // The doc stands untouched while the stand stands.
     expect(doc.toJSON()).toEqual(before);
 
-    // The file's landing commits the image over the anchor's slot and closes
-    // the menu (the phrase stands stripped).
+    deliverFile(new File(["png"], "pic.png", { type: "image/png" }));
+    await act(async () => {});
+    expect(skeleton()!.getAttribute("data-state")).toBe("uploading");
+    expect(doc.toJSON()).toEqual(before);
+
+    // The file's landing commits the image over the anchor's slot and the
+    // stand clears (the phrase stands stripped).
     await act(async () => {
       resolveUpload!("file-1");
     });
     await act(async () => {});
     expect(typesOf(doc)).toContain("image");
+    expect(skeleton()).toBeNull();
     expect(document.querySelector('[data-slot="docblocks/slash-menu"]')).toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/slash-file-error"]')).toBeNull();
   });
 
-  it("a refused upload stands the error line, commits nothing, and keeps the menu open on the phrase", async () => {
+  it("a refused upload stands the failed stand's error line, commits nothing, and the stand's click dismisses it", async () => {
     const store: BlobStore = {
       ...createMemoryBlobStore(),
       upload: async () => {
@@ -130,15 +143,88 @@ describe("the upload's stands", () => {
     deliverFile(new File(["png"], "pic.png", { type: "image/png" }));
     await act(async () => {});
 
-    const error = document.querySelector<HTMLElement>('[data-slot="docblocks/slash-file-error"]');
+    // The popover stands closed; the failed stand stands over the phrase
+    // block's skeleton (the error line names the failure).
+    expect(document.querySelector('[data-slot="docblocks/slash-menu"]')).toBeNull();
+    const stand = skeleton();
+    expect(stand, "the failed stand should stand over the phrase block").not.toBeNull();
+    expect(stand!.getAttribute("data-state")).toBe("failed");
+    const error = stand!.querySelector<HTMLElement>('[data-slot="docblocks/slash-file-error"]');
     expect(error, "the failed stand's error line should stand").not.toBeNull();
     expect(error!.getAttribute("role")).toBe("alert");
     expect(error!.textContent).toBe("Upload failed");
-    expect(menuItem("File").querySelector(".animate-spin")).toBeNull();
+    expect(stand!.querySelector(".animate-spin")).toBeNull();
 
-    // The doc stands untouched (no image, the phrase intact), and the menu
-    // stays open on the phrase.
+    // The doc stands untouched (no image, the phrase intact).
     expect(doc.toJSON()).toEqual(before);
-    expect(document.querySelector('[data-slot="docblocks/slash-menu"]')).not.toBeNull();
+
+    // The stand's click dismisses it: the phrase's row returns.
+    fireEvent.click(stand!);
+    await act(async () => {});
+    expect(skeleton()).toBeNull();
+    expect(
+      document.querySelector<HTMLElement>(`[data-block-id="${para}"] [data-slot="docblocks/block-content"]`)
+    ).not.toBeNull();
+    expect(doc.toJSON()).toEqual(before);
+  });
+
+  it("a delivered file lands over the stand's focus-clear (the input's listener stands mounted)", async () => {
+    let resolveUpload: ((id: string) => void) | null = null;
+    const store: BlobStore = {
+      ...createMemoryBlobStore(),
+      upload: () =>
+        new Promise<string>((resolve) => {
+          resolveUpload = resolve;
+        }),
+    };
+    const { doc, para } = renderScene(store);
+    pressSlash(para);
+
+    fireEvent.click(menuItem("File"));
+    await act(async () => {});
+
+    // The real browser's ordering: the dialog's close returns the page's
+    // focus before the input's change — the stand clears over it, and the
+    // delivery still lands (the input's listener stands mounted, so the
+    // change reaches the handler and the stand re-stands on the upload).
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await act(async () => {});
+    expect(skeleton()).toBeNull();
+
+    deliverFile(new File(["png"], "pic.png", { type: "image/png" }));
+    await act(async () => {});
+    expect(skeleton()!.getAttribute("data-state"), "the stand should re-stand on the upload").toBe("uploading");
+
+    await act(async () => {
+      resolveUpload!("file-1");
+    });
+    await act(async () => {});
+    expect(typesOf(doc)).toContain("image");
+    expect(skeleton()).toBeNull();
+  });
+
+  it("a cancelled picker stands no event of its own — the page's focus clears the stand", async () => {
+    const store: BlobStore = {
+      ...createMemoryBlobStore(),
+      upload: () => new Promise<string>(() => {}),
+    };
+    const { doc, para } = renderScene(store);
+    pressSlash(para);
+    const before = doc.toJSON();
+
+    fireEvent.click(menuItem("File"));
+    await act(async () => {});
+    expect(skeleton()!.getAttribute("data-state")).toBe("picker");
+
+    // The OS dialog's cancel stands no input's event — its close returns
+    // the page's focus, and the `picker` phase's stand clears over it.
+    act(() => {
+      window.dispatchEvent(new Event("focus"));
+    });
+    await act(async () => {});
+    expect(skeleton(), "the stand should clear over the page's focus").toBeNull();
+    expect(doc.toJSON()).toEqual(before);
   });
 });

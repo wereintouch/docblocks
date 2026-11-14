@@ -31,6 +31,7 @@ import type { BlockId } from "docblocks-core";
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { BlockErrorBoundary } from "./BlockErrorBoundary";
+import { FileUploadSkeleton } from "./FileUploadSkeleton";
 import type { FlatBlockRenderer } from "./ListRun";
 import { GroupedNodes } from "./ListRun";
 import { ItemNested, NestedSlot } from "./NestedSlot";
@@ -84,9 +85,17 @@ const BlockNodeView = memo(
     flat?: boolean;
     renderBlock: FlatBlockRenderer;
   }) {
-    const { renderers } = useEditorContext();
+    const { renderers, store } = useEditorContext();
     const block = useBlock(node.id);
+    // The slash File command's upload stand: the phrase block's row stands
+    // the skeleton over its content while the popover stands closed (the
+    // slice's reference stands stable over the other blocks, so only this
+    // row re-renders on the stand's set / clear).
+    const fileUpload = useStore(store, (state) =>
+      state.fileUpload !== null && state.fileUpload.blockId === node.id ? state.fileUpload : null
+    );
     if (block === undefined) return null;
+    if (fileUpload !== null) return <FileUploadSkeleton id={node.id} stand={fileUpload} />;
     // A flat (motion) row renders the block alone: its derived nesting
     // stands as the sequence's own rows, not inside the wrapper (threading
     // it in would render the nested blocks twice — once per row, once in

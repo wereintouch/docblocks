@@ -2,18 +2,19 @@
  *  the pick / image / database commit paths. */
 import { useTranslation } from "react-i18next";
 
-import type { KeyboardEvent, ReactNode, RefObject } from "react";
+import type { ChangeEvent, KeyboardEvent, ReactNode, RefObject } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { BlockId } from "docblocks-core";
 import { BLOCK_REGISTRY, InvalidAttrsError, InvalidOperationError } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
+import { Input } from "../../shared/ui/Input";
 import { focusCaretIn, segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
 import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phrase";
 import { SlashMenu } from "./SlashMenu";
-import type { FileUploadState, OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
+import type { OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
 import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply } from "./utils";
 
 /**
@@ -32,9 +33,15 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const [state, setState] = useState<SlashMenuState | null>(null);
   const stateRef = useRef<SlashMenuState | null>(null);
   stateRef.current = state;
-  // The slash Image upload: the picker's open ref (registered by the
-  // menu's hidden file input) + the pending pick context (the caret block
-  // and the slash anchor), committed on the file pick.
+  // The slash File upload: the pending pick context (the caret block and
+  // the slash anchor), committed on the file pick. The stand (the phrase
+  // block's row stands the skeleton over the popover's closed state) is
+  // the store's `fileUpload` slice — the row stands it, the popover stands
+  // closed. The hidden file input stands at the editor's level (not inside
+  // the menu's popover — the popover stands closed on the File's pick),
+  // mounted while the stand or the menu stands (the dialog's delivery
+  // lands on it).
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileClickRef = useRef<{ open: () => void } | null>(null);
   const pendingFileRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
   // The slash Database picker: the open flag (the menu panel stands the
@@ -58,11 +65,6 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const embedFormRef = useRef(false);
   embedFormRef.current = embedForm;
   const pendingEmbedRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
-  // The File command's upload state: the menu's item spinner over the
-  // in-flight upload, the failed stand's error line over a refused one
-  // (the commit's contract stands — a refused pick commits nothing, the
-  // menu stays open on the phrase).
-  const [fileUpload, setFileUpload] = useState<FileUploadState>("idle");
 
   const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
     setDatabasePick(false);
@@ -71,7 +73,6 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     pendingFrameRef.current = null;
     setEmbedForm(false);
     pendingEmbedRef.current = null;
-    setFileUpload("idle");
     setState({ blockId, parentId, slashOffset, active: 0 });
   }, []);
 
@@ -82,7 +83,6 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     pendingFrameRef.current = null;
     setEmbedForm(false);
     pendingEmbedRef.current = null;
-    setFileUpload("idle");
     setState(null);
   }, []);
 
@@ -137,14 +137,14 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       // a filtered-down list keeps the last item active.
       const command = items.length === 0 ? undefined : items[Math.min(index, items.length - 1)];
       if (command === undefined) return;
-      // The upload is in flight: the menu stands not pickable (the commit
-      // lands on the file's pick — a competing command would land over the
-      // still-pending insert's anchor).
-      if (fileUpload === "uploading") return;
-      // The file command is an upload insert: the menu stays open (the phrase
-      // stays live) while the picker stands; the commit lands on the file pick.
+      // The file command is an upload insert: the popover stands closed
+      // and the phrase block's row stands the skeleton (the spinner's
+      // stand) while the picker and the upload stand; the commit (phrase
+      // strip + the insert) lands on the file's pick.
       if (command.type === "file") {
         pendingFileRef.current = { blockId: s.blockId, parentId: s.parentId, slashOffset: s.slashOffset };
+        store.getState().setFileUpload({ blockId: s.blockId, phase: "picker" });
+        close();
         fileClickRef.current?.open();
         return;
       }
@@ -180,7 +180,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       const plan = planSlashApply(command, block, text, s.slashOffset, hasFollowers);
       applySlashPlan(doc, plan, command, s.blockId, s.parentId, indentOf(block), rootRef.current ?? document);
     },
-    [close, doc, fileUpload, openDerivation, rootRef, t]
+    [close, doc, openDerivation, rootRef, store, t]
   );
 
   /**
@@ -190,23 +190,35 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
    * path (they grow, shrink, or end the query).
    */
   /**
-   * The file pick of the slash Image command: the upload runs first (the
+   * The file pick of the slash File command: the upload runs first (the
    * doc holds only a committed key), then one transact — the trigger
-   * phrase strip (when it still stands at its anchor) + the image insert.
-   * A phrase-only block without a derived segment is replaced at its slot;
-   * otherwise the image lands after the caret block. A trailing empty
-   * paragraph stands when the image takes the sequence's end (the caret
-   * seats there). A refused or cancelled pick commits nothing (the menu
-   * stays open on the phrase).
+   * phrase strip (when it still stands at its anchor) + the image / file
+   * insert. A phrase-only block without a derived segment is replaced at
+   * its slot; otherwise the attachment lands after the caret block. A
+   * trailing empty paragraph stands when the attachment takes the
+   * sequence's end (the caret seats there). A cancelled pick stands no
+   * event of its own (the dialog's close's page-focus clears the stand,
+   * the phrase's row returns); a refused upload commits nothing (the
+   * failed stand's error line stands over the skeleton — the stand's
+   * click dismisses it).
    */
   const handleFile = useCallback(
     (file: File | null) => {
       const pending = pendingFileRef.current;
       pendingFileRef.current = null;
-      if (pending === null || file === null) return;
+      if (pending === null) return;
       const { blockId, parentId, slashOffset } = pending;
-      if (doc.getBlock(blockId) === null) return;
-      setFileUpload("uploading");
+      if (file === null) {
+        // A cleared input (no delivery): the stand clears, the phrase's
+        // row returns.
+        store.getState().setFileUpload(null);
+        return;
+      }
+      if (doc.getBlock(blockId) === null) {
+        store.getState().setFileUpload(null);
+        return;
+      }
+      store.getState().setFileUpload({ blockId, phase: "uploading" });
       void (async () => {
         try {
           const fileId = await blobStore.upload(file);
@@ -254,21 +266,22 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
             });
           } catch (error) {
             if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) {
-              setFileUpload("idle");
+              store.getState().setFileUpload(null);
               return;
             }
             throw error;
           }
           close();
-          setFileUpload("idle");
+          store.getState().setFileUpload(null);
         } catch {
-          // The upload was refused: nothing commits; the menu stays open on
-          // the phrase (the failed stand's error line names the failure).
-          setFileUpload("failed");
+          // The upload was refused: nothing commits; the failed stand's
+          // error line stands over the phrase block's skeleton (the
+          // stand's click dismisses it — the phrase's row returns).
+          store.getState().setFileUpload({ blockId, phase: "failed" });
         }
       })();
     },
-    [blobStore, close, doc, rootRef]
+    [blobStore, close, doc, rootRef, store]
   );
 
   /**
@@ -535,6 +548,26 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     return () => document.removeEventListener("selectionchange", onSelectionChange);
   }, [openFlag, rootRef]);
 
+  // The file stand's cancel: the OS dialog stands no cancel event of its
+  // own — its close returns the page's focus. The `picker` phase's stand
+  // clears over it (a delivered file re-stands the stand on the input's
+  // change); the `uploading` phase stands the commit's in flight — a
+  // focus event never clears it.
+  useEffect(() => {
+    const onFocus = () => {
+      const stand = store.getState().fileUpload;
+      if (stand !== null && stand.phase === "picker") store.getState().setFileUpload(null);
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [store]);
+
+  // The hidden file input's open ref (a programmatic click opens the OS
+  // picker — no pointer events reach the editor).
+  useEffect(() => {
+    fileClickRef.current = fileInputRef.current !== null ? { open: () => fileInputRef.current?.click() } : null;
+  });
+
   // The pick's cancels (the database's picker, the embed's form): the
   // stand closes, the pending stand cleared (the phrase strip's removal
   // is the close's own press).
@@ -552,29 +585,55 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   };
 
   const api = useMemo(() => ({ onKeyDown, onSlashKey }), [onKeyDown, onSlashKey]);
-  const menuNode =
-    state !== null ? (
-      <SlashMenu
-        rootRef={rootRef}
-        state={state}
-        onHover={hover}
-        onPick={pick}
-        onClose={close}
-        onFile={handleFile}
-        fileClickRef={fileClickRef}
-        fileUpload={fileUpload}
-        databasePick={databasePick}
-        databaseAvailable={databaseAvailable}
-        onDatabasePickCancel={cancelDatabasePick}
-        onDatabaseCommit={commitDatabase}
-        framePick={framePick}
-        onFramePickCancel={cancelFramePick}
-        onFrameCommit={commitFrame}
-        embedForm={embedForm}
-        onEmbedCancel={cancelEmbedForm}
-        onEmbedCommit={commitEmbed}
-      />
-    ) : null;
+  // The hidden file input of the File command: it stands for the editor's
+  // whole lifetime — the OS picker stands bound to the element that opened
+  // it, and the delivered file's change lands on that same element (a
+  // conditional unmount would detach it and lose the delivery — the menu's
+  // popover stands closed over the File's pick). A programmatic click
+  // opens the picker (no pointer events reach the editor).
+  const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    const file = files !== null && files.length > 0 ? (files[0] ?? null) : null;
+    event.target.value = "";
+    handleFile(file);
+  };
+  const fileInput = (
+    <Input
+      ref={fileInputRef}
+      type="file"
+      data-slot="docblocks/slash-file-input"
+      className="
+        pointer-events-none absolute h-0 w-0 border-0 bg-transparent p-0 opacity-0 shadow-none
+        file:h-0
+        dark:bg-transparent
+      "
+      onChange={onFileChange}
+    />
+  );
+  const menuNode = (
+    <>
+      {fileInput}
+      {state !== null ? (
+        <SlashMenu
+          rootRef={rootRef}
+          state={state}
+          onHover={hover}
+          onPick={pick}
+          onClose={close}
+          databasePick={databasePick}
+          databaseAvailable={databaseAvailable}
+          onDatabasePickCancel={cancelDatabasePick}
+          onDatabaseCommit={commitDatabase}
+          framePick={framePick}
+          onFramePickCancel={cancelFramePick}
+          onFrameCommit={commitFrame}
+          embedForm={embedForm}
+          onEmbedCancel={cancelEmbedForm}
+          onEmbedCommit={commitEmbed}
+        />
+      ) : null}
+    </>
+  );
 
   return { api, menuNode };
 }

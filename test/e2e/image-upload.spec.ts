@@ -128,7 +128,7 @@ test("the key syncs over the wire; the other pane's store renders the placeholde
   await close();
 });
 
-test("a refused upload commits nothing (the menu stands open on the phrase)", async ({ browser }) => {
+test("a cancelled picker clears the stand over the page's focus (the doc stands untouched)", async ({ browser }) => {
   const { a, close } = await openPanes(browser, "ux-img-s3");
   const target = inner(a, "a");
   await target.click();
@@ -136,17 +136,20 @@ test("a refused upload commits nothing (the menu stands open on the phrase)", as
   await a.keyboard.type("/file");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible();
 
-  // Refuse the picker (the unhandled chooser is auto-cancelled): the doc
-  // stands untouched (no image block, the phrase intact) and the menu stays
-  // open.
+  // The File's pick closes the menu; the phrase's row stands the skeleton
+  // (the picker's stand). The unhandled chooser is auto-cancelled by the
+  // test runner — the dialog's close stands the page's focus (dispatched
+  // explicitly: the headless runner's auto-cancel stands no focus event of
+  // its own), and the stand clears over it.
   await a.locator('[data-slot="docblocks/slash-item"]', { hasText: "File" }).click();
-  await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toBeVisible();
-  await expect(a.locator("img[data-slot='docblocks/image']")).toHaveCount(0);
-  await expect(target).toHaveText("/file");
-
-  // A later Escape closes the menu with the phrase still in the doc.
-  await a.keyboard.press("Escape");
   await expect(a.locator('[data-slot="docblocks/slash-menu"]')).toHaveCount(0);
+  await expect(a.locator('[data-slot="docblocks/file-upload-skeleton"]')).toBeVisible();
+  await expect(a.locator('[data-slot="docblocks/file-upload-skeleton"]')).toHaveAttribute("data-state", "picker");
+  await expect(a.locator("img[data-slot='docblocks/image']")).toHaveCount(0);
+
+  await a.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await expect(a.locator('[data-slot="docblocks/file-upload-skeleton"]')).toHaveCount(0);
+  await expect(a.locator("img[data-slot='docblocks/image']")).toHaveCount(0);
   await expect(target).toHaveText("/file");
   await close();
 });

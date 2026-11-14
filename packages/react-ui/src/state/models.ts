@@ -26,6 +26,21 @@ import type { CanvasClipboard } from "../canvas";
 import type { PresenceSharingMode } from "../presence";
 
 /**
+ * The slash File command's upload stand: the block the skeleton stands on
+ * + the phase. View state per editor (not doc data, no wire).
+ */
+interface FileUploadStand {
+  /** The block the skeleton stand stands on (the trigger phrase's block). */
+  blockId: BlockId;
+  /**
+   * The stand's phase: `picker` — the OS dialog's open (the file's not
+   * delivered yet), `uploading` — the in-flight upload, `failed` — the
+   * refused stand's error line (the stand's click dismisses it).
+   */
+  phase: "picker" | "uploading" | "failed";
+}
+
+/**
  * Per-instance editor state: a projection of one docblocks-core Doc.
  *
  * The store is never the source of truth — writes go command -> Doc ->
@@ -79,6 +94,13 @@ interface EditorState {
    * blocks.
    */
   canvasClipboard: CanvasClipboard | null;
+  /**
+   * The slash File command's pending file upload stand (the phrase block's
+   * row stands the skeleton over its content while the popover stands
+   * closed). `null` when idle. A separate slice so a stand change never
+   * re-renders the other blocks.
+   */
+  fileUpload: FileUploadStand | null;
 }
 
 /** Internal write functions, called by the EditorProvider subscriptions. */
@@ -95,9 +117,11 @@ interface EditorActions {
   setCollapsed: (id: BlockId, collapsed: boolean) => void;
   /** Replaces the canvas clipboard slice (the copy / the clear). */
   setCanvasClipboard: (clipboard: CanvasClipboard | null) => void;
+  /** Replaces the pending file upload stand (the set / the clear). */
+  setFileUpload: (stand: FileUploadStand | null) => void;
 }
 
 /** The per-instance vanilla store created by `createEditorStore`. */
 type EditorStore = StoreApi<EditorState & EditorActions>;
 
-export type { EditorActions, EditorState, EditorStore };
+export type { EditorActions, EditorState, EditorStore, FileUploadStand };
