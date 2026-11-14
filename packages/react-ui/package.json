@@ -80,7 +80,7 @@
     "build": "tsdown && tailwindcss -i ui.entry.css -o dist/.tmp/ui-layer.css && node scripts/assemble-styles.mjs && node scripts/copy-pdf-worker.mjs",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "NODE_OPTIONS=--disable-warning=ExperimentalWarning vitest run"
   },
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
