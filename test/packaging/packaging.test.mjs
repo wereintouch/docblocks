@@ -85,10 +85,6 @@ try {
     "dist/fonts/OFL.txt",
     "dist/pdf/index.mjs",
     "dist/pdf/index.d.mts",
-    "dist/pdf/pdfjs-dist/build/pdf.worker.min.mjs",
-    // The static-ESM layout mirrors the package asset references.
-    "dist/pdf/pdfjs-dist/wasm/jbig2.wasm",
-    "dist/pdf/pdfjs-dist/wasm/jbig2_nowasm_fallback.js",
     "dist/mermaid/index.mjs",
     "dist/mermaid/index.d.mts",
   ]) {
@@ -101,9 +97,6 @@ try {
   const uiSubpathModules = [
     "dist/pdf/index.mjs",
     "dist/pdf/index.d.mts",
-    "dist/pdf/pdfjs-dist/build/pdf.worker.min.mjs",
-    "dist/pdf/pdfjs-dist/wasm/jbig2.wasm",
-    "dist/pdf/pdfjs-dist/wasm/jbig2_nowasm_fallback.js",
     "dist/mermaid/index.mjs",
     "dist/mermaid/index.d.mts",
   ];
