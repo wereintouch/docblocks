@@ -1,5 +1,11 @@
 # docblocks-react-ui
 
+## 0.6.3
+
+### Patch Changes
+
+- 7bfbdff: Derive the PDF decoder directory without constructing a URL from a bundler-relative asset path, preserving compatibility with Turbopack's emitted URL objects.
+
 ## 0.6.2
 
 ### Patch Changes
