@@ -1,5 +1,12 @@
 # docblocks-react-ui
 
+## 0.6.1
+
+### Patch Changes
+
+- 47a8334: Remove column drag, resize, menu, and add-column affordances from database grids in view and published modes.
+- 2fd97ce: Block every database cell write in view and published modes, including direct boolean toggles.
+
 ## 0.6.0
 
 ### Minor Changes
