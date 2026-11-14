@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { StrictMode, act } from "react";
 
 import { createDoc } from "docblocks-core";
-import type { Block } from "docblocks-core";
+import type { Block, BlockId } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import type { BlockRendererMap } from "../src/blocks/renderers";
@@ -51,10 +51,14 @@ describe("block renderer registry", () => {
   });
 
   it("a type without a consumer renderer keeps its built-in", () => {
-    const doc = renderDoc(
+    // The id stands captured at the insert: the doc also stands the reserved
+    // tail paragraph over the divider's end, and the sorted id order of the
+    // blocks map would make a find-by-type pick either one.
+    let paragraphId: BlockId = "";
+    renderDoc(
       (d) => {
-        const p = d.insertBlock("paragraph");
-        d.insertText(p, 0, "hello");
+        paragraphId = d.insertBlock("paragraph");
+        d.insertText(paragraphId, 0, "hello");
         d.insertBlock("divider");
       },
       { divider: () => <div data-testid="custom-divider" /> }
@@ -63,8 +67,6 @@ describe("block renderer registry", () => {
     // The consumer renderer wins for divider...
     expect(screen.getByTestId("custom-divider")).toBeDefined();
     // ...and the paragraph keeps its built-in contenteditable inner.
-    const p = doc.toJSON().blocks;
-    const paragraphId = Object.keys(p).find((key) => p[key]?.type === "paragraph")!;
     const el = document.querySelector<HTMLElement>(`[data-block-id="${paragraphId}"]`);
     const inner = el?.querySelector<HTMLElement>('[data-slot="docblocks/block-content"]');
     expect(el?.textContent).toBe("hello");
