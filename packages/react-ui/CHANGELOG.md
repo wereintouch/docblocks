@@ -1,5 +1,11 @@
 # docblocks-react-ui
 
+## 0.6.4
+
+### Patch Changes
+
+- b5af599: Resolve PDF worker and decoder assets from the consumer's `pdfjs-dist` peer so the API and worker versions stay aligned.
+
 ## 0.6.3
 
 ### Patch Changes
