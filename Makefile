@@ -1,5 +1,11 @@
 # Local task runner for the docblocks monorepo.
 # Targets wrap the npm scripts (see package.json); `make help` lists them all.
+#
+# `make publish` reads the npm registry token from the gitignored `.env`
+# (template: `.env.example`) — the environment's NPM_TOKEN wins over it.
+# The token is passed to npm over a temporary `.tmp/npmrc-publish`
+# userconfig (the npm CLI ignores the NPM_TOKEN env var and a stale
+# `~/.npmrc` token would win over it); the file is removed after the run.
 
 .DEFAULT_GOAL := help
 
@@ -8,7 +14,9 @@ UI := -w packages/react-ui
 PG := -w apps/playground
 B ?= chromium
 
-.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations build build-core test test-core test-ui unit unit-f e2e e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full dev clean
+NPM_TOKEN ?= $(shell awk '/^NPM_TOKEN=/ { sub(/^NPM_TOKEN=/, ""); print; exit }' .env 2>/dev/null | tr -d "\"'" | tr -d " \t")
+
+.PHONY: help lint lint-fix format format-check typecheck typecheck-core typecheck-ui typecheck-playground deprecations build build-core test test-core test-ui unit unit-f e2e e2e-ff e2e-webkit e2e-all e2e-file dev-gate check full version publish dev clean
 
 help: ## Show this help (default target)
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
@@ -101,6 +109,56 @@ check: lint typecheck deprecations ## Quick gate: lint + typecheck + deprecation
 
 full: ## Full local gate: lint -> format -> build -> typecheck -> deprecations -> test -> packaging -> e2e
 	npm run check
+
+## Release
+
+version: ## The changeset's version (the packages' bumps over the pending changesets)
+	npx changeset version
+
+publish: ## The npm's publish (the version's bump + the build + the npm's publish over the bumped packages + the bump's commit; the NPM_TOKEN over the .env's read)
+	@if [ -z "$(NPM_TOKEN)" ]; then \
+		echo "publish: NPM_TOKEN is not set — put NPM_TOKEN=<token> into .env (template: .env.example) or export NPM_TOKEN"; \
+		exit 1; \
+	fi
+	@if npx changeset status >/dev/null 2>&1; then \
+		npx changeset version; \
+	else \
+		echo "publish: no pending changesets — skipping the version bump"; \
+	fi
+	@bumped=$$(git diff --name-only | grep -E '^packages/[^/]+/package\.json$$' | cut -d/ -f1-2); \
+	if [ -z "$$bumped" ]; then \
+		echo "publish: no package bumped — nothing to publish"; \
+		exit 1; \
+	fi
+	npm run build
+	@bumped=$$(git diff --name-only | grep -E '^packages/[^/]+/package\.json$$' | cut -d/ -f1-2); \
+	mkdir -p .tmp && \
+	awk '/^NPM_TOKEN=/ { sub(/^NPM_TOKEN=/, "//registry.npmjs.org/:_authToken="); print; exit }' .env > .tmp/npmrc-publish && \
+		chmod 600 .tmp/npmrc-publish; \
+	st=0; \
+	for p in $$bumped; do \
+		echo "publishing $$p"; \
+		npm --userconfig .tmp/npmrc-publish publish "./$$p" || st=1; \
+	done; \
+	rm -f .tmp/npmrc-publish; \
+	if [ $$st -ne 0 ]; then exit 1; fi
+	@if ! git diff --cached --quiet; then \
+		echo "publish: the index is not empty — commit the version bump manually"; \
+		exit 1; \
+	fi; \
+	bumped=$$(git diff --name-only | grep -E '^packages/[^/]+/package\.json$$' | cut -d/ -f1-2); \
+	if [ -z "$$bumped" ]; then \
+		echo "publish: nothing bumped to commit"; \
+	else \
+		git add $$bumped/package.json $$bumped/CHANGELOG.md .changeset; \
+		vers=$$(for p in $$bumped; do node -p "require('./$$p/package.json').version"; done); \
+		joined=$$(printf '%s\n' "$$vers" | awk 'NR>1 { printf " and " } { printf "%s", $$0 }'); \
+		if [ "$$(printf '%s\n' "$$vers" | wc -l | tr -d ' ')" -eq 1 ]; then \
+			git commit -m "chore(release): the $$joined version over the consumed changesets"; \
+		else \
+			git commit -m "chore(release): the $$joined versions over the consumed changesets"; \
+		fi; \
+	fi
 
 ## Dev and cleanup
 

@@ -6,6 +6,7 @@ playwright-report/
 *.local
 .env
 .env.*
+!.env.example
 .DS_Store
 
 CLAUDE.md
