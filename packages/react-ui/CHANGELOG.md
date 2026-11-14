@@ -1,5 +1,11 @@
 # docblocks-react-ui
 
+## 0.6.5
+
+### Patch Changes
+
+- 7ebb9b4: The file and image blocks stand the placeholder's loading state (the spinner) over the in-flight blob resolution and the static placeholder over the rejected id; the slash File command stands the upload's spinner over the in-flight upload and the failed stand's error line over a refused one (the menu stays open on the phrase).
+
 ## 0.6.4
 
 ### Patch Changes
