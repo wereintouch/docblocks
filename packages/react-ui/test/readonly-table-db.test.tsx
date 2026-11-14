@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
-import { cleanup, render } from "@testing-library/react";
+import { cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { act } from "react";
@@ -149,7 +149,18 @@ describe("the database's grid read-only stand (the view / published's modes)", (
           ctx()
         )
       ).result.id;
-      await bridge.batchRows(tableId, { ops: [{ op: "create", row: { [title]: "a row" }, beforeRowId: null }] }, ctx());
+      const done = (
+        await bridge.createColumn(
+          tableId,
+          { column: { name: "Done", type: "boolean", position: 1, nullable: false } },
+          ctx()
+        )
+      ).result.id;
+      await bridge.batchRows(
+        tableId,
+        { ops: [{ op: "create", row: { [title]: "a row", [done]: false }, beforeRowId: null }] },
+        ctx()
+      );
       const doc = createDoc({ id: "doc-rt-4", createdAt: CREATED_AT });
       doc.insertBlock("database", { tableId });
       const { container } = render(
@@ -183,6 +194,23 @@ describe("the database's grid read-only stand (the view / published's modes)", (
       expect(header?.querySelector('[data-slot="docblocks/database-col-resize"]')).toBeNull();
       // The name's display stands plain (the rename's entry is off).
       expect(container.querySelector('[data-slot="docblocks/database-name"] input')).toBeNull();
+
+      const textCell = container.querySelector<HTMLElement>(
+        `[data-slot="docblocks/database-cell"][data-column-id="${title}"]`
+      );
+      fireEvent.doubleClick(textCell!);
+      expect(container.querySelector('[data-slot="docblocks/database-cell-multiline"]')).toBeNull();
+
+      const checkboxCell = container.querySelector<HTMLElement>(
+        `[data-slot="docblocks/database-cell"][data-column-id="${done}"]`
+      );
+      fireEvent.doubleClick(checkboxCell!);
+      await settleGrid();
+      expect(
+        checkboxCell?.querySelector('[data-slot="docblocks/database-cell-checkbox"]')?.getAttribute("data-state")
+      ).toBe("unchecked");
+      const snapshot = await bridge.snapshotTable(tableId, {});
+      expect(snapshot.page.rows[0]?.cells[done]).toBe(false);
     }
   );
 });

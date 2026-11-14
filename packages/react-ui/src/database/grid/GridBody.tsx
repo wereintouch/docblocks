@@ -702,6 +702,8 @@ function GridBody({
     onColumnPointerUp(column, event);
   const cellChange =
     (row: (typeof rows)[number], column: BridgeColumn) => (value: unknown, expectedRevision?: string) => {
+      // Every cell commit crosses this gate, including immediate boolean toggles.
+      if (readOnly) return;
       // The rejection's stand: the error stands the hook's state (the
       // rollback + the refetch apply over it) — the rethrow is the caller's
       // contract, not the grid's (the cell's commit has no caller to
