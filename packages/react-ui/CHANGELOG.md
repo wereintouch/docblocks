@@ -1,5 +1,11 @@
 # docblocks-react-ui
 
+## 0.6.2
+
+### Patch Changes
+
+- 631cdd4: Resolve the PDF worker and JBIG2 decoder through statically analyzable package asset URLs and fetch the decoder by its exact emitted URL, including hashed production bundles.
+
 ## 0.6.1
 
 ### Patch Changes
