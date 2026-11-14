@@ -5,7 +5,18 @@ import { GlobalWorkerOptions } from "pdfjs-dist";
 
 const WORKER_URL = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url);
 const JBIG2_URL = new URL("pdfjs-dist/wasm/jbig2.wasm", import.meta.url);
-const WASM_URL = new URL("./", JBIG2_URL).toString();
+
+interface UrlValue {
+  toString(): string;
+}
+
+/** Keep both absolute static-ESM URLs and bundler-relative asset paths valid. */
+function directoryUrl(file: UrlValue): string {
+  const url = file.toString();
+  return url.slice(0, url.lastIndexOf("/") + 1);
+}
+
+const WASM_URL = directoryUrl(JBIG2_URL);
 
 GlobalWorkerOptions.workerSrc = WORKER_URL.toString();
 
@@ -56,4 +67,4 @@ if (typeof window !== "undefined") {
   });
 }
 
-export { PdfBinaryDataFactory, WASM_URL };
+export { PdfBinaryDataFactory, WASM_URL, directoryUrl };

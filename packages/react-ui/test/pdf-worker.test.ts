@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PdfBinaryDataFactory } from "../src/pdf/pdf-worker";
+import { PdfBinaryDataFactory, directoryUrl } from "../src/pdf/pdf-worker";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -13,6 +13,11 @@ describe("the PDF worker's package assets", () => {
 
     expect(entry).toContain("pdfjs-dist/build/pdf.worker.min.mjs");
     expect(entry).toContain("pdfjs-dist/wasm/jbig2.wasm");
+  });
+
+  it("derives the WASM directory from an absolute or bundler-relative asset URL", () => {
+    expect(directoryUrl({ toString: () => "https://cdn.test/assets/jbig2.wasm" })).toBe("https://cdn.test/assets/");
+    expect(directoryUrl({ toString: () => "/_next/static/media/jbig2.hash.wasm" })).toBe("/_next/static/media/");
   });
 
   it("fetches the JBIG2 decoder by its emitted URL without appending a literal filename", async () => {
