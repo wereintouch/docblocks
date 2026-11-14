@@ -43,7 +43,7 @@ import {
 } from "../shared/ui/icons";
 import { clamp, isSafeDownloadHref } from "../shared/utils";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "./constants";
-import { WASM_URL } from "./pdf-worker";
+import { PdfBinaryDataFactory, WASM_URL } from "./pdf-worker";
 
 /** The preview's render phase. */
 type PdfPhase = "loading" | "ready" | "error";
@@ -107,7 +107,12 @@ function PdfFirstPage({ id, blockType, url, name }: PdfPreviewProps) {
         if (!response.ok) throw new Error(`Failed to fetch the PDF (HTTP ${response.status}).`);
         const data = new Uint8Array(await response.arrayBuffer());
         if (cancelled) return;
-        const task = getDocument({ data, wasmUrl: WASM_URL });
+        const task = getDocument({
+          data,
+          wasmUrl: WASM_URL,
+          useWorkerFetch: false,
+          BinaryDataFactory: PdfBinaryDataFactory,
+        });
         loadingTaskRef.current = task;
         const pdf = await task.promise;
         if (cancelled) {

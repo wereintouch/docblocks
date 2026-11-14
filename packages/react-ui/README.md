@@ -686,7 +686,7 @@ layout animation, the rendered list marker per row) — over the required
 | `docblocks-react-ui/styles.css` | The compiled stylesheet: the utility layer + the token seed + the `--docblocks-*` mapping + the structural rules |
 | `docblocks-react-ui/theme.css`  | The pure token seed (standard tokens + the radius scale), no utility layer                                       |
 | `docblocks-react-ui/mermaid`    | The `mermaid` renderer above `code { language: "mermaid" }` blocks (peer: `mermaid`)                             |
-| `docblocks-react-ui/pdf`        | `PdfFirstPage` (the first-page preview over `pdfjs-dist`; the worker is copied to `dist/pdf/` at build time)     |
+| `docblocks-react-ui/pdf`        | `PdfFirstPage` (the first-page preview over `pdfjs-dist`; static package asset URLs support consumer bundlers)   |
 
 The `./mermaid` and `./pdf` subpaths' wiring is opt-in (the `pdfPreview`
 prop / the `code` block renderer): a consumer who skips a subpath imports

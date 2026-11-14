@@ -1,39 +1,59 @@
-/** The pdfjs-dist worker wiring (the side-effect): the worker file is
- * copied next to this entry at build time (dist/pdf/), so the relative
- * reference resolves in the consumer's browser with no bundler asset
- * handling (the dist is served as static ESM). The path is composed at
- * runtime so the bundler leaves the new URL untouched.
- *
- * The JBIG2 decoder (the wasm module + the no-wasm js fallback) is copied
- * next to the worker at build time and loaded by the worker from this
- * base url — pdfjs resolves `${wasmUrl}jbig2.wasm`, so the worker's
- * directory is the base. Derived from the worker URL object (not
- * import.meta.url) so a bundler's `new URL(_, import.meta.url)` asset
- * rewrite cannot mangle the directory form. Scanned PDFs encode their
- * text layers as JBIG2; without a resolvable wasmUrl the worker fails to
- * initialize those layers and the page renders as a bare background image
- * (the text is dropped). */
+/** The pdfjs worker and decoder assets use static package references so
+ * consumer bundlers can emit them. The decoder factory fetches the concrete
+ * emitted asset URL because a bundler may hash its filename. */
 import { GlobalWorkerOptions } from "pdfjs-dist";
 
-const WORKER_FILE = "pdf.worker.min.mjs";
-const WORKER_URL = new URL(`./${WORKER_FILE}`, import.meta.url);
+const WORKER_URL = new URL("pdfjs-dist/build/pdf.worker.min.mjs", import.meta.url);
+const JBIG2_URL = new URL("pdfjs-dist/wasm/jbig2.wasm", import.meta.url);
+const WASM_URL = new URL("./", JBIG2_URL).toString();
+
 GlobalWorkerOptions.workerSrc = WORKER_URL.toString();
 
-const WASM_URL = new URL("./", WORKER_URL).toString();
+type BinaryDataKind = "cMapUrl" | "standardFontDataUrl" | "wasmUrl";
 
-// The degradation's stand: the worker file must stand next to this entry
-// (the dist/pdf/ directory served as static assets); a consumer's bundler
-// that rewrites the new URL's reference, or a hosting that drops the
-// asset, breaks the load silently (the preview falls back to the native
-// iframe viewer without a signal). The browser's probe over the worker's
-// URL stands the logged warning when the asset is unreachable (the SSR's
-// stand — no window, no probe — the preview is a browser surface anyway).
+interface BinaryDataOptions {
+  cMapUrl?: string | null;
+  standardFontDataUrl?: string | null;
+  wasmUrl?: string | null;
+}
+
+interface BinaryDataRequest {
+  kind: BinaryDataKind;
+  filename: string;
+}
+
+async function fetchBytes(url: URL | string): Promise<Uint8Array> {
+  const response = await globalThis.fetch(url);
+  if (!response.ok) throw new URIError(`Unable to load PDF asset: ${url}`);
+  return new Uint8Array(await response.arrayBuffer());
+}
+
+/** Main-thread asset loader with an exact URL for the emitted JBIG2 module. */
+class PdfBinaryDataFactory {
+  private readonly bases: Record<BinaryDataKind, string | null>;
+
+  constructor(options: BinaryDataOptions) {
+    this.bases = {
+      cMapUrl: options.cMapUrl ?? null,
+      standardFontDataUrl: options.standardFontDataUrl ?? null,
+      wasmUrl: options.wasmUrl ?? null,
+    };
+  }
+
+  async fetch({ kind, filename }: BinaryDataRequest): Promise<Uint8Array> {
+    if (kind === "wasmUrl" && filename === "jbig2.wasm") return fetchBytes(JBIG2_URL);
+    const base = this.bases[kind];
+    if (base === null) throw new URIError(`The ${kind} API parameter is required for ${filename}`);
+    return fetchBytes(`${base}${filename}`);
+  }
+}
+
+// The degradation's stand: the worker file must be emitted with the consumer
+// bundle. An unreachable asset degrades the preview to the native viewer.
 if (typeof window !== "undefined") {
   fetch(WORKER_URL, { method: "HEAD" }).catch(() => {
-    console.warn(
-      "docblocks: the pdf worker's asset is unreachable over this entry — the pdf preview stands the native viewer's fallback (the worker's load fails). The dist/pdf/ directory must stand served as static assets next to the subpath's entry."
-    );
+    console.warn("docblocks: the pdf worker asset is unreachable; the preview will use the native viewer fallback.");
   });
 }
 
-export { WASM_URL };
+export { PdfBinaryDataFactory, WASM_URL };
