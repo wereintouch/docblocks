@@ -13,7 +13,7 @@ import { focusCaretIn, segmentRange } from "../block-commands";
 import { selectionInside } from "../dom-offset";
 import { blockInnerOf, blockTextOf, isQueryBoundary, liveCaretOf } from "../phrase";
 import { SlashMenu } from "./SlashMenu";
-import type { OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
+import type { FileUploadState, OpenMenuKey, SlashDerivation, SlashMenuApi, SlashMenuState } from "./models";
 import { applySlashPlan, deriveSlash, filterCommands, indentOf, planSlashApply } from "./utils";
 
 /**
@@ -58,6 +58,11 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
   const embedFormRef = useRef(false);
   embedFormRef.current = embedForm;
   const pendingEmbedRef = useRef<{ blockId: BlockId; parentId: BlockId; slashOffset: number } | null>(null);
+  // The File command's upload state: the menu's item spinner over the
+  // in-flight upload, the failed stand's error line over a refused one
+  // (the commit's contract stands — a refused pick commits nothing, the
+  // menu stays open on the phrase).
+  const [fileUpload, setFileUpload] = useState<FileUploadState>("idle");
 
   const open = useCallback((blockId: BlockId, parentId: BlockId, slashOffset: number) => {
     setDatabasePick(false);
@@ -66,6 +71,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     pendingFrameRef.current = null;
     setEmbedForm(false);
     pendingEmbedRef.current = null;
+    setFileUpload("idle");
     setState({ blockId, parentId, slashOffset, active: 0 });
   }, []);
 
@@ -76,6 +82,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
     pendingFrameRef.current = null;
     setEmbedForm(false);
     pendingEmbedRef.current = null;
+    setFileUpload("idle");
     setState(null);
   }, []);
 
@@ -130,6 +137,10 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       // a filtered-down list keeps the last item active.
       const command = items.length === 0 ? undefined : items[Math.min(index, items.length - 1)];
       if (command === undefined) return;
+      // The upload is in flight: the menu stands not pickable (the commit
+      // lands on the file's pick — a competing command would land over the
+      // still-pending insert's anchor).
+      if (fileUpload === "uploading") return;
       // The file command is an upload insert: the menu stays open (the phrase
       // stays live) while the picker stands; the commit lands on the file pick.
       if (command.type === "file") {
@@ -169,7 +180,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       const plan = planSlashApply(command, block, text, s.slashOffset, hasFollowers);
       applySlashPlan(doc, plan, command, s.blockId, s.parentId, indentOf(block), rootRef.current ?? document);
     },
-    [close, doc, openDerivation, rootRef, t]
+    [close, doc, fileUpload, openDerivation, rootRef, t]
   );
 
   /**
@@ -195,6 +206,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
       if (pending === null || file === null) return;
       const { blockId, parentId, slashOffset } = pending;
       if (doc.getBlock(blockId) === null) return;
+      setFileUpload("uploading");
       void (async () => {
         try {
           const fileId = await blobStore.upload(file);
@@ -241,12 +253,18 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
               }
             });
           } catch (error) {
-            if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) return;
+            if (error instanceof InvalidAttrsError || error instanceof InvalidOperationError) {
+              setFileUpload("idle");
+              return;
+            }
             throw error;
           }
           close();
+          setFileUpload("idle");
         } catch {
-          // The upload was refused: nothing commits; the menu stays open on the phrase.
+          // The upload was refused: nothing commits; the menu stays open on
+          // the phrase (the failed stand's error line names the failure).
+          setFileUpload("failed");
         }
       })();
     },
@@ -544,6 +562,7 @@ function useSlashMenu(rootRef: RefObject<HTMLElement | null>): { api: SlashMenuA
         onClose={close}
         onFile={handleFile}
         fileClickRef={fileClickRef}
+        fileUpload={fileUpload}
         databasePick={databasePick}
         databaseAvailable={databaseAvailable}
         onDatabasePickCancel={cancelDatabasePick}

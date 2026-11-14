@@ -5,7 +5,7 @@ import type { BlockId, FileBlock as FileBlockType } from "docblocks-core";
 import { useEditorContext } from "../editor-provider";
 import { PDF_VIEWER_SANDBOX, isEmbeddablePdfUrl } from "../pdf/constants";
 import { Card, CardContent } from "../shared/ui/Card";
-import { File as FileIcon } from "../shared/ui/icons";
+import { File as FileIcon, LoaderCircle } from "../shared/ui/icons";
 import { FileCard } from "./FileCard";
 import { BLOB_PLACEHOLDER_CLASS } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
@@ -17,16 +17,25 @@ function FileBlock({ id, block }: { id: BlockId; block: FileBlockType }) {
   const fileId = block.attrs.fileId;
   const view = useBlobFile(fileId);
 
-  if (view === null) {
+  if (view.status !== "ready") {
+    // The loading's stand is the placeholder's spinner (the subtype is
+    // unknown pre-resolution); the missing's stand keeps the static card
+    // (the id stands no blob in this store).
     return (
       <Card
         data-slot="docblocks/file-placeholder"
         data-block-type="file"
         data-block-id={id}
+        data-state={view.status}
+        aria-busy={view.status === "loading"}
         className={BLOB_PLACEHOLDER_CLASS}
       >
         <CardContent className="flex flex-col items-center gap-2 text-center">
-          <FileIcon className="size-6" />
+          {view.status === "loading" ? (
+            <LoaderCircle className="size-6 animate-spin" />
+          ) : (
+            <FileIcon className="size-6" />
+          )}
           {t("file.placeholder")}
         </CardContent>
       </Card>

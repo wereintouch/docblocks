@@ -80,6 +80,11 @@ interface OpenMenuKey {
   isComposing: boolean;
 }
 
+/** The File command's upload state: the commit lands on the file's pick,
+ *  so the menu stands the item's spinner over the in-flight upload and the
+ *  failed stand's error line over a refused one. */
+type FileUploadState = "idle" | "uploading" | "failed";
+
 interface SlashMenuProps {
   rootRef: RefObject<HTMLElement | null>;
   state: SlashMenuState;
@@ -88,6 +93,9 @@ interface SlashMenuProps {
   onClose: () => void;
   onFile: (file: File | null) => void;
   fileClickRef: RefObject<{ open: () => void } | null>;
+  /** The File command's upload state: the item's spinner over the in-flight
+   *  upload, the failed stand's error line over a refused one. */
+  fileUpload: FileUploadState;
   databasePick: boolean;
   /** Whether the `database` command stands (a `databaseBridge` was supplied
    *  to the editor). The command is hidden when the bridge is absent — the
@@ -108,6 +116,7 @@ interface SlashMenuProps {
 
 export type {
   EmbedKind,
+  FileUploadState,
   OpenMenuKey,
   SlashApplyPlan,
   SlashCommand,

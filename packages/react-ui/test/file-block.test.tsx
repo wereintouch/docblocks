@@ -93,4 +93,50 @@ describe("the file block", () => {
     expect(cardOf().querySelector('[data-slot="docblocks/file-rename"]')).toBeNull();
     expect(cardOf().querySelector('[data-slot="docblocks/file-download"]')).not.toBeNull();
   });
+
+  it("stands the loading placeholder (the spinner) over the in-flight get", async () => {
+    const doc = createDoc({ id: "doc-file", createdAt: CREATED_AT });
+    doc.insertBlock("file", { fileId: "pending-1" });
+    const store: BlobStore = {
+      get: () => new Promise(() => {}), // never settles
+      upload: async () => "up-1",
+      rename: async () => ({ name: "a.txt", mimeType: "text/plain" }),
+      subscribe: () => () => {},
+    };
+    render(
+      <EditorProvider doc={doc} blobStore={store}>
+        <Editor />
+      </EditorProvider>
+    );
+    await act(async () => {});
+
+    const placeholder = document.querySelector<HTMLElement>('[data-slot="docblocks/file-placeholder"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder!.getAttribute("data-state")).toBe("loading");
+    expect(placeholder!.getAttribute("aria-busy")).toBe("true");
+    expect(placeholder!.querySelector(".animate-spin")).not.toBeNull();
+  });
+
+  it("stands the missing placeholder (the static card, no spinner) over a rejected get", async () => {
+    const doc = createDoc({ id: "doc-file", createdAt: CREATED_AT });
+    doc.insertBlock("file", { fileId: "unknown-1" });
+    const memory = createMemoryBlobStore();
+    const store: BlobStore = {
+      ...memory,
+      get: async () => {
+        throw new Error("Blob not found");
+      },
+    };
+    render(
+      <EditorProvider doc={doc} blobStore={store}>
+        <Editor />
+      </EditorProvider>
+    );
+    await act(async () => {});
+
+    const placeholder = document.querySelector<HTMLElement>('[data-slot="docblocks/file-placeholder"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder!.getAttribute("data-state")).toBe("missing");
+    expect(placeholder!.querySelector(".animate-spin")).toBeNull();
+  });
 });

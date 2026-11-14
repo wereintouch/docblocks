@@ -38,5 +38,8 @@
   "embed": {
     "urlPlaceholder": "URL встраивания (https://…)",
     "unsafeHint": "Поддерживаются только абсолютные URL http(s)://."
+  },
+  "file": {
+    "uploadFailed": "Не удалось загрузить файл"
   }
 }

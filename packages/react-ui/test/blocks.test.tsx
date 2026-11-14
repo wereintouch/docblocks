@@ -124,6 +124,27 @@ describe("built-in renderers: image", () => {
     const placeholder = document.querySelector('[data-slot="docblocks/image-placeholder"]');
     expect(placeholder).not.toBeNull();
     expect(placeholder!.getAttribute("data-block-type")).toBe("image");
+    // The rejected get stands the missing state (the static card, no spinner).
+    expect(placeholder!.getAttribute("data-state")).toBe("missing");
+    expect(placeholder!.querySelector(".animate-spin")).toBeNull();
+  });
+
+  it("stands the loading placeholder (the spinner) over the in-flight get", async () => {
+    const store: BlobStore = {
+      get: () => new Promise(() => {}), // never settles
+      upload: async () => "up-1",
+      rename: async () => ({ name: "pic.png", mimeType: "image/png" }),
+      subscribe: () => () => {},
+    };
+    renderDoc((doc) => doc.insertBlock("image", { src: "pending-1" }), { blobStore: store });
+    await flushResolve();
+
+    expect(document.querySelector("img")).toBeNull();
+    const placeholder = document.querySelector('[data-slot="docblocks/image-placeholder"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder!.getAttribute("data-state")).toBe("loading");
+    expect(placeholder!.getAttribute("aria-busy")).toBe("true");
+    expect(placeholder!.querySelector(".animate-spin")).not.toBeNull();
   });
 
   it("renders the placeholder box when the store rejects the src", async () => {
@@ -135,7 +156,9 @@ describe("built-in renderers: image", () => {
     await flushResolve();
 
     expect(document.querySelector("img")).toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/image-placeholder"]')).not.toBeNull();
+    const placeholder = document.querySelector('[data-slot="docblocks/image-placeholder"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder!.getAttribute("data-state")).toBe("missing");
   });
 
   it("renders the <img> for the image subtype from the blob store", async () => {
@@ -182,7 +205,9 @@ describe("built-in renderers: image", () => {
     await flushResolve();
 
     expect(document.querySelector("img")).toBeNull();
-    expect(document.querySelector('[data-slot="docblocks/image-placeholder"]')).not.toBeNull();
+    const placeholder = document.querySelector('[data-slot="docblocks/image-placeholder"]');
+    expect(placeholder).not.toBeNull();
+    expect(placeholder!.getAttribute("data-state")).toBe("missing");
   });
 });
 

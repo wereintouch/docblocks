@@ -10,6 +10,7 @@ import { useBlock } from "../../hooks";
 import { Input } from "../../shared/ui/Input";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
 import { cn } from "../../shared/ui/cn";
+import { LoaderCircle } from "../../shared/ui/icons";
 import { preventDefault } from "../../shared/utils";
 import { locatePosition } from "../dom-offset";
 import { blockInnerOf, blockTextOf, liveCaretOf } from "../phrase";
@@ -34,6 +35,7 @@ function SlashMenu({
   onClose,
   onFile,
   fileClickRef,
+  fileUpload,
   databasePick,
   databaseAvailable,
   onDatabasePickCancel,
@@ -190,10 +192,19 @@ function SlashMenu({
               onMouseDown={preventDefault}
               onClick={pickAt(index)}
             >
-              <command.icon className="size-4" />
+              {command.type === "file" && fileUpload === "uploading" ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <command.icon className="size-4" />
+              )}
               {t(command.labelKey)}
             </div>
           ))}
+          {fileUpload === "failed" ? (
+            <p data-slot="docblocks/slash-file-error" role="alert" className="px-2 py-1.5 text-xs text-destructive">
+              {t("file.uploadFailed")}
+            </p>
+          ) : null}
         </>
       )}
     </ScrollArea>

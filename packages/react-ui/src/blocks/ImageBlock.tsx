@@ -17,6 +17,7 @@ import {
   Captions,
   Download,
   Image as ImageIcon,
+  LoaderCircle,
   TextAlignCenter,
   TextAlignEnd,
   TextAlignStart,
@@ -66,25 +67,35 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   const { t } = useTranslation("blocks");
   const { pdfPreview } = useEditorContext();
   const src = block.attrs.src;
-  const ref = useBlobFile(src);
+  const file = useBlobFile(src);
 
-  if (ref === null) {
+  if (file.status !== "ready") {
+    // The loading's stand is the placeholder's spinner (the subtype is
+    // unknown pre-resolution — the pdf / file's payloads stand their own
+    // renderers over the ready state); the missing's stand keeps the
+    // static card (the id stands no blob in this store).
     return (
       <Card
         data-slot="docblocks/image-placeholder"
         data-block-type="image"
         data-block-id={id}
+        data-state={file.status}
+        aria-busy={file.status === "loading"}
         className={BLOB_PLACEHOLDER_CLASS}
       >
         <CardContent className="flex flex-col items-center gap-2 text-center">
-          <ImageIcon className="size-6" />
+          {file.status === "loading" ? (
+            <LoaderCircle className="size-6 animate-spin" />
+          ) : (
+            <ImageIcon className="size-6" />
+          )}
           {t("image.placeholder")}
         </CardContent>
       </Card>
     );
   }
 
-  const { url, meta } = ref;
+  const { url, meta } = file;
   const name = meta.name;
   if (meta.mimeType === "application/pdf") {
     // The consumer's PDF preview renderer (the `pdfPreview` provider prop)
