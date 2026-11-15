@@ -175,3 +175,28 @@ test("@ in a code block is plain text (no picker)", async ({ browser }) => {
 
   await close();
 });
+
+test("@ after a character is plain text (no picker — the email's stand)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "mention-email");
+  const blockId = await insertBlockType(a, "a", "paragraph");
+  // The email: the `@` at a non-boundary (after a letter) declines the
+  // trigger — the picker must not stand while the email is typed.
+  await typeMentionPhrase(a, "a", blockId, "john@yandex.ru");
+
+  await a.waitForTimeout(300);
+  expect(await a.locator('[data-slot="docblocks/mention-menu"]').count()).toBe(0);
+  const text = await a.evaluate(
+    ({ client, id }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      const block = doc?.getBlock(id);
+      return block === null || block === undefined || !("content" in block)
+        ? ""
+        : block.content?.map((r) => r.text).join("");
+    },
+    { client: "a", id: blockId }
+  );
+  expect(text).toBe("john@yandex.ru");
+
+  await close();
+});
