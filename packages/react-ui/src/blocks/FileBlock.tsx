@@ -10,14 +10,21 @@ import { FileCard } from "./FileCard";
 import { BLOB_PLACEHOLDER_CLASS } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
 
+/** The file block's renderable MIME (the bytes' stand): the PDF stands the
+ *  preview / the iframe; any other MIME stands the download card (the
+ *  meta's stand over the store's `getMeta` + `downloadUrl`). A module-level
+ *  const keeps the predicate's identity stable (the resolution's effect's
+ *  dep). */
+const FILE_RENDERS_BYTES = (mimeType: string): boolean => mimeType === "application/pdf";
+
 /** A consumer-owned file: the document carries only its file id. */
 function FileBlock({ id, block }: { id: BlockId; block: FileBlockType }) {
   const { t } = useTranslation("blocks");
   const { pdfPreview } = useEditorContext();
   const fileId = block.attrs.fileId;
-  const view = useBlobFile(fileId);
+  const view = useBlobFile(fileId, FILE_RENDERS_BYTES);
 
-  if (view.status !== "ready") {
+  if (view.status === "loading" || view.status === "missing") {
     // The loading's stand is the placeholder's spinner (the subtype is
     // unknown pre-resolution); the missing's stand keeps the static card
     // (the id stands no blob in this store).
@@ -40,6 +47,12 @@ function FileBlock({ id, block }: { id: BlockId; block: FileBlockType }) {
         </CardContent>
       </Card>
     );
+  }
+
+  if (view.status === "ready-meta") {
+    // The meta-only stand (the store's `getMeta` + `downloadUrl`): the card
+    // stands the store's download URL — the bytes were never fetched.
+    return <FileCard id={id} fileId={fileId} blockType="file" url={view.url} name={view.meta.name} subtype="file" />;
   }
 
   const { url, meta } = view;

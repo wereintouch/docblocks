@@ -104,7 +104,7 @@ mention catalog). The full props list:
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). The opaque-origin restriction stands over this policy.                                                  |
 | `pdfPreview?`                | A first-page preview component for PDF file blocks (and legacy PDF image blocks).                                                                                                                                                                                                                                                      |
 | `mentionProvider?`           | The `@` mention picker's search catalog (see below).                                                                                                                                                                                                                                                                                   |
-| `mentionInteractions?`       | The mention chip's hover card + the click's delivery (see below). Without the prop the chip stands inert (no card, the click is the browser's stand).                                                                                                                                                                          |
+| `mentionInteractions?`       | The mention chip's hover card + the click's delivery (see below). Without the prop the chip stands inert (no card, the click is the browser's stand).                                                                                                                                                                                  |
 | `rootBlockId?`               | Render the entry list of this block instead of the document root (the subtree view). Must not change after mount.                                                                                                                                                                                                                      |
 | `commandPalettePlaceholder?` | The empty-block hint override; the default is localized (en/ru).                                                                                                                                                                                                                                                                       |
 | `accessLevel?`               | The consumer's user access level (default `editor`): `viewer` forces the `published` mode (the current state is never rendered to a reader).                                                                                                                                                                                           |
@@ -333,12 +333,25 @@ interface BlobStore {
   rename(fileId: string, name: string): Promise<BlobMeta>;
   subscribe(fileId: string, onChange: () => void): () => void;
   remove?(fileId: string): Promise<void>;
+  getMeta?(fileId: string): Promise<BlobMeta>;
+  downloadUrl?(fileId: string): string;
 }
 ```
 
 - `get` rejects an unknown id; the block renders a placeholder while loading
   or when the id is unavailable. The library creates an object URL for the
   returned blob and revokes it on replacement or unmount.
+- **The meta-only stand (opt-in):** with the optional `getMeta` member the
+  blocks resolve the metadata first (a cheap head stand, no body transfer).
+  A MIME the block renders — `application/pdf` for the `file` block, the
+  `image/*` and `application/pdf` payloads for the `image` block — still
+  resolves the bytes over `get` (the pdf preview / the `<img>` stand
+  unchanged); any other MIME stands the download card WITHOUT fetching the
+  bytes (no `get` call, no object URL), the download's href standing the
+  consumer's `downloadUrl(fileId)`. Without `getMeta` — or without
+  `downloadUrl` — the blocks keep the legacy stand (the bytes over `get`,
+  the object URL's href). Both members are optional: existing consumers and
+  `createMemoryBlobStore` stand exactly the legacy behavior.
 - The file picker accepts arbitrary files. New `image/*` uploads create an
   `image` block; other MIME types, including `application/pdf`, create a
   `file` block. PDF files render through `pdfPreview` or the sandboxed native

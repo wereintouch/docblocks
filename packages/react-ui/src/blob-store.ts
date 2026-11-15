@@ -30,6 +30,18 @@ interface BlobStore {
   subscribe(fileId: string, onChange: () => void): () => void;
   /** Optional garbage collection. */
   remove?(fileId: string): Promise<void>;
+  /** Optional lightweight display resolution: file id → the metadata WITHOUT
+   *  the bytes (the cheap head stand, no body transfer). The built-in
+   *  file / image blocks resolve the bytes over `get` only when they render
+   *  the payload (the pdf preview, the `<img>`); any other MIME stands the
+   *  meta card with the `downloadUrl`'s href. Without the member the blocks
+   *  keep the legacy stand (the bytes over `get`). Rejects an unknown id
+   *  (the missing's stand). */
+  getMeta?(fileId: string): Promise<BlobMeta>;
+  /** Optional direct download URL for a file id (the meta card's href — no
+   *  object URL stands). Without the member the download's href stands the
+   *  object URL resolved over `get` (the legacy's path). */
+  downloadUrl?(fileId: string): string;
 }
 
 /** The default in-memory store: blobs live for the JS session only. */

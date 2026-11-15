@@ -29,6 +29,14 @@ import { FileCard } from "./FileCard";
 import { BLOB_PLACEHOLDER_CLASS } from "./blob-styles";
 import { useBlobFile } from "./use-blob-file";
 
+/** The image block's renderable MIME (the bytes' stand): the image stands
+ *  the `<img>`, the PDF the preview / the iframe; any other MIME stands the
+ *  download card (the meta's stand over the store's `getMeta` +
+ *  `downloadUrl`). A module-level const keeps the predicate's identity
+ *  stable (the resolution's effect's dep). */
+const IMAGE_RENDERS_BYTES = (mimeType: string): boolean =>
+  mimeType.startsWith("image/") || mimeType === "application/pdf";
+
 /** The figure's minimum display width (the port drag's floor; px). */
 const MIN_IMAGE_WIDTH_PX = 20;
 
@@ -67,9 +75,9 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
   const { t } = useTranslation("blocks");
   const { pdfPreview } = useEditorContext();
   const src = block.attrs.src;
-  const file = useBlobFile(src);
+  const file = useBlobFile(src, IMAGE_RENDERS_BYTES);
 
-  if (file.status !== "ready") {
+  if (file.status === "loading" || file.status === "missing") {
     // The loading's stand is the placeholder's spinner (the subtype is
     // unknown pre-resolution — the pdf / file's payloads stand their own
     // renderers over the ready state); the missing's stand keeps the
@@ -93,6 +101,12 @@ function ImageBlock({ id, block }: { id: BlockId; block: ImageBlockType }) {
         </CardContent>
       </Card>
     );
+  }
+
+  if (file.status === "ready-meta") {
+    // The meta-only stand (the store's `getMeta` + `downloadUrl`): the card
+    // stands the store's download URL — the bytes were never fetched.
+    return <FileCard id={id} fileId={src} blockType="image" url={file.url} name={file.meta.name} subtype="file" />;
   }
 
   const { url, meta } = file;
