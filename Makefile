@@ -71,23 +71,23 @@ unit: ## All unit tests (vitest, ~10s wall) — the e2e stands separate (make e2
 	npm test
 
 e2e: ## Playwright E2E over the chromium project (playground consumes react-ui from dist — make build first)
-	npm run test:e2e
+	PLAYWRIGHT_RETRIES=1 npm run test:e2e
 
 e2e-ff: ## Playwright E2E over the firefox project
-	npm run test:e2e:firefox
+	PLAYWRIGHT_RETRIES=1 npm run test:e2e:firefox
 
 e2e-webkit: ## Playwright E2E over the webkit project (the closest-to-Safari engine)
-	npm run test:e2e:webkit
+	PLAYWRIGHT_RETRIES=1 npm run test:e2e:webkit
 
 e2e-all: ## Playwright E2E over every browser project (chromium + firefox + webkit)
-	npm run test:e2e:all
+	PLAYWRIGHT_RETRIES=1 npm run test:e2e:all
 
 e2e-file: ## E2E a single spec (make e2e-file F=test/e2e/canvas-connectors.spec.ts; B=chromium|firefox|webkit, default chromium)
 	@test -n "$(F)" || { echo "usage: make e2e-file F=<spec path> [B=chromium|firefox|webkit]"; exit 1; }
 	case "$(B)" in \
-		chromium) npm run test:e2e -- $(F);; \
-		firefox) npm run test:e2e:firefox -- $(F);; \
-		webkit) npm run test:e2e:webkit -- $(F);; \
+		chromium) PLAYWRIGHT_RETRIES=1 npm run test:e2e -- $(F);; \
+		firefox) PLAYWRIGHT_RETRIES=1 npm run test:e2e:firefox -- $(F);; \
+		webkit) PLAYWRIGHT_RETRIES=1 npm run test:e2e:webkit -- $(F);; \
 		*) echo "B must be chromium, firefox or webkit"; exit 1;; \
 	esac
 
@@ -108,7 +108,7 @@ dev-gate: ## Daily dev loop (~20s): lint + typecheck + unit tests
 check: lint typecheck deprecations ## Quick gate: lint + typecheck + deprecations
 
 full: ## Full local gate: lint -> format -> build -> typecheck -> deprecations -> test -> packaging -> e2e
-	npm run check
+	PLAYWRIGHT_RETRIES=1 npm run check
 
 ## Release
 

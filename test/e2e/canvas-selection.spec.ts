@@ -8,6 +8,11 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { canvasCenter, canvasView, toCanvas, twoPanes } from "./helpers";
 
+// The two-pane's settle stands the default 30s budget at its edge (the 15s
+// SETTLE's panes + the page loads): the raised budget keeps the timeout
+// class out of the loaded machine's flake zone (a true stall stays visible).
+test.setTimeout(45_000);
+
 /** Seeds the two seeded shapes (apart) and returns their ids. */
 async function seedShapes(page: Page, client: "a" | "b"): Promise<{ left: string; right: string }> {
   return page.evaluate(

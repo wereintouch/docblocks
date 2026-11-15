@@ -4,6 +4,11 @@ import { type Locator, type Page, expect, test } from "@playwright/test";
 
 import { RELAY, SETTLE, switchPaneView } from "./helpers";
 
+// The catalog pane's settle stands the default 30s budget at its edge (the
+// 15s SETTLE + the page loads): the raised budget keeps the timeout class
+// out of the loaded machine's flake zone (a true stall stays visible).
+test.setTimeout(45_000);
+
 async function openCatalogPane(page: Page): Promise<void> {
   const room = `vreg01s-${Math.random().toString(36).slice(2, 8)}`;
   await page.goto(`/?client=a&catalog=1&syncUrl=${RELAY}/${room}`);

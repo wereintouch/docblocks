@@ -14,18 +14,28 @@ export default defineConfig({
   // 68 of them the timeout class). The slow-test regression stands
   // visible over the 30 s instead (the stalled settle drifts into the
   // 30 s, the warm-up's globalSetup keeps the cold-server's transform
-  // stalls out of the picture).
+  // stalls out of the picture). The two-pane's settle specs stand a
+  // raised 45 s budget over the file's `test.setTimeout` (the loaded
+  // machine's flake zone — the 15 s SETTLE's panes + the page loads
+  // stand the 30 s at its edge).
   timeout: 30_000,
-  // The machine stands 16 cores, but the per-test cost is the two context
-  // loads (the relay + the panes' boot), not the test logic — higher
-  // parallelism loads the dev server and the panes hard enough for the
-  // sync/presence polls to flake. Measured over the full suite: workers 2 =
-  // 127s / 0 flakes, 4 = 83s / 0 flakes (two runs), 6 = 71s / 1 flake per
-  // run, 8 = 67s / 4 flakes. Four stands the sweet spot: the flake rate
-  // stays at the baseline's zero. A CI runner (fewer cores) lowers this via
-  // the PLAYWRIGHT_WORKERS env (the local default stays four).
+  // The per-test cost is the two context loads (the relay + the panes'
+  // boot), not the test logic — higher parallelism loads the single
+  // vite+relay dev server and the panes hard enough for the
+  // sync/presence polls to flake. Measured over the full suite: workers
+  // 2 = 127s / 0 flakes, 4 = 83s / 0 flakes (two runs), 6 = 71s / 1
+  // flake per run, 8 = 67s / 4 flakes (the 16-core machine); the
+  // 32-core re-measure stands the four's default (workers 6 over the
+  // loaded shared box = 36 flakes of the SETTLE class over the 12
+  // parallel pages). A CI runner (fewer cores) lowers this via the
+  // PLAYWRIGHT_WORKERS env (the local default stays four).
   workers: Number(process.env.PLAYWRIGHT_WORKERS ?? 4),
-  retries: 0,
+  // The flake's one-shot stand over the loaded machine: the local Makefile
+  // e2e targets export PLAYWRIGHT_RETRIES=1, and a load-induced timeout
+  // redoes the test once over the same worker (a real failure fails twice
+  // and stays red). The CI's e2e step passes --retries=1 over the CLI (the
+  // runner's 2 vCPU's load class). The npm scripts' default stands zero.
+  retries: Number(process.env.PLAYWRIGHT_RETRIES ?? 0),
   // The browser matrix: chromium is the baseline (the visual's goldens and
   // the CI's e2e stand over it); firefox and webkit are the cross-engine
   // coverage (the webkit build stands the closest-to-Safari engine Playwright
