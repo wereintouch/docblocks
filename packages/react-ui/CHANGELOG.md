@@ -1,5 +1,48 @@
 # docblocks-react-ui
 
+## 0.7.0
+
+### Minor Changes
+
+- 2b1fdb0: The blob store's meta-only stand: the two optional `BlobStore` members
+  `getMeta(fileId)` (the metadata WITHOUT the bytes — the cheap head stand)
+  and `downloadUrl(fileId)` (the direct download URL). With them, the
+  built-in `file` / `image` blocks resolve the metadata first and fetch the
+  bytes only for a MIME they render (the PDF preview / the `<img>`); any
+  other MIME stands the download card without fetching the bytes (no `get`
+  call, no object URL — the download's href stands the consumer's
+  `downloadUrl`). Without `getMeta` (or without `downloadUrl`) the blocks
+  keep the legacy stand exactly (the bytes over `get`, the object URL's
+  href) — existing consumers and `createMemoryBlobStore` are unchanged.
+- bad9923: The mention chip re-stands as plain text: the kind's inline icon (the
+  `user`'s person, the `doc`'s exit arrow) over the semibold, underlined
+  label — the rounded pill stands removed, so a mention row keeps its
+  plain-text height. The chip gains the `data-mention-id` attribute (the
+  target id for the consumer's live-label / "removed" stands), and the
+  `--docblocks-mention-background` token stands removed (the chip no longer
+  paints a background).
+
+### Patch Changes
+
+- 6ad393f: Filter popover fixes: the segment selector's active button no longer
+  restyles its label over the pill's fill on hover (the ghost button's
+  hover restyle washed the label to an unreadable color over the primary
+  fill). The filter popover's condition/group add rows and the clear/apply
+  footer keep a clear break (the popover's own 10px rhythm over both sides
+  of the separator).
+- 7b444ee: The new optional `mentionInteractions` provider prop
+  (`{ renderCard, onClick? }`) stands the mention chip's interactions
+  (independent of the `mentionProvider` — it works for any mention in the
+  document): the hover card — the consumer's content and design over the
+  package's portaled host (the position and the lifecycle are the
+  package's: the hover's open delay, the exit / Escape / scroll's close, and
+  the anchor chip's removal's close) — and the chip's click delivery (the
+  native `MouseEvent` to the consumer's `onClick`; the package opens nothing
+  on the click and stands no default behavior). The target stands the
+  document's `mention` mark (the core's `MentionMark` — re-exported for the
+  consumer's convenience). Without the prop the chip stands as before (no
+  card, the click is the browser's stand).
+
 ## 0.6.6
 
 ### Patch Changes
