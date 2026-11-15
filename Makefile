@@ -94,9 +94,9 @@ e2e-file: ## E2E a single spec (make e2e-file F=test/e2e/canvas-connectors.spec.
 unit-f: ## Unit tests: a single file (make unit-f F=packages/react-ui/test/canvas.test.tsx; F=apps/playground/test/database-bridge.test.ts)
 	@test -n "$(F)" || { echo "usage: make unit-f F=<test file>"; exit 1; }
 	case "$(F)" in \
-		packages/core/*) REL=${F#packages/core/}; npm test -w packages/core -- "$(REL)";; \
-		packages/react-ui/*) REL=${F#packages/react-ui/}; npm test -w packages/react-ui -- "$(REL)";; \
-		apps/playground/*) REL=${F#apps/playground/}; npm test -w apps/playground -- "$(REL)";; \
+		packages/core/*) npm test -w packages/core -- "$(patsubst packages/core/%,%,$(F))";; \
+		packages/react-ui/*) npm test -w packages/react-ui -- "$(patsubst packages/react-ui/%,%,$(F))";; \
+		apps/playground/*) npm test -w apps/playground -- "$(patsubst apps/playground/%,%,$(F))";; \
 		*) echo "F must be under packages/core, packages/react-ui or apps/playground"; exit 1;; \
 	esac
 
