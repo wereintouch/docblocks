@@ -50,6 +50,7 @@ describe("the mention chip render", () => {
     const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/mention"]');
     expect(chip).not.toBeNull();
     expect(chip!.getAttribute("data-mention-kind")).toBe("user");
+    expect(chip!.getAttribute("data-mention-id")).toBe("u1");
     expect(chip!.textContent).toBe("Jane");
     expect(chip!.getAttribute("contenteditable")).toBe("false");
   });
@@ -63,7 +64,35 @@ describe("the mention chip render", () => {
     const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/mention"]');
     expect(chip).not.toBeNull();
     expect(chip!.getAttribute("data-mention-kind")).toBe("doc");
+    expect(chip!.getAttribute("data-mention-id")).toBe("d9");
     expect(chip!.textContent).toBe("Spec");
+  });
+
+  it("the chip stands the kind's inline icon (aria-hidden, the lucide's geometry, no text of its own)", () => {
+    renderDoc((doc) => {
+      const id = doc.insertBlock("paragraph");
+      doc.insertText(id, 0, "Jane and Spec");
+      doc.setMark(id, 0, 4, { type: "mention", kind: "user", id: "u1", label: "Jane" });
+      doc.setMark(id, 9, 13, { type: "mention", kind: "doc", id: "d9", label: "Spec" });
+    });
+    const chips = [...document.querySelectorAll<HTMLElement>('[data-slot="docblocks/mention"]')];
+    expect(chips.length).toBe(2);
+    const [userChip, docChip] = chips as [HTMLElement, HTMLElement];
+    // The icon: the kind's lucide's geometry (the user's head circle /
+    // the doc's exit arrow), decorative, and the label stays the only
+    // text of the chip.
+    const userIcon = userChip.querySelector("svg");
+    expect(userIcon).not.toBeNull();
+    expect(userIcon!.getAttribute("aria-hidden")).toBe("true");
+    const userHead = userIcon!.querySelector("circle");
+    expect(userHead).not.toBeNull();
+    expect(userHead!.getAttribute("cx")).toBe("12");
+    expect(userHead!.getAttribute("r")).toBe("4");
+    expect(userChip.textContent).toBe("Jane");
+    const docPaths = docChip.querySelectorAll("svg path");
+    expect(docPaths.length).toBe(3);
+    expect(docPaths[1]?.getAttribute("d")).toBe("m21 3-9 9");
+    expect(docChip.textContent).toBe("Spec");
   });
 
   it("a run without a mention keeps its plain text (no chip)", () => {

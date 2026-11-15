@@ -2,6 +2,8 @@ import { type CSSProperties, Fragment, type ReactNode } from "react";
 
 import { type TextRun, isSafeLinkHref } from "docblocks-core";
 
+import { SquareArrowOutUpRight, User } from "../shared/ui/icons";
+
 /**
  * Render inline text runs with their marks (lenient reader contract:
  * unknown marks are ignored and the text is kept). The link's href is
@@ -29,8 +31,21 @@ function renderMarked(run: TextRun): ReactNode {
   const { marks } = run;
 
   if (marks.mention !== undefined) {
+    // The atomic display of the label snapshot: the kind's inline icon +
+    // the label (the chip carries the target id for the consumer's
+    // live-label / "removed" stands).
     return (
-      <span data-slot="docblocks/mention" data-mention-kind={marks.mention.kind} contentEditable={false}>
+      <span
+        data-slot="docblocks/mention"
+        data-mention-kind={marks.mention.kind}
+        data-mention-id={marks.mention.id}
+        contentEditable={false}
+      >
+        {marks.mention.kind === "user" ? (
+          <User aria-hidden focusable="false" />
+        ) : (
+          <SquareArrowOutUpRight aria-hidden focusable="false" />
+        )}
         {marks.mention.label}
       </span>
     );

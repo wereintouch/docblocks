@@ -1,5 +1,6 @@
 import { type TextRun, isSafeLinkHref } from "docblocks-core";
 
+import { createMentionKindIcon } from "./mention-icons";
 import { INLINE_CODE_CLASS, LINK_CLASS } from "./runs";
 
 /**
@@ -64,8 +65,12 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
       const chip = document.createElement("span");
       chip.setAttribute("data-slot", MENTION_SLOT);
       chip.setAttribute("data-mention-kind", mention.kind);
+      chip.setAttribute("data-mention-id", mention.id);
       chip.setAttribute("contenteditable", "false");
-      chip.textContent = mention.label;
+      // The kind's inline icon + the label snapshot's text node (the chip
+      // stays atomic; the icon carries no text of its own).
+      chip.appendChild(createMentionKindIcon(mention.kind));
+      chip.appendChild(document.createTextNode(mention.label));
       nodes.push(chip);
       continue;
     }

@@ -82,6 +82,7 @@ const ICON_SET = [
   "Sigma",
   "Sparkles",
   "Square",
+  "SquareArrowOutUpRight",
   "SquareCheck",
   "SquareRounded",
   "SquareSplitVertical",
@@ -103,6 +104,7 @@ const ICON_SET = [
   "Trash",
   "Type",
   "Underline",
+  "User",
   "X",
   "Zap",
 ] as const;

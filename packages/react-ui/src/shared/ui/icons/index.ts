@@ -75,6 +75,7 @@ export { Shield } from "./Shield";
 export { Sigma } from "./Sigma";
 export { Sparkles } from "./Sparkles";
 export { Square } from "./Square";
+export { SquareArrowOutUpRight } from "./SquareArrowOutUpRight";
 export { SquareCheck } from "./SquareCheck";
 export { SquareRounded } from "./SquareRounded";
 export { SquareSplitVertical } from "./SquareSplitVertical";
@@ -96,6 +97,7 @@ export { TriangleFilled } from "./TriangleFilled";
 export { Trash } from "./Trash";
 export { Type } from "./Type";
 export { Underline } from "./Underline";
+export { User } from "./User";
 export { X } from "./X";
 export { Zap } from "./Zap";
 

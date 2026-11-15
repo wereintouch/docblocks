@@ -566,9 +566,15 @@ const mentionProvider = {
 A pick replaces the `@query` phrase with the label and stands the `mention`
 mark (the `kind` `"user"` or `"doc"`, the `id`, and the `label` snapshot) in
 one transaction — one undo step. The mention renders as an atomic,
-non-editable chip; copying it stands the `@label` plain text. Without the
-prop the `@` is plain text (no picker). The mark is non-exclusive (it
-composes with the other marks).
+non-editable chip: the kind's inline icon (the `user`'s person, the `doc`'s
+exit arrow) over the semibold, underlined label — an inline run of the text
+line, no pill of its own. The chip carries the target id
+(`data-mention-kind` + `data-mention-id`), so the consumer can stand a live
+label or a "removed" state by id (the `label` stays the stable display
+snapshot — a renamed / removed target does not change the document).
+Copying a mention stands the `@label` plain text. Without the prop the `@`
+is plain text (no picker). The mark is non-exclusive (it composes with the
+other marks).
 
 ### Canvas
 
