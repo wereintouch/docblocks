@@ -381,4 +381,4 @@ function insertTable(
   return tableId;
 }
 
-export { materializePaste };
+export { insertNative, materializePaste };
