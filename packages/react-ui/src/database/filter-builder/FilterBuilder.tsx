@@ -18,9 +18,9 @@ import { cn } from "../../shared/ui/cn";
 import { X } from "../../shared/ui/icons";
 import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
-import { formatCellDateTime, parseCellDateTime } from "../grid/utils";
 import { refEntryKey } from "../grid/use-ref-tables";
 import type { RefTableDataMap } from "../grid/use-ref-tables";
+import { formatCellDateTime, parseCellDateTime } from "../grid/utils";
 import { FILTER_MAX_DEPTH, emptyFilter } from "./utils";
 
 interface FilterBuilderProps {
