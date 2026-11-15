@@ -65,6 +65,28 @@ describe("the block structure → the paste blocks", () => {
     expect(blocks[0]!.runs.map((r) => r.text)).toEqual(["one\ntwo\nthree"]);
   });
 
+  it("the bare br between the block's text nodes stands the soft line break (the edge drop keeps it)", () => {
+    // The non-browser serializers (the .docx converters) stand the br
+    // directly in the blockquote between the text nodes (no p's wrapper).
+    const quote = htmlToBlocks("<blockquote>quote one<br>quote two</blockquote>");
+    expect(quote).toHaveLength(1);
+    expect(quote[0]!.type).toBe("quote");
+    expect(quote[0]!.runs.map((r) => r.text)).toEqual(["quote one\nquote two"]);
+    // The same shape over the generic wrapper's inline accumulation.
+    const wrapped = htmlToBlocks("<div>one<br>two</div>");
+    expect(wrapped).toHaveLength(1);
+    expect(wrapped[0]!.runs.map((r) => r.text)).toEqual(["one\ntwo"]);
+  });
+
+  it("the leading br in a block's walk stands the soft line break (the behavior stands)", () => {
+    // The br visited inline over the block's children merges into the first
+    // run (the edge drop stands the whitespace padding only) — the leading
+    // soft break is kept (the HTML's <p><br>one</p> renders the blank line).
+    const blocks = htmlToBlocks("<p><br>one</p>");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]!.runs.map((r) => r.text)).toEqual(["\none"]);
+  });
+
   it("the inline whitelist maps to the marks (the nesting composes)", () => {
     const blocks = htmlToBlocks("<p>a <b>ab <i>abi</i></b> c <u>u</u> <s>st</s> <code>cd</code></p>");
     expect(blocks).toHaveLength(1);

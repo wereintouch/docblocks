@@ -8,6 +8,11 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, canvasCenter, canvasView, outCount, toCanvas, twoPanes } from "./helpers";
 
+// The two-pane's settle stands the default 30s budget at its edge (the 15s
+// SETTLE's panes + the page loads): the raised budget keeps the timeout
+// class out of the loaded machine's flake zone (a true stall stays visible).
+test.setTimeout(45_000);
+
 /** Seeds the two seeded shapes (left / right) and returns their ids. The
  *  vertical stand (the boxes stacked at (0, -200) and (0, 150)): the
  *  endpoint handles stand clear of the selected line's toolbar strip (the

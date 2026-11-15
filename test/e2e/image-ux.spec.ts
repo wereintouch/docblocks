@@ -2,6 +2,11 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, caretIn, twoPanes } from "./helpers";
 
+// The two-pane's settle stands the default 30s budget at its edge (the 15s
+// SETTLE's panes + the page loads): the raised budget keeps the timeout
+// class out of the loaded machine's flake zone (a true stall stays visible).
+test.setTimeout(45_000);
+
 const FIXTURE = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
 
 /** The pane's image block's attrs from the harness global (its own letter). */

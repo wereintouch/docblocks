@@ -177,8 +177,13 @@ function runsOf(node: Node, inherited: MarkSet, raw: boolean): TextRun[] {
   for (const root of roots) visit(root, raw ? {} : inherited);
   // The edge drop is the block's run-list edge (the block's content starts
   // and ends clean); a bare text node keeps its text as collapsed (the word
-  // boundaries stand even when the node is whitespace-only).
+  // boundaries stand even when the node is whitespace-only). A bare BR
+  // element stands the line break itself — its single run is the content,
+  // not the padding, so the edge drop must not erase it (the non-browser
+  // serializers — the .docx converters — stand the <br> between the block's text nodes
+  // without the p's wrapper).
   if (node.nodeType === Node.TEXT_NODE) return runs;
+  if (node.nodeType === Node.ELEMENT_NODE && (node as Element).nodeName.toUpperCase() === "BR") return runs;
   return dropEdgeWhitespaceRuns(runs);
 }
 

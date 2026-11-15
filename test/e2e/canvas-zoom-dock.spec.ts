@@ -12,6 +12,11 @@ import {
   twoPanes,
 } from "./helpers";
 
+// The two-pane's settle stands the default 30s budget at its edge (the 15s
+// SETTLE's panes + the page loads): the raised budget keeps the timeout
+// class out of the loaded machine's flake zone (a true stall stays visible).
+test.setTimeout(45_000);
+
 /** Switch the pane to the canvas view (the harness's view toggle). */
 
 /** The canvas-view container (the viewport's chrome root). */

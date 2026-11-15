@@ -7,6 +7,11 @@ import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, blockShapes, canvasCenter, canvasView, seedShape, toCanvas, twoPanes } from "./helpers";
 
+// The two-pane's settle stands the default 30s budget at its edge (the 15s
+// SETTLE's panes + the page loads): the raised budget keeps the timeout
+// class out of the loaded machine's flake zone (a true stall stays visible).
+test.setTimeout(45_000);
+
 const ZOOM = 0.25;
 
 const zoomToolbar = (page: Page, client: "a" | "b") =>
