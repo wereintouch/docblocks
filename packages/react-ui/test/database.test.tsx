@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
 import { cleanup, fireEvent, render, renderHook } from "@testing-library/react";
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterEach, afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { act, useState } from "react";
 
@@ -3312,6 +3312,100 @@ describe("the filter builder — the ref value inputs (the enum's dict options /
     ]);
     fireEvent.change(ownerSelect, { target: { value: "r-people-1" } });
     expect(payloads.at(-1)?.conditions[0]?.value).toBe("r-people-1");
+  });
+});
+
+describe("the filter builder — the date's and datetime's value's pickers (the shared DatePicker / DateTimePicker over the wire's ISO stand)", () => {
+  const dueCol: BridgeColumn = { id: "due", name: "Due", type: "date" };
+  const startedCol: BridgeColumn = { id: "started", name: "Started", type: "timestamptz" };
+
+  // The calendar's default month stands "today" (react-day-picker's
+  // `dateLib.today()`) — the system time stands pinned to a fixed
+  // October 2026 date (the same stand as the calendar's suite), so the
+  // day cells the test targets stand in the displayed month regardless
+  // of the run date. The timers the portal's poll leans on stay real.
+  beforeAll(() => {
+    vi.useFakeTimers({
+      toNotFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "setImmediate", "clearImmediate"],
+    });
+    vi.setSystemTime(new Date(2026, 9, 1));
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+  });
+  afterEach(() => cleanup());
+
+  // Polls a predicate over the act-flushed frames (the portal's mount —
+  // the same stand as the calendar's suite's).
+  async function poll<T>(pred: () => T | null): Promise<T | null> {
+    const deadline = Date.now() + 1000;
+    for (;;) {
+      let value: T | null = null;
+      await act(async () => {
+        value = pred();
+      });
+      if (value !== null) return value;
+      if (Date.now() >= deadline) return null;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+  }
+
+  it("stands the pickers over the native inputs (the day pick commits the ISO date; the datetime's time stands the THH:MM part)", async () => {
+    // The controlled stand: the payload lives in the harness's state (the
+    // builder's `value` prop re-renders over the draft changes).
+    function Harness({ onPayload }: { onPayload: (next: DatabaseFilterPayload | null) => void }) {
+      const [payload, setPayload] = useState<DatabaseFilterPayload | null>(null);
+      return (
+        <FilterBuilder
+          value={payload}
+          columns={[dueCol, startedCol]}
+          onChange={(next) => {
+            setPayload(next);
+            onPayload(next);
+          }}
+        />
+      );
+    }
+    const payloads: (DatabaseFilterPayload | null)[] = [];
+    render(<Harness onPayload={(next) => payloads.push(next)} />);
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='docblocks/filter-add-condition']")!);
+    const condition = () => document.querySelector<HTMLElement>("[data-slot='docblocks/filter-condition']")!;
+    expect(condition().getAttribute("data-column-id")).toBe("due");
+
+    // The value slot stands the picker's trigger (the button) — the
+    // native's `<input type="date">` / `<input type="datetime-local">`
+    // stands are gone.
+    const valueTrigger = () => condition().querySelector<HTMLElement>("[data-slot='docblocks/filter-value']")!;
+    expect(valueTrigger().tagName).toBe("BUTTON");
+    expect(condition().querySelector("input[type='date'], input[type='datetime-local']")).toBeNull();
+    expect(valueTrigger().getAttribute("data-empty")).toBe("true");
+
+    // The day pick commits the ISO date (the date-only wire's stand —
+    // the picker closes on the pick, the immediate commit's contract).
+    fireEvent.click(valueTrigger());
+    const calendar = await poll(() => document.querySelector("[data-slot='calendar']"));
+    expect(calendar).not.toBeNull();
+    fireEvent.click(document.querySelector("button[data-day='10/20/2026']")!);
+    expect(payloads.at(-1)?.conditions[0]?.value).toBe("2026-10-20");
+
+    // The datetime's column stands the DateTimePicker (the calendar + the
+    // time box): the day pick + the typed minutes commit on the close,
+    // the "THH:MM" part stands over the wire.
+    fireEvent.change(condition().querySelector<HTMLSelectElement>("[data-slot='docblocks/filter-column']")!, {
+      target: { value: "started" },
+    });
+    expect(condition().getAttribute("data-column-id")).toBe("started");
+    const dtTrigger = condition().querySelector<HTMLElement>("[data-slot='docblocks/filter-value']")!;
+    expect(dtTrigger.tagName).toBe("BUTTON");
+    fireEvent.click(dtTrigger);
+    const dtCalendar = await poll(() => document.querySelector("[data-slot='calendar']"));
+    expect(dtCalendar).not.toBeNull();
+    expect(document.querySelector("[data-slot='time-segments']")).not.toBeNull();
+    fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
+    const [, minutes] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    expect(payloads.at(-1)?.conditions[0]?.value).toBe("2026-10-05T00:30");
   });
 });
 

@@ -151,6 +151,18 @@ function dateTimeLabel(value: Date): string {
   const label = format(value, "HH:mm");
   return value.getSeconds() !== 0 ? `${base} ${label}:${format(value, "ss")}` : `${base} ${label}`;
 }
+/** The datetime's committed wire value (the "YYYY-MM-DD" base; the
+ *  "THH:MM" part when the time is not the midnight zero; the ":SS" only
+ *  when the seconds are not zero) — the cell's commit and the filter's
+ *  value stand the same format (the bridge's match runs over the stored
+ *  cell's strings). */
+function formatCellDateTime(value: Date | null): string | null {
+  if (value === null) return null;
+  const base = format(value, "yyyy-MM-dd");
+  if (!hasTime(value)) return base;
+  const time = format(value, "HH:mm");
+  return value.getSeconds() !== 0 ? `${base}T${time}:${format(value, "ss")}` : `${base}T${time}`;
+}
 
 /** The form draft over a catalog entry (the name prefills the type's
  *  label — the create's commit takes the input's name). */
@@ -179,6 +191,7 @@ export {
   dateOnly,
   dateTimeLabel,
   emptyColumnForm,
+  formatCellDateTime,
   hasTime,
   numberDisplayAttrs,
   moveVisibleColumn,

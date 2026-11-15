@@ -29,6 +29,7 @@ import {
   cellKeyOf,
   dateOnly,
   dateTimeLabel,
+  formatCellDateTime,
   hasTime,
   numberDisplayAttrs,
   numberStepFor,
@@ -228,18 +229,7 @@ function DatabaseCell({
     // commit: the peer's mid-session commit stands no clobber over the
     // fresh value.
     if ((committed?.getTime() ?? null) === (openDateRef.current?.getTime() ?? null)) return;
-    let iso: string | null;
-    if (committed === null) {
-      iso = null;
-    } else {
-      const base = format(committed, "yyyy-MM-dd");
-      if (!hasTime(committed)) {
-        iso = base;
-      } else {
-        const time = format(committed, "HH:mm");
-        iso = committed.getSeconds() !== 0 ? `${base}T${time}:${format(committed, "ss")}` : `${base}T${time}`;
-      }
-    }
+    const iso = formatCellDateTime(committed);
     // A repeat close (the popover's own dispatch after the teardown stand)
     // re-emits the same ISO — the guard (per session: the open resets it)
     // keeps it a no-write.
