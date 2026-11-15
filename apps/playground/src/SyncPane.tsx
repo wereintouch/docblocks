@@ -30,6 +30,7 @@ import { PresenceShareControl } from "./inspect/PresenceShareControl";
 import { type WireEvent, WireLog } from "./inspect/WireLog";
 import { CATALOG_MASTER_ID, createMasterRuntime, destroyMasterRuntime } from "./master";
 import type { MasterRuntime } from "./master";
+import { MentionClickBanner, mentionInteractions } from "./mention-card";
 import { mentionProvider } from "./mention-provider";
 import { currentBlockOf, readBlocks } from "./pane-blocks";
 import type { PaneBlock } from "./pane-blocks";
@@ -449,6 +450,9 @@ function SyncPane({
   // the editor's flex chain.
   return (
     <main className="doc-main">
+      {/* The mention interactions' demo's click banner (the consumer's
+          stand over the provider's delivery). */}
+      <MentionClickBanner />
       {/* The component under test: the page flow or the document canvas. */}
       <section style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8 }}>
         <header style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -499,6 +503,7 @@ function SyncPane({
               blockRenderers={BLOCK_RENDERERS}
               pdfPreview={PdfFirstPage}
               mentionProvider={mentionProvider}
+              mentionInteractions={mentionInteractions}
               accessLevel="viewer"
             >
               <Editor view={view} />
@@ -514,6 +519,7 @@ function SyncPane({
                 syncEmbedResolver={syncEmbedResolver}
                 pdfPreview={PdfFirstPage}
                 mentionProvider={mentionProvider}
+                mentionInteractions={mentionInteractions}
                 presence={PRESENCE[client]}
                 accessLevel={role}
                 mode={mode}

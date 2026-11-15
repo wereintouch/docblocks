@@ -15,7 +15,7 @@ import {
 import type { FlatNode } from "./blocks";
 import { EnumOptionsMotionSlot } from "./database";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
-import { MentionMenuContext, useMentionMenu } from "./editing/mention";
+import { MentionMenuContext, useMentionCard, useMentionMenu } from "./editing/mention";
 import { PageSurfaceProvider, usePageSurfaceDispatch } from "./editing/page-surface";
 import type { PageSurfaceHandlersMap } from "./editing/page-surface";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
@@ -102,6 +102,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
   const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
   const slash = useSlashMenu(rootRef);
   const mention = useMentionMenu(rootRef);
+  const mentionCard = useMentionCard(rootRef);
   const format = useFormatToolbar(rootRef, formatPalette);
   useTypingFlag(rootRef);
   const enterGate = useEnterAnimationGate(rootRef);
@@ -242,6 +243,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           </MentionMenuContext.Provider>
           {slash.menuNode}
           {mention.menuNode}
+          {mentionCard}
           {viewMode ? null : format.toolbarNode}
         </div>
       </EnumOptionsMotionSlot.Provider>

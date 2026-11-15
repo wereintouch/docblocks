@@ -104,6 +104,7 @@ mention catalog). The full props list:
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). The opaque-origin restriction stands over this policy.                                                  |
 | `pdfPreview?`                | A first-page preview component for PDF file blocks (and legacy PDF image blocks).                                                                                                                                                                                                                                                      |
 | `mentionProvider?`           | The `@` mention picker's search catalog (see below).                                                                                                                                                                                                                                                                                   |
+| `mentionInteractions?`       | The mention chip's hover card + the click's delivery (see below). Without the prop the chip stands inert (no card, the click is the browser's stand).                                                                                                                                                                          |
 | `rootBlockId?`               | Render the entry list of this block instead of the document root (the subtree view). Must not change after mount.                                                                                                                                                                                                                      |
 | `commandPalettePlaceholder?` | The empty-block hint override; the default is localized (en/ru).                                                                                                                                                                                                                                                                       |
 | `accessLevel?`               | The consumer's user access level (default `editor`): `viewer` forces the `published` mode (the current state is never rendered to a reader).                                                                                                                                                                                           |
@@ -575,6 +576,36 @@ snapshot — a renamed / removed target does not change the document).
 Copying a mention stands the `@label` plain text. Without the prop the `@`
 is plain text (no picker). The mark is non-exclusive (it composes with the
 other marks).
+
+The optional `mentionInteractions` prop stands the chip's hover card and the
+chip's click (independent of the `mentionProvider` — the card stands for any
+mention in the document). The package stands the card's position and the
+lifecycle only (the portaled host anchored at the chip, the hover's open
+delay, the exit / Escape / scroll's close, and the anchor chip's removal's
+close — a doc change that re-renders the chip closes the card); the design
+and the data are the consumer's:
+
+```ts
+const mentionInteractions: MentionInteractions = {
+  // The hover card's content (the consumer's design + data); null stands no
+  // card for this target (e.g. the removed target's stand).
+  renderCard: (mention) => <MyMiniCard mention={mention} />,
+  // The chip's click: the consumer decides what opens (the navigation, the
+  // modal). The native event — event.preventDefault() keeps the caret in
+  // place. The package opens nothing on the click.
+  onClick: (mention, event) => {
+    event.preventDefault();
+    openUserOrDoc(mention.kind, mention.id);
+  },
+};
+```
+
+The target stands the document's `mention` mark (the core's `MentionMark`
+— the `kind`, the stable `id`, and the `label` snapshot): resolve the
+current data over the `id` (the catalog, the URL) and stand the live label
+or the removed state yourself — the `label` is the display snapshot. The
+value is read per render into the provider context: pass a stable reference.
+A nested provider that supplies none inherits the enclosing one.
 
 ### Canvas
 

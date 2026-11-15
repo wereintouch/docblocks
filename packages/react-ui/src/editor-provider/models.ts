@@ -3,7 +3,7 @@
  *  context value, and the provider's props. */
 import type { ComponentType, ReactNode } from "react";
 
-import type { BlockId, Doc, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
+import type { BlockId, Doc, MentionMark, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
 
 import type { BlobStore } from "../blob-store";
 import type { BlockRendererMap } from "../blocks";
@@ -53,6 +53,27 @@ interface MentionProvider {
   searchUsers(query: string): Promise<MentionEntry[]>;
   /** The documents matching the query (the `doc` mention kind). */
   searchDocs(query: string): Promise<MentionEntry[]>;
+}
+
+/**
+ * The mention interactions: the consumer's hover card (the design + the
+ * data — the package stands the position and the lifecycle only, over a
+ * plain portaled host) and the chip's click (the consumer decides what
+ * opens). The target stands the document's `mention` mark (the core's
+ * `MentionMark`: the kind, the stable id, and the label snapshot) — the
+ * consumer resolves the current data over the id (the catalog, the URL).
+ * Optional over the provider: without it the chip stands as before (no
+ * card, the click is the browser's stand).
+ */
+interface MentionInteractions {
+  /** The hover card's content (the consumer's design + data); `null`
+   *  stands no card for this target (e.g. the removed's target stand). */
+  renderCard: (mention: MentionMark) => ReactNode | null;
+  /** The chip's click: the consumer decides what opens (the navigation,
+   *  the modal). The native event — the consumer's `preventDefault()`
+   *  keeps the caret in place (the atomic chip's default stand moves it).
+   *  The package stands no default behavior and opens nothing. */
+  onClick?: (mention: MentionMark, event: MouseEvent) => void;
 }
 
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
@@ -116,6 +137,8 @@ interface EditorContextValue {
   pdfPreview: PdfPreview | null;
   /** The consumer's mention search provider; null when none was supplied (`@` stays plain text). */
   mentionProvider: MentionProvider | null;
+  /** The consumer's mention interactions (the hover card + the click); null when none was supplied (the chip stands inert). */
+  mentionInteractions: MentionInteractions | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
   embedSandbox: EmbedSandboxPolicy;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -234,6 +257,17 @@ interface EditorProviderProps {
    */
   mentionProvider?: MentionProvider;
   /**
+   * Optional mention interactions: the hover card's content
+   * (`renderCard`) and the chip's click's delivery (`onClick`). The
+   * package stands the card's position + lifecycle only (the portaled
+   * host, the hover's delay/grace, the Escape's close, the anchor's
+   * removal's close) — the design and the data are the consumer's, the
+   * click's stand is the consumer's. Like `mentionProvider`, the value is
+   * read per render into the provider context: pass a stable reference.
+   * A nested provider that supplies none inherits the enclosing one.
+   */
+  mentionInteractions?: MentionInteractions;
+  /**
    * Optional embed sandbox policy: the iframe's `sandbox` value for a given
    * embed src; `null` stands no sandbox (a fully trusted embed). Without it
    * the safe default applies (`DEFAULT_EMBED_SANDBOX` — interactive but no
@@ -285,6 +319,7 @@ export type {
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,
+  MentionInteractions,
   MentionProvider,
   PdfPreview,
   PdfPreviewProps,

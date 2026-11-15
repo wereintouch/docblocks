@@ -3,6 +3,7 @@ import type { MentionMenuApi, MentionMenuProps, MentionMenuState, MentionPick } 
 import type { MentionDerivation } from "./models";
 
 export { MentionMenuContext, useMentionMenuApi } from "./context";
+export { useMentionCard } from "./mention-card";
 export { useMentionMenu } from "./use-mention-menu";
 export { MentionPicker } from "./MentionPicker";
 export { deriveMention } from "./utils";

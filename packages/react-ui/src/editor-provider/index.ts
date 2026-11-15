@@ -9,6 +9,7 @@ export type {
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,
+  MentionInteractions,
   MentionProvider,
   PdfPreview,
   PdfPreviewProps,

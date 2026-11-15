@@ -188,3 +188,47 @@ body {
 .tables-grid {
   min-width: 0;
 }
+
+/* The mention interactions' demo (the consumer's stand over the package's
+   plain host): the hover's mini card + the click's banner. */
+.db-mention-card-demo {
+  background: var(--popover);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.14);
+  padding: 10px 12px;
+  width: 220px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.db-mention-card-demo-kind {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.db-mention-card-demo-label {
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.db-mention-card-demo-meta {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+.db-mention-banner {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 70;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+}

@@ -16,6 +16,7 @@ export type {
   EditorProviderProps,
   EmbedSandboxPolicy,
   MentionEntry,
+  MentionInteractions,
   MentionProvider,
   PdfPreview,
   PdfPreviewProps,
@@ -95,7 +96,7 @@ export type {
   UseDatabaseTable,
   UseTableList,
 } from "./database";
-export type { SyncEmbedRef } from "docblocks-core";
+export type { MentionMark, SyncEmbedRef } from "docblocks-core";
 export {
   useBlock,
   useDoc,
