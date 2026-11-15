@@ -428,9 +428,9 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
       );
     case "datetime":
       // The shared date-and-time picker over the wire's
-      // "YYYY-MM-DD[THH:MM[:SS]]" (the commit stands on the popover's
-      // close — the deferred stand; the midnight zero stands the date
-      // only — the cell's datetime's contract).
+      // "YYYY-MM-DD[THH:MM[:SS]]" (the commit stands on the Enter + the
+      // popover's close, the Escape cancels the draft — the cell's
+      // datetime's contract; the midnight zero stands the date only).
       return (
         <DateTimePicker
           data-slot="docblocks/filter-value"

@@ -3461,8 +3461,8 @@ describe("the filter builder — the date's and datetime's value's pickers (the 
     expect(payloads.at(-1)?.conditions[0]?.value).toBe("2026-10-20");
 
     // The datetime's column stands the DateTimePicker (the calendar + the
-    // time box): the day pick + the typed minutes commit on the close,
-    // the "THH:MM" part stands over the wire.
+    // time box): the day pick + the typed minutes commit on the Enter
+    // (the picker's keys' stand), the "THH:MM" part stands over the wire.
     fireEvent.change(condition().querySelector<HTMLSelectElement>("[data-slot='docblocks/filter-column']")!, {
       target: { value: "started" },
     });
@@ -3476,7 +3476,7 @@ describe("the filter builder — the date's and datetime's value's pickers (the 
     fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
     const [, minutes] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
     fireEvent.change(minutes!, { target: { value: "30" } });
-    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
     expect(payloads.at(-1)?.conditions[0]?.value).toBe("2026-10-05T00:30");
   });
 });
