@@ -851,17 +851,17 @@ function GridBody({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="end" className="w-fit max-w-xl min-w-110">
-                  <div className="flex flex-col gap-(--docblocks-block-spacing)">
+                  <div className="flex flex-col gap-2.5">
                     <FilterBuilder
                       value={filterDraft}
                       columns={data.table.columns}
                       onChange={setFilterDraft}
                       refTableData={refTableData}
                     />
-                    {/* The footer's stand: the apply/clear over the separator's line (not stuck to the add rows). */}
+                    {/* The footer's stand: the apply/clear over the separator's line (not stuck to the add rows — the popover's own 10px rhythm over both sides of the line). */}
                     <div
                       data-slot="docblocks/filter-footer"
-                      className="flex items-center gap-2 border-t border-border pt-2"
+                      className="flex items-center gap-2 border-t border-border pt-2.5"
                     >
                       <Button data-slot="docblocks/filter-clear" variant="outline" size="sm" onClick={resetFilterDraft}>
                         {t("common:clear")}

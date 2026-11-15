@@ -110,8 +110,12 @@ function SegmentSelector<T extends string>({
 
   /** The active button's label stand (over the pill's fill): the `primary`
    * pill's stand reads the `primary-foreground`, the `accent` pill's stand
-   * reads the `foreground`. */
-  const activeLabelClass = pillTheme === "primary" ? "text-primary-foreground" : "text-foreground";
+   * reads the `foreground`. The hover re-stands the same color (the ghost's
+   * hover restyle must not wash the label over the pill's fill). */
+  const activeLabelClass =
+    pillTheme === "primary"
+      ? "text-primary-foreground hover:text-primary-foreground"
+      : "text-foreground hover:text-foreground";
 
   return (
     <div
@@ -161,6 +165,7 @@ function SegmentSelector<T extends string>({
               hover:bg-transparent
               focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1
               focus-visible:outline-ring
+              dark:hover:bg-transparent
             `,
             size === "icon" ? "size-6" : "h-6 px-2 text-xs",
             value === option.value ? activeLabelClass : "hover:text-foreground",

@@ -861,12 +861,30 @@ test("the filter menu: the single-line's condition, the connector's line, the gr
       .evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(pillBg).not.toBe(trackBg);
 
+    // The active logic button's hover keeps the label's color (the ghost's
+    // hover restyle must not wash the label over the pill's fill — the
+    // dark's label stand stays readable over the prominent's fill).
+    const activeLogic = popover.locator("[data-filter-logic='and']");
+    const labelColorBefore = await activeLogic.evaluate((el) => getComputedStyle(el).color);
+    await activeLogic.hover();
+    expect(await activeLogic.evaluate((el) => getComputedStyle(el).color)).toBe(labelColorBefore);
+
     // The footer's apply/clear stand over the separator's line (not stuck to
     // the add rows).
     const footerBorder = await popover
       .locator("[data-slot='docblocks/filter-footer']")
       .evaluate((el) => getComputedStyle(el).borderTopWidth);
     expect(footerBorder).toBe("1px");
+
+    // The add row's stand over the footer: a clear break (the popover's
+    // gap + the separator's line + the footer's own padding), not a stuck
+    // touch.
+    const footerGap = await popover.evaluate((pop) => {
+      const add = pop.querySelector<HTMLElement>("[data-slot='docblocks/filter-add-condition']");
+      const clear = pop.querySelector<HTMLElement>("[data-slot='docblocks/filter-clear']");
+      return clear!.getBoundingClientRect().top - add!.getBoundingClientRect().bottom;
+    });
+    expect(footerGap).toBeGreaterThanOrEqual(16);
 
     // The nested's group stands the numbered's header + the remove's entry +
     // its own logic's selector over the card.

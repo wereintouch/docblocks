@@ -57,6 +57,41 @@ async function poll<T>(pred: () => T | null): Promise<T | null> {
 }
 
 describe("SegmentSelector", () => {
+  it("the active button's hover keeps its label color over the pill's fill (the ghost's hover restyle stands none)", () => {
+    const renderSeg = (pillTheme: "accent" | "primary") =>
+      render(
+        <SegmentSelector
+          options={[
+            { value: "a", label: "Option A" },
+            { value: "b", label: "Option B" },
+          ]}
+          value="a"
+          onChange={() => {}}
+          ariaLabel="Hover segment"
+          slot="docblocks/hover-segment"
+          pillSlot="docblocks/hover-segment-pill"
+          buttonAttrName="hover-segment-button"
+          size="text"
+          pillTheme={pillTheme}
+        />
+      );
+    // The `primary`'s stand (the prominent's fill): the label reads the
+    // `primary-foreground` and re-stands it on the hover (the ghost's
+    // `hover:text-accent-foreground` must not win the cascade — the dark's
+    // label would stand unreadable over the fill).
+    renderSeg("primary");
+    const primaryActive = screen.getByRole("button", { name: "Option A" });
+    expect(primaryActive.className).toContain("text-primary-foreground");
+    expect(primaryActive.className).toContain("hover:text-primary-foreground");
+    cleanup();
+    // The `accent`'s stand (the soft's highlight): the same no-wash stand
+    // over the `foreground`.
+    renderSeg("accent");
+    const accentActive = screen.getByRole("button", { name: "Option A" });
+    expect(accentActive.className).toContain("text-foreground");
+    expect(accentActive.className).toContain("hover:text-foreground");
+  });
+
   it("stands the options (the active pressed), the sliding pill, and commits the pick", () => {
     render(<ControlledSegment />);
     const a = screen.getByRole("button", { name: "Option A" });
