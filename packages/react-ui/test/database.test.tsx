@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { createMemoryDatabaseBridge } from "@playground/memory-bridge";
 import { cleanup, fireEvent, render, renderHook } from "@testing-library/react";
-import { afterEach, afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { act, useState } from "react";
 
@@ -1352,7 +1352,7 @@ describe("the grid's cells (the type editors)", () => {
     expect(dbAttrs().columnWidths).toEqual([260, 200, 200, 200]);
   });
 
-  it("the datetime cell stands the calendar + the time on the double press (the close commits the ISO date-time)", async () => {
+  it("the datetime cell stands the calendar + the time on the double press (the Enter commits the ISO date-time)", async () => {
     const { bridge, tableId } = await renderGrid();
     const rowId = await firstRowId(bridge, tableId);
     const at = (
@@ -1374,13 +1374,14 @@ describe("the grid's cells (the type editors)", () => {
     expect(cell()!.textContent).toContain("01.10.2026 18:00");
 
     // The pick + the time: the calendar stands in the portal, the day click
-    // + the minutes stand the draft, the Escape commits the ISO string.
+    // + the minutes stand the draft, the Enter commits the ISO string +
+    // closes (the popover's keys' stand).
     fireEvent.doubleClick(cell()!);
     await until(() => document.querySelector("[data-slot='calendar']") !== null, "the calendar");
     fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
     const [, minutes] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
     fireEvent.change(minutes!, { target: { value: "30" } });
-    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
     await settleGrid();
     expect((await cellsOf(bridge, tableId, rowId))[at]).toBe("2026-10-05T18:30");
     expect(cell()!.textContent).toContain("05.10.2026 18:30");
@@ -1414,7 +1415,14 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
       fireEvent.doubleClick(cell());
       await until(() => document.querySelector("[data-slot='calendar']") !== null, "the calendar");
     };
-    const closeByEscape = async () => {
+    const closeByEnter = async () => {
+      // The popover's keys' stand: the Enter commits the draft + closes.
+      fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
+      await settleGrid();
+    };
+    const cancelByEscape = async () => {
+      // The popover's keys' stand: the Escape cancels the draft (no write
+      // over the wire — the draft's drop).
       fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
       await settleGrid();
     };
@@ -1441,14 +1449,15 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
       value,
       segments,
       openPicker,
-      closeByEscape,
+      closeByEnter,
+      cancelByEscape,
       closeByTriggerPress,
       closeByOutsidePress,
     };
   }
 
-  it("the time first + the date after commit both (the reverse order; the Escape close)", async () => {
-    const { value, segments, openPicker, closeByEscape, cell } = await renderDateTime();
+  it("the time first + the date after commit both (the reverse order; the Enter close)", async () => {
+    const { value, segments, openPicker, closeByEnter, cell } = await renderDateTime();
     await openPicker();
     // The time stands first (the hours + the minutes), the day's pick after:
     // the in-flight draft's time stands the day's click (no reset).
@@ -1456,7 +1465,7 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     fireEvent.change(hours!, { target: { value: "09" } });
     fireEvent.change(minutes!, { target: { value: "30" } });
     fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
-    await closeByEscape();
+    await closeByEnter();
     expect(await value()).toBe("2026-10-05T09:30");
     expect(document.querySelector("[data-slot='calendar']")).toBeNull();
     expect(cell().textContent).toContain("05.10.2026 09:30");
@@ -1475,7 +1484,7 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
   });
 
   it("the time → the date → the time: the last stand commits", async () => {
-    const { value, segments, openPicker, closeByEscape } = await renderDateTime();
+    const { value, segments, openPicker, closeByEnter } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
     fireEvent.change(hours!, { target: { value: "09" } });
@@ -1484,12 +1493,12 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     // The time's re-edit over the day's pick stands (the draft's time is not
     // re-read from the value on the day's click).
     fireEvent.change(hours!, { target: { value: "14" } });
-    await closeByEscape();
+    await closeByEnter();
     expect(await value()).toBe("2026-10-05T14:30");
   });
 
   it("the same-day re-pick resets no draft date (the typed time commits over the date)", async () => {
-    const { value, segments, openPicker, closeByEscape } = await renderDateTime();
+    const { value, segments, openPicker, closeByEnter } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
     fireEvent.change(hours!, { target: { value: "07" } });
@@ -1497,15 +1506,15 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     // The value's date stands selected (the draft's day): the re-pick is the
     // day-picker's toggle (the undefined stand) — the draft date stands.
     fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
-    await closeByEscape();
+    await closeByEnter();
     expect(await value()).toBe("2026-10-01T07:45");
   });
 
   it("the same-day re-pick over the untouched draft stands no commit", async () => {
-    const { value, openPicker, closeByEscape } = await renderDateTime();
+    const { value, openPicker, closeByEnter } = await renderDateTime();
     await openPicker();
     fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
-    await closeByEscape();
+    await closeByEnter();
     expect(await value()).toBe("2026-10-01T18:00");
   });
 
@@ -1554,12 +1563,12 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
   });
 
   it("the repeat-commit guard stands per session (a later session re-commits the earlier ISO)", async () => {
-    const { bridge, tableId, rowId, at, value, segments, openPicker, closeByEscape } = await renderDateTime();
+    const { bridge, tableId, rowId, at, value, segments, openPicker, closeByEnter } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
     fireEvent.change(hours!, { target: { value: "09" } });
     fireEvent.change(minutes!, { target: { value: "30" } });
-    await closeByEscape();
+    await closeByEnter();
     expect(await value()).toBe("2026-10-01T09:30");
     // The peer's write moves the value away (the envelope stream stands the
     // page's refetch); the later session explicitly restores the earlier
@@ -1572,12 +1581,12 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     fireEvent.change(hours2!, { target: { value: "09" } });
     fireEvent.change(minutes2!, { target: { value: "30" } });
     fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
-    await closeByEscape();
+    await closeByEnter();
     expect(await value()).toBe("2026-10-01T09:30");
   });
 
   it("the mid-session peer's commit stands the conflict (the peer's value stands the draft's commit)", async () => {
-    const { bridge, tableId, rowId, at, cell, value, segments, openPicker, closeByEscape } = await renderDateTime();
+    const { bridge, tableId, rowId, at, cell, value, segments, openPicker, closeByEnter } = await renderDateTime();
     await openPicker();
     const [hours, minutes] = segments();
     fireEvent.change(hours!, { target: { value: "09" } });
@@ -1588,12 +1597,75 @@ describe("the datetime cell's draft contract (the time/date order, the same-day 
     await until(() => cell().textContent === "11.11.2026 08:00", "the peer's value stand");
     // The draft's date stand: the day's pick over the still-open calendar.
     fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
-    await closeByEscape();
+    await closeByEnter();
     // The draft's commit stands the open-time's pinned revision: the peer's
     // commit advanced the row, so the bridge's conflict rejection stands
     // the peer's value (the draft's commit is no silent overwrite).
     expect(await value()).toBe("2026-11-11T08:00");
     expect(cell().textContent).toContain("11.11.2026 08:00");
+  });
+
+  it("the Enter commits the draft + closes (the day + the time as set)", async () => {
+    const { value, segments, openPicker, closeByEnter, cell } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
+    await closeByEnter();
+    expect(await value()).toBe("2026-10-05T09:30");
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
+    expect(cell().textContent).toContain("05.10.2026 09:30");
+  });
+
+  it("the Escape cancels the draft (the close stands no write over the wire)", async () => {
+    const { value, segments, openPicker, cancelByEscape, cell } = await renderDateTime();
+    await openPicker();
+    const [hours, minutes] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    fireEvent.click(document.querySelector("button[data-day='10/5/2026']")!);
+    await cancelByEscape();
+    // The draft's drop: the value stands (no bridge call), the display
+    // stands the open-time's value.
+    expect(await value()).toBe("2026-10-01T18:00");
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
+    expect(cell().textContent).toContain("01.10.2026 18:00");
+  });
+
+  it("the Escape's cancel resets over the re-open (the next session's commit stands)", async () => {
+    const { value, segments, openPicker, cancelByEscape, closeByEnter } = await renderDateTime();
+    await openPicker();
+    const [hours] = segments();
+    fireEvent.change(hours!, { target: { value: "09" } });
+    await cancelByEscape();
+    expect(await value()).toBe("2026-10-01T18:00");
+    // The re-open stands the value's draft (the cancel's drop) + the commit
+    // stand is alive over the next session.
+    await openPicker();
+    const [hours2, minutes2] = segments();
+    fireEvent.change(hours2!, { target: { value: "10" } });
+    fireEvent.change(minutes2!, { target: { value: "15" } });
+    await closeByEnter();
+    expect(await value()).toBe("2026-10-01T10:15");
+  });
+
+  it("the Enter over the day's button stands the day's select (the popover stays open)", async () => {
+    const { value, openPicker } = await renderDateTime();
+    await openPicker();
+    const day = document.querySelector<HTMLButtonElement>("button[data-day='10/5/2026']")!;
+    // The day's button's native activation's stand: the Enter stands the
+    // pick (not the commit) — the popover stays open over the time's input.
+    fireEvent.keyDown(day, { key: "Enter", bubbles: true });
+    expect(document.querySelector("[data-slot='calendar']")).not.toBeNull();
+    expect(await value()).toBe("2026-10-01T18:00");
+    // The pick stands over the activation's click; the content's Enter
+    // commits (the seed's time, no seconds over the wire's stand).
+    fireEvent.click(day);
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
+    await settleGrid();
+    expect(await value()).toBe("2026-10-05T18:00");
+    expect(document.querySelector("[data-slot='calendar']")).toBeNull();
   });
 });
 
