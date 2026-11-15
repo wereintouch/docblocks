@@ -1,5 +1,21 @@
 # docblocks-react-ui
 
+## 0.8.1
+
+### Patch Changes
+
+- ce42093: **fix:** the HTML paste and the whole-document import keep a bare `br`
+  between the block's text nodes as the soft line break (the `htmlToBlocks`'
+  edge whitespace drop no longer erases the line break — the non-browser
+  serializers stand the `<br>` between the blockquote's text nodes without
+  the `p`'s wrapper).
+- **changed:** the database's filter value's date / datetime stand over the
+  house's `DatePicker` / `DateTimePicker` (the raw's native's `<input
+  type="date">` / `<input type="datetime-local">`'s stands are gone — the
+  commit stands the cell's same wire's format: the "YYYY-MM-DD" the
+  midnight's zero, the "THH:MM"[:SS] over the time's; the datetime's
+  commit stands on the popover's close).
+
 ## 0.8.0
 
 ### Minor Changes
