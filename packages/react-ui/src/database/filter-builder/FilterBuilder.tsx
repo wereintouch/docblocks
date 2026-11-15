@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 
 import type { DatabaseFilterPayload } from "docblocks-core";
 
-import { BareSelect, Button, Input } from "../../shared/ui";
+import { BareSelect, Button, DatePicker, DateTimePicker, Input } from "../../shared/ui";
 import { SegmentSelector } from "../../shared/ui/SegmentSelector";
 import type { SegmentOption } from "../../shared/ui/SegmentSelector";
 import { cn } from "../../shared/ui/cn";
@@ -20,6 +20,7 @@ import { columnAnnotation } from "../bridge";
 import type { BridgeColumn } from "../bridge";
 import { refEntryKey } from "../grid/use-ref-tables";
 import type { RefTableDataMap } from "../grid/use-ref-tables";
+import { formatCellDateTime, parseCellDateTime } from "../grid/utils";
 import { FILTER_MAX_DEPTH, emptyFilter } from "./utils";
 
 interface FilterBuilderProps {
@@ -414,25 +415,28 @@ function ValueInput({ column, operator, value, onChange, refTableData }: ValueIn
         </BareSelect>
       );
     case "date":
+      // The shared single-date picker over the wire's "YYYY-MM-DD" (the
+      // re-pick's toggle commits the clear — the raw input's empty-stand
+      // contract).
       return (
-        <Input
-          type="date"
-          size="sm"
+        <DatePicker
           data-slot="docblocks/filter-value"
-          className="min-w-0 flex-1 border-input"
-          value={value === undefined || value === null ? "" : String(value)}
-          onChange={onScalarChange}
+          className="h-8 min-w-0 flex-1 px-2 py-0.5"
+          value={parseCellDateTime(value)}
+          onSelect={(date) => onChange(formatCellDateTime(date) ?? undefined)}
         />
       );
     case "datetime":
+      // The shared date-and-time picker over the wire's
+      // "YYYY-MM-DD[THH:MM[:SS]]" (the commit stands on the Enter + the
+      // popover's close, the Escape cancels the draft — the cell's
+      // datetime's contract; the midnight zero stands the date only).
       return (
-        <Input
-          type="datetime-local"
-          size="sm"
+        <DateTimePicker
           data-slot="docblocks/filter-value"
-          className="min-w-0 flex-1 border-input"
-          value={value === undefined || value === null ? "" : String(value)}
-          onChange={onScalarChange}
+          className="h-8 min-w-0 flex-1 px-2 py-0.5"
+          value={parseCellDateTime(value)}
+          onSelect={(date) => onChange(formatCellDateTime(date) ?? undefined)}
         />
       );
     case "enum":

@@ -32,13 +32,14 @@ function datePart(value: Date): Date {
  * box in one portaled popover.
  *
  * The component is controlled: the `value` is a local-calendar `Date`, and
- * `onSelect` commits the picked date + the typed time (the commit stands on
- * the popover close — the escape / the outside press / an explicit close —
- * as one step; a no-op close stands no commit). The drafts stand from the
- * value at the open (the in-flight draft stands the mid-session value
- * changes), the day pick edits the draft date (the same-day toggle stands no
- * reset — the deferred commit's contract), the time box edits the draft
- * time; the extra props stand on the
+ * `onSelect` commits the picked date + the typed time (the commit stands
+ * on the popover close — the outside press / an explicit close — and on
+ * the Enter over the popover as one step; the Escape cancels the in-flight
+ * draft without a commit; a no-op close stands no commit). The drafts
+ * stand from the value at the open (the in-flight draft stands the
+ * mid-session value changes), the day pick edits the draft date (the
+ * same-day toggle stands no reset — the deferred commit's contract), the
+ * time box edits the draft time; the extra props stand on the
  * trigger button (the `data-*` hooks included; the native `value` /
  * `onSelect` button props are omitted — they stand the picker's contract).
  */
@@ -57,14 +58,33 @@ function DateTimePicker({
   const [open, setOpen] = React.useState(false);
   const [draftDate, setDraftDate] = React.useState<Date | null>(null);
   const [draftTime, setDraftTime] = React.useState<string | null>(null);
+  // The Escape's cancel stand (the draft's drop — no commit): the flag
+  // guards the close's commit stand out (the real close commits
+  // otherwise — the close's contract).
+  const cancelledRef = React.useRef(false);
   // The time box's auto-advance addresses the segments by the DOM id —
   // the per-instance id stands the two mounted pickers apart (a shared
   // literal id would point the second picker's advance at the first one's
   // segments over the global lookup).
   const timeSegmentsId = React.useId();
 
+  /** The draft's commit (the single commit path): the no-op stand (the
+   *  draft stands the value) stands no commit. */
+  const commitDraft = () => {
+    const committed = draftDate === null ? null : datePart(draftDate);
+    if (draftTime !== null && committed !== null) {
+      const [hours, minutes, seconds] = draftTime.split(":");
+      committed.setHours(Number(hours), Number(minutes), Number(seconds));
+    }
+    const before = value?.getTime() ?? null;
+    const after = committed?.getTime() ?? null;
+    if (before === after) return;
+    onSelect(committed);
+  };
+
   const handleOpenChange = (next: boolean) => {
     if (next) {
+      cancelledRef.current = false;
       // The drafts stand from the value at the open (the close commits, so
       // the in-flight draft stands the mid-session value changes).
       setDraftDate(value !== null ? datePart(value) : null);
@@ -73,16 +93,28 @@ function DateTimePicker({
       return;
     }
     setOpen(false);
-    const committed = draftDate === null ? null : datePart(draftDate);
-    if (draftTime !== null && committed !== null) {
-      const [hours, minutes, seconds] = draftTime.split(":");
-      committed.setHours(Number(hours), Number(minutes), Number(seconds));
-    }
-    // A no-op close (the draft stands the value) stands no commit.
-    const before = value?.getTime() ?? null;
-    const after = committed?.getTime() ?? null;
-    if (before === after) return;
-    onSelect(committed);
+    // The Escape's cancel stand: the flag keeps the commit out (the
+    // onEscapeKeyDown's preventDefault stands the radix's own close out —
+    // the guard stands the radix's close paths' parity).
+    if (cancelledRef.current) return;
+    commitDraft();
+  };
+
+  // The Escape's cancel: the draft's drop (no commit) — the flag + the
+  // close (the radix's own close stands out over the preventDefault).
+  const cancelDraft = () => {
+    cancelledRef.current = true;
+    setOpen(false);
+  };
+  // The Enter's commit stand (the popover's keys): the commit + the close
+  // stand the draft (the date + the time as set); the day's button keeps
+  // the native's activation (the `data-day` hook's stand — the pick
+  // stands the draft, the popover stands open over the time's input).
+  const commitAndClose = (event: React.KeyboardEvent) => {
+    if ((event.target as HTMLElement).closest("[data-day]") !== null) return;
+    event.preventDefault();
+    setOpen(false);
+    commitDraft();
   };
 
   // The day-picker's same-day toggle (the undefined stand) resets no draft
@@ -108,7 +140,16 @@ function DateTimePicker({
           {value ? labelOf(value) : <span>{placeholder}</span>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0">
+      <PopoverContent
+        className="w-auto p-0"
+        onKeyDown={(event) => {
+          if (event.key === "Enter") commitAndClose(event);
+        }}
+        onEscapeKeyDown={(event) => {
+          event.preventDefault();
+          cancelDraft();
+        }}
+      >
         <Calendar
           mode="single"
           selected={draftDate ?? undefined}

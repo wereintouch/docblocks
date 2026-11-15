@@ -1535,7 +1535,7 @@ test("two grids on one page stand their own measurement (the seam's commit reads
   await close();
 });
 
-test("the datetime cell stands the calendar + the time box (the time/date order, the same-day toggle; the commit over the pane's bridge)", async ({
+test("the datetime cell stands the calendar + the time box (the time/date order, the Enter commit, the Escape's cancel; the commit over the pane's bridge)", async ({
   browser,
 }) => {
   const context = await editorContext(browser);
@@ -1585,7 +1585,8 @@ test("the datetime cell stands the calendar + the time box (the time/date order,
 
     // The pick over the real mouse: the calendar + the time box stand in the
     // portaled content; the day click + the minutes stand the draft; the
-    // Escape commits the ISO date-time to the bridge.
+    // Enter commits the ISO date-time to the bridge + closes (the popover's
+    // keys' stand).
     await cellA.dblclick();
     const picker = a.locator("[data-slot='popover-content']");
     await expect(picker).toBeVisible(SETTLE);
@@ -1596,7 +1597,7 @@ test("the datetime cell stands the calendar + the time box (the time/date order,
     const minutes = picker.locator("[data-slot='time-segments'] [data-segment='m']");
     await expect(minutes).toBeVisible(SETTLE);
     await minutes.fill("30");
-    await a.keyboard.press("Escape");
+    await a.keyboard.press("Enter");
     await expect(picker).toBeHidden(SETTLE);
 
     // The commit stands the ISO string in the pane's bridge (the doc stands
@@ -1630,15 +1631,17 @@ test("the datetime cell stands the calendar + the time box (the time/date order,
     const reverseLabel = new RegExp(`20\\.${isoMonth}\\.2026 07:45`);
     await expect(cellA).toHaveText(reverseLabel, SETTLE);
 
-    // The same-day re-pick (the day-picker's toggle) stands no reset: the
-    // Escape close commits nothing (the value stands, no wire write).
+    // The Escape's cancel: the in-flight changes (the time's re-edit over
+    // the seed's stand; the same-day re-pick's toggle stands no draft date
+    // reset) stand no write — the value stands the open-time's stand.
     await cellA.dblclick();
     await expect(picker).toBeVisible(SETTLE);
+    await picker.locator("[data-slot='time-segments'] [data-segment='m']").fill("15");
     await picker.getByRole("button", { name: new RegExp(`${monthName} 20`) }).click();
     await a.keyboard.press("Escape");
     await expect(picker).toBeHidden(SETTLE);
-    const rowAfterToggle = await readAt();
-    expect(rowAfterToggle).toBe(`2026-${isoMonth}-20T07:45`);
+    const rowAfterCancel = await readAt();
+    expect(rowAfterCancel).toBe(`2026-${isoMonth}-20T07:45`);
   } finally {
     await context.close();
   }

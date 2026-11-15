@@ -29,6 +29,7 @@ import {
   cellKeyOf,
   dateOnly,
   dateTimeLabel,
+  formatCellDateTime,
   hasTime,
   numberDisplayAttrs,
   numberStepFor,
@@ -214,7 +215,10 @@ function DatabaseCell({
   // The datetime's drafts stand from the value at the session's open (the
   // close commits; the in-flight draft never touches the consumer state and
   // stands the mid-session value changes — the picker session's own data
-  // until the release).
+  // until the release). The close's keys stand: the Enter commits the draft
+  // (the date + the time as set) and closes, the Escape cancels (the
+  // draft's drop — no write over the wire), the close (the trigger's / the
+  // outside press / the session's teardown) commits.
   const [draftDate, setDraftDate] = useState<Date | null>(null);
   const [draftTime, setDraftTime] = useState<string | null>(null);
 
@@ -228,18 +232,7 @@ function DatabaseCell({
     // commit: the peer's mid-session commit stands no clobber over the
     // fresh value.
     if ((committed?.getTime() ?? null) === (openDateRef.current?.getTime() ?? null)) return;
-    let iso: string | null;
-    if (committed === null) {
-      iso = null;
-    } else {
-      const base = format(committed, "yyyy-MM-dd");
-      if (!hasTime(committed)) {
-        iso = base;
-      } else {
-        const time = format(committed, "HH:mm");
-        iso = committed.getSeconds() !== 0 ? `${base}T${time}:${format(committed, "ss")}` : `${base}T${time}`;
-      }
-    }
+    const iso = formatCellDateTime(committed);
     // A repeat close (the popover's own dispatch after the teardown stand)
     // re-emits the same ISO — the guard (per session: the open resets it)
     // keeps it a no-write.
@@ -257,18 +250,23 @@ function DatabaseCell({
   const sessionStoodOpenRef = useRef(false);
   const closeCommittedRef = useRef(false);
   const committedIsoRef = useRef<string | null | undefined>(undefined);
+  // The Escape's cancel stand (the draft's drop — no write over the wire):
+  // the flag guards the close's commit stands out (the session's close
+  // commits otherwise — the close's contract).
+  const dateTimeCancelledRef = useRef(false);
   useEffect(() => {
     if (!isDateTime) return;
     if (editing) {
       sessionStoodOpenRef.current = true;
       closeCommittedRef.current = false;
+      dateTimeCancelledRef.current = false;
       // The repeat-commit guard stands per session: a later session may
       // legitimately re-commit an earlier ISO (the value moved away and
       // back), so the open resets it.
       committedIsoRef.current = undefined;
       return;
     }
-    if (!sessionStoodOpenRef.current || closeCommittedRef.current) return;
+    if (!sessionStoodOpenRef.current || closeCommittedRef.current || dateTimeCancelledRef.current) return;
     sessionStoodOpenRef.current = false;
     commitDateTime();
   }, [editing]);
@@ -335,9 +333,31 @@ function DatabaseCell({
     const dateTimeOnOpenChange = (open: boolean) => {
       if (!open) {
         closeCommittedRef.current = true;
-        commitDateTime();
+        // The Escape's cancel stand: the flag keeps the commit out (the
+        // onEscapeKeyDown's preventDefault stands the radix's own close
+        // out — the guard stands the radix's close paths' parity).
+        if (!dateTimeCancelledRef.current) commitDateTime();
         onEditEnd();
       }
+    };
+    // The Escape's cancel: the draft's drop (no write over the wire) — the
+    // session's close stands over the grid's teardown stand (the flag's
+    // guard above keeps the commit out).
+    const cancelDateTimeDraft = () => {
+      dateTimeCancelledRef.current = true;
+      onEditEnd();
+    };
+    // The Enter's commit stand (the popover's keys): the commit + the close
+    // stand the draft (the date + the time as set); the day's button keeps
+    // the native's activation (the `data-day` hook's stand — the pick
+    // stands the draft, the popover stands open over the time's input).
+    const onDateTimePopoverKeyDown = (event: React.KeyboardEvent) => {
+      if (event.key !== "Enter") return;
+      if ((event.target as HTMLElement).closest("[data-day]") !== null) return;
+      event.preventDefault();
+      closeCommittedRef.current = true;
+      commitDateTime();
+      onEditEnd();
     };
     // The press stands the toggle only over the armed stand (the cell
     // stood the sole selection at the press — the selecting press stands
@@ -400,7 +420,16 @@ function DatabaseCell({
             <PopoverTrigger asChild>
               <CellDisplay text={dateValue !== null ? dateTimeLabel(dateValue) : ""} />
             </PopoverTrigger>
-            <PopoverContent align="start" sideOffset={PICKER_SIDE_OFFSET_PX} className="w-auto p-0">
+            <PopoverContent
+              align="start"
+              sideOffset={PICKER_SIDE_OFFSET_PX}
+              className="w-auto p-0"
+              onKeyDown={onDateTimePopoverKeyDown}
+              onEscapeKeyDown={(event) => {
+                event.preventDefault();
+                cancelDateTimeDraft();
+              }}
+            >
               <Calendar
                 mode="single"
                 selected={draftDate ?? undefined}

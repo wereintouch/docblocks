@@ -1,5 +1,29 @@
 # docblocks-react-ui
 
+## 0.8.3
+
+### Patch Changes
+
+- e207327: The database grid's datetime cell commits the draft (the picked date + the
+  typed time) on Enter over the open picker and closes it, and Escape cancels
+  the in-flight draft without a write; the close over the outside press / the
+  trigger press / the session's teardown keeps the deferred commit stand.
+- d6d6c7a: The filter builder's date-and-time value picker (the shared
+  `DateTimePicker`) stands the same key contract as the database grid's
+  datetime cell: Enter commits the draft (the picked date + the typed time)
+  and closes the picker, Escape cancels the in-flight draft without a
+  write; the close over the outside press / the trigger press keeps the
+  deferred commit stand.
+
+## 0.8.2
+
+### Patch Changes
+
+- 94f3f9a: **fixed:** the 0.8.1's filter's date/datetime's pickers' entry's code
+  lands — the filter value's `DatePicker` / `DateTimePicker`'s stand over
+  the raw's native's inputs (the 0.8.1's published build stood the raw's
+  inputs — the code's commit landed over the 0.8.1's release's cut).
+
 ## 0.8.1
 
 ### Patch Changes

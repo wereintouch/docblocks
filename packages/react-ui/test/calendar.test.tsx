@@ -196,7 +196,7 @@ describe("DateTimePicker (the calendar + the time box)", () => {
     expect(document.querySelector("[data-slot='dt-picker']")?.textContent).toContain("01.10.2026 18:05");
   });
 
-  it("the pick + the time stand the commit on the close (the Escape; the no-op close stands none)", async () => {
+  it("the pick + the time stand the commit on the Enter (the no-op Escape stands none)", async () => {
     const picks: (Date | null)[] = [];
     render(<DateTimePicker value={new Date(2026, 9, 1, 18, 0)} onSelect={(date) => picks.push(date)} />);
     fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }));
@@ -205,22 +205,80 @@ describe("DateTimePicker (the calendar + the time box)", () => {
     const segments = document.querySelector("[data-slot='time-segments']");
     expect(segments).not.toBeNull();
 
-    // The day pick + the minutes type (the 30 stands); the Escape closes
+    // The day pick + the minutes type (the 30 stands); the Enter closes
     // and commits.
     fireEvent.click(document.querySelector("button[data-day='10/15/2026']")!);
     const [, minutes] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
     fireEvent.change(minutes!, { target: { value: "30" } });
-    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
     expect(picks).toHaveLength(1);
     expect(picks[0]).toEqual(new Date(2026, 9, 15, 18, 30));
+    await poll<boolean | null>(() => (document.querySelector("[data-slot='calendar']") === null ? true : null));
 
-    // The no-op close stands no commit (the draft stands the value — the
-    // controlled `value` never moved, so the trigger name stands the same).
+    // The no-op Escape stands no commit (the draft stands the value — the
+    // cancel's drop over the unchanged draft).
     picks.length = 0;
     fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }));
     await poll(() => document.querySelector("[data-slot='calendar']"));
     fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
     expect(picks).toEqual([]);
+  });
+
+  it("the Escape cancels the draft (the close stands no commit over the changed draft)", async () => {
+    const picks: (Date | null)[] = [];
+    render(<DateTimePicker value={new Date(2026, 9, 1, 18, 0)} onSelect={(date) => picks.push(date)} />);
+    fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }));
+    await poll(() => document.querySelector("[data-slot='calendar']"));
+    // The day pick + the minutes type stand the draft; the Escape drops
+    // it (no commit) + closes.
+    fireEvent.click(document.querySelector("button[data-day='10/15/2026']")!);
+    const [, minutes] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
+    fireEvent.change(minutes!, { target: { value: "30" } });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    await poll<boolean | null>(() => (document.querySelector("[data-slot='calendar']") === null ? true : null));
+    expect(picks).toEqual([]);
+    // The trigger stands the open-time's value (the draft's drop).
+    expect(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }).textContent).toContain("01.10.2026 18:00");
+  });
+
+  it("the Escape's cancel resets over the re-open (the next session's commit stands)", async () => {
+    const picks: (Date | null)[] = [];
+    render(<DateTimePicker value={new Date(2026, 9, 1, 18, 0)} onSelect={(date) => picks.push(date)} />);
+    const trigger = () => screen.getByRole("button", { name: /01\.10\.2026 18:00/ });
+    fireEvent.click(trigger());
+    await poll(() => document.querySelector("[data-slot='calendar']"));
+    const [hours] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
+    fireEvent.change(hours!, { target: { value: "09" } });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    await poll<boolean | null>(() => (document.querySelector("[data-slot='calendar']") === null ? true : null));
+    expect(picks).toEqual([]);
+    // The re-open stands the value's draft (the cancel's drop); the commit
+    // stand is alive over the next session.
+    fireEvent.click(trigger());
+    await poll(() => document.querySelector("[data-slot='calendar']"));
+    const [hours2, minutes2] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
+    fireEvent.change(hours2!, { target: { value: "10" } });
+    fireEvent.change(minutes2!, { target: { value: "15" } });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
+    expect(picks).toEqual([new Date(2026, 9, 1, 10, 15)]);
+  });
+
+  it("the Enter over the day's button stands the day's select (the popover stays open)", async () => {
+    const picks: (Date | null)[] = [];
+    render(<DateTimePicker value={new Date(2026, 9, 1, 18, 0)} onSelect={(date) => picks.push(date)} />);
+    fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }));
+    await poll(() => document.querySelector("[data-slot='calendar']"));
+    const day = document.querySelector<HTMLButtonElement>("button[data-day='10/5/2026']")!;
+    // The day's button's native activation's stand: the Enter stands the
+    // pick (not the commit) — the popover stays open over the time's input.
+    fireEvent.keyDown(day, { key: "Enter", bubbles: true });
+    expect(document.querySelector("[data-slot='calendar']")).not.toBeNull();
+    expect(picks).toEqual([]);
+    // The pick stands over the activation's click; the content's Enter
+    // commits (the seed's time over the picked day).
+    fireEvent.click(day);
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
+    expect(picks).toEqual([new Date(2026, 9, 5, 18, 0)]);
   });
 
   it("the same-day pick stands no reset (the draft date stands; the no-op close stands none)", async () => {
@@ -231,20 +289,21 @@ describe("DateTimePicker (the calendar + the time box)", () => {
     expect(calendar).not.toBeNull();
     // The value's day stands selected (the draft's day): the re-pick is the
     // day-picker's toggle (the undefined stand) — the draft date stands,
-    // the Escape close commits nothing (the draft stands the value). The
+    // the Escape cancel commits nothing (the draft stands the value). The
     // day buttons' data-day is the un-padded en-US locale date.
     fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
     fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
     expect(picks).toEqual([]);
 
     // The re-open: the same-day re-pick lost nothing — the typed minutes
-    // commit over the draft's date (the deferred commit's contract).
+    // commit over the draft's date (the Enter's close; the deferred
+    // commit's contract).
     fireEvent.click(screen.getByRole("button", { name: /01\.10\.2026 18:00/ }));
     await poll(() => document.querySelector("[data-slot='calendar']"));
     fireEvent.click(document.querySelector("button[data-day='10/1/2026']")!);
     const [, minutes] = [...document.querySelectorAll<HTMLInputElement>("[data-slot='time-segments'] input")];
     fireEvent.change(minutes!, { target: { value: "30" } });
-    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Escape", bubbles: true });
+    fireEvent.keyDown(document.querySelector("[data-slot='popover-content']")!, { key: "Enter", bubbles: true });
     expect(picks).toEqual([new Date(2026, 9, 1, 18, 30)]);
   });
 
