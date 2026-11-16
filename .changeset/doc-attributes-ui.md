@@ -23,7 +23,8 @@ one-line sliding-pill type pick (the document view's selector's parity
   the line's input + the ×'s removal + the "Add a line"'s input over the
   stack's tail; every discrete change commits the whole list over the
   value's form: plain `string[]` → plain, typed → typed; the read-only's
-  stacked display), the boolean over the project's checkbox (the checked's
+  stacked display; the row's key + the remove button stand opposite the
+  first line over the stack (the row's center stand dropped)), the boolean over the project's checkbox (the checked's
   toggle — one write over the value's form: the plain's plain stand, the
   typed's typed stand; the read-only's disabled stand over the view /
   published's modes); the row's value zone centers its content vertically

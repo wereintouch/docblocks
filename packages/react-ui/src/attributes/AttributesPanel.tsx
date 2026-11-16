@@ -138,6 +138,7 @@ function AttributeRow({
   removable,
   onRemove,
   removeAria,
+  topAlign,
   children,
 }: {
   attributeKey: string;
@@ -145,6 +146,9 @@ function AttributeRow({
   removable: boolean;
   onRemove?: () => void;
   removeAria?: string;
+  /** The label stands opposite the FIRST line over the multi-line value
+   *  zone (the list's stack) — the row's center stand dropped. */
+  topAlign?: boolean;
   children: React.ReactNode;
 }) {
   return (
@@ -153,7 +157,9 @@ function AttributeRow({
       data-attribute-key={attributeKey}
       className="flex min-h-11 items-center gap-3 py-1.5"
     >
-      <span className="w-28 shrink-0 truncate text-sm text-muted-foreground">{label}</span>
+      <span className={cn("w-28 shrink-0 truncate text-sm text-muted-foreground", topAlign && "mt-1.5 self-start")}>
+        {label}
+      </span>
       {/* The zone's flex's stand (the content's vertical center): the zone
         inherits the page's line-height (the 16px's stand over the shared
         editable), so a block container over an inline-block's editor grows
@@ -167,7 +173,7 @@ function AttributeRow({
           size="icon"
           aria-label={removeAria ?? attributeKey}
           data-slot="docblocks/attribute-row-remove"
-          className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
+          className={cn("size-6 shrink-0 text-muted-foreground hover:text-foreground", topAlign && "mt-1 self-start")}
           onClick={onRemove}
         >
           <Trash className="size-3.5" />
@@ -1044,6 +1050,7 @@ function AttributesPanel() {
                   removable={!viewMode}
                   onRemove={() => remove(key)}
                   removeAria={t("attributes.removeAria", { name: key })}
+                  topAlign={isList}
                 >
                   {valueZone(
                     key,

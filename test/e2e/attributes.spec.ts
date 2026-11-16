@@ -311,6 +311,19 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
     await expect
       .poll(() => attributesOf(a, "a").then((m) => m?.todo), SETTLE)
       .toEqual({ type: "list", value: ["second"] });
+    // The list row's label stands opposite the FIRST line (the top-align's
+    // stand — the row's center stand dropped).
+    const listLabelMid = await body(a, "a")
+      .locator('[data-slot="docblocks/attribute-row"][data-attribute-key="todo"]')
+      .evaluate((row) => {
+        const label = row.children[0]?.getBoundingClientRect();
+        const firstLine = row
+          .querySelector<HTMLElement>('[data-slot="docblocks/attribute-todo-list-line"]')
+          ?.getBoundingClientRect();
+        if (label === undefined || label === null || firstLine === undefined || firstLine === null) return null;
+        return Math.abs(label.top + label.height / 2 - (firstLine.top + firstLine.height / 2));
+      });
+    expect(listLabelMid, "the list row's label should stand opposite the first line").toBeLessThan(1);
     // The value's vertical stand (the label's midline's parity over the
     // value's midline — the page's line-height's no-stand) + the row's
     // height's uniform stand over the single value's types (the row's
