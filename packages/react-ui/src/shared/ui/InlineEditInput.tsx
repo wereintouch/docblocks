@@ -17,13 +17,23 @@ interface InlineEditInputProps {
   /** The structural data-slot of the field. */
   slot: string;
   className?: string;
+  /** The field's placeholder (the empty value's stand). */
+  placeholder?: string;
   /** The blur / Enter commit (one write). */
   onCommit: (value: string) => void;
   /** The Escape cancel (no write). */
   onCancel: () => void;
 }
 
-function InlineEditInput({ initial, ariaLabel, slot, className, onCommit, onCancel }: InlineEditInputProps) {
+function InlineEditInput({
+  initial,
+  ariaLabel,
+  slot,
+  className,
+  placeholder,
+  onCommit,
+  onCancel,
+}: InlineEditInputProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const committedRef = useRef(false);
 
@@ -59,6 +69,7 @@ function InlineEditInput({ initial, ariaLabel, slot, className, onCommit, onCanc
       ref={inputRef}
       data-slot={slot}
       aria-label={ariaLabel}
+      placeholder={placeholder}
       defaultValue={initial}
       className={className}
       onBlur={onInputBlur}

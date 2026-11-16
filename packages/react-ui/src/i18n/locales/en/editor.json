@@ -79,6 +79,8 @@
     "tags": "Tags",
     "cover": "Cover",
     "status": "Status",
+    "namePlaceholder": "Name",
+    "valuePlaceholder": "Value",
     "publishedAt": "Published date",
     "createdBy": "Creator",
     "typeAria": "Attribute type",
@@ -87,7 +89,6 @@
     "typeBoolean": "Boolean",
     "typeList": "List",
     "typeMention": "Mention",
-    "mentionIdPlaceholder": "The user's id",
     "notSet": "Not set",
     "editAria": "Edit {name}",
     "removeAria": "Remove {name}",
@@ -95,12 +96,8 @@
     "addTagAria": "Add a tag",
     "uploadCoverAria": "Upload the cover",
     "removeCoverAria": "Remove the cover",
-    "statusDraft": "Draft",
-    "statusPublished": "Published",
-    "statusAria": "Status",
     "addAttribute": "Add attribute",
     "addConfirm": "Add",
-    "keyPlaceholder": "Key",
     "keyReserved": "The key cannot be used (a reserved document key)."
   }
 }

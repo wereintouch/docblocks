@@ -79,6 +79,8 @@
     "tags": "Теги",
     "cover": "Обложка",
     "status": "Статус",
+    "namePlaceholder": "Название",
+    "valuePlaceholder": "Значение",
     "publishedAt": "Дата публикации",
     "createdBy": "Создатель",
     "typeAria": "Тип атрибута",
@@ -87,7 +89,6 @@
     "typeBoolean": "Да/нет",
     "typeList": "Список",
     "typeMention": "Упоминание",
-    "mentionIdPlaceholder": "ID пользователя",
     "notSet": "Не задано",
     "editAria": "Изменить {name}",
     "removeAria": "Удалить {name}",
@@ -95,12 +96,8 @@
     "addTagAria": "Добавить тег",
     "uploadCoverAria": "Загрузить обложку",
     "removeCoverAria": "Удалить обложку",
-    "statusDraft": "Черновик",
-    "statusPublished": "Опубликовано",
-    "statusAria": "Статус",
     "addAttribute": "Добавить атрибут",
     "addConfirm": "Добавить",
-    "keyPlaceholder": "Ключ",
     "keyReserved": "Ключ использовать нельзя (зарезервированный ключ документа)."
   }
 }

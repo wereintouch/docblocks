@@ -1,7 +1,9 @@
 // The playground's attributes customization demo: the consumer's
-// `renderAttribute` (the status's badge stand + the createdBy's consumer
-// resolution over the mention catalog) and the `attributeTypePicker`
-// (the consumer's own type picker over the built-in select).
+// `renderAttribute` (the status's badge stand + the consumer's own switcher —
+// the built-in status stands display-only, so the consumer's zone is the
+// only editor — + the createdBy's consumer resolution over the mention
+// catalog) and the `attributeTypePicker` (the consumer's own type picker
+// over the built-in's sliding-pill's stand).
 import type { AttributeTypePickerProps, RenderAttributeProps } from "docblocks-react-ui";
 
 import type { AttributeType } from "docblocks-core";
@@ -82,8 +84,9 @@ function renderAttributeDemo({ key, value, onChange, onRemove, readOnly }: Rende
   return null;
 }
 
-/** The consumer's type picker (the built-in select's stand replaced):
- *  the compact segmented's buttons over the `ATTRIBUTE_TYPES`'s enum. */
+/** The consumer's type picker (the built-in's sliding-pill's stand
+ *  replaced): the compact segmented's buttons over the `ATTRIBUTE_TYPES`'
+ *  enum. */
 function attributeTypePickerDemo({ value, onChange }: AttributeTypePickerProps): React.ReactNode {
   const options: Array<{ value: AttributeType; label: string; title: string }> = [
     { value: "string", label: "S", title: "string" },

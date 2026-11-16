@@ -2,7 +2,8 @@
 // own document metadata — the markdown frontmatter's stand): the
 // collapsed-by-default stand (the session state — no doc write over the
 // toggle), the system rows (id / created / the live last updated), the
-// preset editors (description / the tags' chips / the status's select)
+// preset editors (description / the tags' chips; the status stands
+// display-only — the consumer's data) + the system rows (the locale's
 // committing one `setAttribute` each and syncing over the wire to the
 // second pane, the custom attributes (add / edit / remove), and the
 // view-mode's display-only stand. The panel stands over the page's shared
@@ -124,16 +125,32 @@ test("the tags' chips: the add over Enter, the chip's removal, the empty backspa
   }
 });
 
-test("the status's select commits the preset value and syncs (the empty option's removal)", async ({ browser }) => {
+test("the status's row stands display-only (the consumer's data over the wire — the panel's editors stand absent)", async ({
+  browser,
+}) => {
   const { a, b, close } = await twoPanes(browser, "doc-attributes-status");
   try {
+    // The consumer's write over the command (the package's status's editor
+    // stands absent — the consumer's own stand passes the value).
+    await a.evaluate(() => {
+      const d = window.__paneDocs?.a ?? null;
+      if (d === null) throw new Error("pane A's doc is not mounted");
+      d.setAttribute("status", "published");
+    });
     await openPanel(a, "a");
-    const select = panel(a, "a").locator('[data-slot="docblocks/attributes-status"]');
-    await select.selectOption("draft");
-    await expect.poll(() => attributesOf(a, "a").then((m) => m?.status), SETTLE).toBe("draft");
-    await expect.poll(() => attributesOf(b, "b").then((m) => m?.status), SETTLE).toBe("draft");
-    await select.selectOption("");
-    await expect.poll(() => attributesOf(a, "a").then((m) => m?.status), SETTLE).toBeUndefined();
+    // The display-only stand: no select, no remove button over the row.
+    await expect(panel(a, "a").locator('[data-slot="docblocks/attributes-status"]')).toHaveCount(0);
+    await expect(
+      panel(a, "a").locator(
+        '[data-slot="docblocks/attribute-row"][data-attribute-key="status"] [data-slot="docblocks/attribute-row-remove"]'
+      )
+    ).toHaveCount(0);
+    await expect.poll(() => attributesOf(a, "a").then((m) => m?.status), SETTLE).toBe("published");
+    await expect.poll(() => attributesOf(b, "b").then((m) => m?.status), SETTLE).toBe("published");
+    await openPanel(b, "b");
+    await expect(
+      panel(b, "b").locator('[data-slot="docblocks/attribute-row"][data-attribute-key="status"]')
+    ).toHaveText(/published/);
   } finally {
     await close();
   }
@@ -152,7 +169,7 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
       await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
       const popover = a.locator('[data-slot="docblocks/attributes-add-key"]');
       await popover.waitFor({ state: "visible" });
-      await a.locator(`[data-slot="docblocks/attributes-add-type-option"][data-type="${type}"]`).click();
+      await a.locator(`[data-slot="docblocks/attributes-add-type"] [data-type="${type}"]`).click();
       await popover.fill(name);
       await a.locator('[data-slot="docblocks/attributes-add-confirm"]').click();
       await expect(popover).toHaveCount(0);
@@ -166,11 +183,23 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
         type: "number",
         value: 0,
       });
+    // The number's value's edit over the row's zone (the typed form's
+    // write-back — the type stands kept over the new value).
+    await panel(a, "a").locator('[data-slot="docblocks/attribute-custom"][data-attribute-key="revision"]').click();
+    const revisionEdit = panel(a, "a").locator('[data-slot="docblocks/attribute-revision-edit"]');
+    await revisionEdit.fill("12");
+    await revisionEdit.press("Enter");
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.revision), SETTLE)
+      .toEqual({
+        type: "number",
+        value: 12,
+      });
     await expect
       .poll(() => attributesOf(b, "b").then((m) => m?.revision), SETTLE)
       .toEqual({
         type: "number",
-        value: 0,
+        value: 12,
       });
     // The default type (string) over the second custom key.
     await addAttribute("string", "note");
@@ -210,6 +239,25 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
     await expect(panel(a, "a").locator('[data-slot="docblocks/attribute-row"][data-attribute-key="u7"]')).toHaveText(
       /u7/
     );
+    // The mention's value's edit (the id's write-back over the row's zone
+    // — the same placeholder's stand as the other value's inputs).
+    await panel(a, "a").locator('[data-slot="docblocks/attribute-custom"][data-attribute-key="u7"]').click();
+    const mentionEdit = panel(a, "a").locator('[data-slot="docblocks/attribute-u7-edit"]');
+    expect(await mentionEdit.getAttribute("placeholder")).toBe("Value");
+    await mentionEdit.fill("u9");
+    await mentionEdit.press("Enter");
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.u7), SETTLE)
+      .toEqual({
+        type: "mention",
+        value: { id: "u9" },
+      });
+    await expect
+      .poll(() => attributesOf(b, "b").then((m) => m?.u7), SETTLE)
+      .toEqual({
+        type: "mention",
+        value: { id: "u9" },
+      });
     // The row's removal (the custom row's remove button).
     await panel(a, "a")
       .locator(

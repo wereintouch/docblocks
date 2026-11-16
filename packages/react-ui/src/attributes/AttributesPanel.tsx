@@ -39,6 +39,7 @@ import { Button } from "../shared/ui/Button";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
 import { Input } from "../shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
+import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { cn } from "../shared/ui/cn";
 import { ChevronDown, Image, Plus, Trash, X } from "../shared/ui/icons";
 import { PRESET_KEYS } from "./presets";
@@ -380,9 +381,6 @@ function AttributesPanel() {
     return node === null ? defaultZone : node;
   };
 
-  const statusValue = value("status");
-  const statusOptions = ["draft", "published"];
-  const statusCurrent = typeof statusValue === "string" ? statusValue : undefined;
   const tagsValue = value("tags");
   const tagsList = Array.isArray(tagsValue) ? tagsValue : [];
 
@@ -427,13 +425,15 @@ function AttributesPanel() {
     slot: string,
     label: string,
     initial: string,
-    commit: (next: string) => void
+    commit: (next: string) => void,
+    placeholder?: string
   ): React.ReactNode => (
     <InlineEditInput
       initial={initial}
       ariaLabel={label}
       slot={slot}
       className="h-8 text-sm"
+      placeholder={placeholder}
       onCommit={commit}
       onCancel={() => setEditingKey(null)}
     />
@@ -586,41 +586,12 @@ function AttributesPanel() {
           )}
 
           {hidden.has("status") ? null : (
-            <AttributeRow
-              key="status"
-              attributeKey="status"
-              label={t("attributes.status")}
-              removable={has("status") && !viewMode}
-              onRemove={() => remove("status")}
-              removeAria={t("attributes.removeAria", { name: t("attributes.status") })}
-            >
-              {valueZone(
-                "status",
-                viewMode ? (
-                  <DisplayValue value={value("status")} placeholder={t("attributes.notSet")} />
-                ) : (
-                  <select
-                    data-slot="docblocks/attributes-status"
-                    aria-label={t("attributes.statusAria")}
-                    className="
-                      h-8 w-full max-w-56 rounded-md border border-input bg-transparent px-1.5 text-sm outline-none
-                      focus-visible:border-ring
-                    "
-                    value={statusCurrent ?? ""}
-                    onChange={(event) => {
-                      if (event.target.value === "") remove("status");
-                      else set("status", event.target.value);
-                    }}
-                  >
-                    <option value="">{t("attributes.notSet")}</option>
-                    <option value="draft">{t("attributes.statusDraft")}</option>
-                    <option value="published">{t("attributes.statusPublished")}</option>
-                    {statusCurrent !== undefined && !statusOptions.includes(statusCurrent) ? (
-                      <option value={statusCurrent}>{statusCurrent}</option>
-                    ) : null}
-                  </select>
-                )
-              )}
+            // The status's stand is display-only: the consumer's own data
+            // (the consumer passes the published's state over its own
+            // write / `renderAttribute` — the panel's editor stands
+            // absent, over the edit mode too).
+            <AttributeRow key="status" attributeKey="status" label={t("attributes.status")} removable={false}>
+              {valueZone("status", <DisplayValue value={value("status")} placeholder={t("attributes.notSet")} />)}
             </AttributeRow>
           )}
 
@@ -666,11 +637,66 @@ function AttributesPanel() {
           {customKeys.map((key) => {
             const rawValue = attributes[key];
             const typed = typedValueOf(rawValue);
-            // The inline edit's stand (the string's stand — plain or the
-            // typed string): the current value's read + the same-form's
-            // write-back (the typed value keeps its type).
-            const typedString = typed !== null && typed.type === "string" ? typed : null;
-            const editable = !viewMode && (typeof rawValue === "string" || typedString !== null);
+            // The value's edit's stand: the string (plain or the typed
+            // stand), the number, the list, and the mention reference run
+            // the inline input (the typed form's write-back — the type
+            // stands kept; the invalid number's commit is the no-write's
+            // stand over the old value); the boolean runs the click's
+            // toggle (the value's flip — one write).
+            const isPlainString = typeof rawValue === "string";
+            const editable = !viewMode && (isPlainString || typed !== null);
+            const initialOf = (): string => {
+              if (typed === null) return isPlainString ? (rawValue as string) : String(rawValue ?? "");
+              switch (typed.type) {
+                case "string":
+                case "number":
+                case "boolean":
+                  return String(typed.value);
+                case "list":
+                  return typed.value.join(", ");
+                case "mention":
+                  return typed.value.id;
+              }
+            };
+            const commitValue = (next: string): void => {
+              const trimmed = next.trim();
+              if (trimmed === "") {
+                remove(key);
+                return;
+              }
+              if (typed === null) {
+                set(key, trimmed);
+                return;
+              }
+              switch (typed.type) {
+                case "string":
+                  set(key, { type: "string", value: trimmed });
+                  break;
+                case "number": {
+                  const n = Number(trimmed);
+                  if (!Number.isFinite(n)) return;
+                  set(key, { type: "number", value: n });
+                  break;
+                }
+                case "boolean":
+                  set(key, { type: "boolean", value: trimmed === "true" });
+                  break;
+                case "list":
+                  set(key, {
+                    type: "list",
+                    value: trimmed
+                      .split(",")
+                      .map((item) => item.trim())
+                      .filter((item) => item !== ""),
+                  });
+                  break;
+                case "mention":
+                  set(key, { type: "mention", value: { id: trimmed } });
+                  break;
+              }
+            };
+            const editKey = `custom:${key}`;
+            const isTyping = editingKey === editKey;
             return (
               <AttributeRow
                 key={key}
@@ -682,33 +708,34 @@ function AttributesPanel() {
               >
                 {valueZone(
                   key,
-                  editable ? (
-                    editingKey === `custom:${key}` ? (
-                      inlineEdit(
-                        `custom:${key}`,
-                        `docblocks/attribute-${key}-edit`,
-                        key,
-                        typedString !== null ? String(typedString.value) : String(rawValue ?? ""),
-                        (next) => {
-                          setEditingKey(null);
-                          if (next === "") remove(key);
-                          else if (typedString !== null) set(key, { type: "string", value: next });
-                          else set(key, next);
-                        }
-                      )
-                    ) : (
-                      <button
-                        type="button"
-                        data-slot="docblocks/attribute-custom"
-                        data-attribute-key={key}
-                        className="w-full truncate rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/50"
-                        onClick={() => setEditingKey(`custom:${key}`)}
-                      >
-                        <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
-                      </button>
+                  !editable ? (
+                    <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
+                  ) : isTyping ? (
+                    inlineEdit(
+                      editKey,
+                      `docblocks/attribute-${key}-edit`,
+                      key,
+                      initialOf(),
+                      (next) => {
+                        setEditingKey(null);
+                        commitValue(next);
+                      },
+                      t("attributes.valuePlaceholder")
                     )
                   ) : (
-                    <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
+                    <button
+                      type="button"
+                      data-slot="docblocks/attribute-custom"
+                      data-attribute-key={key}
+                      className="w-full rounded-md text-left hover:bg-muted/50"
+                      onClick={() =>
+                        typed !== null && typed.type === "boolean"
+                          ? set(key, { type: "boolean", value: !typed.value })
+                          : setEditingKey(editKey)
+                      }
+                    >
+                      <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
+                    </button>
                   )
                 )}
               </AttributeRow>
@@ -746,67 +773,55 @@ function AttributesPanel() {
                     {t("attributes.addAttribute")}
                   </button>
                 </PopoverTrigger>
-                <PopoverContent align="start" className="w-64">
+                <PopoverContent align="start" className="w-fit min-w-72">
                   {/* The type's picker (the consumer's `attributeTypePicker`'
-                      stand; the built-in's compact options otherwise). */}
+                      stand; the built-in's sliding-pill's stand otherwise —
+                      the document view's selector's parity). */}
                   {TypePicker !== null ? (
                     <TypePicker value={addType} onChange={setAddType} />
                   ) : (
-                    <div
-                      data-slot="docblocks/attributes-add-type"
-                      role="group"
-                      aria-label={t("attributes.typeAria")}
-                      className="flex flex-wrap gap-1"
-                    >
-                      {ATTRIBUTE_TYPES.map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          data-slot="docblocks/attributes-add-type-option"
-                          data-type={type}
-                          aria-pressed={addType === type}
-                          className={cn(
-                            "rounded-md border px-2 py-1 text-xs",
-                            addType === type
-                              ? "border-ring bg-accent text-accent-foreground"
-                              : "border-input bg-transparent text-muted-foreground hover:text-foreground"
-                          )}
-                          onClick={() => setAddType(type)}
-                        >
-                          {t(`attributes.type${type[0]!.toUpperCase()}${type.slice(1)}`)}
-                        </button>
-                      ))}
-                    </div>
+                    <SegmentSelector<AttributeType>
+                      options={ATTRIBUTE_TYPES.map((type) => ({
+                        value: type,
+                        label: t(`attributes.type${type[0]!.toUpperCase()}${type.slice(1)}`),
+                      }))}
+                      value={addType}
+                      onChange={setAddType}
+                      ariaLabel={t("attributes.typeAria")}
+                      slot="docblocks/attributes-add-type"
+                      pillSlot="docblocks/attributes-add-type-pill"
+                      buttonAttrName="type"
+                      size="text"
+                    />
                   )}
-                  <Input
-                    data-slot="docblocks/attributes-add-key"
-                    aria-label={t("attributes.keyPlaceholder")}
-                    className="text-sm"
-                    placeholder={
-                      addType === "mention" ? t("attributes.mentionIdPlaceholder") : t("attributes.keyPlaceholder")
-                    }
-                    value={addKey}
-                    onChange={(event) => setAddKey(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") commitAdd();
-                    }}
-                  />
-                  <div className="flex items-center justify-end gap-2">
-                    {addError !== null ? (
-                      <span data-slot="docblocks/attributes-add-error" className="text-xs text-destructive">
-                        {addError}
-                      </span>
-                    ) : null}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      data-slot="docblocks/attributes-add-key"
+                      aria-label={t("attributes.namePlaceholder")}
+                      className="h-8 min-w-0 flex-1 text-sm"
+                      placeholder={t("attributes.namePlaceholder")}
+                      value={addKey}
+                      onChange={(event) => setAddKey(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") commitAdd();
+                      }}
+                    />
                     <Button
                       type="button"
                       variant="secondary"
                       size="sm"
                       data-slot="docblocks/attributes-add-confirm"
+                      disabled={addKey.trim() === ""}
                       onClick={commitAdd}
                     >
                       {t("attributes.addConfirm")}
                     </Button>
                   </div>
+                  {addError !== null ? (
+                    <span data-slot="docblocks/attributes-add-error" className="text-xs text-destructive">
+                      {addError}
+                    </span>
+                  ) : null}
                 </PopoverContent>
               </Popover>
             </div>

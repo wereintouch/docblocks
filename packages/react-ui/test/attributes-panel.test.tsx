@@ -131,6 +131,11 @@ describe("the rows", () => {
     expect(row("createdBy")?.textContent).toContain("u1");
     // The createdBy's row stands display-only (no remove button's stand).
     expect(row("createdBy")?.querySelector('[data-slot="docblocks/attribute-row-remove"]')).toBeNull();
+    // The status's row stands display-only (the consumer's data — the
+    // panel's editor / the remove button stand absent over the edit mode).
+    expect(row("status")?.textContent).toContain("draft");
+    expect(row("status")?.querySelector('[data-slot="docblocks/attributes-status"]')).toBeNull();
+    expect(row("status")?.querySelector('[data-slot="docblocks/attribute-row-remove"]')).toBeNull();
     expect(row("custom")?.textContent).toContain("custom-value");
     void expanded;
     void doc;
@@ -241,7 +246,7 @@ describe("the edit commits", () => {
       ).not.toBeNull();
     };
     const typeOption = (type: string): HTMLElement =>
-      document.querySelector<HTMLElement>(`[data-slot="docblocks/attributes-add-type-option"][data-type="${type}"]`)!;
+      document.querySelector<HTMLElement>(`[data-slot="docblocks/attributes-add-type"] [data-type="${type}"]`)!;
     const keyInput = (): HTMLInputElement =>
       document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-key"]')!;
     const confirm = (): void => {
@@ -251,7 +256,18 @@ describe("the edit commits", () => {
     // The default type (string) over the name's commit: the typed wrapper's
     // initial form (the value's edit stands the row's own zone).
     openAdd();
+    // The name's placeholder (not the key's stand) + the confirm's
+    // disabled stand over the empty draft.
+    expect(keyInput().placeholder).toBe("Name");
+    expect(
+      (document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-confirm"]') as HTMLButtonElement)
+        .disabled
+    ).toBe(true);
     fireEvent.change(keyInput(), { target: { value: "note" } });
+    expect(
+      (document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-confirm"]') as HTMLButtonElement)
+        .disabled
+    ).toBe(false);
     confirm();
     expect(doc.meta.attributes?.note).toEqual({ type: "string", value: "" });
     // The popover's close, the row's addition, the button's tail stand.
@@ -300,6 +316,53 @@ describe("the edit commits", () => {
     expect(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-error"]')?.textContent).toContain(
       "reserved"
     );
+  });
+
+  it("the typed value's edit stands over the row's zone (the write-back's forms: the number / the list / the mention / the boolean's toggle; the invalid number's no-write)", () => {
+    const doc = renderEditor({
+      prepare: (d) => {
+        d.setAttribute("count", { type: "number", value: 3 });
+        d.setAttribute("items", { type: "list", value: ["alpha", "beta"] });
+        d.setAttribute("owner", { type: "mention", value: { id: "u7" } });
+        d.setAttribute("flag", { type: "boolean", value: false });
+      },
+    });
+    expand();
+    const customButton = (key: string): HTMLElement =>
+      document.querySelector<HTMLElement>(`[data-slot="docblocks/attribute-custom"][data-attribute-key="${key}"]`)!;
+    const editInput = (key: string): HTMLInputElement =>
+      document.querySelector<HTMLInputElement>(`[data-slot="docblocks/attribute-${key}-edit"]`)!;
+    const commitEdit = (key: string, value: string): void => {
+      fireEvent.click(customButton(key));
+      fireEvent.change(editInput(key), { target: { value } });
+      fireEvent.keyDown(editInput(key), { key: "Enter" });
+    };
+
+    // The number: the typed form's write-back (the value's stand over the
+    // type's keep).
+    commitEdit("count", "12");
+    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 12 });
+    // The invalid number's stand (no write — the old value's keep, the
+    // edit's close).
+    commitEdit("count", "not-a-number");
+    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 12 });
+    expect(editInput("count")).toBeNull();
+
+    // The list: the comma's parse (the trimmed items' stand).
+    commitEdit("items", "gamma, delta ");
+    expect(doc.meta.attributes?.items).toEqual({ type: "list", value: ["gamma", "delta"] });
+
+    // The mention: the id's write-back (the typed form's keep).
+    commitEdit("owner", "u9");
+    expect(doc.meta.attributes?.owner).toEqual({ type: "mention", value: { id: "u9" } });
+
+    // The boolean: the click's toggle (the value's flip — one write).
+    fireEvent.click(customButton("flag"));
+    expect(doc.meta.attributes?.flag).toEqual({ type: "boolean", value: true });
+
+    // The empty's stand (the value's removal over the custom row too).
+    commitEdit("count", "");
+    expect(doc.meta.attributes).not.toHaveProperty("count");
   });
 });
 
