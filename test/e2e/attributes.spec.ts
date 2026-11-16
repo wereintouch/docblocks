@@ -414,6 +414,28 @@ test("the custom key's rename over the key's click (the value's form's keep, the
       return { start: input.selectionStart, end: input.selectionEnd, len: input.value.length };
     });
     expect(sel).toEqual({ start: 0, end: 4, len: 4 });
+    // The frame's stand: the text stands the label column's edge (the
+    // display's parity over the key's button), the input's box (the
+    // border / the selection's frame) stands the edge's left (the
+    // frame's no-glue over the text's left).
+    const frame = await rename.evaluate((el) => {
+      const input = el as HTMLInputElement;
+      const r = input.getBoundingClientRect();
+      const labelCol = (el as HTMLElement)
+        .closest<HTMLElement>("[data-slot='docblocks/attribute-row']")
+        ?.children[0]?.getBoundingClientRect();
+      if (labelCol === undefined || labelCol === null) return null;
+      return {
+        textLeft: r.left + parseFloat(getComputedStyle(input).paddingLeft),
+        frameLeft: r.left,
+        colLeft: labelCol.left,
+      };
+    });
+    if (frame === null) throw new Error("the rename's frame has no column's box");
+    expect(Math.abs(frame.textLeft - frame.colLeft), "the rename's text should stand the column's edge").toBeLessThan(
+      0.5
+    );
+    expect(frame.colLeft - frame.frameLeft, "the frame should stand the text's edge's left").toBeGreaterThanOrEqual(2);
     // The invalid target's stand (the taken's key — the no-write's open
     // stand over the invalid's border).
     await rename.fill("count");

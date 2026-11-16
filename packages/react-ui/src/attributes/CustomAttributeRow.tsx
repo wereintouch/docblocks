@@ -111,13 +111,16 @@ function CustomAttributeRow({
         renaming ? (
           // The rename's input (the select-all's mount stand —
           // the key's replace; the invalid target's open stand
-          // over the error's border).
+          // over the error's border). The frame stands the text's
+          // edge's left (the `pl-1` + the `-ml-1`'s stand — the
+          // text's position's keep over the display's parity, the
+          // border's no-stand over the text's left).
           <InlineEditInput
             initial={keyName}
             ariaLabel={t("attributes.renameAria", { name: keyName })}
             slot={`docblocks/attribute-${keyName}-rename`}
             variant="inline"
-            className="px-0"
+            className="-ml-1 pl-1"
             invalid={renameInvalid}
             selectOnMount
             onCommit={onRenameCommit}

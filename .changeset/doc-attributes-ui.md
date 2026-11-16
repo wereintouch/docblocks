@@ -58,7 +58,10 @@ one-line sliding-pill type pick (the document view's selector's parity
   (the preset's keys' parity — the key's button's padding stand
   dropped), and the list's row's drag grip stands opposite the first
   line (the key's line — the row's center stand dropped over the
-  stack's rows). The `AttributesPanel` stands the composition over the unit's
+  stack's rows); the rename's input's frame stands the text's edge's
+  left (the text's position's keep over the display's parity — the
+  frame's no-glue over the text's left stand). The `AttributesPanel`
+  stands the composition over the unit's
   row files (the `CustomAttributeRow`'s custom row, the preset's
   editors, the add's popover, the value's pure reads). Markdown import and paste now read the YAML-frontmatter
   subset into the meta over the fresh documents (the title + the mapped

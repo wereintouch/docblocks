@@ -534,6 +534,10 @@ describe("the key's rename over the key's click", () => {
     // selection — the first keystroke replaces it).
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(input.value.length);
+    // The frame's stand (the text's edge's keep, the frame's left
+    // stand over the text — the no-glue's parity).
+    expect(input.className).toContain("-ml-1");
+    expect(input.className).toContain("pl-1");
     // The rename's commit over the Enter (the whole input's replace).
     act(() => {
       fireEvent.change(input, { target: { value: "remark" } });
