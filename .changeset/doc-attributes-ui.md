@@ -19,7 +19,10 @@ one-line sliding-pill type pick (the document view's selector's parity
   vocabulary; the mention's name stands the target's id; the custom
   value's edit over the row's zone — the string / number / list / mention
   inline inputs over the typed form's write-back (the invalid number's
-  no-write), the boolean's click's toggle), the custom rows' display order
+  no-write), the boolean over the project's checkbox (the checked's
+  toggle — one write over the value's form: the plain's plain stand, the
+  typed's typed stand; the read-only's disabled stand over the view /
+  published's modes), the custom rows' display order
   (the preset rows' fixed order; the custom rows over `attributesOrder` —
   last-added last, drag-reorderable over the grip with the block's
   grip's offset parity: the hover's reveal, the framer's live slide's

@@ -93,6 +93,7 @@
     "editAria": "Edit {name}",
     "removeAria": "Remove {name}",
     "reorderAria": "Reorder {name}",
+    "booleanToggleAria": "Toggle {name}",
     "addTagPlaceholder": "Add a tag",
     "addTagAria": "Add a tag",
     "uploadCoverAria": "Upload the cover",

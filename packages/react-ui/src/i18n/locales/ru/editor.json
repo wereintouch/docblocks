@@ -93,6 +93,7 @@
     "editAria": "Изменить {name}",
     "removeAria": "Удалить {name}",
     "reorderAria": "Переместить {name}",
+    "booleanToggleAria": "Переключить {name}",
     "addTagPlaceholder": "Добавить тег",
     "addTagAria": "Добавить тег",
     "uploadCoverAria": "Загрузить обложку",

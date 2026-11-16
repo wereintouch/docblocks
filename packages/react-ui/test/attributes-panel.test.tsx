@@ -357,9 +357,29 @@ describe("the edit commits", () => {
     commitEdit("owner", "u9");
     expect(doc.meta.attributes?.owner).toEqual({ type: "mention", value: { id: "u9" } });
 
-    // The boolean: the click's toggle (the value's flip — one write).
-    fireEvent.click(customButton("flag"));
+    // The boolean: the project's checkbox's toggle (the value's flip —
+    // one write, the typed form's keep).
+    const flagCheckbox = () =>
+      document.querySelector<HTMLElement>(
+        '[data-slot="docblocks/attribute-custom-boolean"][data-attribute-key="flag"]'
+      )!;
+    expect(flagCheckbox().getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(flagCheckbox());
     expect(doc.meta.attributes?.flag).toEqual({ type: "boolean", value: true });
+    expect(flagCheckbox().getAttribute("aria-checked")).toBe("true");
+
+    // The plain boolean's stand (the untyped form's parity — the checkbox
+    // over it too, the plain write-back's keep).
+    act(() => {
+      doc.setAttribute("plain", true);
+    });
+    const plainCheckbox = () =>
+      document.querySelector<HTMLElement>(
+        '[data-slot="docblocks/attribute-custom-boolean"][data-attribute-key="plain"]'
+      )!;
+    expect(plainCheckbox().getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(plainCheckbox());
+    expect(doc.meta.attributes?.plain).toBe(false);
 
     // The empty's stand (the value's removal over the custom row too).
     commitEdit("count", "");
@@ -474,6 +494,7 @@ describe("the consumer's props", () => {
         d.setAttribute("description", "d");
         d.setAttribute("tags", ["a"]);
         d.setAttribute("custom", "v");
+        d.setAttribute("flag", { type: "boolean", value: true });
       },
     });
     const expanded = expand();
@@ -484,6 +505,14 @@ describe("the consumer's props", () => {
     expect(document.querySelector('[data-slot="docblocks/attribute-row-remove"]')).toBeNull();
     expect(row("description")?.textContent).toContain("d");
     expect(row("custom")?.textContent).toContain("v");
+    // The boolean's checkbox stands the read-only's disabled stand (the
+    // value's display over the checked, the toggle's off).
+    const flagCheckbox = document.querySelector<HTMLElement>(
+      '[data-slot="docblocks/attribute-custom-boolean"][data-attribute-key="flag"]'
+    );
+    expect(flagCheckbox).not.toBeNull();
+    expect(flagCheckbox!.hasAttribute("disabled")).toBe(true);
+    expect(flagCheckbox!.getAttribute("aria-checked")).toBe("true");
     void expanded;
     void doc;
   });

@@ -39,6 +39,7 @@ import { useBlobFile } from "../blocks/use-blob-file";
 import { useEditorContext } from "../editor-provider";
 import { TRANSITION } from "../motion/constants";
 import { Button } from "../shared/ui/Button";
+import { Checkbox } from "../shared/ui/Checkbox";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
 import { Input } from "../shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
@@ -803,25 +804,32 @@ function AttributesPanel() {
             const renderCustomRow = (key: string): React.ReactNode => {
               const rawValue = attributes[key];
               const typed = typedValueOf(rawValue);
-              // The value's edit's stand: the string (plain or the typed
-              // stand), the number, the list, and the mention reference run
-              // the inline input (the typed form's write-back — the type
-              // stands kept; the invalid number's commit is the no-write's
-              // stand over the old value); the boolean runs the click's
-              // toggle (the value's flip — one write).
+              // The value's stand: the boolean (plain or the typed stand)
+              // runs the project's checkbox (the checked's toggle — one
+              // write over the same form: the plain's plain stand, the
+              // typed's typed stand; the read-only's disabled stand over
+              // the view / published's modes); the string (plain or the
+              // typed stand), the number, the list, and the mention
+              // reference run the inline input (the typed form's
+              // write-back — the type stands kept; the invalid number's
+              // commit is the no-write's stand over the old value).
               const isPlainString = typeof rawValue === "string";
+              const isBoolean = typeof rawValue === "boolean" || (typed !== null && typed.type === "boolean");
               const editable = !viewMode && (isPlainString || typed !== null);
               const initialOf = (): string => {
                 if (typed === null) return isPlainString ? (rawValue as string) : String(rawValue ?? "");
                 switch (typed.type) {
                   case "string":
                   case "number":
-                  case "boolean":
                     return String(typed.value);
                   case "list":
                     return typed.value.join(", ");
                   case "mention":
                     return typed.value.id;
+                  case "boolean":
+                    // The boolean's stand is the checkbox's path (no text
+                    // input over the row's zone).
+                    return String(typed.value);
                 }
               };
               const commitValue = (next: string): void => {
@@ -844,9 +852,6 @@ function AttributesPanel() {
                     set(key, { type: "number", value: n });
                     break;
                   }
-                  case "boolean":
-                    set(key, { type: "boolean", value: trimmed === "true" });
-                    break;
                   case "list":
                     set(key, {
                       type: "list",
@@ -863,6 +868,15 @@ function AttributesPanel() {
               };
               const editKey = `custom:${key}`;
               const isTyping = editingKey === editKey;
+              // The boolean's checked's stand (the plain's plain value, the
+              // typed's typed value — the branch stands the `isBoolean`'s
+              // guard over the type's read).
+              const booleanChecked =
+                typeof rawValue === "boolean"
+                  ? rawValue
+                  : typed !== null && typed.type === "boolean"
+                    ? typed.value
+                    : false;
               return (
                 <AttributeRow
                   key={key}
@@ -874,7 +888,26 @@ function AttributesPanel() {
                 >
                   {valueZone(
                     key,
-                    !editable ? (
+                    isBoolean ? (
+                      // The project's checkbox's stand (the read-only's
+                      // disabled stand over the view / published's modes):
+                      // the toggle commits over the value's form (the
+                      // plain's plain stand, the typed's typed stand).
+                      <span className="flex items-center px-1.5 py-1">
+                        <Checkbox
+                          data-slot="docblocks/attribute-custom-boolean"
+                          data-attribute-key={key}
+                          aria-label={t("attributes.booleanToggleAria", { name: key })}
+                          checked={booleanChecked}
+                          disabled={viewMode}
+                          onCheckedChange={(next) => {
+                            if (typeof next !== "boolean") return;
+                            if (typeof rawValue === "boolean") set(key, next);
+                            else set(key, { type: "boolean", value: next });
+                          }}
+                        />
+                      </span>
+                    ) : !editable ? (
                       <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
                     ) : isTyping ? (
                       inlineEdit(
@@ -894,11 +927,7 @@ function AttributesPanel() {
                         data-slot="docblocks/attribute-custom"
                         data-attribute-key={key}
                         className="w-full rounded-md text-left hover:bg-muted/50"
-                        onClick={() =>
-                          typed !== null && typed.type === "boolean"
-                            ? set(key, { type: "boolean", value: !typed.value })
-                            : setEditingKey(editKey)
-                        }
+                        onClick={() => setEditingKey(editKey)}
                       >
                         <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
                       </button>

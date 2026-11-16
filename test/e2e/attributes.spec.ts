@@ -258,6 +258,26 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
         type: "mention",
         value: { id: "u9" },
       });
+    // The boolean's checkbox's stand (the project's checkbox over the
+    // value's zone — the toggle's flip over the typed form's keep, the
+    // wire over both panes).
+    await addAttribute("boolean", "flag");
+    const flagCheckbox = panel(a, "a").locator(
+      '[data-slot="docblocks/attribute-custom-boolean"][data-attribute-key="flag"]'
+    );
+    await expect(flagCheckbox).toHaveAttribute("aria-checked", "false");
+    await flagCheckbox.click();
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.flag), SETTLE)
+      .toEqual({ type: "boolean", value: true });
+    await expect
+      .poll(() => attributesOf(b, "b").then((m) => m?.flag), SETTLE)
+      .toEqual({ type: "boolean", value: true });
+    // Pane B's display over the sync (the checked's stand).
+    await openPanel(b, "b");
+    await expect(
+      panel(b, "b").locator('[data-slot="docblocks/attribute-custom-boolean"][data-attribute-key="flag"]')
+    ).toHaveAttribute("aria-checked", "true");
     // The row's removal (the custom row's remove button).
     await panel(a, "a")
       .locator(
@@ -266,6 +286,43 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
       .click();
     await expect.poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE).toBeUndefined();
     await expect.poll(() => attributesOf(b, "b").then((m) => m?.note), SETTLE).toBeUndefined();
+  } finally {
+    await close();
+  }
+});
+
+test("the type picker's pill stands over the popover's reopen (the entry animation's no-stand — the measurement's scale compensation)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "doc-attributes-type-pill");
+  try {
+    await openPanel(a, "a");
+    // The popover's open (the default type — the string's stand).
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+    const nameInput = a.locator('[data-slot="docblocks/attributes-add-key"]');
+    await nameInput.waitFor({ state: "visible" });
+    // The last type's pick (the mention's stand — the pill's travel over
+    // the picker's width) + the close (the type's keep over the draft's
+    // reset).
+    await a.locator('[data-slot="docblocks/attributes-add-type"] [data-type="mention"]').click();
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+    await expect(nameInput).toHaveCount(0);
+    // The reopen: the pill's stand over the mention (the entry's zoom's
+    // no-stand — the measurement over the scale's factor stands the
+    // untransformed geometry over the animation's frames).
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+    await nameInput.waitFor({ state: "visible" });
+    // The entry's animation's stand (the 100ms's zoom + the frame's settle).
+    await a.waitForTimeout(250);
+    const pillBox = await a.locator('[data-slot="docblocks/attributes-add-type-pill"]').boundingBox();
+    const buttonBox = await a
+      .locator('[data-slot="docblocks/attributes-add-type"] [data-type="mention"]')
+      .boundingBox();
+    if (pillBox === null || buttonBox === null) throw new Error("the pill or the button has no box");
+    // The pill's stand over the mention's button (the left's + the width's
+    // parity — the offset's < 1px's stand over the animation's frame).
+    expect(Math.abs(pillBox.x - buttonBox.x)).toBeLessThan(1);
+    expect(Math.abs(pillBox.width - buttonBox.width)).toBeLessThan(1);
   } finally {
     await close();
   }
