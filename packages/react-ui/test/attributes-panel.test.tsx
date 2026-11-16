@@ -158,8 +158,12 @@ describe("the rows", () => {
     expect(row("createdBy")?.textContent).not.toContain("Alice");
     // The typed's mention stands its id over the display.
     expect(row("owner")?.textContent).toContain("u9");
-    // The typed's list stands the joined display.
-    expect(row("team")?.textContent).toContain("x, y");
+    // The typed's list stands the vertical's line editor (the lines' inputs
+    // over the edit mode — the comma's joined display's stand dropped).
+    const teamLines = Array.from(
+      row("team")?.querySelectorAll<HTMLInputElement>('[data-slot="docblocks/attribute-team-list-line"]') ?? []
+    ).map((el) => el.value);
+    expect(teamLines).toEqual(["x", "y"]);
   });
 });
 
@@ -349,9 +353,35 @@ describe("the edit commits", () => {
     expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 12 });
     expect(editInput("count")).toBeNull();
 
-    // The list: the comma's parse (the trimmed items' stand).
-    commitEdit("items", "gamma, delta ");
-    expect(doc.meta.attributes?.items).toEqual({ type: "list", value: ["gamma", "delta"] });
+    // The list: the vertical's line editor (the lines' inputs + the new
+    // line's input over the stack's tail — the typed form's keep).
+    const listSlot = '[data-slot="docblocks/attribute-items-list"]';
+    const listLines = (): HTMLInputElement[] =>
+      Array.from(
+        document.querySelectorAll<HTMLInputElement>(`${listSlot} [data-slot="docblocks/attribute-items-list-line"]`)
+      );
+    expect(listLines().map((el) => el.value)).toEqual(["alpha", "beta"]);
+    // The new line's add (the Enter's commit over the tail's input).
+    const listAdd = document.querySelector<HTMLInputElement>(
+      `${listSlot} [data-slot="docblocks/attribute-items-list-input"]`
+    )!;
+    fireEvent.change(listAdd, { target: { value: "gamma" } });
+    fireEvent.keyDown(listAdd, { key: "Enter" });
+    expect(doc.meta.attributes?.items).toEqual({ type: "list", value: ["alpha", "beta", "gamma"] });
+    expect(listLines().map((el) => el.value)).toEqual(["alpha", "beta", "gamma"]);
+    // The line's removal (the × over the line's right — the whole list's
+    // commit).
+    const firstRemove = document.querySelector<HTMLElement>(
+      `${listSlot} [data-slot="docblocks/attribute-items-list-line-remove"]`
+    )!;
+    fireEvent.click(firstRemove);
+    expect(doc.meta.attributes?.items).toEqual({ type: "list", value: ["beta", "gamma"] });
+    // The line's edit's commit (the Enter over the line's input — the
+    // typed form's keep).
+    const betaLine = listLines()[0]!;
+    fireEvent.change(betaLine, { target: { value: "beta2" } });
+    fireEvent.keyDown(betaLine, { key: "Enter" });
+    expect(doc.meta.attributes?.items).toEqual({ type: "list", value: ["beta2", "gamma"] });
 
     // The mention: the id's write-back (the typed form's keep).
     commitEdit("owner", "u9");
@@ -494,6 +524,7 @@ describe("the consumer's props", () => {
         d.setAttribute("description", "d");
         d.setAttribute("tags", ["a"]);
         d.setAttribute("custom", "v");
+        d.setAttribute("lines", { type: "list", value: ["one", "two"] });
         d.setAttribute("flag", { type: "boolean", value: true });
       },
     });
@@ -505,6 +536,13 @@ describe("the consumer's props", () => {
     expect(document.querySelector('[data-slot="docblocks/attribute-row-remove"]')).toBeNull();
     expect(row("description")?.textContent).toContain("d");
     expect(row("custom")?.textContent).toContain("v");
+    // The list's read-only stand: the stacked lines' display (no inputs,
+    // no the line's removal's buttons).
+    const listDisplay = document.querySelector('[data-slot="docblocks/attribute-lines-list"]');
+    expect(listDisplay).not.toBeNull();
+    expect(listDisplay?.querySelectorAll('[data-slot="docblocks/attribute-lines-list-item"]').length ?? 0).toBe(2);
+    expect(listDisplay?.querySelector("input")).toBeNull();
+    expect(listDisplay?.querySelector('[data-slot="docblocks/attribute-lines-list-line-remove"]')).toBeNull();
     // The boolean's checkbox stands the read-only's disabled stand (the
     // value's display over the checked, the toggle's off).
     const flagCheckbox = document.querySelector<HTMLElement>(

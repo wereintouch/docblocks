@@ -17,16 +17,22 @@ one-line sliding-pill type pick (the document view's selector's parity
   placeholder) + the commit's button over the input's right (the disabled
   over the empty name); the `ATTRIBUTE_TYPES` enum over the type's
   vocabulary; the mention's name stands the target's id; the custom
-  value's edit over the row's zone — the string / number / list / mention
-  inline inputs over the typed form's write-back (the invalid number's
-  no-write), the boolean over the project's checkbox (the checked's
+  value's edit over the row's zone — the string / number / mention inline
+  inputs over the typed form's write-back (the invalid number's no-write),
+  the list over the vertical's line editor (each item over its own line —
+  the line's input + the ×'s removal + the "Add a line"'s input over the
+  stack's tail; every discrete change commits the whole list over the
+  value's form: plain `string[]` → plain, typed → typed; the read-only's
+  stacked display), the boolean over the project's checkbox (the checked's
   toggle — one write over the value's form: the plain's plain stand, the
   typed's typed stand; the read-only's disabled stand over the view /
   published's modes); the row's value zone centers its content vertically
   (the page's inherited line-height no longer stands the value's text
   above the label's center — the value's "jump" stand dropped) and the
-  tags' add input stands the value column's font size (the placeholder's
-  `text-xs` stand over the `text-sm`'s column's parity), the custom rows' display order
+  single value's rows stand the uniform height (the row's `min-h` — the
+  checkbox's row's shorter stand dropped), the tags' add input stands the
+  value column's font size (the placeholder's `text-xs` stand over the
+  `text-sm`'s column's parity), the custom rows' display order
   (the preset rows' fixed order; the custom rows over `attributesOrder` —
   last-added last, drag-reorderable over the grip with the block's
   grip's offset parity: the hover's reveal, the framer's live slide's

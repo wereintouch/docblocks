@@ -282,21 +282,57 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
     await expect(
       panel(b, "b").locator('[data-slot="docblocks/attribute-custom-boolean"][data-attribute-key="flag"]')
     ).toHaveAttribute("aria-checked", "true");
+    // The list's line editor (the vertical's stack — the add's flow's
+    // initial form over the type: the empty's stand + the new line's input
+    // over the stack's tail).
+    await addAttribute("list", "todo");
+    const listSlot = panel(a, "a").locator('[data-slot="docblocks/attribute-todo-list"]');
+    const todoAdd = listSlot.locator('[data-slot="docblocks/attribute-todo-list-input"]');
+    await expect(todoAdd).toBeVisible();
+    // The first line's add (the Enter's commit).
+    await todoAdd.fill("first");
+    await todoAdd.press("Enter");
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.todo), SETTLE)
+      .toEqual({ type: "list", value: ["first"] });
+    // The second line's add (the tail's input's stand — the "the second's
+    // line"'s path).
+    await todoAdd.fill("second");
+    await todoAdd.press("Enter");
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.todo), SETTLE)
+      .toEqual({ type: "list", value: ["first", "second"] });
+    await expect
+      .poll(() => attributesOf(b, "b").then((m) => m?.todo), SETTLE)
+      .toEqual({ type: "list", value: ["first", "second"] });
+    // The line's removal (the × over the line's right — the whole list's
+    // commit over the wire).
+    await listSlot.locator('[data-slot="docblocks/attribute-todo-list-line-remove"]').first().click();
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.todo), SETTLE)
+      .toEqual({ type: "list", value: ["second"] });
     // The value's vertical stand (the label's midline's parity over the
-    // value's midline — the page's line-height's no-stand; every custom
-    // type's row: the number's "jump" over the row's stand).
+    // value's midline — the page's line-height's no-stand) + the row's
+    // height's uniform stand over the single value's types (the row's
+    // `min-h`'s stand — the checkbox's row's shorter stand dropped).
+    const heights: number[] = [];
     for (const key of ["revision", "note", "u7", "flag"]) {
-      const mid = await body(a, "a")
+      const measured = await body(a, "a")
         .locator(`[data-slot="docblocks/attribute-row"][data-attribute-key="${key}"]`)
         .evaluate((row) => {
           const label = row.children[0]?.getBoundingClientRect();
           const value = row.children[1]?.firstElementChild?.getBoundingClientRect();
           if (label === undefined || label === null || value === undefined || value === null) return null;
-          return Math.abs(label.top + label.height / 2 - (value.top + value.height / 2));
+          return {
+            off: Math.abs(label.top + label.height / 2 - (value.top + value.height / 2)),
+            h: row.getBoundingClientRect().height,
+          };
         });
-      expect(mid, `the row "${key}" should stand its label and the value's zone`).not.toBeNull();
-      expect(mid, `the row "${key}"'s value should stand the label's midline`).toBeLessThan(1);
+      expect(measured, `the row "${key}" should stand its label and the value's zone`).not.toBeNull();
+      expect(measured!.off, `the row "${key}"'s value should stand the label's midline`).toBeLessThan(1);
+      heights.push(measured!.h);
     }
+    expect(Math.max(...heights) - Math.min(...heights)).toBeLessThan(1);
     // The row's removal (the custom row's remove button).
     await panel(a, "a")
       .locator(

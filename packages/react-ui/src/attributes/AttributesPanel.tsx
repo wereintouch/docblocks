@@ -151,7 +151,7 @@ function AttributeRow({
     <div
       data-slot="docblocks/attribute-row"
       data-attribute-key={attributeKey}
-      className="flex items-center gap-3 py-1.5"
+      className="flex min-h-11 items-center gap-3 py-1.5"
     >
       <span className="w-28 shrink-0 truncate text-sm text-muted-foreground">{label}</span>
       {/* The zone's flex's stand (the content's vertical center): the zone
@@ -329,6 +329,145 @@ function TagsEditor({
           }}
         />
       )}
+    </div>
+  );
+}
+
+/** The list editor (the default stand): the vertical's stack of the item's
+ *  lines — every line's own input + the line's removal (the × over the
+ *  line's right) + the new line's input over the stack's tail (the Enter's
+ *  add, the empty's Backspace's last line's removal — the tags' input's
+ *  parity). The lines' local stand over the external's resync (the store's
+ *  re-read); every discrete change commits the whole list (one
+ *  `setAttribute` — the typing's no-commit until the blur / the Enter). */
+function ListEditor({
+  items,
+  name,
+  readOnly,
+  slot,
+  onItemsChange,
+}: {
+  items: readonly string[];
+  /** The attribute's key (the aria's name's stand). */
+  name: string;
+  readOnly: boolean;
+  /** The group's data-slot. */
+  slot: string;
+  onItemsChange: (items: string[]) => void;
+}) {
+  const { t } = useTranslation("editor");
+  const signature = items.join("\u0000");
+  const [lines, setLines] = useState<string[]>(() => [...items]);
+  const [lastSync, setLastSync] = useState(signature);
+  // The external's change (a remote's edit, the consumer's write) resyncs
+  // the lines' stand (the reference's equality over the signature).
+  if (signature !== lastSync) {
+    setLines([...items]);
+    setLastSync(signature);
+  }
+  const [draft, setDraft] = useState("");
+  const addInputRef = useRef<HTMLInputElement | null>(null);
+
+  const commit = (next: string[]): void => {
+    if (next.length === items.length && next.every((item, index) => item === items[index])) return;
+    onItemsChange(next);
+  };
+  const changeLine = (index: number, value: string): void => {
+    const next = [...lines];
+    next[index] = value;
+    setLines(next);
+  };
+  const removeLine = (index: number): void => {
+    const next = lines.filter((_, i) => i !== index);
+    setLines(next);
+    commit(next);
+  };
+  const addLine = (): void => {
+    const item = draft.trim();
+    if (item === "") return;
+    const next = [...lines, item];
+    setLines(next);
+    setDraft("");
+    commit(next);
+  };
+
+  if (readOnly) {
+    return (
+      <div data-slot={slot} className="flex min-w-0 flex-col items-start">
+        {items.length === 0 ? (
+          <span className="px-1.5 py-1 text-sm text-muted-foreground">{t("attributes.notSet")}</span>
+        ) : (
+          items.map((item, index) => (
+            <span key={index} data-slot={`${slot}-item`} className="truncate px-1.5 text-sm">
+              {item}
+            </span>
+          ))
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div data-slot={slot} className="flex min-w-0 flex-1 flex-col gap-0.5">
+      {lines.map((item, index) => (
+        <div key={index} className="flex items-center gap-1">
+          <input
+            data-slot={`${slot}-line`}
+            aria-label={t("attributes.listLineAria", { name, index: String(index + 1) })}
+            className="
+              h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm outline-none
+              focus-visible:border-ring
+            "
+            value={item}
+            onChange={(event) => changeLine(index, event.target.value)}
+            onBlur={() => commit(lines)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                event.preventDefault();
+                commit(lines);
+                // The line's commit stands the new line's input's focus (the
+                // add's path's parity over the tags' input).
+                addInputRef.current?.focus();
+              }
+            }}
+          />
+          <button
+            type="button"
+            data-slot={`${slot}-line-remove`}
+            aria-label={t("attributes.listLineRemoveAria", { index: String(index + 1) })}
+            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+            onClick={() => removeLine(index)}
+          >
+            <X className="size-3.5" />
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center gap-1">
+        <input
+          ref={addInputRef}
+          data-slot={`${slot}-input`}
+          aria-label={t("attributes.listAddAria", { name })}
+          className="
+            h-8 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm outline-none
+            placeholder:text-muted-foreground/70
+            focus-visible:border-ring
+          "
+          placeholder={t("attributes.listAddPlaceholder")}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              addLine();
+            } else if (event.key === "Backspace" && draft === "" && lines.length > 0) {
+              removeLine(lines.length - 1);
+            }
+          }}
+          onBlur={() => {
+            if (draft.trim() !== "") addLine();
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -809,16 +948,27 @@ function AttributesPanel() {
             const renderCustomRow = (key: string): React.ReactNode => {
               const rawValue = attributes[key];
               const typed = typedValueOf(rawValue);
-              // The value's stand: the boolean (plain or the typed stand)
-              // runs the project's checkbox (the checked's toggle — one
-              // write over the same form: the plain's plain stand, the
-              // typed's typed stand; the read-only's disabled stand over
-              // the view / published's modes); the string (plain or the
-              // typed stand), the number, the list, and the mention
-              // reference run the inline input (the typed form's
-              // write-back — the type stands kept; the invalid number's
-              // commit is the no-write's stand over the old value).
+              // The value's stand: the list (plain or the typed stand)
+              // runs the vertical's line editor (the line's inputs + the
+              // ×'s removal + the new line's input over the stack's tail —
+              // the whole list's commit over the value's form: the plain's
+              // plain stand, the typed's typed stand; the read-only's
+              // display's stand over the stacked lines); the boolean (plain
+              // or the typed stand) runs the project's checkbox (the
+              // checked's toggle — one write over the same form; the
+              // read-only's disabled stand over the view / published's
+              // modes); the string (plain or the typed stand), the number,
+              // and the mention reference run the inline input (the typed
+              // form's write-back — the type stands kept; the invalid
+              // number's commit is the no-write's stand over the old
+              // value).
               const isPlainString = typeof rawValue === "string";
+              const isList = Array.isArray(rawValue) || (typed !== null && typed.type === "list");
+              const listItems: string[] = Array.isArray(rawValue)
+                ? rawValue
+                : typed !== null && typed.type === "list"
+                  ? typed.value
+                  : [];
               const isBoolean = typeof rawValue === "boolean" || (typed !== null && typed.type === "boolean");
               const editable = !viewMode && (isPlainString || typed !== null);
               const initialOf = (): string => {
@@ -828,6 +978,8 @@ function AttributesPanel() {
                   case "number":
                     return String(typed.value);
                   case "list":
+                    // The list's stand is the line editor's path (the
+                    // comma's input's stand dropped).
                     return typed.value.join(", ");
                   case "mention":
                     return typed.value.id;
@@ -858,6 +1010,8 @@ function AttributesPanel() {
                     break;
                   }
                   case "list":
+                    // The list's stand is the line editor's path (the
+                    // comma's input's stand dropped).
                     set(key, {
                       type: "list",
                       value: trimmed
@@ -893,7 +1047,22 @@ function AttributesPanel() {
                 >
                   {valueZone(
                     key,
-                    isBoolean ? (
+                    isList ? (
+                      // The vertical's line editor's stand (the read-only's
+                      // display over the stacked lines): the commit keeps
+                      // the value's form (the plain's plain stand, the
+                      // typed's typed stand).
+                      <ListEditor
+                        items={listItems}
+                        name={key}
+                        readOnly={viewMode}
+                        slot={`docblocks/attribute-${key}-list`}
+                        onItemsChange={(next) => {
+                          if (Array.isArray(rawValue)) set(key, next);
+                          else set(key, { type: "list", value: next });
+                        }}
+                      />
+                    ) : isBoolean ? (
                       // The project's checkbox's stand (the read-only's
                       // disabled stand over the view / published's modes):
                       // the toggle commits over the value's form (the
