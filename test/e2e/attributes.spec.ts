@@ -324,6 +324,35 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
         return Math.abs(label.top + label.height / 2 - (firstLine.top + firstLine.height / 2));
       });
     expect(listLabelMid, "the list row's label should stand opposite the first line").toBeLessThan(1);
+    // The grip's top align's stand over the list's row: the grip's
+    // midline stands the key's (first line's) midline — the row's
+    // center stand dropped over the stack's rows.
+    const listGripMid = await body(a, "a")
+      .locator('[data-slot="docblocks/attribute-row-grip"][data-attribute-key="todo"]')
+      .evaluate((grip) => {
+        const g = grip.getBoundingClientRect();
+        const label = grip
+          .closest<HTMLElement>("[data-slot='docblocks/attribute-custom-row']")
+          ?.querySelector<HTMLElement>("[data-slot='docblocks/attribute-row']")
+          ?.children[0]?.getBoundingClientRect();
+        if (label === undefined || label === null) return null;
+        return Math.abs(g.top + g.height / 2 - (label.top + label.height / 2));
+      });
+    expect(listGripMid, "the list row's grip should stand opposite the key").toBeLessThan(1);
+    // The custom key's left edge stands the label column's edge (the
+    // preset's keys' parity — the key's button's no-padding stand).
+    const keyLeftParity = await body(a, "a")
+      .locator('[data-slot="docblocks/attribute-key"][data-attribute-key="todo"]')
+      .evaluate((btn) => {
+        const b = btn.getBoundingClientRect();
+        const label = btn
+          .closest<HTMLElement>("[data-slot='docblocks/attributes']")
+          ?.querySelector<HTMLElement>("[data-slot='docblocks/attribute-row'][data-attribute-key='tags']")
+          ?.children[0]?.getBoundingClientRect();
+        if (label === undefined || label === null) return null;
+        return Math.abs(b.left - label.left);
+      });
+    expect(keyLeftParity, "the custom key should stand the label column's left edge").toBeLessThan(0.5);
     // The value's vertical stand (the label's midline's parity over the
     // value's midline — the page's line-height's no-stand) + the row's
     // height's uniform stand over the single value's types (the row's

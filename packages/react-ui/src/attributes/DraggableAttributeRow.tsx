@@ -14,17 +14,23 @@ import { useTranslation } from "react-i18next";
 import type { ReactNode, PointerEvent as ReactPointerEvent } from "react";
 
 import { TRANSITION } from "../motion/constants";
+import { cn } from "../shared/ui/cn";
 import { GripVertical } from "../shared/ui/icons";
 
 function DraggableAttributeRow({
   attributeKey,
   onDragStart,
   onDragEnd,
+  topAlign,
   children,
 }: {
   attributeKey: string;
   onDragStart: () => void;
   onDragEnd: () => void;
+  /** The grip stands opposite the row's first line (the key's line) over
+   *  the multi-line value's rows (the list's stack) — the row's center
+   *  stand dropped. */
+  topAlign?: boolean;
   children: ReactNode;
 }) {
   const { t } = useTranslation("editor");
@@ -57,12 +63,19 @@ function DraggableAttributeRow({
         role="button"
         aria-label={t("attributes.reorderAria", { name: attributeKey })}
         onPointerDown={onGripPointerDown}
-        className="
-          absolute top-1/2 left-(--docblocks-gutter-left) flex size-5 -translate-y-1/2 cursor-grab touch-none
-          items-center justify-center rounded-full text-(--docblocks-gutter-color) opacity-0
-          group-hover:opacity-100
-          active:cursor-grabbing
-        "
+        className={cn(
+          `
+            absolute left-(--docblocks-gutter-left) flex size-5 cursor-grab touch-none items-center justify-center
+            rounded-full text-(--docblocks-gutter-color) opacity-0
+            group-hover:opacity-100
+            active:cursor-grabbing
+          `,
+          // The top align's stand (the first line's midline — the row's
+          // `py-1.5` + the line's `mt-1.5`'s parity): the `top-3` over
+          // the first line's center, the row's center stand over the
+          // single value's rows.
+          topAlign ? "top-3" : "top-1/2 -translate-y-1/2"
+        )}
       >
         <GripVertical className="size-4" />
       </span>

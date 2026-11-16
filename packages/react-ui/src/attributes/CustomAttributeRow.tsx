@@ -117,6 +117,7 @@ function CustomAttributeRow({
             ariaLabel={t("attributes.renameAria", { name: keyName })}
             slot={`docblocks/attribute-${keyName}-rename`}
             variant="inline"
+            className="px-0"
             invalid={renameInvalid}
             selectOnMount
             onCommit={onRenameCommit}
@@ -127,13 +128,15 @@ function CustomAttributeRow({
         ) : (
           // The key's rename entry (the click's stand over the
           // custom rows only — the preset / the system rows
-          // keys are the fixed vocabulary's stand).
+          // keys are the fixed vocabulary's stand). The key's
+          // text stands the label column's left edge (no
+          // padding's offset over the preset's keys' parity).
           <button
             type="button"
             data-slot="docblocks/attribute-key"
             data-attribute-key={keyName}
             aria-label={t("attributes.renameAria", { name: keyName })}
-            className="w-full truncate rounded-md px-1 text-left hover:bg-muted/50"
+            className="w-full truncate rounded-md text-left hover:bg-muted/50"
             onClick={onRenameStart}
           >
             {keyName}

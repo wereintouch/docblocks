@@ -323,6 +323,13 @@ function AttributesPanel() {
     }
   };
 
+  /** The list form's read (the grip's top align's stand over the list's
+   *  rows — the grip stands opposite the first line over the stack). */
+  const isListCustom = (key: string): boolean => {
+    const v = attributes[key];
+    return Array.isArray(v) || typedValueOf(v)?.type === "list";
+  };
+
   /** The custom row's stand (the `CustomAttributeRow`'s unit — the key's
    *  rename's entry + the value zone's editors over the type's stand). */
   const renderCustomRow = (key: string): ReactNode => (
@@ -552,6 +559,7 @@ function AttributesPanel() {
                 <DraggableAttributeRow
                   key={key}
                   attributeKey={key}
+                  topAlign={isListCustom(key)}
                   onDragStart={() => setDragging(true)}
                   onDragEnd={commitCustomReorder}
                 >

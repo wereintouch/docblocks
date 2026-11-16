@@ -54,7 +54,11 @@ one-line sliding-pill type pick (the document view's selector's parity
   value's inline edits) all stand the shared `Input` primitive over its
   new flat `inline` variant (the frame / the background / the shadow
   stand off — the focus's border stand only), replacing the ad-hoc raw
-  inputs. The `AttributesPanel` stands the composition over the unit's
+  inputs; the custom key's text stands the label column's left edge
+  (the preset's keys' parity — the key's button's padding stand
+  dropped), and the list's row's drag grip stands opposite the first
+  line (the key's line — the row's center stand dropped over the
+  stack's rows). The `AttributesPanel` stands the composition over the unit's
   row files (the `CustomAttributeRow`'s custom row, the preset's
   editors, the add's popover, the value's pure reads). Markdown import and paste now read the YAML-frontmatter
   subset into the meta over the fresh documents (the title + the mapped
