@@ -154,7 +154,12 @@ function AttributeRow({
       className="flex items-center gap-3 py-1.5"
     >
       <span className="w-28 shrink-0 truncate text-sm text-muted-foreground">{label}</span>
-      <div className="min-w-0 flex-1">{children}</div>
+      {/* The zone's flex's stand (the content's vertical center): the zone
+        inherits the page's line-height (the 16px's stand over the shared
+        editable), so a block container over an inline-block's editor grows
+        over the line box and stands the value's text above the label's
+        center. */}
+      <div className="flex min-w-0 flex-1 items-center">{children}</div>
       {removable && onRemove !== undefined ? (
         <Button
           type="button"
@@ -301,7 +306,7 @@ function TagsEditor({
           data-slot="docblocks/attributes-tag-input"
           aria-label={t("attributes.addTagAria")}
           className="
-            h-6 min-w-24 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-xs outline-none
+            h-6 min-w-24 flex-1 rounded-md border border-transparent bg-transparent px-1.5 text-sm outline-none
             focus-visible:border-ring
           "
           placeholder={t("attributes.addTagPlaceholder")}

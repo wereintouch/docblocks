@@ -116,6 +116,10 @@ test("the tags' chips: the add over Enter, the chip's removal, the empty backspa
       .locator("[data-slot='docblocks/attributes-tag-remove']")
       .click();
     await expect.poll(() => attributesOf(a, "a").then((m) => m?.tags), SETTLE).toEqual(["beta"]);
+    // The input's font stands the value column's size (the placeholder's
+    // stand over the row's values' parity — the `text-xs`'s smaller
+    // stand dropped).
+    expect(await input.evaluate((el) => window.getComputedStyle(el).fontSize)).toBe("14px");
     // The empty input's Backspace: the last tag's removal (the stand
     // empties out — the attribute stands removed).
     await input.press("Backspace");
@@ -278,6 +282,21 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
     await expect(
       panel(b, "b").locator('[data-slot="docblocks/attribute-custom-boolean"][data-attribute-key="flag"]')
     ).toHaveAttribute("aria-checked", "true");
+    // The value's vertical stand (the label's midline's parity over the
+    // value's midline — the page's line-height's no-stand; every custom
+    // type's row: the number's "jump" over the row's stand).
+    for (const key of ["revision", "note", "u7", "flag"]) {
+      const mid = await body(a, "a")
+        .locator(`[data-slot="docblocks/attribute-row"][data-attribute-key="${key}"]`)
+        .evaluate((row) => {
+          const label = row.children[0]?.getBoundingClientRect();
+          const value = row.children[1]?.firstElementChild?.getBoundingClientRect();
+          if (label === undefined || label === null || value === undefined || value === null) return null;
+          return Math.abs(label.top + label.height / 2 - (value.top + value.height / 2));
+        });
+      expect(mid, `the row "${key}" should stand its label and the value's zone`).not.toBeNull();
+      expect(mid, `the row "${key}"'s value should stand the label's midline`).toBeLessThan(1);
+    }
     // The row's removal (the custom row's remove button).
     await panel(a, "a")
       .locator(

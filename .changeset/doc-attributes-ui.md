@@ -22,7 +22,11 @@ one-line sliding-pill type pick (the document view's selector's parity
   no-write), the boolean over the project's checkbox (the checked's
   toggle — one write over the value's form: the plain's plain stand, the
   typed's typed stand; the read-only's disabled stand over the view /
-  published's modes), the custom rows' display order
+  published's modes); the row's value zone centers its content vertically
+  (the page's inherited line-height no longer stands the value's text
+  above the label's center — the value's "jump" stand dropped) and the
+  tags' add input stands the value column's font size (the placeholder's
+  `text-xs` stand over the `text-sm`'s column's parity), the custom rows' display order
   (the preset rows' fixed order; the custom rows over `attributesOrder` —
   last-added last, drag-reorderable over the grip with the block's
   grip's offset parity: the hover's reveal, the framer's live slide's
