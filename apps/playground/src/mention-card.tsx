@@ -10,6 +10,8 @@ import type { MentionInteractions, MentionMark } from "docblocks-react-ui";
 
 import { useEffect, useReducer } from "react";
 
+import { resolveMentionLabel } from "./mention-provider";
+
 declare global {
   interface Window {
     /** The last chip's click's target (the e2e's pin). */
@@ -45,9 +47,12 @@ function MentionClickBanner() {
     return () => clearTimeout(timer);
   }, [click]);
   if (click === null) return null;
+  // The label's stand: the consumer's live resolution over the target's id
+  // (the mark is the identity — the label is the consumer's stand).
+  const label = resolveMentionLabel(click.kind, click.id) ?? click.label ?? click.id;
   return (
     <div className="db-mention-banner" data-slot="playground/mention-banner">
-      Mention click: {click.label}
+      Mention click: {label}
     </div>
   );
 }
@@ -58,10 +63,13 @@ const KIND_LABEL: Record<MentionMark["kind"], string> = {
 };
 
 const mentionInteractions: MentionInteractions = {
+  // The label's stand: the consumer's live resolution over the target's id
+  // (the mark is the identity — the label is the consumer's stand; the
+  // legacy's label stands the fallback).
   renderCard: (mention) => (
     <div className="db-mention-card-demo">
       <div className="db-mention-card-demo-kind">{KIND_LABEL[mention.kind]}</div>
-      <div className="db-mention-card-demo-label">{mention.label}</div>
+      <div className="db-mention-card-demo-label">{resolveMentionLabel(mention.kind, mention.id) ?? mention.label}</div>
       <div className="db-mention-card-demo-meta">{mention.id} · demo stand</div>
     </div>
   ),

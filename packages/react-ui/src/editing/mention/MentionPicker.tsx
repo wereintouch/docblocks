@@ -7,6 +7,7 @@ import { useTranslation } from "react-i18next";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import type { MentionEntry } from "../../editor-provider";
+import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { Button } from "../../shared/ui/Button";
 import { ScrollArea } from "../../shared/ui/ScrollArea";
@@ -24,6 +25,7 @@ type MentionResult = { users: MentionEntry[]; docs: MentionEntry[] };
 
 function MentionPicker(props: MentionMenuProps) {
   const { t } = useTranslation("editor");
+  const { mentionInteractions } = useEditorContext();
   const { rootRef, state, provider, active, onItemsChange, onHover, onPick, onClose } = props;
   const block = useBlock(state.blockId);
   const text = blockTextOf(block);
@@ -227,7 +229,7 @@ function MentionPicker(props: MentionMenuProps) {
           ) : (
             items.length === 0 && (
               <div data-slot="docblocks/mention-empty" className="px-2 py-1.5 text-sm text-muted-foreground">
-                {t("common:noMatches")}
+                {mentionInteractions?.renderEmptyState?.(derived?.query ?? "") ?? t("common:noMatches")}
               </div>
             )
           )}

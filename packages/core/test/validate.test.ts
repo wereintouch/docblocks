@@ -571,11 +571,16 @@ describe("runs and marks", () => {
       "blocks.p.content[0].marks.mention.id",
       "non-empty"
     );
-    // Missing label.
+    // The id-only stand: a missing label is valid (the label is the run's
+    // text + the consumer's resolution — the mark stands the identity only).
+    expectValid(
+      withContent([{ text: "x", marks: { mention: { kind: "user", id: "u1" } as unknown as MarkSet["mention"] } }])
+    );
+    // An empty label (when present) is rejected.
     expectError(
-      withContent([{ text: "x", marks: { mention: { kind: "user", id: "u1" } as unknown as MarkSet["mention"] } }]),
+      withContent([{ text: "x", marks: { mention: { kind: "user", id: "u1", label: "" } } }]),
       "blocks.p.content[0].marks.mention.label",
-      "requires"
+      "non-empty"
     );
     // A non-string field.
     expectError(

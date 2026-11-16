@@ -42,13 +42,71 @@ test("the @ trigger opens the picker and a user pick stands the chip in both pan
   await expect(chipB).toHaveText("Ada Lovelace");
   await expect(chipB).toHaveAttribute("data-mention-kind", "user");
 
-  // The JSON: the mention mark (the kind, the id, the label snapshot).
+  // The JSON: the mention mark (the kind + the id — the id-only stand, the
+  // label is the run's text + the consumer's resolution, never the mark).
   const jsonA = a.getByTestId("json-a");
   await expect.poll(async () => (await jsonA.innerText()).includes('"mention"'), SETTLE).toBe(true);
   const jsonText = await jsonA.innerText();
   expect(jsonText).toContain('"kind": "user"');
   expect(jsonText).toContain('"id": "u1"');
-  expect(jsonText).toContain('"label": "Ada Lovelace"');
+  expect(jsonText).not.toContain('"label"');
+
+  // The pick's seat: the caret stands after the chip (the type's
+  // continuation keeps the editable — no re-click).
+  await a.keyboard.type(" typed");
+  const text = await a.evaluate(
+    ({ client, id }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      const block = doc?.getBlock(id);
+      return block === null || block === undefined || !("content" in block)
+        ? ""
+        : block.content?.map((r) => r.text).join("");
+    },
+    { client: "a", id: blockId }
+  );
+  expect(text).toBe("Ada Lovelace typed");
+
+  await close();
+});
+
+test("the space stands the query (the picker over the @word phrase) and the Enter pick seats the caret", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "mention-space");
+  const blockId = await insertBlockType(a, "a", "paragraph");
+  // The space is part of the query (the `Ada L`'s search, not the `Ada`'s
+  // — the picker stays open over the phrase's continuation).
+  await typeMentionPhrase(a, "a", blockId, "@Ada L");
+
+  const picker = a.locator('[data-slot="docblocks/mention-menu"]');
+  await expect.poll(async () => picker.isVisible(), SETTLE).toBe(true);
+  const adaItem = picker.getByText("Ada Lovelace");
+  await expect.poll(async () => adaItem.isVisible(), SETTLE).toBe(true);
+
+  // The Enter's pick (the keyboard's stand): the chip over the whole
+  // phrase (the `@Ada L`'s stand strips) + the caret after it (the type's
+  // continuation stands the chip's end, not the document's loss).
+  await a.keyboard.press("Enter");
+  const chipA = editorOf(a, "a").locator('[data-slot="docblocks/mention"]');
+  await expect.poll(async () => chipA.count(), SETTLE).toBe(1);
+  await expect(chipA).toHaveText("Ada Lovelace");
+  await a.keyboard.type(" after");
+  const text = await a.evaluate(
+    ({ client, id }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      const block = doc?.getBlock(id);
+      return block === null || block === undefined || !("content" in block)
+        ? ""
+        : block.content?.map((r) => r.text).join("");
+    },
+    { client: "a", id: blockId }
+  );
+  expect(text).toBe("Ada Lovelace after");
+
+  // The pane B's parity: the chip stands (the data syncs over the wire).
+  await expect.poll(async () => editorOf(b, "b").locator('[data-slot="docblocks/mention"]').count(), SETTLE).toBe(1);
 
   await close();
 });

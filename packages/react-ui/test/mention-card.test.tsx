@@ -29,7 +29,7 @@ function renderChip(prepare?: (doc: TestDoc, blockId: string) => void): Harness 
   const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
   const blockId = doc.insertBlock("paragraph");
   doc.insertText(blockId, 0, "Hello Jane");
-  doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1", label: "Jane" });
+  doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1" });
   if (prepare !== undefined) prepare(doc, blockId);
   render(
     <EditorProvider
@@ -49,7 +49,7 @@ function renderChipWith(interactions: MentionInteractions, options?: { mode?: "e
   const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
   const blockId = doc.insertBlock("paragraph");
   doc.insertText(blockId, 0, "Hello Jane");
-  doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1", label: "Jane" });
+  doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1" });
   render(
     <EditorProvider doc={doc} mentionInteractions={interactions} mode={options?.mode}>
       <Editor />
@@ -166,8 +166,8 @@ describe("the mention hover card", () => {
     const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
     const blockId = doc.insertBlock("paragraph");
     doc.insertText(blockId, 0, "Jane met Spec");
-    doc.setMark(blockId, 0, 4, { type: "mention", kind: "user", id: "u1", label: "Jane" });
-    doc.setMark(blockId, 9, 13, { type: "mention", kind: "doc", id: "d1", label: "Spec" });
+    doc.setMark(blockId, 0, 4, { type: "mention", kind: "user", id: "u1" });
+    doc.setMark(blockId, 9, 13, { type: "mention", kind: "doc", id: "d1" });
     render(
       <EditorProvider
         doc={doc}
@@ -230,7 +230,9 @@ describe("the mention card's click", () => {
 
     expect(onClick).toHaveBeenCalledOnce();
     const [target, event] = onClick.mock.calls[0] as [MentionMark, MouseEvent];
-    expect(target).toEqual({ kind: "user", id: "u1", label: "Jane" });
+    // The mark is the identity (the id-only stand — the label is the
+    // consumer's resolution, never the mark's field).
+    expect(target).toEqual({ kind: "user", id: "u1" });
     expect(event.defaultPrevented).toBe(false);
   });
 

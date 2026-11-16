@@ -3,7 +3,7 @@
  *  context value, and the provider's props. */
 import type { ComponentType, ReactNode } from "react";
 
-import type { BlockId, Doc, MentionMark, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
+import type { BlockId, Doc, MentionKind, MentionMark, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
 
 import type { BlobStore } from "../blob-store";
 import type { BlockRendererMap } from "../blocks";
@@ -53,6 +53,15 @@ interface MentionProvider {
   searchUsers(query: string): Promise<MentionEntry[]>;
   /** The documents matching the query (the `doc` mention kind). */
   searchDocs(query: string): Promise<MentionEntry[]>;
+  /**
+   * The chip's live label over the target's id (the synchronous read — the
+   * consumer's cache over the catalog / the doc's meta). The chip's text
+   * stands this label where it resolves (the rename's live stand), and the
+   * insertion-time label (the run's text) otherwise; `null` / the absent
+   * stand the insertion-time label (the removed's target's display is the
+   * consumer's own fallback over this hook).
+   */
+  resolveLabel?(kind: MentionKind, id: string): string | null;
 }
 
 /**
@@ -60,7 +69,7 @@ interface MentionProvider {
  * data — the package stands the position and the lifecycle only, over a
  * plain portaled host) and the chip's click (the consumer decides what
  * opens). The target stands the document's `mention` mark (the core's
- * `MentionMark`: the kind, the stable id, and the label snapshot) — the
+ * `MentionMark`: the kind + the stable id) — the consumer resolves the
  * consumer resolves the current data over the id (the catalog, the URL).
  * Optional over the provider: without it the chip stands as before (no
  * card, the click is the browser's stand).
@@ -74,6 +83,14 @@ interface MentionInteractions {
    *  keeps the caret in place (the atomic chip's default stand moves it).
    *  The package stands no default behavior and opens nothing. */
   onClick?: (mention: MentionMark, event: MouseEvent) => void;
+  /**
+   * The picker's empty state (the no-matches stand over the active query;
+   *  the query is blank when only the `@` stands). The consumer's own
+   *  content (the "start typing"'s phrase over the blank query — the
+   *  package's i18n's stand is not overridable); `null` stands the built-in
+   *  `common.noMatches` (the default).
+   */
+  renderEmptyState?: (query: string) => ReactNode | null;
 }
 
 /** The props a tag-editor component receives (the `tagEditor` provider prop): the live tag list, the replacement commit, and the read-only stand. */
@@ -275,13 +292,15 @@ interface EditorProviderProps {
   mentionProvider?: MentionProvider;
   /**
    * Optional mention interactions: the hover card's content
-   * (`renderCard`) and the chip's click's delivery (`onClick`). The
-   * package stands the card's position + lifecycle only (the portaled
-   * host, the hover's delay/grace, the Escape's close, the anchor's
-   * removal's close) — the design and the data are the consumer's, the
-   * click's stand is the consumer's. Like `mentionProvider`, the value is
-   * read per render into the provider context: pass a stable reference.
-   * A nested provider that supplies none inherits the enclosing one.
+   * (`renderCard`), the chip's click's delivery (`onClick`), and the
+   * picker's empty state (`renderEmptyState` — the no-matches' content
+   * over the active query). The package stands the card's position +
+   * lifecycle only (the portaled host, the hover's delay/grace, the
+   * Escape's close, the anchor's removal's close) — the design and the
+   * data are the consumer's, the click's stand is the consumer's. Like
+   * `mentionProvider`, the value is read per render into the provider
+   * context: pass a stable reference. A nested provider that supplies
+   * none inherits the enclosing one.
    */
   mentionInteractions?: MentionInteractions;
   /**

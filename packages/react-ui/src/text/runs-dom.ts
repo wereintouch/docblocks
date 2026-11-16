@@ -1,4 +1,5 @@
 import { type TextRun, isSafeLinkHref } from "docblocks-core";
+import type { MentionKind } from "docblocks-core";
 
 import { createMentionKindIcon } from "./mention-icons";
 import { INLINE_CODE_CLASS, LINK_CLASS } from "./runs";
@@ -23,6 +24,9 @@ const LINE_ANCHOR_SLOT = "docblocks/line-anchor";
 
 /** The data-slot of the mention chip (an atomic, display-only inline run). */
 const MENTION_SLOT = "docblocks/mention";
+
+/** A mention chip's label resolver (the consumer's live label over the target's id). */
+type MentionLabelResolver = (kind: MentionKind, id: string) => string | null;
 
 /** The zero-width caret seat of the trailing empty line. `contenteditable="false"` keeps the browser from absorbing typed text into the anchor. */
 function lineBreakAnchor(): HTMLElement {
@@ -53,7 +57,7 @@ function wrap(node: Node, tag: string, attrs?: Record<string, string>): Node {
  * color/highlight span, innermost to outermost). A trailing line break
  * gets the anchor appended after the last run.
  */
-function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
+function renderRunsInto(runs: TextRun[], container: HTMLElement, resolveMentionLabel?: MentionLabelResolver): void {
   const nodes: Node[] = [];
   for (const run of runs) {
     // The mention renders alone: the chip is the atomic display of the label
@@ -67,10 +71,15 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
       chip.setAttribute("data-mention-kind", mention.kind);
       chip.setAttribute("data-mention-id", mention.id);
       chip.setAttribute("contenteditable", "false");
-      // The kind's inline icon + the label snapshot's text node (the chip
-      // stays atomic; the icon carries no text of its own).
+      // The kind's inline icon + the label's text node (the chip stays
+      // atomic; the icon carries no text of its own). The label stands the
+      // consumer's live resolution over the target's id (the rename's live
+      // stand), the insertion-time label otherwise (the run's text — the
+      // legacy mark's label snapshot stands the same stand).
       chip.appendChild(createMentionKindIcon(mention.kind));
-      chip.appendChild(document.createTextNode(mention.label));
+      chip.appendChild(
+        document.createTextNode(resolveMentionLabel?.(mention.kind, mention.id) ?? mention.label ?? run.text)
+      );
       nodes.push(chip);
       continue;
     }
@@ -107,3 +116,4 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement): void {
 }
 
 export { renderRunsInto, LINE_ANCHOR_SLOT, MENTION_SLOT };
+export type { MentionLabelResolver };

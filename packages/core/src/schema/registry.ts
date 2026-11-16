@@ -238,7 +238,9 @@ const MARK_REGISTRY: Record<MarkName, MarkSpec> = {
     fields: {
       kind: { required: true, enum: ["user", "doc"] },
       id: { required: true, nonEmptyString: true },
-      label: { required: true, nonEmptyString: true },
+      // The legacy label snapshot (the pre-id-only's data): tolerated and
+      // ignored — the writer stands the id-only mark.
+      label: { required: false, nonEmptyString: true },
     },
   },
   color: { kind: "attrs", exclusive: false, attr: "value" },

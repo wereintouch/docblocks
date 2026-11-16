@@ -27,7 +27,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type { ClipboardEvent as ReactClipboardEvent, KeyboardEvent as ReactKeyboardEvent, RefObject } from "react";
 
-import type { Block, BlockId, BlockType, TextRun } from "docblocks-core";
+import type { Block, BlockId, BlockType, MentionKind, TextRun } from "docblocks-core";
 
 import {
   caretOffsetIn,
@@ -74,7 +74,14 @@ interface UseTextInner {
 }
 
 function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInnerOptions): UseTextInner {
-  const { doc, store, selection: selectionRef } = useEditorContext();
+  const { doc, store, selection: selectionRef, mentionProvider } = useEditorContext();
+
+  // The chip's live label over the target's id (the consumer's `resolveLabel`;
+  // the absent stand keeps the insertion-time label — the run's text).
+  const resolveMentionLabel = useCallback(
+    (kind: MentionKind, targetId: string): string | null => mentionProvider?.resolveLabel?.(kind, targetId) ?? null,
+    [mentionProvider]
+  );
 
   const innerRef = useRef<HTMLDivElement | null>(null);
   const slash = useSlashMenuApi();
@@ -284,7 +291,7 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
     localCaretRef.current = null;
     if (pending !== null) {
       pendingRef.current = null;
-      renderRunsInto(pending.runs, el);
+      renderRunsInto(pending.runs, el, resolveMentionLabel);
       appliedRef.current = block;
       if ("cross" in pending) {
         // The cross end's re-establish: the rebuild detached the local
@@ -342,7 +349,7 @@ function useTextInner({ id, block, blockType, context, wrapperRef }: UseTextInne
       return;
     }
     if (!selectionInside(el) && appliedRef.current !== block) {
-      renderRunsInto(storeRuns, el);
+      renderRunsInto(storeRuns, el, resolveMentionLabel);
       appliedRef.current = block;
     }
   });

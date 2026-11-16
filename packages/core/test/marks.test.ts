@@ -85,22 +85,45 @@ describe("setMark", () => {
     expect(doc.getRuns(id)).toEqual([{ text: "abcdefghij", marks: { bold: true } }]);
   });
 
-  it("the mention mark: a plain multi-field value, combinable with bold", () => {
+  it("the mention mark: the id-only stand, combinable with bold", () => {
     const { doc, id } = markedDoc();
-    doc.setMark(id, 8, 12, { type: "mention", kind: "user", id: "u1", label: "sync" });
+    doc.setMark(id, 8, 12, { type: "mention", kind: "user", id: "u1" });
     doc.setMark(id, 8, 12, { type: "bold" });
 
     const runs = doc.getRuns(id);
     expect(runs).toEqual([
       { text: "Help us ", marks: {} },
-      { text: "sync", marks: { mention: { kind: "user", id: "u1", label: "sync" }, bold: true } },
+      { text: "sync", marks: { mention: { kind: "user", id: "u1" }, bold: true } },
       { text: " faster!", marks: {} },
     ]);
-    // Plain data: the mark value is a plain object in the JSON.
+    // Plain data: the mark value is a plain object in the JSON (the id-only
+    // stand — the label is the run's text + the consumer's resolution).
     expect(doc.toJSON().blocks[id]).toEqual({ type: "paragraph", content: runs });
     // The mention composes over a run that already carries a mention (no error).
-    doc.setMark(id, 8, 12, { type: "mention", kind: "doc", id: "d9", label: "Spec" });
-    expect(doc.getRuns(id)[1]?.marks.mention).toEqual({ kind: "doc", id: "d9", label: "Spec" });
+    doc.setMark(id, 8, 12, { type: "mention", kind: "doc", id: "d9" });
+    expect(doc.getRuns(id)[1]?.marks.mention).toEqual({ kind: "doc", id: "d9" });
+  });
+
+  it("the legacy mention mark (the label snapshot's data) stands readable", () => {
+    // The pre-id-only's data: the label snapshot is tolerated and ignored
+    // (the lenient reader's stand — the strict validator accepts the form).
+    const json = {
+      v: 1,
+      id: "doc-1",
+      title: "",
+      createdAt: "2026-10-10T00:00:00.000Z",
+      blocks: {
+        "doc-1": { type: "root", children: ["b1"] },
+        b1: {
+          type: "paragraph",
+          content: [{ text: "Jane", marks: { mention: { kind: "user", id: "u1", label: "Jane" } } }],
+        },
+      },
+    };
+    const doc = fromJSON(json as never);
+    expect(doc.getRuns("b1")).toEqual([
+      { text: "Jane", marks: { mention: { kind: "user", id: "u1", label: "Jane" } } },
+    ]);
   });
 
   it("marks the whole text over the full range (0, total)", () => {
@@ -153,11 +176,11 @@ describe("setMark", () => {
     doc.insertText(p, 0, "open the doc");
     // "the" over (5, 8): from + to = 13 > 12 — the overhang range (the old
     // call formatted [5, 13) and over-marked the tail characters).
-    doc.setMark(p, 5, 8, { type: "mention", kind: "doc", id: "d1", label: "the" });
+    doc.setMark(p, 5, 8, { type: "mention", kind: "doc", id: "d1" });
     expect(doc.getTextLength(p)).toBe(12);
     expect(doc.getRuns(p)).toEqual([
       { text: "open ", marks: {} },
-      { text: "the", marks: { mention: { kind: "doc", id: "d1", label: "the" } } },
+      { text: "the", marks: { mention: { kind: "doc", id: "d1" } } },
       { text: " doc", marks: {} },
     ]);
   });

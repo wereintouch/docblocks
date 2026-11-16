@@ -2,7 +2,7 @@
  *  catalog with a case-insensitive substring search (the `mentionProvider`
  *  consumer contract). A demo for the `@` trigger — the real catalog is the
  *  consumer's. */
-import type { MentionEntry, MentionProvider } from "docblocks-react-ui";
+import type { MentionEntry, MentionMark, MentionProvider } from "docblocks-react-ui";
 
 const USERS: MentionEntry[] = [
   { id: "u1", label: "Ada Lovelace" },
@@ -25,10 +25,20 @@ function match(entries: MentionEntry[], query: string): MentionEntry[] {
   return entries.filter((entry) => entry.label.toLowerCase().includes(q));
 }
 
+/** The chip's live label over the target's id (the consumer's catalog is
+ *  the label's source — the `resolveLabel`'s stand over the insertion-time
+ *  run's text). */
+function resolveMentionLabel(kind: MentionMark["kind"], id: string): string | null {
+  const catalog = kind === "user" ? USERS : DOCS;
+  const entry = catalog.find((item) => item.id === id);
+  return entry === undefined ? null : entry.label;
+}
+
 const mentionProvider: MentionProvider = {
   // A small latency so the loading state is visible (the demo).
   searchUsers: (query) => new Promise((resolve) => setTimeout(() => resolve(match(USERS, query)), 120)),
   searchDocs: (query) => new Promise((resolve) => setTimeout(() => resolve(match(DOCS, query)), 120)),
+  resolveLabel: (kind, id) => resolveMentionLabel(kind, id),
 };
 
-export { mentionProvider };
+export { mentionProvider, resolveMentionLabel };

@@ -45,7 +45,7 @@ describe("the mention chip render", () => {
       const id = doc.insertBlock("paragraph");
       doc.insertText(id, 0, "Hello ");
       doc.insertText(id, 6, "Jane");
-      doc.setMark(id, 6, 10, { type: "mention", kind: "user", id: "u1", label: "Jane" });
+      doc.setMark(id, 6, 10, { type: "mention", kind: "user", id: "u1" });
     });
     const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/mention"]');
     expect(chip).not.toBeNull();
@@ -59,7 +59,7 @@ describe("the mention chip render", () => {
     renderDoc((doc) => {
       const id = doc.insertBlock("paragraph");
       doc.insertText(id, 0, "Spec");
-      doc.setMark(id, 0, 4, { type: "mention", kind: "doc", id: "d9", label: "Spec" });
+      doc.setMark(id, 0, 4, { type: "mention", kind: "doc", id: "d9" });
     });
     const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/mention"]');
     expect(chip).not.toBeNull();
@@ -72,8 +72,8 @@ describe("the mention chip render", () => {
     renderDoc((doc) => {
       const id = doc.insertBlock("paragraph");
       doc.insertText(id, 0, "Jane and Spec");
-      doc.setMark(id, 0, 4, { type: "mention", kind: "user", id: "u1", label: "Jane" });
-      doc.setMark(id, 9, 13, { type: "mention", kind: "doc", id: "d9", label: "Spec" });
+      doc.setMark(id, 0, 4, { type: "mention", kind: "user", id: "u1" });
+      doc.setMark(id, 9, 13, { type: "mention", kind: "doc", id: "d9" });
     });
     const chips = [...document.querySelectorAll<HTMLElement>('[data-slot="docblocks/mention"]')];
     expect(chips.length).toBe(2);
@@ -102,6 +102,40 @@ describe("the mention chip render", () => {
     });
     expect(document.querySelector('[data-slot="docblocks/mention"]')).toBeNull();
   });
+
+  it("the chip's label stands the resolver's live label over the target's id (the rename's stand)", () => {
+    const provider: MentionProvider = {
+      searchUsers: vi.fn().mockResolvedValue([]),
+      searchDocs: vi.fn().mockResolvedValue([]),
+      // The live label stands the renamed stand (the run's text is the
+      // insertion-time label — `Jane` over the renamed `Jane Doe`).
+      resolveLabel: vi.fn((kind: string, id: string) => (kind === "user" && id === "u1" ? "Jane Doe" : null)),
+    };
+    renderDoc((doc) => {
+      const id = doc.insertBlock("paragraph");
+      doc.insertText(id, 0, "Hello ");
+      doc.insertText(id, 6, "Jane");
+      doc.setMark(id, 6, 10, { type: "mention", kind: "user", id: "u1" });
+    }, provider);
+    const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/mention"]');
+    expect(chip).not.toBeNull();
+    expect(chip!.textContent).toBe("Jane Doe");
+  });
+
+  it("the resolver's null / the absent provider stand the insertion-time label (the run's text)", () => {
+    const provider: MentionProvider = {
+      searchUsers: vi.fn().mockResolvedValue([]),
+      searchDocs: vi.fn().mockResolvedValue([]),
+      resolveLabel: vi.fn().mockReturnValue(null),
+    };
+    renderDoc((doc) => {
+      const id = doc.insertBlock("paragraph");
+      doc.insertText(id, 0, "Jane");
+      doc.setMark(id, 0, 4, { type: "mention", kind: "user", id: "u1" });
+    }, provider);
+    const chip = document.querySelector<HTMLElement>('[data-slot="docblocks/mention"]');
+    expect(chip!.textContent).toBe("Jane");
+  });
 });
 
 describe("the mentionProvider context", () => {
@@ -121,14 +155,24 @@ describe("the mentionProvider context", () => {
 });
 
 describe("deriveMention", () => {
-  it("the query over the @ phrase", () => {
+  it("the query over the @ phrase (the space is part of the query)", () => {
     expect(deriveMention("Hello @Ja", 6, 9)).toEqual({ closed: false, query: "Ja", queryEnd: 9 });
     expect(deriveMention("Hello @", 6, 7)).toEqual({ closed: false, query: "", queryEnd: 7 });
+    // The space stands the query (the whole phrase is searched — the
+    // `my doc`'s query, not the `my`'s).
+    expect(deriveMention("Hello @my doc", 6, 13)).toEqual({ closed: false, query: "my doc", queryEnd: 13 });
+    // The caret past the phrase's start: the query runs over the caret
+    // (the phrase is the `@` to the caret's stand).
+    expect(deriveMention("Hello @Jane more", 6, 16)).toEqual({
+      closed: false,
+      query: "Jane more",
+      queryEnd: 16,
+    });
     // No `@` at the anchor: closed.
     expect(deriveMention("Hello Jane", 6, 9)).toEqual({ closed: true, query: "", queryEnd: 0 });
-    // The caret out of the query window (past a boundary): closed (the query
-    // is derived but the picker closes).
-    expect(deriveMention("Hello @Jane more", 6, 16)).toEqual({ closed: true, query: "Jane", queryEnd: 11 });
+    // The caret at / before the `@`: closed (the phrase's window is empty).
+    expect(deriveMention("Hello @Jane", 6, 6)).toEqual({ closed: true, query: "", queryEnd: 0 });
+    expect(deriveMention("Hello @Jane", 6, 3)).toEqual({ closed: true, query: "", queryEnd: 0 });
   });
 });
 
@@ -252,6 +296,69 @@ describe("the mention picker's search stand (the failure vs. the empty)", () => 
     await screen.findByText("No matches");
     expect(document.querySelector("[data-slot='docblocks/mention-empty']")).not.toBeNull();
     expect(document.querySelector("[data-slot='docblocks/mention-error']")).toBeNull();
+  });
+
+  it("the consumer's renderEmptyState stands the picker's empty (the built-in's stand without it)", async () => {
+    const provider: MentionProvider = {
+      searchUsers: vi.fn(async (): Promise<MentionEntry[]> => []),
+      searchDocs: vi.fn(async (): Promise<MentionEntry[]> => []),
+    };
+    const doc = createDoc({ id: "doc-1", createdAt: CREATED_AT });
+    const blockId = doc.insertBlock("paragraph");
+    doc.insertText(blockId, 0, "Hello @");
+    render(
+      <EditorProvider
+        doc={doc}
+        mentionProvider={provider}
+        mentionInteractions={{
+          renderCard: () => null,
+          renderEmptyState: (query: string) => (
+            <span data-slot="test-empty">start typing: {JSON.stringify(query)}</span>
+          ),
+        }}
+      >
+        <MentionPicker
+          rootRef={{ current: null as HTMLElement | null }}
+          state={{ blockId, parentId: "root", atOffset: 6, active: 0 }}
+          provider={provider}
+          active={0}
+          onItemsChange={() => {}}
+          onHover={() => {}}
+          onPick={() => {}}
+          onClose={() => {}}
+        />
+      </EditorProvider>
+    );
+    // The consumer's content stands (the blank query over the `@` only),
+    // not the built-in's "No matches".
+    await screen.findByText('start typing: ""');
+    expect(document.querySelector("[data-slot='docblocks/mention-empty']")).not.toBeNull();
+    expect(screen.queryByText("No matches")).toBeNull();
+
+    // The consumer's `null` stands the built-in's stand (the default).
+    cleanup();
+    render(
+      <EditorProvider
+        doc={doc}
+        mentionProvider={provider}
+        mentionInteractions={{
+          renderCard: () => null,
+          renderEmptyState: () => null,
+        }}
+      >
+        <MentionPicker
+          rootRef={{ current: null as HTMLElement | null }}
+          state={{ blockId, parentId: "root", atOffset: 6, active: 0 }}
+          provider={provider}
+          active={0}
+          onItemsChange={() => {}}
+          onHover={() => {}}
+          onPick={() => {}}
+          onClose={() => {}}
+        />
+      </EditorProvider>
+    );
+    await screen.findByText("No matches");
   });
 
   it("a search that resolves after the picker closes stands no stale result", async () => {

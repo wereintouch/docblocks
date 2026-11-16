@@ -4,14 +4,18 @@
 /** The mention mark's target kind. */
 type MentionKind = "user" | "doc";
 
-/** A mention: a weak ref to a consumer user / document + the display label
- *  snapshot (the name at insertion time — stable display; the consumer may
- *  render a "removed" state by id). Non-cascading (a removed target leaves the
- *  label standing). */
+/** A mention: a weak ref to a consumer user / document. The mark stands
+ *  the target's identity only (the kind + the stable id) — the label is
+ *  the consumer's resolution (the `MentionProvider`'s `resolveLabel`, the
+ *  run's text over the insertion-time label). The legacy `label` snapshot
+ *  (pre-id-only stands) stands tolerated and ignored. Non-cascading (a
+ *  removed target leaves the run's text standing). */
 interface MentionMark {
   kind: MentionKind;
   id: string;
-  label: string;
+  /** The legacy label snapshot (tolerated over the lenient read; the
+   *  writer stands the id-only mark). */
+  label?: string;
 }
 
 /** The set of marks applied to a run. */
@@ -24,7 +28,8 @@ interface MarkSet {
   code?: true;
   /** http/https URL or relative path. */
   link?: { href: string };
-  /** A weak ref to a user / document + the display label snapshot. */
+  /** A weak ref to a user / document (the id-only stand; the legacy
+   *  label snapshot is tolerated). */
   mention?: MentionMark;
   /** Text color, hex `#RRGGBB` (alpha optional). */
   color?: { value: string };
