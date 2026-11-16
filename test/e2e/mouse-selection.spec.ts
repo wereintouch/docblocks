@@ -182,3 +182,58 @@ test("a mark from the toolbar over the double-click selection is one transact an
   expect(runs?.every((run) => "bold" in (run.marks ?? {}))).toBe(true);
   await close();
 });
+
+test("a click-then-shift+click extends the selection across the blocks (the native extension's stand)", async ({
+  browser,
+}) => {
+  const { a, close } = await openPanes(browser, "ux09-sel-shift-click");
+  const target = inner(a);
+  await target.click();
+  await a.keyboard.type("first word");
+  await a.keyboard.press("Enter");
+  await a.keyboard.type("second word");
+  await a.keyboard.press("Enter");
+  await a.keyboard.type("third word");
+  const blocks = a.locator('[data-testid="doc-a"] [data-slot="docblocks/block-content"]');
+  await expect(blocks).toHaveCount(3);
+
+  // The anchor's press (the plain click's stand — the caret at the first
+  // block's start over the Home's seat).
+  await blocks.first().click();
+  await a.keyboard.press("Home");
+  await a.waitForTimeout(200);
+
+  // The shift+click at the third block's end: the browser's native
+  // extension stands (the session's tear-down over the shift's press —
+  // the default's suppression stands off), the selection spans the
+  // blocks, and the focus stands in the editor (the document's body's
+  // stand stands removed over the suppressed press's no-stand).
+  const thirdBox = await blocks.nth(2).boundingBox();
+  if (thirdBox === null) throw new Error("the third's box is missing");
+  await blocks.nth(2).click({ modifiers: ["Shift"], position: { x: thirdBox.width - 6, y: thirdBox.height / 2 } });
+  const sel = await a.evaluate(() => {
+    const s = window.getSelection();
+    if (s === null) return null;
+    const nodeBlock = (node: Node | null): string | null => {
+      const inner = node instanceof Element ? node : (node?.parentElement ?? null);
+      return inner?.closest('[data-slot="docblocks/block-content"]')?.getAttribute("data-block-id") ?? null;
+    };
+    return {
+      collapsed: s.isCollapsed,
+      anchorBlock: nodeBlock(s.anchorNode),
+      focusBlock: nodeBlock(s.focusNode),
+      active: document.activeElement?.tagName ?? null,
+    };
+  });
+  expect(sel, "the shift+click should stand a cross-block selection").not.toBeNull();
+  expect(sel!.collapsed).toBe(false);
+  const order = await a.evaluate((c) => {
+    const doc = window.__paneDocs?.[c as "a" | "b"] ?? null;
+    if (doc === null) return [];
+    return doc.getChildren(doc.toJSON().id);
+  }, "a");
+  expect(sel!.anchorBlock).toBe(order[0]);
+  expect(sel!.focusBlock).toBe(order[order.length - 1]);
+  expect(sel!.active).not.toBe("BODY");
+  await close();
+});

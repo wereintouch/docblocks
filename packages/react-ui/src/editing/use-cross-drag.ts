@@ -111,7 +111,10 @@ function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): Dra
  * press (the multi-click's own mousedown tears the session down and lets
  * the default action stand; the pointer's detail stands 0 under synthetic
  * input, the mousedown's stands the real count, so the decision stands on
- * the mousedown's). The triple press is the editor's: the browser's
+ * the mousedown's). The shift's press stands the same tear-down (the
+ * shift+click's extension's parity — the native extension's stand over
+ * the default's suppression), and the triple press is the editor's: the
+ * browser's
  * "paragraph" select of a pre-wrap block stands at one visual line (the
  * soft-break lines), so a detail-3 press inside a text inner is
  * suppressed and the editor stands the whole-block selection (all the
@@ -212,6 +215,19 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
         window.removeEventListener("mousedown", mousedown, true);
       };
       if (event.detail >= 2) {
+        tearDown();
+        return;
+      }
+      // The shift's press (the shift+click's selection's extension): the
+      // extension runs over the mousedown's default (the browser extends
+      // the selection from the anchor to the press's position — the
+      // native gesture stands over the nested editables), so the default's
+      // suppression is off: the session tears down and the browser's
+      // extension + the focus's move stand (the mapping's view sync over
+      // the selectionchange). The suppression's stand would kill the
+      // extension and seat a plain caret (the session's click's stand)
+      // instead — the selection's loss.
+      if (event.shiftKey) {
         tearDown();
         return;
       }

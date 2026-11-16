@@ -6,6 +6,7 @@ import type { Doc, Selection, SelectionView } from "docblocks-core";
 import { entrySequenceParent } from "../blocks";
 import { useEditorContext } from "../editor-provider";
 import {
+  applyDomSelection,
   focusCaretIn,
   moveSegmentInSequence,
   removeBlocksSelection,
@@ -13,6 +14,7 @@ import {
   segmentRange,
 } from "./block-commands";
 import { crossRangeClipboardContent, segmentOf } from "./cross-copy";
+import { locatePosition } from "./dom-offset";
 import { containerCaretNeedsReseat, reseatContainerCaret } from "./page-surface";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
 import { useCrossDrag } from "./use-cross-drag";
@@ -278,6 +280,52 @@ function useEditing(): EditingHandle {
     const mod = event.metaKey || event.ctrlKey;
     if (!mod) return;
     const key = event.key.toLowerCase();
+    if (key === "a" && !event.shiftKey) {
+      // The browser's select-all degenerates over the page's nested
+      // editables (the Chromium's stand: a collapsed caret at the
+      // document's end instead of the full selection — the nested
+      // contenteditable's boundary breaks its own select-all), so the
+      // editor stands the whole-document's selection itself: the first
+      // text block's start → the last text block's end (the DOM's cross
+      // seat + the mapping's view sync over the selectionchange — the
+      // copy/paste/delete's cross's paths stand over the range).
+      const root = rootRef.current;
+      if (root === null) return;
+      // The form controls (their own select-all's stand — the cell's
+      // inputs, the panel's) and the canvas view (its own keys' stand)
+      // keep the default; the page's editables + the root's parked focus
+      // stand the document's selection.
+      const target = event.target instanceof Element ? event.target : null;
+      if (
+        target !== null &&
+        target !== root &&
+        (target.closest("input, textarea") !== null || target.closest('[data-slot="docblocks/canvas-view"]') !== null)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const textIds = doc.getChildren(rootBlockId).filter((id) => {
+        const block = doc.getBlock(id);
+        return block !== null && "content" in block;
+      });
+      const firstId = textIds[0];
+      const lastId = textIds[textIds.length - 1];
+      if (firstId === undefined || lastId === undefined) return;
+      const firstInner = root.querySelector<HTMLElement>(
+        `[data-block-id="${CSS.escape(firstId)}"][data-slot="docblocks/block-content"]`
+      );
+      const lastInner =
+        firstId === lastId
+          ? firstInner
+          : root.querySelector<HTMLElement>(
+              `[data-block-id="${CSS.escape(lastId)}"][data-slot="docblocks/block-content"]`
+            );
+      if (firstInner === null || lastInner === null) return;
+      const head = locatePosition(firstInner, 0);
+      const tail = locatePosition(lastInner, doc.getTextLength(lastId));
+      applyDomSelection(head.node, head.offset, tail.node, tail.offset);
+      return;
+    }
     if (key === "z" && !event.shiftKey) {
       event.preventDefault();
       doc.undo();
