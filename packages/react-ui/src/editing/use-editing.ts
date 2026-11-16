@@ -169,10 +169,6 @@ function useEditing(): EditingHandle {
   }, [doc, selectionRef, viewMode]);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    // The read-only stand (view / published): the hotkeys stand no
-    // stand (the undo/redo's path and the blocks selection's delete are
-    // editing's paths).
-    if (viewMode) return;
     // Keys typed inside a nested editor (a sync-embed) bubble up to this
     // root; that editor's own hotkeys handle them, so this root must not
     // double-fire undo/redo.
@@ -188,6 +184,96 @@ function useEditing(): EditingHandle {
     // reach the doc from there (the focus-parking contract).
     const formControl = target?.closest("input, textarea, [contenteditable='true']") ?? null;
     if (root !== null && target !== null && formControl !== null && !root.contains(target)) return;
+    // The select-all's stand (the both modes' stand — the read-only view's
+    // selection stands the document's zone too: the browser's native
+    // select-all degenerates to a collapsed caret (the edit's mode) or
+    // selects the consumer's whole page (the read-only's mode), so the
+    // editor stands the whole-document's selection itself: the first text
+    // block's start → the last text block's end (the DOM's cross seat +
+    // the mapping's view sync over the selectionchange — the
+    // copy/paste/delete's cross's paths stand over the range).
+    if (root !== null && (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "a" && !event.shiftKey) {
+      // The form controls (their own select-all's stand — the cell's
+      // inputs, the panel's) and the canvas view (its own keys' stand)
+      // keep the default; the page's editables + the root's parked focus
+      // stand the document's selection.
+      if (
+        target !== null &&
+        target !== root &&
+        (target.closest("input, textarea") !== null || target.closest('[data-slot="docblocks/canvas-view"]') !== null)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const textIds = doc.getChildren(rootBlockId).filter((id) => {
+        const block = doc.getBlock(id);
+        return block !== null && "content" in block;
+      });
+      const firstId = textIds[0];
+      const lastId = textIds[textIds.length - 1];
+      if (firstId === undefined || lastId === undefined) return;
+      const firstInner = root.querySelector<HTMLElement>(
+        `[data-block-id="${CSS.escape(firstId)}"][data-slot="docblocks/block-content"]`
+      );
+      const lastInner =
+        firstId === lastId
+          ? firstInner
+          : root.querySelector<HTMLElement>(
+              `[data-block-id="${CSS.escape(lastId)}"][data-slot="docblocks/block-content"]`
+            );
+      if (firstInner === null || lastInner === null) return;
+      const head = locatePosition(firstInner, 0);
+      const tail = locatePosition(lastInner, doc.getTextLength(lastId));
+      applyDomSelection(head.node, head.offset, tail.node, tail.offset);
+      return;
+    }
+    // The document's start/end's stand (the Chromium's native's degeneration
+    // over the nested editables' stand): the native Ctrl+Home leaves the
+    // caret standing (the outer editable's content start stands the panel's
+    // island's position, not the document's first text block), so the
+    // editor stands the caret's seat itself (the select-all's head/tail's
+    // parity — the first text block's start / the last's end, the
+    // selection's collapse to the document's edge's stand). The form
+    // controls + the canvas view keep their own keys.
+    if (
+      root !== null &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.shiftKey &&
+      (event.key === "Home" || event.key === "End")
+    ) {
+      if (
+        target !== null &&
+        target !== root &&
+        (target.closest("input, textarea") !== null || target.closest('[data-slot="docblocks/canvas-view"]') !== null)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      const textIds = doc.getChildren(rootBlockId).filter((id) => {
+        const block = doc.getBlock(id);
+        return block !== null && "content" in block;
+      });
+      const targetId = event.key === "Home" ? textIds[0] : textIds[textIds.length - 1];
+      if (targetId === undefined) return;
+      const inner = root.querySelector<HTMLElement>(
+        `[data-block-id="${CSS.escape(targetId)}"][data-slot="docblocks/block-content"]`
+      );
+      if (inner === null) return;
+      const position = locatePosition(inner, event.key === "Home" ? 0 : doc.getTextLength(targetId));
+      applyDomSelection(position.node, position.offset, position.node, position.offset);
+      // The caret's scroll's stand (the programmatic seat stands no native
+      // scroll, and the scroller is the consumer's — the caret's view over
+      // the document's edge). The scroll's API stands over the Element's
+      // only (the text node's parent — the seat's text anchor stands no
+      // scrollIntoView of its own).
+      const scrollEl: Element | null = position.node instanceof Element ? position.node : position.node.parentElement;
+      scrollEl?.scrollIntoView({ block: event.key === "Home" ? "start" : "end" });
+      return;
+    }
+    // The read-only stand (view / published): the hotkeys stand no
+    // stand (the undo/redo's path and the blocks selection's delete are
+    // editing's paths).
+    if (viewMode) return;
     const view = selectionRef.view;
     if (view !== null) {
       const selection = view.get();
@@ -280,52 +366,6 @@ function useEditing(): EditingHandle {
     const mod = event.metaKey || event.ctrlKey;
     if (!mod) return;
     const key = event.key.toLowerCase();
-    if (key === "a" && !event.shiftKey) {
-      // The browser's select-all degenerates over the page's nested
-      // editables (the Chromium's stand: a collapsed caret at the
-      // document's end instead of the full selection — the nested
-      // contenteditable's boundary breaks its own select-all), so the
-      // editor stands the whole-document's selection itself: the first
-      // text block's start → the last text block's end (the DOM's cross
-      // seat + the mapping's view sync over the selectionchange — the
-      // copy/paste/delete's cross's paths stand over the range).
-      const root = rootRef.current;
-      if (root === null) return;
-      // The form controls (their own select-all's stand — the cell's
-      // inputs, the panel's) and the canvas view (its own keys' stand)
-      // keep the default; the page's editables + the root's parked focus
-      // stand the document's selection.
-      const target = event.target instanceof Element ? event.target : null;
-      if (
-        target !== null &&
-        target !== root &&
-        (target.closest("input, textarea") !== null || target.closest('[data-slot="docblocks/canvas-view"]') !== null)
-      ) {
-        return;
-      }
-      event.preventDefault();
-      const textIds = doc.getChildren(rootBlockId).filter((id) => {
-        const block = doc.getBlock(id);
-        return block !== null && "content" in block;
-      });
-      const firstId = textIds[0];
-      const lastId = textIds[textIds.length - 1];
-      if (firstId === undefined || lastId === undefined) return;
-      const firstInner = root.querySelector<HTMLElement>(
-        `[data-block-id="${CSS.escape(firstId)}"][data-slot="docblocks/block-content"]`
-      );
-      const lastInner =
-        firstId === lastId
-          ? firstInner
-          : root.querySelector<HTMLElement>(
-              `[data-block-id="${CSS.escape(lastId)}"][data-slot="docblocks/block-content"]`
-            );
-      if (firstInner === null || lastInner === null) return;
-      const head = locatePosition(firstInner, 0);
-      const tail = locatePosition(lastInner, doc.getTextLength(lastId));
-      applyDomSelection(head.node, head.offset, tail.node, tail.offset);
-      return;
-    }
     if (key === "z" && !event.shiftKey) {
       event.preventDefault();
       doc.undo();

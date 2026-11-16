@@ -187,3 +187,91 @@ test("the select-all's copy-paste replaces the selection (the document stands, n
 
   await close();
 });
+
+/**
+ * The pane's scroller (the consumer-owned scroll container — the editor's
+ * content overflows the pane's fixed height): the nearest scrollable
+ * ancestor of the pane's host.
+ */
+async function paneScroller(page: Page, client: "a" | "b"): Promise<{ scrollTop: number; max: number } | null> {
+  return page.evaluate((client) => {
+    const host = document.querySelector(`[data-testid="doc-${client}"]`);
+    if (host === null) return null;
+    let sc: HTMLElement | null = host.querySelector('[data-slot="docblocks/editor"]');
+    while (sc !== null && !(sc.scrollHeight > sc.clientHeight + 4)) sc = sc.parentElement;
+    if (sc === null) return null;
+    return { scrollTop: sc.scrollTop, max: sc.scrollHeight - sc.clientHeight };
+  }, client);
+}
+
+test("ctrl+home / ctrl+end seat the caret over the document's edges (the scroller's stand)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "doc-edges-caret");
+
+  // Seed a tall doc (30 lines — the pane's overflow's stand).
+  const first = inners(a, "a").first();
+  await first.click();
+  await a.keyboard.type("line 00");
+  for (let i = 1; i < 30; i += 1) {
+    await insertBlockType(a, "a", "paragraph");
+    await inners(a, "a").nth(i).click();
+    await a.keyboard.type(`line ${String(i).padStart(2, "0")}`);
+  }
+  await expect(inners(a, "a")).toHaveCount(30);
+
+  // Click a mid-doc line (the scroller's mid position's stand), then the
+  // document's edge's keys: the caret's seat + the scroller's stand (the
+  // programmatic seat stands no native scroll — the editor's own). The
+  // scroller's top clamp stands the pane's chrome over the content (the
+  // scrollTop's 0's no-reach's stand), so the assertions stand the
+  // relative's positions (the mid's over the home's, the end's over the
+  // max's) + the caret's seats (the exact's stand).
+  const mid = inners(a, "a").nth(15);
+  await mid.scrollIntoViewIfNeeded();
+  await mid.click();
+  const midScroll = (await paneScroller(a, "a"))!;
+  expect(midScroll.scrollTop).toBeGreaterThan(100);
+
+  await a.keyboard.press("Control+Home");
+  const firstId = (await inners(a, "a").first().getAttribute("data-block-id"))!;
+  await expect
+    .poll(async () =>
+      a.evaluate(() => {
+        const s = window.getSelection();
+        if (s === null || s.rangeCount === 0) return null;
+        const r = s.getRangeAt(0);
+        const innerEl = (r.startContainer.parentElement ?? null)?.closest('[data-slot="docblocks/block-content"]');
+        return innerEl !== undefined && innerEl !== null
+          ? { id: innerEl.getAttribute("data-block-id"), offset: r.startOffset, collapsed: s.isCollapsed }
+          : null;
+      })
+    )
+    .toEqual({ id: firstId, offset: 0, collapsed: true });
+  const homeScroll = await paneScroller(a, "a");
+  expect(homeScroll!.scrollTop).toBeLessThan(midScroll.scrollTop / 2);
+  // The first line's view's stand (the scroll's to-the-top's effect).
+  const firstRect = (await inners(a, "a").first().boundingBox())!;
+  const paneRect = (await a.locator('[data-testid="doc-a"]').boundingBox())!;
+  expect(firstRect.y).toBeLessThan(paneRect.y + 200);
+
+  await a.keyboard.press("Control+End");
+  const lastId = (await inners(a, "a").last().getAttribute("data-block-id"))!;
+  await expect
+    .poll(async () =>
+      a.evaluate(() => {
+        const s = window.getSelection();
+        if (s === null || s.rangeCount === 0) return null;
+        const r = s.getRangeAt(0);
+        const innerEl = (r.startContainer.parentElement ?? null)?.closest('[data-slot="docblocks/block-content"]');
+        return innerEl !== undefined && innerEl !== null
+          ? { id: innerEl.getAttribute("data-block-id"), offset: r.startOffset, collapsed: s.isCollapsed }
+          : null;
+      })
+    )
+    .toEqual({ id: lastId, offset: 7, collapsed: true });
+  const endScroll = await paneScroller(a, "a");
+  // The bottom's clamp's stand (the page's bottom padding's allowance —
+  // the last line's bottom stands the padding over the content's bottom).
+  expect(endScroll!.scrollTop).toBeGreaterThanOrEqual(endScroll!.max - 100);
+
+  await close();
+});

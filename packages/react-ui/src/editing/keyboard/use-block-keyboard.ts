@@ -132,6 +132,18 @@ function useBlockKeyboard({ id, blockType, context, innerRef }: BlockKeyboardPro
       // A blocks selection owns the plain arrows (the wrapper's selection
       // navigation); a leftover DOM caret must not take them over.
       if (selectionRef.view?.get().kind === "blocks") return;
+      // A cross-block text range owns its own shift arrows (the
+      // cross-range's keys stand the extension over the range's
+      // endpoints — the edge check over the clamped DOM focus would
+      // re-base the range over the far end and collapse it).
+      const viewSelection = selectionRef.view?.get();
+      if (
+        viewSelection?.kind === "text" &&
+        viewSelection.to !== null &&
+        viewSelection.to.blockId !== viewSelection.from.blockId
+      ) {
+        return;
+      }
       const domSelection = window.getSelection();
       if (domSelection === null || domSelection.rangeCount === 0) return;
       const { anchorNode, anchorOffset } = domSelection;
