@@ -99,9 +99,8 @@
     "statusPublished": "Published",
     "statusAria": "Status",
     "addAttribute": "Add attribute",
+    "addConfirm": "Add",
     "keyPlaceholder": "Key",
-    "valuePlaceholder": "Value",
-    "keyReserved": "The key cannot be used (a reserved document key).",
-    "valueInvalid": "The value cannot be parsed for the chosen type."
+    "keyReserved": "The key cannot be used (a reserved document key)."
   }
 }

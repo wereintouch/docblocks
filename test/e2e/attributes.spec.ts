@@ -139,40 +139,46 @@ test("the status's select commits the preset value and syncs (the empty option's
   }
 });
 
-test("the custom attribute: the typed add over the type's stand / the value's edit / the row's removal (the wire over both)", async ({
+test("the custom attribute: the typed add over the popover's flow / the value's edit / the row's removal (the wire over both)", async ({
   browser,
 }) => {
   const { a, b, close } = await twoPanes(browser, "doc-attributes-custom");
   try {
     await openPanel(a, "a");
-    // The number's stand (the type's select over the add flow — the type
-    // is the value's form contract, the data stands the typed wrapper).
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-type"]').selectOption("number");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-key"]').fill("revision");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-value"]').fill("7");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+    /** The add's flow (the list's tail's button over the popover): the type
+     *  pick + the name's draft + the commit (the row's creation over the
+     *  type's initial form — the data stands the typed wrapper). */
+    const addAttribute = async (type: string, name: string): Promise<void> => {
+      await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+      const popover = a.locator('[data-slot="docblocks/attributes-add-key"]');
+      await popover.waitFor({ state: "visible" });
+      await a.locator(`[data-slot="docblocks/attributes-add-type-option"][data-type="${type}"]`).click();
+      await popover.fill(name);
+      await a.locator('[data-slot="docblocks/attributes-add-confirm"]').click();
+      await expect(popover).toHaveCount(0);
+    };
+    // The number's initial form (the type's picker over the popover — the
+    // button stands over the list's tail over the commit).
+    await addAttribute("number", "revision");
     await expect
       .poll(() => attributesOf(a, "a").then((m) => m?.revision), SETTLE)
       .toEqual({
         type: "number",
-        value: 7,
+        value: 0,
       });
     await expect
       .poll(() => attributesOf(b, "b").then((m) => m?.revision), SETTLE)
       .toEqual({
         type: "number",
-        value: 7,
+        value: 0,
       });
     // The default type (string) over the second custom key.
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-type"]').selectOption("string");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-key"]').fill("note");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-value"]').fill("hello");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+    await addAttribute("string", "note");
     await expect
       .poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE)
       .toEqual({
         type: "string",
-        value: "hello",
+        value: "",
       });
     // The value's edit (the typed string's stand — the custom row's inline
     // edit keeps the typed form over the commit).
@@ -192,19 +198,16 @@ test("the custom attribute: the typed add over the type's stand / the value's ed
         type: "string",
         value: "nine",
       });
-    // The mention's stand (the id-only reference over the add flow; the
-    // display stands the id over the monospace).
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-type"]').selectOption("mention");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-key"]').fill("owner");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-value"]').fill("u7");
-    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+    // The mention's stand (the name stands the target's id — the id-only
+    // reference; the display stands the id over the monospace).
+    await addAttribute("mention", "u7");
     await expect
-      .poll(() => attributesOf(a, "a").then((m) => m?.owner), SETTLE)
+      .poll(() => attributesOf(a, "a").then((m) => m?.u7), SETTLE)
       .toEqual({
         type: "mention",
         value: { id: "u7" },
       });
-    await expect(panel(a, "a").locator('[data-slot="docblocks/attribute-row"][data-attribute-key="owner"]')).toHaveText(
+    await expect(panel(a, "a").locator('[data-slot="docblocks/attribute-row"][data-attribute-key="u7"]')).toHaveText(
       /u7/
     );
     // The row's removal (the custom row's remove button).

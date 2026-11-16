@@ -23,7 +23,7 @@ interface RenderOptions {
   prepare?: (doc: Doc) => void;
   renderAttribute?: (props: RenderAttributeProps) => React.ReactNode;
   attributeTypePicker?: React.ComponentType<{
-    value: AttributeType | null;
+    value: AttributeType;
     onChange: (type: AttributeType) => void;
   }>;
 }
@@ -225,60 +225,79 @@ describe("the edit commits", () => {
     expect(doc.meta.attributes?.custom).toBeUndefined();
   });
 
-  it("the add row stands the custom key (the typed value's stand; the reserved key's rejection shows the error, no write)", () => {
+  it("the add's flow: the popover's type pick + the name's commit (the typed value's initial form; the list's replenish, the button's tail stand)", () => {
     const doc = renderEditor();
     expand();
-    const typeSelect = document.querySelector<HTMLSelectElement>('[data-slot="docblocks/attributes-add-type"]');
-    const keyInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-key"]')!;
-    const valueInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-value"]')!;
-    fireEvent.change(keyInput, { target: { value: "mykey" } });
-    fireEvent.change(valueInput, { target: { value: "myvalue" } });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
-    // The default type (string): the typed value's stand (the type is the
-    // value's form contract — the consumer's picker's enum stands the
-    // parse's stand).
-    expect(doc.meta.attributes?.mykey).toEqual({ type: "string", value: "myvalue" });
+    const addButton = (): HTMLElement => {
+      const button = document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]');
+      expect(button, "the add's button should stand").not.toBeNull();
+      return button!;
+    };
+    const openAdd = (): void => {
+      fireEvent.click(addButton());
+      expect(
+        document.querySelector('[data-slot="docblocks/attributes-add-key"]'),
+        "the popover should stand"
+      ).not.toBeNull();
+    };
+    const typeOption = (type: string): HTMLElement =>
+      document.querySelector<HTMLElement>(`[data-slot="docblocks/attributes-add-type-option"][data-type="${type}"]`)!;
+    const keyInput = (): HTMLInputElement =>
+      document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-key"]')!;
+    const confirm = (): void => {
+      fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-confirm"]')!);
+    };
 
-    // The number's parse over the type's stand.
-    fireEvent.change(typeSelect!, { target: { value: "number" } });
-    fireEvent.change(keyInput, { target: { value: "count" } });
-    fireEvent.change(valueInput, { target: { value: "42.5" } });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
-    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 42.5 });
+    // The default type (string) over the name's commit: the typed wrapper's
+    // initial form (the value's edit stands the row's own zone).
+    openAdd();
+    fireEvent.change(keyInput(), { target: { value: "note" } });
+    confirm();
+    expect(doc.meta.attributes?.note).toEqual({ type: "string", value: "" });
+    // The popover's close, the row's addition, the button's tail stand.
+    expect(document.querySelector('[data-slot="docblocks/attributes-add-key"]')).toBeNull();
+    expect(document.querySelector('[data-slot="docblocks/attributes-add-button"]')).not.toBeNull();
 
-    // The list's comma's parse.
-    fireEvent.change(typeSelect!, { target: { value: "list" } });
-    fireEvent.change(keyInput, { target: { value: "team" } });
-    fireEvent.change(valueInput, { target: { value: "a, b, c" } });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
-    expect(doc.meta.attributes?.team).toEqual({ type: "list", value: ["a", "b", "c"] });
+    // The number / the boolean / the list's initial forms.
+    openAdd();
+    fireEvent.click(typeOption("number"));
+    fireEvent.change(keyInput(), { target: { value: "count" } });
+    confirm();
+    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 0 });
 
-    // The mention's stand (the id-only ref).
-    fireEvent.change(typeSelect!, { target: { value: "mention" } });
-    fireEvent.change(keyInput, { target: { value: "owner" } });
-    fireEvent.change(valueInput, { target: { value: "u7" } });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
-    expect(doc.meta.attributes?.owner).toEqual({ type: "mention", value: { id: "u7" } });
+    openAdd();
+    fireEvent.click(typeOption("boolean"));
+    fireEvent.change(keyInput(), { target: { value: "flag" } });
+    confirm();
+    expect(doc.meta.attributes?.flag).toEqual({ type: "boolean", value: false });
 
-    // The invalid number's stand (the error, no write).
-    fireEvent.change(typeSelect!, { target: { value: "number" } });
-    fireEvent.change(keyInput, { target: { value: "bad" } });
-    fireEvent.change(valueInput, { target: { value: "nope" } });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
-    expect(doc.meta.attributes?.bad).toBeUndefined();
-    expect(document.querySelector<HTMLElement>("[data-slot='docblocks/attributes-body']")?.textContent).toContain(
-      "cannot be parsed"
-    );
+    openAdd();
+    fireEvent.click(typeOption("list"));
+    fireEvent.change(keyInput(), { target: { value: "team" } });
+    confirm();
+    expect(doc.meta.attributes?.team).toEqual({ type: "list", value: [] });
 
-    // The reserved key: the core's rejection stands the inline error (no
-    // write, the doc's stand unchanged).
-    fireEvent.change(typeSelect!, { target: { value: "string" } });
-    fireEvent.change(keyInput, { target: { value: "title" } });
-    fireEvent.change(valueInput, { target: { value: "no" } });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
+    // The mention's stand (the name stands the target's id — the id-only
+    // reference; the key stands the id — the one-reference-per-key stand).
+    openAdd();
+    fireEvent.click(typeOption("mention"));
+    fireEvent.change(keyInput(), { target: { value: "u7" } });
+    confirm();
+    expect(doc.meta.attributes?.u7).toEqual({ type: "mention", value: { id: "u7" } });
+
+    // The empty name's no-op stand (no write, the popover's open stand).
+    openAdd();
+    confirm();
+    expect(doc.meta.attributes).not.toHaveProperty("nokey");
+    expect(document.querySelector('[data-slot="docblocks/attributes-add-key"]')).not.toBeNull();
+
+    // The reserved key: the core's rejection stands the popover's inline
+    // error (no write, the doc's stand unchanged, the popover's open stand).
+    fireEvent.change(keyInput(), { target: { value: "title" } });
+    confirm();
     expect(doc.meta.title).toBe("T"); // the meta's title stands untouched
     expect(doc.meta.attributes?.title).toBeUndefined();
-    expect(document.querySelector<HTMLElement>("[data-slot='docblocks/attributes-body']")?.textContent).toContain(
+    expect(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-error"]')?.textContent).toContain(
       "reserved"
     );
   });
@@ -352,7 +371,7 @@ describe("the consumer's props", () => {
     expect(doc.meta.attributes?.status).toBe("published");
   });
 
-  it("attributeTypePicker replaces the built-in type select over the add flow", () => {
+  it("attributeTypePicker replaces the built-in type picker over the add flow", () => {
     const doc = renderEditor({
       attributeTypePicker: ({ value, onChange }) => (
         <button data-testid="consumer-type-picker" onClick={() => onChange("number")}>
@@ -361,17 +380,17 @@ describe("the consumer's props", () => {
       ),
     });
     expand();
-    // The built-in's select stands off; the consumer's picker stands.
-    expect(document.querySelector('[data-slot="docblocks/attributes-add-type"]')).toBeNull();
+    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
+    // The built-in's options stand off; the consumer's picker stands.
+    expect(document.querySelector('[data-slot="docblocks/attributes-add-type-option"]')).toBeNull();
     const picker = document.querySelector<HTMLElement>("[data-testid='consumer-type-picker']");
     expect(picker).not.toBeNull();
-    // The pick stands the type's commit over the add flow's parse.
+    // The pick stands the type's commit over the name's commit.
     fireEvent.click(picker!);
-    const keyInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-key"]')!;
-    const valueInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-value"]')!;
-    fireEvent.change(keyInput, { target: { value: "count" } });
-    fireEvent.change(valueInput, { target: { value: "7" } });
-    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
-    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 7 });
+    fireEvent.change(document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-key"]')!, {
+      target: { value: "count" },
+    });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-confirm"]')!);
+    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 0 });
   });
 });

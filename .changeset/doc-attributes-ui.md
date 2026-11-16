@@ -8,10 +8,11 @@ created / last updated, read-only — the dates stand the locale's
 medium date, the id over the monospace), the preset rows (description,
 tags, the `createdBy` creator reference (the id-only mention, display
 over the consumer's resolution), cover, status, published date) with
-the inline editors, the custom attributes (the typed add flow over the
-`ATTRIBUTE_TYPES` enum + edit / remove), and the consumer's
-`hiddenAttributes` + `tagEditor` + `renderAttribute` +
-`attributeTypePicker` provider props. The `renderAttribute` callback
+the inline editors, the custom attributes (the add's flow over the list's tail's
+button — the popover's type pick + the name's draft + the commit; the
+`ATTRIBUTE_TYPES` enum over the type's vocabulary; the mention's name
+stands the target's id), and the consumer's `hiddenAttributes` +
+`tagEditor` + `renderAttribute` + `attributeTypePicker` provider props. The `renderAttribute` callback
 replaces a row's value zone over its key (the `null` / the absent
 stands the built-in); the `attributeTypePicker` component replaces the
 built-in type select over the add flow. Markdown import and paste now

@@ -126,13 +126,13 @@ type RenderAttribute = (props: RenderAttributeProps) => ReactNode;
 
 /** The props an attribute type-picker receives (the `attributeTypePicker` provider prop). */
 interface AttributeTypePickerProps {
-  /** The selected type (the built-in picker's stand — `null` before the first pick). */
-  value: AttributeType | null;
+  /** The selected type (the panel's pick — the default `"string"` over the add's popover). */
+  value: AttributeType;
   /** Commits the type pick (the built-in picker's enum is `ATTRIBUTE_TYPES`). */
   onChange: (type: AttributeType) => void;
 }
 
-/** The consumer's replacement of the default type picker (the `attributeTypePicker` provider prop): the custom-attribute's add flow's type selection. The built-in's enum (`ATTRIBUTE_TYPES`) is the shared vocabulary. */
+/** The consumer's replacement of the default type picker (the `attributeTypePicker` provider prop): the custom-attribute's add popover's type selection. The built-in's enum (`ATTRIBUTE_TYPES`) is the shared vocabulary. */
 type AttributeTypePicker = ComponentType<AttributeTypePickerProps>;
 
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
@@ -204,7 +204,7 @@ interface EditorContextValue {
   tagEditor: TagEditor | null;
   /** The consumer's per-key attribute-value renderer (the `renderAttribute` prop); null stands the built-in editors. */
   renderAttribute: RenderAttribute | null;
-  /** The consumer's attribute type picker (the `attributeTypePicker` prop); null stands the built-in select. */
+  /** The consumer's attribute type picker (the `attributeTypePicker` prop); null stands the built-in picker. */
   attributeTypePicker: AttributeTypePicker | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
   embedSandbox: EmbedSandboxPolicy;

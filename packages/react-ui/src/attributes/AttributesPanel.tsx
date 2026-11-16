@@ -4,18 +4,21 @@
  * the markdown frontmatter's stand). Collapsed by default (the collapse
  * state is session state — never document data). The rows: the system
  * read-only rows (the meta's derivatives — id / createdAt / the live
- * lastUpdatedAt), the preset rows (description / tags / createdBy / cover
- * / status / publishedAt), and the custom rows (every non-preset key of
- * the `meta.attributes` record — the typed value's stand). Over the
- * read-only stands (the view / published's modes) every row stands
- * display-only. `hiddenAttributes` hides the named rows (the preset and
- * the custom keys, the system rows); `tagEditor` replaces the default
- * tags editor; `renderAttribute` replaces a row's value zone over its
- * key; `attributeTypePicker` replaces the custom-attribute add flow's
- * type picker. The panel renders over the page's shared editable: its
- * root is a non-editable island (the cross-drag's mousedown guard and the
- * surface's container-targeted dispatch keep their stands over the
- * island's controls).
+ * lastUpdatedAt — the dates' locale stand, the date only), the preset
+ * rows (description / tags / createdBy / cover / status / publishedAt),
+ * and the custom rows (every non-preset key of the `meta.attributes`
+ * record — the typed value's stand). Over the read-only stands (the
+ * view / published's modes) every row stands display-only.
+ * `hiddenAttributes` hides the named rows (the preset and the custom
+ * keys, the system rows); `tagEditor` replaces the default tags editor;
+ * `renderAttribute` replaces a row's value zone over its key; the
+ * custom-attribute add's entry stands over the list's tail (the button —
+ * the popover's type pick + the name's draft + the commit; the row's
+ * creation over the type's initial form), and `attributeTypePicker`
+ * replaces the popover's built-in type picker. The panel renders over
+ * the page's shared editable: its root is a non-editable island (the
+ * cross-drag's mousedown guard and the surface's container-targeted
+ * dispatch keep their stands over the island's controls).
  *
  * The value zone's stand: every value (the display's stand and the
  * editors') keeps the same padding and the same font size, so the value
@@ -35,6 +38,7 @@ import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
 import { Input } from "../shared/ui/Input";
+import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { cn } from "../shared/ui/cn";
 import { ChevronDown, Image, Plus, Trash, X } from "../shared/ui/icons";
 import { PRESET_KEYS } from "./presets";
@@ -326,11 +330,12 @@ function AttributesPanel() {
   // The collapse's session state (the default: collapsed).
   const [open, setOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  // The add flow's state (the popover's stand): the open state, the type's
+  // pick (the consumer's `attributeTypePicker` replaces the picker, not
+  // the state), the name's draft, the error.
+  const [addOpen, setAddOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [addKey, setAddKey] = useState("");
-  const [addValue, setAddValue] = useState("");
-  // The add flow's type (the built-in picker's stand — the consumer's
-  // `attributeTypePicker` replaces the picker, not the type's state).
   const [addType, setAddType] = useState<AttributeType>("string");
 
   const attributes = meta.attributes ?? {};
@@ -383,57 +388,32 @@ function AttributesPanel() {
 
   const customKeys = Object.keys(attributes).filter((key) => !(PRESET_KEYS as readonly string[]).includes(key));
 
-  /** The add flow's commit: the value parses over the chosen type (the
-   *  typed value's stand — the type is the value's form contract). */
+  /** The add flow's commit: the name stands the key, the typed value stands
+   *  the type's initial form (the value's edit stands the row's own zone;
+   *  the mention's name stands the target's id). */
   const commitAdd = (): void => {
     const key = addKey.trim();
     if (key === "") return;
-    const raw = addValue.trim();
-    let parsed: TypedAttributeValue;
-    switch (addType) {
-      case "string":
-        parsed = { type: "string", value: raw };
-        break;
-      case "number":
-        if (raw === "" || Number.isNaN(Number(raw))) {
-          setAddError(t("attributes.valueInvalid"));
-          return;
-        }
-        parsed = { type: "number", value: Number(raw) };
-        break;
-      case "boolean":
-        parsed = { type: "boolean", value: raw === "true" };
-        break;
-      case "list":
-        parsed = {
-          type: "list",
-          value:
-            raw === ""
-              ? []
-              : raw
-                  .split(",")
-                  .map((item) => item.trim())
-                  .filter((item) => item !== ""),
-        };
-        break;
-      case "mention":
-        if (raw === "") {
-          setAddError(t("attributes.valueInvalid"));
-          return;
-        }
-        parsed = { type: "mention", value: { id: raw } };
-        break;
-    }
+    const parsed: TypedAttributeValue =
+      addType === "mention"
+        ? { type: "mention", value: { id: key } }
+        : addType === "number"
+          ? { type: "number", value: 0 }
+          : addType === "boolean"
+            ? { type: "boolean", value: false }
+            : addType === "list"
+              ? { type: "list", value: [] }
+              : { type: "string", value: "" };
     try {
       doc.setAttribute(key, parsed);
       setAddKey("");
-      setAddValue("");
       setAddError(null);
+      setAddOpen(false);
     } catch (error) {
+      // The name is the only user-controlled input here: the only rejection
+      // over a valid typed form is the reserved key's stand.
       if (error instanceof InvalidAttributeError) {
-        setAddError(error.message.includes("key") ? t("attributes.keyReserved") : t("attributes.valueInvalid"));
-      } else {
-        setAddError(t("attributes.valueInvalid"));
+        setAddError(t("attributes.keyReserved"));
       }
     }
   };
@@ -493,7 +473,7 @@ function AttributesPanel() {
         {t("attributes.title")}
       </button>
       {open ? (
-        <div data-slot="docblocks/attributes-body" className="mt-1 border-t pt-1.5">
+        <div data-slot="docblocks/attributes-body" className="mt-1 border-t border-muted pt-1.5">
           {hidden.has("id") ? null : (
             <AttributeRow key="id" attributeKey="id" label={t("attributes.id")} removable={false}>
               <span className="block px-1.5 py-1 font-mono text-sm break-all">{meta.id}</span>
@@ -736,79 +716,99 @@ function AttributesPanel() {
           })}
 
           {viewMode ? null : (
-            <div data-slot="docblocks/attributes-add" className="mt-1.5 flex items-center gap-1.5 border-t pt-1.5">
-              {TypePicker !== null ? (
-                <TypePicker value={addType} onChange={setAddType} />
-              ) : (
-                <select
-                  data-slot="docblocks/attributes-add-type"
-                  aria-label={t("attributes.typeAria")}
-                  className="
-                    h-7 w-28 shrink-0 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none
-                    focus-visible:border-ring
-                  "
-                  value={addType}
-                  onChange={(event) => setAddType(event.target.value as AttributeType)}
-                >
-                  {ATTRIBUTE_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {t(`attributes.type${type[0]!.toUpperCase()}${type.slice(1)}`)}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <Input
-                data-slot="docblocks/attributes-add-key"
-                aria-label={t("attributes.keyPlaceholder")}
-                className="h-7 w-32 text-xs"
-                placeholder={t("attributes.keyPlaceholder")}
-                value={addKey}
-                onChange={(event) => setAddKey(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") commitAdd();
-                }}
-              />
-              {addType === "boolean" ? (
-                <select
-                  data-slot="docblocks/attributes-add-value"
-                  aria-label={t("attributes.valuePlaceholder")}
-                  className="
-                    h-7 min-w-0 flex-1 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none
-                    focus-visible:border-ring
-                  "
-                  value={addValue === "" ? "false" : addValue}
-                  onChange={(event) => setAddValue(event.target.value)}
-                >
-                  <option value="true">true</option>
-                  <option value="false">false</option>
-                </select>
-              ) : (
-                <Input
-                  data-slot="docblocks/attributes-add-value"
-                  aria-label={t("attributes.valuePlaceholder")}
-                  className="h-7 min-w-0 flex-1 text-xs"
-                  placeholder={
-                    addType === "mention" ? t("attributes.mentionIdPlaceholder") : t("attributes.valuePlaceholder")
+            // The add's entry over the list's tail (the button stands over
+            // the last row): the popover's type pick + the name's draft +
+            // the commit (the row's creation — the list's replenish; the
+            // button stands over the list's tail over the commit).
+            <div data-slot="docblocks/attributes-add" className="mt-1.5">
+              <Popover
+                open={addOpen}
+                onOpenChange={(next) => {
+                  setAddOpen(next);
+                  if (!next) {
+                    setAddKey("");
+                    setAddError(null);
                   }
-                  value={addValue}
-                  onChange={(event) => setAddValue(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") commitAdd();
-                  }}
-                />
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={t("attributes.addAttribute")}
-                data-slot="docblocks/attributes-add-button"
-                className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
-                onClick={commitAdd}
+                }}
               >
-                <Plus className="size-3.5" />
-              </Button>
-              {addError !== null ? <span className="text-xs text-destructive">{addError}</span> : null}
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    data-slot="docblocks/attributes-add-button"
+                    aria-label={t("attributes.addAttribute")}
+                    aria-haspopup="dialog"
+                    className="
+                      flex items-center gap-1.5 rounded-md px-1.5 py-1 text-sm text-muted-foreground
+                      hover:bg-muted/50 hover:text-foreground
+                    "
+                  >
+                    <Plus className="size-3.5" />
+                    {t("attributes.addAttribute")}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="start" className="w-64">
+                  {/* The type's picker (the consumer's `attributeTypePicker`'
+                      stand; the built-in's compact options otherwise). */}
+                  {TypePicker !== null ? (
+                    <TypePicker value={addType} onChange={setAddType} />
+                  ) : (
+                    <div
+                      data-slot="docblocks/attributes-add-type"
+                      role="group"
+                      aria-label={t("attributes.typeAria")}
+                      className="flex flex-wrap gap-1"
+                    >
+                      {ATTRIBUTE_TYPES.map((type) => (
+                        <button
+                          key={type}
+                          type="button"
+                          data-slot="docblocks/attributes-add-type-option"
+                          data-type={type}
+                          aria-pressed={addType === type}
+                          className={cn(
+                            "rounded-md border px-2 py-1 text-xs",
+                            addType === type
+                              ? "border-ring bg-accent text-accent-foreground"
+                              : "border-input bg-transparent text-muted-foreground hover:text-foreground"
+                          )}
+                          onClick={() => setAddType(type)}
+                        >
+                          {t(`attributes.type${type[0]!.toUpperCase()}${type.slice(1)}`)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <Input
+                    data-slot="docblocks/attributes-add-key"
+                    aria-label={t("attributes.keyPlaceholder")}
+                    className="text-sm"
+                    placeholder={
+                      addType === "mention" ? t("attributes.mentionIdPlaceholder") : t("attributes.keyPlaceholder")
+                    }
+                    value={addKey}
+                    onChange={(event) => setAddKey(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") commitAdd();
+                    }}
+                  />
+                  <div className="flex items-center justify-end gap-2">
+                    {addError !== null ? (
+                      <span data-slot="docblocks/attributes-add-error" className="text-xs text-destructive">
+                        {addError}
+                      </span>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      data-slot="docblocks/attributes-add-confirm"
+                      onClick={commitAdd}
+                    >
+                      {t("attributes.addConfirm")}
+                    </Button>
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           )}
         </div>
