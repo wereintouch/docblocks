@@ -49,7 +49,14 @@ one-line sliding-pill type pick (the document view's selector's parity
   `attributeTypePicker` provider props. The `renderAttribute` callback replaces a row's value
   zone over its key (the `null` / the absent stands the built-in); the
   `attributeTypePicker` component replaces the built-in type picker over
-  the add flow. Markdown import and paste now read the YAML-frontmatter
+  the add flow. The panel's in-row fields (the tags' add input, the
+  list's line / the new-line inputs, the key's rename input, the typed
+  value's inline edits) all stand the shared `Input` primitive over its
+  new flat `inline` variant (the frame / the background / the shadow
+  stand off — the focus's border stand only), replacing the ad-hoc raw
+  inputs. The `AttributesPanel` stands the composition over the unit's
+  row files (the `CustomAttributeRow`'s custom row, the preset's
+  editors, the add's popover, the value's pure reads). Markdown import and paste now read the YAML-frontmatter
   subset into the meta over the fresh documents (the title + the mapped
   attribute presets — the `author` / `created_by` keys map to the
   `createdBy` id-only reference) and strip it before the blocks parse; the

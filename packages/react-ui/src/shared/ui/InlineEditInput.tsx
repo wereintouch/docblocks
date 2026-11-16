@@ -22,6 +22,10 @@ interface InlineEditInputProps {
   /** The invalid stand (the commit's typed error's keep — the field's
    *  `aria-invalid`'s destructive frame over the open stand). */
   invalid?: boolean;
+  /** The field's look: the standard's form stand (the default — the
+   *  header / the portaled forms) or the row's inline stand (the panel's
+   *  flat field over the row's zone — the focus's border stand only). */
+  variant?: "default" | "inline";
   /** The mount's select-all (the rename's replace stand — the default
    *  stands the caret's end seat). */
   selectOnMount?: boolean;
@@ -38,6 +42,7 @@ function InlineEditInput({
   className,
   placeholder,
   invalid,
+  variant,
   selectOnMount,
   onCommit,
   onCancel,
@@ -93,6 +98,7 @@ function InlineEditInput({
       data-slot={slot}
       aria-label={ariaLabel}
       aria-invalid={invalid ? true : undefined}
+      variant={variant}
       placeholder={placeholder}
       defaultValue={initial}
       className={className}

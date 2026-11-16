@@ -573,7 +573,7 @@ describe("the key's rename over the key's click", () => {
     act(() => {
       fireEvent.click(keyButton("a"));
     });
-    let input = renameInput("a");
+    const input = renameInput("a");
     act(() => {
       fireEvent.change(input, { target: { value: "title" } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -597,7 +597,6 @@ describe("the key's rename over the key's click", () => {
     });
     expect(doc.meta.attributes).toEqual({ c: 1, b: 2 });
     expect(renameInput("a"), "the input should close over the valid commit").toBeNull();
-    void input;
   });
 
   it("cancels over the Escape / the empty's commit (the no-write stand)", () => {
@@ -651,7 +650,7 @@ describe("the key's rename over the key's click", () => {
   });
 
   it("the preset / the system rows stand no rename entry (the fixed vocabulary's stand)", () => {
-    const doc = renderEditor({
+    renderEditor({
       prepare: (d) => {
         d.setAttribute("description", "d");
         d.setAttribute("custom", "v");
@@ -670,7 +669,7 @@ describe("the key's rename over the key's click", () => {
   });
 
   it("the read-only's rows stand no rename entry (the display-only's parity)", () => {
-    const doc = renderEditor({
+    renderEditor({
       mode: "view",
       prepare: (d) => {
         d.setAttribute("custom", "v");
