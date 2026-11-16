@@ -247,7 +247,7 @@ function assertAttributeKey(key: string): void {
 function assertAttributeValue(key: string, value: unknown): asserts value is DocAttributeValue {
   if (!isDocAttributeValue(value)) {
     throw new InvalidAttributeError(
-      `The attribute value for "${key}" must be a string, a number, a boolean, an array of strings, or a mention reference.`
+      `The attribute value for "${key}" must be a string, a number, a boolean, an array of strings, a mention reference, or a typed value.`
     );
   }
 }

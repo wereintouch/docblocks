@@ -86,7 +86,7 @@ function validateDocAttributes(attributes: unknown, lenient: boolean, errors: Va
     if (!isDocAttributeValue(value)) {
       errors.push({
         path: `attributes.${key}`,
-        message: `The attribute value must be a string, a number, a boolean, an array of strings, or a mention reference (got ${show(value)}).`,
+        message: `The attribute value must be a string, a number, a boolean, an array of strings, a mention reference, or a typed value (got ${show(value)}).`,
       });
     }
   }

@@ -125,30 +125,76 @@ describe("the boundary validation", () => {
     expect(() => doc.setAttribute("undef", undefined as never)).toThrow(InvalidAttributeError);
   });
 
-  it("accepts the supported value forms (incl. the mention reference)", () => {
+  it("accepts the supported value forms (incl. the id-only mention reference + the typed value)", () => {
     const doc = freshDoc();
     doc.setAttribute("s", "text");
     doc.setAttribute("n", 42);
     doc.setAttribute("b", false);
     doc.setAttribute("list", ["a", "b"]);
-    doc.setAttribute("author", { id: "u1", label: "Alice" });
+    doc.setAttribute("createdBy", { id: "u1" });
+    doc.setAttribute("legacy", { id: "u1", label: "Alice" });
+    doc.setAttribute("t-string", { type: "string", value: "v" });
+    doc.setAttribute("t-number", { type: "number", value: 1.5 });
+    doc.setAttribute("t-boolean", { type: "boolean", value: true });
+    doc.setAttribute("t-list", { type: "list", value: ["x"] });
+    doc.setAttribute("t-mention", { type: "mention", value: { id: "u9" } });
     expect(doc.meta.attributes).toEqual({
-      author: { id: "u1", label: "Alice" },
+      "t-boolean": { type: "boolean", value: true },
+      "t-list": { type: "list", value: ["x"] },
+      "t-mention": { type: "mention", value: { id: "u9" } },
+      "t-number": { type: "number", value: 1.5 },
+      "t-string": { type: "string", value: "v" },
       b: false,
+      createdBy: { id: "u1" },
+      legacy: { id: "u1", label: "Alice" },
       list: ["a", "b"],
       n: 42,
       s: "text",
     });
   });
 
-  it("rejects a malformed mention reference (the { id, label } form only)", () => {
+  it("the typed value round-trips over toJSON / fromJSON (the value's form per its type)", () => {
+    const json = {
+      v: 1,
+      id: "doc-1",
+      title: "",
+      createdAt: CREATED_AT,
+      blocks: { "doc-1": { type: "root", children: [] } },
+      attributes: {
+        note: { type: "string", value: "hello" },
+        rank: { type: "number", value: 3 },
+        done: { type: "boolean", value: true },
+        tags: { type: "list", value: ["a", "b"] },
+        owner: { type: "mention", value: { id: "u1" } },
+      },
+    };
+    const doc = fromJSON(json as never);
+    expect(doc.meta.attributes).toEqual(json.attributes);
+    expect(doc.toJSON().attributes).toEqual(json.attributes);
+  });
+
+  it("rejects a malformed mention reference (the id-only / legacy label form)", () => {
     const doc = freshDoc();
-    expect(() => doc.setAttribute("author", { id: "u1" } as never)).toThrow(InvalidAttributeError);
     expect(() => doc.setAttribute("author", { id: "u1", label: "A", extra: 1 } as never)).toThrow(
       InvalidAttributeError
     );
-    expect(() => doc.setAttribute("author", { id: 1, label: "A" } as never)).toThrow(InvalidAttributeError);
-    expect(() => doc.setAttribute("author", { id: "", label: "A" } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("author", { id: 1 } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("author", { id: "" } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("author", { id: "u1", label: 5 } as never)).toThrow(InvalidAttributeError);
+  });
+
+  it("rejects a malformed typed value (the type's enum + the value's form per the type)", () => {
+    const doc = freshDoc();
+    // The type's enum + the value's form (a type/value mismatch is a rejection).
+    expect(() => doc.setAttribute("a", { type: "bogus", value: 1 } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("b", { type: "number", value: "x" } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("c", { type: "string", value: 1 } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("d", { type: "list", value: [1] } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("e", { type: "mention", value: { id: "" } } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("f", { type: "boolean" } as never)).toThrow(InvalidAttributeError);
+    expect(() => doc.setAttribute("g", { type: "string", value: "v", extra: 1 } as never)).toThrow(
+      InvalidAttributeError
+    );
   });
 
   it("rejects the unsupported shapes over the strict validator and tolerates them leniently", () => {

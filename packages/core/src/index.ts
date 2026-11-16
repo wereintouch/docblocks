@@ -53,6 +53,7 @@ export type {
 } from "./sync";
 
 export {
+  ATTRIBUTE_TYPES,
   BLOCK_REGISTRY,
   CALLOUT_ICONS,
   LEAF_BLOCK_TYPES,
@@ -68,6 +69,7 @@ export {
 } from "./schema";
 export { PACKAGE };
 export type {
+  AttributeType,
   AttrsFor,
   Block,
   BlockAttrsPatch,
@@ -139,5 +141,6 @@ export type {
   SyncEmbedRef,
   TextAlign,
   TextRun,
+  TypedAttributeValue,
   ValidationError,
 } from "./schema";

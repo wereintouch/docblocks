@@ -8,10 +8,11 @@ import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createDoc } from "docblocks-core";
-import type { Doc } from "docblocks-core";
+import type { AttributeType, Doc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
+import type { RenderAttributeProps } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -20,13 +21,24 @@ interface RenderOptions {
   view?: "page" | "canvas";
   hiddenAttributes?: readonly string[];
   prepare?: (doc: Doc) => void;
+  renderAttribute?: (props: RenderAttributeProps) => React.ReactNode;
+  attributeTypePicker?: React.ComponentType<{
+    value: AttributeType | null;
+    onChange: (type: AttributeType) => void;
+  }>;
 }
 
 function renderEditor(options: RenderOptions = {}): Doc {
   const doc = createDoc({ id: "doc-1", title: "T", createdAt: CREATED_AT });
   if (options.prepare !== undefined) options.prepare(doc);
   render(
-    <EditorProvider doc={doc} mode={options.mode} hiddenAttributes={options.hiddenAttributes}>
+    <EditorProvider
+      doc={doc}
+      mode={options.mode}
+      hiddenAttributes={options.hiddenAttributes}
+      renderAttribute={options.renderAttribute}
+      attributeTypePicker={options.attributeTypePicker}
+    >
       <Editor view={options.view ?? "page"} />
     </EditorProvider>
   );
@@ -83,11 +95,14 @@ describe("the placement and the collapse", () => {
 });
 
 describe("the rows", () => {
-  it("stands the system rows (id / createdAt / the live lastUpdatedAt)", () => {
+  it("stands the system rows (id / createdAt / the live lastUpdatedAt — the locale's date stand)", () => {
     renderEditor();
     const expanded = expand();
     expect(row("id")?.textContent).toContain("doc-1");
-    expect(row("createdAt")?.textContent).toContain(CREATED_AT);
+    // The date stand (the locale's medium date — not the raw ISO): the
+    // year stands, the ISO's `T` separator does not.
+    expect(row("createdAt")?.textContent).toContain("2026");
+    expect(row("createdAt")?.textContent).not.toContain("T00:00");
     expect(row("updatedAt")).not.toBeNull();
     void expanded;
   });
@@ -97,7 +112,7 @@ describe("the rows", () => {
       prepare: (d) => {
         d.setAttribute("description", "The stand");
         d.setAttribute("tags", ["a", "b"]);
-        d.setAttribute("author", { id: "u1", label: "Alice" });
+        d.setAttribute("createdBy", { id: "u1" });
         d.setAttribute("status", "draft");
         d.setAttribute("publishedAt", "2026-11-01T00:00:00.000Z");
         d.setAttribute("cover", "file-1");
@@ -105,16 +120,40 @@ describe("the rows", () => {
       },
     });
     const expanded = expand();
-    for (const key of ["description", "tags", "author", "cover", "status", "publishedAt", "custom"]) {
+    for (const key of ["description", "tags", "createdBy", "cover", "status", "publishedAt", "custom"]) {
       expect(row(key), `the row of "${key}" should stand`).not.toBeNull();
     }
     expect(row("description")?.textContent).toContain("The stand");
     expect(row("tags")?.textContent).toContain("a");
     expect(row("tags")?.textContent).toContain("b");
-    expect(row("author")?.textContent).toContain("Alice");
+    // The createdBy's id-only stand (the display is the id — the consumer's
+    // resolution stands the name over its `renderAttribute`).
+    expect(row("createdBy")?.textContent).toContain("u1");
+    // The createdBy's row stands display-only (no remove button's stand).
+    expect(row("createdBy")?.querySelector('[data-slot="docblocks/attribute-row-remove"]')).toBeNull();
     expect(row("custom")?.textContent).toContain("custom-value");
     void expanded;
     void doc;
+  });
+
+  it("the legacy mention reference's label stands ignored over the display (the id's stand)", () => {
+    const doc = renderEditor({
+      prepare: (d) => {
+        d.setAttribute("createdBy", { id: "u1", label: "Alice" });
+        d.setAttribute("owner", { type: "mention", value: { id: "u9" } });
+        d.setAttribute("team", { type: "list", value: ["x", "y"] });
+      },
+    });
+    expand();
+    // The legacy's label is preserved over the data, but the display stands
+    // the id (the consumer's resolution's stand).
+    expect(doc.meta.attributes?.createdBy).toEqual({ id: "u1", label: "Alice" });
+    expect(row("createdBy")?.textContent).toContain("u1");
+    expect(row("createdBy")?.textContent).not.toContain("Alice");
+    // The typed's mention stands its id over the display.
+    expect(row("owner")?.textContent).toContain("u9");
+    // The typed's list stands the joined display.
+    expect(row("team")?.textContent).toContain("x, y");
   });
 });
 
@@ -186,18 +225,54 @@ describe("the edit commits", () => {
     expect(doc.meta.attributes?.custom).toBeUndefined();
   });
 
-  it("the add row stands the custom key (the reserved key's rejection shows the error, no write)", () => {
+  it("the add row stands the custom key (the typed value's stand; the reserved key's rejection shows the error, no write)", () => {
     const doc = renderEditor();
     expand();
+    const typeSelect = document.querySelector<HTMLSelectElement>('[data-slot="docblocks/attributes-add-type"]');
     const keyInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-key"]')!;
     const valueInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-value"]')!;
     fireEvent.change(keyInput, { target: { value: "mykey" } });
     fireEvent.change(valueInput, { target: { value: "myvalue" } });
     fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
-    expect(doc.meta.attributes?.mykey).toBe("myvalue");
+    // The default type (string): the typed value's stand (the type is the
+    // value's form contract — the consumer's picker's enum stands the
+    // parse's stand).
+    expect(doc.meta.attributes?.mykey).toEqual({ type: "string", value: "myvalue" });
+
+    // The number's parse over the type's stand.
+    fireEvent.change(typeSelect!, { target: { value: "number" } });
+    fireEvent.change(keyInput, { target: { value: "count" } });
+    fireEvent.change(valueInput, { target: { value: "42.5" } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
+    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 42.5 });
+
+    // The list's comma's parse.
+    fireEvent.change(typeSelect!, { target: { value: "list" } });
+    fireEvent.change(keyInput, { target: { value: "team" } });
+    fireEvent.change(valueInput, { target: { value: "a, b, c" } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
+    expect(doc.meta.attributes?.team).toEqual({ type: "list", value: ["a", "b", "c"] });
+
+    // The mention's stand (the id-only ref).
+    fireEvent.change(typeSelect!, { target: { value: "mention" } });
+    fireEvent.change(keyInput, { target: { value: "owner" } });
+    fireEvent.change(valueInput, { target: { value: "u7" } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
+    expect(doc.meta.attributes?.owner).toEqual({ type: "mention", value: { id: "u7" } });
+
+    // The invalid number's stand (the error, no write).
+    fireEvent.change(typeSelect!, { target: { value: "number" } });
+    fireEvent.change(keyInput, { target: { value: "bad" } });
+    fireEvent.change(valueInput, { target: { value: "nope" } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
+    expect(doc.meta.attributes?.bad).toBeUndefined();
+    expect(document.querySelector<HTMLElement>("[data-slot='docblocks/attributes-body']")?.textContent).toContain(
+      "cannot be parsed"
+    );
 
     // The reserved key: the core's rejection stands the inline error (no
     // write, the doc's stand unchanged).
+    fireEvent.change(typeSelect!, { target: { value: "string" } });
     fireEvent.change(keyInput, { target: { value: "title" } });
     fireEvent.change(valueInput, { target: { value: "no" } });
     fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
@@ -247,5 +322,56 @@ describe("the consumer's props", () => {
     expect(row("custom")?.textContent).toContain("v");
     void expanded;
     void doc;
+  });
+
+  it("renderAttribute replaces the row's value zone over the key (the null's stand the built-in; the consumer's commit stands the doc's write)", () => {
+    const doc = renderEditor({
+      prepare: (d) => {
+        d.setAttribute("description", "built-in");
+        d.setAttribute("status", "draft");
+      },
+      renderAttribute: ({ key, value, onChange, readOnly }) =>
+        key === "status" ? (
+          <span data-testid="consumer-status">
+            consumer: {String(value ?? "")} ({String(readOnly)})
+            <button data-testid="consumer-set" onClick={() => onChange("published")}>
+              set
+            </button>
+          </span>
+        ) : null,
+    });
+    expand();
+    // The consumer's zone stands over the named key (the built-in's stand
+    // over the consumer's `null` / the absent key).
+    expect(document.querySelector('[data-testid="consumer-status"]')?.textContent).toContain("consumer: draft");
+    expect(row("description")?.textContent).toContain("built-in");
+    // The consumer's commit entry stands the doc's write (one setAttribute).
+    const consumerBtn = document.querySelector<HTMLElement>("[data-testid='consumer-set']");
+    expect(consumerBtn).not.toBeNull();
+    fireEvent.click(consumerBtn!);
+    expect(doc.meta.attributes?.status).toBe("published");
+  });
+
+  it("attributeTypePicker replaces the built-in type select over the add flow", () => {
+    const doc = renderEditor({
+      attributeTypePicker: ({ value, onChange }) => (
+        <button data-testid="consumer-type-picker" onClick={() => onChange("number")}>
+          custom picker ({String(value)})
+        </button>
+      ),
+    });
+    expand();
+    // The built-in's select stands off; the consumer's picker stands.
+    expect(document.querySelector('[data-slot="docblocks/attributes-add-type"]')).toBeNull();
+    const picker = document.querySelector<HTMLElement>("[data-testid='consumer-type-picker']");
+    expect(picker).not.toBeNull();
+    // The pick stands the type's commit over the add flow's parse.
+    fireEvent.click(picker!);
+    const keyInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-key"]')!;
+    const valueInput = document.querySelector<HTMLInputElement>('[data-slot="docblocks/attributes-add-value"]')!;
+    fireEvent.change(keyInput, { target: { value: "count" } });
+    fireEvent.change(valueInput, { target: { value: "7" } });
+    fireEvent.click(document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-add-button"]')!);
+    expect(doc.meta.attributes?.count).toEqual({ type: "number", value: 7 });
   });
 });

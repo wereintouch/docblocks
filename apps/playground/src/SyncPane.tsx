@@ -19,6 +19,7 @@ import type { CSSProperties } from "react";
 import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach } from "docblocks-core";
 
 import { ChaosBar } from "./ChaosBar";
+import { attributeTypePickerDemo, renderAttributeDemo } from "./attribute-demos";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
 import { blobStore, databaseBridge, insertBlockOf } from "./insert-blocks";
@@ -125,6 +126,7 @@ function SyncPane({
   canvas,
   cycle,
   role,
+  attrDemo,
 }: {
   client: "a" | "b";
   syncUrl: string;
@@ -132,6 +134,7 @@ function SyncPane({
   canvas: boolean;
   cycle: boolean;
   role: "editor" | "viewer";
+  attrDemo: boolean;
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
@@ -504,6 +507,8 @@ function SyncPane({
               pdfPreview={PdfFirstPage}
               mentionProvider={mentionProvider}
               mentionInteractions={mentionInteractions}
+              renderAttribute={attrDemo ? renderAttributeDemo : undefined}
+              attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
               accessLevel="viewer"
             >
               <Editor view={view} />
@@ -520,6 +525,8 @@ function SyncPane({
                 pdfPreview={PdfFirstPage}
                 mentionProvider={mentionProvider}
                 mentionInteractions={mentionInteractions}
+                renderAttribute={attrDemo ? renderAttributeDemo : undefined}
+                attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
                 presence={PRESENCE[client]}
                 accessLevel={role}
                 mode={mode}

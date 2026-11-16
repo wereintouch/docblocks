@@ -109,8 +109,8 @@ describe("the mapping's rules", () => {
     const mapped = mapFrontmatter(entries);
     expect(mapped.title).toBe("My Doc");
     expect(mapped.attributes).toEqual({
-      author: { id: "Alice", label: "Alice" },
       cover: "https://example.com/cover.png",
+      createdBy: { id: "Alice" },
       custom: "value",
       description: "The stand",
       publishedAt: "2026-11-15T00:00:00.000Z",
@@ -120,7 +120,7 @@ describe("the mapping's rules", () => {
     // The `cover` preset (the file id's stand) is NOT over the raw URL —
     // the URL stands the custom key under its own name.
     expect(mapped.attributes.cover).toBe("https://example.com/cover.png");
-    expect("author" in mapped.attributes).toBe(true);
+    expect("createdBy" in mapped.attributes).toBe(true);
   });
 
   it("the unparseable date stands the custom key under its name", () => {
@@ -136,11 +136,16 @@ describe("the mapping's rules", () => {
     expect(mapped.attributes.meta).toBe(JSON.stringify({ author: "Bob", city: "Paris" }));
   });
 
-  it("the `published: true` and the `author` name object's stands", () => {
+  it("the `published: true` and the `createdBy` reference's stands (the id-only form over the aliases)", () => {
     const published = mapFrontmatter(parseFrontmatter("---\npublished: true\n---\n")!.entries);
     expect(published.attributes.status).toBe("published");
+    // The name object's stand (the id-only reference — the label's snapshot
+    // stands dropped, the consumer's resolution's stand).
     const author = mapFrontmatter(parseFrontmatter("---\nauthor:\n  name: Bob\n---\n")!.entries);
-    expect(author.attributes.author).toEqual({ id: "Bob", label: "Bob" });
+    expect(author.attributes.createdBy).toEqual({ id: "Bob" });
+    // The `created_by` / `createdBy` aliases stand the same reference.
+    const alias = mapFrontmatter(parseFrontmatter("---\ncreated_by: u2\n---\n")!.entries);
+    expect(alias.attributes.createdBy).toEqual({ id: "u2" });
   });
 });
 

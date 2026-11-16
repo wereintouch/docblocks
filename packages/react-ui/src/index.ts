@@ -11,6 +11,8 @@ export type { EditorView } from "./Editor";
 export { DEFAULT_EMBED_SANDBOX, EditorProvider, useEditorContext } from "./editor-provider";
 export type {
   AccessLevel,
+  AttributeTypePicker,
+  AttributeTypePickerProps,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -21,6 +23,9 @@ export type {
   PdfPreview,
   PdfPreviewProps,
   PresenceConfig,
+  RenderAttribute,
+  RenderAttributeProps,
+  SelectionRef,
   SyncEmbedResolver,
   TagEditor,
   TagEditorProps,
@@ -98,7 +103,7 @@ export type {
   UseDatabaseTable,
   UseTableList,
 } from "./database";
-export type { MentionMark, SyncEmbedRef } from "docblocks-core";
+export type { AttributeType, MentionMark, SyncEmbedRef, TypedAttributeValue } from "docblocks-core";
 export {
   useBlock,
   useDoc,

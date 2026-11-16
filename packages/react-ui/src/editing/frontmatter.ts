@@ -158,8 +158,10 @@ const toIsoDate = (value: string): string | null => {
 /**
  * The header's mapping to the document's meta: `title` → the document's title; `description` / `summary`
  * / `excerpt` → `description`; `tags` / `keywords` → `tags` (merged and
- * deduplicated); `author` (the string / the name object) → the mention
- * reference; `date` / `lastmod` / `updated` → `publishedAt` (the parseable
+ * deduplicated); `author` / `created_by` (the string / the name object) →
+ * the `createdBy` mention reference (id-only — the consumer's resolution
+ * stands the display label); `date` / `lastmod` / `updated` →
+ * `publishedAt` (the parseable
  * date's ISO — the unparseable stands the custom key under its name);
  * `draft` / `published` → `status`; `cover` / `image` / `banner` → the
  * custom key (the raw URL — NOT the `cover` file id); the nested objects →
@@ -171,7 +173,7 @@ function mapFrontmatter(entries: Record<string, FrontmatterValue>): FrontmatterM
   let title: string | undefined;
   let description: string | undefined;
   const tags: string[] = [];
-  let author: DocAttributeValue | undefined;
+  let createdBy: DocAttributeValue | undefined;
   let publishedAt: string | undefined;
   let status: string | undefined;
 
@@ -196,7 +198,9 @@ function mapFrontmatter(entries: Record<string, FrontmatterValue>): FrontmatterM
         break;
       }
       case "author":
-        if (author === undefined) author = authorValueOf(value);
+      case "created_by":
+      case "createdBy":
+        if (createdBy === undefined) createdBy = createdByValueOf(value);
         break;
       case "date":
       case "lastmod":
@@ -236,7 +240,7 @@ function mapFrontmatter(entries: Record<string, FrontmatterValue>): FrontmatterM
 
   if (description !== undefined) attributes.description = description;
   if (tags.length > 0) attributes.tags = tags;
-  if (author !== undefined) attributes.author = author;
+  if (createdBy !== undefined) attributes.createdBy = createdBy;
   if (publishedAt !== undefined) attributes.publishedAt = publishedAt;
   if (status !== undefined) attributes.status = status;
 
@@ -251,15 +255,18 @@ function attributeValueOf(value: FrontmatterValue): DocAttributeValue {
   return JSON.stringify(value);
 }
 
-/** The `author`'s mention reference (the string / the name object's stand). */
-function authorValueOf(value: FrontmatterValue): DocAttributeValue {
+/** The `createdBy`'s mention reference (the id-only stand — the string /
+ *  the name object's stand; the display label is the consumer's
+ *  resolution). */
+function createdByValueOf(value: FrontmatterValue): DocAttributeValue {
   if (typeof value === "string") {
-    const label = value.trim();
-    return label === "" ? "" : { id: label, label };
+    const id = value.trim();
+    return id === "" ? "" : { id };
   }
   if (value !== null && typeof value === "object" && !Array.isArray(value)) {
-    const name = value.name;
-    if (typeof name === "string" && name !== "") return { id: name, label: name };
+    const record = value as Record<string, unknown>;
+    const id = record.id ?? record.name;
+    if (typeof id === "string" && id !== "") return { id };
   }
   return attributeValueOf(value);
 }

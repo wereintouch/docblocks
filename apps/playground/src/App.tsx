@@ -27,7 +27,11 @@ const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
  * utility CSS, no relay/doc involved); `?tables=1` renders the
  * standalone's database tables section instead of a pane
  * (TablesSection.tsx — the `useTableList` + the `DatabaseTable` over the
- * harness's shared bridge, no relay/doc involved). Each pane renders
+ * harness's shared bridge, no relay/doc involved); `?attrDemo=1` wires
+ * the consumer's attributes customization over the editor provider (the
+ * `renderAttribute`'s status-badge + the `createdBy`'s catalog resolution
+ * + the `attributeTypePicker`'s segmented type picker — attribute-demos.tsx
+ * — the built-in's stands stand over the flag's absence). Each pane renders
  * the two-pane layout: the editor (page or canvas) on the left and the
  * system panel (status, the relay's per-room chaos controls, the live
  * JSON / wire / presence inspectors) on the right.
@@ -42,9 +46,20 @@ function App() {
   const cycle = params.get("cycle") === "1";
   const ds = params.get("ds") === "1";
   const tables = params.get("tables") === "1";
+  const attrDemo = params.get("attrDemo") === "1";
   if (tables) return <TablesSection />;
   if (ds) return <DsPanel />;
-  return <SyncPane client={client} syncUrl={syncUrl} catalog={catalog} canvas={canvas} cycle={cycle} role={role} />;
+  return (
+    <SyncPane
+      client={client}
+      syncUrl={syncUrl}
+      catalog={catalog}
+      canvas={canvas}
+      cycle={cycle}
+      role={role}
+      attrDemo={attrDemo}
+    />
+  );
 }
 
 export { App };

@@ -4,66 +4,127 @@
  * the markdown frontmatter's stand). Collapsed by default (the collapse
  * state is session state — never document data). The rows: the system
  * read-only rows (the meta's derivatives — id / createdAt / the live
- * lastUpdatedAt), the preset rows (description / tags / author / cover /
- * status / publishedAt), and the custom rows (every non-preset key of
- * the `meta.attributes` record). Over the read-only stands (the view /
- * published's modes) every row stands display-only. `hiddenAttributes`
- * hides the named rows (the preset and the custom keys, the system rows);
- * `tagEditor` replaces the default tags editor. The panel renders over
- * the page's shared editable: its root is a non-editable island (the
- * cross-drag's mousedown guard and the surface's container-targeted
- * dispatch keep their stands over the island's controls).
+ * lastUpdatedAt), the preset rows (description / tags / createdBy / cover
+ * / status / publishedAt), and the custom rows (every non-preset key of
+ * the `meta.attributes` record — the typed value's stand). Over the
+ * read-only stands (the view / published's modes) every row stands
+ * display-only. `hiddenAttributes` hides the named rows (the preset and
+ * the custom keys, the system rows); `tagEditor` replaces the default
+ * tags editor; `renderAttribute` replaces a row's value zone over its
+ * key; `attributeTypePicker` replaces the custom-attribute add flow's
+ * type picker. The panel renders over the page's shared editable: its
+ * root is a non-editable island (the cross-drag's mousedown guard and the
+ * surface's container-targeted dispatch keep their stands over the
+ * island's controls).
+ *
+ * The value zone's stand: every value (the display's stand and the
+ * editors') keeps the same padding and the same font size, so the value
+ * column's first letters stand one vertical over all the rows (the
+ * label's column is the fixed width; the value's zone is the rest).
  */
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 
-import { InvalidAttributeError } from "docblocks-core";
-import type { DocAttributeValue, MentionRef } from "docblocks-core";
+import { ATTRIBUTE_TYPES, InvalidAttributeError } from "docblocks-core";
+import type { AttributeType, DocAttributeValue, MentionRef, TypedAttributeValue } from "docblocks-core";
 
 import { useBlobFile } from "../blocks/use-blob-file";
 import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
 import { Input } from "../shared/ui/Input";
-import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { cn } from "../shared/ui/cn";
-import { ChevronDown, Image, Plus, Trash, User, X } from "../shared/ui/icons";
-import { preventDefault } from "../shared/utils";
+import { ChevronDown, Image, Plus, Trash, X } from "../shared/ui/icons";
 import { PRESET_KEYS } from "./presets";
 
-/** The mention reference's read (the `author` value's shape stand). */
+/** The mention reference's read (the id-only stand; the legacy label's
+ *  snapshot stands tolerated). */
 const mentionRefOf = (value: DocAttributeValue | undefined): MentionRef | null => {
   if (value === undefined || value === null || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  return typeof record.id === "string" && typeof record.label === "string" ? (value as MentionRef) : null;
+  return typeof record.id === "string" && record.id !== "" ? (value as MentionRef) : null;
 };
 
-/** The attribute row's frame: the label column + the value zone + the optional remove button. */
+/** The typed attribute value's read (the custom attribute's storage form:
+ *  the declared `type` + the `value` over its form). */
+const typedValueOf = (value: DocAttributeValue | undefined): TypedAttributeValue | null => {
+  if (value === undefined || value === null || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const keys = Object.keys(record);
+  if (keys.length !== 2 || typeof record.type !== "string" || !("value" in record)) return null;
+  return (value as TypedAttributeValue) ?? null;
+};
+
+/** The value zone's stand over a display-only value (the typed value
+ *  stands its inner value's display; the mention reference stands its id). */
+function displayTextOf(value: DocAttributeValue | undefined): string | null {
+  if (value === undefined) return null;
+  const typed = typedValueOf(value);
+  if (typed !== null) return displayTextOf(typed.value);
+  if (Array.isArray(value)) return value.join(", ");
+  if (typeof value === "boolean") return String(value);
+  const mention = mentionRefOf(value);
+  if (mention !== null) return mention.id;
+  return String(value);
+}
+
+/** The locale's date stand (the date only, no time): the panel's locale
+ *  (the consumer's `<html lang>` / the controlled `locale`) over the
+ *  `Intl.DateTimeFormat`'s medium date; a non-parseable stand keeps the
+ *  raw ISO. */
+function formatDate(iso: string | undefined, locale: string): string {
+  if (iso === undefined) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  try {
+    return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(date);
+  } catch {
+    return iso;
+  }
+}
+
+/** The published date's display stand: a parseable ISO stands the locale's
+ *  date (the data keeps the raw value — the edit's input stands the raw
+ *  stand); a non-parseable stand stands the raw string. */
+function displayPublishedDate(value: string | undefined, locale: string): string | null {
+  if (value === undefined || value === "") return null;
+  return formatDate(value, locale);
+}
+
+/** The attribute row's frame: the fixed label column + the value zone +
+ *  the optional remove button. The label and the value share the font
+ *  size (the value's zone keeps its own padding — the column's stand). */
 function AttributeRow({
   attributeKey,
   label,
   removable,
   onRemove,
+  removeAria,
   children,
 }: {
   attributeKey: string;
   label: string;
   removable: boolean;
   onRemove?: () => void;
+  removeAria?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div data-slot="docblocks/attribute-row" data-attribute-key={attributeKey} className="flex items-start gap-3 py-1">
-      <span className="w-32 shrink-0 pt-1.5 text-xs text-muted-foreground">{label}</span>
+    <div
+      data-slot="docblocks/attribute-row"
+      data-attribute-key={attributeKey}
+      className="flex items-center gap-3 py-1.5"
+    >
+      <span className="w-28 shrink-0 truncate text-sm text-muted-foreground">{label}</span>
       <div className="min-w-0 flex-1">{children}</div>
       {removable && onRemove !== undefined ? (
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          aria-label={attributeKey}
+          aria-label={removeAria ?? attributeKey}
           data-slot="docblocks/attribute-row-remove"
           className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
           onClick={onRemove}
@@ -75,26 +136,16 @@ function AttributeRow({
   );
 }
 
-/** The display stand (a value's read-only rendering). */
+/** The display stand (a value's read-only rendering — the value zone's
+ *  padding, the uniform font size; the mention reference stands its id
+ *  over the monospace stand). */
 function DisplayValue({ value, placeholder }: { value: DocAttributeValue | undefined; placeholder: string }) {
-  if (value === undefined) return <span className="text-xs text-muted-foreground">{placeholder}</span>;
-  if (Array.isArray(value))
-    return (
-      <span className="text-sm">
-        {value.join(", ") || <span className="text-muted-foreground">{placeholder}</span>}
-      </span>
-    );
-  if (typeof value === "boolean") return <span className="text-sm">{String(value)}</span>;
-  const mention = mentionRefOf(value);
-  if (mention !== null) {
-    return (
-      <span className="inline-flex items-center gap-1 text-sm">
-        <User className="size-3.5 text-muted-foreground" />
-        {mention.label}
-      </span>
-    );
-  }
-  return <span className="text-sm">{String(value)}</span>;
+  const text = displayTextOf(value);
+  if (text === null || text === "")
+    return <span className="px-1.5 py-1 text-sm text-muted-foreground">{placeholder}</span>;
+  const typed = typedValueOf(value);
+  const isMention = mentionRefOf(value) !== null || (typed !== null && typed.type === "mention");
+  return <span className={cn("block truncate px-1.5 py-1 text-sm", isMention && "font-mono")}>{text}</span>;
 }
 
 /** The tags editor (the default stand): the chips + the add input. Every
@@ -176,106 +227,6 @@ function TagsEditor({
   );
 }
 
-/** The author's picker (the mention provider's users over a search input). */
-function AuthorPicker({
-  current,
-  onPick,
-  onClear,
-}: {
-  current: DocAttributeValue | undefined;
-  onPick: (ref: MentionRef) => void;
-  onClear: () => void;
-}) {
-  const { t } = useTranslation("editor");
-  const { mentionProvider } = useEditorContext();
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Array<{ id: string; label: string }>>([]);
-  const requestSeq = useRef(0);
-
-  useEffect(() => {
-    if (!open) return;
-    const seq = ++requestSeq.current;
-    void mentionProvider
-      ?.searchUsers(query)
-      .then((entries) => {
-        if (seq === requestSeq.current) setResults(entries);
-      })
-      .catch(() => {
-        if (seq === requestSeq.current) setResults([]);
-      });
-  }, [open, query, mentionProvider]);
-
-  const label =
-    current === undefined
-      ? t("attributes.notSet")
-      : (mentionRefOf(current)?.label ??
-        (typeof current === "string" || typeof current === "number" ? String(current) : t("attributes.notSet")));
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          data-slot="docblocks/attributes-author"
-          aria-label={t("attributes.pickAuthorAria")}
-          className="h-auto max-w-full justify-start gap-1.5 px-1.5 py-1 text-sm"
-        >
-          <User className="size-3.5 shrink-0 text-muted-foreground" />
-          <span className={cn("truncate", current === undefined && "text-muted-foreground")}>{label}</span>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={4} onOpenAutoFocus={preventDefault} className="w-56 p-1.5">
-        <Input
-          autoFocus
-          data-slot="docblocks/attributes-author-search"
-          aria-label={t("attributes.searchUsersPlaceholder")}
-          className="h-8 text-sm"
-          placeholder={t("attributes.searchUsersPlaceholder")}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <div className="mt-1.5 max-h-48 overflow-y-auto">
-          {results.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
-              onClick={() => {
-                onPick({ id: entry.id, label: entry.label });
-                setOpen(false);
-              }}
-            >
-              <User className="size-3.5 shrink-0 text-muted-foreground" />
-              <span className="truncate">{entry.label}</span>
-            </button>
-          ))}
-          {results.length === 0 ? (
-            <div className="px-2 py-1.5 text-xs text-muted-foreground">{t("attributes.notSet")}</div>
-          ) : null}
-        </div>
-        {current !== undefined ? (
-          <button
-            type="button"
-            className="
-              mt-1 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-muted-foreground
-              hover:bg-muted hover:text-foreground
-            "
-            onClick={() => {
-              onClear();
-              setOpen(false);
-            }}
-          >
-            <X className="size-3" />
-            {t("attributes.removeAria", { name: t("attributes.author") })}
-          </button>
-        ) : null}
-      </PopoverContent>
-    </Popover>
-  );
-}
-
 /** The cover's stand (the file id over the blob store: the thumbnail /
  *  the upload entry / the remove; the read-only stand stands the
  *  thumbnail display-only). */
@@ -315,12 +266,8 @@ function CoverEditor({
         >
           {file.status === "ready" ? <img src={file.url} alt="" className="size-full object-cover" /> : null}
         </span>
-      ) : fileId !== undefined && file.status === "missing" ? (
-        <span data-slot="docblocks/attributes-cover" className="text-xs text-muted-foreground">
-          {t("attributes.notSet")}
-        </span>
       ) : (
-        <span data-slot="docblocks/attributes-cover" className="text-xs text-muted-foreground">
+        <span data-slot="docblocks/attributes-cover" className="px-1.5 py-1 text-sm text-muted-foreground">
           {t("attributes.notSet")}
         </span>
       )}
@@ -368,8 +315,9 @@ function CoverEditor({
 /** The panel's props (none — the panel reads the editor context; it stands
  *  over the editor's subtree only). */
 function AttributesPanel() {
-  const { t } = useTranslation("editor");
-  const { store, doc, viewMode, hiddenAttributes, tagEditor, mentionProvider } = useEditorContext();
+  const { t, i18n } = useTranslation("editor");
+  const { store, doc, viewMode, hiddenAttributes, tagEditor, renderAttribute, attributeTypePicker } =
+    useEditorContext();
   const meta = useStore(store, (state) => state.meta);
   // The per-change stamp: the live `lastUpdatedAt` row re-renders over
   // every store write (the `meta` slice is replaced only over the
@@ -381,6 +329,9 @@ function AttributesPanel() {
   const [addError, setAddError] = useState<string | null>(null);
   const [addKey, setAddKey] = useState("");
   const [addValue, setAddValue] = useState("");
+  // The add flow's type (the built-in picker's stand — the consumer's
+  // `attributeTypePicker` replaces the picker, not the type's state).
+  const [addType, setAddType] = useState<AttributeType>("string");
 
   const attributes = meta.attributes ?? {};
   const hidden = new Set(hiddenAttributes);
@@ -410,6 +361,20 @@ function AttributesPanel() {
     }
   };
 
+  /** The value zone's stand: the consumer's `renderAttribute` over the
+   *  key (the built-in editor's stand over the `null` / the absent). */
+  const valueZone = (key: string, defaultZone: React.ReactNode): React.ReactNode => {
+    if (renderAttribute === null) return defaultZone;
+    const node = renderAttribute({
+      key,
+      value: value(key),
+      onChange: (v) => set(key, v),
+      onRemove: () => remove(key),
+      readOnly: viewMode,
+    });
+    return node === null ? defaultZone : node;
+  };
+
   const statusValue = value("status");
   const statusOptions = ["draft", "published"];
   const statusCurrent = typeof statusValue === "string" ? statusValue : undefined;
@@ -418,14 +383,47 @@ function AttributesPanel() {
 
   const customKeys = Object.keys(attributes).filter((key) => !(PRESET_KEYS as readonly string[]).includes(key));
 
+  /** The add flow's commit: the value parses over the chosen type (the
+   *  typed value's stand — the type is the value's form contract). */
   const commitAdd = (): void => {
     const key = addKey.trim();
     if (key === "") return;
-    let parsed: DocAttributeValue = addValue;
-    const trimmed = addValue.trim();
-    if (trimmed !== "" && /^-?\d+(\.\d+)?$/.test(trimmed)) parsed = Number(trimmed);
-    if (trimmed === "true") parsed = true;
-    if (trimmed === "false") parsed = false;
+    const raw = addValue.trim();
+    let parsed: TypedAttributeValue;
+    switch (addType) {
+      case "string":
+        parsed = { type: "string", value: raw };
+        break;
+      case "number":
+        if (raw === "" || Number.isNaN(Number(raw))) {
+          setAddError(t("attributes.valueInvalid"));
+          return;
+        }
+        parsed = { type: "number", value: Number(raw) };
+        break;
+      case "boolean":
+        parsed = { type: "boolean", value: raw === "true" };
+        break;
+      case "list":
+        parsed = {
+          type: "list",
+          value:
+            raw === ""
+              ? []
+              : raw
+                  .split(",")
+                  .map((item) => item.trim())
+                  .filter((item) => item !== ""),
+        };
+        break;
+      case "mention":
+        if (raw === "") {
+          setAddError(t("attributes.valueInvalid"));
+          return;
+        }
+        parsed = { type: "mention", value: { id: raw } };
+        break;
+    }
     try {
       doc.setAttribute(key, parsed);
       setAddKey("");
@@ -441,6 +439,42 @@ function AttributesPanel() {
   };
 
   const TagEditor = tagEditor;
+  const TypePicker = attributeTypePicker;
+  const locale = i18n.language;
+
+  const inlineEdit = (
+    key: string,
+    slot: string,
+    label: string,
+    initial: string,
+    commit: (next: string) => void
+  ): React.ReactNode => (
+    <InlineEditInput
+      initial={initial}
+      ariaLabel={label}
+      slot={slot}
+      className="h-8 text-sm"
+      onCommit={commit}
+      onCancel={() => setEditingKey(null)}
+    />
+  );
+
+  const inlineDisplayButton = (key: string, slot: string, label: string, display: React.ReactNode): React.ReactNode =>
+    viewMode || editingKey !== key ? (
+      <button
+        type="button"
+        data-slot={slot}
+        aria-label={t("attributes.editAria", { name: label })}
+        className="w-full truncate rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/50"
+        onClick={() => {
+          if (!viewMode) setEditingKey(key);
+        }}
+      >
+        {display}
+      </button>
+    ) : null;
+
+  const notSet = <span className="text-muted-foreground">{t("attributes.notSet")}</span>;
 
   return (
     <div data-slot="docblocks/attributes" contentEditable={false} suppressContentEditableWarning className="mb-4">
@@ -450,29 +484,24 @@ function AttributesPanel() {
         aria-expanded={open}
         aria-label={t("attributes.toggleAria")}
         className="
-          flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-xs font-medium text-muted-foreground
+          flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-sm font-medium text-muted-foreground
           hover:bg-muted/50 hover:text-foreground
         "
         onClick={() => setOpen((next) => !next)}
       >
         <ChevronDown className={cn("size-3.5 transition-transform", !open && "-rotate-90")} />
         {t("attributes.title")}
-        {customKeys.length + PRESET_KEYS.filter((key) => has(key)).length > 0 ? (
-          <span className="text-muted-foreground">
-            {t("attributes.customCount", { count: customKeys.length + PRESET_KEYS.filter((key) => has(key)).length })}
-          </span>
-        ) : null}
       </button>
       {open ? (
         <div data-slot="docblocks/attributes-body" className="mt-1 border-t pt-1.5">
           {hidden.has("id") ? null : (
             <AttributeRow key="id" attributeKey="id" label={t("attributes.id")} removable={false}>
-              <span className="font-mono text-xs break-all">{meta.id}</span>
+              <span className="block px-1.5 py-1 font-mono text-sm break-all">{meta.id}</span>
             </AttributeRow>
           )}
           {hidden.has("createdAt") ? null : (
             <AttributeRow key="createdAt" attributeKey="createdAt" label={t("attributes.createdAt")} removable={false}>
-              <span className="text-xs">{meta.createdAt}</span>
+              <span className="block truncate px-1.5 py-1 text-sm">{formatDate(meta.createdAt, locale)}</span>
             </AttributeRow>
           )}
           {hidden.has("updatedAt") ? null : (
@@ -482,7 +511,9 @@ function AttributesPanel() {
               label={t("attributes.lastUpdatedAt")}
               removable={false}
             >
-              <span className="text-xs">{doc.lastUpdatedAt ?? meta.createdAt}</span>
+              <span className="block truncate px-1.5 py-1 text-sm">
+                {formatDate(doc.lastUpdatedAt ?? meta.createdAt, locale)}
+              </span>
             </AttributeRow>
           )}
 
@@ -493,36 +524,29 @@ function AttributesPanel() {
               label={t("attributes.description")}
               removable={has("description") && !viewMode}
               onRemove={() => remove("description")}
+              removeAria={t("attributes.removeAria", { name: t("attributes.description") })}
             >
-              {viewMode || editingKey !== "description" ? (
-                <button
-                  type="button"
-                  data-slot="docblocks/attributes-description"
-                  aria-label={t("attributes.editAria", { name: t("attributes.description") })}
-                  className="w-full truncate rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/50"
-                  onClick={() => {
-                    if (!viewMode) setEditingKey("description");
-                  }}
-                >
-                  {stringValue("description") !== undefined && stringValue("description") !== "" ? (
-                    stringValue("description")
-                  ) : (
-                    <span className="text-muted-foreground">{t("attributes.notSet")}</span>
-                  )}
-                </button>
-              ) : (
-                <InlineEditInput
-                  initial={stringValue("description") ?? ""}
-                  ariaLabel={t("attributes.editAria", { name: t("attributes.description") })}
-                  slot="docblocks/attributes-description-edit"
-                  className="h-8 text-sm"
-                  onCommit={(next) => {
-                    setEditingKey(null);
-                    if (next === "") remove("description");
-                    else set("description", next);
-                  }}
-                  onCancel={() => setEditingKey(null)}
-                />
+              {valueZone(
+                "description",
+                inlineDisplayButton(
+                  "description",
+                  "docblocks/attributes-description",
+                  t("attributes.description"),
+                  stringValue("description") !== undefined && stringValue("description") !== ""
+                    ? stringValue("description")
+                    : notSet
+                ) ??
+                  inlineEdit(
+                    "description",
+                    "docblocks/attributes-description-edit",
+                    t("attributes.editAria", { name: t("attributes.description") }),
+                    stringValue("description") ?? "",
+                    (next) => {
+                      setEditingKey(null);
+                      if (next === "") remove("description");
+                      else set("description", next);
+                    }
+                  )
               )}
             </AttributeRow>
           )}
@@ -534,39 +558,29 @@ function AttributesPanel() {
               label={t("attributes.tags")}
               removable={has("tags") && !viewMode}
               onRemove={() => remove("tags")}
+              removeAria={t("attributes.removeAria", { name: t("attributes.tags") })}
             >
-              {TagEditor !== null ? (
-                <TagEditor tags={tagsList} readOnly={viewMode} onTagsChange={(tags) => set("tags", tags)} />
-              ) : (
-                <TagsEditor
-                  tags={tagsList}
-                  readOnly={viewMode}
-                  onTagsChange={(tags) => {
-                    if (tags.length === 0) remove("tags");
-                    else set("tags", tags);
-                  }}
-                />
+              {valueZone(
+                "tags",
+                TagEditor !== null ? (
+                  <TagEditor tags={tagsList} readOnly={viewMode} onTagsChange={(tags) => set("tags", tags)} />
+                ) : (
+                  <TagsEditor
+                    tags={tagsList}
+                    readOnly={viewMode}
+                    onTagsChange={(tags) => {
+                      if (tags.length === 0) remove("tags");
+                      else set("tags", tags);
+                    }}
+                  />
+                )
               )}
             </AttributeRow>
           )}
 
-          {hidden.has("author") ? null : (
-            <AttributeRow
-              key="author"
-              attributeKey="author"
-              label={t("attributes.author")}
-              removable={has("author") && !viewMode}
-              onRemove={() => remove("author")}
-            >
-              {viewMode || mentionProvider === null ? (
-                <DisplayValue value={value("author")} placeholder={t("attributes.notSet")} />
-              ) : (
-                <AuthorPicker
-                  current={value("author")}
-                  onPick={(ref) => set("author", ref)}
-                  onClear={() => remove("author")}
-                />
-              )}
+          {hidden.has("createdBy") ? null : (
+            <AttributeRow key="createdBy" attributeKey="createdBy" label={t("attributes.createdBy")} removable={false}>
+              {valueZone("createdBy", <DisplayValue value={value("createdBy")} placeholder={t("attributes.notSet")} />)}
             </AttributeRow>
           )}
 
@@ -577,13 +591,13 @@ function AttributesPanel() {
               label={t("attributes.cover")}
               removable={has("cover") && !viewMode}
               onRemove={() => remove("cover")}
+              removeAria={t("attributes.removeAria", { name: t("attributes.cover") })}
             >
-              {viewMode ? (
-                <CoverEditor fileId={stringValue("cover")} readOnly onSet={() => undefined} onClear={() => undefined} />
-              ) : (
+              {valueZone(
+                "cover",
                 <CoverEditor
                   fileId={stringValue("cover")}
-                  readOnly={false}
+                  readOnly={viewMode}
                   onSet={(id) => set("cover", id)}
                   onClear={() => remove("cover")}
                 />
@@ -598,30 +612,34 @@ function AttributesPanel() {
               label={t("attributes.status")}
               removable={has("status") && !viewMode}
               onRemove={() => remove("status")}
+              removeAria={t("attributes.removeAria", { name: t("attributes.status") })}
             >
-              {viewMode ? (
-                <DisplayValue value={value("status")} placeholder={t("attributes.notSet")} />
-              ) : (
-                <select
-                  data-slot="docblocks/attributes-status"
-                  aria-label={t("attributes.statusAria")}
-                  className="
-                    h-8 rounded-md border border-input bg-transparent px-2 text-sm outline-none
-                    focus-visible:border-ring
-                  "
-                  value={statusCurrent ?? ""}
-                  onChange={(event) => {
-                    if (event.target.value === "") remove("status");
-                    else set("status", event.target.value);
-                  }}
-                >
-                  <option value="">{t("attributes.notSet")}</option>
-                  <option value="draft">{t("attributes.statusDraft")}</option>
-                  <option value="published">{t("attributes.statusPublished")}</option>
-                  {statusCurrent !== undefined && !statusOptions.includes(statusCurrent) ? (
-                    <option value={statusCurrent}>{statusCurrent}</option>
-                  ) : null}
-                </select>
+              {valueZone(
+                "status",
+                viewMode ? (
+                  <DisplayValue value={value("status")} placeholder={t("attributes.notSet")} />
+                ) : (
+                  <select
+                    data-slot="docblocks/attributes-status"
+                    aria-label={t("attributes.statusAria")}
+                    className="
+                      h-8 w-full max-w-56 rounded-md border border-input bg-transparent px-1.5 text-sm outline-none
+                      focus-visible:border-ring
+                    "
+                    value={statusCurrent ?? ""}
+                    onChange={(event) => {
+                      if (event.target.value === "") remove("status");
+                      else set("status", event.target.value);
+                    }}
+                  >
+                    <option value="">{t("attributes.notSet")}</option>
+                    <option value="draft">{t("attributes.statusDraft")}</option>
+                    <option value="published">{t("attributes.statusPublished")}</option>
+                    {statusCurrent !== undefined && !statusOptions.includes(statusCurrent) ? (
+                      <option value={statusCurrent}>{statusCurrent}</option>
+                    ) : null}
+                  </select>
+                )
               )}
             </AttributeRow>
           )}
@@ -633,73 +651,112 @@ function AttributesPanel() {
               label={t("attributes.publishedAt")}
               removable={has("publishedAt") && !viewMode}
               onRemove={() => remove("publishedAt")}
+              removeAria={t("attributes.removeAria", { name: t("attributes.publishedAt") })}
             >
-              {viewMode || editingKey !== "publishedAt" ? (
-                <button
-                  type="button"
-                  data-slot="docblocks/attributes-published-at"
-                  aria-label={t("attributes.editAria", { name: t("attributes.publishedAt") })}
-                  className="w-full truncate rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/50"
-                  onClick={() => {
-                    if (!viewMode) setEditingKey("publishedAt");
-                  }}
-                >
-                  {stringValue("publishedAt") !== undefined && stringValue("publishedAt") !== "" ? (
-                    stringValue("publishedAt")
-                  ) : (
-                    <span className="text-muted-foreground">{t("attributes.notSet")}</span>
-                  )}
-                </button>
-              ) : (
-                <InlineEditInput
-                  initial={stringValue("publishedAt") ?? ""}
-                  ariaLabel={t("attributes.editAria", { name: t("attributes.publishedAt") })}
-                  slot="docblocks/attributes-published-at-edit"
-                  className="h-8 text-sm"
-                  onCommit={(next) => {
-                    setEditingKey(null);
-                    if (next === "") remove("publishedAt");
-                    else set("publishedAt", next);
-                  }}
-                  onCancel={() => setEditingKey(null)}
-                />
-              )}
+              {(() => {
+                const raw = stringValue("publishedAt");
+                // The display's stand (the locale's date over the parseable
+                // ISO; the raw string stands otherwise; the edit's input
+                // keeps the raw value).
+                const display = raw === undefined || raw === "" ? notSet : displayPublishedDate(raw, locale);
+                return valueZone(
+                  "publishedAt",
+                  inlineDisplayButton(
+                    "publishedAt",
+                    "docblocks/attributes-published-at",
+                    t("attributes.publishedAt"),
+                    display
+                  ) ??
+                    inlineEdit(
+                      "publishedAt",
+                      "docblocks/attributes-published-at-edit",
+                      t("attributes.editAria", { name: t("attributes.publishedAt") }),
+                      raw ?? "",
+                      (next) => {
+                        setEditingKey(null);
+                        if (next === "") remove("publishedAt");
+                        else set("publishedAt", next);
+                      }
+                    )
+                );
+              })()}
             </AttributeRow>
           )}
 
-          {customKeys.map((key) => (
-            <AttributeRow key={key} attributeKey={key} label={key} removable={!viewMode} onRemove={() => remove(key)}>
-              {viewMode || editingKey !== `custom:${key}` ? (
-                <button
-                  type="button"
-                  data-slot="docblocks/attribute-custom"
-                  data-attribute-key={key}
-                  className="w-full truncate rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/50"
-                  onClick={() => {
-                    if (!viewMode && typeof attributes[key] === "string") setEditingKey(`custom:${key}`);
-                  }}
-                >
-                  <DisplayValue value={attributes[key]} placeholder={t("attributes.notSet")} />
-                </button>
-              ) : (
-                <InlineEditInput
-                  initial={String(attributes[key] ?? "")}
-                  ariaLabel={key}
-                  slot={`docblocks/attribute-${key}-edit`}
-                  className="h-8 text-sm"
-                  onCommit={(next) => {
-                    setEditingKey(null);
-                    if (next === "") remove(key);
-                    else set(key, next);
-                  }}
-                  onCancel={() => setEditingKey(null)}
-                />
-              )}
-            </AttributeRow>
-          ))}
+          {customKeys.map((key) => {
+            const rawValue = attributes[key];
+            const typed = typedValueOf(rawValue);
+            // The inline edit's stand (the string's stand — plain or the
+            // typed string): the current value's read + the same-form's
+            // write-back (the typed value keeps its type).
+            const typedString = typed !== null && typed.type === "string" ? typed : null;
+            const editable = !viewMode && (typeof rawValue === "string" || typedString !== null);
+            return (
+              <AttributeRow
+                key={key}
+                attributeKey={key}
+                label={key}
+                removable={!viewMode}
+                onRemove={() => remove(key)}
+                removeAria={t("attributes.removeAria", { name: key })}
+              >
+                {valueZone(
+                  key,
+                  editable ? (
+                    editingKey === `custom:${key}` ? (
+                      inlineEdit(
+                        `custom:${key}`,
+                        `docblocks/attribute-${key}-edit`,
+                        key,
+                        typedString !== null ? String(typedString.value) : String(rawValue ?? ""),
+                        (next) => {
+                          setEditingKey(null);
+                          if (next === "") remove(key);
+                          else if (typedString !== null) set(key, { type: "string", value: next });
+                          else set(key, next);
+                        }
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        data-slot="docblocks/attribute-custom"
+                        data-attribute-key={key}
+                        className="w-full truncate rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/50"
+                        onClick={() => setEditingKey(`custom:${key}`)}
+                      >
+                        <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
+                      </button>
+                    )
+                  ) : (
+                    <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
+                  )
+                )}
+              </AttributeRow>
+            );
+          })}
 
           {viewMode ? null : (
             <div data-slot="docblocks/attributes-add" className="mt-1.5 flex items-center gap-1.5 border-t pt-1.5">
+              {TypePicker !== null ? (
+                <TypePicker value={addType} onChange={setAddType} />
+              ) : (
+                <select
+                  data-slot="docblocks/attributes-add-type"
+                  aria-label={t("attributes.typeAria")}
+                  className="
+                    h-7 w-28 shrink-0 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none
+                    focus-visible:border-ring
+                  "
+                  value={addType}
+                  onChange={(event) => setAddType(event.target.value as AttributeType)}
+                >
+                  {ATTRIBUTE_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {t(`attributes.type${type[0]!.toUpperCase()}${type.slice(1)}`)}
+                    </option>
+                  ))}
+                </select>
+              )}
               <Input
                 data-slot="docblocks/attributes-add-key"
                 aria-label={t("attributes.keyPlaceholder")}
@@ -711,17 +768,35 @@ function AttributesPanel() {
                   if (event.key === "Enter") commitAdd();
                 }}
               />
-              <Input
-                data-slot="docblocks/attributes-add-value"
-                aria-label={t("attributes.valuePlaceholder")}
-                className="h-7 min-w-0 flex-1 text-xs"
-                placeholder={t("attributes.valuePlaceholder")}
-                value={addValue}
-                onChange={(event) => setAddValue(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") commitAdd();
-                }}
-              />
+              {addType === "boolean" ? (
+                <select
+                  data-slot="docblocks/attributes-add-value"
+                  aria-label={t("attributes.valuePlaceholder")}
+                  className="
+                    h-7 min-w-0 flex-1 rounded-md border border-input bg-transparent px-1.5 text-xs outline-none
+                    focus-visible:border-ring
+                  "
+                  value={addValue === "" ? "false" : addValue}
+                  onChange={(event) => setAddValue(event.target.value)}
+                >
+                  <option value="true">true</option>
+                  <option value="false">false</option>
+                </select>
+              ) : (
+                <Input
+                  data-slot="docblocks/attributes-add-value"
+                  aria-label={t("attributes.valuePlaceholder")}
+                  className="h-7 min-w-0 flex-1 text-xs"
+                  placeholder={
+                    addType === "mention" ? t("attributes.mentionIdPlaceholder") : t("attributes.valuePlaceholder")
+                  }
+                  value={addValue}
+                  onChange={(event) => setAddValue(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") commitAdd();
+                  }}
+                />
+              )}
               <Button
                 type="button"
                 variant="ghost"

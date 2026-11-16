@@ -13,23 +13,48 @@ type BlockId = string;
 type TextAlign = "left" | "center" | "right";
 
 /**
- * A mention reference snapshot (the `author` preset attribute's value
- * form, like the in-text `mention` mark minus its kind): the stable
- * target id + the display label. The label is a snapshot — a rename never
- * changes the document.
+ * A mention reference (the preset user attribute's value form, like the
+ * in-text `mention` mark minus its kind): the stable target id. The mark is
+ * the identity — the display label is the consumer's resolution (its own
+ * catalog / the `renderAttribute`'s stand). The legacy `label` snapshot
+ * (pre-id-only stands) stands tolerated and ignored by the writer.
  */
 type MentionRef = {
   id: string;
-  label: string;
+  /** The legacy label snapshot (tolerated over the lenient read).
+   * @deprecated The writer stands the id-only ref; the label is the
+   *  consumer's resolution over the id. */
+  label?: string;
 };
 
 /**
- * A document attribute's value (`DocMeta.attributes`): a scalar or a
- * string list, or a mention reference (the `author` snapshot's form).
- * Arbitrary nested objects are not supported (an unsupported value is
- * preserved as-is by the lenient reader only).
+ * A custom attribute's declared type (the consumer's type-picker's
+ * vocabulary — the `ATTRIBUTE_TYPES` constant). The type is the value's
+ * form contract: the typed value stands the declared type + the value over
+ * its form.
  */
-type DocAttributeValue = string | number | boolean | string[] | MentionRef;
+type AttributeType = "string" | "number" | "boolean" | "list" | "mention";
+
+/**
+ * A typed attribute value (the custom attribute's storage form): the
+ * declared `type` + the `value` over that type's form. A preset attribute
+ * stands its plain value (the type is implicit over its key); a custom
+ * attribute stands this wrapper (the type stands over an empty value, too).
+ */
+type TypedAttributeValue =
+  | { type: "string"; value: string }
+  | { type: "number"; value: number }
+  | { type: "boolean"; value: boolean }
+  | { type: "list"; value: string[] }
+  | { type: "mention"; value: MentionRef };
+
+/**
+ * A document attribute's value (`DocMeta.attributes`): a scalar or a
+ * string list, a mention reference, or the typed value (the custom
+ * attribute's storage form). Arbitrary nested objects are not supported (an
+ * unsupported value is preserved as-is by the lenient reader only).
+ */
+type DocAttributeValue = string | number | boolean | string[] | MentionRef | TypedAttributeValue;
 
 /** Document metadata. */
 interface DocMeta {
@@ -46,8 +71,9 @@ interface DocMeta {
    * frontmatter's stand): a plain `key → value` record; absent or empty =
    * none. The keys are non-empty strings (the doc meta fields and the
    * Object.prototype keys are reserved); the values are `string | number |
-   * boolean | string[]` or the mention reference (`{ id, label }`, the
-   * `author` snapshot's form).
+   * boolean | string[]`, the mention reference (`{ id }`, id-only; the
+   * legacy `label` snapshot is tolerated), or the typed value (`{ type,
+   * value }` — the custom attribute's storage form).
    */
   attributes?: Record<string, DocAttributeValue>;
   /** Creation time, ISO 8601. */
@@ -311,6 +337,7 @@ interface DividerBlock {
 }
 
 export type {
+  AttributeType,
   BlockId,
   CalloutAttrs,
   CalloutBlock,
@@ -341,6 +368,7 @@ export type {
   RootBlock,
   TableCellAttrs,
   TextAlign,
+  TypedAttributeValue,
   SyncEmbedAttrs,
   SyncEmbedBlock,
   SyncEmbedRef,

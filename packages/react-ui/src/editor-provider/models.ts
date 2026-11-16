@@ -4,6 +4,7 @@
 import type { ComponentType, ReactNode } from "react";
 
 import type { BlockId, Doc, MentionKind, MentionMark, SelectionView, SyncEmbedRef, SyncProvider } from "docblocks-core";
+import type { AttributeType, DocAttributeValue } from "docblocks-core";
 
 import type { BlobStore } from "../blob-store";
 import type { BlockRendererMap } from "../blocks";
@@ -106,6 +107,34 @@ interface TagEditorProps {
 /** The consumer's replacement of the default tags editor (the `tagEditor` provider prop). */
 type TagEditor = ComponentType<TagEditorProps>;
 
+/** The props an attribute-value renderer receives (the `renderAttribute` provider prop). */
+interface RenderAttributeProps {
+  /** The attribute's key (the preset key or the custom key). */
+  key: string;
+  /** The attribute's current value (`undefined` when unset). */
+  value: DocAttributeValue | undefined;
+  /** The write commit (one `setAttribute`). */
+  onChange: (value: DocAttributeValue) => void;
+  /** The removal commit (one `removeAttribute`). */
+  onRemove: () => void;
+  /** The read-only stand (the view / published's modes): display-only. */
+  readOnly: boolean;
+}
+
+/** The consumer's per-key attribute-value renderer (the `renderAttribute` provider prop): the value zone of a named row (a preset or a custom key); `null` / the absent stand the built-in editor. */
+type RenderAttribute = (props: RenderAttributeProps) => ReactNode;
+
+/** The props an attribute type-picker receives (the `attributeTypePicker` provider prop). */
+interface AttributeTypePickerProps {
+  /** The selected type (the built-in picker's stand — `null` before the first pick). */
+  value: AttributeType | null;
+  /** Commits the type pick (the built-in picker's enum is `ATTRIBUTE_TYPES`). */
+  onChange: (type: AttributeType) => void;
+}
+
+/** The consumer's replacement of the default type picker (the `attributeTypePicker` provider prop): the custom-attribute's add flow's type selection. The built-in's enum (`ATTRIBUTE_TYPES`) is the shared vocabulary. */
+type AttributeTypePicker = ComponentType<AttributeTypePickerProps>;
+
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
 interface SelectionRef {
   view: SelectionView | null;
@@ -173,6 +202,10 @@ interface EditorContextValue {
   hiddenAttributes: readonly string[];
   /** The consumer's tags editor (the `tagEditor` prop); null stands the default chip input. */
   tagEditor: TagEditor | null;
+  /** The consumer's per-key attribute-value renderer (the `renderAttribute` prop); null stands the built-in editors. */
+  renderAttribute: RenderAttribute | null;
+  /** The consumer's attribute type picker (the `attributeTypePicker` prop); null stands the built-in select. */
+  attributeTypePicker: AttributeTypePicker | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
   embedSandbox: EmbedSandboxPolicy;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -306,7 +339,7 @@ interface EditorProviderProps {
   /**
    * Optional attribute keys to hide from the document-attributes panel
    * (the page column's above-the-first-block stand): the preset keys
-   * (`description` / `tags` / `author` / `cover` / `status` /
+   * (`description` / `tags` / `createdBy` / `cover` / `status` /
    * `publishedAt`), the custom keys, and the system rows (`id` /
    * `createdAt` / `updatedAt`). Consumer session state — never document
    * data. Like the other customization values, pass a stable reference.
@@ -321,6 +354,28 @@ interface EditorProviderProps {
    * component is module-level).
    */
   tagEditor?: TagEditor;
+  /**
+   * Optional per-key replacement of the document-attributes panel's value
+   * zone (a preset key — `description` / `tags` / `createdBy` / `cover` /
+   * `status` / `publishedAt` — or a custom key). The renderer receives the
+   * key, the current value, the commit / removal entries, and the
+   * read-only stand; `null` (or the absent stand) selects the built-in
+   * editor for that key. The row's label (the key's display name) is the
+   * panel's — the consumer renders the value only. Like `tagEditor`, the
+   * value is read per render into the provider context: pass a stable
+   * reference.
+   */
+  renderAttribute?: RenderAttribute;
+  /**
+   * Optional replacement of the custom-attribute add flow's type picker
+   * (the document-attributes panel's "add attribute" stand). The component
+   * receives the selected type and the pick's commit; the type's vocabulary
+   * is the shared `ATTRIBUTE_TYPES` enum (the consumer's picker stands its
+   * own design over it). Like `tagEditor`, the value is read per render
+   * into the provider context: pass a stable reference (the component is
+   * module-level).
+   */
+  attributeTypePicker?: AttributeTypePicker;
   /**
    * Optional embed sandbox policy: the iframe's `sandbox` value for a given
    * embed src; `null` stands no sandbox (a fully trusted embed). Without it
@@ -368,6 +423,8 @@ interface EditorProviderProps {
 
 export type {
   AccessLevel,
+  AttributeTypePicker,
+  AttributeTypePickerProps,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -378,6 +435,8 @@ export type {
   PdfPreview,
   PdfPreviewProps,
   PresenceConfig,
+  RenderAttribute,
+  RenderAttributeProps,
   SelectionRef,
   SyncEmbedResolver,
   TagEditor,

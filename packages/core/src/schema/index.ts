@@ -13,7 +13,7 @@ export {
   isRegisteredMarkName,
 } from "./registry";
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
-export { RESERVED_DOC_ATTRIBUTE_KEYS } from "./constants";
+export { ATTRIBUTE_TYPES, RESERVED_DOC_ATTRIBUTE_KEYS } from "./constants";
 export { flattenDoc } from "./flatten";
 export { isReservedId, RESERVED_ID_KEYS } from "./id-safety";
 export { setOwn } from "./object-safety";
@@ -30,6 +30,7 @@ export type { ValidationError } from "./validate";
 export { isDocAttributeValue, isHexColor, isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
 export type { AttrsFor, Block, BlockAttrsPatch, BlockType } from "./block-union";
 export type {
+  AttributeType,
   BlockId,
   CalloutAttrs,
   CalloutBlock,
@@ -85,6 +86,7 @@ export type {
   SyncEmbedBlock,
   SyncEmbedRef,
   TextAlign,
+  TypedAttributeValue,
 } from "./types";
 export type { BlockContent, MarkName, MarkSet, MentionKind, MentionMark, TextRun } from "./text";
 export type { TableAttrs, TableBlock, TableCellBlock, TableRowBlock } from "./table";

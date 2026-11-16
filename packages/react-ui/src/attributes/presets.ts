@@ -6,7 +6,7 @@
  */
 
 /** The preset document-attribute keys (the panel's fixed rows). */
-const PRESET_KEYS = ["description", "tags", "author", "cover", "status", "publishedAt"] as const;
+const PRESET_KEYS = ["description", "tags", "createdBy", "cover", "status", "publishedAt"] as const;
 
 /** A preset key (the panel's fixed-row identity). */
 type PresetKey = (typeof PRESET_KEYS)[number];

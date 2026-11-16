@@ -139,31 +139,74 @@ test("the status's select commits the preset value and syncs (the empty option's
   }
 });
 
-test("the custom attribute: the add / the value's edit / the row's removal (the wire over both)", async ({
+test("the custom attribute: the typed add over the type's stand / the value's edit / the row's removal (the wire over both)", async ({
   browser,
 }) => {
   const { a, b, close } = await twoPanes(browser, "doc-attributes-custom");
   try {
     await openPanel(a, "a");
+    // The number's stand (the type's select over the add flow — the type
+    // is the value's form contract, the data stands the typed wrapper).
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-type"]').selectOption("number");
     await panel(a, "a").locator('[data-slot="docblocks/attributes-add-key"]').fill("revision");
     await panel(a, "a").locator('[data-slot="docblocks/attributes-add-value"]').fill("7");
     await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
-    // The numeric stand (the value's parse over the add's input).
-    await expect.poll(() => attributesOf(a, "a").then((m) => m?.revision), SETTLE).toBe(7);
-    await expect.poll(() => attributesOf(b, "b").then((m) => m?.revision), SETTLE).toBe(7);
-    // The value's edit (the string stand — the custom row's inline edit
-    // opens over the string values; the numeric add's stand is the
-    // display-only's parity over the non-string forms).
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.revision), SETTLE)
+      .toEqual({
+        type: "number",
+        value: 7,
+      });
+    await expect
+      .poll(() => attributesOf(b, "b").then((m) => m?.revision), SETTLE)
+      .toEqual({
+        type: "number",
+        value: 7,
+      });
+    // The default type (string) over the second custom key.
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-type"]').selectOption("string");
     await panel(a, "a").locator('[data-slot="docblocks/attributes-add-key"]').fill("note");
     await panel(a, "a").locator('[data-slot="docblocks/attributes-add-value"]').fill("hello");
     await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
-    await expect.poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE).toBe("hello");
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE)
+      .toEqual({
+        type: "string",
+        value: "hello",
+      });
+    // The value's edit (the typed string's stand — the custom row's inline
+    // edit keeps the typed form over the commit).
     await panel(a, "a").locator('[data-slot="docblocks/attribute-custom"][data-attribute-key="note"]').click();
     const edit = panel(a, "a").locator('[data-slot="docblocks/attribute-note-edit"]');
     await edit.fill("nine");
     await edit.press("Enter");
-    await expect.poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE).toBe("nine");
-    await expect.poll(() => attributesOf(b, "b").then((m) => m?.note), SETTLE).toBe("nine");
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE)
+      .toEqual({
+        type: "string",
+        value: "nine",
+      });
+    await expect
+      .poll(() => attributesOf(b, "b").then((m) => m?.note), SETTLE)
+      .toEqual({
+        type: "string",
+        value: "nine",
+      });
+    // The mention's stand (the id-only reference over the add flow; the
+    // display stands the id over the monospace).
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-type"]').selectOption("mention");
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-key"]').fill("owner");
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-value"]').fill("u7");
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-add-button"]').click();
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.owner), SETTLE)
+      .toEqual({
+        type: "mention",
+        value: { id: "u7" },
+      });
+    await expect(panel(a, "a").locator('[data-slot="docblocks/attribute-row"][data-attribute-key="owner"]')).toHaveText(
+      /u7/
+    );
     // The row's removal (the custom row's remove button).
     await panel(a, "a")
       .locator(
@@ -172,6 +215,29 @@ test("the custom attribute: the add / the value's edit / the row's removal (the 
       .click();
     await expect.poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE).toBeUndefined();
     await expect.poll(() => attributesOf(b, "b").then((m) => m?.note), SETTLE).toBeUndefined();
+  } finally {
+    await close();
+  }
+});
+
+test("the system rows stand the locale's dates (the date only — not the raw ISO)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "doc-attributes-dates");
+  try {
+    await openPanel(a, "a");
+    // The locale's date stand (the consumer's `html lang` over the panel's
+    // locale; the date only — the ISO's `T` separator never stands):
+    // both date rows carry a year and keep no time part.
+    for (const key of ["createdAt", "updatedAt"]) {
+      const rowText = await body(a, "a")
+        .locator(`[data-slot="docblocks/attribute-row"][data-attribute-key="${key}"]`)
+        .textContent();
+      expect(rowText).toMatch(/20\d\d/);
+      expect(rowText).not.toContain("T");
+    }
+    // The id's monospace stand (the technical identifier's display):
+    // the row's value zone (the 2nd span — the label's column stands the 1st).
+    const idRow = body(a, "a").locator('[data-slot="docblocks/attribute-row"][data-attribute-key="id"] div span');
+    expect(await idRow.evaluate((el) => window.getComputedStyle(el).fontFamily)).toMatch(/mono/i);
   } finally {
     await close();
   }

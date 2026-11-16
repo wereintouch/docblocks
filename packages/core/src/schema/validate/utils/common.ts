@@ -1,6 +1,7 @@
 /** The validator's shared value-shape checks (plain objects, the display
  *  form, the ISO 8601 / hex color / link href rules). */
-import type { DocAttributeValue, MentionRef } from "../../types";
+import { ATTRIBUTE_TYPES } from "../../constants";
+import type { AttributeType, DocAttributeValue, MentionRef, TypedAttributeValue } from "../../types";
 import { isPlainObject } from "../../utils";
 import { HEX_COLOR, ISO_8601, SCHEME_PREFIX, WEB_URL } from "../constants";
 
@@ -19,26 +20,51 @@ const isIso8601 = (value: unknown): boolean =>
 
 const isHexColor = (value: unknown): boolean => typeof value === "string" && HEX_COLOR.test(value);
 
-/** A mention reference (the `DocMeta.attributes`' `author` snapshot's
- *  form): a plain object with exactly the `id` and `label` string fields. */
+/** A mention reference (the preset user attribute's id-only form): a plain
+ *  object with the non-empty `id` string field; the legacy `label` snapshot
+ *  (the pre-id-only's data) stands tolerated (any string). */
 const isMentionRef = (value: unknown): value is MentionRef => {
   if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
-  return (
-    Object.keys(record).length === 2 &&
-    typeof record.id === "string" &&
-    record.id !== "" &&
-    typeof record.label === "string"
-  );
+  if (typeof record.id !== "string" || record.id === "") return false;
+  if (Object.keys(record).length === 1) return true;
+  return Object.keys(record).length === 2 && typeof record.label === "string";
+};
+
+/** A typed attribute value (the custom attribute's storage form): exactly
+ *  the `type` (a known `AttributeType`) + the `value` over that type's
+ *  form. */
+const isTypedAttributeValue = (value: unknown): value is TypedAttributeValue => {
+  if (!isPlainObject(value)) return false;
+  const record = value as Record<string, unknown>;
+  if (Object.keys(record).length !== 2) return false;
+  const type = record.type;
+  if (typeof type !== "string" || !(ATTRIBUTE_TYPES as readonly string[]).includes(type)) return false;
+  const v = record.value;
+  switch (type as AttributeType) {
+    case "string":
+      return typeof v === "string";
+    case "number":
+      return typeof v === "number" && Number.isFinite(v);
+    case "boolean":
+      return typeof v === "boolean";
+    case "list":
+      return Array.isArray(v) && v.every((element) => typeof element === "string");
+    case "mention":
+      return isMentionRef(v);
+  }
+  return false;
 };
 
 /** A document attribute's value (the `DocMeta.attributes` contract):
- *  a string, a finite number, a boolean, an array of strings, or a
- *  mention reference (the `author` snapshot's form). */
+ *  a string, a finite number, a boolean, an array of strings, a mention
+ *  reference (the id-only stand; the legacy label is tolerated), or the
+ *  typed value (the custom attribute's storage form). */
 const isDocAttributeValue = (value: unknown): value is DocAttributeValue => {
   if (typeof value === "string" || typeof value === "boolean") return true;
   if (typeof value === "number") return Number.isFinite(value);
   if (Array.isArray(value)) return value.every((element) => typeof element === "string");
+  if (isTypedAttributeValue(value)) return true;
   return isMentionRef(value);
 };
 

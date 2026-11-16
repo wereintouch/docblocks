@@ -1,8 +1,18 @@
+import type { AttributeType } from "./types";
+
 /** The registry's constants: the database cell types, the alignment + indent
  *  specs, the default table column width, and the callout icon catalog. */
 
 /** The database cell value contracts (the column `type` values). */
 const DATABASE_CELL_TYPES = ["text", "number", "checkbox", "select", "multi-select", "date"] as const;
+
+/**
+ * The document attribute's type vocabulary (the `AttributeType` union as a
+ * runtime constant — the consumer's type-picker's enum + the typed value's
+ * `type` field). The order is the display's order (the built-in picker's
+ * stand).
+ */
+const ATTRIBUTE_TYPES: readonly AttributeType[] = ["string", "number", "boolean", "list", "mention"];
 
 /** The horizontal text alignment, shared by the text block types. */
 const ALIGN = { kind: "enum", values: ["left", "center", "right"] } as const;
@@ -54,4 +64,12 @@ const CALLOUT_ICONS: readonly string[] = [
 
 /** The v1 block registry. */
 
-export { ALIGN, CALLOUT_ICONS, DATABASE_CELL_TYPES, DEFAULT_TABLE_COLUMN_WIDTH, INDENT, RESERVED_DOC_ATTRIBUTE_KEYS };
+export {
+  ALIGN,
+  ATTRIBUTE_TYPES,
+  CALLOUT_ICONS,
+  DATABASE_CELL_TYPES,
+  DEFAULT_TABLE_COLUMN_WIDTH,
+  INDENT,
+  RESERVED_DOC_ATTRIBUTE_KEYS,
+};

@@ -4,11 +4,19 @@
 
 The collapsible document-attributes panel over the editor page column
 (collapsed by default, session-only state): the system rows (id /
-created / last updated, read-only), the preset rows (description,
-tags, author mention, cover, status, published date) with the inline
-editors, the custom attributes (add / edit / remove), and the
-consumer's `hiddenAttributes` + `tagEditor` provider props.
-Markdown import and paste now read the YAML-frontmatter subset into
-the meta over the fresh documents (the title + the mapped attribute
-presets) and strip it before the blocks parse; the HTML import keeps
-the frontmatter as a plain paragraph.
+created / last updated, read-only — the dates stand the locale's
+medium date, the id over the monospace), the preset rows (description,
+tags, the `createdBy` creator reference (the id-only mention, display
+over the consumer's resolution), cover, status, published date) with
+the inline editors, the custom attributes (the typed add flow over the
+`ATTRIBUTE_TYPES` enum + edit / remove), and the consumer's
+`hiddenAttributes` + `tagEditor` + `renderAttribute` +
+`attributeTypePicker` provider props. The `renderAttribute` callback
+replaces a row's value zone over its key (the `null` / the absent
+stands the built-in); the `attributeTypePicker` component replaces the
+built-in type select over the add flow. Markdown import and paste now
+read the YAML-frontmatter subset into the meta over the fresh documents
+(the title + the mapped attribute presets — the `author` / `created_by`
+keys map to the `createdBy` id-only reference) and strip it before the
+blocks parse; the HTML import keeps the frontmatter as a plain
+paragraph.
