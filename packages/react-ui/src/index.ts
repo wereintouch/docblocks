@@ -22,6 +22,8 @@ export type {
   PdfPreviewProps,
   PresenceConfig,
   SyncEmbedResolver,
+  TagEditor,
+  TagEditorProps,
 } from "./editor-provider";
 export { DocHeader } from "./DocHeader";
 export { DocblocksI18nProvider } from "./i18n";

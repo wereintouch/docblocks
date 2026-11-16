@@ -5,6 +5,7 @@
  * per-block / per-mark entry points over the registry specs.
  */
 import type { BlockType } from "../../block-union";
+import { RESERVED_DOC_ATTRIBUTE_KEYS } from "../../constants";
 import { isReservedId } from "../../id-safety";
 import { BLOCK_REGISTRY } from "../../registry";
 import { indentOf } from "../../utils";
@@ -12,10 +13,10 @@ import { CANVAS_ZORDER_TYPES } from "../../z-order";
 import { DOC_FIELDS, KNOWN_DOC_FIELDS } from "../constants";
 import type { ValidationError } from "../models";
 import { checkDatabaseFilter, validateCanvasBlock, validateDatabaseBlock, validateGeometry } from "./blocks";
-import { isIso8601, isPlainObject, isSafeEmbedSrc, show } from "./common";
+import { isDocAttributeValue, isIso8601, isPlainObject, isSafeEmbedSrc, show } from "./common";
 import { validateAttrs, validateContent, validateMarks } from "./content";
 
-function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): void {
+function validateMeta(doc: Record<string, unknown>, lenient: boolean, errors: ValidationError[]): void {
   for (const field of DOC_FIELDS) {
     if (!(field in doc)) errors.push({ path: field, message: `Missing required field "${field}".` });
   }
@@ -42,6 +43,52 @@ function validateMeta(doc: Record<string, unknown>, errors: ValidationError[]): 
       path: "createdAt",
       message: `createdAt must be an ISO 8601 date-time (got ${show(doc.createdAt)}).`,
     });
+  }
+  // The doc-attributes record (the only doc-level additive channel):
+  // the strict posture checks the key / value forms; the lenient
+  // (cross-minor) load preserves the unsupported values as-is (the
+  // reader's contract).
+  if ("attributes" in doc) validateDocAttributes(doc.attributes, lenient, errors);
+}
+
+/**
+ * The `DocMeta.attributes` record: a plain object of
+ * `string | number | boolean | string[]` values. Strict posture: the key
+ * form (non-empty, not a doc meta field, not an Object.prototype key) and
+ * the value form stand the typed errors. Lenient posture: the values stand
+ * preserved as-is (the cross-minor stand — the reader's contract).
+ */
+function validateDocAttributes(attributes: unknown, lenient: boolean, errors: ValidationError[]): void {
+  if (!isPlainObject(attributes)) {
+    errors.push({ path: "attributes", message: `attributes must be a plain object (got ${show(attributes)}).` });
+    return;
+  }
+  if (lenient) return;
+  for (const [key, value] of Object.entries(attributes)) {
+    if (key === "") {
+      errors.push({ path: "attributes", message: `An attribute key must not be empty.` });
+      continue;
+    }
+    if (RESERVED_DOC_ATTRIBUTE_KEYS.has(key)) {
+      errors.push({
+        path: `attributes.${key}`,
+        message: `The attribute key "${key}" is reserved (a document meta field) and cannot be used.`,
+      });
+      continue;
+    }
+    if (isReservedId(key)) {
+      errors.push({
+        path: `attributes.${key}`,
+        message: `The attribute key "${key}" is reserved (it collides with Object.prototype) and cannot be used.`,
+      });
+      continue;
+    }
+    if (!isDocAttributeValue(value)) {
+      errors.push({
+        path: `attributes.${key}`,
+        message: `The attribute value must be a string, a number, a boolean, an array of strings, or a mention reference (got ${show(value)}).`,
+      });
+    }
   }
 }
 
@@ -255,7 +302,7 @@ function validateDoc(json: unknown, lenient = false): ValidationError[] {
     return [{ path: "", message: `The document must be a plain object (got ${show(json)}).` }];
   }
 
-  validateMeta(json, errors);
+  validateMeta(json, lenient, errors);
   if (!isPlainObject(json.blocks)) {
     if ("blocks" in json)
       errors.push({ path: "blocks", message: `blocks must be a plain object (got ${show(json.blocks)}).` });

@@ -9,7 +9,7 @@ const SCHEME_PREFIX = /^[a-z][a-z0-9+.-]*:/i;
 
 const DOC_FIELDS = ["v", "id", "title", "createdAt", "blocks"] as const;
 /** The optional top-level document fields (known but not required). */
-const DOC_OPTIONAL_FIELDS = ["avatar"] as const;
+const DOC_OPTIONAL_FIELDS = ["avatar", "attributes"] as const;
 /** Every known top-level document field (the required plus the optional). */
 const KNOWN_DOC_FIELDS: readonly string[] = [...DOC_FIELDS, ...DOC_OPTIONAL_FIELDS];
 

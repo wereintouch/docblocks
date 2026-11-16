@@ -17,6 +17,20 @@ const INDENT = { kind: "number", integer: true, min: 0 } as const;
 /** The default table column width (px) — the stand for an absent `columnWidths` entry. */
 const DEFAULT_TABLE_COLUMN_WIDTH = 100;
 
+/**
+ * The reserved document-attribute keys (the `DocMeta.attributes` record):
+ * an attribute key must not shadow a document meta field
+ * (the record and the meta map share the doc's identity surface).
+ */
+const RESERVED_DOC_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set([
+  "v",
+  "id",
+  "title",
+  "avatar",
+  "createdAt",
+  "updatedAt",
+]);
+
 const CALLOUT_ICONS: readonly string[] = [
   "info",
   "triangle-alert",
@@ -40,4 +54,4 @@ const CALLOUT_ICONS: readonly string[] = [
 
 /** The v1 block registry. */
 
-export { ALIGN, CALLOUT_ICONS, DATABASE_CELL_TYPES, DEFAULT_TABLE_COLUMN_WIDTH, INDENT };
+export { ALIGN, CALLOUT_ICONS, DATABASE_CELL_TYPES, DEFAULT_TABLE_COLUMN_WIDTH, INDENT, RESERVED_DOC_ATTRIBUTE_KEYS };

@@ -17,10 +17,11 @@
  * non-fresh document (the root already has children) throws
  * `ImportDocumentError` — the import fills the root, it never appends.
  */
-import type { BlockId, Doc } from "docblocks-core";
+import type { BlockId, Doc, DocAttributeValue } from "docblocks-core";
 
 import { htmlToBlocks, insertNative } from "./clipboard";
 import type { MaterializedBlock } from "./clipboard";
+import { mapFrontmatter, parseFrontmatter } from "./frontmatter";
 import { mdToBlocks } from "./markdown";
 
 /** The import payload kind (the parser dispatch). */
@@ -48,9 +49,32 @@ function importDocument(doc: Doc, source: string, kind: ImportKind): void {
       `importDocument: the document is not fresh (the root has ${existing.length} children) — the import requires the empty root.`
     );
   }
-  const parsed: MaterializedBlock[] = kind === "markdown" ? mdToBlocks(source) : htmlToBlocks(source);
-  if (parsed.length === 0) return;
-  doc.transact(() => materializeImport(doc, parsed));
+  // The markdown's frontmatter stand: the header (if any)
+  // stands the document's meta (the title + the attributes) over the SAME
+  // transaction as the body's blocks (one undo step, one wire update); the
+  // header is stripped before the parse (a leading `---` would otherwise
+  // stand the divider's / the setext's discriminator). A frontmatter
+  // WITHOUT a body is a meta-only import — not a no-op.
+  let meta: { title?: string; attributes: Record<string, DocAttributeValue> } | null = null;
+  let payload = source;
+  if (kind === "markdown") {
+    const frontmatter = parseFrontmatter(source);
+    if (frontmatter !== null) {
+      meta = mapFrontmatter(frontmatter.entries);
+      payload = frontmatter.body;
+    }
+  }
+  const parsed: MaterializedBlock[] = kind === "markdown" ? mdToBlocks(payload) : htmlToBlocks(source);
+  if (parsed.length === 0 && meta === null) return;
+  doc.transact(() => {
+    if (meta !== null) {
+      if (meta.title !== undefined) doc.setTitle(meta.title);
+      for (const [key, value] of Object.entries(meta.attributes)) {
+        doc.setAttribute(key, value);
+      }
+    }
+    if (parsed.length > 0) materializeImport(doc, parsed);
+  });
 }
 
 /**

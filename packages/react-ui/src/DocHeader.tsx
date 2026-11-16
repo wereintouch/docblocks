@@ -26,7 +26,7 @@
  */
 import { useTranslation } from "react-i18next";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { Doc, DocMeta } from "docblocks-core";
 
@@ -35,71 +35,12 @@ import type { AccessLevel, EditorMode } from "./editor-provider";
 import { DocblocksI18nProvider } from "./i18n";
 import { Button } from "./shared/ui/Button";
 import { EmojiPicker } from "./shared/ui/EmojiPicker";
-import { Input } from "./shared/ui/Input";
+import { InlineEditInput } from "./shared/ui/InlineEditInput";
 import { Popover, PopoverContent, PopoverTrigger } from "./shared/ui/Popover";
 import { SegmentSelector } from "./shared/ui/SegmentSelector";
 import { cn } from "./shared/ui/cn";
 import { BookOpen, Eye, Network, Pen, SquareText } from "./shared/ui/icons";
 import { preventDefault } from "./shared/utils";
-
-/** The inline edit's input: the focus with the caret seated at the end (no select-all) on mount, the commit on the blur / the Enter (one write), the Escape cancels without a write. */
-function InlineEditInput({
-  initial,
-  ariaLabel,
-  slot,
-  className,
-  onCommit,
-  onCancel,
-}: {
-  initial: string;
-  ariaLabel: string;
-  slot: string;
-  className?: string;
-  onCommit: (value: string) => void;
-  onCancel: () => void;
-}) {
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const committedRef = useRef(false);
-
-  useEffect(() => {
-    const input = inputRef.current;
-    if (input === null) return;
-    input.focus();
-    // The caret seats at the end (the edit continues the value — a
-    // select-all would replace it on the first keystroke).
-    input.setSelectionRange(input.value.length, input.value.length);
-  }, []);
-
-  const commit = (value: string): void => {
-    if (committedRef.current) return;
-    committedRef.current = true;
-    onCommit(value);
-  };
-
-  const onInputBlur = (event: React.FocusEvent<HTMLInputElement>) => commit(event.target.value);
-  const onInputKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commit(event.currentTarget.value);
-    } else if (event.key === "Escape") {
-      // The guard stops the blur's commit (the unmount's blur).
-      committedRef.current = true;
-      onCancel();
-    }
-  };
-
-  return (
-    <Input
-      ref={inputRef}
-      data-slot={slot}
-      aria-label={ariaLabel}
-      defaultValue={initial}
-      className={className}
-      onBlur={onInputBlur}
-      onKeyDown={onInputKeyDown}
-    />
-  );
-}
 
 /** The header's props (the consumer's state: the doc's stand, the view and
  *  the mode's switchers — the consumer owns the view / the mode's state). */

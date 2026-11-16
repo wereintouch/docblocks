@@ -28,6 +28,23 @@ function readMeta(ydoc: Y.Doc): DocMeta {
   const title = meta.get("title");
   const avatar = meta.get("avatar");
   const createdAt = meta.get("createdAt");
+  // The doc-attributes record: a single nested Y.Map read as a
+  // plain record with sorted keys (the Y.Map iteration order is
+  // process-dependent) and the own-property stand. The values stand as-read
+  // (the lenient preservation of an unsupported value — the reader's
+  // contract); absent / empty = the field stands off.
+  const attributesMap = meta.get("attributes");
+  let attributes: DocMeta["attributes"];
+  if (attributesMap instanceof Y.Map && attributesMap.size > 0) {
+    const entries: Array<[string, unknown]> = [];
+    attributesMap.forEach((value, key) => entries.push([key, readPlainValue(value)]));
+    entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const record: Record<string, unknown> = {};
+    for (const [key, value] of entries) {
+      setOwn(record, key, value);
+    }
+    attributes = record as DocMeta["attributes"];
+  }
   return {
     v: 1,
     id: typeof id === "string" ? id : "",
@@ -35,6 +52,7 @@ function readMeta(ydoc: Y.Doc): DocMeta {
     title: title instanceof Y.Text ? title.toString() : typeof title === "string" ? title : "",
     // The avatar is optional: absent or empty means none (the field stands off).
     ...(typeof avatar === "string" && avatar !== "" ? { avatar } : {}),
+    ...(attributes !== undefined ? { attributes } : {}),
     createdAt: typeof createdAt === "string" ? createdAt : "",
   };
 }

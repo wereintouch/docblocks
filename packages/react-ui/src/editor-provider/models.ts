@@ -76,6 +76,19 @@ interface MentionInteractions {
   onClick?: (mention: MentionMark, event: MouseEvent) => void;
 }
 
+/** The props a tag-editor component receives (the `tagEditor` provider prop): the live tag list, the replacement commit, and the read-only stand. */
+interface TagEditorProps {
+  /** The current tags (the `tags` preset attribute; `[]` when absent). */
+  tags: readonly string[];
+  /** Replaces the whole list (one `setAttribute` commit). */
+  onTagsChange: (tags: string[]) => void;
+  /** The read-only stand (the view / published's modes): display-only. */
+  readOnly: boolean;
+}
+
+/** The consumer's replacement of the default tags editor (the `tagEditor` provider prop). */
+type TagEditor = ComponentType<TagEditorProps>;
+
 /** The per-instance selection view; null before the mount effect ran and after unmount. */
 interface SelectionRef {
   view: SelectionView | null;
@@ -139,6 +152,10 @@ interface EditorContextValue {
   mentionProvider: MentionProvider | null;
   /** The consumer's mention interactions (the hover card + the click); null when none was supplied (the chip stands inert). */
   mentionInteractions: MentionInteractions | null;
+  /** The attribute keys hidden from the document-attributes panel (the preset and the system keys); an empty list stands the full panel. */
+  hiddenAttributes: readonly string[];
+  /** The consumer's tags editor (the `tagEditor` prop); null stands the default chip input. */
+  tagEditor: TagEditor | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
   embedSandbox: EmbedSandboxPolicy;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -268,6 +285,24 @@ interface EditorProviderProps {
    */
   mentionInteractions?: MentionInteractions;
   /**
+   * Optional attribute keys to hide from the document-attributes panel
+   * (the page column's above-the-first-block stand): the preset keys
+   * (`description` / `tags` / `author` / `cover` / `status` /
+   * `publishedAt`), the custom keys, and the system rows (`id` /
+   * `createdAt` / `updatedAt`). Consumer session state — never document
+   * data. Like the other customization values, pass a stable reference.
+   */
+  hiddenAttributes?: readonly string[];
+  /**
+   * Optional replacement of the default tags editor (the `tags` preset
+   * row of the document-attributes panel). The component receives the
+   * live tag list, the replacement commit (one `setAttribute`), and the
+   * read-only stand. Like `tagEditor`'s siblings, the value is read per
+   * render into the provider context: pass a stable reference (the
+   * component is module-level).
+   */
+  tagEditor?: TagEditor;
+  /**
    * Optional embed sandbox policy: the iframe's `sandbox` value for a given
    * embed src; `null` stands no sandbox (a fully trusted embed). Without it
    * the safe default applies (`DEFAULT_EMBED_SANDBOX` — interactive but no
@@ -326,4 +361,6 @@ export type {
   PresenceConfig,
   SelectionRef,
   SyncEmbedResolver,
+  TagEditor,
+  TagEditorProps,
 };

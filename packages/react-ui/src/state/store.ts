@@ -162,6 +162,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     }
 
     if (patch.blocks !== undefined || patch.rootChildren !== undefined || patch.meta !== undefined) {
+      patch.changeStamp = state.changeStamp + 1;
       store.setState(patch);
     }
   };
@@ -177,6 +178,7 @@ function createEditorStore(doc: Doc, rootId?: BlockId): EditorStore {
     sharing: "off",
     canvasClipboard: null,
     fileUpload: null,
+    changeStamp: 0,
     applyChange,
     setPresence: (peers) => store.setState({ presence: peers }),
     setSharing: (mode) => store.setState({ sharing: mode }),

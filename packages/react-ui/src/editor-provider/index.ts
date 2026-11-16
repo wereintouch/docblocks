@@ -16,4 +16,6 @@ export type {
   PresenceConfig,
   SelectionRef,
   SyncEmbedResolver,
+  TagEditor,
+  TagEditorProps,
 } from "./models";

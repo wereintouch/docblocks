@@ -34,6 +34,8 @@ export {
   DropdownMenuTrigger,
 } from "./DropdownMenu";
 export { Input } from "./Input";
+export { InlineEditInput } from "./InlineEditInput";
+export type { InlineEditInputProps } from "./InlineEditInput";
 export { Label } from "./Label";
 export {
   Popover,

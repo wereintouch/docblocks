@@ -5,7 +5,15 @@
  * accessors (getBlockMap, findParent, derivedZIndex) through this entry
  * rather than the individual command files.
  */
-export { setAvatar, setTitle, updateBlock } from "./attrs";
+export {
+  assertAttributeKey,
+  assertAttributeValue,
+  removeAttribute,
+  setAttribute,
+  setAvatar,
+  setTitle,
+  updateBlock,
+} from "./attrs";
 export { insertBlock, moveBlock, removeBlock } from "./blocks";
 export type { InsertBlockArgs, InsertBlockPosition } from "./blocks";
 export { insertRow, moveRow, removeRow, setCell, setDatabaseTable } from "./database";

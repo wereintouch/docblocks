@@ -13,6 +13,7 @@ export {
   isRegisteredMarkName,
 } from "./registry";
 export type { AttrSpec, BlockSpec, MarkFieldSpec, MarkSpec } from "./registry";
+export { RESERVED_DOC_ATTRIBUTE_KEYS } from "./constants";
 export { flattenDoc } from "./flatten";
 export { isReservedId, RESERVED_ID_KEYS } from "./id-safety";
 export { setOwn } from "./object-safety";
@@ -26,7 +27,7 @@ export {
   validateMarkSet,
 } from "./validate";
 export type { ValidationError } from "./validate";
-export { isHexColor, isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
+export { isDocAttributeValue, isHexColor, isSafeEmbedSrc, isSafeLinkHref } from "./validate/utils";
 export type { AttrsFor, Block, BlockAttrsPatch, BlockType } from "./block-union";
 export type {
   BlockId,
@@ -49,6 +50,7 @@ export type {
   DatabaseSavedView,
   DocJSON,
   DocMeta,
+  DocAttributeValue,
   DividerAttrs,
   DividerBlock,
   EmbedAttrs,
@@ -66,6 +68,7 @@ export type {
   ImageBlock,
   ListItemAttrs,
   ListItemBlock,
+  MentionRef,
   OpaqueBlock,
   PageIndent,
   ParagraphAttrs,

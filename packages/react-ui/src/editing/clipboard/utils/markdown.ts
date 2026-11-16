@@ -7,6 +7,7 @@
  */
 import type { BlockId, Doc } from "docblocks-core";
 
+import { isFreshForMeta, mapFrontmatter, parseFrontmatter } from "../../frontmatter";
 import { mdToBlocks } from "../../markdown";
 import { materializePaste } from "./materialize";
 
@@ -28,6 +29,28 @@ function applyMdPaste(
       doc.insertText(seatId, from, raw);
     });
     return { blockId: seatId, offset: from + raw.length };
+  }
+
+  // The empty-document's frontmatter stand: over the fresh
+  // room (the empty root / the single empty starter paragraph's seat) the
+  // pasted header stands the document's meta (the title + the attributes)
+  // over the SAME transaction as the body's paste (one undo step, one
+  // wire update); the header is stripped before the parse (a leading
+  // `---` would otherwise stand the divider's / the setext's stand). Over
+  // a non-fresh document the header stands the plain markdown (the
+  // divider / the setext's discriminator — the unchanged stand).
+  const frontmatter = parseFrontmatter(markdown);
+  if (frontmatter !== null && isFreshForMeta(doc, seatId)) {
+    const meta = mapFrontmatter(frontmatter.entries);
+    let landing: { blockId: BlockId; offset: number } | null = null;
+    doc.transact(() => {
+      if (meta.title !== undefined) doc.setTitle(meta.title);
+      for (const [key, value] of Object.entries(meta.attributes)) {
+        doc.setAttribute(key, value);
+      }
+      landing = materializePaste(doc, seatId, from, to, mdToBlocks(frontmatter.body), opts);
+    });
+    return landing;
   }
 
   return materializePaste(doc, seatId, from, to, mdToBlocks(markdown), opts);

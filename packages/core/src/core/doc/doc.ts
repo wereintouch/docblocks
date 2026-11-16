@@ -7,6 +7,7 @@ import type {
   BlockId,
   BlockType,
   DatabaseCellValue,
+  DocAttributeValue,
   DocJSON,
   DocMeta,
   Geometry,
@@ -16,6 +17,8 @@ import type {
 } from "@docblocks-core/schema";
 
 import {
+  assertAttributeKey,
+  assertAttributeValue,
   changeBlockType as changeBlockTypeCommand,
   clearTableColumn as clearTableColumnCommand,
   clearTableRow as clearTableRowCommand,
@@ -32,10 +35,12 @@ import {
   moveRow as moveRowCommand,
   moveTableColumn as moveTableColumnCommand,
   moveTableRow as moveTableRowCommand,
+  removeAttribute as removeAttributeCommand,
   removeBlock as removeBlockCommand,
   removeRow as removeRowCommand,
   removeTableColumn as removeTableColumnCommand,
   removeTableRow as removeTableRowCommand,
+  setAttribute as setAttributeCommand,
   setAvatar as setAvatarCommand,
   setCell as setCellCommand,
   setDatabaseTable as setDatabaseTableCommand,
@@ -100,7 +105,16 @@ class Doc {
     }
     const title = options.title ?? "";
     const createdAt = options.createdAt ?? new Date().toISOString();
-    return new Doc(layoutDoc(id, title, createdAt), generateId);
+    // The doc-attributes record: the boundary validation (the
+    // reserved keys and the value forms stand the typed errors before the
+    // layout write).
+    if (options.attributes !== undefined) {
+      for (const [key, value] of Object.entries(options.attributes)) {
+        assertAttributeKey(key);
+        assertAttributeValue(key, value);
+      }
+    }
+    return new Doc(layoutDoc(id, title, createdAt, undefined, options.attributes), generateId);
   }
 
   /** Factory for a document restored from a CRDT snapshot (see loadDoc). */
@@ -186,6 +200,12 @@ class Doc {
     return readMeta(this.#ydoc);
   }
 
+  /** The last write stamp (ISO 8601): the Yjs-only `meta.updatedAt` field, deliberately excluded from the JSON meta. */
+  get lastUpdatedAt(): string | null {
+    const value = this.#ydoc.getMap("meta").get("updatedAt");
+    return typeof value === "string" ? value : null;
+  }
+
   /** Snapshot of a block; null when the block is missing or its type is unknown (the opaque data stands in the export). */
   getBlock(id: BlockId): Block | null {
     return readBlock(this.#ydoc, id);
@@ -254,6 +274,20 @@ class Doc {
   /** Sets the document's avatar (a short string / a few emoji); `null` or the empty string clears it. */
   setAvatar(avatar: string | null): void {
     setAvatarCommand(this.#ydoc, avatar);
+  }
+
+  /**
+   * Sets one document attribute (one transaction — one undo step, one wire
+   * update; a set of the current value is a no-op). A reserved key or an
+   * unsupported value throws the typed InvalidAttributeError.
+   */
+  setAttribute(key: string, value: DocAttributeValue): void {
+    setAttributeCommand(this.#ydoc, key, value);
+  }
+
+  /** Removes a document attribute (an absent key is a no-op). */
+  removeAttribute(key: string): void {
+    removeAttributeCommand(this.#ydoc, key);
   }
 
   /** Appends an empty row to a database block and returns its row id. */

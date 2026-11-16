@@ -7,6 +7,7 @@ export {
   DestroyedViewError,
   DocBlocksError,
   ExternalDatabaseError,
+  InvalidAttributeError,
   InvalidAttrsError,
   InvalidCellValueError,
   InvalidChildError,

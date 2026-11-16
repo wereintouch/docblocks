@@ -286,7 +286,12 @@ describe("reseatContainerCaret", () => {
       d.insertText(p2, 0, "two");
     });
     const page = pageOf();
-    seatAtElement(page, 1);
+    // The caret stranded over the container's end position (the rows are
+    // wrapped in the list's layer; the attributes' panel stands the first
+    // child — the end position is over the page's child count). Over
+    // jsdom the rects stand degenerate, so the document order wins: the
+    // preceding block's end (the last inner before the caret).
+    seatAtElement(page, page.childElementCount);
     const event = new InputEvent("beforeinput", {
       bubbles: true,
       cancelable: true,

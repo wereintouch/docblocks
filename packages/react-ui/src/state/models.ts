@@ -17,7 +17,10 @@
  * setSelection (replaces the selection slice), setCollapsed (sets the
  * collapsed state of one list item — view state, no doc command),
  * setCanvasClipboard (replaces the canvas clipboard slice — the copy / the
- * clear). The per-instance vanilla store created by `createEditorStore`. */
+ * clear), setFileUpload (replaces the pending file upload stand — the set /
+ * the clear), the changeStamp (bumped on every store write of `applyChange`
+ * — the live `lastUpdatedAt` display's re-render source). The per-instance
+ * vanilla store created by `createEditorStore`. */
 import type { StoreApi } from "zustand/vanilla";
 
 import type { Block, BlockId, Change, DocMeta, PresenceState, Selection } from "docblocks-core";
@@ -101,6 +104,15 @@ interface EditorState {
    * re-renders the other blocks.
    */
   fileUpload: FileUploadStand | null;
+  /**
+   * The per-change stamp: bumped whenever `applyChange` writes the store
+   * (a `blocks` / `rootChildren` / `meta` change). The live `lastUpdatedAt`
+   * display's re-render source — the Yjs-only `meta.updatedAt` moves on
+   * every local transaction and is not part of the `meta` slice (the
+   * slice is replaced only over the `metaChanged`). A separate slice so
+   * only the stamp's subscribers re-render over the changes.
+   */
+  changeStamp: number;
 }
 
 /** Internal write functions, called by the EditorProvider subscriptions. */

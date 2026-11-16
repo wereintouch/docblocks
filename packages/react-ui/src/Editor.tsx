@@ -2,6 +2,7 @@ import { useStore } from "zustand";
 
 import { useMemo, useRef } from "react";
 
+import { AttributesPanel } from "./attributes";
 import {
   BlockContext,
   CanvasView,
@@ -221,6 +222,13 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                           mx-auto w-full max-w-(--docblocks-page-column-max-width) px-(--docblocks-page-padding-x)
                         "
                       >
+                        {/* The document-attributes panel (the above-the-first-block's
+                            stand): a non-editable island over the page's shared
+                            editable (the cross-drag's mousedown guard + the surface's
+                            container-targeted dispatch keep their stands over its
+                            controls). The canvas view stands no panel (the page-column
+                            placement). */}
+                        <AttributesPanel />
                         <RowList
                           order={order}
                           nodesById={nodesById}

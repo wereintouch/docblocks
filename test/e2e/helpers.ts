@@ -44,7 +44,7 @@ interface PaneBlock {
  * public command signatures, loosened where core is generic).
  */
 interface PaneDoc {
-  meta: { id: string; title: string; avatar?: string };
+  meta: { id: string; title: string; avatar?: string; createdAt?: string; attributes?: Record<string, unknown> };
   toJSON(): {
     id: string;
     blocks: Record<string, PaneBlock>;

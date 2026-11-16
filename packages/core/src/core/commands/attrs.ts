@@ -1,20 +1,31 @@
 /**
  * The attribute/title/avatar write commands: updateBlock, setTitle,
- * setAvatar. A command validates first (typed errors, no silent no-ops) and
- * then mutates in one transaction with the local origin.
+ * setAvatar, and the document-attribute commands (setAttribute /
+ * removeAttribute). A command validates first (typed errors,
+ * no silent no-ops) and then mutates in one transaction with the local
+ * origin.
  */
 import * as Y from "yjs";
 
 import {
   BLOCK_REGISTRY,
+  RESERVED_DOC_ATTRIBUTE_KEYS,
+  isDocAttributeValue,
+  isReservedId,
   isSafeEmbedSrc,
   setOwn,
   validateBlockAttrs,
   validateCanvasBlock,
 } from "@docblocks-core/schema";
-import type { BlockAttrsPatch, ValidationError } from "@docblocks-core/schema";
+import type { BlockAttrsPatch, DocAttributeValue, ValidationError } from "@docblocks-core/schema";
 
-import { InvalidAttrsError, InvalidOperationError, UnknownBlockError, formatValidationErrors } from "../errors";
+import {
+  InvalidAttributeError,
+  InvalidAttrsError,
+  InvalidOperationError,
+  UnknownBlockError,
+  formatValidationErrors,
+} from "../errors";
 import { localTransact, writeAttrValue } from "../layout";
 import { readBlock } from "../read";
 import { assertValidDatabasePatch } from "./database";
@@ -206,4 +217,96 @@ function setAvatar(ydoc: Y.Doc, avatar: string | null): void {
   });
 }
 
-export { setAvatar, setTitle, updateBlock };
+/**
+ * The document-attribute key: a non-empty string that is not
+ * reserved (a doc meta field or an Object.prototype key — such a key would
+ * be silently lost on the JSON round-trip). Throws the typed
+ * `InvalidAttributeError`.
+ */
+function assertAttributeKey(key: string): void {
+  if (typeof key !== "string" || key === "") {
+    throw new InvalidAttributeError(`The attribute key must be a non-empty string.`);
+  }
+  if (RESERVED_DOC_ATTRIBUTE_KEYS.has(key)) {
+    throw new InvalidAttributeError(
+      `The attribute key "${key}" is reserved (a document meta field) and cannot be used.`
+    );
+  }
+  if (isReservedId(key)) {
+    throw new InvalidAttributeError(
+      `The attribute key "${key}" is reserved (it collides with Object.prototype) and cannot be used.`
+    );
+  }
+}
+
+/**
+ * The document-attribute value: `string | number | boolean |
+ * string[] | MentionRef` (the `author` snapshot's form). Throws the typed
+ * `InvalidAttributeError`.
+ */
+function assertAttributeValue(key: string, value: unknown): asserts value is DocAttributeValue {
+  if (!isDocAttributeValue(value)) {
+    throw new InvalidAttributeError(
+      `The attribute value for "${key}" must be a string, a number, a boolean, an array of strings, or a mention reference.`
+    );
+  }
+}
+
+/** The live attributes record (absent = the field stands off). */
+function attributesRecordOf(ydoc: Y.Doc): Y.Map<unknown> | undefined {
+  const record = ydoc.getMap("meta").get("attributes");
+  return record instanceof Y.Map ? record : undefined;
+}
+
+/** The live attributes record, created lazily (the first write's stand). */
+function ensureAttributesRecord(ydoc: Y.Doc): Y.Map<unknown> {
+  const record = attributesRecordOf(ydoc);
+  if (record !== undefined) return record;
+  const fresh = new Y.Map<unknown>();
+  ydoc.getMap("meta").set("attributes", fresh);
+  return fresh;
+}
+
+/** Whether the stored raw value (a scalar or a Y.Array) equals the given typed value. */
+function attributeValueEquals(stored: unknown, value: DocAttributeValue): boolean {
+  if (Array.isArray(value)) {
+    if (!(stored instanceof Y.Array)) return false;
+    const items = stored.toArray();
+    if (items.length !== value.length) return false;
+    return items.every((item, index) => item === value[index]);
+  }
+  return stored === value;
+}
+
+/**
+ * Sets one document attribute (one transaction — one undo step, one wire
+ * update; the attributes record is created lazily on the first write). A
+ * set of the current value is the no-op stand (no write, no undo step, no
+ * wire update). A reserved key or an unsupported value throws the typed
+ * `InvalidAttributeError`.
+ */
+function setAttribute(ydoc: Y.Doc, key: string, value: DocAttributeValue): void {
+  assertAttributeKey(key);
+  assertAttributeValue(key, value);
+  const current = attributesRecordOf(ydoc)?.get(key);
+  if (attributeValueEquals(current, value)) return; // no-op
+  localTransact(ydoc, () => {
+    writeAttrValue(ensureAttributesRecord(ydoc), key, value);
+  });
+}
+
+/**
+ * Removes a document attribute (one transaction — one undo step, one wire
+ * update). An absent key is the no-op stand (no write, no undo step, no
+ * wire update). A reserved key throws the typed `InvalidAttributeError`.
+ */
+function removeAttribute(ydoc: Y.Doc, key: string): void {
+  assertAttributeKey(key);
+  const record = attributesRecordOf(ydoc);
+  if (record === undefined || !record.has(key)) return; // no-op
+  localTransact(ydoc, () => {
+    record.delete(key);
+  });
+}
+
+export { assertAttributeKey, assertAttributeValue, removeAttribute, setAttribute, setAvatar, setTitle, updateBlock };

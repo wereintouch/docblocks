@@ -12,6 +12,25 @@ type BlockId = string;
 
 type TextAlign = "left" | "center" | "right";
 
+/**
+ * A mention reference snapshot (the `author` preset attribute's value
+ * form, like the in-text `mention` mark minus its kind): the stable
+ * target id + the display label. The label is a snapshot — a rename never
+ * changes the document.
+ */
+type MentionRef = {
+  id: string;
+  label: string;
+};
+
+/**
+ * A document attribute's value (`DocMeta.attributes`): a scalar or a
+ * string list, or a mention reference (the `author` snapshot's form).
+ * Arbitrary nested objects are not supported (an unsupported value is
+ * preserved as-is by the lenient reader only).
+ */
+type DocAttributeValue = string | number | boolean | string[] | MentionRef;
+
 /** Document metadata. */
 interface DocMeta {
   /** Schema version. */
@@ -22,6 +41,15 @@ interface DocMeta {
   title: string;
   /** The page avatar (a short string / a few emoji; absent or empty = none). */
   avatar?: string;
+  /**
+   * Document-level attributes (the consumer's own metadata — the markdown
+   * frontmatter's stand): a plain `key → value` record; absent or empty =
+   * none. The keys are non-empty strings (the doc meta fields and the
+   * Object.prototype keys are reserved); the values are `string | number |
+   * boolean | string[]` or the mention reference (`{ id, label }`, the
+   * `author` snapshot's form).
+   */
+  attributes?: Record<string, DocAttributeValue>;
   /** Creation time, ISO 8601. */
   createdAt: string;
 }
@@ -288,6 +316,7 @@ export type {
   CalloutBlock,
   CodeAttrs,
   CodeBlock,
+  DocAttributeValue,
   DocJSON,
   DocMeta,
   DividerAttrs,
@@ -302,6 +331,7 @@ export type {
   ImageBlock,
   ListItemAttrs,
   ListItemBlock,
+  MentionRef,
   OpaqueBlock,
   PageIndent,
   ParagraphAttrs,
