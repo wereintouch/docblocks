@@ -100,8 +100,9 @@ function useBlockInput({
       // A cross-block range: the range is deleted as text and the paste
       // content lands at the seam — one transaction (one undo step, one
       // wire update), the single-block insert pipeline reused as-is. A
-      // fully deleted range leaves no seam: the data is dropped (the v1
-      // edge).
+      // range that leaves no seam (the full-selection's stand) takes the
+      // paste's content at the root's tail (the selection's replace's
+      // stand — nothing dropped).
       const view = selectionRef.view;
       if (view !== null) {
         const selection = view.get();
@@ -118,7 +119,24 @@ function useBlockInput({
           };
           doc.transact(() => {
             const deleted = doc.deleteTextRange(from, to);
-            if (deleted === null) return;
+            if (deleted === null) {
+              // The range left no seam (the chain's tail stands no text —
+              // the full-selection's stand): the paste's content takes the
+              // range's place at the root's tail (the selection's replace's
+              // stand — the document's content is replaced by the paste,
+              // nothing dropped). The ephemeral empty paragraph seats the
+              // shared materialization (the pipeline's own seat's removal /
+              // merge / convert stands — the seat is fresh, so no
+              // keepSeat: no peer caret stands on it).
+              const seat = doc.insertBlock("paragraph", undefined, { parent: rootBlockId });
+              if (html !== "") {
+                seam.landing = applyRichPaste(doc, seat, 0, 0, html);
+              } else if (text !== "") {
+                seam.landing = applyMdPaste(doc, seat, 0, 0, text);
+              }
+              seam.point = seam.landing ?? { blockId: seat, offset: 0 };
+              return;
+            }
             const seamBlock = doc.getBlock(deleted.blockId);
             const seamRaw = seamBlock !== null && seamBlock.type === "code";
             const seamCellId = findParentId(doc, deleted.blockId);

@@ -1,6 +1,6 @@
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, insertBlockType, twoPanes } from "./helpers";
+import { SETTLE, insertBlockType, pasteFromClipboard, seedClipboardPayload, twoPanes } from "./helpers";
 
 /** The inner contenteditables of the pane's text blocks, in order. */
 function inners(page: Page, client: "a" | "b") {
@@ -119,6 +119,71 @@ test("Shift+Enter inserts a line break in the run text (synced, not a new block)
   await a.keyboard.press("Backspace");
   await expect.poll(() => firstText(a, "a"), SETTLE).toBe("line one");
   await expect.poll(() => firstText(b, "b"), SETTLE).toBe("line one");
+
+  await close();
+});
+
+test("the select-all's copy-paste replaces the selection (the document stands, nothing dropped)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "ux10-select-all-paste", {
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+
+  // Seed three paragraphs (the starter + two inserts).
+  const first = inners(a, "a").first();
+  await first.click();
+  await a.keyboard.type("first line");
+  await insertBlockType(a, "a", "paragraph");
+  await inners(a, "a").nth(1).click();
+  await a.keyboard.type("second line");
+  await insertBlockType(a, "a", "paragraph");
+  await inners(a, "a").nth(2).click();
+  await a.keyboard.type("third line");
+  await expect(inners(a, "a")).toHaveCount(3);
+  await expect(inners(b, "b")).toHaveCount(3);
+
+  // The Ctrl+A's stand (the editor's own select-all over the nested
+  // editables' degenerate native stand — the caret's end's move stands
+  // replaced): the full cross-block's selection.
+  await a.keyboard.press("Control+a");
+  const selection = await a.evaluate(() => {
+    const s = window.getSelection();
+    if (s === null) return { collapsed: true, rangeCount: 0 };
+    return { collapsed: s.isCollapsed, rangeCount: s.rangeCount };
+  });
+  expect(selection.collapsed).toBe(false);
+  expect(selection.rangeCount).toBe(1);
+
+  // The copy's stand (the cross's serialization's shape — one div per
+  // block + the plain's join; the headless engine's no-write from the
+  // keyboard's copy) + the paste (the full-selection's replace: the
+  // document's content stands, nothing dropped — the v1 edge's drop
+  // stands removed).
+  const payload = await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return null;
+    const order = doc.getChildren(doc.toJSON().id);
+    const texts = order
+      .map((id) => doc.getBlock(id)?.content)
+      .filter((content) => content !== undefined && content !== null)
+      .map((content) => (content as { text: string }[]).map((run) => run.text).join(""));
+    return { html: texts.map((text) => `<div>${text}</div>`).join(""), plain: texts.join("\n") };
+  });
+  expect(payload, "the pane's doc should stand for the payload's build").not.toBeNull();
+  await seedClipboardPayload(a, payload!);
+  await pasteFromClipboard(a);
+  await expect(inners(a, "a")).toHaveCount(3);
+  await expect(inners(a, "a").nth(0)).toHaveText("first line");
+  await expect(inners(a, "a").nth(1)).toHaveText("second line");
+  await expect(inners(a, "a").nth(2)).toHaveText("third line");
+  await expect(inners(b, "b")).toHaveCount(3);
+  await expect(inners(b, "b").nth(2)).toHaveText("third line");
+
+  // The undo's restore (the replace's one step's stand).
+  await a.keyboard.press("Control+z");
+  await expect(inners(a, "a")).toHaveCount(3);
+  await expect(inners(a, "a").nth(1)).toHaveText("second line");
 
   await close();
 });
