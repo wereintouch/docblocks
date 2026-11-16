@@ -69,7 +69,7 @@ function CoverEditor({
           size="icon"
           aria-label={t("attributes.uploadCoverAria")}
           data-slot="docblocks/attributes-cover-upload-button"
-          className="size-6 text-muted-foreground hover:text-foreground"
+          className="size-6 text-muted-foreground hover:bg-muted/50 hover:text-foreground dark:hover:bg-muted/50"
           onClick={() => inputRef.current?.click()}
         >
           <Image className="size-3.5" />
@@ -82,7 +82,7 @@ function CoverEditor({
           size="icon"
           aria-label={t("attributes.removeCoverAria")}
           data-slot="docblocks/attributes-cover-remove"
-          className="size-6 text-muted-foreground hover:text-foreground"
+          className="size-6 text-muted-foreground hover:bg-muted/50 hover:text-foreground dark:hover:bg-muted/50"
           onClick={onClear}
         >
           <X className="size-3.5" />

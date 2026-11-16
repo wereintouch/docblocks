@@ -19,6 +19,7 @@ import type { DocAttributeValue } from "docblocks-core";
 
 import { Checkbox } from "../shared/ui/Checkbox";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
+import { cn } from "../shared/ui/cn";
 import { AttributeRow } from "./AttributeRow";
 import { DisplayValue } from "./DisplayValue";
 import { ListEditor } from "./ListEditor";
@@ -107,7 +108,14 @@ function CustomAttributeRow({
   return (
     <AttributeRow
       attributeKey={keyName}
-      labelClassName={renaming ? "overflow-visible" : undefined}
+      // The column's clip's no-stand over the edit mode (the band /
+      // the frame's overhang over the column's edge — the button /
+      // the input stand their own text's clip; the view mode's
+      // plain string stands the column's truncate's stand). The
+      // list's row's label stands the band's box (the `py-1`'s
+      // height) — the column's `mt` compensates the band's top's
+      // padding (the first line's midline's parity kept).
+      labelClassName={viewMode ? undefined : cn("overflow-visible", isList && "mt-0.5")}
       label={
         renaming ? (
           // The rename's input (the select-all's mount stand —
@@ -121,7 +129,10 @@ function CustomAttributeRow({
             ariaLabel={t("attributes.renameAria", { name: keyName })}
             slot={`docblocks/attribute-${keyName}-rename`}
             variant="inline"
-            className="-ml-1 pl-1"
+            // The frame stands the key's hover band's box (the same
+            // geometry over the click — the text's edge's keep, the
+            // frame's stand over the edge's left).
+            className="-ml-1.5 h-7 pl-1.5"
             invalid={renameInvalid}
             selectOnMount
             onCommit={onRenameCommit}
@@ -134,13 +145,17 @@ function CustomAttributeRow({
           // custom rows only — the preset / the system rows
           // keys are the fixed vocabulary's stand). The key's
           // text stands the label column's left edge (no
-          // padding's offset over the preset's keys' parity).
+          // padding's offset over the preset's keys' parity);
+          // the band stands the text's 6px inset over both sides
+          // (the value's band's parity — the band's overhang over
+          // the column's edge's stand, the column's clip's
+          // no-stand over the edit mode).
           <button
             type="button"
             data-slot="docblocks/attribute-key"
             data-attribute-key={keyName}
             aria-label={t("attributes.renameAria", { name: keyName })}
-            className="w-full truncate rounded-md text-left hover:bg-muted/50"
+            className="-ml-1.5 w-full truncate rounded-md px-1.5 py-1 text-left hover:bg-muted/50"
             onClick={onRenameStart}
           >
             {keyName}
@@ -195,6 +210,9 @@ function CustomAttributeRow({
             ariaLabel={keyName}
             slot={`docblocks/attribute-${keyName}-edit`}
             variant="inline"
+            // The edit's frame stands the display's band's box (the
+            // height's parity over the click).
+            className="h-7"
             placeholder={t("attributes.valuePlaceholder")}
             onCommit={onEditCommit}
             onCancel={onEditCancel}

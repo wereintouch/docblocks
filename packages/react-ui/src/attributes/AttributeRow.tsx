@@ -63,7 +63,13 @@ function AttributeRow({
           size="icon"
           aria-label={removeAria ?? attributeKey}
           data-slot="docblocks/attribute-row-remove"
-          className={cn("size-6 shrink-0 text-muted-foreground hover:text-foreground", topAlign && "mt-1 self-start")}
+          className={cn(
+            // The panel's icon hover stands the panel's band's stand
+            // (the ghost's accent stand dropped — the one style's
+            // parity over the panel's hovers).
+            "size-6 shrink-0 text-muted-foreground hover:bg-muted/50 hover:text-foreground dark:hover:bg-muted/50",
+            topAlign && "mt-1 self-start"
+          )}
           onClick={onRemove}
         >
           <Trash className="size-3.5" />

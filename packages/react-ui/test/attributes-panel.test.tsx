@@ -536,8 +536,14 @@ describe("the key's rename over the key's click", () => {
     expect(input.selectionEnd).toBe(input.value.length);
     // The frame's stand (the text's edge's keep, the frame's left
     // stand over the text — the no-glue's parity).
-    expect(input.className).toContain("-ml-1");
-    expect(input.className).toContain("pl-1");
+    expect(input.className).toContain("-ml-1.5");
+    expect(input.className).toContain("pl-1.5");
+    expect(input.className).toContain("h-7");
+    // The key's band's stand (the value's band's parity — the height's
+    // keep over the click, the text's inset over the glyphs).
+    expect(entry.className).toContain("py-1");
+    expect(entry.className).toContain("px-1.5");
+    expect(entry.className).toContain("-ml-1.5");
     // The rename's commit over the Enter (the whole input's replace).
     act(() => {
       fireEvent.change(input, { target: { value: "remark" } });

@@ -257,6 +257,9 @@ function AttributesPanel() {
       ariaLabel={label}
       slot={slot}
       variant="inline"
+      // The edit's frame stands the display's band's box (the
+      // height's parity over the click).
+      className="h-7"
       placeholder={placeholder}
       onCommit={commit}
       onCancel={() => setEditingKey(null)}

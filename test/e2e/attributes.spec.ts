@@ -341,16 +341,19 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
     expect(listGripMid, "the list row's grip should stand opposite the key").toBeLessThan(1);
     // The custom key's left edge stands the label column's edge (the
     // preset's keys' parity — the key's button's no-padding stand).
+    // The text's stand (the button's padding's keep — the band's
+    // inset over the text, the text's position over the column's edge).
     const keyLeftParity = await body(a, "a")
       .locator('[data-slot="docblocks/attribute-key"][data-attribute-key="todo"]')
       .evaluate((btn) => {
         const b = btn.getBoundingClientRect();
+        const pad = parseFloat(getComputedStyle(btn).paddingLeft);
         const label = btn
           .closest<HTMLElement>("[data-slot='docblocks/attributes']")
           ?.querySelector<HTMLElement>("[data-slot='docblocks/attribute-row'][data-attribute-key='tags']")
           ?.children[0]?.getBoundingClientRect();
         if (label === undefined || label === null) return null;
-        return Math.abs(b.left - label.left);
+        return Math.abs(b.left + pad - label.left);
       });
     expect(keyLeftParity, "the custom key should stand the label column's left edge").toBeLessThan(0.5);
     // The value's vertical stand (the label's midline's parity over the
@@ -405,6 +408,27 @@ test("the custom key's rename over the key's click (the value's form's keep, the
     // The key's entry (the click's stand over the custom row).
     const keyBtn = panel(a, "a").locator('[data-slot="docblocks/attribute-key"][data-attribute-key="note"]');
     await expect(keyBtn).toBeVisible();
+    // The band's height's parity (the key's hover band stands the value's
+    // band's height — the one height's stand over the panel's rows;
+    // the side inset over the glyphs stands the parity too).
+    const bands = await panel(a, "a")
+      .locator('[data-slot="docblocks/attribute-row"][data-attribute-key="note"]')
+      .evaluate((row) => {
+        const key = row.querySelector<HTMLElement>("[data-slot='docblocks/attribute-key']");
+        const value = row.querySelector<HTMLElement>("[data-slot='docblocks/attribute-custom']");
+        if (key === null || value === null) return null;
+        return {
+          keyH: key.getBoundingClientRect().height,
+          valueH: value.getBoundingClientRect().height,
+          keyInset: parseFloat(getComputedStyle(key).paddingLeft),
+          valueInset: parseFloat(getComputedStyle(value.querySelector("span") as HTMLElement).paddingLeft),
+        };
+      });
+    if (bands === null) throw new Error("the note's bands have no box");
+    expect(Math.abs(bands.keyH - bands.valueH), "the key's band should stand the value's band's height").toBeLessThan(
+      1
+    );
+    expect(bands.keyInset, "the key's band inset should stand the value's band inset").toBeCloseTo(bands.valueInset, 1);
     await keyBtn.click();
     const rename = panel(a, "a").locator('[data-slot="docblocks/attribute-note-rename"]');
     await expect(rename).toBeVisible();

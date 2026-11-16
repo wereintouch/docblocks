@@ -61,8 +61,14 @@ one-line sliding-pill type pick (the document view's selector's parity
   stack's rows); the rename's input's frame stands the text's edge's
   left (the text's position's keep over the display's parity — the
   frame's no-glue over the text's left stand; the label column's clip
-  stands off over the rename — the frame's overhang's visibility
-  stand, the display's truncate's parity untouched). The
+  stands off over the edit mode — the frame's / the band's overhang's
+  visibility stand, the display's truncate's parity untouched). The
+  panel's hover stands one style and one height (the rows' bands — the
+  key's, the value's, the description's, the published date's — stand the
+  28px's band over the 6px's glyph's inset, the key's band's stand over
+  the label column's edge's left (the text's column's edge's parity
+  kept); the icon's buttons (the row's removal, the cover's) stand the
+  same hover's stand). The
   `AttributesPanel` stands the composition over the unit's
   row files (the `CustomAttributeRow`'s custom row, the preset's
   editors, the add's popover, the value's pure reads). Markdown import and paste now read the YAML-frontmatter
