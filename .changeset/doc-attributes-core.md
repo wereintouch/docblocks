@@ -27,3 +27,13 @@ emitted). `reorderAttributes` takes a full permutation in one transaction
 (`InvalidAttributeError` over a non-permutation, a no-op stand over the
 same order). Absence is the legacy stand (the sorted record order) —
 older data reads unchanged.
+
+The `renameAttribute(fromKey, toKey)` command (the key's rename): one
+transaction (one undo step, one wire update) that moves the attribute
+under the new key — the value's form (the plain / the typed wrapper) moves
+as-is, and the display order keeps the key's position (the entry's
+replacement). An absent source key and a same-key rename are no-ops; the
+target key runs the full key validation (the reserved's / the prototype's
+rejection), and a rename onto an existing key throws the typed
+`InvalidAttributeError` (the record is key-addressed — the rename would
+clobber the target's value).

@@ -27,7 +27,7 @@ import {
   formatValidationErrors,
 } from "../errors";
 import { localTransact, writeAttrValue } from "../layout";
-import { readBlock } from "../read";
+import { readBlock, readPlainValue } from "../read";
 import { assertValidDatabasePatch } from "./database";
 import {
   blockTypeOf,
@@ -380,6 +380,46 @@ function removeAttribute(ydoc: Y.Doc, key: string): void {
 }
 
 /**
+ * Renames a document attribute (one transaction — one undo step, one wire
+ * update): the value's form (the plain / the typed wrapper) moves as-is
+ * under the new key. The display order keeps the key's position (the
+ * entry's replacement — the record's tail stand dropped). An absent
+ * source key and a rename of the same key are the no-op stands (no
+ * write, no undo step, no wire update — the `removeAttribute`'s parity).
+ * The target key runs the full key validation (the reserved's / the
+ * prototype's rejection over the typed `InvalidAttributeError`); a rename
+ * onto an existing key throws the typed `InvalidAttributeError` (the
+ * record is key-addressed — the rename would clobber the target's value).
+ */
+function renameAttribute(ydoc: Y.Doc, fromKey: string, toKey: string): void {
+  const record = attributesRecordOf(ydoc);
+  if (record === undefined || !record.has(fromKey)) return; // no-op
+  if (fromKey === toKey) return; // no-op
+  assertAttributeKey(toKey);
+  if (record.has(toKey)) {
+    throw new InvalidAttributeError(`The attribute key "${toKey}" already exists.`);
+  }
+  localTransact(ydoc, () => {
+    // The value's form moves as-is over the read → write path (the Yjs's
+    // type move is not a supported stand — the nested type's re-parenting
+    // breaks its integration; the plain round-trip keeps the form).
+    const value = readPlainValue(record.get(fromKey));
+    record.delete(fromKey);
+    writeAttrValue(record, toKey, value);
+    // The order's entry's replacement (the position's keep): the stored
+    // order's stand only — over the field's absence the read's key order
+    // is the display's stand and the rename changes nothing over it.
+    const stored = attributeOrderOf(ydoc);
+    if (stored !== null) {
+      writeAttributeOrder(
+        ydoc,
+        stored.map((k) => (k === fromKey ? toKey : k))
+      );
+    }
+  });
+}
+
+/**
  * Reorders the document's attributes (the custom attribute's drag-reorder's
  * persistence): the `order` must stand a permutation of the record's keys
  * (the strict permutation's validation — the missing / the extra / the
@@ -423,6 +463,7 @@ export {
   assertAttributeKey,
   assertAttributeValue,
   removeAttribute,
+  renameAttribute,
   reorderAttributes,
   setAttribute,
   setAvatar,

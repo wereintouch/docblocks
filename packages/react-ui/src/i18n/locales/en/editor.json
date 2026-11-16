@@ -91,6 +91,7 @@
     "typeMention": "Mention",
     "notSet": "Not set",
     "editAria": "Edit {name}",
+    "renameAria": "Rename {name}",
     "removeAria": "Remove {name}",
     "reorderAria": "Reorder {name}",
     "booleanToggleAria": "Toggle {name}",

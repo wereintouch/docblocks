@@ -359,6 +359,98 @@ test("the custom attribute: the typed add over the popover's flow / the value's 
   }
 });
 
+test("the custom key's rename over the key's click (the value's form's keep, the order's position, the wire over both, the invalid target's open stand, the undo's restore)", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "doc-attributes-rename");
+  try {
+    // The consumer's seed (the typed forms + the stored order's stand).
+    await a.evaluate(() => {
+      const d = window.__paneDocs?.a ?? null;
+      if (d === null) throw new Error("pane A's doc is not mounted");
+      d.setAttribute("note", { type: "string", value: "hello" });
+      d.setAttribute("count", { type: "number", value: 3 });
+      d.reorderAttributes(["note", "count"]);
+    });
+    await openPanel(a, "a");
+    // The key's entry (the click's stand over the custom row).
+    const keyBtn = panel(a, "a").locator('[data-slot="docblocks/attribute-key"][data-attribute-key="note"]');
+    await expect(keyBtn).toBeVisible();
+    await keyBtn.click();
+    const rename = panel(a, "a").locator('[data-slot="docblocks/attribute-note-rename"]');
+    await expect(rename).toBeVisible();
+    // The select-all's stand (the replace's parity over the mount).
+    const sel = await rename.evaluate((el) => {
+      const input = el as HTMLInputElement;
+      return { start: input.selectionStart, end: input.selectionEnd, len: input.value.length };
+    });
+    expect(sel).toEqual({ start: 0, end: 4, len: 4 });
+    // The invalid target's stand (the taken's key — the no-write's open
+    // stand over the invalid's border).
+    await rename.fill("count");
+    await rename.press("Enter");
+    await expect(rename, "the input should stay open over the invalid target").toBeVisible();
+    await expect(rename).toHaveAttribute("aria-invalid", "true");
+    expect(await attributesOf(a, "a")).toEqual({
+      note: { type: "string", value: "hello" },
+      count: { type: "number", value: 3 },
+    });
+    // The valid rename's commit (the value's form's keep — the typed
+    // wrapper's parity; the key's row's re-render over the new key).
+    await rename.fill("remark");
+    await rename.press("Enter");
+    await expect(rename).toHaveCount(0);
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.remark), SETTLE)
+      .toEqual({
+        type: "string",
+        value: "hello",
+      });
+    await expect.poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE).toBeUndefined();
+    // The order's position's keep (the entry's replacement over the
+    // stored order — the JSON's field over the wire).
+    await expect.poll(() => attrOrderOf(a, "a"), SETTLE).toEqual(["remark", "count"]);
+    await expect
+      .poll(() => jsonOf(a, "a").then((json) => JSON.parse(json).attributesOrder as string[] | undefined), SETTLE)
+      .toEqual(["remark", "count"]);
+    // The wire over both panes (the display + the data over the sync).
+    await expect
+      .poll(() => attributesOf(b, "b").then((m) => m?.remark), SETTLE)
+      .toEqual({
+        type: "string",
+        value: "hello",
+      });
+    await expect.poll(() => attrOrderOf(b, "b"), SETTLE).toEqual(["remark", "count"]);
+    await openPanel(b, "b");
+    await expect(
+      panel(b, "b").locator('[data-slot="docblocks/attribute-row"][data-attribute-key="remark"]')
+    ).toBeVisible();
+    // The rename is A's local undo entry (one command): the undo restores
+    // the old key over the value's keep + the order's entry.
+    await a.evaluate(() => {
+      const d = window.__paneDocs?.a ?? null;
+      if (d === null) throw new Error("pane A's doc is not mounted");
+      d.undo();
+    });
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.note), SETTLE)
+      .toEqual({
+        type: "string",
+        value: "hello",
+      });
+    await expect.poll(() => attributesOf(a, "a").then((m) => m?.remark), SETTLE).toBeUndefined();
+    await expect.poll(() => attrOrderOf(a, "a"), SETTLE).toEqual(["note", "count"]);
+    await expect
+      .poll(() => attributesOf(b, "b").then((m) => m?.note), SETTLE)
+      .toEqual({
+        type: "string",
+        value: "hello",
+      });
+  } finally {
+    await close();
+  }
+});
+
 test("the type picker's pill stands over the popover's reopen (the entry animation's no-stand — the measurement's scale compensation)", async ({
   browser,
 }) => {

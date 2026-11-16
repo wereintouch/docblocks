@@ -46,6 +46,7 @@ import {
   removeRow as removeRowCommand,
   removeTableColumn as removeTableColumnCommand,
   removeTableRow as removeTableRowCommand,
+  renameAttribute as renameAttributeCommand,
   reorderAttributes as reorderAttributesCommand,
   setAttribute as setAttributeCommand,
   setAvatar as setAvatarCommand,
@@ -295,6 +296,17 @@ class Doc {
   /** Removes a document attribute (an absent key is a no-op). */
   removeAttribute(key: string): void {
     removeAttributeCommand(this.#ydoc, key);
+  }
+
+  /**
+   * Renames a document attribute (one transaction — one undo step, one
+   * wire update; the value's form moves as-is, the display order keeps
+   * the key's position). An absent source key and a same-key rename are
+   * no-ops; a reserved / the taken target key throws the typed
+   * InvalidAttributeError.
+   */
+  renameAttribute(fromKey: string, toKey: string): void {
+    renameAttributeCommand(this.#ydoc, fromKey, toKey);
   }
 
   /**

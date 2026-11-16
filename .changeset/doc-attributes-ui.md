@@ -31,7 +31,13 @@ one-line sliding-pill type pick (the document view's selector's parity
   (the page's inherited line-height no longer stands the value's text
   above the label's center — the value's "jump" stand dropped) and the
   single value's rows stand the uniform height (the row's `min-h` — the
-  checkbox's row's shorter stand dropped), the tags' add input stands the
+  checkbox's row's shorter stand dropped), the custom key's rename over
+  the key's click (the inline input over the key's column — the
+  select-all's mount stand, the Enter / the blur's commit over the
+  `renameAttribute`, the Escape's cancel, the invalid target's (the
+  reserved / the taken key) open stand over the `aria-invalid`'s
+  destructive frame, the preset / the system rows' and the read-only's
+  no-entry stand), the tags' add input stands the
   value column's font size (the placeholder's `text-xs` stand over the
   `text-sm`'s column's parity), the custom rows' display order
   (the preset rows' fixed order; the custom rows over `attributesOrder` —

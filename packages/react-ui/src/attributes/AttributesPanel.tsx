@@ -131,7 +131,9 @@ function displayPublishedDate(value: string | undefined, locale: string): string
 
 /** The attribute row's frame: the fixed label column + the value zone +
  *  the optional remove button. The label and the value share the font
- *  size (the value's zone keeps its own padding — the column's stand). */
+ *  size (the value's zone keeps its own padding — the column's stand).
+ *  The label's stand is a plain string (the display) or a node (the
+ *  rename's entry / the rename's input over the custom rows). */
 function AttributeRow({
   attributeKey,
   label,
@@ -142,7 +144,7 @@ function AttributeRow({
   children,
 }: {
   attributeKey: string;
-  label: string;
+  label: React.ReactNode;
   removable: boolean;
   onRemove?: () => void;
   removeAria?: string;
@@ -577,6 +579,12 @@ function AttributesPanel() {
   // The collapse's session state (the default: collapsed).
   const [open, setOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<string | null>(null);
+  // The rename's state (the custom key's inline edit over the key's
+  // column): the open's key + the invalid's stand (the commit's typed
+  // error's keep — the input's open stand over the invalid's border,
+  // the re-type's stand).
+  const [renamingKey, setRenamingKey] = useState<string | null>(null);
+  const [renameInvalid, setRenameInvalid] = useState(false);
   // The add flow's state (the popover's stand): the open state, the type's
   // pick (the consumer's `attributeTypePicker` replaces the picker, not
   // the state), the name's draft, the error.
@@ -610,6 +618,32 @@ function AttributesPanel() {
     } catch {
       // The reserved key's rejection stands the silent stand (the row is
       // not a reserved key's row — the custom rows are the writable stand).
+    }
+  };
+  const rename = (key: string, next: string): void => {
+    const trimmed = next.trim();
+    if (trimmed === "" || trimmed === key) {
+      // The empty's / the same key's stand: the cancel (no write — the
+      // key is required, the rename to the same key is a no-op).
+      setRenamingKey(null);
+      setRenameInvalid(false);
+      return;
+    }
+    try {
+      doc.renameAttribute(key, trimmed);
+      setRenamingKey(null);
+      setRenameInvalid(false);
+    } catch (error) {
+      if (error instanceof InvalidAttributeError) {
+        // The invalid target (the reserved / the taken key): the input's
+        // open stand over the invalid's border (the re-type's stand).
+        setRenameInvalid(true);
+        return;
+      }
+      // The panel's write entry never throws (the display-only stand's
+      // parity over the unexpected's rejection).
+      setRenamingKey(null);
+      setRenameInvalid(false);
     }
   };
 
@@ -1046,7 +1080,45 @@ function AttributesPanel() {
                 <AttributeRow
                   key={key}
                   attributeKey={key}
-                  label={key}
+                  label={
+                    renamingKey === key ? (
+                      // The rename's input (the select-all's mount stand —
+                      // the key's replace; the invalid target's open stand
+                      // over the error's border).
+                      <InlineEditInput
+                        initial={key}
+                        ariaLabel={t("attributes.renameAria", { name: key })}
+                        slot={`docblocks/attribute-${key}-rename`}
+                        className="h-8 text-sm"
+                        invalid={renameInvalid}
+                        selectOnMount
+                        onCommit={(next) => rename(key, next)}
+                        onCancel={() => {
+                          setRenamingKey(null);
+                          setRenameInvalid(false);
+                        }}
+                      />
+                    ) : viewMode ? (
+                      key
+                    ) : (
+                      // The key's rename entry (the click's stand over the
+                      // custom rows only — the preset / the system rows
+                      // keys are the fixed vocabulary's stand).
+                      <button
+                        type="button"
+                        data-slot="docblocks/attribute-key"
+                        data-attribute-key={key}
+                        aria-label={t("attributes.renameAria", { name: key })}
+                        className="w-full truncate rounded-md px-1 text-left hover:bg-muted/50"
+                        onClick={() => {
+                          setRenamingKey(key);
+                          setRenameInvalid(false);
+                        }}
+                      >
+                        {key}
+                      </button>
+                    )
+                  }
                   removable={!viewMode}
                   onRemove={() => remove(key)}
                   removeAria={t("attributes.removeAria", { name: key })}

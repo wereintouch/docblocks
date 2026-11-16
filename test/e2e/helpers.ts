@@ -80,6 +80,8 @@ interface PaneDoc {
   setGeometry(id: string, geometry: { x?: number; y?: number; w?: number; h?: number } | null): void;
   setAttribute(key: string, value: unknown): void;
   removeAttribute(key: string): void;
+  renameAttribute(fromKey: string, toKey: string): void;
+  reorderAttributes(order: string[]): void;
   setMark(blockId: string, from: number, to: number, mark: unknown): void;
   insertTableRow(tableId: string, at?: number): string;
   removeTableRow(tableId: string, rowId: string): void;

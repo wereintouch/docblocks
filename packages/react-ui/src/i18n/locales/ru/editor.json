@@ -91,6 +91,7 @@
     "typeMention": "Упоминание",
     "notSet": "Не задано",
     "editAria": "Изменить {name}",
+    "renameAria": "Переименовать {name}",
     "removeAria": "Удалить {name}",
     "reorderAria": "Переместить {name}",
     "booleanToggleAria": "Переключить {name}",
