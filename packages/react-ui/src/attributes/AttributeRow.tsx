@@ -2,7 +2,9 @@
  *  the optional remove button. The label and the value share the font
  *  size (the value's zone keeps its own padding — the column's stand).
  *  The label's stand is a plain string (the display) or a node (the
- *  rename's entry / the rename's input over the custom rows). */
+ *  rename's entry / the rename's input over the custom rows); the
+ *  column's clip stands off over the `labelClassName`'s override (the
+ *  rename's input's frame's overhang over the column's edge). */
 import type { ReactNode } from "react";
 
 import { Button } from "../shared/ui/Button";
@@ -16,6 +18,7 @@ function AttributeRow({
   onRemove,
   removeAria,
   topAlign,
+  labelClassName,
   children,
 }: {
   attributeKey: string;
@@ -26,6 +29,10 @@ function AttributeRow({
   /** The label stands opposite the FIRST line over the multi-line value
    *  zone (the list's stack) — the row's center stand dropped. */
   topAlign?: boolean;
+  /** The label column's extra class (the last word over the column's
+   *  base — the rename's input's frame's overhang stands the column's
+   *  clip's no-stand). */
+  labelClassName?: string;
   children: ReactNode;
 }) {
   return (
@@ -34,7 +41,13 @@ function AttributeRow({
       data-attribute-key={attributeKey}
       className="flex min-h-11 items-center gap-3 py-1.5"
     >
-      <span className={cn("w-28 shrink-0 truncate text-sm text-muted-foreground", topAlign && "mt-1.5 self-start")}>
+      <span
+        className={cn(
+          "w-28 shrink-0 truncate text-sm text-muted-foreground",
+          topAlign && "mt-1.5 self-start",
+          labelClassName
+        )}
+      >
         {label}
       </span>
       {/* The zone's flex's stand (the content's vertical center): the zone

@@ -107,6 +107,7 @@ function CustomAttributeRow({
   return (
     <AttributeRow
       attributeKey={keyName}
+      labelClassName={renaming ? "overflow-visible" : undefined}
       label={
         renaming ? (
           // The rename's input (the select-all's mount stand —
