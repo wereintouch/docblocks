@@ -258,6 +258,57 @@ function attributesRecordOf(ydoc: Y.Doc): Y.Map<unknown> | undefined {
   return record instanceof Y.Map ? record : undefined;
 }
 
+/** The stored attributes' display order (the `meta.attributesOrder` Y.Array's
+ *  strings); null when the field stands off (the reader's fallback is the
+ *  record's key order). */
+function attributeOrderOf(ydoc: Y.Doc): string[] | null {
+  const order = ydoc.getMap("meta").get("attributesOrder");
+  if (!(order instanceof Y.Array)) return null;
+  const keys = order.toArray().filter((key): key is string => typeof key === "string");
+  return keys.length > 0 ? keys : null;
+}
+
+/**
+ * Write the attributes' display order (the whole-array LWW — the
+ * whole-record LWW's parity over the record): an empty / null stand
+ * deletes the field (the writer's parity: an absent field is never
+ * written as an empty array). Runs inside the caller's transaction.
+ */
+function writeAttributeOrder(ydoc: Y.Doc, order: string[] | null): void {
+  const meta = ydoc.getMap("meta");
+  if (order === null || order.length === 0) {
+    meta.delete("attributesOrder");
+    return;
+  }
+  const array = new Y.Array<string>();
+  array.push(order);
+  meta.set("attributesOrder", array);
+}
+
+/**
+ * The record's keys over the stored order (the order's stand over the
+ * record's keys — the stale entries are dropped, the missing keys append
+ * in the record's key order): the writer's order rebuild after a
+ * concurrent record change.
+ */
+function attributeOrderAgainstRecord(ydoc: Y.Doc, record: Y.Map<unknown>): string[] {
+  const recordKeys = [...record.keys()];
+  const stored = attributeOrderOf(ydoc);
+  if (stored === null) return recordKeys;
+  const seen = new Set<string>();
+  const order: string[] = [];
+  for (const key of stored) {
+    if (record.has(key) && !seen.has(key)) {
+      seen.add(key);
+      order.push(key);
+    }
+  }
+  for (const key of recordKeys) {
+    if (!seen.has(key)) order.push(key);
+  }
+  return order;
+}
+
 /** The live attributes record, created lazily (the first write's stand). */
 function ensureAttributesRecord(ydoc: Y.Doc): Y.Map<unknown> {
   const record = attributesRecordOf(ydoc);
@@ -288,10 +339,21 @@ function attributeValueEquals(stored: unknown, value: DocAttributeValue): boolea
 function setAttribute(ydoc: Y.Doc, key: string, value: DocAttributeValue): void {
   assertAttributeKey(key);
   assertAttributeValue(key, value);
-  const current = attributesRecordOf(ydoc)?.get(key);
+  const record = attributesRecordOf(ydoc);
+  const isNewKey = record === undefined || !record.has(key);
+  const current = record?.get(key);
   if (attributeValueEquals(current, value)) return; // no-op
   localTransact(ydoc, () => {
     writeAttrValue(ensureAttributesRecord(ydoc), key, value);
+    // The new key appends to the display order (the last-added's stand):
+    // the order's rebuild over the record keeps the stand valid over a
+    // concurrent record change (the stale entries' drop, the missing'
+    // append).
+    if (isNewKey) {
+      const ordered = attributeOrderAgainstRecord(ydoc, ensureAttributesRecord(ydoc));
+      if (!ordered.includes(key)) ordered.push(key);
+      writeAttributeOrder(ydoc, ordered);
+    }
   });
 }
 
@@ -306,7 +368,64 @@ function removeAttribute(ydoc: Y.Doc, key: string): void {
   if (record === undefined || !record.has(key)) return; // no-op
   localTransact(ydoc, () => {
     record.delete(key);
+    // The key's removal over the display order (the empty order's field
+    // stands deleted — the writer's parity).
+    const stored = attributeOrderOf(ydoc);
+    if (stored !== null)
+      writeAttributeOrder(
+        ydoc,
+        stored.filter((k) => k !== key)
+      );
   });
 }
 
-export { assertAttributeKey, assertAttributeValue, removeAttribute, setAttribute, setAvatar, setTitle, updateBlock };
+/**
+ * Reorders the document's attributes (the custom attribute's drag-reorder's
+ * persistence): the `order` must stand a permutation of the record's keys
+ * (the strict permutation's validation — the missing / the extra / the
+ * duplicated key throws the typed `InvalidAttributeError`). One
+ * transaction — one undo step, one wire update. An order equal to the
+ * current stand is the no-op (the stored order, or the record's key order
+ * over the field's absence).
+ */
+function reorderAttributes(ydoc: Y.Doc, order: string[]): void {
+  if (!Array.isArray(order) || !order.every((key) => typeof key === "string")) {
+    throw new InvalidAttributeError("The attributes order must be an array of strings.");
+  }
+  const record = attributesRecordOf(ydoc);
+  if (record === undefined || record.size === 0) {
+    throw new InvalidAttributeError("The document has no attributes to reorder.");
+  }
+  const recordKeys = [...record.keys()];
+  if (order.length !== recordKeys.length) {
+    throw new InvalidAttributeError(
+      `The attributes order must hold exactly ${recordKeys.length} key(s) (one per attribute); found ${order.length}.`
+    );
+  }
+  const seen = new Set<string>();
+  for (const key of order) {
+    if (seen.has(key)) {
+      throw new InvalidAttributeError(`The attributes order entry "${key}" is duplicated.`);
+    }
+    seen.add(key);
+    if (!recordKeys.includes(key)) {
+      throw new InvalidAttributeError(`The attributes order entry "${key}" is not an attribute key.`);
+    }
+  }
+  const current = attributeOrderOf(ydoc) ?? recordKeys;
+  if (current.every((key, index) => key === order[index])) return; // no-op
+  localTransact(ydoc, () => {
+    writeAttributeOrder(ydoc, order);
+  });
+}
+
+export {
+  assertAttributeKey,
+  assertAttributeValue,
+  removeAttribute,
+  reorderAttributes,
+  setAttribute,
+  setAvatar,
+  setTitle,
+  updateBlock,
+};

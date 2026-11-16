@@ -76,6 +76,15 @@ interface DocMeta {
    * value }` — the custom attribute's storage form).
    */
   attributes?: Record<string, DocAttributeValue>;
+  /**
+   * The attribute keys' display order (additive, the custom attribute's
+   * drag-reorder's persistence): the order over the `attributes` record's
+   * keys (the writer maintains a permutation of the record's keys; the
+   * UI's preset rows stand a fixed order of their own and ignore the
+   * preset keys' entries). Absent = the record's key order stands (the
+   * reader's fallback).
+   */
+  attributesOrder?: string[];
   /** Creation time, ISO 8601. */
   createdAt: string;
 }

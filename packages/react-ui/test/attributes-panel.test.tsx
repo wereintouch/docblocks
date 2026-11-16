@@ -7,8 +7,8 @@
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createDoc } from "docblocks-core";
-import type { AttributeType, Doc } from "docblocks-core";
+import { createDoc, fromJSON } from "docblocks-core";
+import type { AttributeType, Doc, DocJSON } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
@@ -17,6 +17,7 @@ import type { RenderAttributeProps } from "../src/editor-provider";
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
 interface RenderOptions {
+  doc?: Doc;
   mode?: "edit" | "view" | "published";
   view?: "page" | "canvas";
   hiddenAttributes?: readonly string[];
@@ -29,7 +30,7 @@ interface RenderOptions {
 }
 
 function renderEditor(options: RenderOptions = {}): Doc {
-  const doc = createDoc({ id: "doc-1", title: "T", createdAt: CREATED_AT });
+  const doc = options.doc ?? createDoc({ id: "doc-1", title: "T", createdAt: CREATED_AT });
   if (options.prepare !== undefined) options.prepare(doc);
   render(
     <EditorProvider
@@ -363,6 +364,87 @@ describe("the edit commits", () => {
     // The empty's stand (the value's removal over the custom row too).
     commitEdit("count", "");
     expect(doc.meta.attributes).not.toHaveProperty("count");
+  });
+});
+
+describe("the custom rows' display order + the drag's affordance", () => {
+  it("stands the custom rows over the stored order (not the record's key order), the record's key order over the field's absence", () => {
+    const doc = renderEditor({
+      prepare: (d) => {
+        // The record's keys stand alphabetical (zeta, mid, alpha); the
+        // stored order stands the user's drag's stand.
+        d.setAttribute("zeta", 1);
+        d.setAttribute("mid", 2);
+        d.setAttribute("alpha", 3);
+        d.reorderAttributes(["zeta", "mid", "alpha"]); // the record's stand (the field's creation)
+        d.reorderAttributes(["mid", "alpha", "zeta"]);
+      },
+    });
+    expand();
+    const custom = document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-custom"]');
+    expect(custom).not.toBeNull();
+    const keys = Array.from(custom!.querySelectorAll('[data-slot="docblocks/attribute-row"]')).map((el) =>
+      el.getAttribute("data-attribute-key")
+    );
+    expect(keys).toEqual(["mid", "alpha", "zeta"]);
+    void doc;
+  });
+
+  it("stands the record's key order over the field's absence (the reader's fallback)", () => {
+    // The legacy stand: a loaded doc over the `attributesOrder`'s absence
+    // (the field's drop — the new writer maintains it over every write).
+    const legacy = fromJSON({
+      v: 1,
+      id: "doc-1",
+      title: "T",
+      createdAt: CREATED_AT,
+      blocks: { "doc-1": { type: "root", children: [] } },
+      attributes: { zeta: 1, mid: 2, alpha: 3 },
+    } as DocJSON);
+    renderEditor({ doc: legacy });
+    expand();
+    const custom = document.querySelector<HTMLElement>('[data-slot="docblocks/attributes-custom"]');
+    expect(custom).not.toBeNull();
+    const keys = Array.from(custom!.querySelectorAll('[data-slot="docblocks/attribute-row"]')).map((el) =>
+      el.getAttribute("data-attribute-key")
+    );
+    // The read's sorted record order (the legacy stand — no stored order).
+    expect(keys).toEqual(["alpha", "mid", "zeta"]);
+  });
+
+  it("the grip stands over the custom rows only (the preset's rows stand their fixed order), the hover's reveal, the read-only's absence", () => {
+    renderEditor({
+      prepare: (d) => {
+        d.setAttribute("description", "d");
+        d.setAttribute("alpha", 1);
+        d.setAttribute("beta", 2);
+      },
+    });
+    expand();
+    const grip = (key: string) =>
+      document.querySelector<HTMLElement>(`[data-slot="docblocks/attribute-row-grip"][data-attribute-key="${key}"]`);
+    // The grip stands over every custom row (the edit mode), not over the
+    // preset's rows (the fixed order's stand).
+    expect(grip("alpha")).not.toBeNull();
+    expect(grip("beta")).not.toBeNull();
+    expect(grip("description")).toBeNull();
+    // The grip's accessible name (the reorder's stand over the key).
+    expect(grip("alpha")?.getAttribute("aria-label")).toBe("Reorder alpha");
+  });
+
+  it("the read-only stand (the view mode) renders no grip and no drag group", () => {
+    renderEditor({
+      mode: "view",
+      prepare: (d) => {
+        d.setAttribute("alpha", 1);
+        d.setAttribute("beta", 2);
+      },
+    });
+    expand();
+    expect(document.querySelector('[data-slot="docblocks/attribute-row-grip"]')).toBeNull();
+    // The rows still stand (the display-only's parity).
+    expect(row("alpha")).not.toBeNull();
+    expect(row("beta")).not.toBeNull();
   });
 });
 

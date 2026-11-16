@@ -16,3 +16,14 @@ document field. The record is CRDT-represented (the `meta.attributes`
 nested map), converges over the wire (the whole-record LWW over the
 concurrent init), and the change flows into the `metaChanged` signal
 with the meta's revision bump.
+
+The `DocMeta.attributesOrder` field (the attributes' display order) with
+the `reorderAttributes(order)` command: an optional permutation of the
+`attributes` keys, CRDT-represented as a `meta` array, normalized in
+`fromJSON` / the validator (unknown keys dropped, missing keys appended,
+absent over the empty record). `setAttribute` / `removeAttribute` maintain
+the field (a new key appends, a removed key drops, the empty order is not
+emitted). `reorderAttributes` takes a full permutation in one transaction
+(`InvalidAttributeError` over a non-permutation, a no-op stand over the
+same order). Absence is the legacy stand (the sorted record order) —
+older data reads unchanged.

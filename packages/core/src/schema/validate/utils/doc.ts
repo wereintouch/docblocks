@@ -49,6 +49,11 @@ function validateMeta(doc: Record<string, unknown>, lenient: boolean, errors: Va
   // (cross-minor) load preserves the unsupported values as-is (the
   // reader's contract).
   if ("attributes" in doc) validateDocAttributes(doc.attributes, lenient, errors);
+  // The attributes' display order (the custom attribute's reorder's
+  // persistence): the strict posture checks the permutation's form;
+  // the lenient (cross-minor) load stands the array's shape only (the
+  // reader's fallback over a broken stand).
+  if ("attributesOrder" in doc) validateAttributeOrder(doc, lenient, errors);
 }
 
 /**
@@ -87,6 +92,63 @@ function validateDocAttributes(attributes: unknown, lenient: boolean, errors: Va
       errors.push({
         path: `attributes.${key}`,
         message: `The attribute value must be a string, a number, a boolean, an array of strings, a mention reference, or a typed value (got ${show(value)}).`,
+      });
+    }
+  }
+}
+
+/**
+ * The `DocMeta.attributesOrder` array: the `attributes` record's keys'
+ * display order. Strict posture: an array of unique strings, every key
+ * present in the record (the writer's permutation stand), and absent
+ * over an empty / absent record. Lenient posture: the array's shape
+ * only (the elements' stand over the reader's normalization).
+ */
+function validateAttributeOrder(doc: Record<string, unknown>, lenient: boolean, errors: ValidationError[]): void {
+  const order = doc.attributesOrder;
+  if (!Array.isArray(order)) {
+    errors.push({
+      path: "attributesOrder",
+      message: `attributesOrder must be an array of strings (got ${show(order)}).`,
+    });
+    return;
+  }
+  const record = doc.attributes;
+  const attributeKeys = record !== undefined && isPlainObject(record) ? (Object.keys(record) as string[]) : [];
+  if (attributeKeys.length === 0 && order.length > 0) {
+    errors.push({
+      path: "attributesOrder",
+      message: `attributesOrder must be absent over an empty attributes record.`,
+    });
+    return;
+  }
+  if (lenient) return;
+  const seen = new Set<string>();
+  for (const key of order) {
+    if (typeof key !== "string") {
+      errors.push({
+        path: "attributesOrder",
+        message: `An attributesOrder entry must be a string (got ${show(key)}).`,
+      });
+      continue;
+    }
+    if (seen.has(key)) {
+      errors.push({ path: "attributesOrder", message: `The attributesOrder entry "${key}" is duplicated.` });
+      continue;
+    }
+    seen.add(key);
+    if (!attributeKeys.includes(key)) {
+      errors.push({
+        path: `attributesOrder.${key}`,
+        message: `The attributesOrder entry "${key}" is not an attribute key.`,
+      });
+    }
+  }
+  for (const key of attributeKeys) {
+    if (!seen.has(key)) {
+      errors.push({
+        path: `attributesOrder.${key}`,
+        message: `The attributes key "${key}" is missing from the attributesOrder.`,
       });
     }
   }

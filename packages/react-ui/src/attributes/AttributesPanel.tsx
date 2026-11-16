@@ -25,23 +25,26 @@
  * column's first letters stand one vertical over all the rows (the
  * label's column is the fixed width; the value's zone is the rest).
  */
+import { Reorder, useDragControls } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
 
-import { useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
 
 import { ATTRIBUTE_TYPES, InvalidAttributeError } from "docblocks-core";
 import type { AttributeType, DocAttributeValue, MentionRef, TypedAttributeValue } from "docblocks-core";
 
 import { useBlobFile } from "../blocks/use-blob-file";
 import { useEditorContext } from "../editor-provider";
+import { TRANSITION } from "../motion/constants";
 import { Button } from "../shared/ui/Button";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
 import { Input } from "../shared/ui/Input";
 import { Popover, PopoverContent, PopoverTrigger } from "../shared/ui/Popover";
 import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { cn } from "../shared/ui/cn";
-import { ChevronDown, Image, Plus, Trash, X } from "../shared/ui/icons";
+import { ChevronDown, GripVertical, Image, Plus, Trash, X } from "../shared/ui/icons";
 import { PRESET_KEYS } from "./presets";
 
 /** The mention reference's read (the id-only stand; the legacy label's
@@ -61,6 +64,33 @@ const typedValueOf = (value: DocAttributeValue | undefined): TypedAttributeValue
   if (keys.length !== 2 || typeof record.type !== "string" || !("value" in record)) return null;
   return (value as TypedAttributeValue) ?? null;
 };
+
+/** The preset key's read (the panel's fixed rows' vocabulary — the
+ *  preset-ness is the UI's knowledge, the record's keys stand the
+ *  generic data contract). */
+const isPresetKey = (key: string): boolean => (PRESET_KEYS as readonly string[]).includes(key);
+
+/** The custom keys' display order over the stored `attributesOrder`:
+ *  the stale entries stand dropped, the duplicates stand first-occurrence,
+ *  and the record's keys missing from the order append in the record's
+ *  key order. An absent order stands the record's key order (the
+ *  reader's fallback — the last-added's stand over the new docs). */
+function orderedCustomKeys(order: string[] | undefined, customKeys: string[]): string[] {
+  if (order === undefined) return customKeys;
+  const keySet = new Set(customKeys);
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const key of order) {
+    if (keySet.has(key) && !seen.has(key)) {
+      seen.add(key);
+      ordered.push(key);
+    }
+  }
+  for (const key of customKeys) {
+    if (!seen.has(key)) ordered.push(key);
+  }
+  return ordered;
+}
 
 /** The value zone's stand over a display-only value (the typed value
  *  stands its inner value's display; the mention reference stands its id). */
@@ -151,6 +181,71 @@ function DisplayValue({ value, placeholder }: { value: DocAttributeValue | undef
   const typed = typedValueOf(value);
   const isMention = mentionRefOf(value) !== null || (typed !== null && typed.type === "mention");
   return <span className={cn("block truncate px-1.5 py-1 text-sm", isMention && "font-mono")}>{text}</span>;
+}
+
+/** The custom attribute row's drag wrapper: the framer `Reorder.Item` (the
+ *  position-only layout slide over the rows' reflow, the dragged row's
+ *  zIndex lift — the blocks' rows' parity) + the gutter grip (the blocks'
+ *  grip's parity: the same `--docblocks-gutter-left`'s offset over the
+ *  row's column, the hover's reveal). The grip's pointerdown starts the
+ *  drag (the grip is the only drag trigger — the row's own drag is
+ *  disarmed, a press without movement stays the plain gesture). The
+ *  release stands the release's commit (one command — one undo step);
+ *  the live reorder over the drag is the preview (the doc/wire stand
+ *  untouched until the release). */
+function DraggableAttributeRow({
+  attributeKey,
+  onDragStart,
+  onDragEnd,
+  children,
+}: {
+  attributeKey: string;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  children: React.ReactNode;
+}) {
+  const { t } = useTranslation("editor");
+  const dragControls = useDragControls();
+  const onGripPointerDown = (event: ReactPointerEvent<HTMLSpanElement>) => {
+    if (event.button !== 0) return;
+    // The default's suppression keeps the page editable's focus (a
+    // mousedown's default would move the caret into the shared editable
+    // and seat it over the panel's island).
+    event.preventDefault();
+    onDragStart();
+    dragControls.start(event);
+  };
+  return (
+    <Reorder.Item
+      as="div"
+      data-slot="docblocks/attribute-custom-row"
+      value={attributeKey}
+      dragListener={false}
+      dragControls={dragControls}
+      onDragEnd={onDragEnd}
+      layout="position"
+      transition={{ layout: TRANSITION }}
+      whileDrag={{ zIndex: 10 }}
+      className="group relative"
+    >
+      <span
+        data-slot="docblocks/attribute-row-grip"
+        data-attribute-key={attributeKey}
+        role="button"
+        aria-label={t("attributes.reorderAria", { name: attributeKey })}
+        onPointerDown={onGripPointerDown}
+        className="
+          absolute top-1/2 left-(--docblocks-gutter-left) flex size-5 -translate-y-1/2 cursor-grab touch-none
+          items-center justify-center rounded-full text-(--docblocks-gutter-color) opacity-0
+          group-hover:opacity-100
+          active:cursor-grabbing
+        "
+      >
+        <GripVertical className="size-4" />
+      </span>
+      {children}
+    </Reorder.Item>
+  );
 }
 
 /** The tags editor (the default stand): the chips + the add input. Every
@@ -384,7 +479,77 @@ function AttributesPanel() {
   const tagsValue = value("tags");
   const tagsList = Array.isArray(tagsValue) ? tagsValue : [];
 
-  const customKeys = Object.keys(attributes).filter((key) => !(PRESET_KEYS as readonly string[]).includes(key));
+  // The custom keys (every non-preset key of the record). The display's
+  // order stands the stored `meta.attributesOrder` (the stale entries'
+  // drop, the missing keys' append over the record's key order; the
+  // record's key order over the field's absence) — the base's rows stand
+  // a fixed order of their own (the preset keys' order's entries are
+  // ignored), the custom keys stand the last-added's stand over the
+  // drag-free state.
+  const customKeysAll = Object.keys(attributes).filter((key) => !isPresetKey(key));
+  const derivedCustomOrder = orderedCustomKeys(meta.attributesOrder, customKeysAll);
+  // The drag's preview's order (the framer reorder's live stand — the
+  // doc/wire stand untouched over the drag; the release commits it).
+  const [dragOrder, setDragOrder] = useState<string[] | null>(null);
+  // The drag session's stand (the release's commit input + the resync's gate).
+  const [dragging, setDragging] = useState(false);
+  const dragOrderRef = useRef<string[] | null>(null);
+  useLayoutEffect(() => {
+    dragOrderRef.current = dragOrder;
+  }, [dragOrder]);
+  // A record change (a remote / a local add-remove) invalidates the
+  // preview (a stale key's drag would stand the commit's rejection):
+  // the key sets' divergence clears it over every state (the drag's
+  // in-flight stand included — the row's unmount stands the same guard
+  // over the framer's no-onDragEnd delivery).
+  if (
+    dragOrder !== null &&
+    (dragOrder.some((key) => !customKeysAll.includes(key)) || customKeysAll.some((key) => !dragOrder.includes(key)))
+  ) {
+    setDragOrder(null);
+    setDragging(false);
+  }
+  // A store change over the drag-free state resyncs the preview (a
+  // committed reorder re-reads the store's order).
+  if (!dragging && dragOrder !== null && dragOrder.join("\u0000") !== derivedCustomOrder.join("\u0000")) {
+    setDragOrder(null);
+  }
+  const displayCustomKeys = dragOrder ?? derivedCustomOrder;
+
+  /** The release's commit: the preview's custom order stands over the full
+   *  order's custom slots (the non-custom keys' stand over their positions —
+   *  the preset keys' slots keep their stand). One command (one undo step);
+   *  the stale drag (a peer's record change over the drag) stands the
+   *  no-write (the resync snaps the display). */
+  const commitCustomReorder = (): void => {
+    setDragging(false);
+    const preview = dragOrderRef.current;
+    setDragOrder(null);
+    dragOrderRef.current = null;
+    if (preview === null) return;
+    const metaNow = doc.meta;
+    const full = metaNow.attributesOrder ?? Object.keys(metaNow.attributes ?? {});
+    const previewSet = new Set(preview);
+    let index = 0;
+    const nextFull: string[] = [];
+    for (const key of full) {
+      // The preview's slot stand (the preview covers the drag's custom keys;
+      // a key outside the preview keeps its position — the stale drag's
+      // commit stands the rejection's no-write).
+      const slot = !isPresetKey(key) && previewSet.has(key) ? preview[index] : undefined;
+      if (slot !== undefined) {
+        index += 1;
+        nextFull.push(slot);
+      } else {
+        nextFull.push(key);
+      }
+    }
+    try {
+      doc.reorderAttributes(nextFull);
+    } catch {
+      // The stale drag's rejection stands the no-write (the resync's stand).
+    }
+  };
 
   /** The add flow's commit: the name stands the key, the typed value stands
    *  the type's initial form (the value's edit stands the row's own zone;
@@ -634,113 +799,142 @@ function AttributesPanel() {
             </AttributeRow>
           )}
 
-          {customKeys.map((key) => {
-            const rawValue = attributes[key];
-            const typed = typedValueOf(rawValue);
-            // The value's edit's stand: the string (plain or the typed
-            // stand), the number, the list, and the mention reference run
-            // the inline input (the typed form's write-back — the type
-            // stands kept; the invalid number's commit is the no-write's
-            // stand over the old value); the boolean runs the click's
-            // toggle (the value's flip — one write).
-            const isPlainString = typeof rawValue === "string";
-            const editable = !viewMode && (isPlainString || typed !== null);
-            const initialOf = (): string => {
-              if (typed === null) return isPlainString ? (rawValue as string) : String(rawValue ?? "");
-              switch (typed.type) {
-                case "string":
-                case "number":
-                case "boolean":
-                  return String(typed.value);
-                case "list":
-                  return typed.value.join(", ");
-                case "mention":
-                  return typed.value.id;
-              }
-            };
-            const commitValue = (next: string): void => {
-              const trimmed = next.trim();
-              if (trimmed === "") {
-                remove(key);
-                return;
-              }
-              if (typed === null) {
-                set(key, trimmed);
-                return;
-              }
-              switch (typed.type) {
-                case "string":
-                  set(key, { type: "string", value: trimmed });
-                  break;
-                case "number": {
-                  const n = Number(trimmed);
-                  if (!Number.isFinite(n)) return;
-                  set(key, { type: "number", value: n });
-                  break;
+          {(() => {
+            const renderCustomRow = (key: string): React.ReactNode => {
+              const rawValue = attributes[key];
+              const typed = typedValueOf(rawValue);
+              // The value's edit's stand: the string (plain or the typed
+              // stand), the number, the list, and the mention reference run
+              // the inline input (the typed form's write-back — the type
+              // stands kept; the invalid number's commit is the no-write's
+              // stand over the old value); the boolean runs the click's
+              // toggle (the value's flip — one write).
+              const isPlainString = typeof rawValue === "string";
+              const editable = !viewMode && (isPlainString || typed !== null);
+              const initialOf = (): string => {
+                if (typed === null) return isPlainString ? (rawValue as string) : String(rawValue ?? "");
+                switch (typed.type) {
+                  case "string":
+                  case "number":
+                  case "boolean":
+                    return String(typed.value);
+                  case "list":
+                    return typed.value.join(", ");
+                  case "mention":
+                    return typed.value.id;
                 }
-                case "boolean":
-                  set(key, { type: "boolean", value: trimmed === "true" });
-                  break;
-                case "list":
-                  set(key, {
-                    type: "list",
-                    value: trimmed
-                      .split(",")
-                      .map((item) => item.trim())
-                      .filter((item) => item !== ""),
-                  });
-                  break;
-                case "mention":
-                  set(key, { type: "mention", value: { id: trimmed } });
-                  break;
-              }
-            };
-            const editKey = `custom:${key}`;
-            const isTyping = editingKey === editKey;
-            return (
-              <AttributeRow
-                key={key}
-                attributeKey={key}
-                label={key}
-                removable={!viewMode}
-                onRemove={() => remove(key)}
-                removeAria={t("attributes.removeAria", { name: key })}
-              >
-                {valueZone(
-                  key,
-                  !editable ? (
-                    <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
-                  ) : isTyping ? (
-                    inlineEdit(
-                      editKey,
-                      `docblocks/attribute-${key}-edit`,
-                      key,
-                      initialOf(),
-                      (next) => {
-                        setEditingKey(null);
-                        commitValue(next);
-                      },
-                      t("attributes.valuePlaceholder")
-                    )
-                  ) : (
-                    <button
-                      type="button"
-                      data-slot="docblocks/attribute-custom"
-                      data-attribute-key={key}
-                      className="w-full rounded-md text-left hover:bg-muted/50"
-                      onClick={() =>
-                        typed !== null && typed.type === "boolean"
-                          ? set(key, { type: "boolean", value: !typed.value })
-                          : setEditingKey(editKey)
-                      }
-                    >
+              };
+              const commitValue = (next: string): void => {
+                const trimmed = next.trim();
+                if (trimmed === "") {
+                  remove(key);
+                  return;
+                }
+                if (typed === null) {
+                  set(key, trimmed);
+                  return;
+                }
+                switch (typed.type) {
+                  case "string":
+                    set(key, { type: "string", value: trimmed });
+                    break;
+                  case "number": {
+                    const n = Number(trimmed);
+                    if (!Number.isFinite(n)) return;
+                    set(key, { type: "number", value: n });
+                    break;
+                  }
+                  case "boolean":
+                    set(key, { type: "boolean", value: trimmed === "true" });
+                    break;
+                  case "list":
+                    set(key, {
+                      type: "list",
+                      value: trimmed
+                        .split(",")
+                        .map((item) => item.trim())
+                        .filter((item) => item !== ""),
+                    });
+                    break;
+                  case "mention":
+                    set(key, { type: "mention", value: { id: trimmed } });
+                    break;
+                }
+              };
+              const editKey = `custom:${key}`;
+              const isTyping = editingKey === editKey;
+              return (
+                <AttributeRow
+                  key={key}
+                  attributeKey={key}
+                  label={key}
+                  removable={!viewMode}
+                  onRemove={() => remove(key)}
+                  removeAria={t("attributes.removeAria", { name: key })}
+                >
+                  {valueZone(
+                    key,
+                    !editable ? (
                       <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
-                    </button>
-                  )
-                )}
-              </AttributeRow>
+                    ) : isTyping ? (
+                      inlineEdit(
+                        editKey,
+                        `docblocks/attribute-${key}-edit`,
+                        key,
+                        initialOf(),
+                        (next) => {
+                          setEditingKey(null);
+                          commitValue(next);
+                        },
+                        t("attributes.valuePlaceholder")
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        data-slot="docblocks/attribute-custom"
+                        data-attribute-key={key}
+                        className="w-full rounded-md text-left hover:bg-muted/50"
+                        onClick={() =>
+                          typed !== null && typed.type === "boolean"
+                            ? set(key, { type: "boolean", value: !typed.value })
+                            : setEditingKey(editKey)
+                        }
+                      >
+                        <DisplayValue value={rawValue} placeholder={t("attributes.notSet")} />
+                      </button>
+                    )
+                  )}
+                </AttributeRow>
+              );
+            };
+            // The custom rows' stand: the drag's preview over the edit mode
+            // (the `Reorder.Group`'s live reorder + the rows' position slide —
+            // the blocks' rows' parity), the display-only's stand over the
+            // read-only modes (no grip, no drag).
+            return viewMode ? (
+              <div data-slot="docblocks/attributes-custom">{displayCustomKeys.map((key) => renderCustomRow(key))}</div>
+            ) : (
+              <Reorder.Group
+                as="div"
+                data-slot="docblocks/attributes-custom"
+                axis="y"
+                values={displayCustomKeys}
+                onReorder={(next: string[]) => setDragOrder(next)}
+                className="flex flex-col"
+              >
+                {displayCustomKeys.map((key) => (
+                  <DraggableAttributeRow
+                    key={key}
+                    attributeKey={key}
+                    onDragStart={() => setDragging(true)}
+                    onDragEnd={commitCustomReorder}
+                  >
+                    {renderCustomRow(key)}
+                  </DraggableAttributeRow>
+                ))}
+              </Reorder.Group>
             );
-          })}
+          })()}
 
           {viewMode ? null : (
             // The add's entry over the list's tail (the button stands over

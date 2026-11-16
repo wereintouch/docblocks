@@ -1,6 +1,12 @@
 import * as Y from "yjs";
 
-import { flattenDoc, isReservedId, normalizeZOrder, validateDoc } from "@docblocks-core/schema";
+import {
+  attributeOrderNormalized,
+  flattenDoc,
+  isReservedId,
+  normalizeZOrder,
+  validateDoc,
+} from "@docblocks-core/schema";
 import type {
   Block,
   BlockAttrsPatch,
@@ -40,6 +46,7 @@ import {
   removeRow as removeRowCommand,
   removeTableColumn as removeTableColumnCommand,
   removeTableRow as removeTableRowCommand,
+  reorderAttributes as reorderAttributesCommand,
   setAttribute as setAttributeCommand,
   setAvatar as setAvatarCommand,
   setCell as setCellCommand,
@@ -173,7 +180,7 @@ class Doc {
     // The z-order mirror (the canvas elements' dense `zIndex`) can be stale
     // in a saved snapshot after a concurrent merge; re-derive it from the
     // children order before validation (the single source of the z-order).
-    const normalized = normalizeZOrder(json);
+    const normalized = attributeOrderNormalized(normalizeZOrder(json));
     // The JSON import is a reader boundary like the snapshot load: the
     // cross-minor (lenient) posture tolerates the additive unknowns (the
     // structural invariants and the known-data checks stand).
@@ -288,6 +295,15 @@ class Doc {
   /** Removes a document attribute (an absent key is a no-op). */
   removeAttribute(key: string): void {
     removeAttributeCommand(this.#ydoc, key);
+  }
+
+  /**
+   * Reorders the document's attributes (the `order` is a permutation of the
+   * record's keys; a missing / extra / duplicated key throws the typed
+   * `InvalidAttributeError`). An order equal to the current stand is a no-op.
+   */
+  reorderAttributes(order: string[]): void {
+    reorderAttributesCommand(this.#ydoc, order);
   }
 
   /** Appends an empty row to a database block and returns its row id. */

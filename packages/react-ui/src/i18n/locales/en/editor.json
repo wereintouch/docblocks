@@ -92,6 +92,7 @@
     "notSet": "Not set",
     "editAria": "Edit {name}",
     "removeAria": "Remove {name}",
+    "reorderAria": "Reorder {name}",
     "addTagPlaceholder": "Add a tag",
     "addTagAria": "Add a tag",
     "uploadCoverAria": "Upload the cover",

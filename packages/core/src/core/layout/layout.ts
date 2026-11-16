@@ -40,7 +40,9 @@ function rootBlockIdOf(ydoc: Y.Doc): string {
  * The `attributes` record stands one nested Y.Map under
  * `meta.attributes`, written only when non-empty (absent / empty = the
  * field stands off — the writer's parity: an absent field is never written
- * as an empty record). A concurrent init of the record resolves as a
+ * as an empty record). The `attributesOrder` array (the record's keys'
+ * display order) stands one Y.Array under `meta.attributesOrder`, written
+ * the same way. A concurrent init of the record resolves as a
  * whole-record LWW (the meta map's last-writer-wins), so a doc's creation
  * stays server-coordinated.
  */
@@ -50,7 +52,8 @@ function writeMeta(
   title: string,
   createdAt: string,
   avatar?: string,
-  attributes?: Record<string, unknown>
+  attributes?: Record<string, unknown>,
+  attributesOrder?: string[]
 ): void {
   const meta = ydoc.getMap("meta");
   meta.set("v", 1);
@@ -66,6 +69,11 @@ function writeMeta(
       writeAttributeEntry(attrs, key, value);
     }
     meta.set("attributes", attrs);
+  }
+  if (attributesOrder !== undefined && attributesOrder.length > 0) {
+    const order = new Y.Array<string>();
+    order.push(attributesOrder);
+    meta.set("attributesOrder", order);
   }
 }
 

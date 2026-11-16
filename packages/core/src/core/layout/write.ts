@@ -214,7 +214,7 @@ function setParents(json: DocJSON, blocks: Y.Map<unknown>): void {
 /** Write a validated JSON document into a fresh doc (used by fromJSON). */
 function writeDocument(ydoc: Y.Doc, json: DocJSON): void {
   ydoc.transact(() => {
-    writeMeta(ydoc, json.id, json.title, json.createdAt, json.avatar, json.attributes);
+    writeMeta(ydoc, json.id, json.title, json.createdAt, json.avatar, json.attributes, json.attributesOrder);
     const blocks = getBlocks(ydoc);
     const rootOrder = rootOrderOf(ydoc);
     for (const [id, block] of Object.entries(json.blocks)) {

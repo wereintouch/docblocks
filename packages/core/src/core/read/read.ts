@@ -45,6 +45,15 @@ function readMeta(ydoc: Y.Doc): DocMeta {
     }
     attributes = record as DocMeta["attributes"];
   }
+  // The attributes' display order (the custom attribute's reorder's
+  // persistence): the Y.Array's strings, absent / empty = the field
+  // stands off (the reader's fallback is the record's key order).
+  const orderArray = meta.get("attributesOrder");
+  let attributesOrder: string[] | undefined;
+  if (orderArray instanceof Y.Array) {
+    const keys = orderArray.toArray().filter((key): key is string => typeof key === "string");
+    if (keys.length > 0) attributesOrder = keys;
+  }
   return {
     v: 1,
     id: typeof id === "string" ? id : "",
@@ -53,6 +62,7 @@ function readMeta(ydoc: Y.Doc): DocMeta {
     // The avatar is optional: absent or empty means none (the field stands off).
     ...(typeof avatar === "string" && avatar !== "" ? { avatar } : {}),
     ...(attributes !== undefined ? { attributes } : {}),
+    ...(attributesOrder !== undefined ? { attributesOrder } : {}),
     createdAt: typeof createdAt === "string" ? createdAt : "",
   };
 }

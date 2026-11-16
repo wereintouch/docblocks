@@ -19,9 +19,14 @@ one-line sliding-pill type pick (the document view's selector's parity
   vocabulary; the mention's name stands the target's id; the custom
   value's edit over the row's zone — the string / number / list / mention
   inline inputs over the typed form's write-back (the invalid number's
-  no-write), the boolean's click's toggle), and the consumer's
-  `hiddenAttributes` + `tagEditor` + `renderAttribute` + `attributeTypePicker`
-  provider props. The `renderAttribute` callback replaces a row's value
+  no-write), the boolean's click's toggle), the custom rows' display order
+  (the preset rows' fixed order; the custom rows over `attributesOrder` —
+  last-added last, drag-reorderable over the grip with the block's
+  grip's offset parity: the hover's reveal, the framer's live slide's
+  preview, the release's `reorderAttributes` commit over the wire, the
+  undo's single step, the no-move release's no-op stand), and the
+  consumer's `hiddenAttributes` + `tagEditor` + `renderAttribute` +
+  `attributeTypePicker` provider props. The `renderAttribute` callback replaces a row's value
   zone over its key (the `null` / the absent stands the built-in); the
   `attributeTypePicker` component replaces the built-in type picker over
   the add flow. Markdown import and paste now read the YAML-frontmatter

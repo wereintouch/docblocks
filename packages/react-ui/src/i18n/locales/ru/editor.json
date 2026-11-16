@@ -92,6 +92,7 @@
     "notSet": "Не задано",
     "editAria": "Изменить {name}",
     "removeAria": "Удалить {name}",
+    "reorderAria": "Переместить {name}",
     "addTagPlaceholder": "Добавить тег",
     "addTagAria": "Добавить тег",
     "uploadCoverAria": "Загрузить обложку",

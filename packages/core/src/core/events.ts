@@ -25,7 +25,7 @@ interface Change {
    * removed block is included too (its children changed).
    */
   blockIds: BlockId[];
-  /** True when the document's meta (the title, the avatar, or the doc attributes) changed. */
+  /** True when the document's meta (the title, the avatar, or the doc attributes (the record or the display order)) changed. */
   metaChanged: boolean;
 }
 
@@ -81,7 +81,7 @@ function pendingOf(hub: Hub): PendingChange {
   return hub.pending;
 }
 
-/** The meta observer: the title, the avatar, and the doc attributes; the Yjs-only `updatedAt` never counts. */
+/** The meta observer: the title, the avatar, and the doc attributes (the record + the display order); the Yjs-only `updatedAt` never counts. */
 function observeMeta(hub: Hub, events: Y.YEvent<Y.AbstractType<unknown>>[]): void {
   const pending = pendingOf(hub);
   for (const event of events) {
@@ -89,10 +89,15 @@ function observeMeta(hub: Hub, events: Y.YEvent<Y.AbstractType<unknown>>[]): voi
     // Paths are relative to the meta map: [] is the map itself, [title] the Y.Text,
     // [attributes, key] the attributes record's entries.
     if (path.length === 0) {
-      if (event.keys.has("title") || event.keys.has("avatar") || event.keys.has("attributes")) {
+      if (
+        event.keys.has("title") ||
+        event.keys.has("avatar") ||
+        event.keys.has("attributes") ||
+        event.keys.has("attributesOrder")
+      ) {
         pending.metaChanged = true;
       }
-    } else if (path[0] === "title" || path[0] === "attributes") {
+    } else if (path[0] === "title" || path[0] === "attributes" || path[0] === "attributesOrder") {
       pending.metaChanged = true;
     }
   }
