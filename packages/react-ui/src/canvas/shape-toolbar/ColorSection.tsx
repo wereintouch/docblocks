@@ -1,17 +1,19 @@
 /** One color section of the shape toolbar (the fill or the stroke). The
  * open state is the toolbar's (the sections are mutually exclusive — the
  * non-modal popover does not close on an outside click, so a per-section
- * state would let both palettes stand open at once). */
+ * state would let both palettes stand open at once). The custom's stand is
+ * the rainbow's swatch (the dot over the current custom's value) + the hex
+ * input (the shared mechanism — the native dialog's no-stand). */
 import { useTranslation } from "react-i18next";
 
-import type { CSSProperties, ReactNode } from "react";
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useFormatPalette } from "../../shared/providers/format-palette-context";
 import { Button, Input } from "../../shared/ui";
+import { ColorChip } from "../../shared/ui/ColorChip";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
-import { X } from "../../shared/ui/icons";
 import { preventDefault, stopPropagation } from "../../shared/utils";
 import { TOOLTIP_SIDE_OFFSET_PX } from "../viewport/constants";
 import { normalizeHex } from "./utils";
@@ -20,7 +22,7 @@ function ColorSection({
   target,
   label,
   current,
-  chipStyle,
+  mode = "fill",
   icon,
   open,
   onOpenChange,
@@ -32,8 +34,9 @@ function ColorSection({
   /** The section's accessible label (translated — the caller's i18n lookup). */
   label: string;
   current: string | undefined;
-  /** The button's chip style (the current value's preview). */
-  chipStyle: CSSProperties;
+  /** The chip's preview mode: the fill's background (the default) or the
+   * stroke's hollow border. */
+  mode?: "fill" | "stroke";
   icon: ReactNode;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -50,6 +53,7 @@ function ColorSection({
   const { t } = useTranslation("canvas");
   const palette = useFormatPalette();
   const [draft, setDraft] = useState("");
+  const hexRef = useRef<HTMLInputElement>(null);
   const none = allowNone && (current === undefined || current === "none");
   const lower = current?.toLowerCase();
 
@@ -98,15 +102,7 @@ function ColorSection({
         >
           <span className="flex items-center gap-1">
             {icon}
-            {none ? (
-              <X className="size-3 text-(--docblocks-muted-foreground)" />
-            ) : (
-              <span
-                className="size-3 rounded-(--docblocks-radius)"
-                style={{ ...chipStyle, border: "1px solid var(--docblocks-formatbar-border-color, #888)" }}
-                aria-hidden
-              />
-            )}
+            <ColorChip value={current} mode={mode} />
           </span>
         </Button>
       </PopoverTrigger>
@@ -134,8 +130,11 @@ function ColorSection({
           allowNone={allowNone}
           noneActive={none}
           onSelectNone={allowNone ? selectNone : undefined}
+          allowCustom
+          onCustom={() => hexRef.current?.focus()}
         />
         <Input
+          ref={hexRef}
           size="sm"
           data-slot={`${slotPrefix}-${target}-hex`}
           aria-label={t("colorHex", { label })}

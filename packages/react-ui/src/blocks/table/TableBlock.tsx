@@ -372,6 +372,8 @@ function TableBlock({ id, block }: { id: BlockId; block: TableBlockType }) {
     } catch {
       // A rejected command (a concurrent structural change won the race).
     }
+    setMenu(null); // the pick's stand: the menu's close (the swatch's
+    // press is no menu item — the Radix's item-close does not reach it).
   };
 
   // The column handles' horizontal centers (the widths are the layout

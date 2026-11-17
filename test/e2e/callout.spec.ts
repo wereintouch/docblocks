@@ -165,10 +165,10 @@ test("the custom color's hex commits over the field's Enter (the wire's stand)",
 
   await iconButton(a, "a").click();
   await expect(menu(a)).toBeVisible();
-  // The custom swatch's press: the picker's section stands over the menu's
-  // background row (the menu's stand).
+  // The hex's input stands always over the menu's background row (the
+  // shared's mechanism — the custom swatch's press seats it).
   await menu(a).locator('[data-slot="docblocks/palette-custom"]').click();
-  const field = menu(a).locator('[data-slot="docblocks/callout-color-picker"] input[aria-label="Hex color value"]');
+  const field = menu(a).locator('input[data-slot="docblocks/callout-color-picker"]');
   await expect(field).toBeVisible();
   await field.fill("#1a2b3c");
   await field.press("Enter");
@@ -180,36 +180,24 @@ test("the custom color's hex commits over the field's Enter (the wire's stand)",
   await close();
 });
 
-test("the custom color's scrub commits over the close (the grid shows the new current)", async ({ browser }) => {
-  const { a, b, close } = await twoPanes(browser, "callout-scrub-commit");
+test("the custom color's draft discards over the close (the canvas's Esc's parity)", async ({ browser }) => {
+  const { a, b, close } = await twoPanes(browser, "callout-draft-discard");
   const coId = await seedCallout(a, "a", { variant: "info" }, "note");
 
   await iconButton(a, "a").click();
   await expect(menu(a)).toBeVisible();
+  // The custom swatch's press seats the hex's input (the shared's stand).
   await menu(a).locator('[data-slot="docblocks/palette-custom"]').click();
-  const native = menu(a).locator('[data-slot="docblocks/callout-color-picker"] input[type="color"]');
-  await expect(native).toBeVisible();
+  const field = menu(a).locator('input[data-slot="docblocks/callout-color-picker"]');
+  await expect(field).toBeVisible();
+  await field.fill("#ff5500");
 
-  // The wheel's scrub fires the `input` only (the live draft; the dialog's
-  // `change` does not fire for the close): no doc write over the scrub.
-  await native.evaluate((el: HTMLInputElement) => {
-    el.value = "#ff5500";
-    el.dispatchEvent(new Event("input", { bubbles: true }));
-  });
-  expect((await calloutAttrs(a, "a", coId))?.color ?? null).toBe(null);
-
-  // The close without a commit (the Esc) applies the scrubbed value (the
-  // picker's unmount commits it; the exit animation delays the unmount,
-  // so the read waits for a settle).
+  // The close (the Esc) discards the uncommitted draft (the canvas's
+  // parity — the commit stands the Enter / the blur's gesture only).
   await a.keyboard.press("Escape");
-  await expect.poll(async () => (await calloutAttrs(a, "a", coId))?.color, SETTLE).toBe("#ff5500");
-  await expect.poll(async () => (await calloutAttrs(b, "b", coId))?.color, SETTLE).toBe("#ff5500");
-
-  // The grid: the reopened menu's custom swatch carries the non-preset
-  // value (the dot).
-  await iconButton(a, "a").click();
-  await expect(menu(a)).toBeVisible();
-  await expect(menu(a).locator('[data-slot="docblocks/palette-custom-current"]')).toBeVisible();
+  await expect(menu(a)).toHaveCount(0);
+  expect((await calloutAttrs(a, "a", coId))?.color ?? null).toBe(null);
+  expect((await calloutAttrs(b, "b", coId))?.color ?? null).toBe(null);
   await close();
 });
 

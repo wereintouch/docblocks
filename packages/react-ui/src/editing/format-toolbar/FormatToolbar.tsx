@@ -45,6 +45,7 @@ import type { Block, TextAlign } from "docblocks-core";
 import { useEditorContext } from "../../editor-provider";
 import { useBlock, useSelection } from "../../hooks";
 import { Button } from "../../shared/ui/Button";
+import { ColorChip } from "../../shared/ui/ColorChip";
 import { ColorSwatches } from "../../shared/ui/ColorSwatches";
 import {
   DropdownMenu,
@@ -279,6 +280,11 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
       ? uniformMarkValueRange(doc, range.cross, target)
       : uniformMarkValue(single, range.from, range.to, target);
 
+  // The trigger's chip preview (the shared language — the canvas's stand):
+  // the uniform hex fills the chip; the absent mark and the mixed range
+  // stand the X (the no-uniform-color's stand).
+  const chipValue = currentMarkValue !== null && currentMarkValue !== "mixed" ? currentMarkValue : null;
+
   // The list-type radio state (single-block eligible targets only — the
   // menu renders for paragraph, heading, and list-item blocks; the
   // cross-block target never renders it and has no `single` block).
@@ -408,7 +414,10 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             aria-label={t("formatToolbar.color.trigger")}
             className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
           >
-            <Baseline className="size-4" />
+            <span className="flex items-center gap-1">
+              <Baseline className="size-4" />
+              <ColorChip value={chipValue} />
+            </span>
           </Button>
         </PopoverTrigger>
         <PopoverContent

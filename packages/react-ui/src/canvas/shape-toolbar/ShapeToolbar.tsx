@@ -196,7 +196,6 @@ function ShapeToolbar({
           target="fill"
           label={t("shape.fillColor")}
           current={fill}
-          chipStyle={{ background: fill ?? "transparent" }}
           icon={<Fill className="size-4" />}
           open={openSection === "fill"}
           onOpenChange={openFillSection}
@@ -206,7 +205,7 @@ function ShapeToolbar({
           target="stroke"
           label={t("shape.strokeColor")}
           current={stroke}
-          chipStyle={{ border: `2px solid ${stroke ?? "currentColor"}` }}
+          mode="stroke"
           icon={<Stroke className="size-4" />}
           open={openSection === "stroke"}
           onOpenChange={openStrokeSection}

@@ -40,7 +40,8 @@
     "callout": {
       "typeAria": "Тип выноски",
       "variant": "Выноска: {variant}",
-      "iconAria": "Иконка выноски"
+      "iconAria": "Иконка выноски",
+      "hexAria": "Цвет фона в hex-формате"
     },
     "color": {
       "trigger": "Цвет текста и фона",

@@ -138,7 +138,6 @@ function ShapeTextControls({
         target="text"
         label={t("text.color")}
         current={textColor}
-        chipStyle={{ background: textColor ?? "transparent" }}
         icon={<Palette className="size-4" />}
         open={textColorOpen}
         onOpenChange={onTextColorOpenChange}

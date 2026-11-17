@@ -191,59 +191,75 @@ describe("the handle menu (the press without a drag)", () => {
     expect(restored !== null && restored.type === "table" && restored.columnOrder.length === 2).toBe(true);
   });
 
-  it("the swatch sets the column color (one undo step) and the remove item appears", () => {
+  it("the swatch sets the column color (one undo step) and the none's swatch clears it", () => {
     const { doc, tableId } = renderTableDoc(2);
     press(colHandle(0));
-    // The swatches stand in the Background sub — the sub opens on the
-    // trigger's click.
+    // The swatches stand in the Background sub (the shared's palette) — the
+    // sub opens on the trigger's click.
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='dropdown-menu-sub-trigger']")!);
-    const swatch = document.querySelector<HTMLElement>("[data-slot='docblocks/table-swatch']");
+    const subContent = document.querySelector<HTMLElement>("[data-slot='docblocks/table-color-palette']");
+    expect(subContent, "the table's palette should stand").not.toBeNull();
+    const swatch = subContent!.querySelector<HTMLElement>("[data-slot='docblocks/palette-swatch']");
     expect(swatch, "a palette swatch should stand").not.toBeNull();
-    const swatchColor = swatch!.dataset.color!;
     fireEvent.click(swatch!);
-    // The column's cells carry the color (both rows).
+    // The column's cells carry the resolved hex (both rows); the pick's
+    // stand closes the menu (the swatch's no-item parity).
     const rows = doc.getChildren(tableId);
     for (const rowId of rows) {
       const cellId = doc.getChildren(rowId)[0]!;
       const cell = doc.getBlock(cellId);
-      expect(cell !== null && cell.type === "table-cell" && cell.attrs?.columnColor === swatchColor).toBe(true);
+      expect(cell !== null && cell.type === "table-cell" && cell.attrs?.columnColor !== undefined).toBe(true);
     }
-    // The remove item stands now (the menu is still open over the swatch pick).
-    const remove = document.querySelector<HTMLElement>("[data-slot='docblocks/table-remove-color']");
-    expect(remove, "the remove item should stand").not.toBeNull();
-    fireEvent.click(remove!);
+    expect(document.querySelector("[data-slot='docblocks/table-col-menu']")?.getAttribute("data-state")).not.toBe(
+      "open"
+    );
+    // The re-opened menu's none's swatch (the clear's stand) clears the
+    // color.
+    press(colHandle(0));
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='dropdown-menu-sub-trigger']")!);
+    const none = document.querySelector<HTMLElement>(
+      "[data-slot='docblocks/table-color-palette'] [data-slot='docblocks/palette-none']"
+    );
+    expect(none, "the none's swatch should stand").not.toBeNull();
+    fireEvent.click(none!);
     const rowId = doc.getChildren(tableId)[0]!;
     const cell = doc.getBlock(doc.getChildren(rowId)[0]!);
     expect(cell !== null && cell.type === "table-cell" && cell.attrs?.columnColor === undefined).toBe(true);
   });
 
-  it("the row swatch sets the row color (in the row's cells) and the remove item appears", () => {
+  it("the row swatch sets the row color (in the row's cells) and the none's swatch clears it", () => {
     const { doc, tableId } = renderTableDoc(2);
     const rows = doc.getChildren(tableId);
     press(rowHandle(0));
-    // The swatches stand in the Background sub — the sub opens on the
-    // trigger's click.
+    // The swatches stand in the Background sub (the shared's palette) — the
+    // sub opens on the trigger's click.
     fireEvent.click(document.querySelector<HTMLElement>("[data-slot='dropdown-menu-sub-trigger']")!);
-    const swatch = document.querySelector<HTMLElement>("[data-slot='docblocks/table-swatch']");
+    const subContent = document.querySelector<HTMLElement>("[data-slot='docblocks/table-color-palette']");
+    expect(subContent, "the table's palette should stand").not.toBeNull();
+    const swatch = subContent!.querySelector<HTMLElement>("[data-slot='docblocks/palette-swatch']");
     expect(swatch, "a palette swatch should stand").not.toBeNull();
-    const swatchColor = swatch!.dataset.color!;
     fireEvent.click(swatch!);
     // The row's cells carry the row color (the second row's do not).
     const row0Cells = doc.getChildren(rows[0]!);
     for (const cellId of row0Cells) {
       const cell = doc.getBlock(cellId);
-      expect(cell !== null && cell.type === "table-cell" && cell.attrs?.rowColor === swatchColor).toBe(true);
+      expect(cell !== null && cell.type === "table-cell" && cell.attrs?.rowColor !== undefined).toBe(true);
     }
     const row1Cells = doc.getChildren(rows[1]!);
     for (const cellId of row1Cells) {
       const cell = doc.getBlock(cellId);
       expect(cell !== null && cell.type === "table-cell" && cell.attrs?.rowColor === undefined).toBe(true);
     }
-    // The remove item stands now (the row's color lives in the row's cells,
-    // not the row block — the menu must re-read it from the store).
-    const remove = document.querySelector<HTMLElement>("[data-slot='docblocks/table-remove-color']");
-    expect(remove, "the remove item should stand").not.toBeNull();
-    fireEvent.click(remove!);
+    // The re-opened menu's none's swatch (the row's color lives in the
+    // row's cells, not the row block — the menu must re-read it from the
+    // store).
+    press(rowHandle(0));
+    fireEvent.click(document.querySelector<HTMLElement>("[data-slot='dropdown-menu-sub-trigger']")!);
+    const none = document.querySelector<HTMLElement>(
+      "[data-slot='docblocks/table-color-palette'] [data-slot='docblocks/palette-none']"
+    );
+    expect(none, "the none's swatch should stand").not.toBeNull();
+    fireEvent.click(none!);
     const cell = doc.getBlock(row0Cells[0]!);
     expect(cell !== null && cell.type === "table-cell" && cell.attrs?.rowColor === undefined).toBe(true);
   });

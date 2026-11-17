@@ -7,8 +7,6 @@
   },
   "menu": {
     "background": "Фон",
-    "backgroundSwatch": "Фон {color}",
-    "removeBackground": "Убрать фон",
     "insertRight": "Вставить справа",
     "insertLeft": "Вставить слева",
     "insertBelow": "Вставить ниже",
