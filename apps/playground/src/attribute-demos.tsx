@@ -3,8 +3,12 @@
 // the built-in status stands display-only, so the consumer's zone is the
 // only editor — + the createdBy's consumer resolution over the mention
 // catalog) and the `attributeTypePicker` (the consumer's own type picker
-// over the built-in's sliding-pill's stand).
-import type { AttributeTypePickerProps, RenderAttributeProps } from "docblocks-react-ui";
+// over the built-in's sliding-pill's stand). The `docTags` demo stands the
+// consumer's tag store's stand (the per-pane's state over the `prompt`'s
+// harness creation — the package never writes the tags to the document).
+import type { AttributeTypePickerProps, DocTag, DocTags, RenderAttributeProps } from "docblocks-react-ui";
+
+import { useMemo, useState } from "react";
 
 import type { AttributeType } from "docblocks-core";
 
@@ -123,3 +127,33 @@ function attributeTypePickerDemo({ value, onChange }: AttributeTypePickerProps):
 }
 
 export { attributeTypePickerDemo, renderAttributeDemo };
+
+/** The demo's seed tags (the consumer's store's stand). */
+const DEMO_TAGS: DocTag[] = [
+  { id: "tag-alpha", label: "alpha" },
+  { id: "tag-beta", label: "beta" },
+];
+
+/** The consumer's `docTags` demo (the per-pane's store's stand: the
+ *  prompt's creation over the add's click, the filter over the removal,
+ *  the console's log over the chip's click — the harness's stand over
+ *  the consumer's own catalog / the picker's stand). */
+function useDocTagsDemo(enabled: boolean): DocTags | undefined {
+  const [tags, setTags] = useState<DocTag[]>(DEMO_TAGS);
+  return useMemo<DocTags | undefined>(() => {
+    if (!enabled) return undefined;
+    return {
+      tags,
+      onTagAdd: () => {
+        const name = window.prompt("Add a tag");
+        const label = name?.trim();
+        if (label === undefined || label === "") return;
+        setTags((prev) => (prev.some((t) => t.label === label) ? prev : [...prev, { id: `tag-${label}`, label }]));
+      },
+      onTagRemove: (tag: DocTag) => setTags((prev) => prev.filter((t) => t.id !== tag.id)),
+      onTagClick: (tag: DocTag) => console.log(`[docblocks] tag click: ${tag.label}`),
+    };
+  }, [enabled, tags]);
+}
+
+export { useDocTagsDemo };

@@ -64,9 +64,9 @@ function EditorProviderStand({
   publishedDoc,
   presence,
   hiddenAttributes,
-  tagEditor,
   renderAttribute,
   attributeTypePicker,
+  docTags,
   children,
 }: EditorProviderProps & { doc: Doc }) {
   const rootId = rootBlockId ?? doc.meta.id;
@@ -322,9 +322,9 @@ function EditorProviderStand({
       mentionProvider: mentionProvider ?? parent?.mentionProvider ?? null,
       mentionInteractions: mentionInteractions ?? parent?.mentionInteractions ?? null,
       hiddenAttributes: hiddenAttributes ?? parent?.hiddenAttributes ?? [],
-      tagEditor: tagEditor ?? parent?.tagEditor ?? null,
       renderAttribute: renderAttribute ?? parent?.renderAttribute ?? null,
       attributeTypePicker: attributeTypePicker ?? parent?.attributeTypePicker ?? null,
+      docTags: docTags ?? parent?.docTags ?? null,
       embedSandbox: embedSandbox ?? parent?.embedSandbox ?? defaultEmbedSandbox,
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
@@ -353,9 +353,9 @@ function EditorProviderStand({
     effectiveMode,
     presence,
     hiddenAttributes,
-    tagEditor,
     renderAttribute,
     attributeTypePicker,
+    docTags,
   ]);
 
   // The published's stand: a read-only nested provider over the consumer's

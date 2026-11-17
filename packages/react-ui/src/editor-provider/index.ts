@@ -6,6 +6,8 @@ export type {
   AccessLevel,
   AttributeTypePicker,
   AttributeTypePickerProps,
+  DocTag,
+  DocTags,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -20,6 +22,4 @@ export type {
   RenderAttributeProps,
   SelectionRef,
   SyncEmbedResolver,
-  TagEditor,
-  TagEditorProps,
 } from "./models";

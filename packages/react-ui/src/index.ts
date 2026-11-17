@@ -13,6 +13,8 @@ export type {
   AccessLevel,
   AttributeTypePicker,
   AttributeTypePickerProps,
+  DocTag,
+  DocTags,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -27,8 +29,6 @@ export type {
   RenderAttributeProps,
   SelectionRef,
   SyncEmbedResolver,
-  TagEditor,
-  TagEditorProps,
 } from "./editor-provider";
 export { DocHeader } from "./DocHeader";
 export { DocblocksI18nProvider } from "./i18n";

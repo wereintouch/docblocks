@@ -99,7 +99,7 @@
     "listAddAria": "Add a line to {name}",
     "listLineAria": "Line {index} of {name}",
     "listLineRemoveAria": "Remove line {index}",
-    "addTagPlaceholder": "Add a tag",
+    "addTag": "Add a tag",
     "addTagAria": "Add a tag",
     "uploadCoverAria": "Upload the cover",
     "removeCoverAria": "Remove the cover",

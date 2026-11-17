@@ -94,18 +94,54 @@ interface MentionInteractions {
   renderEmptyState?: (query: string) => ReactNode | null;
 }
 
-/** The props a tag-editor component receives (the `tagEditor` provider prop): the live tag list, the replacement commit, and the read-only stand. */
-interface TagEditorProps {
-  /** The current tags (the `tags` preset attribute; `[]` when absent). */
-  tags: readonly string[];
-  /** Replaces the whole list (one `setAttribute` commit). */
-  onTagsChange: (tags: string[]) => void;
-  /** The read-only stand (the view / published's modes): display-only. */
-  readOnly: boolean;
+/**
+ * A consumer-owned tag entry (the consumer's tag catalog): the stable id
+ * (the removal / the event's identity) + the display label (the default
+ * chip's text). The consumer's own type may extend it (the extra fields
+ * stay opaque to the package).
+ */
+interface DocTag {
+  id: string;
+  label: string;
 }
 
-/** The consumer's replacement of the default tags editor (the `tagEditor` provider prop). */
-type TagEditor = ComponentType<TagEditorProps>;
+/**
+ * The consumer-owned tags contract (the `docTags` provider prop): the tags
+ * are NEVER document data — the consumer's store is the source (the
+ * document never stores or syncs them), and the panel displays the passed
+ * list and reports the user's tag actions over the callbacks (the full
+ * event surface — over the consumer-owned data there are no document
+ * events: no wire, no undo). The panel's add affordance hands the
+ * creation's flow to the consumer (its own picker over the tag catalog,
+ * the creation's flow — the package opens nothing). Without the prop the
+ * row stands the `notSet`'s display-only stand (the legacy's stored
+ * `attributes.tags` data stands inert — the consumer's migration's read
+ * over `doc.meta.attributes`).
+ */
+interface DocTags {
+  /** The document's tags (the consumer's store's read; `[]` = none). */
+  tags: readonly DocTag[];
+  /**
+   * The add affordance's click (the panel's "+ tag"'s trigger): the
+   * consumer opens its own creation's UI and updates the passed list over
+   * its own state. Without it the add affordance stands absent.
+   */
+  onTagAdd?: () => void;
+  /**
+   * The chip's removal (the chip's `x`'s click): the consumer removes the
+   * tag over its own store and passes the updated list back over `tags`.
+   * Without it the chip stands without a removal affordance.
+   */
+  onTagRemove?: (tag: DocTag) => void;
+  /**
+   * The chip's click (the chip's body — the removal's `x` does not fire
+   * this): the native `MouseEvent`; the package opens nothing and
+   * preventDefaults nothing (the navigation's stand — the tag's page — is
+   * the consumer's). Stands over the read-only modes too (the observing
+   * gesture's parity).
+   */
+  onTagClick?: (tag: DocTag, event: MouseEvent) => void;
+}
 
 /** The props an attribute-value renderer receives (the `renderAttribute` provider prop). */
 interface RenderAttributeProps {
@@ -200,12 +236,12 @@ interface EditorContextValue {
   mentionInteractions: MentionInteractions | null;
   /** The attribute keys hidden from the document-attributes panel (the preset and the system keys); an empty list stands the full panel. */
   hiddenAttributes: readonly string[];
-  /** The consumer's tags editor (the `tagEditor` prop); null stands the default chip input. */
-  tagEditor: TagEditor | null;
   /** The consumer's per-key attribute-value renderer (the `renderAttribute` prop); null stands the built-in editors. */
   renderAttribute: RenderAttribute | null;
   /** The consumer's attribute type picker (the `attributeTypePicker` prop); null stands the built-in picker. */
   attributeTypePicker: AttributeTypePicker | null;
+  /** The consumer's tags contract (the `docTags` prop); null stands the display-only stand (the `notSet` over the row). */
+  docTags: DocTags | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
   embedSandbox: EmbedSandboxPolicy;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -346,24 +382,31 @@ interface EditorProviderProps {
    */
   hiddenAttributes?: readonly string[];
   /**
-   * Optional replacement of the default tags editor (the `tags` preset
-   * row of the document-attributes panel). The component receives the
-   * live tag list, the replacement commit (one `setAttribute`), and the
-   * read-only stand. Like `tagEditor`'s siblings, the value is read per
-   * render into the provider context: pass a stable reference (the
-   * component is module-level).
+   * Optional consumer-owned tags contract (the document-attributes panel's
+   * `tags` row): the tags are never document data (the consumer's store is
+   * the source — the document never stores or syncs them). The panel
+   * displays the passed list and reports the user's tag actions: the add
+   * affordance's click (`onTagAdd` — the consumer's own creation's UI: the
+   * tag's picker over its catalog, the creation's flow), the chip's
+   * removal (`onTagRemove`), and the chip's click (`onTagClick` — the
+   * native event, the package opens nothing). Like the other
+   * customization values, the value is read per render into the provider
+   * context: pass a stable reference (a memoized object). A nested
+   * provider that supplies none inherits the enclosing one.
    */
-  tagEditor?: TagEditor;
+  docTags?: DocTags;
   /**
    * Optional per-key replacement of the document-attributes panel's value
-   * zone (a preset key — `description` / `tags` / `createdBy` / `cover` /
-   * `status` / `publishedAt` — or a custom key). The renderer receives the
+   * zone (a preset key — `description` / `createdBy` / `cover` /
+   * `status` / `publishedAt` — or a custom key; the `tags` row is the
+   * consumer-owned stand over the `docTags`'s prop and stands out of
+   * this renderer's reach). The renderer receives the
    * key, the current value, the commit / removal entries, and the
    * read-only stand; `null` (or the absent stand) selects the built-in
    * editor for that key. The row's label (the key's display name) is the
-   * panel's — the consumer renders the value only. Like `tagEditor`, the
-   * value is read per render into the provider context: pass a stable
-   * reference.
+   * panel's — the consumer renders the value only. Like the other
+   * customization values, the value is read per render into the provider
+   * context: pass a stable reference.
    */
   renderAttribute?: RenderAttribute;
   /**
@@ -371,9 +414,9 @@ interface EditorProviderProps {
    * (the document-attributes panel's "add attribute" stand). The component
    * receives the selected type and the pick's commit; the type's vocabulary
    * is the shared `ATTRIBUTE_TYPES` enum (the consumer's picker stands its
-   * own design over it). Like `tagEditor`, the value is read per render
-   * into the provider context: pass a stable reference (the component is
-   * module-level).
+   * own design over it). Like the other customization values, the value is
+   * read per render into the provider context: pass a stable reference (the
+   * component is module-level).
    */
   attributeTypePicker?: AttributeTypePicker;
   /**
@@ -425,6 +468,8 @@ export type {
   AccessLevel,
   AttributeTypePicker,
   AttributeTypePickerProps,
+  DocTag,
+  DocTags,
   EditorContextValue,
   EditorMode,
   EditorProviderProps,
@@ -439,6 +484,4 @@ export type {
   RenderAttributeProps,
   SelectionRef,
   SyncEmbedResolver,
-  TagEditor,
-  TagEditorProps,
 };

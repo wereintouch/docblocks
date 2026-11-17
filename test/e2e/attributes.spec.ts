@@ -2,8 +2,9 @@
 // own document metadata — the markdown frontmatter's stand): the
 // collapsed-by-default stand (the session state — no doc write over the
 // toggle), the system rows (id / created / the live last updated), the
-// preset editors (description / the tags' chips; the status stands
-// display-only — the consumer's data) + the system rows (the locale's
+// preset editors (description / the tags' consumer-owned chips (the
+// `docTags`'s contract — the document's no-write's stand); the status
+// stands display-only — the consumer's data) + the system rows (the locale's
 // committing one `setAttribute` each and syncing over the wire to the
 // second pane, the custom attributes (add / edit / remove), and the
 // view-mode's display-only stand. The panel stands over the page's shared
@@ -98,31 +99,40 @@ test("the description edit commits one setAttribute and syncs to the second pane
   }
 });
 
-test("the tags' chips: the add over Enter, the chip's removal, the empty backspace's attribute removal", async ({
+test("the tags' consumer contract: the chips over the passed list, the add's click, the chip's removal (the document's no-write's stand)", async ({
   browser,
 }) => {
-  const { a, close } = await twoPanes(browser, "doc-attributes-tags");
+  const { a, close } = await twoPanes(browser, "doc-attributes-tags", { attrDemo: true });
   try {
+    // The dialog's stand (the harness's prompt's creation over the add's
+    // click): the accept over the name (the consumer's flow's stand).
+    a.on("dialog", async (dialog) => {
+      if (dialog.type() === "prompt") await dialog.accept("gamma");
+      else await dialog.dismiss();
+    });
     await openPanel(a, "a");
-    const input = panel(a, "a").locator('[data-slot="docblocks/attributes-tag-input"]');
-    await input.pressSequentially("alpha", { delay: 20 });
-    await input.press("Enter");
-    await input.pressSequentially("beta", { delay: 20 });
-    await input.press("Enter");
-    await expect.poll(() => attributesOf(a, "a").then((m) => m?.tags), SETTLE).toEqual(["alpha", "beta"]);
-    // The first chip's removal (the chip's remove button).
-    await panel(a, "a")
+    const zone = panel(a, "a").locator('[data-slot="docblocks/attributes-tags"]');
+    // The consumer's list's display (the demo's seed over the pane's store
+    // — the document's record stands no `tags`'s entry).
+    await expect(zone.locator('[data-slot="docblocks/attributes-tag"]')).toHaveText(["alpha", "beta"]);
+    // The add affordance's click: the consumer's creation's UI (the
+    // prompt) stands the updated list over the prop (the round-trip).
+    await zone.locator('[data-slot="docblocks/attributes-tag-add"]').click();
+    await expect
+      .poll(() => zone.locator('[data-slot="docblocks/attributes-tag"]').allTextContents(), SETTLE)
+      .toEqual(["alpha", "beta", "gamma"]);
+    // The chip's removal (the chip's `x`'s click): the consumer's store's
+    // update stands the display (the prop's round-trip — the package
+    // writes nothing).
+    await zone
       .locator('[data-slot="docblocks/attributes-tag"]', { hasText: "alpha" })
       .locator("[data-slot='docblocks/attributes-tag-remove']")
       .click();
-    await expect.poll(() => attributesOf(a, "a").then((m) => m?.tags), SETTLE).toEqual(["beta"]);
-    // The input's font stands the value column's size (the placeholder's
-    // stand over the row's values' parity — the `text-xs`'s smaller
-    // stand dropped).
-    expect(await input.evaluate((el) => window.getComputedStyle(el).fontSize)).toBe("14px");
-    // The empty input's Backspace: the last tag's removal (the stand
-    // empties out — the attribute stands removed).
-    await input.press("Backspace");
+    await expect
+      .poll(() => zone.locator('[data-slot="docblocks/attributes-tag"]').allTextContents(), SETTLE)
+      .toEqual(["beta", "gamma"]);
+    // The document's stand: the tags are never document data (the record
+    // stands no `tags` — the consumer's store is the source).
     await expect.poll(() => attributesOf(a, "a").then((m) => m?.tags), SETTLE).toBeUndefined();
   } finally {
     await close();
@@ -741,10 +751,12 @@ test("the view mode stands the panel display-only (the editors off, the rows ove
     // The view mode's stand (the mode switcher's pin over the doc header).
     await a.locator('[data-slot="docblocks/doc-header-mode"] button[aria-label="View mode"]').click();
     // The body stands display-only: the description's display, the add's
-    // row and the tag's input absent.
+    // row and the tag's add affordance absent (the chips stand their
+    // display's stand — the events' no-affordance's stand).
     await expect(body(a, "a").locator('[data-slot="docblocks/attributes-description"]')).toHaveText("Read-only line");
     await expect(body(a, "a").locator('[data-slot="docblocks/attributes-add"]')).toHaveCount(0);
-    await expect(body(a, "a").locator('[data-slot="docblocks/attributes-tag-input"]')).toHaveCount(0);
+    await expect(body(a, "a").locator('[data-slot="docblocks/attributes-tag-add"]')).toHaveCount(0);
+    await expect(body(a, "a").locator('[data-slot="docblocks/attributes-tag-remove"]')).toHaveCount(0);
     // The sync's stand over the mode (the attribute is the doc's data —
     // the view keeps the live doc).
     await expect(body(a, "a").locator('[data-slot="docblocks/attributes-description"]')).toHaveText("Read-only line");

@@ -99,7 +99,7 @@
     "listAddAria": "Добавить строку в {name}",
     "listLineAria": "Строка {index} ключа {name}",
     "listLineRemoveAria": "Удалить строку {index}",
-    "addTagPlaceholder": "Добавить тег",
+    "addTag": "Добавить тег",
     "addTagAria": "Добавить тег",
     "uploadCoverAria": "Загрузить обложку",
     "removeCoverAria": "Удалить обложку",

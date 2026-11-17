@@ -19,7 +19,7 @@ import type { CSSProperties } from "react";
 import { type Doc, type PresenceState, type SyncEmbedRef, WsSyncProvider, attach } from "docblocks-core";
 
 import { ChaosBar } from "./ChaosBar";
-import { attributeTypePickerDemo, renderAttributeDemo } from "./attribute-demos";
+import { attributeTypePickerDemo, renderAttributeDemo, useDocTagsDemo } from "./attribute-demos";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
 import { blobStore, databaseBridge, insertBlockOf } from "./insert-blocks";
@@ -138,6 +138,10 @@ function SyncPane({
 }) {
   const docRef = useRef<Doc | null>(null);
   const providerRef = useRef<WsSyncProvider | null>(null);
+  // The consumer's tags demo (the per-pane's store's stand — the document
+  // never stores the tags; the contract's value is the memoized stand
+  // over the list's changes only).
+  const docTagsDemo = useDocTagsDemo(attrDemo);
   const docAreaRef = useRef<HTMLDivElement | null>(null);
   /** The wire log's per-pane event counter (capped list, unique key). */
   const wireSeq = useRef(0);
@@ -507,6 +511,7 @@ function SyncPane({
               pdfPreview={PdfFirstPage}
               mentionProvider={mentionProvider}
               mentionInteractions={mentionInteractions}
+              docTags={docTagsDemo}
               renderAttribute={attrDemo ? renderAttributeDemo : undefined}
               attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
               accessLevel="viewer"
@@ -525,6 +530,7 @@ function SyncPane({
                 pdfPreview={PdfFirstPage}
                 mentionProvider={mentionProvider}
                 mentionInteractions={mentionInteractions}
+                docTags={docTagsDemo}
                 renderAttribute={attrDemo ? renderAttributeDemo : undefined}
                 attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
                 presence={PRESENCE[client]}

@@ -10,8 +10,10 @@
  * record — the typed value's stand). Over the read-only stands (the
  * view / published's modes) every row stands display-only.
  * `hiddenAttributes` hides the named rows (the preset and the custom
- * keys, the system rows); `tagEditor` replaces the default tags editor;
- * `renderAttribute` replaces a row's value zone over its key; the
+ * keys, the system rows); the `tags` row is the consumer-owned stand (the
+ * `docTags`'s prop: the chips over the passed list + the add affordance's
+ * click over the consumer's own creation's UI + the chip's removal/click
+ * events — the tags are never document data); `renderAttribute` replaces a row's value zone over its key; the
  * custom-attribute add's entry stands over the list's tail (the button —
  * the popover's type pick + the name's draft + the commit; the row's
  * creation over the type's initial form), and `attributeTypePicker`
@@ -27,7 +29,7 @@
  *
  * The row's unit files stand the pieces (the convention's one-component
  * files): `AttributeRow` (the row's frame), `DraggableAttributeRow` (the
- * drag's wrapper), `DisplayValue` (the display's stand), `TagsEditor` /
+ * drag's wrapper), `DisplayValue` (the display's stand), `TagsZone` /
  * `ListEditor` / `CoverEditor` (the preset's editors),
  * `AddAttributePopover` (the add's entry), `value-utils` (the value's
  * pure reads).
@@ -52,7 +54,7 @@ import { CoverEditor } from "./CoverEditor";
 import { CustomAttributeRow } from "./CustomAttributeRow";
 import { DisplayValue } from "./DisplayValue";
 import { DraggableAttributeRow } from "./DraggableAttributeRow";
-import { TagsEditor } from "./TagsEditor";
+import { TagsZone } from "./TagsZone";
 import {
   displayPublishedDate,
   formatDate,
@@ -66,8 +68,7 @@ import {
  *  over the editor's subtree only). */
 function AttributesPanel() {
   const { t, i18n } = useTranslation("editor");
-  const { store, doc, viewMode, hiddenAttributes, tagEditor, renderAttribute, attributeTypePicker } =
-    useEditorContext();
+  const { store, doc, viewMode, hiddenAttributes, renderAttribute, attributeTypePicker, docTags } = useEditorContext();
   const meta = useStore(store, (state) => state.meta);
   // The per-change stamp: the live `lastUpdatedAt` row re-renders over
   // every store write (the `meta` slice is replaced only over the
@@ -166,8 +167,7 @@ function AttributesPanel() {
     return node === null ? defaultZone : node;
   };
 
-  const tagsValue = value("tags");
-  const tagsList = Array.isArray(tagsValue) ? tagsValue : [];
+  const notSet = <span className="text-muted-foreground">{t("attributes.notSet")}</span>;
 
   // The custom keys (every non-preset key of the record). The display's
   // order stands the stored `meta.attributesOrder` (the stale entries'
@@ -241,7 +241,6 @@ function AttributesPanel() {
     }
   };
 
-  const TagEditor = tagEditor;
   const locale = i18n.language;
 
   const inlineEdit = (
@@ -280,8 +279,6 @@ function AttributesPanel() {
         {display}
       </button>
     ) : null;
-
-  const notSet = <span className="text-muted-foreground">{t("attributes.notSet")}</span>;
 
   /** The custom row's stand (the key's rename's entry over the key's
    *  column; the value zone's editors over the type's stand). */
@@ -441,28 +438,22 @@ function AttributesPanel() {
           )}
 
           {hidden.has("tags") ? null : (
-            <AttributeRow
-              key="tags"
-              attributeKey="tags"
-              label={t("attributes.tags")}
-              removable={has("tags") && !viewMode}
-              onRemove={() => remove("tags")}
-              removeAria={t("attributes.removeAria", { name: t("attributes.tags") })}
-            >
-              {valueZone(
-                "tags",
-                TagEditor !== null ? (
-                  <TagEditor tags={tagsList} readOnly={viewMode} onTagsChange={(tags) => set("tags", tags)} />
-                ) : (
-                  <TagsEditor
-                    tags={tagsList}
-                    readOnly={viewMode}
-                    onTagsChange={(tags) => {
-                      if (tags.length === 0) remove("tags");
-                      else set("tags", tags);
-                    }}
-                  />
-                )
+            // The tags' consumer-owned stand (the `docTags`'s prop — the
+            // document never stores the tags): the chips over the passed
+            // list + the events (the add's click / the removal / the
+            // chip's click); the display-only stand over the prop's
+            // absence (the legacy's stored `attributes.tags`'s inert stand).
+            <AttributeRow key="tags" attributeKey="tags" label={t("attributes.tags")} removable={false}>
+              {docTags === null ? (
+                notSet
+              ) : (
+                <TagsZone
+                  tags={docTags.tags}
+                  readOnly={viewMode}
+                  onTagAdd={docTags.onTagAdd}
+                  onTagRemove={docTags.onTagRemove}
+                  onTagClick={docTags.onTagClick}
+                />
               )}
             </AttributeRow>
           )}

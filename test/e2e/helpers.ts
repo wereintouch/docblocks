@@ -288,6 +288,7 @@ async function openPane(
     light?: boolean;
     first?: boolean;
     role?: "editor" | "viewer";
+    attrDemo?: boolean;
   } = {}
 ): Promise<void> {
   // The Home/End stand installs over the page when the context's init
@@ -304,7 +305,7 @@ async function openPane(
   }
   const url =
     options.url ??
-    `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}${options.role === "viewer" ? "&role=viewer" : ""}`;
+    `/?client=${client}&syncUrl=${RELAY}/${room}${options.cycle ? "&cycle=1" : ""}${options.role === "viewer" ? "&role=viewer" : ""}${options.attrDemo ? "&attrDemo=1" : ""}`;
   await page.goto(url);
   const status = options.first ? page.getByTestId(`status-${client}`).first() : page.getByTestId(`status-${client}`);
   await connectedStatus(page, client, status, options.settle?.timeout ?? 15_000);
@@ -357,7 +358,14 @@ async function connectedStatus(page: Page, client: "a" | "b", status: Locator, t
 async function twoPanes(
   browser: Browser,
   room: string,
-  options: { cycle?: boolean; permissions?: string[]; light?: boolean; first?: boolean; viewerB?: boolean } = {}
+  options: {
+    cycle?: boolean;
+    permissions?: string[];
+    light?: boolean;
+    first?: boolean;
+    viewerB?: boolean;
+    attrDemo?: boolean;
+  } = {}
 ): Promise<{ a: Page; b: Page; close: () => Promise<void> }> {
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
@@ -368,12 +376,18 @@ async function twoPanes(
   const a = await contextA.newPage();
   const b = await contextB.newPage();
   const uniqueRoom = `${room}-${Math.random().toString(36).slice(2, 8)}`;
-  await openPane(a, "a", uniqueRoom, { cycle: options.cycle, light: options.light, first: options.first });
+  await openPane(a, "a", uniqueRoom, {
+    cycle: options.cycle,
+    light: options.light,
+    first: options.first,
+    attrDemo: options.attrDemo,
+  });
   await openPane(b, "b", uniqueRoom, {
     cycle: options.cycle,
     light: options.light,
     first: options.first,
     role: options.viewerB ? "viewer" : undefined,
+    attrDemo: options.attrDemo,
   });
   return {
     a,
