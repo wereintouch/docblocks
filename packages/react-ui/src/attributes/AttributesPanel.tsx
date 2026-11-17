@@ -167,7 +167,10 @@ function AttributesPanel() {
     return node === null ? defaultZone : node;
   };
 
-  const notSet = <span className="text-muted-foreground">{t("attributes.notSet")}</span>;
+  // The not set's display's stand (the values' band's box's parity — the
+  // 14 px's text over the 28 px's band, the 6 px's inset's keep over the
+  // DisplayValue's placeholder / the display button's content).
+  const notSet = <span className="px-1.5 py-1 text-sm text-muted-foreground">{t("attributes.notSet")}</span>;
 
   // The custom keys (every non-preset key of the record). The display's
   // order stands the stored `meta.attributesOrder` (the stale entries'

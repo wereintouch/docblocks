@@ -36,11 +36,7 @@ function AttributeRow({
   children: ReactNode;
 }) {
   return (
-    <div
-      data-slot="docblocks/attribute-row"
-      data-attribute-key={attributeKey}
-      className="flex min-h-11 items-center gap-3"
-    >
+    <div data-slot="docblocks/attribute-row" data-attribute-key={attributeKey} className="flex items-center gap-3">
       <span
         className={cn(
           // The column stands the longest's locale label (the
