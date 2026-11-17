@@ -167,10 +167,10 @@ function AttributesPanel() {
     return node === null ? defaultZone : node;
   };
 
-  // The not set's display's stand (the values' band's box's parity — the
-  // 14 px's text over the 28 px's band, the 6 px's inset's keep over the
-  // DisplayValue's placeholder / the display button's content).
-  const notSet = <span className="px-1.5 py-1 text-sm text-muted-foreground">{t("attributes.notSet")}</span>;
+  // The "Not set" placeholder: the font matches the value texts
+  // (text-sm); the 6 px inset comes from the zone's own wrapper (the
+  // display button, the display span, or the tags zone wrapper).
+  const notSet = <span className="text-sm text-muted-foreground">{t("attributes.notSet")}</span>;
 
   // The custom keys (every non-preset key of the record). The display's
   // order stands the stored `meta.attributesOrder` (the stale entries'
@@ -447,17 +447,22 @@ function AttributesPanel() {
             // chip's click); the display-only stand over the prop's
             // absence (the legacy's stored `attributes.tags`'s inert stand).
             <AttributeRow key="tags" attributeKey="tags" label={t("attributes.tags")} removable={false}>
-              {docTags === null ? (
-                notSet
-              ) : (
-                <TagsZone
-                  tags={docTags.tags}
-                  readOnly={viewMode}
-                  onTagAdd={docTags.onTagAdd}
-                  onTagRemove={docTags.onTagRemove}
-                  onTagClick={docTags.onTagClick}
-                />
-              )}
+              {/* The zone's band wrapper: the chips and the placeholder
+                keep the 6 px inset over the column edge, like the
+                button-wrapped values do. */}
+              <span className="flex min-w-0 flex-1 items-center px-1.5 py-1">
+                {docTags === null ? (
+                  notSet
+                ) : (
+                  <TagsZone
+                    tags={docTags.tags}
+                    readOnly={viewMode}
+                    onTagAdd={docTags.onTagAdd}
+                    onTagRemove={docTags.onTagRemove}
+                    onTagClick={docTags.onTagClick}
+                  />
+                )}
+              </span>
             </AttributeRow>
           )}
 
@@ -499,39 +504,25 @@ function AttributesPanel() {
           )}
 
           {hidden.has("publishedAt") ? null : (
+            // The publishedAt row is display-only: the value is
+            // consumer-owned (the consumer passes the published date over
+            // its own write / `renderAttribute` — the panel has no editor
+            // for it, even in the edit mode). The display shows the
+            // locale's date over the parseable ISO string; the raw
+            // string stands otherwise.
             <AttributeRow
               key="publishedAt"
               attributeKey="publishedAt"
               label={t("attributes.publishedAt")}
-              removable={has("publishedAt") && !viewMode}
-              onRemove={() => remove("publishedAt")}
-              removeAria={t("attributes.removeAria", { name: t("attributes.publishedAt") })}
+              removable={false}
             >
               {(() => {
                 const raw = stringValue("publishedAt");
-                // The display's stand (the locale's date over the parseable
-                // ISO; the raw string stands otherwise; the edit's input
-                // keeps the raw value).
-                const display = raw === undefined || raw === "" ? notSet : displayPublishedDate(raw, locale);
                 return valueZone(
                   "publishedAt",
-                  inlineDisplayButton(
-                    "publishedAt",
-                    "docblocks/attributes-published-at",
-                    t("attributes.publishedAt"),
-                    display
-                  ) ??
-                    inlineEdit(
-                      "publishedAt",
-                      "docblocks/attributes-published-at-edit",
-                      t("attributes.editAria", { name: t("attributes.publishedAt") }),
-                      raw ?? "",
-                      (next) => {
-                        setEditingKey(null);
-                        if (next === "") remove("publishedAt");
-                        else set("publishedAt", next);
-                      }
-                    )
+                  <span data-slot="docblocks/attributes-published-at" className="block truncate px-1.5 py-1 text-sm">
+                    {raw === undefined || raw === "" ? notSet : displayPublishedDate(raw, locale)}
+                  </span>
                 );
               })()}
             </AttributeRow>

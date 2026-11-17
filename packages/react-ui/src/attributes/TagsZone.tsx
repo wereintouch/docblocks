@@ -34,7 +34,7 @@ function TagsZone({
   // the display-only stands (the read-only / the absent onTagAdd).
   if (tags.length === 0) {
     if (readOnly || onTagAdd === undefined) {
-      return <span className="px-1.5 py-1 text-sm text-muted-foreground">{t("attributes.notSet")}</span>;
+      return <span className="text-sm text-muted-foreground">{t("attributes.notSet")}</span>;
     }
     return (
       <button
