@@ -764,3 +764,41 @@ test("the view mode stands the panel display-only (the editors off, the rows ove
     await close();
   }
 });
+
+// The cover's upload fixtures: the 1x1 pixel (the short image — the
+// gate's rejection) and the 400x200 solid (the accepted cover).
+const SHORT_PNG = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
+const TALL_PNG = new URL("./fixtures/cover-400x200.png", import.meta.url).pathname;
+
+test("the cover's upload gate: the short image stands rejected (no write, the hint), the tall one commits and syncs", async ({
+  browser
+}) => {
+  const { a, b, close } = await twoPanes(browser, "doc-attributes-cover");
+  try {
+    await openPanel(a, "a");
+    const upload = panel(a, "a").locator('[data-slot="docblocks/attributes-cover-upload-button"]');
+
+    // The short image (the 1x1's fixture) — the height gate's rejection:
+    // the upload never reaches the store, the doc stands the no write,
+    // and the hint's stand shows the threshold.
+    const shortChooser = a.waitForEvent("filechooser");
+    await upload.click();
+    await (await shortChooser).setFiles(SHORT_PNG);
+    const hint = panel(a, "a").locator('[data-slot="docblocks/attributes-cover-error"]');
+    await expect(hint).toBeVisible();
+    await expect(hint).toHaveText(/150/);
+    expect((await attributesOf(a, "a"))?.cover, "the rejection stands the no write").toBeUndefined();
+
+    // The tall image — the acceptance's stand: the thumbnail's render,
+    // the cover's commit, and the sync to pane B over the wire.
+    const tallChooser = a.waitForEvent("filechooser");
+    await upload.click();
+    await (await tallChooser).setFiles(TALL_PNG);
+    await expect(panel(a, "a").locator('[data-slot="docblocks/attributes-cover"] img')).toBeVisible();
+    const cover = (await attributesOf(a, "a"))?.cover;
+    expect(cover, "the accepted image commits the cover").toBeTruthy();
+    await expect.poll(() => attributesOf(b, "b").then((m) => m?.cover ?? null), SETTLE).toBe(cover);
+  } finally {
+    await close();
+  }
+});

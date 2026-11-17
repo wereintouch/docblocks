@@ -104,6 +104,7 @@
     "addTagAria": "Add a tag",
     "uploadCoverAria": "Upload the cover",
     "removeCoverAria": "Remove the cover",
+    "coverTooShort": "Image height must be at least {min} px",
     "addAttribute": "Add attribute",
     "addConfirm": "Add",
     "keyReserved": "The key cannot be used (a reserved document key)."
