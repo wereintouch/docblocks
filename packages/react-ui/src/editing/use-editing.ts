@@ -265,9 +265,10 @@ function useEditing(): EditingHandle {
       // scroll, and the scroller is the consumer's — the caret's view over
       // the document's edge). The scroll's API stands over the Element's
       // only (the text node's parent — the seat's text anchor stands no
-      // scrollIntoView of its own).
+      // scrollIntoView of its own); the method itself is optional (the
+      // jsdom's test's stand — no implementation there).
       const scrollEl: Element | null = position.node instanceof Element ? position.node : position.node.parentElement;
-      scrollEl?.scrollIntoView({ block: event.key === "Home" ? "start" : "end" });
+      scrollEl?.scrollIntoView?.({ block: event.key === "Home" ? "start" : "end" });
       return;
     }
     // The read-only stand (view / published): the hotkeys stand no
