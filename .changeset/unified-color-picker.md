@@ -1,5 +1,5 @@
 ---
-"docblocks-react-ui": minor
+"docblocks-react-ui": patch
 ---
 
 The color pickers stand one shared mechanism (the canvas's palette's
