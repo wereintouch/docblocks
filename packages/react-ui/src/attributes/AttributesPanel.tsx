@@ -46,11 +46,14 @@ import type { AttributeType, DocAttributeValue } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
+import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { cn } from "../shared/ui/cn";
 import { ChevronDown } from "../shared/ui/icons";
 import { AddAttributePopover } from "./AddAttributePopover";
 import { AttributeRow } from "./AttributeRow";
 import { CoverEditor } from "./CoverEditor";
+import { coverModeOf } from "./cover";
+import type { CoverMode } from "./cover";
 import { CustomAttributeRow } from "./CustomAttributeRow";
 import { DisplayValue } from "./DisplayValue";
 import { DraggableAttributeRow } from "./DraggableAttributeRow";
@@ -93,6 +96,10 @@ function AttributesPanel() {
     const v = attributes[key];
     return typeof v === "string" ? v : undefined;
   };
+  // The cover's placement mode's read (the absent's / the invalid's
+  // stand is the tile — the stored vocabulary is the "center"'s single
+  // entry).
+  const coverMode: CoverMode = coverModeOf(value("coverMode"));
 
   const set = (key: string, v: DocAttributeValue): void => {
     try {
@@ -485,13 +492,52 @@ function AttributesPanel() {
                 "cover",
                 <CoverEditor
                   fileId={stringValue("cover")}
+                  mode={coverMode}
                   readOnly={viewMode}
-                  onSet={(id) => set("cover", id)}
+                  onCommit={(id, mode) => {
+                    // The commit's write stands one command over the id and
+                    // one over the centering's mode (the tile's stand is the
+                    // key's absence — its commit stands the key's removal).
+                    set("cover", id);
+                    if (mode === "center") set("coverMode", "center");
+                    else remove("coverMode");
+                  }}
                   onClear={() => remove("cover")}
                 />
               )}
             </AttributeRow>
           )}
+
+          {has("cover") && !hidden.has("coverMode") ? (
+            // The cover's placement mode's row (the row's mode selector —
+            // the modal's selector's parity; the disabled stand over the
+            // read-only's modes). The row stands over the cover's presence
+            // (a mode over no cover stands inert).
+            <AttributeRow key="coverMode" attributeKey="coverMode" label={t("attributes.coverMode")} removable={false}>
+              {valueZone(
+                "coverMode",
+                <SegmentSelector
+                  size="text"
+                  ariaLabel={t("attributes.coverMode")}
+                  slot="docblocks/attributes-cover-mode"
+                  pillSlot="docblocks/attributes-cover-mode-pill"
+                  buttonAttrName="mode"
+                  options={[
+                    { value: "tile", label: t("attributes.coverModeTile"), disabled: viewMode },
+                    { value: "center", label: t("attributes.coverModeCenter"), disabled: viewMode },
+                  ]}
+                  value={coverMode}
+                  onChange={(next) => {
+                    // The no-op over the current mode's stand: the write
+                    // is a single command only over the change.
+                    if (next === coverMode) return;
+                    if (next === "center") set("coverMode", "center");
+                    else remove("coverMode");
+                  }}
+                />
+              )}
+            </AttributeRow>
+          ) : null}
 
           {hidden.has("status") ? null : (
             // The status's stand is display-only: the consumer's own data

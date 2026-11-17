@@ -765,39 +765,132 @@ test("the view mode stands the panel display-only (the editors off, the rows ove
   }
 });
 
-// The cover's upload fixtures: the 1x1 pixel (the short image — the
-// gate's rejection) and the 400x200 solid (the accepted cover).
+// The cover's upload's fixtures: the 1x1 pixel (the short / the narrow's
+// gate's rejection), the 400x200 solid (the tile's accepted cover), the
+// 1200x400 solid (the centering's accepted cover — the editor width's
+// minimum's stand), and the 1x1 GIF (the unsupported type's rejection).
 const SHORT_PNG = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
 const TALL_PNG = new URL("./fixtures/cover-400x200.png", import.meta.url).pathname;
+const WIDE_PNG = new URL("./fixtures/cover-1200x400.png", import.meta.url).pathname;
+const GIF = new URL("./fixtures/cover-1x1.gif", import.meta.url).pathname;
+const coverBanner = (page: Page, client: "a" | "b") =>
+  page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/cover-banner"]`);
 
-test("the cover's upload gate: the short image stands rejected (no write, the hint), the tall one commits and syncs", async ({
+/** The upload's modal's flow: the drop zone's click + the file's choice
+ *  over the standard picker (the filechooser's stand). */
+async function pickInModal(page: Page, file: string): Promise<void> {
+  const chooser = page.waitForEvent("filechooser");
+  await page.locator('[data-slot="docblocks/cover-upload-dropzone"]').click();
+  await (await chooser).setFiles(file);
+}
+
+test("the cover's upload modal: the gate over the mode, the banner over the top, the mode's row", async ({
   browser
 }) => {
-  const { a, b, close } = await twoPanes(browser, "doc-attributes-cover");
+  const { a, b, close } = await twoPanes(browser, "doc-attributes-cover-modal");
   try {
     await openPanel(a, "a");
     const upload = panel(a, "a").locator('[data-slot="docblocks/attributes-cover-upload-button"]');
+    const dialog = a.locator('[data-slot="docblocks/cover-upload-dialog"]');
 
-    // The short image (the 1x1's fixture) — the height gate's rejection:
-    // the upload never reaches the store, the doc stands the no write,
-    // and the hint's stand shows the threshold.
-    const shortChooser = a.waitForEvent("filechooser");
+    // The modal's open (the selector's stand, the tile's default).
     await upload.click();
-    await (await shortChooser).setFiles(SHORT_PNG);
-    const hint = panel(a, "a").locator('[data-slot="docblocks/attributes-cover-error"]');
+    await expect(dialog).toBeVisible();
+    await expect(a.locator('[data-slot="docblocks/cover-upload-mode"] [data-mode="tile"]')).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+
+    // The short image over the tile (the height gate's rejection): the
+    // upload never reaches the store, the doc stands the no write, the
+    // hint's stand shows the threshold, and the modal keeps open.
+    await pickInModal(a, SHORT_PNG);
+    const hint = a.locator('[data-slot="docblocks/cover-upload-error"]');
     await expect(hint).toBeVisible();
     await expect(hint).toHaveText(/150/);
     expect((await attributesOf(a, "a"))?.cover, "the rejection stands the no write").toBeUndefined();
+    await expect(dialog).toBeVisible();
 
-    // The tall image — the acceptance's stand: the thumbnail's render,
-    // the cover's commit, and the sync to pane B over the wire.
-    const tallChooser = a.waitForEvent("filechooser");
-    await upload.click();
-    await (await tallChooser).setFiles(TALL_PNG);
-    await expect(panel(a, "a").locator('[data-slot="docblocks/attributes-cover"] img')).toBeVisible();
+    // The tall image over the tile's default — the acceptance's stand:
+    // the modal's close, the cover's commit (the mode's absence — the
+    // tile's stand), the banner's render over the page column's top,
+    // and the sync to pane B over the wire.
+    await pickInModal(a, TALL_PNG);
+    await expect(dialog).toBeHidden();
     const cover = (await attributesOf(a, "a"))?.cover;
     expect(cover, "the accepted image commits the cover").toBeTruthy();
+    expect((await attributesOf(a, "a"))?.coverMode, "the tile's stand is the key's absence").toBeUndefined();
+    const banner = coverBanner(a, "a");
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveAttribute("data-cover-mode", "tile");
+    // The narrow strip's stand (the 400px's fixture over the ~964px's
+    // column): the repeat-x's glue over the wide's crop.
+    await expect(banner.locator("div").first()).toHaveCSS("background-repeat", "repeat-x");
+    // The banner stands above the attributes panel (the top's placement).
+    const bannerBox = await banner.boundingBox();
+    const panelBox = await panel(a, "a").boundingBox();
+    expect(bannerBox, "the banner should stand").not.toBeNull();
+    expect(panelBox, "the panel should stand").not.toBeNull();
+    expect(bannerBox!.y, "the banner stands above the panel").toBeLessThan(panelBox!.y);
     await expect.poll(() => attributesOf(b, "b").then((m) => m?.cover ?? null), SETTLE).toBe(cover);
+    // The banner's render over pane B stands the blob store's stand (the
+    // harness's store is per-context — the cross-pane's blob's stand is
+    // the consumer's, not the package's), so pane B's pin is the
+    // attribute's sync only.
+
+    // The mode's row's switch (the panel's selector over the cover's
+    // presence): the centering's commit (the key's write) + the banner's
+    // re-stand, synced to pane B.
+    await a.locator('[data-slot="docblocks/attributes-cover-mode"] [data-mode="center"]').click();
+    await expect
+      .poll(() => attributesOf(a, "a").then((m) => m?.coverMode ?? null), SETTLE)
+      .toBe("center");
+    await expect(banner).toHaveAttribute("data-cover-mode", "center");
+    await expect.poll(() => attributesOf(b, "b").then((m) => m?.coverMode ?? null), SETTLE).toBe("center");
+  } finally {
+    await close();
+  }
+});
+
+test("the cover's upload modal: the centering's width gate + the unsupported type's rejection", async ({
+  browser
+}) => {
+  const { a, b, close } = await twoPanes(browser, "doc-attributes-cover-center");
+  try {
+    await openPanel(a, "a");
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-cover-upload-button"]').click();
+    const dialog = a.locator('[data-slot="docblocks/cover-upload-dialog"]');
+
+    // The centering's mode (the modal's selector): the editor width's
+    // minimum's gate over the image's width.
+    await a.locator('[data-slot="docblocks/cover-upload-mode"] [data-mode="center"]').click();
+
+    // The narrow image (the 400px's fixture over the ~964px's column) —
+    // the width gate's rejection: the no upload's no write, the hint's
+    // stand over the measured width.
+    await pickInModal(a, TALL_PNG);
+    const hint = a.locator('[data-slot="docblocks/cover-upload-error"]');
+    await expect(hint).toBeVisible();
+    expect((await attributesOf(a, "a"))?.cover, "the rejection stands the no write").toBeUndefined();
+    await expect(dialog).toBeVisible();
+
+    // The GIF — the MIME's gate's rejection (the decode's no probe).
+    await pickInModal(a, GIF);
+    await expect(hint).toBeVisible();
+    await expect(hint).not.toHaveText(/150/);
+    expect((await attributesOf(a, "a"))?.cover, "the unsupported type stands the no write").toBeUndefined();
+
+    // The wide image — the acceptance's stand over the centering: the
+    // cover + the mode's commit (the key's write), the banner's
+    // centering's stand, and the sync to pane B.
+    await pickInModal(a, WIDE_PNG);
+    await expect(dialog).toBeHidden();
+    const cover = (await attributesOf(a, "a"))?.cover;
+    expect(cover, "the accepted image commits the cover").toBeTruthy();
+    expect((await attributesOf(a, "a"))?.coverMode, "the centering commits the key").toBe("center");
+    const banner = coverBanner(a, "a");
+    await expect(banner).toHaveAttribute("data-cover-mode", "center");
+    await expect.poll(() => attributesOf(b, "b").then((m) => m?.coverMode ?? null), SETTLE).toBe("center");
   } finally {
     await close();
   }

@@ -1,91 +1,45 @@
-/** The cover's stand (the file id over the blob store: the thumbnail /
- *  the upload entry / the remove; the read-only stand stands the
- *  thumbnail display-only). The upload's gate: the image's intrinsic
- *  height check (a cover shorter than the minimum stands rejected —
- *  the bytes never reach the consumer's store; the undecodable payload
- *  stands the fail-open). */
+/** The cover's row's control (the file id's thumbnail / the upload's
+ *  entry / the remove; the read-only stand stands the thumbnail
+ *  display-only). The upload's entry opens the modal (the mode's
+ *  selector + the drop zone + the gate's stands live over it). */
 import { useTranslation } from "react-i18next";
 
 import { useRef, useState } from "react";
 
 import { useBlobFile } from "../blocks/use-blob-file";
-import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
 import { Image, X } from "../shared/ui/icons";
+import { CoverUploadModal } from "./CoverUploadModal";
+import type { CoverMode } from "./cover";
 
 /** The cover's renderable-MIME's predicate. A module-level const keeps the
  *  predicate's identity stable (the resolution's effect's dep — an inline
  *  arrow re-runs the effect on every render). */
 const COVER_RENDERS_BYTES = (mimeType: string): boolean => mimeType.startsWith("image/");
 
-/** The cover upload's minimum intrinsic height (CSS px). */
-const MIN_COVER_HEIGHT_PX = 150;
-
-/** The image's intrinsic pixel dimensions. */
-interface ImageDimensions {
-  width: number;
-  height: number;
-}
-
-/**
- * The intrinsic dimensions over a decodable image blob (the
- * `createImageBitmap` decode probe — the bytes are never rendered).
- * `null` over an undecodable payload (the fail-open: the consumer's
- * renderer may accept a format the browser cannot probe).
- */
-async function readImageDimensions(file: Blob): Promise<ImageDimensions | null> {
-  try {
-    const bitmap = await createImageBitmap(file);
-    try {
-      return { width: bitmap.width, height: bitmap.height };
-    } finally {
-      bitmap.close();
-    }
-  } catch {
-    return null;
-  }
-}
-
 function CoverEditor({
   fileId,
+  mode,
   readOnly,
-  onSet,
+  onCommit,
   onClear,
 }: {
   fileId: string | undefined;
+  /** The doc's stored mode (the modal's selector's initial's stand). */
+  mode: CoverMode;
   readOnly: boolean;
-  onSet: (id: string) => void;
+  onCommit: (fileId: string, mode: CoverMode) => void;
   onClear: () => void;
 }) {
   const { t } = useTranslation("editor");
-  const { blobStore } = useEditorContext();
   const file = useBlobFile(fileId ?? "", COVER_RENDERS_BYTES);
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  /** The rejected upload's hint (the short image's stand; the next
-   *  attempt's start clears it). */
-  const [error, setError] = useState<string | null>(null);
-
-  const onUpload = async (event: React.ChangeEvent<HTMLInputElement>): Promise<void> => {
-    const fileInput = event.target.files?.[0];
-    if (fileInput === undefined) return;
-    try {
-      // The height gate stands pre-upload: the rejected image's bytes
-      // never reach the consumer's store.
-      const dimensions = await readImageDimensions(fileInput);
-      if (dimensions !== null && dimensions.height < MIN_COVER_HEIGHT_PX) {
-        setError(t("attributes.coverTooShort", { min: MIN_COVER_HEIGHT_PX }));
-        return;
-      }
-      setError(null);
-      const id = await blobStore.upload(fileInput);
-      onSet(id);
-    } finally {
-      event.target.value = "";
-    }
-  };
+  const [open, setOpen] = useState(false);
+  // The modal's anchor zone (the editor width's measurement's source + the
+  // focus's return's stand) and the modal's open's stand.
+  const anchorRef = useRef<HTMLDivElement | null>(null);
 
   return (
-    <div className="flex items-center gap-2">
+    <div ref={anchorRef} tabIndex={-1} className="flex min-w-0 items-center gap-2 outline-none">
       {fileId !== undefined && (file.status === "ready" || file.status === "ready-meta") ? (
         <span
           data-slot="docblocks/attributes-cover"
@@ -99,17 +53,6 @@ function CoverEditor({
         </span>
       )}
       {readOnly ? null : (
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          aria-label={t("attributes.uploadCoverAria")}
-          data-slot="docblocks/attributes-cover-upload"
-          onChange={(event) => void onUpload(event)}
-        />
-      )}
-      {readOnly ? null : (
         <Button
           type="button"
           variant="ghost"
@@ -117,7 +60,7 @@ function CoverEditor({
           aria-label={t("attributes.uploadCoverAria")}
           data-slot="docblocks/attributes-cover-upload-button"
           className="size-6 text-muted-foreground hover:bg-muted/50 hover:text-foreground dark:hover:bg-muted/50"
-          onClick={() => inputRef.current?.click()}
+          onClick={() => setOpen(true)}
         >
           <Image className="size-3.5" />
         </Button>
@@ -135,10 +78,13 @@ function CoverEditor({
           <X className="size-3.5" />
         </Button>
       ) : null}
-      {error !== null ? (
-        <span data-slot="docblocks/attributes-cover-error" role="alert" className="min-w-0 flex-1 text-xs text-destructive">
-          {error}
-        </span>
+      {open && !readOnly ? (
+        <CoverUploadModal
+          anchorRef={anchorRef}
+          initialMode={mode}
+          onCommit={onCommit}
+          onClose={() => setOpen(false)}
+        />
       ) : null}
     </div>
   );

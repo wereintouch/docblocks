@@ -2,7 +2,7 @@ import { useStore } from "zustand";
 
 import { useMemo, useRef } from "react";
 
-import { AttributesPanel } from "./attributes";
+import { AttributesPanel, CoverBanner } from "./attributes";
 import {
   BlockContext,
   CanvasView,
@@ -228,6 +228,12 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
                             container-targeted dispatch keep their stands over its
                             controls). The canvas view stands no panel (the page-column
                             placement). */}
+                        {/* The cover's banner (the above-the-panel's stand): the
+                            stored cover's image over the placement mode — a
+                            non-interactive decoration (the pointer's transparent's
+                            stand). The canvas view stands no banner (the page-column
+                            stand's parity). */}
+                        <CoverBanner />
                         <AttributesPanel />
                         <RowList
                           order={order}
