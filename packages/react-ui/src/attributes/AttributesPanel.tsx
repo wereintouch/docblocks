@@ -379,7 +379,7 @@ function AttributesPanel() {
         {t("attributes.title")}
       </button>
       {open ? (
-        <div data-slot="docblocks/attributes-body" className="mt-1 border-t border-muted pt-1.5">
+        <div data-slot="docblocks/attributes-body" className="mt-1 flex flex-col gap-1 border-t border-muted pt-1.5">
           {hidden.has("id") ? null : (
             <AttributeRow key="id" attributeKey="id" label={t("attributes.id")} removable={false}>
               <span className="block px-1.5 py-1 font-mono text-sm break-all">{meta.id}</span>
@@ -539,7 +539,9 @@ function AttributesPanel() {
             the blocks' rows' parity), the display-only's stand over the
             read-only modes (no grip, no drag). */}
           {viewMode ? (
-            <div data-slot="docblocks/attributes-custom">{displayCustomKeys.map((key) => renderCustomRow(key))}</div>
+            <div data-slot="docblocks/attributes-custom" className="flex flex-col gap-1">
+              {displayCustomKeys.map((key) => renderCustomRow(key))}
+            </div>
           ) : (
             <Reorder.Group
               as="div"
@@ -547,7 +549,7 @@ function AttributesPanel() {
               axis="y"
               values={displayCustomKeys}
               onReorder={(next: string[]) => setDragOrder(next)}
-              className="flex flex-col"
+              className="flex flex-col gap-1"
             >
               {displayCustomKeys.map((key) => (
                 <DraggableAttributeRow

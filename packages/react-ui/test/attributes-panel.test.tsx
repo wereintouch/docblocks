@@ -553,9 +553,10 @@ describe("the custom rows' display order + the drag's affordance", () => {
     // The grip's accessible name (the reorder's stand over the key).
     expect(grip("alpha")?.getAttribute("aria-label")).toBe("Reorder alpha");
     // The top align's stand: the list's row's grip stands the first
-    // line's midline (the `top-3`), the single value's rows stand the
-    // row's center (the `top-1/2`).
-    expect(grip("lst")?.className).toContain("top-3");
+    // line's midline (the `top-1.5` over the band's `mt-0.5` + the
+    // `py-1`'s center), the single value's rows stand the row's center
+    // (the `top-1/2`).
+    expect(grip("lst")?.className).toContain("top-1.5");
     expect(grip("lst")?.className).not.toContain("top-1/2");
     expect(grip("alpha")?.className).toContain("top-1/2");
   });

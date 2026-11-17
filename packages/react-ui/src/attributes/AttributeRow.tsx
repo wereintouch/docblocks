@@ -39,7 +39,7 @@ function AttributeRow({
     <div
       data-slot="docblocks/attribute-row"
       data-attribute-key={attributeKey}
-      className="flex min-h-11 items-center gap-3 py-1.5"
+      className="flex min-h-11 items-center gap-3"
     >
       <span
         className={cn(
@@ -47,7 +47,7 @@ function AttributeRow({
           // publishedAt's date key over the 14 px's Inter — the w-28's
           // 112 px stood the truncate's stand over the Russian's locale).
           "w-32 shrink-0 truncate text-sm text-muted-foreground",
-          topAlign && "mt-1.5 self-start",
+          topAlign && "self-start",
           labelClassName
         )}
       >

@@ -70,11 +70,11 @@ function DraggableAttributeRow({
             group-hover:opacity-100
             active:cursor-grabbing
           `,
-          // The top align's stand (the first line's midline — the row's
-          // `py-1.5` + the line's `mt-1.5`'s parity): the `top-3` over
-          // the first line's center, the row's center stand over the
+          // The top align's stand (the first line's midline — the
+          // column's `mt-0.5` + the band's `py-1`'s parity): the `top-1.5`
+          // over the first line's center, the row's center stand over the
           // single value's rows.
-          topAlign ? "top-3" : "top-1/2 -translate-y-1/2"
+          topAlign ? "top-1.5" : "top-1/2 -translate-y-1/2"
         )}
       >
         <GripVertical className="size-4" />
