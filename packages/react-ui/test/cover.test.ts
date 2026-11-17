@@ -9,7 +9,7 @@
 // e2e's spec).
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { coverModeOf, tileBackgroundStyle, validateCoverUpload } from "../src/attributes/cover";
+import { coverModeGating, coverModeOf, tileBackgroundStyle, validateCoverUpload } from "../src/attributes/cover";
 
 /** The decodable probe's stand: the `createImageBitmap`'s Promise settles
  *  over the resolve (the pure's flush — no React commit's stand). */
@@ -18,7 +18,10 @@ function stubDecodable(): { resolve: (width: number, height: number) => void } {
   const probe = new Promise<{ width: number; height: number; close: () => void }>((resolve) => {
     settle = resolve;
   });
-  vi.stubGlobal("createImageBitmap", vi.fn(() => probe));
+  vi.stubGlobal(
+    "createImageBitmap",
+    vi.fn(() => probe)
+  );
   return {
     resolve: (width: number, height: number) => {
       expect(settle, "the probe should be the pending one").not.toBeNull();
@@ -36,7 +39,10 @@ function stubUndecodable(): { resolve: () => void } {
       reject(new Error("not supported"));
     };
   });
-  vi.stubGlobal("createImageBitmap", vi.fn(() => probe));
+  vi.stubGlobal(
+    "createImageBitmap",
+    vi.fn(() => probe)
+  );
   return {
     resolve: () => {
       expect(settle, "the probe should be the pending one").not.toBeNull();
@@ -93,6 +99,30 @@ describe("the cover's pure logic", () => {
     probe = stubDecodable();
     probe.resolve(400, 300);
     expect(await validateCoverUpload(png(), "center", 0)).toEqual({ ok: true });
+  });
+
+  it("gates the mode's switch over the stored image (the unknown's fail-open)", () => {
+    expect(coverModeGating(null, 964)).toEqual({ tileDisabled: false, centerDisabled: false });
+    // The narrow strip: the centering's switch stands disabled.
+    expect(coverModeGating({ width: 400, height: 300 }, 964)).toEqual({
+      tileDisabled: false,
+      centerDisabled: true,
+    });
+    // The short image: the tile's switch stands disabled.
+    expect(coverModeGating({ width: 1200, height: 100 }, 964)).toEqual({
+      tileDisabled: true,
+      centerDisabled: false,
+    });
+    // Both gates unmet stand both's disabled.
+    expect(coverModeGating({ width: 400, height: 100 }, 964)).toEqual({
+      tileDisabled: true,
+      centerDisabled: true,
+    });
+    // The no-layout's width keeps the centering's enabled (the fail-open).
+    expect(coverModeGating({ width: 400, height: 300 }, 0)).toEqual({
+      tileDisabled: false,
+      centerDisabled: false,
+    });
   });
 
   it("stands the tile's background over the intrinsic width (the crop over the glue)", () => {

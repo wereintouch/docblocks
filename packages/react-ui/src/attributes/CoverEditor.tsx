@@ -10,12 +10,8 @@ import { useBlobFile } from "../blocks/use-blob-file";
 import { Button } from "../shared/ui/Button";
 import { Image, X } from "../shared/ui/icons";
 import { CoverUploadModal } from "./CoverUploadModal";
+import { COVER_RENDERS_BYTES } from "./cover";
 import type { CoverMode } from "./cover";
-
-/** The cover's renderable-MIME's predicate. A module-level const keeps the
- *  predicate's identity stable (the resolution's effect's dep — an inline
- *  arrow re-runs the effect on every render). */
-const COVER_RENDERS_BYTES = (mimeType: string): boolean => mimeType.startsWith("image/");
 
 function CoverEditor({
   fileId,
@@ -79,12 +75,7 @@ function CoverEditor({
         </Button>
       ) : null}
       {open && !readOnly ? (
-        <CoverUploadModal
-          anchorRef={anchorRef}
-          initialMode={mode}
-          onCommit={onCommit}
-          onClose={() => setOpen(false)}
-        />
+        <CoverUploadModal anchorRef={anchorRef} initialMode={mode} onCommit={onCommit} onClose={() => setOpen(false)} />
       ) : null}
     </div>
   );

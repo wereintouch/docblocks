@@ -13,20 +13,15 @@ import type { ChangeEvent, DragEvent, MouseEvent, RefObject } from "react";
 
 import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
-import { Image, X } from "../shared/ui/icons";
-import { cn } from "../shared/ui/cn";
 import { SegmentSelector } from "../shared/ui/SegmentSelector";
-import {
-  COVER_ACCEPTED_MIME_TYPES,
-  COVER_MODE_ORDER,
-  COVER_MIN_TILE_HEIGHT_PX,
-  validateCoverUpload,
-} from "./cover";
+import { cn } from "../shared/ui/cn";
+import { Image, X } from "../shared/ui/icons";
+import { COVER_ACCEPTED_MIME_TYPES, COVER_MIN_TILE_HEIGHT_PX, COVER_MODE_ORDER, validateCoverUpload } from "./cover";
 import type { CoverMode } from "./cover";
 
-/** The page column's selector (the editor width's source — the measured
- *  column's box over the anchor's nearest page ancestor). */
-const PAGE_SELECTOR = '[data-slot="docblocks/page"]';
+/** The editor frame's selector (the editor width's source — the measured
+ *  frame's box over the anchor's nearest editor root). */
+const EDITOR_SELECTOR = '[data-slot="docblocks/editor"]';
 
 /** The file picker's accept's list (the strict's gate's declarative's
  *  stand — the MIME's gate over the chosen file enforces the same
@@ -36,9 +31,9 @@ const COVER_ACCEPTED_MIME_TYPES_LIST = COVER_ACCEPTED_MIME_TYPES.join(",");
 /** The editor width's read over the anchor (the no-page / no-layout's
  *  stand keeps zero — the width gate's fail-open). */
 function editorWidthOf(anchor: HTMLElement | null): number {
-  const column = anchor?.closest(PAGE_SELECTOR) ?? null;
-  if (column === null) return 0;
-  return Math.round(column.getBoundingClientRect().width);
+  const editor = anchor?.closest(EDITOR_SELECTOR) ?? null;
+  if (editor === null) return 0;
+  return Math.round(editor.getBoundingClientRect().width);
 }
 
 function CoverUploadModal({
@@ -264,10 +259,7 @@ function CoverUploadModal({
           <Image className="size-5" />
           <span className="px-3 text-center text-xs">{t("attributes.coverUploadHint")}</span>
         </button>
-        <p
-          data-slot="docblocks/cover-upload-info"
-          className="mt-2 text-xs text-muted-foreground"
-        >
+        <p data-slot="docblocks/cover-upload-info" className="mt-2 text-xs text-muted-foreground">
           {mode === "tile"
             ? t("attributes.coverInfoMinHeight", { min: COVER_MIN_TILE_HEIGHT_PX })
             : t("attributes.coverInfoMinWidth", { min: editorWidth })}

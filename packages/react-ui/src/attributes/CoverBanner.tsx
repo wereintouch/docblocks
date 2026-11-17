@@ -1,11 +1,12 @@
-/** The cover's banner over the page column's top (the above-the-panel's
- *  stand): the stored cover's image rendered full column width over the
- *  placement mode — the tile's stand (the strip stands its natural height,
- *  the centered's crop over the wide's stand, the `repeat-x`'s glue over
- *  the narrow's stand) or the centering's stand (the centered image over
- *  the max height's cap). The banner is decoration only: the pointer's
- *  transparent stand keeps the page's selection and the cross-drag's
- *  stands untouched. */
+/** The cover's banner over the editor frame's top edge (the above-the-
+ *  page column's stand, the full frame width's bleed): the stored cover's
+ *  image rendered over the placement mode — the tile's stand (the strip
+ *  stands its natural height, the centered's crop over the wide's stand,
+ *  the `repeat-x`'s glue over the narrow's stand) or the centering's stand
+ *  (the centered image over the max height's cap). The banner is
+ *  decoration only: the pointer's transparent stand keeps the page's
+ *  selection and the cross-drag's stands untouched. The bottom's last
+ *  pixels stand the fade-out's smooth stand into the page's content. */
 import { useStore } from "zustand";
 
 import { useLayoutEffect, useRef, useState } from "react";
@@ -14,18 +15,13 @@ import { useBlobFile } from "../blocks/use-blob-file";
 import { useEditorContext } from "../editor-provider";
 import {
   COVER_MAX_CENTER_HEIGHT_PX,
+  COVER_RENDERS_BYTES,
+  coverFadeMask,
   coverModeOf,
   readImageDimensions,
   tileBackgroundStyle,
 } from "./cover";
 import type { CoverMode, ImageDimensions } from "./cover";
-
-/** The cover's renderable-MIME's predicate. A module-level const keeps the
- *  predicate's identity stable (the resolution's effect's dep — an inline
- *  arrow re-runs the effect on every render). The lenient's `image/*`'s
- *  stand: the legacy's covers may stand a format outside the upload's
- *  strict's gate. */
-const COVER_RENDERS_BYTES = (mimeType: string): boolean => mimeType.startsWith("image/");
 
 function CoverBanner() {
   const { store } = useEditorContext();
@@ -89,7 +85,16 @@ function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }
       data-slot="docblocks/cover-banner"
       data-cover-mode={mode}
       aria-hidden
-      className="pointer-events-none w-full overflow-hidden select-none"
+      // The frame's edge's stand: the negative top margin cancels the
+      // Card's py-6's padding (the banner sticks to the frame's top
+      // edge), and the top radius stands the card's rounded-xl's
+      // corner's clip. The bottom fade's mask stands the last pixels'
+      // smooth stand over both modes.
+      className="pointer-events-none -mt-6 w-full overflow-hidden rounded-t-xl select-none"
+      style={{
+        maskImage: coverFadeMask(),
+        WebkitMaskImage: coverFadeMask(),
+      }}
     >
       {mode === "tile" ? (
         dimensions === null ? (
@@ -101,12 +106,7 @@ function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }
         )
       ) : (
         <div className="flex w-full justify-center">
-          <img
-            src={file.url}
-            alt=""
-            className="max-w-full"
-            style={{ maxHeight: COVER_MAX_CENTER_HEIGHT_PX }}
-          />
+          <img src={file.url} alt="" className="max-w-full" style={{ maxHeight: COVER_MAX_CENTER_HEIGHT_PX }} />
         </div>
       )}
     </div>

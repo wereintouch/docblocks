@@ -45,7 +45,10 @@ function stubDecodable(): { resolve: (width: number, height: number) => void } {
   const probe = new Promise<{ width: number; height: number; close: () => void }>((resolve) => {
     settle = resolve;
   });
-  vi.stubGlobal("createImageBitmap", vi.fn(() => probe));
+  vi.stubGlobal(
+    "createImageBitmap",
+    vi.fn(() => probe)
+  );
   return {
     resolve: (width: number, height: number) => {
       expect(settle, "the probe should be the pending one").not.toBeNull();
@@ -83,8 +86,7 @@ function renderCover(store: BlobStore): { commits: Array<[string, CoverMode]> } 
 const uploadButton = () =>
   document.querySelector<HTMLButtonElement>('[data-slot="docblocks/attributes-cover-upload-button"]');
 const modalDialog = () => document.querySelector<HTMLElement>('[data-slot="docblocks/cover-upload-dialog"]');
-const modalInput = () =>
-  document.querySelector<HTMLInputElement>('[data-slot="docblocks/cover-upload-input"]');
+const modalInput = () => document.querySelector<HTMLInputElement>('[data-slot="docblocks/cover-upload-input"]');
 const modalHint = () => document.querySelector<HTMLElement>('[data-slot="docblocks/cover-upload-error"]');
 const modalModeButton = (mode: CoverMode) =>
   document.querySelector<HTMLButtonElement>(`[data-slot="docblocks/cover-upload-mode"] [data-mode="${mode}"]`);
@@ -207,6 +209,19 @@ describe("the cover's banner", () => {
   it("stands absent over no cover", () => {
     renderBanner({});
     expect(document.querySelector('[data-slot="docblocks/cover-banner"]')).toBeNull();
+  });
+
+  it("stands the frame's edge's stand (the top radius + the bottom fade's mask)", async () => {
+    await act(async () => {
+      renderBanner({ cover: "id-1" });
+    });
+    const banner = document.querySelector<HTMLElement>('[data-slot="docblocks/cover-banner"]');
+    expect(banner, "the banner stands").not.toBeNull();
+    // The card's rounded-xl's corner's clip over the frame's top edge.
+    expect(banner!.classList.contains("rounded-t-xl")).toBe(true);
+    expect(banner!.classList.contains("-mt-6")).toBe(true);
+    // The bottom fade's mask (the 30px's depth's stand over both modes).
+    expect(banner!.getAttribute("style")).toContain("30px");
   });
 
   it("stands the centering over the mode (the max height's cap)", async () => {
