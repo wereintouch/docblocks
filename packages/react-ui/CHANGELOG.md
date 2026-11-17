@@ -1,5 +1,52 @@
 # docblocks-react-ui
 
+## 0.9.1
+
+### Patch Changes
+
+- 942538d: **A paste over the full document selection replaces the selection instead
+  of wiping the document.**
+  
+  Over the range the seam's absence (the whole-document delete stands no
+  seam) previously dropped the paste payload and cleared the document of all
+  blocks with no undo restore and an unplaceable caret. Now, when the
+  selection's delete consumes the whole document and no seam remains, a
+  fresh empty paragraph is inserted at the root as the paste seat and the
+  payload materializes into it (one transaction, one undo step); a
+  whitespace-only full paste leaves the editable empty seat. Partial
+  cross-range pastes are unchanged.
+- 19ba6b7: **Keyboard gestures over cross-block ranges: the continuation's stands.**
+  
+  - **Shift+ArrowUp/ArrowDown now chains over the cross-block range** — the
+    former stand collapsed the selection on the second press (the browser's
+    anchor read-back flips over the editor's backward cross seat, and the
+    continuation re-based the range over the far end). The editor now owns
+    the vertical extension over the cross range: the moving end stands the
+    selection's direction (the user's anchor's identity), a single-line
+    block's end crosses to the adjacent text block (the non-text siblings
+    skipped, the empty blocks' stand), and a multi-line block's inner line
+    keeps the browser's native line walk.
+  - **Ctrl/Meta+Home and Ctrl/Meta+End seat the caret over the document's
+    edges** (the first text block's start, the last's end) and scroll the
+    caret into view — the browser's native stand degenerates over the
+    page's nested editables (the Ctrl+Home's no-move's stand).
+  - **Ctrl/Meta+A stands over the read-only modes too** (the view /
+    published's document zone — the former stand let the browser's
+    select-all take the consumer's whole page).
+- d4e76ab: **Editor selection gestures: the native stands.**
+  
+  - **Ctrl/Meta+A now selects the whole document** over the page's nested
+    editables, where the browser's own select-all degenerates (the Chromium's
+    stand: a collapsed caret at the document's end instead of the full
+    selection). The editor seats the whole-document selection itself (the
+    first text block's start to the last text block's end, the cross-block
+    range the copy/paste/delete's cross paths stand over); form controls and
+    the canvas view keep their own select-all.
+  - **A click-then-Shift+click extends the selection across the blocks** —
+    the browser's native shift+click extension stands (the former stand tore
+    down the session and suppressed the default, which killed the native
+    extension and let the focus fall to the document body).
+
 ## 0.9.0
 
 ### Minor Changes
