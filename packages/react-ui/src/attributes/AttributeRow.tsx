@@ -43,7 +43,10 @@ function AttributeRow({
     >
       <span
         className={cn(
-          "w-28 shrink-0 truncate text-sm text-muted-foreground",
+          // The column stands the longest's locale label (the
+          // publishedAt's date key over the 14 px's Inter — the w-28's
+          // 112 px stood the truncate's stand over the Russian's locale).
+          "w-32 shrink-0 truncate text-sm text-muted-foreground",
           topAlign && "mt-1.5 self-start",
           labelClassName
         )}
