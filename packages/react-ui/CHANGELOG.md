@@ -1,5 +1,69 @@
 # docblocks-react-ui
 
+## 0.11.0
+
+### Minor Changes
+
+- 14cf58a: The cover's frame's tint (the `coverTint`'s attribute — the absence's
+  default's on, the explicit's `false`'s off over the attributes panel's
+  checkbox's row, which stands over the cover's presence like the mode's
+  row): the editor's card's border mixes the cover's alpha-weighted
+  average color with the theme's border token (the `color-mix`'s 25%
+  share — the light's theme's pale's stand, the dark's gray's stand over
+  the same average's value; the theme's flip stands the re-mix without a
+  re-read). The average's read decodes the cover's blob over the `img`'s
+  element (the SVG's parity — the `createImageBitmap`'s SVG rejection's
+  stand) and weighs the alpha's share per pixel (the transparent's stand
+  no gray's pull). The `useCoverAverageColor()`'s hook exports the same
+  average's color (the `rgb(...)`'s string or `null` over the absent's /
+  the undecodable's stand) — the consumer's own chrome's data's source
+  (e.g. the glow's stand over the editor's surroundings — the consumer's
+  CSS, the package's DOM ends at the card).
+- c4911e9: The cover's upload modal's preset gallery (the `coverPresets` provider
+  prop): the consumer's ready-made cover's file ids (the consumer's blob
+  store's ids — the same ids the store's `get` resolves) per placement
+  mode (the `tile` / the `center`'s set, each optional). The modal
+  renders the current mode's set over the 4-column's scrollable grid (the
+  visible's 3 rows' cap — the overflow scrolls, the 4-column's width
+  stands; a set over 12 ids scrolls, a shorter one stands the fewer
+  rows). The mode's switch stands the set's switch over the same grid,
+  and a pick commits the id over the mode WITHOUT an upload (the upload's
+  gate never runs over a preset — the consumer's catalog's curation's
+  stand; the thumbnails resolve over the store's `get`, the placeholder
+  over the loading / the missing's stands). Without the prop the grid
+  stands absent and the modal stands the enlarged's base's stand (the
+  former's 400 px's width stands the 440 px's, the drop zone's height the
+  112 px's over the 144 px's).
+- d1cb23e: The cover's upload stands the modal's stand (the placement mode's selector
+  over the tile / the centering, the drop zone's drag-and-drop + the click's
+  picker over the strict's png/jpeg/webp's accept, the mode's rule's info,
+  and the rejection's hint). The cover renders as a banner over the editor
+  frame's top edge (the full frame width's bleed, the frame's top corner's
+  clip, the bottom's 16 px's fade-out over the smooth's ease-out's curve — the
+  fixed's package's stand; the image's slightly dimmed stand over the dark
+  theme). The
+  tile's mode stands the strip scaled to the fixed's 150 px's height (the
+  width's proportional, the `repeat-x`'s horizontal glue over the narrow's,
+  the centered's side crop over the wide's), and the centering's mode stands
+  the width scaled to the frame's width (the height's proportional) over the
+  centered's 150 px's vertical slice (the narrower's scaled height stands its
+  own). The placement mode stores over the new `coverMode`
+  document-attribute key (the "center"'s stand — the tile's stand is the
+  key's absence), with the panel's mode toggle row over the `cover` row — the
+  toggle's switch stands gated: an option stands disabled when its gate is
+  known unmet over the current image (the centering's editor width's minimum,
+  the tile's 150 px's minimum height). The upload's gate stands per mode: the
+  150 px's minimum height over the tile, the editor width's minimum over the
+  centering (the rejected file's bytes never reach the blob store).
+
+### Patch Changes
+
+- e4c240a: The cover's upload gate: the image's intrinsic height is checked over
+  `createImageBitmap` before the upload — a cover shorter than 150 px is
+  rejected (the upload never reaches the consumer's blob store; the inline
+  hint stands the threshold, and the next attempt clears it), and an
+  undecodable payload stands the fail-open (the upload proceeds).
+
 ## 0.10.1
 
 ### Patch Changes
