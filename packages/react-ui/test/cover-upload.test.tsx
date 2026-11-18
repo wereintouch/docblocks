@@ -21,14 +21,19 @@ import { EditorProvider } from "../src/editor-provider";
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
 /** The fake store: the uploads' log + the resolved image's get (the
- *  thumbnail's / the banner's path over the accepted id). */
-function storeWith(uploads: File[]): BlobStore {
+ *  thumbnail's / the banner's path over the accepted id). The `get`'s
+ *  id's log stands the passthrough's pin (the doc's stored id reaches
+ *  the consumer's store unchanged). */
+function storeWith(uploads: File[], gets: string[] = []): BlobStore {
   let seq = 0;
   return {
-    get: async (id) => ({
-      blob: new Blob(["px"], { type: "image/png" }),
-      meta: { name: `${id}.png`, mimeType: "image/png" },
-    }),
+    get: async (id) => {
+      gets.push(id);
+      return {
+        blob: new Blob(["px"], { type: "image/png" }),
+        meta: { name: `${id}.png`, mimeType: "image/png" },
+      };
+    },
     upload: async (file: File) => {
       uploads.push(file);
       return `id-${++seq}`;
@@ -193,18 +198,20 @@ describe("the cover upload's modal", () => {
   });
 });
 
-/** Renders the banner over the doc's attributes + the store. */
-function renderBanner(attributes: Record<string, unknown>): void {
+/** Renders the banner over the doc's attributes + the store (the
+ *  resolution's id's log's stand — the passthrough's pin's input). */
+function renderBanner(attributes: Record<string, unknown>): { gets: string[] } {
   const doc = createDoc({ id: "doc-1", title: "T", createdAt: CREATED_AT });
   for (const [key, value] of Object.entries(attributes)) {
     doc.setAttribute(key, value as DocAttributeValue);
   }
-  const uploads: File[] = [];
+  const gets: string[] = [];
   render(
-    <EditorProvider doc={doc} blobStore={storeWith(uploads)}>
+    <EditorProvider doc={doc} blobStore={storeWith([], gets)}>
       <CoverBanner />
     </EditorProvider>
   );
+  return { gets };
 }
 
 describe("the cover's banner", () => {
@@ -213,10 +220,31 @@ describe("the cover's banner", () => {
     expect(document.querySelector('[data-slot="docblocks/cover-banner"]')).toBeNull();
   });
 
+  it("stands absent over the unknown id (the consumer's store's rejection's stand)", async () => {
+    const doc = createDoc({ id: "doc-1", title: "T", createdAt: CREATED_AT });
+    doc.setAttribute("cover", "missing-id");
+    render(
+      <EditorProvider
+        doc={doc}
+        blobStore={{
+          get: async () => {
+            throw new Error("Blob not found: missing-id");
+          },
+          upload: async () => "id-1",
+          rename: async () => ({ name: "cover.png", mimeType: "image/png" }),
+          subscribe: () => () => {},
+        }}
+      >
+        <CoverBanner />
+      </EditorProvider>
+    );
+    await act(async () => {});
+    expect(document.querySelector('[data-slot="docblocks/cover-banner"]')).toBeNull();
+  });
+
   it("stands the frame's edge's stand (the top radius + the bottom fade's mask)", async () => {
-    await act(async () => {
-      renderBanner({ cover: "id-1" });
-    });
+    const { gets } = renderBanner({ cover: "id-1" });
+    await act(async () => {});
     const banner = document.querySelector<HTMLElement>('[data-slot="docblocks/cover-banner"]');
     expect(banner, "the banner stands").not.toBeNull();
     // The card's rounded-xl's corner's clip over the frame's top edge.
@@ -224,6 +252,9 @@ describe("the cover's banner", () => {
     expect(banner!.classList.contains("-mt-6")).toBe(true);
     // The bottom fade's mask (the 16px's depth's stand over both modes).
     expect(banner!.getAttribute("style")).toContain("16px");
+    // The id's passthrough: the doc's stored id stands the consumer's
+    // store's resolution's argument (the consumer's storage's stand).
+    expect(gets, "the stored id's passthrough").toContain("id-1");
   });
 
   it("stands the centering over the mode (the centered slice's stand)", async () => {

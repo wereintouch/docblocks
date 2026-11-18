@@ -98,7 +98,7 @@ mention catalog). The full props list:
 | `doc`                        | The core `Doc` to render. Must not change after mount (a throw on change is the contract). Required for the `editor` stand; over the `viewer`'s level the doc IS the published snapshot (the security model — the reader's browser never receives the live document), and an absent stand renders the "not published yet" placeholder. |
 | `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs).                                                                                                                                                                                                   |
 | `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                                                                                                                                                                                                                               |
-| `blobStore?`                 | The blob bridge for image / pdf / file blocks (see below).                                                                                                                                                                                                                                                                             |
+| `blobStore?`                 | The blob bridge for image / pdf / file blocks and the document-attributes' cover (see below).                                                                                                                                                                                                                                          |
 | `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                                                                                                                                                                                 |
 | `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                                                                                                                                                                            |
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). The opaque-origin restriction stands over this policy.                                                  |
@@ -317,7 +317,11 @@ anonymous plaintext selection over the room — the 0.2.0 behavior).
 ### Blobs
 
 File-backed blocks hold only consumer-owned ids: `file.attrs.fileId` for
-attachments and PDFs, and `image.attrs.src` for inline images. Bytes, names,
+attachments and PDFs, and `image.attrs.src` for inline images. The
+document-attributes' `cover` key stands the same contract: it holds the
+consumer's file id for the cover image (the banner over the editor frame's
+top edge + the row's thumbnail in the attributes panel), resolved over the
+same store. Bytes, names,
 and MIME types never enter the document. `BlobStore` is the only bridge
 between those ids and the stored objects:
 
@@ -339,7 +343,8 @@ interface BlobStore {
 ```
 
 - `get` rejects an unknown id; the block renders a placeholder while loading
-  or when the id is unavailable. The library creates an object URL for the
+  or when the id is unavailable (the cover banner stands absent over the
+  unknown id). The library creates an object URL for the
   returned blob and revokes it on replacement or unmount.
 - **The meta-only stand (opt-in):** with the optional `getMeta` member the
   blocks resolve the metadata first (a cheap head stand, no body transfer).
