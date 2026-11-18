@@ -28,6 +28,14 @@ import { rectsIntersect } from "../viewport";
 /** The culling's margin (canvas px, over the visible rect's edge). */
 const CULL_MARGIN_PX = 300;
 
+/** The culling's fallback size (canvas px) over the unknown container
+ * size (the first frame before the layout's measure, the jsdom's test's
+ * stand): the conservative stand over the no-cull — the heavy doc's full
+ * mount over the unknown size stood the renderer's crash (the 5000
+ * figures' initial render). The measured size replaces it over the
+ * first layout (the one-frame's stand, the band's flicker). */
+const FALLBACK_SIZE = { width: 1200, height: 800 };
+
 /** The container's size (the ResizeObserver's stand): zero until the
  * first layout (the culling's stand — no cull over the unknown size). The
  * no-ResizeObserver's stand (the jsdom's test) stands the window's resize
@@ -59,7 +67,8 @@ function useContainerSize(ref: RefObject<HTMLElement | null>): { width: number; 
  * The visible world rect (canvas coords, center-anchor): the container's
  * screen rect (center-relative) mapped through the zoom / pan (the world
  * carries `transform: translate(pan) scale(zoom)` over the center, so
- * `canvas = (screen - pan) / zoom`), expanded over the margin.
+ * `canvas = (screen - pan) / zoom`), expanded over the margin. `null`
+ * stands no cull (the caller's stand over the explicit no-cull).
  */
 function visibleWorldRectOf(
   zoom: number,
@@ -194,9 +203,15 @@ function useCanvasCulling(
   blocks: Record<BlockId, Block>
 ): Set<BlockId> | null {
   const size = useContainerSize(containerRef);
-  const visible = visibleWorldRectOf(viewport.zoom, viewport.pan, size, CULL_MARGIN_PX);
+  // The unknown size's stand (the first frame / the jsdom): the fallback
+  // size's rect (the conservative cull — the heavy doc's full mount stands
+  // no DOM of its own before the first layout's measure).
+  const measured = size.width > 0 && size.height > 0 ? size : FALLBACK_SIZE;
+  const visible = visibleWorldRectOf(viewport.zoom, viewport.pan, measured, CULL_MARGIN_PX);
   const cacheRef = useRef<Set<BlockId> | null>(null);
   if (visible === null) {
+    // The no-rect's stand (the unmeasured size's guard — the fallback's
+    // stand makes it unreachable in practice): no cull.
     cacheRef.current = null;
     return null;
   }
