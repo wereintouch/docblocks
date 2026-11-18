@@ -1,12 +1,13 @@
 /** The cover's banner over the editor frame's top edge (the above-the-
  *  page column's stand, the full frame width's bleed): the stored cover's
  *  image rendered over the placement mode — the tile's stand (the strip
- *  stands its natural height, the centered's crop over the wide's stand,
- *  the `repeat-x`'s glue over the narrow's stand) or the centering's stand
- *  (the centered image over the max height's cap). The banner is
- *  decoration only: the pointer's transparent stand keeps the page's
- *  selection and the cross-drag's stands untouched. The bottom's last
- *  pixels stand the fade-out's smooth stand into the page's content. */
+ *  scaled to the fixed's 150 px's height, the width's proportional, the
+ *  `repeat-x`'s horizontal glue) or the centering's stand (the width
+ *  scaled to the frame's width, the centered's 150 px's vertical slice
+ *  over the scaled height). The banner is decoration only: the pointer's
+ *  transparent stand keeps the page's selection and the cross-drag's
+ *  stands untouched. The bottom's last pixels stand the fade-out's smooth
+ *  stand into the page's content. */
 import { useStore } from "zustand";
 
 import { useLayoutEffect, useRef, useState } from "react";
@@ -16,6 +17,7 @@ import { useEditorContext } from "../editor-provider";
 import {
   COVER_MAX_CENTER_HEIGHT_PX,
   COVER_RENDERS_BYTES,
+  centerBackgroundStyle,
   coverFadeMask,
   coverModeOf,
   readImageDimensions,
@@ -38,12 +40,13 @@ function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }
   const file = useBlobFile(coverId, COVER_RENDERS_BYTES);
   const blob = file.status === "ready" ? file.blob : null;
 
-  /** The intrinsic dimensions' probe (the tile's stand's input — the crop
-   *  over the glue's decision; the undecodable's payload stands the
-   *  fallback's plain image's stand). */
+  /** The intrinsic dimensions' probe (the centering's slice's input — the
+   *  width's scale over the container; the undecodable's payload stands
+   *  the fallback's plain image's stand). The tile's stand needs no probe
+   *  (the fixed's strip's height is the layout's constant). */
   const [dimensions, setDimensions] = useState<ImageDimensions | null>(null);
   useLayoutEffect(() => {
-    if (blob === null) {
+    if (blob === null || mode === "tile") {
       setDimensions(null);
       return;
     }
@@ -54,14 +57,14 @@ function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }
     return () => {
       alive = false;
     };
-  }, [blob]);
+  }, [blob, mode]);
 
-  /** The column's live width (the tile's crop-over-glue's decision's
-   *  input): the wrapper's own box (the full column's width's stand) over
-   *  the mount's measure + the resize's watch (the jsdom's no-layout's
-   *  stand keeps the zero's value — the wide's decision's fail-open). The
-   *  effect re-runs over the ready's stand: the wrapper commits only over
-   *  the resolution, so the mount's measure stands over its presence. */
+  /** The frame's live width (the centering's slice's height's input): the
+   *  wrapper's own box (the full frame's width's stand) over the mount's
+   *  measure + the resize's watch (the jsdom's no-layout's stand keeps the
+   *  zero's value — the maximum's height's fail-open). The effect re-runs
+   *  over the ready's stand: the wrapper commits only over the
+   *  resolution, so the mount's measure stands over its presence. */
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [width, setWidth] = useState(0);
   useLayoutEffect(() => {
@@ -97,17 +100,17 @@ function CoverBannerBody({ coverId, mode }: { coverId: string; mode: CoverMode }
       }}
     >
       {mode === "tile" ? (
-        dimensions === null ? (
-          // The undecodable's legacy's cover's stand: the plain centered
-          // image (the tiling's decision needs the intrinsic width).
-          <img src={file.url} alt="" className="mx-auto block max-w-full" />
-        ) : (
-          <div className="w-full" style={tileBackgroundStyle(dimensions, width, file.url)} />
-        )
-      ) : (
+        // The tile's stand: the fixed's strip (the height's constant — no
+        // probe over the render's path).
+        <div className="w-full" style={tileBackgroundStyle(file.url)} />
+      ) : dimensions === null ? (
+        // The undecodable's legacy's cover's stand: the plain centered
+        // image (the slice's decision needs the intrinsic dimensions).
         <div className="flex w-full justify-center">
           <img src={file.url} alt="" className="max-w-full" style={{ maxHeight: COVER_MAX_CENTER_HEIGHT_PX }} />
         </div>
+      ) : (
+        <div className="w-full" style={centerBackgroundStyle(dimensions, width, file.url)} />
       )}
     </div>
   );

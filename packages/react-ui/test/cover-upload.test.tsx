@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 // The cover's component's contracts: the upload's modal (the mode's
 // selector, the drop zone's stands, the gate's hint, the commit over the
-// upload, the Escape's close) and the banner's stands (the tile's
-// natural height's stand over the background's layer, the centering's
-// max height's cap). The pure's validation's matrix stands over the
-// `cover`'s spec; the panel's doc write and the sync stand over the
-// e2e's spec.
+// upload, the Escape's close) and the banner's stands (the tile's fixed
+// strip over the background's layer, the centering's centered slice +
+// the undecodable's fallback image). The pure's validation's matrix stands
+// over the `cover`'s spec; the panel's doc write and the sync stand over
+// the e2e's spec.
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -98,6 +98,8 @@ describe("the cover upload's modal", () => {
     fireEvent.click(uploadButton()!);
     expect(modalDialog(), "the modal stands over the press").not.toBeNull();
     expect(modalModeButton("tile")?.getAttribute("aria-pressed")).toBe("true");
+    // The strict's accept's stand (the webp's parity).
+    expect(modalInput()!.getAttribute("accept")).toContain("image/webp");
   });
 
   it("commits the tall image over the default mode (the upload + the close)", async () => {
@@ -224,33 +226,49 @@ describe("the cover's banner", () => {
     expect(banner!.getAttribute("style")).toContain("30px");
   });
 
-  it("stands the centering over the mode (the max height's cap)", async () => {
+  it("stands the centering over the mode (the centered slice's stand)", async () => {
+    const probe = stubDecodable();
+    await act(async () => {
+      renderBanner({ cover: "id-1", coverMode: "center" });
+    });
+    await act(async () => {
+      probe.resolve(1200, 300);
+    });
+    const banner = document.querySelector<HTMLElement>('[data-slot="docblocks/cover-banner"]');
+    expect(banner, "the banner stands").not.toBeNull();
+    expect(banner!.getAttribute("data-cover-mode")).toBe("center");
+    const layer = banner!.firstElementChild as HTMLElement | null;
+    expect(layer, "the background's layer stands").not.toBeNull();
+    // The no-layout's container keeps the maximum's height's fail-open. The
+    // size's `auto`'s second value stands the default — the CSSOM's
+    // serialization omits it.
+    expect(layer!.style.height).toBe("150px");
+    expect(layer!.style.backgroundSize).toBe("100%");
+    expect(layer!.style.backgroundRepeat).toBe("no-repeat");
+  });
+
+  it("stands the undecodable cover's fallback image (the centering's mode)", async () => {
     await act(async () => {
       renderBanner({ cover: "id-1", coverMode: "center" });
     });
     const banner = document.querySelector<HTMLElement>('[data-slot="docblocks/cover-banner"]');
     expect(banner, "the banner stands").not.toBeNull();
-    expect(banner!.getAttribute("data-cover-mode")).toBe("center");
     const img = banner!.querySelector("img");
-    expect(img, "the image stands").not.toBeNull();
+    expect(img, "the fallback's image stands").not.toBeNull();
     expect(img!.style.maxHeight).toBe("150px");
   });
 
-  it("stands the tile over the mode (the natural height's stand)", async () => {
-    const probe = stubDecodable();
+  it("stands the tile over the mode (the fixed strip's stand)", async () => {
     await act(async () => {
       renderBanner({ cover: "id-1" });
-    });
-    await act(async () => {
-      probe.resolve(1200, 200);
     });
     const banner = document.querySelector<HTMLElement>('[data-slot="docblocks/cover-banner"]');
     expect(banner).not.toBeNull();
     expect(banner!.getAttribute("data-cover-mode")).toBe("tile");
     const layer = banner!.firstElementChild as HTMLElement | null;
     expect(layer, "the background's layer stands").not.toBeNull();
-    expect(layer!.style.height).toBe("200px");
-    expect(layer!.style.backgroundSize).toBe("auto 100%");
-    expect(layer!.style.backgroundRepeat).toBe("no-repeat");
+    expect(layer!.style.height).toBe("150px");
+    expect(layer!.style.backgroundSize).toBe("auto 150px");
+    expect(layer!.style.backgroundRepeat).toBe("repeat-x");
   });
 });

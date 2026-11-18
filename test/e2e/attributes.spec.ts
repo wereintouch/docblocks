@@ -768,11 +768,13 @@ test("the view mode stands the panel display-only (the editors off, the rows ove
 // The cover's upload's fixtures: the 1x1 pixel (the short / the narrow's
 // gate's rejection), the 400x200 solid (the tile's accepted cover — the
 // narrow strip's glue's stand), the 1600x400 solid (the wide cover — the
-// editor width's minimum's stand over the 1280px's viewport), and the
-// 1x1 GIF (the unsupported type's rejection).
+// editor width's minimum's stand over the 1280px's viewport), the
+// 1600x100 solid (the centering's short cover — the scaled height's
+// under-cap's stand), and the 1x1 GIF (the unsupported type's rejection).
 const SHORT_PNG = new URL("./fixtures/upload-test.png", import.meta.url).pathname;
 const TALL_PNG = new URL("./fixtures/cover-400x200.png", import.meta.url).pathname;
 const WIDE_PNG = new URL("./fixtures/cover-1600x400.png", import.meta.url).pathname;
+const SHORT_WIDE_PNG = new URL("./fixtures/cover-1600x100.png", import.meta.url).pathname;
 const GIF = new URL("./fixtures/cover-1x1.gif", import.meta.url).pathname;
 const coverBanner = (page: Page, client: "a" | "b") =>
   page.locator(`[data-testid="doc-${client}"] [data-slot="docblocks/cover-banner"]`);
@@ -835,6 +837,9 @@ test("the cover's upload modal: the gate over the mode, the banner over the top,
     expect(bannerBox, "the banner should stand").not.toBeNull();
     expect(editorBox, "the editor should stand").not.toBeNull();
     expect(Math.abs(bannerBox!.width - editorBox!.width), "the full frame width's bleed").toBeLessThan(2);
+    // The fixed's strip's height's stand (the image's 200px's natural
+    // height scaled down to the 150px's constant).
+    expect(Math.round(bannerBox!.height), "the fixed strip's height").toBe(150);
     // The frame's corner's clip: the banner's top radius stands the
     // card's radius (the card's computed stand — no magic number's
     // stand over the scale's change).
@@ -843,7 +848,7 @@ test("the cover's upload modal: the gate over the mode, the banner over the top,
     );
     await expect(banner).toHaveCSS("border-top-left-radius", cardRadius);
     // The narrow strip's stand (the 400px's fixture over the frame's
-    // width): the repeat-x's glue over the wide's crop.
+    // width): the repeat-x's glue.
     await expect(banner.locator("div").first()).toHaveCSS("background-repeat", "repeat-x");
     // The banner stands above the attributes panel (the top's placement).
     const panelBox = await panel(a, "a").boundingBox();
@@ -869,10 +874,17 @@ test("the cover's upload modal: the gate over the mode, the banner over the top,
 
     // The mode's row's switch (the panel's toggle over the gate's met
     // stand): the centering's commit (the key's write) + the banner's
-    // re-stand, synced to pane B.
+    // re-stand (the width scaled to the frame, the 150px's slice over the
+    // scaled height's cap) — synced to pane B.
     await centerOption.click();
     await expect.poll(() => attributesOf(a, "a").then((m) => m?.coverMode ?? null), SETTLE).toBe("center");
     await expect(banner).toHaveAttribute("data-cover-mode", "center");
+    // The 1600x400's fixture scaled to the frame's width: the scaled
+    // height exceeds the cap at the harness's width — the slice stands
+    // the maximum.
+    const centerBox = await banner.boundingBox();
+    expect(centerBox, "the centering's banner should stand").not.toBeNull();
+    expect(Math.round(centerBox!.height), "the centered slice's cap").toBe(150);
     await expect.poll(() => attributesOf(b, "b").then((m) => m?.coverMode ?? null), SETTLE).toBe("center");
 
     // The canvas view never renders the banner (the page view's stand).
@@ -911,7 +923,7 @@ test("the cover's upload modal: the centering's width gate + the unsupported typ
 
     // The wide image — the acceptance's stand over the centering: the
     // cover + the mode's commit (the key's write), the banner's
-    // centering's stand, and the sync to pane B.
+    // centering's stand (the scaled height's cap), and the sync to pane B.
     await pickInModal(a, WIDE_PNG);
     await expect(dialog).toBeHidden();
     const cover = (await attributesOf(a, "a"))?.cover;
@@ -919,7 +931,25 @@ test("the cover's upload modal: the centering's width gate + the unsupported typ
     expect((await attributesOf(a, "a"))?.coverMode, "the centering commits the key").toBe("center");
     const banner = coverBanner(a, "a");
     await expect(banner).toHaveAttribute("data-cover-mode", "center");
+    // The sliced height over the scaled width (the cap's stand at the
+    // harness's frame's width).
+    const frameWidth = (await editorRoot(a, "a").boundingBox())!.width;
+    const wideBox = await banner.boundingBox();
+    expect(Math.round(wideBox!.height), "the capped slice's height").toBe(
+      Math.round(Math.min(150, (400 * frameWidth) / 1600))
+    );
     await expect.poll(() => attributesOf(b, "b").then((m) => m?.coverMode ?? null), SETTLE).toBe("center");
+
+    // The short wide image — the scaled height's under-cap's stand: the
+    // slice stands the scaled height's own (under the 150px's cap).
+    await panel(a, "a").locator('[data-slot="docblocks/attributes-cover-upload-button"]').click();
+    await expect(dialog).toBeVisible();
+    await pickInModal(a, SHORT_WIDE_PNG);
+    await expect(dialog).toBeHidden();
+    const shortBox = await banner.boundingBox();
+    expect(Math.round(shortBox!.height), "the under-cap slice's height").toBe(
+      Math.round(Math.min(150, (100 * frameWidth) / 1600))
+    );
   } finally {
     await close();
   }

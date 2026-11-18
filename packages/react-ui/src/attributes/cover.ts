@@ -8,10 +8,12 @@ import type { CSSProperties } from "react";
 import type { DocAttributeValue } from "docblocks-core";
 
 /** The cover's accepted upload's MIME's types (the strict's stand). */
-const COVER_ACCEPTED_MIME_TYPES: readonly string[] = ["image/png", "image/jpeg"];
+const COVER_ACCEPTED_MIME_TYPES: readonly string[] = ["image/png", "image/jpeg", "image/webp"];
 
-/** The tile mode's minimum intrinsic height (CSS px). */
-const COVER_MIN_TILE_HEIGHT_PX = 150;
+/** The tile mode's rendered strip's height (CSS px) — the fixed's stand
+ *  (the upload's gate's parity: the image's height stands at least this,
+ *  the strip stands scaled down to it). */
+const COVER_TILE_STRIP_HEIGHT_PX = 150;
 
 /** The centering mode's maximum rendered height (CSS px). The stand stands
  *  equal to the tile's minimum (the 150 px's shared threshold). */
@@ -20,6 +22,12 @@ const COVER_MAX_CENTER_HEIGHT_PX = 150;
 /** The banner's bottom fade-out's depth (CSS px) — the last pixels stand
  *  the smooth stand into the page's content. */
 const COVER_FADE_BOTTOM_PX = 30;
+
+/** The banner's bottom fade-out's curve's modes: the linear's ramp over the
+ *  fade's region, or the smooth's (ease-out's) stand — the quarter's stops'
+ *  approximation of the (1 - t)^2's curve (the bottom's edge stands the
+ *  gradual's stand). */
+type CoverFadeMode = "linear" | "smooth";
 
 /** The cover's renderable-MIME's predicate. A module-level const keeps the
  *  predicate's identity stable (the resolution's effect's dep — an inline
@@ -65,10 +73,16 @@ async function readImageDimensions(file: Blob): Promise<ImageDimensions | null> 
 /**
  * The banner's bottom fade-out's mask (the last pixels' smooth stand into
  *  the page's content) — the mask's stand over both modes (the layer's /
- *  the image's stand share the wrapper's stand).
+ *  the image's stand share the wrapper's stand). The smooth's stand is the
+ *  default's (the soft's bottom's edge).
  */
-function coverFadeMask(): string {
-  return `linear-gradient(to bottom, #000 calc(100% - ${COVER_FADE_BOTTOM_PX}px), transparent 100%)`;
+function coverFadeMask(mode: CoverFadeMode = "smooth"): string {
+  const depth = COVER_FADE_BOTTOM_PX;
+  if (mode === "linear") {
+    return `linear-gradient(to bottom, #000 calc(100% - ${depth}px), transparent 100%)`;
+  }
+  const stop = (t: number): string => `rgba(0, 0, 0, ${(1 - t) ** 2}) calc(100% - ${depth * (1 - t)}px)`;
+  return `linear-gradient(to bottom, #000 calc(100% - ${depth}px), ${stop(0.25)}, ${stop(0.5)}, ${stop(0.75)}, transparent 100%)`;
 }
 
 /** The mode's switch's gate over the stored cover's dimensions (the
@@ -83,7 +97,7 @@ function coverModeGating(
 ): { tileDisabled: boolean; centerDisabled: boolean } {
   if (dimensions === null) return { tileDisabled: false, centerDisabled: false };
   return {
-    tileDisabled: dimensions.height < COVER_MIN_TILE_HEIGHT_PX,
+    tileDisabled: dimensions.height < COVER_TILE_STRIP_HEIGHT_PX,
     centerDisabled: editorWidthPx > 0 && dimensions.width < editorWidthPx,
   };
 }
@@ -102,7 +116,7 @@ type CoverValidation = { ok: true } | { ok: false; reason: CoverRejectionReason 
 
 /**
  * The cover upload's validation over the mode: the accepted MIME's gate
- * (the strict's png/jpeg's stand), then the intrinsic dimension's gate —
+ * (the strict's png/jpeg/webp's stand), then the intrinsic dimension's gate —
  * the tile's minimum height, the centering's minimum width over the
  * editor's live width (the measured column's box). `editorWidthPx` of
  * zero or less stands the width check's fail-open (the no-layout's stand).
@@ -114,7 +128,7 @@ async function validateCoverUpload(file: Blob, mode: CoverMode, editorWidthPx: n
   }
   const dimensions = await readImageDimensions(file);
   if (dimensions === null) return { ok: true };
-  if (mode === "tile" && dimensions.height < COVER_MIN_TILE_HEIGHT_PX) {
+  if (mode === "tile" && dimensions.height < COVER_TILE_STRIP_HEIGHT_PX) {
     return { ok: false, reason: "tooShort" };
   }
   if (mode === "center" && editorWidthPx > 0 && dimensions.width < editorWidthPx) {
@@ -124,19 +138,39 @@ async function validateCoverUpload(file: Blob, mode: CoverMode, editorWidthPx: n
 }
 
 /**
- * The tile mode's background stand over the intrinsic width: the image's
- * strip stands its natural height (the `auto 100%`'s size — the width's
- * overflow stands the centered's crop), and a strip narrower than the
- * container stands the `repeat-x`'s stand (the same strip glues left and
- * right to the container's edge).
+ * The tile mode's background stand: the image's strip stands scaled to the
+ * fixed's strip's height (the width's proportional), centered, and repeated
+ * horizontally (the narrow's strip's copies glue left and right to the
+ * container's edge; the wide's single copy stands the centered's crop).
  */
-function tileBackgroundStyle(dimensions: ImageDimensions, containerWidthPx: number, url: string): CSSProperties {
+function tileBackgroundStyle(url: string): CSSProperties {
   return {
-    height: dimensions.height,
+    height: COVER_TILE_STRIP_HEIGHT_PX,
     backgroundImage: `url("${url}")`,
-    backgroundSize: "auto 100%",
+    backgroundSize: `auto ${COVER_TILE_STRIP_HEIGHT_PX}px`,
     backgroundPosition: "center",
-    backgroundRepeat: dimensions.width >= containerWidthPx ? "no-repeat" : "repeat-x",
+    backgroundRepeat: "repeat-x",
+  };
+}
+
+/**
+ * The centering mode's background stand: the image's width stands scaled to
+ * the container's width (the height's proportional), and the wrapper's
+ * height stands the centered's slice over that scaled height (capped at the
+ * maximum's stand — the narrower's scaled height stands its own). The
+ * vertical centering crops the excess top and bottom evenly. The
+ * zero-container's stand (the no-layout's jsdom) stands the maximum's
+ * height's fail-open.
+ */
+function centerBackgroundStyle(dimensions: ImageDimensions, containerWidthPx: number, url: string): CSSProperties {
+  const scaledHeight =
+    containerWidthPx > 0 ? dimensions.height * (containerWidthPx / dimensions.width) : COVER_MAX_CENTER_HEIGHT_PX;
+  return {
+    height: Math.min(COVER_MAX_CENTER_HEIGHT_PX, scaledHeight),
+    backgroundImage: `url("${url}")`,
+    backgroundSize: "100% auto",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
   };
 }
 
@@ -144,9 +178,10 @@ export {
   COVER_ACCEPTED_MIME_TYPES,
   COVER_FADE_BOTTOM_PX,
   COVER_MAX_CENTER_HEIGHT_PX,
-  COVER_MIN_TILE_HEIGHT_PX,
   COVER_MODE_ORDER,
   COVER_RENDERS_BYTES,
+  COVER_TILE_STRIP_HEIGHT_PX,
+  centerBackgroundStyle,
   coverFadeMask,
   coverModeGating,
   coverModeOf,
@@ -154,4 +189,4 @@ export {
   tileBackgroundStyle,
   validateCoverUpload,
 };
-export type { CoverMode, CoverRejectionReason, CoverValidation, ImageDimensions };
+export type { CoverFadeMode, CoverMode, CoverRejectionReason, CoverValidation, ImageDimensions };

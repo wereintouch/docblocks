@@ -1,7 +1,7 @@
 /** The cover upload's modal (the portaled dialog over the row's upload
  *  entry): the placement mode's selector (the tile / the centering), the
  *  drop zone (the drag-and-drop's stand + the click's standard picker, the
- *  strict's png/jpeg's accept), the mode's rule's info (the validation's
+ *  strict's png/jpeg/webp's accept), the mode's rule's info (the validation's
  *  gate over the upload), and the rejection's hint. The gate stands
  *  pre-upload: a rejected file's bytes never reach the consumer's store;
  *  the commit stands the id + the mode over the caller's write. */
@@ -16,7 +16,7 @@ import { Button } from "../shared/ui/Button";
 import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { cn } from "../shared/ui/cn";
 import { Image, X } from "../shared/ui/icons";
-import { COVER_ACCEPTED_MIME_TYPES, COVER_MIN_TILE_HEIGHT_PX, COVER_MODE_ORDER, validateCoverUpload } from "./cover";
+import { COVER_ACCEPTED_MIME_TYPES, COVER_MODE_ORDER, COVER_TILE_STRIP_HEIGHT_PX, validateCoverUpload } from "./cover";
 import type { CoverMode } from "./cover";
 
 /** The editor frame's selector (the editor width's source — the measured
@@ -133,7 +133,7 @@ function CoverUploadModal({
           verdict.reason === "unsupported"
             ? t("attributes.coverUnsupportedType")
             : verdict.reason === "tooShort"
-              ? t("attributes.coverTooShort", { min: COVER_MIN_TILE_HEIGHT_PX })
+              ? t("attributes.coverTooShort", { min: COVER_TILE_STRIP_HEIGHT_PX })
               : t("attributes.coverTooNarrow", { min: width });
         setError(hint);
         return;
@@ -261,7 +261,7 @@ function CoverUploadModal({
         </button>
         <p data-slot="docblocks/cover-upload-info" className="mt-2 text-xs text-muted-foreground">
           {mode === "tile"
-            ? t("attributes.coverInfoMinHeight", { min: COVER_MIN_TILE_HEIGHT_PX })
+            ? t("attributes.coverInfoMinHeight", { min: COVER_TILE_STRIP_HEIGHT_PX })
             : t("attributes.coverInfoMinWidth", { min: editorWidth })}
         </p>
         {error !== null ? (

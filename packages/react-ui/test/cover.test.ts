@@ -1,15 +1,23 @@
 // @vitest-environment jsdom
 // The cover's pure logic: the mode's read (the absent's stand is the tile),
 // the upload's validation over the `createImageBitmap`'s probe (the
-// strict's png/jpeg's MIME gate, the tile's minimum height, the centering's
-// minimum width over the editor width — the undecodable payload's and the
-// no-width's fail-open), and the tile's background stand (the crop over the
-// glue's decision). The modal's and the banner's contracts stand over the
-// component's spec (the panel's doc write and the sync stand over the
-// e2e's spec).
+// strict's png/jpeg/webp's MIME gate, the tile's minimum height, the
+// centering's minimum width over the editor width — the undecodable
+// payload's and the no-width's fail-open), the mode's switch's gate, the
+// per-mode background's stands (the tile's fixed strip, the centering's
+// centered slice), and the fade mask's curves. The modal's and the
+// banner's contracts stand over the component's spec (the panel's doc
+// write and the sync stand over the e2e's spec).
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { coverModeGating, coverModeOf, tileBackgroundStyle, validateCoverUpload } from "../src/attributes/cover";
+import {
+  centerBackgroundStyle,
+  coverFadeMask,
+  coverModeGating,
+  coverModeOf,
+  tileBackgroundStyle,
+  validateCoverUpload,
+} from "../src/attributes/cover";
 
 /** The decodable probe's stand: the `createImageBitmap`'s Promise settles
  *  over the resolve (the pure's flush — no React commit's stand). */
@@ -65,11 +73,17 @@ describe("the cover's pure logic", () => {
     expect(coverModeOf("banana")).toBe("tile");
   });
 
-  it("gates the upload's MIME (the strict's png/jpeg's stand)", async () => {
+  it("gates the upload's MIME (the strict's png/jpeg/webp's stand)", async () => {
     const gif = new File([new Uint8Array(4)], "x.gif", { type: "image/gif" });
     const svg = new File([new Uint8Array(4)], "x.svg", { type: "image/svg+xml" });
     expect(await validateCoverUpload(gif, "tile", 900)).toEqual({ ok: false, reason: "unsupported" });
     expect(await validateCoverUpload(svg, "center", 900)).toEqual({ ok: false, reason: "unsupported" });
+
+    // The webp's stand is accepted (the probe's dimensions settle the rest).
+    const webp = new File([new Uint8Array(4)], "x.webp", { type: "image/webp" });
+    const probe = stubDecodable();
+    probe.resolve(800, 200);
+    expect(await validateCoverUpload(webp, "tile", 900)).toEqual({ ok: true });
   });
 
   it("gates the tile's minimum height (the undecodable's fail-open)", async () => {
@@ -125,12 +139,37 @@ describe("the cover's pure logic", () => {
     });
   });
 
-  it("stands the tile's background over the intrinsic width (the crop over the glue)", () => {
-    const wide = tileBackgroundStyle({ width: 1200, height: 200 }, 964, "url");
-    expect(wide.backgroundRepeat).toBe("no-repeat");
-    expect(wide.height).toBe(200);
-    expect(wide.backgroundSize).toBe("auto 100%");
-    const narrow = tileBackgroundStyle({ width: 400, height: 200 }, 964, "url");
-    expect(narrow.backgroundRepeat).toBe("repeat-x");
+  it("stands the tile's background over the fixed strip (the height's constant)", () => {
+    const style = tileBackgroundStyle("url");
+    expect(style.height).toBe(150);
+    expect(style.backgroundSize).toBe("auto 150px");
+    expect(style.backgroundRepeat).toBe("repeat-x");
+    expect(style.backgroundPosition).toBe("center");
+    expect(style.backgroundImage).toBe('url("url")');
+  });
+
+  it("stands the centering's background over the centered slice (the width's scale)", () => {
+    // The wide image: the scaled height exceeds the cap — the slice stands the maximum.
+    const capped = centerBackgroundStyle({ width: 1200, height: 300 }, 964, "url");
+    expect(capped.height).toBe(150);
+    expect(capped.backgroundSize).toBe("100% auto");
+    expect(capped.backgroundRepeat).toBe("no-repeat");
+    expect(capped.backgroundPosition).toBe("center");
+    // The short image: the scaled height stands under the cap — its own.
+    const short = centerBackgroundStyle({ width: 1600, height: 100 }, 1000, "url");
+    expect(short.height).toBe(62.5);
+    // The no-layout's container keeps the maximum's fail-open.
+    expect(centerBackgroundStyle({ width: 1600, height: 100 }, 0, "url").height).toBe(150);
+  });
+
+  it("stands the fade mask's curves (the smooth's default)", () => {
+    expect(coverFadeMask()).toBe(coverFadeMask("smooth"));
+    expect(coverFadeMask("linear")).toBe("linear-gradient(to bottom, #000 calc(100% - 30px), transparent 100%)");
+    // The smooth's stand: the eased alpha's quarter's stops over the region.
+    const smooth = coverFadeMask("smooth");
+    expect(smooth).toContain("rgba(0, 0, 0, 0.5625) calc(100% - 22.5px)");
+    expect(smooth).toContain("rgba(0, 0, 0, 0.25) calc(100% - 15px)");
+    expect(smooth).toContain("rgba(0, 0, 0, 0.0625) calc(100% - 7.5px)");
+    expect(smooth).toContain("transparent 100%)");
   });
 });
