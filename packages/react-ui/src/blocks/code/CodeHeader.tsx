@@ -33,6 +33,7 @@ import {
 import { preventDefault } from "../../shared/utils";
 import { textOf } from "../TextBlock";
 import { requestCodeCaption } from "./CodeCaption";
+import { codeBlockHtmlOf } from "./code-clipboard";
 
 /**
  * The code block's header row: the language selector on the left (a
@@ -161,11 +162,28 @@ function CodeHeader({ id, block, center }: CodeHeaderProps) {
     doc.updateBlock(id, { language: value });
   };
 
-  /** Copy the block's plain text (the indentation stands, no numbers). */
+  /** Copy the block's content: the `text/html` payload (the rich paste's
+   * `PRE → code`'s stand — the plain payload's markdown pipeline's
+   * distortion's guard) + the `text/plain`'s fallback (the external app's
+   * stand — the behavior stands). The block's plain text (the indentation
+   * stands, no line numbers — the numbers are a rendered affordance, not
+   * text). */
   const onCopy = (): void => {
     void (async () => {
       try {
-        await navigator.clipboard.writeText(textOf(block.content));
+        const text = textOf(block.content);
+        if (typeof ClipboardItem !== "undefined") {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "text/html": new Blob([codeBlockHtmlOf(text, language)], { type: "text/html" }),
+              "text/plain": new Blob([text], { type: "text/plain" }),
+            }),
+          ]);
+        } else {
+          // The no-`ClipboardItem`'s engine (the legacy's stand): the
+          // plain payload only (the old behavior's stand).
+          await navigator.clipboard.writeText(text);
+        }
         setCopied(true);
         if (copyTimer.current !== null) window.clearTimeout(copyTimer.current);
         copyTimer.current = window.setTimeout(() => setCopied(false), 1500);

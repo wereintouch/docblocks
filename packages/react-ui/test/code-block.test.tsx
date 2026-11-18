@@ -197,6 +197,47 @@ describe("the code block header", () => {
     expect(writeText).toHaveBeenCalledWith("if a:\n\tb()");
   });
 
+  it("copies the html + plain's payload (the ClipboardItem's stand — the language's class over the code's element)", async () => {
+    const write = vi.fn().mockResolvedValue(undefined);
+    Object.assign(navigator, { clipboard: { write, writeText: vi.fn().mockResolvedValue(undefined) } });
+    // The `ClipboardItem`'s stand (the jsdom's absent stand — the component's
+    // gate reads the global's presence).
+    class ClipboardItemMock {
+      constructor(private readonly payloads: Record<string, Blob>) {}
+      get types(): string[] {
+        return Object.keys(this.payloads);
+      }
+      getType(type: string): Blob {
+        return this.payloads[type]!;
+      }
+    }
+    const globalRef = globalThis as { ClipboardItem?: unknown };
+    const previous = globalRef.ClipboardItem;
+    globalRef.ClipboardItem = ClipboardItemMock;
+    try {
+      renderCodeDoc((d) => {
+        d.insertText(d.insertBlock("code", { language: "python" }), 0, "if a:\n\tb()");
+      });
+      const copy = document.querySelector<HTMLElement>('[data-slot="docblocks/code-copy"]');
+      expect(copy).not.toBeNull();
+      act(() => {
+        fireEvent.click(copy as Element);
+      });
+      await waitFor(() => {
+        expect(document.querySelector("[data-slot='docblocks/code-copy'][data-copied='true']")).not.toBeNull();
+      });
+      expect(write).toHaveBeenCalledTimes(1);
+      const item = write.mock.calls[0]![0]![0] as ClipboardItemMock;
+      expect(item.types).toEqual(expect.arrayContaining(["text/html", "text/plain"]));
+      expect(await item.getType("text/plain").text()).toBe("if a:\n\tb()");
+      expect(await item.getType("text/html").text()).toBe(
+        '<pre><code class="language-python">if a:\n\tb()</code></pre>'
+      );
+    } finally {
+      globalRef.ClipboardItem = previous;
+    }
+  });
+
   it("toggles line numbers and wrap through the more menu (defaults ON, one updateBlock each)", () => {
     let code: BlockId = "";
     const doc = renderCodeDoc((d) => {
