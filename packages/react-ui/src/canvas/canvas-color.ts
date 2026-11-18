@@ -1,27 +1,26 @@
 /**
- * The figure's fill stand over the themes (the render-time's transform —
- * the data stands the source hex, no CRDT's write, no wire, no
- * persistence): the light theme stands the fixed hex's fill verbatim (the
- * fidelity's stand), the dark theme stands the LIGHT fixed fill darkened
- * (the dark corridor — the hue's stand, the lightness over the dark's
- * stand, the saturation's drop — the `#dae8fc`'s muted dark blue, the
- * `#FFFFFF`'s dark neutral); the already-dark's fills stand pass-through
- * (the white's text over the dark is the correct's stand). The non-hex's
- * stands (the `var()`'s token, the theme's default, the absence) stand
- * pass-through (the adaptive's theme's stand stands on its own).
+ * The canvas figure's data color stand over the themes (the render-time's
+ * transform — the data stands the source hex, no CRDT's write, no wire,
+ * no persistence): the light theme stands the fixed hex's value verbatim
+ * (the fidelity's stand), the dark theme stands the LIGHT fixed value
+ * darkened (the dark corridor — the hue's stand, the lightness over the
+ * dark's stand, the saturation's drop — the `#dae8fc`'s muted dark blue,
+ * the `#FFFFFF`'s dark neutral); the already-dark's values stand
+ * pass-through. The non-hex's stands (the `var()`'s token, the `none`'s
+ * value, the absence) stand pass-through (the adaptive's theme's stand
+ * stands on its own). The fill, the shape's stroke, and the connector's
+ * stroke stand the same transform (the parity); the explicit's `textColor`
+ * stands (the data's stand).
  *
  * The text's resolution: the explicit `textColor` stands (the data's
  * stand); otherwise the contrast over the EFFECTIVE fill (the fill's
  * dark-computed's stand) — the black / white over the better WCAG's
  * contrast; the non-hex's effective fill stands `null` (the theme's
- * foreground's inheritance's stand). The stroke stands pass-through over
- * every stand (the v1's documented's stand — the darkened fill's + the
- * existing's stroke's stand stays readable; the token's stroke is the
- * adaptive's stand on its own).
+ * foreground's inheritance's stand).
  */
 
-/** The relative luminance's threshold: over it the fill stands the light
- * (the dark's corridor's target); the dark's fills (under it) stand
+/** The relative luminance's threshold: over it the value stands the light
+ * (the dark's corridor's target); the dark's values (under it) stand
  * pass-through. */
 const LUMINANCE_THRESHOLD = 0.2;
 
@@ -131,20 +130,20 @@ function darkenHexHex(parts: HexParts): string {
 }
 
 /**
- * The effective fill (the render's stand): the dark theme's light fixed
- * fill stands the dark corridor's value; every other stand (the light's
- * theme, the dark's fill, the non-hex) stands verbatim (`undefined` stands
- * the no-fill's stand — the caller's `none`'s stand).
+ * The effective data color (the render's stand): the dark theme's light
+ * fixed hex stands the dark corridor's value; every other stand (the
+ * light's theme, the dark's value, the non-hex) stands verbatim
+ * (`undefined` stands the absence — the caller's default's stand).
  */
-export function effectiveFillOf(fill: string | undefined, isDark: boolean): string | undefined {
-  if (fill === undefined) return undefined;
+export function effectiveColorOf(value: string | undefined, isDark: boolean): string | undefined {
+  if (value === undefined) return undefined;
   if (isDark) {
-    const parts = parseHexFill(fill);
+    const parts = parseHexFill(value);
     if (parts !== null && relativeLuminance(parts.r, parts.g, parts.b) > LUMINANCE_THRESHOLD) {
       return darkenHexHex(parts);
     }
   }
-  return fill;
+  return value;
 }
 
 /**
@@ -155,7 +154,7 @@ export function effectiveFillOf(fill: string | undefined, isDark: boolean): stri
  * and the absent's fill.
  */
 export function contrastTextOf(fill: string | undefined, isDark: boolean): string | null {
-  const effective = effectiveFillOf(fill, isDark);
+  const effective = effectiveColorOf(fill, isDark);
   if (effective === undefined) return null;
   const parts = parseHexFill(effective);
   if (parts === null) return null;

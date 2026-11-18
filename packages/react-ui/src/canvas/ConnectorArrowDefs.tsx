@@ -13,8 +13,9 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
+import { useDarkTheme } from "../shared/dark-theme";
 import { ARROW_SIZE, CIRCLE_ENDPOINT_RADIUS } from "./connector-constants";
-import { arrowDefId, connectorStrokeOf } from "./connector-utils";
+import { arrowDefId, effectiveConnectorStrokeOf } from "./connector-utils";
 import { endpointOf } from "./geometry";
 
 function ConnectorArrowDefs({ id }: { id: BlockId }) {
@@ -26,6 +27,9 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
   // subscription would stand a re-render over every keystroke in the doc);
   // a stable stamp stands the memo (the attrs stand, the defs stay).
   const chromeStamp = useStore(store, (state) => state.chromeStamp);
+  // The document's dark theme's stand (the data color's render-time's
+  // transform — the flip's re-render of the defs' fills).
+  const isDark = useDarkTheme();
   const fills = useMemo(() => {
     if (surface === undefined || surface.type !== "surface") return null;
     const blocks = store.getState().blocks;
@@ -41,14 +45,14 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
       // would stand unused.
       if (endpointOf(block.attrs.start, childIds, blocks) === null) continue;
       if (endpointOf(block.attrs.end, childIds, blocks) === null) continue;
-      const stroke = connectorStrokeOf(block, selectedIds.includes(childId));
+      const stroke = effectiveConnectorStrokeOf(block, selectedIds.includes(childId), isDark);
       if ((block.attrs.arrowHead ?? "arrow") === "arrow") endFills.add(stroke);
       if (block.attrs.arrowStart === "arrow") startFills.add(stroke);
       if (block.attrs.arrowHead === "circle" || block.attrs.arrowStart === "circle") circleFills.add(stroke);
     }
     if (endFills.size === 0 && startFills.size === 0 && circleFills.size === 0) return null;
     return { endFills, startFills, circleFills };
-  }, [chromeStamp, selection, store, surface]);
+  }, [chromeStamp, isDark, selection, store, surface]);
   if (fills === null) return null;
   return (
     <svg

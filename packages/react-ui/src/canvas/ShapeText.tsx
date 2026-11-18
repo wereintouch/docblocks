@@ -6,10 +6,10 @@ import type { BlockId } from "docblocks-core";
 import { SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, textStyleOf } from "../canvas";
 import { useEditorContext } from "../editor-provider";
 import { useDarkTheme } from "../shared/dark-theme";
+import { contrastTextOf } from "./canvas-color";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
 import type { ShapeBlockView } from "./geometry";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./geometry";
-import { contrastTextOf } from "./shape-fill";
 
 /** The shape's narrowed block view (the attrs stand). */
 /** The shape's text padding (the figure's edge inset): the text wraps at

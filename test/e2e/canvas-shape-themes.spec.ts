@@ -40,6 +40,21 @@ async function seedThemesScene(page: Page): Promise<void> {
         }
       );
       doc.setGeometry(token, { x: -240, y: 80, w: 120, h: 60 });
+      const stroked = doc.insertBlock(
+        "shape",
+        { variant: "rect", stroke: "#E05243", strokeWidth: 4 },
+        {
+          parent: surface,
+        }
+      );
+      doc.setGeometry(stroked, { x: 40, y: 80, w: 120, h: 60 });
+      doc.insertBlock(
+        "connector",
+        { start: { blockId: light }, end: { blockId: dark }, strokeColor: "#dae8fc" },
+        {
+          parent: surface,
+        }
+      );
     });
   });
 }
@@ -52,9 +67,19 @@ async function shapesDataOf(page: Page): Promise<string> {
     if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
     const out: Record<string, unknown> = {};
     for (const [id, block] of Object.entries(doc.toJSON().blocks)) {
-      const entry = block as { type: string; attrs?: { fill?: unknown; textColor?: unknown; text?: unknown } };
+      const entry = block as {
+        type: string;
+        attrs?: { fill?: unknown; textColor?: unknown; text?: unknown; stroke?: unknown; strokeColor?: unknown };
+      };
       if (entry.type === "shape") {
-        out[id] = { fill: entry.attrs?.fill, textColor: entry.attrs?.textColor, text: entry.attrs?.text };
+        out[id] = {
+          fill: entry.attrs?.fill,
+          stroke: entry.attrs?.stroke,
+          textColor: entry.attrs?.textColor,
+          text: entry.attrs?.text,
+        };
+      } else if (entry.type === "connector") {
+        out[id] = { strokeColor: entry.attrs?.strokeColor };
       }
     }
     return JSON.stringify(out);
@@ -83,6 +108,20 @@ async function textColorOf(shape: ReturnType<typeof shapeByText>): Promise<strin
   return wrapper.evaluate((el) => getComputedStyle(el).color);
 }
 
+/** The shape's SVG's `g`'s stroke attr (the effective stroke's stand). */
+async function strokeOf(shape: ReturnType<typeof shapeByText>): Promise<string | null> {
+  return shape.locator("g").first().getAttribute("stroke");
+}
+
+/** The connector's line's stroke (the style's stand — the serialization's
+ * rgb's form over the hex's source). */
+async function connectorStrokeOf(page: Page, client: "a" | "b"): Promise<string> {
+  return page
+    .locator(`[data-testid="doc-${client}"] path[data-connector-id]`)
+    .first()
+    .evaluate((el) => (el as SVGPathElement).style.stroke);
+}
+
 async function setTheme(page: Page, dark: boolean): Promise<void> {
   await page.evaluate((d) => {
     if (d) document.documentElement.classList.add("dark");
@@ -101,11 +140,12 @@ test.describe("the figure's themes' stand (the render-time's fill / text's trans
 
       // The dark's stand (the harness's default — the `dark`'s class over
       // the html).
-      await expect(canvasView(a, "a").locator('[data-slot="docblocks/canvas-item"]')).toHaveCount(3);
+      await expect(canvasView(a, "a").locator('[data-slot="docblocks/canvas-item"]')).toHaveCount(5);
 
       const light = shapeByText(a, "a", "light");
       const dark = shapeByText(a, "a", "dark");
       const token = canvasView(a, "a").locator('[data-slot="docblocks/canvas-item"]').nth(2);
+      const stroked = canvasView(a, "a").locator('[data-slot="docblocks/canvas-item"]').nth(3);
 
       // The light fill's darkened's stand: not the source's hex, the
       // 6-digit's, the dark's (the luminance's under).
@@ -124,6 +164,17 @@ test.describe("the figure's themes' stand (the render-time's fill / text's trans
       // The token's fill stands verbatim (the adaptive's stand on its own).
       expect(await fillOf(token)).toBe("var(--docblocks-palette-blue)");
 
+      // The shape's fixed's light stroke stands the darkened's value (the
+      // fill's parity — the same transform over the stroke).
+      const lightStroke = (await strokeOf(stroked))!;
+      expect(lightStroke).not.toBe("#E05243");
+      expect(lightStroke).toMatch(/^#[0-9a-f]{6}$/);
+
+      // The connector's data stroke stands the darkened's value (the
+      // line's parity — the source hex's rgb's under).
+      const darkStroke = await connectorStrokeOf(a, "a");
+      expect(darkStroke).not.toBe("rgb(218, 232, 252)");
+
       // The data's stand before the flip (the no-write's pin).
       const before = await shapesDataOf(a);
 
@@ -135,11 +186,16 @@ test.describe("the figure's themes' stand (the render-time's fill / text's trans
       expect(await textColorOf(light)).toBe("rgb(0, 0, 0)");
       expect(await fillOf(dark)).toBe("#1a1a1a");
       expect(await textColorOf(dark)).toBe("rgb(255, 0, 0)");
+      // The stroke / the connector stand verbatim over the light theme.
+      expect(await strokeOf(stroked)).toBe("#E05243");
+      expect(await connectorStrokeOf(a, "a")).toBe("rgb(218, 232, 252)");
 
       // The back's flip (the darkened's stand).
       await setTheme(a, true);
       expect(await fillOf(light)).not.toBe("#dae8fc");
       expect(await textColorOf(light)).toBe("rgb(255, 255, 255)");
+      expect(await strokeOf(stroked)).not.toBe("#E05243");
+      expect(await connectorStrokeOf(a, "a")).not.toBe("rgb(218, 232, 252)");
 
       // The data's stand (no CRDT's write, no wire, no persistence).
       expect(await shapesDataOf(a)).toBe(before);

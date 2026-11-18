@@ -3,9 +3,9 @@ import type { ReactElement } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useDarkTheme } from "../shared/dark-theme";
+import { effectiveColorOf } from "./canvas-color";
 import type { ShapeBlockView } from "./geometry";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./geometry";
-import { effectiveFillOf } from "./shape-fill";
 
 /** The shape block as seen by the renderer (the geometry-carrying union member). */
 /** The v1 shape defaults (the theme token + sane numbers; the block attrs override). */
@@ -32,14 +32,14 @@ const DASH_PATTERN: Record<"dash" | "dot", string> = {
  */
 function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?: { w: number; h: number } }) {
   const attrs = block.attrs;
-  // The figure's fill's themes' stand (the render-time's transform — the
-  // data stands the source hex): the dark theme's light fixed fill stands
-  // the dark corridor's value (the `#dae8fc`'s muted dark blue's stand),
-  // the light theme / the dark's fill / the non-hex stand verbatim (the
-  // fidelity's / the adaptive's stands). The stroke stands pass-through
-  // over every stand (the v1's documented's stand).
+  // The figure's data colors' themes' stand (the render-time's transform
+  // — the data stands the source hex): the dark theme's light fixed
+  // fill / stroke stand the dark corridor's value (the `#dae8fc`'s
+  // muted dark blue's stand), the light theme / the dark's values / the
+  // non-hex stand verbatim (the fidelity's / the adaptive's stands).
   const isDark = useDarkTheme();
-  const fill = effectiveFillOf(attrs?.fill, isDark) ?? "none";
+  const fill = effectiveColorOf(attrs?.fill, isDark) ?? "none";
+  const stroke = effectiveColorOf(attrs?.stroke ?? DEFAULT_STROKE, isDark);
   // The effective box (the resize preview's live box when in flight; the
   // committed geometry otherwise): the viewBox and the figure stand from it,
   // so the shape redraws box-proportional in real time — no letterbox
@@ -121,7 +121,7 @@ function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?
       }}
     >
       <g
-        stroke={attrs?.stroke ?? DEFAULT_STROKE}
+        stroke={stroke}
         strokeWidth={strokeWidth}
         fill={fill}
         strokeDasharray={dash}

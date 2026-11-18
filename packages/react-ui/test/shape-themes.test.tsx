@@ -37,7 +37,8 @@ async function waitForDarkStore(dark: boolean): Promise<void> {
   });
 }
 
-function seedScene(doc: TestDoc): void {
+function seedScene(doc: TestDoc): { line: string } {
+  let line = "";
   doc.transact(() => {
     const surface = doc.insertBlock("surface");
     doc.setGeometry(surface, { x: 0, y: 0, w: 800, h: 400 });
@@ -57,18 +58,34 @@ function seedScene(doc: TestDoc): void {
       }
     );
     doc.setGeometry(token, { x: 0, y: 100, w: 120, h: 60 });
+    const stroked = doc.insertBlock(
+      "shape",
+      { variant: "rect", stroke: "#E05243", strokeWidth: 4 },
+      {
+        parent: surface,
+      }
+    );
+    doc.setGeometry(stroked, { x: 200, y: 100, w: 120, h: 60 });
+    line = doc.insertBlock(
+      "connector",
+      { start: { blockId: light }, end: { blockId: dark }, strokeColor: "#dae8fc" },
+      {
+        parent: surface,
+      }
+    );
   });
+  return { line };
 }
 
 function renderEditor() {
   const doc = createDoc({ id: "shape-themes", createdAt: CREATED_AT });
-  seedScene(doc);
+  const { line } = seedScene(doc);
   render(
     <EditorProvider doc={doc}>
       <Editor view="canvas" />
     </EditorProvider>
   );
-  return doc;
+  return { doc, line };
 }
 
 /** The shape's SVG's `g`'s fill attr (the effective fill's stand). */
@@ -88,10 +105,10 @@ afterEach(() => {
 });
 
 describe("the figure's themes' stand (the render-time's fill / text's transform)", () => {
-  it("the light theme stands the fixed fill verbatim (the fidelity's stand) + the black's text over the light fill", async () => {
+  it("the light theme stands the fixed fill / stroke verbatim (the fidelity's stand) + the black's text over the light fill", async () => {
     setDark(false);
     await waitForDarkStore(false);
-    renderEditor();
+    const { line } = renderEditor();
 
     // The `#dae8fc`'s shape (the text's "light").
     const lightShape = screen.getByText("light").closest('[data-slot="docblocks/canvas-item"]');
@@ -106,12 +123,21 @@ describe("the figure's themes' stand (the render-time's fill / text's transform)
     const world = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-world"]')!;
     const fills = Array.from(world.children).map(fillOf);
     expect(fills).toContain("var(--docblocks-palette-blue)");
+
+    // The fixed's stroke stands verbatim over the light theme (the
+    // data's stand) — the 4th's item (the z-order's order).
+    const g = document.querySelectorAll('[data-slot="docblocks/canvas-item"]')[3]!.querySelector("g")!;
+    expect(g.getAttribute("stroke")).toBe("#E05243");
+    // The connector's data stroke stands verbatim over the light theme
+    // (the style's stand — the serialization's rgb's form).
+    const path = document.querySelector<SVGPathElement>(`path[data-connector-id="${line}"]`)!;
+    expect(path.style.stroke).toBe("rgb(218, 232, 252)");
   });
 
-  it("the dark theme stands the light fixed fill darkened (the muted's stand) + the white's text over the effective fill", async () => {
+  it("the dark theme stands the light fixed fill / stroke darkened (the muted's stand) + the white's text over the effective fill", async () => {
     setDark(true);
     await waitForDarkStore(true);
-    renderEditor();
+    const { line } = renderEditor();
 
     const lightShape = screen.getByText("light").closest('[data-slot="docblocks/canvas-item"]');
     expect(lightShape).not.toBeNull();
@@ -124,6 +150,20 @@ describe("the figure's themes' stand (the render-time's fill / text's transform)
 
     // The white's text over the effective (darkened's) fill.
     expect(textColorOf(lightShape!)).toBe("rgb(255, 255, 255)");
+
+    // The fixed's light stroke stands the dark corridor's value (the
+    // fill's parity — the same transform).
+    const g = document.querySelectorAll('[data-slot="docblocks/canvas-item"]')[3]!.querySelector("g")!;
+    const stroke = g.getAttribute("stroke");
+    expect(stroke).not.toBe("#E05243");
+    expect(stroke).toMatch(/^#[0-9a-f]{6}$/);
+
+    // The connector's data stroke stands the darkened's value over the
+    // dark theme (the line's parity — the darkened's rgb's stand).
+    const path = document.querySelector<SVGPathElement>(`path[data-connector-id="${line}"]`)!;
+    expect(path.style.stroke).not.toBe("rgb(218, 232, 252)");
+    const strokeRgb = path.style.stroke.match(/rgb\((\d+), (\d+), (\d+)\)/);
+    expect(strokeRgb !== null ? Number.parseInt(strokeRgb[1]!, 10) : 255).toBeLessThan(100);
   });
 
   it("the dark theme stands the explicit textColor's data's stand (over the contrast's resolution)", async () => {
@@ -142,7 +182,7 @@ describe("the figure's themes' stand (the render-time's fill / text's transform)
   it("the flip re-renders the figures (the no-data's stand — the doc's JSON unchanged)", async () => {
     setDark(false);
     await waitForDarkStore(false);
-    const doc = renderEditor();
+    const { doc, line } = renderEditor();
     const before = JSON.stringify(doc.toJSON());
 
     const lightShape = screen.getByText("light").closest('[data-slot="docblocks/canvas-item"]')!;
@@ -159,6 +199,8 @@ describe("the figure's themes' stand (the render-time's fill / text's transform)
     setDark(false);
     await waitForDarkStore(false);
     expect(fillOf(lightShape)).toBe("#dae8fc");
+    const path = document.querySelector<SVGPathElement>(`path[data-connector-id="${line}"]`)!;
+    expect(path.style.stroke).toBe("rgb(218, 232, 252)");
 
     // The data's stand (no CRDT's write, no wire, no persistence).
     expect(JSON.stringify(doc.toJSON())).toBe(before);

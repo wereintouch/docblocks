@@ -24,8 +24,8 @@ import type { ReactNode } from "react";
 import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
-import { CONNECTOR_SELECTED_STROKE, CONNECTOR_STROKE } from "../connector-constants";
-import { connectorStrokeWidthOf } from "../connector-utils";
+import { useDarkTheme } from "../../shared/dark-theme";
+import { connectorStrokeWidthOf, effectiveConnectorStrokeOf } from "../connector-utils";
 import { connectorMidpoint } from "../geometry";
 import { type CanvasSession, useChipsPreviews } from "../viewport";
 import { ConnectorLabelChip } from "./ConnectorLabelChip";
@@ -90,6 +90,9 @@ function ConnectorLabelChips({
   // re-render over every keystroke in the doc); a stable stamp stands the
   // memo.
   const chromeStamp = useStore(store, (state) => state.chromeStamp);
+  // The document's dark theme's stand (the data color's render-time's
+  // transform — the flip's re-render of the chips' frames).
+  const isDark = useDarkTheme();
   const previews = useChipsPreviews();
   const stands = useMemo<LabelStand[]>(() => {
     const blocks = store.getState().blocks;
@@ -100,11 +103,7 @@ function ConnectorLabelChips({
       const label = block.attrs.label ?? "";
       if (label === "" || cid === skipId) continue;
       const selected = selectedIds.includes(cid);
-      const stroke = selected
-        ? CONNECTOR_SELECTED_STROKE
-        : block.attrs.strokeColor === undefined || block.attrs.strokeColor === "none"
-          ? CONNECTOR_STROKE
-          : block.attrs.strokeColor;
+      const stroke = effectiveConnectorStrokeOf(block, selected, isDark);
       result.push({
         id: cid,
         label,
@@ -116,7 +115,7 @@ function ConnectorLabelChips({
       });
     }
     return result;
-  }, [chromeStamp, children, selectedIds, skipId, store]);
+  }, [chromeStamp, children, isDark, selectedIds, skipId, store]);
   // The per-label midpoint's cache (the component's ref): the touch
   // signature's stand (the label's endpoints over the previewed set + the
   // preview's values) — the untouched label's midpoint stands over the

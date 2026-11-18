@@ -27,6 +27,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
+import { useDarkTheme } from "../shared/dark-theme";
 import { useBlockContext } from "../shared/providers/block-context";
 import { HIT_BOX_PAD_PX, HIT_STROKE_WIDTH } from "./connector-constants";
 import { connectorLineOf, hitBoxOf } from "./connector-line";
@@ -59,6 +60,9 @@ function ConnectorLine({ id, interactive = true }: { id: BlockId; interactive?: 
   // per line per store notification); a stable stamp stands the memo (the
   // geometry stands, the content element stays — no svg reconciliation).
   const chromeStamp = useStore(store, (state) => state.chromeStamp);
+  // The document's dark theme's stand (the line's data color's
+  // render-time's transform — the flip's re-render).
+  const isDark = useDarkTheme();
   const content = useMemo(
     () =>
       block === undefined || block.type !== "connector"
@@ -71,9 +75,10 @@ function ConnectorLine({ id, interactive = true }: { id: BlockId; interactive?: 
             store.getState().blocks,
             selected,
             interactive,
-            session
+            session,
+            isDark
           ),
-    [block, chromeStamp, context.parentId, context.siblings, id, interactive, selected, session, store]
+    [block, chromeStamp, context.parentId, context.siblings, id, interactive, isDark, selected, session, store]
   );
   if (content === null) return null;
   // The hit path's svg's box (the path's bbox over the pad — the hit
