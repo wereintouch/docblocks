@@ -1,6 +1,0 @@
----
-"docblocks-react-ui": minor
-"docblocks-core": minor
----
-
-The mermaid diagram preview's viewport (the `./mermaid` subpath): the diagram now renders over a pan/zoom viewport — the `ctrl`/`cmd` + wheel's zoom at the cursor (0.25–4x), the plain wheel's vertical pan, the drag's pan, and the hover toolbar (zoom in / out, the percent label, the fit-to-view button, the reset) over the diagram. The fit stands the diagram into the visible viewport (capped at 100% — the small diagram stands its natural size, centered); the reset restores the default view. The view persists over the code block's new optional `zoom` / `panX` / `panY` attrs (the null idiom — the reload restores the view, the panes share it over the wire; the persisted coordinate stands the clamped stand — the sub-wrapper content's centering offset is the identity's canonical coordinate, so the peer's adopt stands the no-write parity). The bottom-edge's resize (the editing mode's stand) stretches / clips the diagram's height over the new optional `height` attr (absent = the diagram's natural's height — the auto's stand; the drag's linear stand over the pointer delta, the keyboard's step per press). The attrs are additive over the `code` block's schema; the code mode stands the attrs inert.

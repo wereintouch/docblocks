@@ -1,5 +1,108 @@
 # docblocks-react-ui
 
+## 0.12.0
+
+### Minor Changes
+
+- 086e514: The canvas figure's fill stand over the themes (the render-time's transform,
+  no document data change): the light theme stands the fixed-hex fill verbatim
+  (import fidelity), the dark theme stands the light fixed fill darkened (the
+  dark corridor — the hue kept, the lightness over the dark, the saturation
+  reduced; dark fills pass through; palette-token fills are unchanged in both
+  themes). The figure text without an explicit `textColor` resolves the
+  contrast against the effective fill (black or white by the better WCAG
+  contrast; an explicit `textColor` always wins). The dark-class flip
+  re-renders the figures with no wire writes and no document-state mutation;
+  the strokes pass through unchanged.
+- 43e2183: The canvas figure's stroke and the connector's line color stand the same
+  themes' transform as the fill (the render-time's dark corridor): over the
+  dark theme a light fixed-hex `stroke` (the shape's border) and `strokeColor`
+  (the connector's line, the arrowheads, and the label chip's frame) stand the
+  darkened's value; dark values and the theme tokens pass through, and the
+  light theme stands the data verbatim. The document keeps the source hex (no
+  wire writes, no persistence).
+- d97a429: The floating format toolbar's color palette (the text's `color` / the
+  background's `highlight` target) stands the reset's affordance: a cross
+  button after all the palette's swatches clears the active target's mark
+  (`unsetMark`). The other palettes (the callout's background, the table's
+  handles, the canvas's fill / stroke) keep the transparent's "no color"
+  swatch.
+- acb03c6: The mermaid diagram preview's viewport (the `./mermaid` subpath): the diagram now renders over a pan/zoom viewport — the `ctrl`/`cmd` + wheel's zoom at the cursor (0.25–4x), the plain wheel's vertical pan, the drag's pan, and the hover toolbar (zoom in / out, the percent label, the fit-to-view button, the reset) over the diagram. The fit stands the diagram into the visible viewport (capped at 100% — the small diagram stands its natural size, centered); the reset restores the default view. The view persists over the code block's new optional `zoom` / `panX` / `panY` attrs (the null idiom — the reload restores the view, the panes share it over the wire; the persisted coordinate stands the clamped stand — the sub-wrapper content's centering offset is the identity's canonical coordinate, so the peer's adopt stands the no-write parity). The bottom-edge's resize (the editing mode's stand) stretches / clips the diagram's height over the new optional `height` attr (absent = the diagram's natural's height — the auto's stand; the drag's linear stand over the pointer delta, the keyboard's step per press). The attrs are additive over the `code` block's schema; the code mode stands the attrs inert.
+
+### Patch Changes
+
+- The shape and canvas-text toolbars' text color section stands the reset's
+  cross — the none's button over the row's tail (the after-all-the-colors'
+  position, the page's format palette's parity): the active stand over the
+  `textColor`'s set, the inert stand over the unset color (the pick is a
+  no-op). The pick removes the `textColor` attr over the core's
+  `removeBlockAttr` (one transact, one undo step) and returns the text to
+  the no-color's stand — the contrast's resolution over the effective fill
+  (or the theme's foreground when the fill stands none) — in the shape and
+  the canvas-text alike. The color's sections keep the transparent swatch's
+  none over the fill / stroke / line / label palettes (their data's "none"
+  stand) — the cross is the text color's affordance only.
+- 049735e: The canvas-text's figure stands the side insets from the box's edges
+  (the shape's text's padding parity — the rect's 8 px x): the item's
+  wrapper carries the horizontal padding inside the box (the border-box's
+  stand — the selection's frame and the item's geometry are unmoved, the
+  text's wrap width stands the inset's width). The double-click's ghost
+  stands the same inset (the commit's visual continuity — the typed text
+  stands where the committed text stands).
+- 64abd94: Improved the canvas view's re-render contract for large canvases (several
+  thousands of figures and connectors): the viewport state (the in-flight
+  session's previews — the move / the resize, the connector endpoint's
+  drag, the keyboard focus) stands in a per-view zustand store, and the
+  canvas items / connector lines / port dots / label chips subscribe to
+  their own narrow slices (a pointermove re-renders only the items and the
+  lines the preview touches, never the resting surface). The surfaces'
+  chrome re-render keys over a structural chrome stamp (a content-only
+  change stands no re-render of the chrome). The off-viewport items stand
+  no DOM of their own (the viewport's culling over the visible world rect
+  + the 300px margin — the off-viewport figures / connectors mount / unmount
+  over the pan's bring-in / take-out; the in-flight session's items stand
+  un-culled). The canvas view's module set stands split by responsibility
+  (the world assembly, the world-space overlays, the screen-space chrome,
+  the selection's overlay, the per-line / per-item math).
+- 9efe1d4: Fixed the code block's caption line losing the focus (and the empty line
+  unmounting) over a press of the caption's button while a caret stood in
+  the code: the page container's stranded-caret re-seat mistook the form
+  control's focus residue (the document selection standing a collapsed caret
+  at a container position while the input holds the focus) for a stranded
+  caret and re-seated it into the block on every frame, blurring the
+  just-seated input. The re-seat now stands no while a form control inside
+  the container holds the focus (the control's landing stands a genuine
+  one).
+- de984b6: The code block's copy button now copies the `text/html` payload (the `PRE`
+  over the code's child, the `language-*` class on the `code` element) plus
+  the `text/plain` fallback — the paste into a text block materializes the
+  code block verbatim through the rich pipeline (the plain payload's
+  markdown pipeline stood the distortion: the newlines collapsed, the
+  indentation lost, the markdown-flavored lines re-blocked — the `---` to
+  the divider, the `# x` to the heading, …). The rich pipeline now reads
+  the `language-*` class back over the `PRE`'s materialization (the
+  language's round-trip's stand — over the `PRE`'s own class or the
+  `code`'s child's, the producer's convention's positions); the paste into
+  the code block keeps the plain payload's stand (the `plainWins`'s gate),
+  and the external apps receive the plain fallback unchanged (the legacy
+  engines without `ClipboardItem` stand the plain write).
+- 7b7917c: The link's click over the edit's mode: the browser cancels the anchor's
+  navigation default inside the contenteditable (the caret's seat stands),
+  so a clicked link stood dead — the editor now opens the href itself over
+  the new tab's stand (`noopener,noreferrer`, the `window.open`'s
+  gesture's call) — the edit and the view's modes stand the same contract
+  (the reader's same-tab's carry-away's off), the editor's state stands
+  untouched (the caret's seat and the focus are the mousedown's default's
+  work — preserved; no write, no navigation). A press-drag over the link
+  (the selection's gesture) stands no open (the down/click distance's
+  guard); the modified clicks and the middle-click stand the browser's
+  native stands; the rendered anchor stands `rel="noopener noreferrer"`
+  (the native open's security's parity).
+- Updated dependencies [75e6caa]
+- Updated dependencies
+- Updated dependencies [acb03c6]
+  - docblocks-core@0.5.0
+
 ## 0.11.0
 
 ### Minor Changes
