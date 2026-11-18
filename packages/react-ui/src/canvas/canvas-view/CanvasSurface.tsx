@@ -7,6 +7,7 @@
  * session's hooks + the target's reads; this component is the paint. */
 import { useTranslation } from "react-i18next";
 
+import { useMemo } from "react";
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
@@ -58,6 +59,7 @@ function CanvasSurface({
   pageCardSelected,
   pageCardDisplayStyle,
   surfaces,
+  culling,
   storeSelection,
   blocks,
   viewMode,
@@ -85,6 +87,7 @@ function CanvasSurface({
   pageCardSelected: boolean;
   pageCardDisplayStyle: CSSProperties;
   surfaces: { id: BlockId; children: BlockId[] }[];
+  culling: Set<BlockId> | null;
   storeSelection: Selection | null;
   blocks: Record<BlockId, Block>;
   viewMode: boolean;
@@ -120,6 +123,18 @@ function CanvasSurface({
     event.preventDefault();
     beginEndpointDrag(connectorToolbarTarget.id, which, event.pointerId, event.clientX, event.clientY);
   };
+  // The viewport's culling (the off-viewport items' stand — no DOM of
+  // their own): the surfaces' children filtered over the visible set
+  // (the referentially stable stand over the unchanged set — the
+  // SurfaceLayer's memo holds over the pan's re-renders). `null` = no
+  // cull (the unknown container size's stand).
+  const visibleSurfaces = useMemo(
+    () =>
+      culling === null
+        ? surfaces
+        : surfaces.map(({ id, children }) => ({ id, children: children.filter((childId) => culling.has(childId)) })),
+    [surfaces, culling]
+  );
   return (
     <div
       data-slot="docblocks/canvas-view"
@@ -187,7 +202,7 @@ function CanvasSurface({
             <BlockGroups ids={pageChildren} />
           </BlockContext.Provider>
         </ScrollArea>
-        {surfaces.map(({ id, children }) => (
+        {visibleSurfaces.map(({ id, children }) => (
           <SurfaceLayer key={id} id={id} children={children} pendingConnector={viewport.pendingConnector} />
         ))}
         {/* The connector label chips (the shared chip's display stand):
@@ -195,7 +210,7 @@ function CanvasSurface({
           background over the line's own frame (the chip stands always,
           not only in the edit). The
           editing one stands off (its edit chip stands it). */}
-        {surfaces.map(({ id, children }) => (
+        {visibleSurfaces.map(({ id, children }) => (
           <ConnectorLabelChips
             key={`label-chips-${id}`}
             children={children}

@@ -44,9 +44,15 @@ async function seedWideScene(page: Page): Promise<void> {
     });
   });
   // The canvas items render only in the canvas view (the page view filters
-  // the surface out), so the seed's stand is asserted there.
+  // the surface out), so the seed's stand is asserted there. The count
+  // stands over the doc's data (the wide scene's items stand off-viewport
+  // over the fit's minimum zoom — the viewport's culling stands them no
+  // DOM of their own).
   await toCanvas(page, "a");
-  await expect(page.locator(`[data-testid="doc-a"] [data-slot="docblocks/canvas-item"]`)).toHaveCount(2);
+  const shapes = await page.evaluate(() =>
+    Object.values(window.__paneDocs?.a?.toJSON().blocks ?? {}).filter((b) => b.type === "shape").length
+  );
+  expect(shapes).toBe(2);
 }
 
 /** The zoom's step up (the toolbar's zoom-in — a deterministic stand change). */

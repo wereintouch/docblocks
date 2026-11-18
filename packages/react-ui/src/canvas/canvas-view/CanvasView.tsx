@@ -15,6 +15,7 @@ import { useEditorContext } from "../../editor-provider";
 import { useBlock } from "../../hooks";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
 import { CanvasSurface } from "./CanvasSurface";
+import { useCanvasCulling } from "./culling";
 import type { CanvasPointerSession } from "./models";
 import { useCanvasFit } from "./use-canvas-fit";
 import { useCanvasKeys } from "./use-canvas-keys";
@@ -96,6 +97,13 @@ function CanvasView() {
     previewEnd,
     hoverSnapPoint,
   } = useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, rootBlockId });
+
+  // The viewport's culling (the off-viewport items' stand — no DOM of
+  // their own): the visible ids over the surfaces' children, the
+  // referentially stable stand over the unchanged content (the pan's
+  // re-render holds the surfaces' memo). The page miniature stands
+  // un-culled (the card is the document's stand, not a surface's item).
+  const culling = useCanvasCulling(containerRef, viewport, surfaces, blocks);
 
   if (root === undefined) return null;
 
@@ -190,6 +198,7 @@ function CanvasView() {
           pageCardSelected={pageCardSelected}
           pageCardDisplayStyle={pageCardDisplayStyle}
           surfaces={surfaces}
+          culling={culling}
           storeSelection={storeSelection}
           blocks={blocks}
           viewMode={viewMode}
