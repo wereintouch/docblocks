@@ -179,6 +179,23 @@ interface CodeAttrs {
   wrap?: boolean;
   /** The mermaid view mode (default "code"). */
   mermaidMode?: "code" | "preview";
+  /**
+   * The diagram viewport's persisted zoom (the scale factor; 1 = 100%).
+   * The mermaid preview's stand — the plain code's rendering stands it
+   * inert. Absent or `null` = the identity (the null idiom — attrs are
+   * never removed).
+   */
+  zoom?: number | null;
+  /** The diagram viewport's persisted horizontal pan offset (px); absent or `null` = 0. */
+  panX?: number | null;
+  /** The diagram viewport's persisted vertical pan offset (px); absent or `null` = 0. */
+  panY?: number | null;
+  /**
+   * The diagram viewport's height (px). Absent or `null` = the diagram's
+   * natural's height (the auto's stand); a set value stands the clipped
+   * window (the pan/zoom's viewport over the large diagram's stand).
+   */
+  height?: number | null;
   /** Nesting depth in the page sequence (default 0). */
   indent?: PageIndent;
 }

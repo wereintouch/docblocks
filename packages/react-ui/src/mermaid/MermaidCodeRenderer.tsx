@@ -19,6 +19,7 @@ import { useEditorContext } from "../editor-provider";
 import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { CodeXml, Eye } from "../shared/ui/icons";
 import { MermaidDiagram } from "./MermaidDiagram";
+import { MermaidViewport } from "./MermaidViewport";
 
 function MermaidModeSelector({ id, block }: { id: BlockId; block: CodeBlock }) {
   const { doc } = useEditorContext();
@@ -68,10 +69,12 @@ function MermaidCodeBlock({ id, block }: { id: BlockId; block: CodeBlock }) {
       codeBodyHidden={mode === "preview"}
       nested={
         mode === "preview" ? (
-          <>
+          // The preview's viewport (the pan/zoom + the resizable height's
+          // stand — the persisted view's idiom over the block's attrs).
+          <MermaidViewport id={id} block={block}>
             <MermaidDiagram id={id} text={textOf(block.content)} />
             {nested}
-          </>
+          </MermaidViewport>
         ) : (
           nested
         )

@@ -68,6 +68,17 @@ const BLOCK_REGISTRY: Record<BlockType, BlockSpec> = {
       lineNumbers: { kind: "boolean" },
       wrap: { kind: "boolean" },
       mermaidMode: { kind: "enum", values: ["code", "preview"] },
+      // The diagram viewport's persisted view (the mermaid preview's
+      // pan/zoom the renderer restores over the reload; the plain code's
+      // rendering stands them inert). Null (or absent) = the identity (the
+      // null idiom — attrs are never removed, null = "view cleared").
+      zoom: { kind: "nullable-number", positive: true },
+      panX: { kind: "nullable-number" },
+      panY: { kind: "nullable-number" },
+      // The diagram viewport's stretched height (px): the mermaid
+      // preview's clipped stand (the pan/zoom's window); absent or null =
+      // the diagram's natural's height (the auto's stand).
+      height: { kind: "nullable-number", positive: true },
     },
   },
   table: {

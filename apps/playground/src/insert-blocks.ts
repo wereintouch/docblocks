@@ -15,6 +15,7 @@ const INSERTABLE_TYPES = [
   "list-item",
   "code",
   "code-mermaid",
+  "code-mermaid-large",
   "table",
   "image",
   "embed",
@@ -39,6 +40,29 @@ const EMBED_SRC = "data:text/html," + encodeURIComponent("<html><body><p>embedde
 
 /** The seed diagram the harness inserts with a mermaid code block (harness convenience; the user edits it in the block). */
 const MERMAID_SEED = "graph TD\n A --> B";
+
+/** The tall's multi-branch graph the harness inserts with the `code-mermaid-large` type (the large diagram's evaluation's stand — the viewport's pan/zoom + the height's resize). */
+const MERMAID_SEED_LARGE = `graph TD
+  A[User story] --> B{Priority?}
+  B -->|High| C[Design review]
+  B -->|Low| D[Backlog]
+  C --> E[Implementation]
+  D --> E
+  E --> F{Code review?}
+  F -->|Pass| G[Integration]
+  F -->|Fail| E
+  G --> H{QA?}
+  H -->|Pass| I[Release candidate]
+  H -->|Fail| J[Bug triage]
+  J --> E
+  I --> K[Rollout plan]
+  K --> L[Deploy: staging]
+  L --> M[Smoke tests]
+  M --> N[Deploy: production]
+  N --> O[Monitoring]
+  O --> P{Incident?}
+  P -->|No| Q[Done]
+  P -->|Yes| J`;
 
 /** The fixed unknown docId the broken sync-embed option references. */
 const MISSING_MASTER_ID = "missing-master";
@@ -513,7 +537,8 @@ const blobStore: BlobStore = {
 /**
  * Insert one block of `type` at the root with the harness attrs (heading
  * level 2, list-item bullet, code language "ts", code-mermaid a code block
- * with language "mermaid" and the seed diagram, image the
+ * with language "mermaid" and the seed diagram (code-mermaid-large the
+ * tall's multi-branch graph), image the
  * fixed key, embed the fixed data: URL, sync-embed the ref to the pane's
  * master doc (the subtree variant narrows it to the seeded subtree
  * paragraph, the broken one a fixed unknown docId); a table comes
@@ -536,6 +561,10 @@ function insertBlockOf(type: InsertableType, doc: Doc, masterDocId: string): Blo
       case "code-mermaid":
         id = doc.insertBlock("code", { language: "mermaid" });
         doc.insertText(id, 0, MERMAID_SEED);
+        break;
+      case "code-mermaid-large":
+        id = doc.insertBlock("code", { language: "mermaid" });
+        doc.insertText(id, 0, MERMAID_SEED_LARGE);
         break;
       case "image":
         id = doc.insertBlock("image", { src: IMAGE_KEY });
