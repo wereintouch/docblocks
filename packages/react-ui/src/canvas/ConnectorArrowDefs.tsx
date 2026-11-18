@@ -15,19 +15,17 @@ import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { ARROW_SIZE, CIRCLE_ENDPOINT_RADIUS } from "./connector-constants";
 import { arrowDefId, connectorStrokeOf } from "./connector-utils";
-import { endpointOf, surfaceChromeKey } from "./geometry";
+import { endpointOf } from "./geometry";
 
 function ConnectorArrowDefs({ id }: { id: BlockId }) {
   const { store } = useEditorContext();
   const selection = useStore(store, (state) => state.selection);
   const surface = useBlock(id);
   // The defs' fills stand over the connectors' attrs + the selection: the
-  // chrome digest keys the fills memo (the whole-map subscription would
-  // stand a re-render over every keystroke in the doc); a stable digest
-  // stands the memo (the attrs stand, the defs stay).
-  const chromeKey = useStore(store, (state) =>
-    surfaceChromeKey(state.blocks, surface !== undefined && "children" in surface ? (surface.children ?? []) : [])
-  );
+  // chrome stamp keys the fills memo (an O(1) read — the whole-map
+  // subscription would stand a re-render over every keystroke in the doc);
+  // a stable stamp stands the memo (the attrs stand, the defs stay).
+  const chromeStamp = useStore(store, (state) => state.chromeStamp);
   const fills = useMemo(() => {
     if (surface === undefined || surface.type !== "surface") return null;
     const blocks = store.getState().blocks;
@@ -50,7 +48,7 @@ function ConnectorArrowDefs({ id }: { id: BlockId }) {
     }
     if (endFills.size === 0 && startFills.size === 0 && circleFills.size === 0) return null;
     return { endFills, startFills, circleFills };
-  }, [chromeKey, selection, store, surface]);
+  }, [chromeStamp, selection, store, surface]);
   if (fills === null) return null;
   return (
     <svg

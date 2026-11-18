@@ -113,6 +113,18 @@ interface EditorState {
    * only the stamp's subscribers re-render over the changes.
    */
   changeStamp: number;
+  /**
+   * The canvas-chrome stamp: bumped only when a block's CHROME fields
+   * (the `type`, the `geometry`, the `attrs`, the `children` — the
+   * figures' boxes, the port dots' data, the connectors' line attrs, the
+   * surface's structure) change or a block is added / removed — never
+   * on a content-only change of an unchanged shape (a keystroke in a
+   * figure's text). The canvas chrome's components key their memos on
+   * the stamp (an O(1) read — the per-surface JSON digest stood the
+   * O(siblings) stand per line per store notification). A separate slice
+   * so only the chrome's subscribers re-render over the changes.
+   */
+  chromeStamp: number;
 }
 
 /** Internal write functions, called by the EditorProvider subscriptions. */

@@ -187,7 +187,6 @@ describe("the dock", () => {
       setPan: noop,
       setMode: noop,
       setActiveTool: noop,
-      setPendingConnector: noop,
       setPendingStand: noop,
       setMarquee: noop,
       setPenPoints: noop,
@@ -242,19 +241,14 @@ describe("the dock", () => {
   it("picks a shape tool from the menu and cancels it on the re-pick", () => {
     const setActiveTool = vi.fn();
     const setMode = vi.fn();
-    const setPendingConnector = vi.fn();
-    const { rerender } = render(
-      <CanvasDock viewport={fakeViewport({ activeTool: null, setActiveTool, setMode, setPendingConnector })} />
-    );
+    const { rerender } = render(<CanvasDock viewport={fakeViewport({ activeTool: null, setActiveTool, setMode })} />);
     fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     fireEvent.click(screen.getByLabelText("Rectangle"));
     expect(setActiveTool).toHaveBeenLastCalledWith("rect");
     // The pick moves the mode back to the default.
     expect(setMode).toHaveBeenLastCalledWith("default");
     // The re-pick (the tool is now active) cancels it.
-    rerender(
-      <CanvasDock viewport={fakeViewport({ activeTool: "rect", setActiveTool, setMode, setPendingConnector })} />
-    );
+    rerender(<CanvasDock viewport={fakeViewport({ activeTool: "rect", setActiveTool, setMode })} />);
     fireEvent.pointerDown(screen.getByLabelText("Shapes"));
     fireEvent.click(screen.getByLabelText("Rectangle"));
     expect(setActiveTool).toHaveBeenLastCalledWith(null);

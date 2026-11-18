@@ -130,8 +130,9 @@ describe("the move session", () => {
       result.current.beginMove([a], 0, 0);
       result.current.moveDrag(30, 30);
     });
-    // The preview stands after the drag (the render state).
-    expect(result.current.movePreview).toEqual({ ids: [a], dx: 30, dy: 30 });
+    // The preview stands after the drag (the render state — the idSet
+    // stands the per-item O(1) membership read).
+    expect(result.current.movePreview).toEqual({ ids: [a], idSet: new Set([a]), dx: 30, dy: 30 });
     act(() => {
       result.current.cancelMove();
     });

@@ -14,6 +14,5 @@ export {
   pageCardStyle,
   portOfNormal,
   portsOf,
-  surfaceChromeKey,
 } from "./geometry";
 export { connectorPath, edgeAnchor } from "./route";

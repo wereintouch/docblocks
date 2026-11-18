@@ -30,6 +30,7 @@ export {
   rectsIntersect,
   screenToCanvas,
   useCanvasViewport,
+  CanvasViewportStoreContext,
 } from "./viewport";
 export {
   connectorPressStand,
@@ -44,6 +45,7 @@ export type {
   CanvasPoint,
   CanvasTool,
   CanvasViewportState,
+  CanvasViewportStore,
   MovePreview,
   ResizeHandle,
 } from "./viewport";

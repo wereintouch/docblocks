@@ -94,9 +94,12 @@ interface MoveSession {
   dy: number;
 }
 
-/** The rendered move preview (canvas px, applied to the moved items). */
+/** The rendered move preview (canvas px, applied to the moved items).
+ * `idSet` stands the per-item O(1) membership read (the item's narrow
+ * store selector: the pointermove re-renders the moved items only). */
 interface MovePreview {
   ids: string[];
+  idSet: ReadonlySet<string>;
   dx: number;
   dy: number;
 }
@@ -273,7 +276,6 @@ interface CanvasViewportState {
   setPan: (pan: ScreenPoint) => void;
   setMode: (mode: CanvasMode) => void;
   setActiveTool: (tool: CanvasTool | null) => void;
-  setPendingConnector: (id: string | null) => void;
   /** Sets the pending stand (a block ref, a block ref with the port — the
    * press's edge snap — or a free point with the frozen direction; the
    * `source` is the press's block, the self-pair guard; null clears the

@@ -3,9 +3,13 @@
  *  old anchor when it leaves — a pure view-state mutation, no document
  *  update), the wheel's gesture + pan deltas, and the shape / place tool
  *  stands. */
-import type { BlockId, SelectionView } from "docblocks-core";
+import type { CSSProperties } from "react";
+
+import type { Block, BlockId, SelectionView } from "docblocks-core";
 
 import type { CanvasMode, CanvasTool } from "../../canvas";
+import { pageCardStyle } from "../geometry";
+import type { MovePreview } from "../viewport";
 import { PLACE_TOOLS, SHAPE_TOOLS } from "./constants";
 import type { PlaceTool, ShapeTool } from "./models";
 
@@ -68,4 +72,36 @@ function isPlaceTool(tool: CanvasTool): tool is PlaceTool {
   return (PLACE_TOOLS as readonly CanvasTool[]).includes(tool);
 }
 
-export { isPlaceTool, isShapeTool, toggleCanvasSelection, wheelGesture, wheelPanDeltas };
+/** The page miniature's display style (the committed style + the session
+ * previews: the move offset, the resize box — the same composition as
+ * the CanvasItem's): the root's geometry over the world's origin anchor,
+ * the in-flight previews over the committed stand (the preview stands
+ * the commit's numbers). */
+function pageCardDisplayStyleOf(
+  root: Block,
+  handleTarget: { id: BlockId; box: { x: number; y: number; w: number; h: number } } | null,
+  rootBlockId: BlockId,
+  viewport: {
+    movePreview: MovePreview | null;
+    resizePreview: { id: string; box: { x: number; y: number; w: number; h: number } } | null;
+  }
+): CSSProperties {
+  const style = pageCardStyle(root);
+  if (handleTarget === null || handleTarget.id !== rootBlockId) return style;
+  const isMoving = viewport.movePreview !== null && viewport.movePreview.ids.includes(rootBlockId);
+  const previewBox =
+    viewport.resizePreview !== null && viewport.resizePreview.id === rootBlockId ? viewport.resizePreview.box : null;
+  if (isMoving === false && previewBox === null) return style;
+  if (previewBox !== null) {
+    style.left = `calc(50% + ${previewBox.x}px)`;
+    style.top = `calc(50% + ${previewBox.y}px)`;
+    style.width = `${previewBox.w}px`;
+    style.height = `${previewBox.h}px`;
+  }
+  const parts = ["translate(-50%, -50%)"];
+  if (isMoving) parts.push(`translate(${viewport.movePreview!.dx}px, ${viewport.movePreview!.dy}px)`);
+  style.transform = parts.join(" ");
+  return style;
+}
+
+export { isPlaceTool, isShapeTool, pageCardDisplayStyleOf, toggleCanvasSelection, wheelGesture, wheelPanDeltas };
