@@ -58,6 +58,11 @@ const CANVAS_ITEM_LABEL_KEYS: Record<string, string> = {
  * A pointermove re-renders the touched items only — the resting items
  * stand their memo (the stable EMPTY stand over the selector's
  * bail-out). */
+/** The canvas-text's side inset from the box's edges (the shape's text's
+ * padding parity — the rect's 8 px x). The text stands inside the box's
+ * edges (the edge's stick's stand is the missing inset's gap). */
+export const CANVAS_TEXT_PADDING_X = 8;
+
 const CanvasItem = memo(
   function CanvasItem({
     id,
@@ -169,6 +174,12 @@ const CanvasItem = memo(
       const textStyle = textStyleOf(attrs?.textStyle);
       style.fontWeight = textStyle.fontWeight;
       if (textStyle.fontStyle !== undefined) style.fontStyle = textStyle.fontStyle;
+      // The side insets from the box's edges (the shape's text's parity —
+      // the rect's 8 px x): the wrapper's border box stands the item's
+      // geometry — the selection's frame and the position are unmoved
+      // (the preflight's border-box), the text's wrap width stands the
+      // inset's width.
+      style.padding = `0 ${CANVAS_TEXT_PADDING_X}px`;
     }
 
     return (

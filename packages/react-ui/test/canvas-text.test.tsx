@@ -6,7 +6,8 @@
 // move session, the double-click the caret), the empty block's removal
 // (the Escape / the caret's loss over the empty block; the non-empty
 // stands), the Enter's soft break (no split — the surface's children
-// stand), the selection's outline stand, and the font attrs' render (the
+// stand), the selection's outline stand, the side insets from the box's
+// edges (the shape's text's parity), and the font attrs' render (the
 // family's stack, the color, the weight x the slant).
 import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -456,6 +457,29 @@ describe("the box's text centering (the selection's frame's parity)", () => {
     const ghost = document.querySelector<HTMLElement>("[data-slot='docblocks/canvas-text-ghost-inner']");
     expect(ghost).not.toBeNull();
     expect(ghost!.className).toContain("items-center");
+  });
+});
+
+describe("the side insets from the box's edges (the shape's text's parity)", () => {
+  it("the item's wrapper stands the horizontal padding (the rect's 8 px x)", () => {
+    const r = renderCanvas("seed");
+    const item = r.item();
+    // The border-box's stand (the preflight's box-sizing): the item's
+    // border box stands the geometry — the selection's frame and the
+    // position are unmoved, the text's wrap width stands the inset.
+    expect(item.style.padding).toBe("0px 8px");
+    expect(item.style.paddingTop).toBe("0px");
+    expect(item.style.paddingLeft).toBe("8px");
+    expect(item.style.paddingRight).toBe("8px");
+  });
+
+  it("the ghost's inner stands the same side inset (the commit's visual continuity)", async () => {
+    const r = renderCanvas("seed");
+    fireEvent.doubleClick(r.view, { clientX: 100, clientY: 80 });
+    const ghost = document.querySelector<HTMLElement>("[data-slot='docblocks/canvas-text-ghost-inner']");
+    expect(ghost).not.toBeNull();
+    expect(ghost!.style.paddingLeft).toBe("8px");
+    expect(ghost!.style.paddingRight).toBe("8px");
   });
 });
 

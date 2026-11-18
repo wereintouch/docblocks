@@ -20,6 +20,7 @@ import { firstSurface } from "../../canvas";
 import { focusCaretIn } from "../../editing/block-commands";
 import { editorRootOf } from "../../editing/dom-offset";
 import { useEditorContext } from "../../editor-provider";
+import { CANVAS_TEXT_PADDING_X } from "../CanvasItem";
 import { TOOL_SIZES } from "../viewport";
 
 function CanvasTextGhost({
@@ -156,6 +157,9 @@ function CanvasTextGhost({
         spellCheck={false}
         data-slot="docblocks/canvas-text-ghost-inner"
         className="flex h-full w-full items-center whitespace-pre-wrap outline-none"
+        // The committed block's side inset's parity (the text's stand over
+        // the box's edges — the commit's re-seat's visual continuity).
+        style={{ paddingLeft: CANVAS_TEXT_PADDING_X, paddingRight: CANVAS_TEXT_PADDING_X }}
         onInput={(event) => {
           // The composing input stands no commit (the CJK's
           // compositionend's stand — the same single-transact's path).
