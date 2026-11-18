@@ -67,6 +67,7 @@ function EditorProviderStand({
   renderAttribute,
   attributeTypePicker,
   docTags,
+  coverPresets,
   children,
 }: EditorProviderProps & { doc: Doc }) {
   const rootId = rootBlockId ?? doc.meta.id;
@@ -325,6 +326,7 @@ function EditorProviderStand({
       renderAttribute: renderAttribute ?? parent?.renderAttribute ?? null,
       attributeTypePicker: attributeTypePicker ?? parent?.attributeTypePicker ?? null,
       docTags: docTags ?? parent?.docTags ?? null,
+      coverPresets: coverPresets ?? parent?.coverPresets ?? null,
       embedSandbox: embedSandbox ?? parent?.embedSandbox ?? defaultEmbedSandbox,
       rootBlockId: rootId,
       ancestorDocIds: parent ? [...parent.ancestorDocIds, parent.doc.meta.id] : [],
@@ -356,6 +358,7 @@ function EditorProviderStand({
     renderAttribute,
     attributeTypePicker,
     docTags,
+    coverPresets,
   ]);
 
   // The published's stand: a read-only nested provider over the consumer's

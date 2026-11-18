@@ -954,3 +954,97 @@ test("the cover's upload modal: the centering's width gate + the unsupported typ
     await close();
   }
 });
+
+test("the cover's preset's gallery: the 4-column's grid over the consumer's store's ids + the cross-pane's banner", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "doc-attributes-cover-presets");
+  try {
+    await openPanel(a, "a");
+    const upload = panel(a, "a").locator('[data-slot="docblocks/attributes-cover-upload-button"]');
+    const dialog = a.locator('[data-slot="docblocks/cover-upload-dialog"]');
+    const grid = a.locator('[data-slot="docblocks/cover-preset-grid"]');
+    const cells = a.locator('[data-slot="docblocks/cover-preset"]');
+
+    // The modal's open (the harness's preset's gallery's stand — the
+    // consumer's `coverPresets` prop's demo value over the fixed ids):
+    // the tile's set (the 14's monochrome's + the alpha's swatch's count)
+    // over the 4-column's grid.
+    await upload.click();
+    await expect(dialog).toBeVisible();
+    await expect(grid).toBeVisible();
+    await expect(cells).toHaveCount(15);
+    const columns = await a.locator('[data-slot="docblocks/cover-preset-cells"]').evaluate((el) =>
+      getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length
+    );
+    expect(columns, "the 4-column's stand").toBe(4);
+
+    // The mode's switch's stand (the set's switch over the same grid's
+    // stand — the 8's monochrome's + the alpha's centering's count, the
+    // under-cap's row's stand), and back over the tile's set.
+    await a.locator('[data-slot="docblocks/cover-upload-mode"] [data-mode="center"]').click();
+    await expect(cells).toHaveCount(9);
+    await a.locator('[data-slot="docblocks/cover-upload-mode"] [data-mode="tile"]').click();
+    await expect(cells).toHaveCount(15);
+
+    // A pick commits the id over the mode (the upload's no stand — the
+    // consumer's catalog's curation's stand): the banner over the
+    // resolved's swatch (the store's get's stand), and pane B's banner
+    // stands the consumer's storage's parity (the fixed's id resolves
+    // over pane B's own store's stand — the cross-pane's blob's stand is
+    // the consumer's, and the harness's fixed ids stand it).
+    await cells.first().click();
+    await expect(dialog).toBeHidden();
+    const cover = (await attributesOf(a, "a"))?.cover;
+    expect(cover, "the pick commits the preset's id").toBe("cover-tile-1");
+    expect((await attributesOf(a, "a"))?.coverMode, "the tile's stand is the key's absence").toBeUndefined();
+    const banner = coverBanner(a, "a");
+    await expect(banner).toBeVisible();
+    await expect(banner).toHaveAttribute("data-cover-mode", "tile");
+    const bannerBox = await banner.boundingBox();
+    expect(Math.round(bannerBox!.height), "the fixed strip's height").toBe(150);
+    await expect.poll(() => attributesOf(b, "b").then((m) => m?.cover ?? null), SETTLE).toBe(cover);
+    await expect(coverBanner(b, "b")).toBeVisible();
+
+    // The alpha channel's stand (the PNG's alpha layer: the banner's
+    // wrapper + the background's layer stand no background of their own,
+    // so the transparent's band composites over the card's surface — the
+    // theme's stand). The alpha's swatch stands the set's tail.
+    await upload.click();
+    await expect(dialog).toBeVisible();
+    await cells.last().click();
+    await expect(dialog).toBeHidden();
+    expect((await attributesOf(a, "a"))?.cover, "the alpha's pick commits the id").toBe("cover-alpha-1");
+    const alphaBanner = coverBanner(a, "a");
+    await expect(alphaBanner).toBeVisible();
+    expect(
+      await alphaBanner.evaluate((el) => getComputedStyle(el).backgroundColor),
+      "the banner's wrapper stands no background of its own"
+    ).toBe("rgba(0, 0, 0, 0)");
+    const layer = alphaBanner.locator("div").first();
+    expect(await layer.evaluate((el) => getComputedStyle(el).backgroundColor)).toBe("rgba(0, 0, 0, 0)");
+    expect(
+      await layer.evaluate((el) => getComputedStyle(el).backgroundImage),
+      "the alpha's png's resolution's stand over the store's get"
+    ).toContain("url(");
+    // The card's surface stands opaque behind the banner (the compositing's
+    // stand) and flips over the theme's switch (the theme's dependency's
+    // stand over the same banner's stand).
+    const card = editorRoot(a, "a").locator("xpath=..");
+    const cardDark = await card.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(cardDark, "the card's surface stands opaque").not.toBe("rgba(0, 0, 0, 0)");
+    await a.getByTestId("theme-a-light").click();
+    const cardLight = await card.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(cardLight, "the theme's flip stands the card's surface's stand").not.toBe(cardDark);
+    await expect(alphaBanner).toBeVisible();
+
+    // The toggle's off's stand (the no-preset's layout's stand — the
+    // grid's absence over the same modal's stand).
+    await a.getByTestId("coverpresets-a-off").click();
+    await upload.click();
+    await expect(dialog).toBeVisible();
+    await expect(grid).toHaveCount(0);
+  } finally {
+    await close();
+  }
+});

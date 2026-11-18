@@ -104,6 +104,8 @@
     "addTagAria": "Add a tag",
     "uploadCoverAria": "Upload the cover",
     "removeCoverAria": "Remove the cover",
+    "coverPresetsLabel": "Presets",
+    "coverPresetAria": "Use the preset cover {{id}}",
     "coverMode": "Placement",
     "coverModeTile": "Tile",
     "coverModeCenter": "Centering",

@@ -143,6 +143,23 @@ interface DocTags {
   onTagClick?: (tag: DocTag, event: MouseEvent) => void;
 }
 
+/**
+ * The consumer's cover preset gallery (the `coverPresets` provider prop):
+ * the ready-made cover's file ids (the consumer's own blob store's ids) per
+ * placement mode. The upload modal renders the current mode's ids over
+ * the preset's grid (the 4-column's scrollable's stand); a pick commits
+ * the id over the mode WITHOUT an upload (the consumer's catalog's curation's
+ * stand — the upload's gate is never run over a preset), and the thumbnails
+ * resolve over the store's `get` (the bytes' transfer's stand). Without the
+ * prop (or over an absent / empty set) the grid stands absent.
+ */
+interface CoverPresetSets {
+  /** The tile mode's preset's file ids; `[]` / the absent stands no grid over the tile's stand. */
+  tile?: readonly string[];
+  /** The centering mode's preset's file ids; `[]` / the absent stands no grid over the centering's stand. */
+  center?: readonly string[];
+}
+
 /** The props an attribute-value renderer receives (the `renderAttribute` provider prop). */
 interface RenderAttributeProps {
   /** The attribute's key (the preset key or the custom key). */
@@ -242,6 +259,8 @@ interface EditorContextValue {
   attributeTypePicker: AttributeTypePicker | null;
   /** The consumer's tags contract (the `docTags` prop); null stands the display-only stand (the `notSet` over the row). */
   docTags: DocTags | null;
+  /** The consumer's cover preset gallery (the `coverPresets` prop); null stands the built-in's stand (the preset's grid stands absent). */
+  coverPresets: CoverPresetSets | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
   embedSandbox: EmbedSandboxPolicy;
   /** The entry-list root: the document root by default, a subtree block otherwise. */
@@ -396,6 +415,25 @@ interface EditorProviderProps {
    */
   docTags?: DocTags;
   /**
+   * Optional cover preset gallery (the document-attributes panel's cover row,
+   * the upload modal's stand): the consumer's ready-made cover's file ids
+   * (the consumer's blob store's ids — the same ids the store's `get`
+   * resolves) per placement mode: the `tile`'s set and the `center`'s set
+   * (each optional — a mode without a set stands no grid over it). The
+   * modal renders the current mode's set over the preset's grid (the
+   * 4-column's scrollable's stand; the mode's switch stands the set's switch
+   * over the same grid's stand), and a pick commits the id over the mode
+   * without an upload (the consumer's catalog's curation's stand — the
+   * upload's gate is never run over a preset). The thumbnails resolve over
+   * the store's `get`. Without the prop the grid stands absent (the modal
+   * keeps the enlarged's base's stand).
+   *
+   * Like the other customization values, the value is read per render into
+   * the provider context: pass a stable reference (a memoized object). A
+   * nested provider that supplies none inherits the enclosing one.
+   */
+  coverPresets?: CoverPresetSets;
+  /**
    * Optional per-key replacement of the document-attributes panel's value
    * zone (a preset key — `description` / `createdBy` / `cover` /
    * `status` / `publishedAt` — or a custom key; the `tags` row is the
@@ -468,6 +506,7 @@ export type {
   AccessLevel,
   AttributeTypePicker,
   AttributeTypePickerProps,
+  CoverPresetSets,
   DocTag,
   DocTags,
   EditorContextValue,

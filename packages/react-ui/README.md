@@ -99,6 +99,7 @@ mention catalog). The full props list:
 | `provider?`                  | A core `SyncProvider` for the wire + presence. Without it the editor is a single-client document (local edits stand, nothing syncs).                                                                                                                                                                                                   |
 | `blockRenderers?`            | Per-type renderer overrides (see below).                                                                                                                                                                                                                                                                                               |
 | `blobStore?`                 | The blob bridge for image / pdf / file blocks and the document-attributes' cover (see below).                                                                                                                                                                                                                                          |
+| `coverPresets?`              | The cover's upload modal's preset gallery: the consumer's ready-made cover's file ids (the consumer's blob store's ids) per placement mode — the `tile` / the `center`'s set. A pick commits the id over the mode without an upload (see Blobs below).                                                                                 |
 | `databaseBridge?`            | The table operations behind external-form database blocks (see below).                                                                                                                                                                                                                                                                 |
 | `syncEmbedResolver?`         | `(ref) => Doc \| null` — resolves a `sync-embed` block's ref to the master doc (see below).                                                                                                                                                                                                                                            |
 | `embedSandbox?`              | `(src) => string \| null` — the embed iframe's `sandbox` policy. The default grants the same-origin (the embedded app's own storage / cookies stand, so the real apps boot); `null` stands no sandbox (a fully trusted embed). The opaque-origin restriction stands over this policy.                                                  |
@@ -321,7 +322,11 @@ attachments and PDFs, and `image.attrs.src` for inline images. The
 document-attributes' `cover` key stands the same contract: it holds the
 consumer's file id for the cover image (the banner over the editor frame's
 top edge + the row's thumbnail in the attributes panel), resolved over the
-same store. Bytes, names,
+same store. The upload modal's optional preset gallery (the
+`coverPresets` provider prop) lists the consumer's ready-made cover's ids
+per placement mode (the `tile` / the `center`'s set) over the 4-column's
+scrollable grid; a pick commits the id over the mode without an upload
+(the thumbnails resolve over the same store). Bytes, names,
 and MIME types never enter the document. `BlobStore` is the only bridge
 between those ids and the stored objects:
 

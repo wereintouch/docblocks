@@ -11,12 +11,20 @@ import { useTranslation } from "react-i18next";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent, MouseEvent, RefObject } from "react";
 
+import { useBlobFile } from "../blocks/use-blob-file";
 import { useEditorContext } from "../editor-provider";
 import { Button } from "../shared/ui/Button";
+import { ScrollArea } from "../shared/ui/ScrollArea";
 import { SegmentSelector } from "../shared/ui/SegmentSelector";
 import { cn } from "../shared/ui/cn";
 import { Image, X } from "../shared/ui/icons";
-import { COVER_ACCEPTED_MIME_TYPES, COVER_MODE_ORDER, COVER_TILE_STRIP_HEIGHT_PX, validateCoverUpload } from "./cover";
+import {
+  COVER_ACCEPTED_MIME_TYPES,
+  COVER_MODE_ORDER,
+  COVER_RENDERS_BYTES,
+  COVER_TILE_STRIP_HEIGHT_PX,
+  validateCoverUpload,
+} from "./cover";
 import type { CoverMode } from "./cover";
 
 /** The editor frame's selector (the editor width's source — the measured
@@ -36,6 +44,49 @@ function editorWidthOf(anchor: HTMLElement | null): number {
   return Math.round(editor.getBoundingClientRect().width);
 }
 
+/** A preset grid's cell: the consumer's store's id resolved to the
+ *  thumbnail (the bytes' stand — the preset's id is the consumer's store's
+ *  id, the same one the banner's resolution stands); the placeholder over
+ *  the loading / the missing's stands. A pick commits the id over the
+ *  caller's mode (the upload's no stand — the consumer's catalog's curation
+ *  is the gate's stand over the presets). */
+function CoverPresetCell({
+  fileId,
+  label,
+  busy,
+  onPick,
+}: {
+  fileId: string;
+  label: string;
+  busy: boolean;
+  onPick: () => void;
+}) {
+  const file = useBlobFile(fileId, COVER_RENDERS_BYTES);
+  return (
+    <button
+      type="button"
+      data-slot="docblocks/cover-preset"
+      data-cover-preset-id={fileId}
+      aria-label={label}
+      title={label}
+      disabled={busy}
+      onClick={onPick}
+      className="
+        flex h-18 w-full items-center justify-center overflow-hidden rounded-md border border-border bg-muted
+        text-muted-foreground
+        hover:border-primary
+        disabled:opacity-60
+      "
+    >
+      {file.status === "ready" ? (
+        <img src={file.url} alt="" className="size-full object-cover" />
+      ) : (
+        <Image className="size-4" />
+      )}
+    </button>
+  );
+}
+
 function CoverUploadModal({
   anchorRef,
   initialMode,
@@ -52,8 +103,14 @@ function CoverUploadModal({
   onClose: () => void;
 }) {
   const { t } = useTranslation("editor");
-  const { blobStore } = useEditorContext();
+  const { blobStore, coverPresets } = useEditorContext();
   const [mode, setMode] = useState<CoverMode>(initialMode);
+  // The current mode's preset's set (the consumer's catalog's stand — the
+  // absent / the empty's stand stands no grid); the modal's enlarged's
+  // stand stands over any passed non-empty set (the width's stability over
+  // the mode's switch's stand).
+  const presets = coverPresets?.[mode] ?? [];
+  const hasPresets = (coverPresets?.tile?.length ?? 0) + (coverPresets?.center?.length ?? 0) > 0;
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState(false);
   /** The rejection's hint (the gate's / the upload's failure's stand; the
@@ -190,9 +247,10 @@ function CoverUploadModal({
         aria-label={t("attributes.coverUploadTitle")}
         data-slot="docblocks/cover-upload-dialog"
         tabIndex={-1}
-        className="
-          w-100 max-w-full rounded-lg border border-border bg-popover p-4 text-foreground shadow-lg outline-none
-        "
+        className={cn(
+          "max-w-full rounded-lg border border-border bg-popover p-4 text-foreground shadow-lg outline-none",
+          hasPresets ? "w-140" : "w-110"
+        )}
       >
         <div className="mb-3 flex items-center justify-between gap-2">
           <span className="text-sm font-medium">{t("attributes.coverUploadTitle")}</span>
@@ -223,6 +281,32 @@ function CoverUploadModal({
             setError(null);
           }}
         />
+        {presets.length > 0 ? (
+          // The preset's grid (the consumer's catalog's stand): the current
+          // mode's set over the 4-column's stand (the visible's 3-row's cap
+          // over the thin-scrollbar's ScrollArea — the overflow scrolls, the
+          // width's columns stand fixed). A pick commits the id over the mode
+          // (the upload's no stand — no gate's run over a preset).
+          <div className="mt-3" data-slot="docblocks/cover-preset-grid">
+            <span className="mb-1.5 block text-xs text-muted-foreground">{t("attributes.coverPresetsLabel")}</span>
+            <ScrollArea className="max-h-58">
+              <div className="grid grid-cols-4 gap-2" data-slot="docblocks/cover-preset-cells">
+                {presets.map((fileId) => (
+                  <CoverPresetCell
+                    key={fileId}
+                    fileId={fileId}
+                    busy={busy}
+                    label={t("attributes.coverPresetAria", { id: fileId })}
+                    onPick={() => {
+                      onCommit(fileId, mode);
+                      onClose();
+                    }}
+                  />
+                ))}
+              </div>
+            </ScrollArea>
+          </div>
+        ) : null}
         <input
           ref={inputRef}
           type="file"
@@ -239,7 +323,7 @@ function CoverUploadModal({
           disabled={busy}
           className={cn(
             `
-              mt-3 flex h-28 w-full flex-col items-center justify-center gap-1.5 rounded-md border border-dashed
+              mt-3 flex h-36 w-full flex-col items-center justify-center gap-1.5 rounded-md border border-dashed
               text-muted-foreground
             `,
             "hover:bg-muted/50",

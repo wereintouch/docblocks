@@ -13,6 +13,7 @@ export type {
   AccessLevel,
   AttributeTypePicker,
   AttributeTypePickerProps,
+  CoverPresetSets,
   DocTag,
   DocTags,
   EditorContextValue,

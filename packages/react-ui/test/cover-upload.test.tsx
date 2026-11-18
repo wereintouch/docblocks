@@ -17,6 +17,7 @@ import { CoverEditor } from "../src/attributes/CoverEditor";
 import type { CoverMode } from "../src/attributes/cover";
 import type { BlobStore } from "../src/blob-store";
 import { EditorProvider } from "../src/editor-provider";
+import type { CoverPresetSets } from "../src/editor-provider";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -70,12 +71,12 @@ afterEach(() => {
 });
 
 /** Renders the control over the doc + the store (the commit's log is the
- *  write's pin). */
-function renderCover(store: BlobStore): { commits: Array<[string, CoverMode]> } {
+ *  write's pin); the optional preset's gallery's stand. */
+function renderCover(store: BlobStore, presets?: CoverPresetSets): { commits: Array<[string, CoverMode]> } {
   const doc = createDoc({ id: "doc-1", title: "T", createdAt: CREATED_AT });
   const commits: Array<[string, CoverMode]> = [];
   render(
-    <EditorProvider doc={doc} blobStore={store}>
+    <EditorProvider doc={doc} blobStore={store} coverPresets={presets}>
       <CoverEditor
         fileId={undefined}
         mode="tile"
@@ -105,6 +106,13 @@ describe("the cover upload's modal", () => {
     expect(modalModeButton("tile")?.getAttribute("aria-pressed")).toBe("true");
     // The strict's accept's stand (the webp's parity).
     expect(modalInput()!.getAttribute("accept")).toContain("image/webp");
+    // The preset's grid stands absent (the consumer's catalog's absence),
+    // the enlarged's base's stand's size.
+    expect(
+      document.querySelector('[data-slot="docblocks/cover-preset-grid"]'),
+      "the grid's absence's stand"
+    ).toBeNull();
+    expect(modalDialog()!.classList.contains("w-110"), "the enlarged's base's stand").toBe(true);
   });
 
   it("commits the tall image over the default mode (the upload + the close)", async () => {
@@ -195,6 +203,70 @@ describe("the cover upload's modal", () => {
     expect(uploads).toHaveLength(1);
     expect(commits).toEqual([["id-1", "tile"]]);
     expect(modalDialog()).toBeNull();
+  });
+});
+
+describe("the cover's preset's grid", () => {
+  const TILE_PRESETS = ["tile-1", "tile-2", "tile-3", "tile-4", "tile-5"];
+  const CENTER_PRESETS = ["center-1", "center-2"];
+
+  it("stands the 4-column's grid over the passed ids (the scrollable's stand, the enlarged's size)", () => {
+    renderCover(storeWith([]), { tile: TILE_PRESETS, center: CENTER_PRESETS });
+    fireEvent.click(uploadButton()!);
+    const grid = document.querySelector('[data-slot="docblocks/cover-preset-grid"]');
+    expect(grid, "the grid stands over the passed's stand").not.toBeNull();
+    // The enlarged's stand (the preset's stand's size).
+    expect(modalDialog()!.classList.contains("w-140")).toBe(true);
+    // The 4-column's stand over the thin-scrollbar's ScrollArea (the
+    // visible's 3-row's cap's class over the scroll container's stand).
+    const cells = document.querySelector<HTMLElement>('[data-slot="docblocks/cover-preset-cells"]');
+    expect(cells).not.toBeNull();
+    expect(cells!.classList.contains("grid-cols-4")).toBe(true);
+    const scroll = cells!.closest("[data-slot='scroll-area']");
+    expect(scroll, "the scroll area's stand").not.toBeNull();
+    expect((scroll as HTMLElement).classList.contains("max-h-58"), "the 3-row's cap over the scroll's stand").toBe(
+      true
+    );
+    const thumbs = Array.from(document.querySelectorAll('[data-slot="docblocks/cover-preset"]'));
+    expect(thumbs, "the cell's stand over every passed id").toHaveLength(TILE_PRESETS.length);
+    expect(thumbs[0]!.getAttribute("data-cover-preset-id")).toBe("tile-1");
+  });
+
+  it("the mode's switch stands the set's switch (the grid's stand stands)", () => {
+    renderCover(storeWith([]), { tile: TILE_PRESETS, center: CENTER_PRESETS });
+    fireEvent.click(uploadButton()!);
+    expect(document.querySelectorAll('[data-slot="docblocks/cover-preset"]')).toHaveLength(TILE_PRESETS.length);
+    fireEvent.click(modalModeButton("center")!);
+    // The same grid's stand over the other set (the set's switch's stand).
+    const thumbs = Array.from(document.querySelectorAll<HTMLElement>('[data-slot="docblocks/cover-preset"]'));
+    expect(thumbs).toHaveLength(CENTER_PRESETS.length);
+    expect(thumbs[0]!.getAttribute("data-cover-preset-id")).toBe("center-1");
+  });
+
+  it("a pick commits the id over the mode (the upload's no stand, the close's stand)", () => {
+    const uploads: File[] = [];
+    const { commits } = renderCover(storeWith(uploads), { tile: TILE_PRESETS });
+    fireEvent.click(uploadButton()!);
+    const thumb = document.querySelector('[data-slot="docblocks/cover-preset"][data-cover-preset-id="tile-2"]');
+    expect(thumb).not.toBeNull();
+    fireEvent.click(thumb!);
+    expect(commits).toEqual([["tile-2", "tile"]]);
+    expect(uploads, "the pick stands the upload's no write").toHaveLength(0);
+    expect(modalDialog(), "the modal closes over the pick").toBeNull();
+  });
+
+  it("stands absent over the mode's empty set (the other set's grid's absence)", () => {
+    renderCover(storeWith([]), { center: CENTER_PRESETS });
+    fireEvent.click(uploadButton()!);
+    // The tile's set's absence stands no grid (the modal's size stands the
+    // passed set's enlarged's stand over the other set's presence).
+    expect(
+      document.querySelector('[data-slot="docblocks/cover-preset-grid"]'),
+      "the grid's absence's stand"
+    ).toBeNull();
+    expect(modalDialog()!.classList.contains("w-140")).toBe(true);
+    fireEvent.click(modalModeButton("center")!);
+    expect(document.querySelectorAll('[data-slot="docblocks/cover-preset"]')).toHaveLength(CENTER_PRESETS.length);
   });
 });
 

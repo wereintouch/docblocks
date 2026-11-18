@@ -104,6 +104,8 @@
     "addTagAria": "Добавить тег",
     "uploadCoverAria": "Загрузить обложку",
     "removeCoverAria": "Удалить обложку",
+    "coverPresetsLabel": "Пресеты",
+    "coverPresetAria": "Выбрать пресет обложки {{id}}",
     "coverMode": "Размещение",
     "coverModeTile": "Плитка",
     "coverModeCenter": "Центрирование",

@@ -22,7 +22,7 @@ import { ChaosBar } from "./ChaosBar";
 import { attributeTypePickerDemo, renderAttributeDemo, useDocTagsDemo } from "./attribute-demos";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
-import { blobStore, databaseBridge, insertBlockOf } from "./insert-blocks";
+import { blobStore, coverPresets, databaseBridge, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { BridgeInspector } from "./inspect/BridgeInspector";
 import { JsonInspector } from "./inspect/JsonInspector";
@@ -163,6 +163,8 @@ function SyncPane({
   const [publishedSeq, setPublishedSeq] = useState(0);
   /** The harness theme (dark/light): view state only — the `.dark` class on `<html>` flips the package's dark token set; dark is the harness default. */
   const [dark, setDark] = useState(true);
+  /** The cover preset's gallery's stand (the consumer's `coverPresets` prop's demo): on by default (the feature's visible stand), the toggle's off stands the no-preset's layout. */
+  const [coverPresetsOn, setCoverPresetsOn] = useState(true);
   const currentId = useMemo(() => currentBlockOf(blocks), [blocks]);
 
   // The theme lands on `<html>` (the package's dark set activates via the
@@ -514,6 +516,7 @@ function SyncPane({
               docTags={docTagsDemo}
               renderAttribute={attrDemo ? renderAttributeDemo : undefined}
               attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
+              coverPresets={coverPresetsOn ? coverPresets : undefined}
               accessLevel="viewer"
             >
               <Editor view={view} />
@@ -533,6 +536,7 @@ function SyncPane({
                 docTags={docTagsDemo}
                 renderAttribute={attrDemo ? renderAttributeDemo : undefined}
                 attributeTypePicker={attrDemo ? attributeTypePickerDemo : undefined}
+                coverPresets={coverPresetsOn ? coverPresets : undefined}
                 presence={PRESENCE[client]}
                 accessLevel={role}
                 mode={mode}
@@ -572,6 +576,34 @@ function SyncPane({
             onClick={setDarkFalse}
           >
             light
+          </Button>
+        </div>
+        {/* The cover preset's gallery's toggle (the consumer's `coverPresets`
+            prop's stand: on = the harness's fixed id's gallery, off = the
+            no-preset's layout's stand). */}
+        <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
+          cover presets
+          <Button
+            type="button"
+            variant={coverPresetsOn ? "default" : "outline"}
+            size="sm"
+            data-testid={`coverpresets-${client}-on`}
+            aria-pressed={coverPresetsOn}
+            className={TOGGLE_BTN}
+            onClick={() => setCoverPresetsOn(true)}
+          >
+            on
+          </Button>
+          <Button
+            type="button"
+            variant={!coverPresetsOn ? "default" : "outline"}
+            size="sm"
+            data-testid={`coverpresets-${client}-off`}
+            aria-pressed={!coverPresetsOn}
+            className={TOGGLE_BTN}
+            onClick={() => setCoverPresetsOn(false)}
+          >
+            off
           </Button>
         </div>
         <div style={{ fontSize: 13, color: "var(--muted-foreground)", display: "flex", alignItems: "center", gap: 8 }}>
