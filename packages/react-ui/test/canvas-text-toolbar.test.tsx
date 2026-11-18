@@ -151,6 +151,44 @@ describe("the applies", () => {
     expect(textAttrs(doc, text).textColor).toBeUndefined();
   });
 
+  it("the reset's cross removes the textColor attr (the no-color's stand)", () => {
+    const { doc, text } = seededDoc();
+    doc.updateBlock(text, { textColor: "#123456" });
+    const { container } = renderCanvas(doc);
+    selectBlock(container, text);
+
+    // The cross stands over the color's set (the active stand); the pick
+    // removes the attr (the no-color's stand — the theme's foreground /
+    // the contrast's resolution) in one undo step.
+    fireEvent.click(screen.getByLabelText("Text color"));
+    const none = screen.getByLabelText("Reset color");
+    expect(none.getAttribute("data-color")).toBe("none");
+    expect(none.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(none);
+    expect(textAttrs(doc, text).textColor).toBeUndefined();
+    // The section closed (the pick's stand's parity).
+    expect(screen.queryByLabelText("Text color hex value")).toBeNull();
+    doc.undo();
+    expect(textAttrs(doc, text).textColor).toBe("#123456");
+  });
+
+  it("the reset's cross stands inert over the unset color (the pick is a no-op)", () => {
+    const { doc, text } = seededDoc();
+    const { container } = renderCanvas(doc);
+    selectBlock(container, text);
+
+    fireEvent.click(screen.getByLabelText("Text color"));
+    const none = screen.getByLabelText("Reset color");
+    expect(none.getAttribute("aria-pressed")).toBe("false");
+    const before = JSON.parse(JSON.stringify(doc.toJSON()));
+    fireEvent.click(none);
+    // The no-op: no write (the absent key's removal stands no update),
+    // the block stands.
+    expect(textAttrs(doc, text).textColor).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(doc.toJSON()))).toEqual(before);
+    expect(screen.queryByLabelText("Text color hex value")).toBeNull();
+  });
+
   it("applies the text style in one undo step", () => {
     const { doc, text } = seededDoc();
     const { container } = renderCanvas(doc);

@@ -47,6 +47,10 @@ interface ShapeTextControlsProps {
   textColorOpen: boolean;
   onTextColorOpenChange: (open: boolean) => void;
   onApply: (patch: Record<string, unknown>) => void;
+  /** The text color's reset (the cross's button over the palette's
+   * swatches: the `textColor`'s attr removal — the contrast's
+   * resolution / the theme's foreground's stand). Off by default. */
+  onResetTextColor?: () => void;
 }
 
 function ShapeTextControls({
@@ -60,6 +64,7 @@ function ShapeTextControls({
   textColorOpen,
   onTextColorOpenChange,
   onApply,
+  onResetTextColor,
 }: ShapeTextControlsProps) {
   const { t } = useTranslation("canvas");
   // The color section's namespace (the palette / the hex's base — the
@@ -143,6 +148,7 @@ function ShapeTextControls({
         onOpenChange={onTextColorOpenChange}
         onApply={applyTextColor}
         allowNone={false}
+        onReset={onResetTextColor}
         slotPrefix={colorSlotPrefix}
       />
       {/* The text style (the weight x the slant). */}

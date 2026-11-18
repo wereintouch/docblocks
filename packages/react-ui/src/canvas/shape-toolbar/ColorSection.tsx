@@ -28,6 +28,7 @@ function ColorSection({
   onOpenChange,
   onApply,
   allowNone = true,
+  onReset,
   slotPrefix = "docblocks/shape",
 }: {
   target: "fill" | "stroke" | "text";
@@ -44,6 +45,10 @@ function ColorSection({
   /** The "no color" entry (absent for the text color — the unset stand is
    * the inheritance, and the hex spec rejects the "none" value). */
   allowNone?: boolean;
+  /** The reset's stand (the cross's button after all the swatches — the
+   * text color's explicit reset: the attr's removal over the literal
+   * "none" (the hex spec rejects it)). Off by default. */
+  onReset?: () => void;
   /** The data-slot's namespace base (the shape's `docblocks/shape`, the
    * canvas-text's `docblocks/canvas-text` — the trigger's slots stand
    * `${slotPrefix}-toolbar-...`, the palette / hex the
@@ -55,6 +60,10 @@ function ColorSection({
   const [draft, setDraft] = useState("");
   const hexRef = useRef<HTMLInputElement>(null);
   const none = allowNone && (current === undefined || current === "none");
+  // The reset's cross: the active stand is a set color (the attr's
+  // removal restores the contrast's resolution / the theme's
+  // foreground).
+  const resetActive = onReset !== undefined && current !== undefined;
   const lower = current?.toLowerCase();
 
   // The draft is the open popover's state — a closed section starts
@@ -127,9 +136,10 @@ function ColorSection({
           current={lower}
           onSelect={onApply}
           label={target}
-          allowNone={allowNone}
-          noneActive={none}
-          onSelectNone={allowNone ? selectNone : undefined}
+          allowNone={allowNone || onReset !== undefined}
+          noneActive={allowNone ? none : resetActive}
+          onSelectNone={allowNone ? selectNone : onReset}
+          noneAsCross={!allowNone && onReset !== undefined}
           allowCustom
           onCustom={() => hexRef.current?.focus()}
         />

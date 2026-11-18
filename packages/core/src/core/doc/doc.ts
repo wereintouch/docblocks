@@ -42,6 +42,7 @@ import {
   moveTableColumn as moveTableColumnCommand,
   moveTableRow as moveTableRowCommand,
   removeAttribute as removeAttributeCommand,
+  removeBlockAttr as removeBlockAttrCommand,
   removeBlock as removeBlockCommand,
   removeRow as removeRowCommand,
   removeTableColumn as removeTableColumnCommand,
@@ -250,6 +251,17 @@ class Doc {
   /** Sets or overwrites the given attrs of a block. */
   updateBlock(id: BlockId, patch: BlockAttrsPatch): void {
     updateBlockCommand(this.#ydoc, id, patch);
+  }
+
+  /**
+   * Removes one block attr (one transaction — one undo step, one wire
+   * update). An absent key is a no-op; the post-removal attrs must keep
+   * the registry's invariants (the required attr's removal is a typed
+   * rejection); an unknown block throws the typed UnknownBlockError, a
+   * block type without attrs the typed InvalidAttrsError.
+   */
+  removeBlockAttr(id: BlockId, key: string): void {
+    removeBlockAttrCommand(this.#ydoc, id, key);
   }
 
   /** Moves a block to `toIndex` under `toParent` (pre-move index semantics). */

@@ -102,6 +102,17 @@ function ShapeToolbar({
       doc.updateBlock(id, patch);
     });
   };
+  // The text color's reset (the cross's button): the `textColor`'s attr
+  // removal (the contrast's resolution / the theme's foreground's stand)
+  // in one transact (one undo step, one wire update) + the section's
+  // close (the pick's stand's parity).
+  const resetTextColor = () => {
+    if (doc.getBlock(id) === null) return;
+    doc.transact(() => {
+      doc.removeBlockAttr(id, "textColor");
+    });
+    setOpenSection(null);
+  };
 
   // The type switch (the shape's figure): one updateBlock in one
   // transact (one undo step, one wire update). A freehand shape keeps
@@ -178,6 +189,7 @@ function ShapeToolbar({
             textColorOpen={openSection === "text"}
             onTextColorOpenChange={openTextSection}
             onApply={applyAttr}
+            onResetTextColor={resetTextColor}
           />
         ) : (
           <Button

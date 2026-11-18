@@ -408,6 +408,85 @@ describe("the border's controls (the width selector + the style menu)", () => {
   });
 });
 
+describe("the text color's reset (the cross over the swatches)", () => {
+  const textedDoc = (): { doc: TestDoc; shape: string } => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const shape = doc.insertBlock("shape", { variant: "rect", text: "hello" }, { parent: surface });
+    doc.setGeometry(shape, { x: 0, y: 0, w: 200, h: 100 });
+    return { doc, shape };
+  };
+
+  it("stands the cross after the swatches; the pick removes the textColor attr (one undo step)", () => {
+    const { doc, shape } = textedDoc();
+    doc.updateBlock(shape, { textColor: "#123456" });
+    const { container } = renderCanvas(doc);
+    selectBlock(container, shape);
+
+    // The text section: the cross stands over the row's tail (the
+    // after-all-the-colors' position) and its active stand is the set
+    // color (the reset's applicability).
+    fireEvent.click(screen.getByLabelText("Text color"));
+    const none = screen.getByLabelText("Reset color");
+    expect(none.getAttribute("data-color")).toBe("none");
+    expect(none.getAttribute("aria-pressed")).toBe("true");
+    const group = none.closest('[role="group"]')!;
+    // The row's tail: the custom's swatch stands after the cross (the
+    // hex's entry — the picker's focus), the cross stands over the
+    // color's set.
+    expect(group.lastElementChild?.getAttribute("data-color")).toBe("custom");
+    expect(none.closest('[role="group"]')?.parentElement?.querySelector('[data-color="custom"]')).toBeTruthy();
+    const customIndex = Array.from(group.children).indexOf(group.querySelector('[data-color="custom"]')!);
+    const noneIndex = Array.from(group.children).indexOf(none);
+    expect(noneIndex).toBe(customIndex - 1);
+    expect(group.querySelectorAll('[data-slot="docblocks/palette-swatch"]').length).toBe(3);
+
+    // The pick: the attr's removal (the other attrs stand) in one undo
+    // step; the section closes (the pick's stand's parity).
+    fireEvent.click(none);
+    const shapeBlock = doc.getBlock(shape);
+    expect(shapeBlock?.type === "shape" ? shapeBlock.attrs : null).toEqual({
+      variant: "rect",
+      text: "hello",
+      zIndex: 1,
+    });
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+    expect(screen.queryByLabelText("Text color hex value")).toBeNull();
+    doc.undo();
+    const restored = doc.getBlock(shape);
+    expect(restored?.type === "shape" ? restored.attrs : null).toEqual({
+      variant: "rect",
+      text: "hello",
+      zIndex: 1,
+      textColor: "#123456",
+    });
+  });
+
+  it("stands the cross inert when no color stands (the active stand is off; the pick is a no-op)", () => {
+    const { doc, shape } = textedDoc();
+    const { container } = renderCanvas(doc);
+    // The render stands the tail's paragraph (the tail contract) — the
+    // attrs' stand is the comparison's unit, not the whole doc.
+    const before = doc.toJSON();
+    selectBlock(container, shape);
+
+    fireEvent.click(screen.getByLabelText("Text color"));
+    const none = screen.getByLabelText("Reset color");
+    expect(none.getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(none);
+    // The no-op: no write (the absent key's removal stands no update),
+    // the block stands.
+    const shapeBlock = doc.getBlock(shape);
+    expect(shapeBlock?.type === "shape" ? shapeBlock.attrs : null).toEqual({
+      variant: "rect",
+      text: "hello",
+      zIndex: 1,
+    });
+    expect(doc.toJSON().blocks[shape]).toEqual(before.blocks[shape]);
+    expect(screen.queryByLabelText("Text color hex value")).toBeNull();
+  });
+});
+
 describe("the concurrent deletion's guard (the peer's removal over the open toolbar)", () => {
   it("the apply over the detached block stands the no-op (no typed error into the event handler)", async () => {
     const { doc, shape } = seededDoc();

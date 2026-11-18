@@ -58,6 +58,17 @@ function CanvasTextToolbar({
       doc.updateBlock(id, patch);
     });
   };
+  // The text color's reset (the cross's button): the `textColor`'s attr
+  // removal (the contrast's resolution / the theme's foreground's stand)
+  // in one transact (one undo step, one wire update) + the section's
+  // close (the pick's stand's parity).
+  const resetTextColor = () => {
+    if (doc.getBlock(id) === null) return;
+    doc.transact(() => {
+      doc.removeBlockAttr(id, "textColor");
+    });
+    setTextColorOpen(false);
+  };
 
   return (
     <div
@@ -86,6 +97,7 @@ function CanvasTextToolbar({
           textColorOpen={textColorOpen}
           onTextColorOpenChange={setTextColorOpen}
           onApply={applyAttr}
+          onResetTextColor={resetTextColor}
         />
         <Separator orientation="vertical" className="h-5" />
         {zStand !== null && (

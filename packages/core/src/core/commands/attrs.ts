@@ -183,6 +183,58 @@ function updateBlock(ydoc: Y.Doc, id: string, patch: BlockAttrsPatch): void {
   });
 }
 
+/**
+ * Removes one block attr (one transaction — one undo step, one wire
+ * update): the key is deleted from the block's attrs map; the other
+ * attrs stand. An absent key is the no-op stand (no write, no undo
+ * step, no wire update — the `removeAttribute`'s parity). An unknown
+ * block throws the typed `UnknownBlockError`, a block type without
+ * attrs the typed `InvalidAttrsError` (the `updateBlock`'s stand); the
+ * post-removal attrs must keep the registry's invariants (a required
+ * attr's removal would leave an invalid block — the `updateBlock`'s
+ * writer's stand). The empty attrs' read stand is the omitted `attrs`
+ * field (the read path's rule — the empty map needs no cleanup).
+ */
+function removeBlockAttr(ydoc: Y.Doc, id: string, key: string): void {
+  const type = blockTypeOf(ydoc, id);
+  if (type === null) throw new UnknownBlockError(`Unknown block "${id}".`);
+  if (BLOCK_REGISTRY[type].attrs === undefined) {
+    throw new InvalidAttrsError(`Block type "${type}" has no attributes.`);
+  }
+  const block = getBlockMap(ydoc, id);
+  if (block === null) throw new UnknownBlockError(`Unknown block "${id}".`);
+  const attrsMap = block.get("attrs");
+  if (!(attrsMap instanceof Y.Map) || !attrsMap.has(key)) return; // no-op
+
+  // The post-removal attrs keep the writer's invariants: the registry's
+  // rules (the required attr's removal is a rejection) + the canvas's
+  // block-level invariants (the connector's refs, the shape's points)
+  // over the post-removal stand — like the `updateBlock`'s post-patch
+  // checks. The lenient posture stands over the record (the document's
+  // own unknown keys are preserved; the removal owns no new key).
+  const snapshot = readBlock(ydoc, id);
+  const current = snapshot !== null && "attrs" in snapshot ? snapshot.attrs : undefined;
+  const merged: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(current ?? {})) {
+    if (k !== key) setOwn(merged, k, v);
+  }
+  const errors = validateBlockAttrs(type, merged, true);
+  if (errors.length > 0) {
+    throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(errors)}`);
+  }
+  if (type === "shape" || type === "connector") {
+    const canvasErrors: ValidationError[] = [];
+    validateCanvasBlock(type, { type, attrs: merged }, `blocks.${id}`, canvasErrors);
+    if (canvasErrors.length > 0) {
+      throw new InvalidAttrsError(`Invalid attrs for block "${id}": ${formatValidationErrors(canvasErrors)}`);
+    }
+  }
+
+  localTransact(ydoc, () => {
+    (attrsMap as Y.Map<unknown>).delete(key);
+  });
+}
+
 /** Replaces the whole document title. */
 function setTitle(ydoc: Y.Doc, text: string): void {
   localTransact(ydoc, () => {
@@ -463,6 +515,7 @@ export {
   assertAttributeKey,
   assertAttributeValue,
   removeAttribute,
+  removeBlockAttr,
   renameAttribute,
   reorderAttributes,
   setAttribute,

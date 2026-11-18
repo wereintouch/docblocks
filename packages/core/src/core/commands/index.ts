@@ -9,6 +9,7 @@ export {
   assertAttributeKey,
   assertAttributeValue,
   removeAttribute,
+  removeBlockAttr,
   renameAttribute,
   reorderAttributes,
   setAttribute,
