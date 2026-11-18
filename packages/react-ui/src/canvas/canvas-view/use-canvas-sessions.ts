@@ -19,7 +19,7 @@ import {
   screenToCanvas,
   snapAnySurfaceEdge,
 } from "../../canvas";
-import type { CanvasViewportState, ResizeHandle } from "../../canvas";
+import type { CanvasViewportState, CanvasViewportStore, ResizeHandle } from "../../canvas";
 import { focusCaretInElement } from "../../editing/block-commands";
 import type { SelectionRef } from "../../editor-provider";
 import { effectiveGeometry, portsOf } from "../geometry";
@@ -36,7 +36,7 @@ interface CanvasSessionsDeps {
   lastPointerRef: RefObject<{ x: number; y: number } | null>;
   cardPressRef: RefObject<boolean>;
   connectorPressClientRef: RefObject<{ x: number; y: number } | null>;
-  viewport: CanvasViewportState;
+  viewport: CanvasViewportState & { store: CanvasViewportStore };
   spacePan: boolean;
   blocks: Record<BlockId, Block>;
   doc: Doc;
@@ -173,6 +173,15 @@ function useCanvasSessions({
     // miniature or a canvas-text inner stands on top of it).
     if (viewport.activeTool === "pen") {
       sessionRef.current = { kind: "pen", points: [screenToCanvas(point, viewport.zoom, viewport.pan)] };
+      // The compatibility mousedown's preventDefault's stand (the press
+      // suppresses the mousedown's default — the caret / the native text
+      // selection stand off over the press: a selection drag over the
+      // surface's text would take the gesture over and cancel the pointer
+      // sequence over the live stroke). The focus parks on the container
+      // (the preventDefault drops the default focus move — the keydown
+      // reach stands over the gesture).
+      cardPressRef.current = true;
+      containerRef.current?.focus();
       event.currentTarget.setPointerCapture?.(event.pointerId);
       return;
     }
@@ -193,6 +202,17 @@ function useCanvasSessions({
           startClientY: event.clientY,
           lastPoint: start,
         };
+        // The compatibility mousedown's preventDefault's stand (the press
+        // suppresses the mousedown's default — the caret / the native text
+        // selection stand off over the press: a selection drag over the
+        // surface's text — the page miniature's content, the shape's text
+        // overlay — would take the gesture over and cancel the pointer
+        // sequence over the live place preview). The focus parks on the
+        // container (the preventDefault drops the default focus move — the
+        // keydown reach stands over the gesture: the shift's live toggle
+        // over the standing drag).
+        cardPressRef.current = true;
+        containerRef.current?.focus();
         event.currentTarget.setPointerCapture?.(event.pointerId);
         return;
       }
@@ -878,15 +898,18 @@ function useCanvasSessions({
   const dropCanvasSessions = () => {
     // The no-session no-op: a button-less mouse move over the idle
     // canvas must not write state (no re-render) — the setX calls stand
-    // fresh values (a new array for the pen points).
+    // fresh values (a new array for the pen points). The slices stand the
+    // LIVE store state (not the render closure — a deferred re-render's
+    // stale preview must not stand the idle drop's writes).
+    const live = viewport.store.getState();
     if (
       sessionRef.current === null &&
-      viewport.movePreview === null &&
-      viewport.resizePreview === null &&
-      viewport.marquee === null &&
-      viewport.penPoints.length === 0 &&
-      viewport.placePreview === null &&
-      viewport.connectorEndpoint === null
+      live.movePreview === null &&
+      live.resizePreview === null &&
+      live.marquee === null &&
+      live.penPoints.length === 0 &&
+      live.placePreview === null &&
+      live.connectorEndpoint === null
     ) {
       return;
     }
