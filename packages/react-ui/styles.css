@@ -634,3 +634,13 @@
     inset 0 1px 0 var(--docblocks-database-pending-row-border-color),
     inset 0 -1px 0 var(--docblocks-database-pending-row-border-color);
 }
+
+/*
+ * The cover banner's dark-theme's stand: the image dims slightly (a bright
+ * cover over the dark's card stands a glare). The filter darkens the
+ * rendered pixels only — the banner's transparent background keeps the
+ * card's color underneath, so the dim never shifts the fade's edges.
+ */
+:is(.dark [data-slot="docblocks/editor"], [data-slot="docblocks/editor"].dark) [data-slot="docblocks/cover-banner"] {
+  filter: brightness(0.85);
+}

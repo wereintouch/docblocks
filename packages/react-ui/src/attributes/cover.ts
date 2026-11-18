@@ -21,7 +21,7 @@ const COVER_MAX_CENTER_HEIGHT_PX = 150;
 
 /** The banner's bottom fade-out's depth (CSS px) — the last pixels stand
  *  the smooth stand into the page's content. */
-const COVER_FADE_BOTTOM_PX = 30;
+const COVER_FADE_BOTTOM_PX = 16;
 
 /** The banner's bottom fade-out's curve's modes: the linear's ramp over the
  *  fade's region, or the smooth's (ease-out's) stand — the quarter's stops'

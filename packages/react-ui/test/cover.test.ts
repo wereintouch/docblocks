@@ -164,12 +164,12 @@ describe("the cover's pure logic", () => {
 
   it("stands the fade mask's curves (the smooth's default)", () => {
     expect(coverFadeMask()).toBe(coverFadeMask("smooth"));
-    expect(coverFadeMask("linear")).toBe("linear-gradient(to bottom, #000 calc(100% - 30px), transparent 100%)");
+    expect(coverFadeMask("linear")).toBe("linear-gradient(to bottom, #000 calc(100% - 16px), transparent 100%)");
     // The smooth's stand: the eased alpha's quarter's stops over the region.
     const smooth = coverFadeMask("smooth");
-    expect(smooth).toContain("rgba(0, 0, 0, 0.5625) calc(100% - 22.5px)");
-    expect(smooth).toContain("rgba(0, 0, 0, 0.25) calc(100% - 15px)");
-    expect(smooth).toContain("rgba(0, 0, 0, 0.0625) calc(100% - 7.5px)");
+    expect(smooth).toContain("rgba(0, 0, 0, 0.5625) calc(100% - 12px)");
+    expect(smooth).toContain("rgba(0, 0, 0, 0.25) calc(100% - 8px)");
+    expect(smooth).toContain("rgba(0, 0, 0, 0.0625) calc(100% - 4px)");
     expect(smooth).toContain("transparent 100%)");
   });
 });

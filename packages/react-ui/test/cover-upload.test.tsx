@@ -222,8 +222,8 @@ describe("the cover's banner", () => {
     // The card's rounded-xl's corner's clip over the frame's top edge.
     expect(banner!.classList.contains("rounded-t-xl")).toBe(true);
     expect(banner!.classList.contains("-mt-6")).toBe(true);
-    // The bottom fade's mask (the 30px's depth's stand over both modes).
-    expect(banner!.getAttribute("style")).toContain("30px");
+    // The bottom fade's mask (the 16px's depth's stand over both modes).
+    expect(banner!.getAttribute("style")).toContain("16px");
   });
 
   it("stands the centering over the mode (the centered slice's stand)", async () => {
