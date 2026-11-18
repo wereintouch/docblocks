@@ -103,6 +103,17 @@ test("the palette applies a background highlight, then a text color, then clears
   await paletteTrigger.click();
   const palette = a.locator('[data-slot="docblocks/format-palette"]');
   await expect(palette).toBeVisible();
+  // The reset's stand: the cross's button over the all colors (the
+  // text's palette's explicit reset's affordance — the elements'
+  // palettes keep the transparent's swatch).
+  const none = palette.locator('[data-slot="docblocks/palette-none"]');
+  await expect(none).toBeVisible();
+  expect(await none.getAttribute("aria-label")).toBe("Reset color");
+  // The cross stands over the row's tail (the after-all-the-colors'
+  // position's stand).
+  const group = none.locator("xpath=..");
+  expect(await group.evaluate((el) => el.lastElementChild?.getAttribute("data-color"))).toBe("none");
+  expect(await group.locator('[data-slot="docblocks/palette-swatch"]').count()).toBe(8);
   // The swatch's entry is a theme token; the commit resolves it to the
   // active theme's hex (the harness stands dark — the muted red). The
   // pick's stand closes the palette (the next pick reopens it).

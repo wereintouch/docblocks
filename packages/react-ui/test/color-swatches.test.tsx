@@ -139,6 +139,53 @@ describe("ColorSwatches (the shared palette)", () => {
     expect(noneClicked).toEqual([true]);
   });
 
+  it("the none's cross's button is opt-in (the text's palette's stand — the X over the colors)", () => {
+    // The default stand (the transparent's swatch — the elements' palettes).
+    render(
+      <ColorSwatches
+        colors={HEX_PALETTE}
+        onSelect={() => undefined}
+        label="text"
+        allowNone
+        noneActive
+        onSelectNone={() => undefined}
+      />
+    );
+    const defaultNone = document.querySelector<HTMLElement>('[data-slot="docblocks/palette-none"]');
+    expect(defaultNone!.getAttribute("aria-label")).toBe("No color");
+    expect(defaultNone!.querySelector("span[aria-hidden]")).not.toBeNull();
+    cleanup();
+
+    // The cross's stand: the X's button (the reset's affordance) over the
+    // all colors, the transparent's swatch's absent.
+    const noneClicked: boolean[] = [];
+    render(
+      <ColorSwatches
+        colors={HEX_PALETTE}
+        onSelect={() => undefined}
+        label="text"
+        allowNone
+        noneActive
+        onSelectNone={() => noneClicked.push(true)}
+        noneAsCross
+      />
+    );
+    const cross = document.querySelector<HTMLElement>('[data-slot="docblocks/palette-none"]');
+    expect(cross).not.toBeNull();
+    expect(cross!.getAttribute("aria-label")).toBe("Reset color");
+    expect(cross!.getAttribute("aria-pressed")).toBe("true");
+    expect(cross!.style.background).toBe("");
+    expect(cross!.querySelector("span[aria-hidden]")).toBeNull();
+    const icon = cross!.querySelector("svg");
+    expect(icon).not.toBeNull();
+    expect(icon!.outerHTML).toContain("M18 6 6 18");
+    // The last's entry over the row (the after-all-the-colors' stand).
+    const group = cross!.parentElement!;
+    expect(group.lastElementChild).toBe(cross);
+    cross!.click();
+    expect(noneClicked).toEqual([true]);
+  });
+
   it("the custom swatch is opt-in (off by default, on: the rainbow circle)", () => {
     // Off by default.
     render(<ColorSwatches colors={HEX_PALETTE} onSelect={() => undefined} label="fill" />);

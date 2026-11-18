@@ -459,6 +459,10 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
             allowNone
             noneActive={paletteActive(null)}
             onSelectNone={nonePaletteValue}
+            // The text's palette's reset's stand: the cross's button over
+            // the all colors (the elements' palettes keep the
+            // transparent's "no color" swatch).
+            noneAsCross
           />
         </PopoverContent>
       </Popover>
