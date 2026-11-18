@@ -8,6 +8,7 @@ import {
   type EditorView,
   type PresenceConfig,
   cn,
+  useCoverAverageColor,
 } from "docblocks-react-ui";
 import type { SyncEmbedResolver } from "docblocks-react-ui";
 import { MermaidCodeRenderer } from "docblocks-react-ui/mermaid";
@@ -119,6 +120,22 @@ interface Runtime {
  * toggle visibility — the subscriptions live in the runtime effect, so a
  * hidden inspector keeps updating and its testid stays queryable.
  */
+/** The consumer-side cover's glow's reporter (the glow's demo's stand —
+ *  the surroundings' visual stands the consumer's chrome over the
+ *  package's `useCoverAverageColor`'s data; the package's DOM ends at the
+ *  card). The average's color stands on the host's element as the
+ *  `--cover-glow`'s variable (the harness's CSS's mix's input). */
+function CoverGlowReporter({ hostRef }: { hostRef: React.RefObject<HTMLDivElement | null> }) {
+  const color = useCoverAverageColor();
+  useEffect(() => {
+    const el = hostRef.current;
+    if (el === null) return;
+    if (color === null) el.style.removeProperty("--cover-glow");
+    else el.style.setProperty("--cover-glow", color);
+  }, [color, hostRef]);
+  return null;
+}
+
 function SyncPane({
   client,
   syncUrl,
@@ -496,7 +513,7 @@ function SyncPane({
             </>
           )}
         </header>
-        <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle}>
+        <div data-testid={`doc-${client}`} ref={docAreaRef} style={docAreaStyle} className="cover-glow-host">
           {role === "viewer" ? (
             // The viewer's security stand: the published snapshot is the
             // doc (the live document never reaches the reader's browser);
@@ -520,6 +537,7 @@ function SyncPane({
               accessLevel="viewer"
             >
               <Editor view={view} />
+              <CoverGlowReporter hostRef={docAreaRef} />
             </EditorProvider>
           ) : (
             runtime !== null && (
@@ -543,6 +561,7 @@ function SyncPane({
                 publishedDoc={publishedDoc}
               >
                 <Editor view={view} />
+                <CoverGlowReporter hostRef={docAreaRef} />
                 {/* The harness's sharing's control (the consumer-side UI over the hook — the
                      provider's context; the catalog's golden's fixture stands no control). */}
                 {!catalog && <PresenceShareControl client={client} peerUserId={`user-${peerLetter}`} />}

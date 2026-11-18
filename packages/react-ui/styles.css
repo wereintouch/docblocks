@@ -644,3 +644,15 @@
 :is(.dark [data-slot="docblocks/editor"], [data-slot="docblocks/editor"].dark) [data-slot="docblocks/cover-banner"] {
   filter: brightness(0.85);
 }
+
+/*
+ * The cover's frame's tint: the card's border stands the cover's average
+ * color's mix over the theme's border token (the 25% share keeps the tint
+ * subtle — the light's token mixes pale, the dark's token mixes the
+ * gray's stand over the same average). The average's color stands on the
+ * card's element itself (the border's element) as the inline variable,
+ * so the theme's flip re-mixes over the same value without a re-read.
+ */
+[data-slot="card"][data-cover-tint] {
+  border-color: color-mix(in srgb, var(--docblocks-cover-tint-color) 25%, var(--border));
+}

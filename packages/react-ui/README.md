@@ -326,7 +326,16 @@ same store. The upload modal's optional preset gallery (the
 `coverPresets` provider prop) lists the consumer's ready-made cover's ids
 per placement mode (the `tile` / the `center`'s set) over the 4-column's
 scrollable grid; a pick commits the id over the mode without an upload
-(the thumbnails resolve over the same store). Bytes, names,
+(the thumbnails resolve over the same store). The stored cover also drives
+the editor frame's **tint** (opt-out over the `coverTint` attribute — the
+absence is the default on, the explicit `false` turns it off over the
+attributes panel's checkbox): the card's border mixes the cover's
+alpha-weighted average color with the theme's border token (the `color-mix`
+25% share — pale over the light theme, gray-mixed over the dark one). The
+`useCoverAverageColor()` hook (below) exports the same average for the
+consumer's own chrome — e.g. a glow over the editor's surroundings —
+which stays the consumer's CSS (the package's DOM ends at the card). Bytes,
+names,
 and MIME types never enter the document. `BlobStore` is the only bridge
 between those ids and the stored objects:
 
@@ -723,6 +732,10 @@ value actually changes (the store's reference-stability contract):
   the title changed).
 - `useEditorContext()` — the whole provider context (the store, the
   resolvers, the access stand).
+- `useCoverAverageColor()` — the stored cover's alpha-weighted average
+  color (the `rgb(...)` string or `null` over the absent / the
+  undecodable's stand) — the frame's tint's data and the consumer's
+  surroundings' glow's source.
 - `useDatabaseTable(bridge, tableId, filter?)` — the external database
   block's grid controller (a consumer-owned grid over the bridge).
 

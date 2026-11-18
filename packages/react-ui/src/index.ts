@@ -117,6 +117,7 @@ export {
 } from "./hooks";
 export type { PresenceCrypto, PresenceIdentity, PresencePeer, PresenceSharing, PresenceSharingMode } from "./presence";
 export { FORMAT_PALETTE } from "./editing/format-toolbar";
+export { useCoverAverageColor } from "./attributes/cover-tint";
 export { ImportDocumentError, importDocument } from "./editing/import";
 export { markToggleAction } from "./editing/keyboard";
 export type { FormatMark } from "./editing/keyboard";

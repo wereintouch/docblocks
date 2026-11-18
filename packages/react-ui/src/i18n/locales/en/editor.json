@@ -109,6 +109,8 @@
     "coverMode": "Placement",
     "coverModeTile": "Tile",
     "coverModeCenter": "Centering",
+    "coverTint": "Frame tint",
+    "coverTintAria": "Tint the frame's border over the cover's average color",
     "coverUploadTitle": "Upload cover",
     "coverUploadHint": "Drag and drop a PNG, JPEG, or WebP image, or click to choose a file",
     "coverInfoMinHeight": "Minimum height: {min} px",

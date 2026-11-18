@@ -45,6 +45,7 @@ import { InvalidAttributeError } from "docblocks-core";
 import type { AttributeType, DocAttributeValue } from "docblocks-core";
 
 import { useEditorContext } from "../editor-provider";
+import { Checkbox } from "../shared/ui/Checkbox";
 import { InlineEditInput } from "../shared/ui/InlineEditInput";
 import { cn } from "../shared/ui/cn";
 import { ChevronDown } from "../shared/ui/icons";
@@ -523,6 +524,28 @@ function AttributesPanel() {
                   onChange={(next) => {
                     if (next === "center") set("coverMode", "center");
                     else remove("coverMode");
+                  }}
+                />
+              )}
+            </AttributeRow>
+          ) : null}
+
+          {has("cover") && !hidden.has("coverTint") ? (
+            // The frame's tint's row (the checkbox with the absence's
+            // default's stand: the on is the key's absence, the off stands
+            // the explicit's `false`'s write — the row stands over the
+            // cover's presence, like the mode's row).
+            <AttributeRow key="coverTint" attributeKey="coverTint" label={t("attributes.coverTint")} removable={false}>
+              {valueZone(
+                "coverTint",
+                <Checkbox
+                  data-slot="docblocks/attributes-cover-tint"
+                  aria-label={t("attributes.coverTintAria")}
+                  checked={value("coverTint") !== false}
+                  disabled={viewMode}
+                  onCheckedChange={(next) => {
+                    if (next === true) remove("coverTint");
+                    else set("coverTint", false);
                   }}
                 />
               )}

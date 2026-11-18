@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 import { useMemo, useRef } from "react";
 
 import { AttributesPanel, CoverBanner } from "./attributes";
+import { CoverTintController } from "./attributes/cover-tint";
 import {
   BlockContext,
   CanvasView,
@@ -68,6 +69,14 @@ interface EditorProps {
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
   const { doc, store, rootBlockId, viewMode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
+  // The frame's tint's read (the cover's presence + the off's stand — the
+  // absent's / the `true`'s stand is the on's default): the data attribute
+  // gates the CSS's border's mix (the variable's stand is the controller's
+  // job over the card's element).
+  const attributes = useStore(store, (state) => state.meta.attributes);
+  const coverId = typeof attributes?.cover === "string" ? attributes.cover : undefined;
+  const coverTintEnabled = coverId !== undefined && attributes?.coverTint !== false;
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const pageRef = useRef<HTMLDivElement | null>(null);
   // The page surface's handlers map (the container dispatch's source +
   // the per-block registration's target — one map per editor instance,
@@ -162,8 +171,15 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
     // the card surface). In the canvas view it takes the flex column's
     // slack: the 100% height chain below the root needs a definite height.
     // The inner div is the editor root: the focus and keyboard scope and
-    // the token-mapping scope.
-    <Card className={cn(view === "canvas" && "min-h-0 flex-1")}>
+    // the token-mapping scope. The `data-cover-tint`'s stand gates the
+    // frame's tint's border's mix (the cover's average color's variable's
+    // stand stands over this element — the border's element).
+    <Card
+      ref={cardRef}
+      data-cover-tint={coverTintEnabled ? "" : undefined}
+      className={cn(view === "canvas" && "min-h-0 flex-1")}
+    >
+      <CoverTintController cardRef={cardRef} />
       {/* The database's enum's options' editor stands the motion's variant
           (the framer's Reorder's rows) over this provider — the database
           block's grid renders through the base's BlockView, so the swap

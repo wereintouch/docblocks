@@ -232,3 +232,13 @@ body {
   border-radius: 8px;
   font-size: 13px;
 }
+
+/* The consumer-side cover's glow's demo (the surroundings' stand — the
+   package's DOM ends at the card): a soft halo over the editor frame's
+   top edge (the cover's region), colored by the cover's average color
+   (the `useCoverAverageColor`'s stand over the host element as the
+   `--cover-glow`'s variable; the absent's cover stands the transparent's
+   shadow — no glow). */
+.cover-glow-host {
+  box-shadow: 0 -18px 56px -22px color-mix(in srgb, var(--cover-glow, transparent) 55%, transparent);
+}

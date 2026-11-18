@@ -70,6 +70,88 @@ async function readImageDimensions(file: Blob): Promise<ImageDimensions | null> 
   }
 }
 
+/** The frame's tint's CSS variable (the cover's average color's stand
+ *  over the card's element — the border's mix's input). */
+const COVER_TINT_VARIABLE = "--docblocks-cover-tint-color";
+
+/** The tint's average's sample's size (the pixel's count per side — the
+ *  grid's area's mean over the image's downscale). */
+const TINT_SAMPLE_PX = 8;
+
+/** The image's decode over the `<img>`'s element (the SVG's stand — the
+ *  `createImageBitmap`'s rejection's parity: the engine refuses the SVG's
+ *  blob over the bitmap's API, while the image's decode accepts it over
+ *  the raster's formats' parity). The object URL's lifecycle stands the
+ *  decode's completion (the pixels' in-memory's stand over the revoke —
+ *  the draw's source is the decoded's image, not the url). */
+async function decodeToImage(file: Blob): Promise<HTMLImageElement | null> {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.src = url;
+  try {
+    await img.decode();
+    return img;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** The average's color's cache over the blob's identity (the re-resolution's
+ *  no re-compute's stand; the store's change's new blob stands a fresh
+ *  entry — the weak key's stand keeps the dead blobs' garbage's parity).
+ */
+const tintColorCache = new WeakMap<Blob, Promise<string | null>>();
+
+/**
+ * The alpha-weighted average color over a decodable image blob (the
+ *  frame's tint's / the consumer's glow's data's source): the image stands
+ *  downscaled to the sample's grid over a canvas (the `img`'s decode — the
+ *  SVG's parity), and the mean stands the premultiplied's accumulation
+ *  (the alpha's share per pixel) — the transparent's stand no gray's pull
+ *  (the alpha fade's cover stands its solid's hue, not the fade's
+ *  average). The `rgb(...)`'s string over the computed's stand; `null`
+ *  over an undecodable payload or the canvas's absence (the jsdom's
+ *  fail-open's stand — the plain border's parity).
+ */
+async function averageColorOfBlob(file: Blob): Promise<string | null> {
+  let cached = tintColorCache.get(file);
+  if (cached === undefined) {
+    cached = (async (): Promise<string | null> => {
+      const img = await decodeToImage(file);
+      if (img === null) return null;
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = TINT_SAMPLE_PX;
+        canvas.height = TINT_SAMPLE_PX;
+        const ctx = canvas.getContext("2d");
+        if (ctx === null) return null;
+        ctx.drawImage(img, 0, 0, TINT_SAMPLE_PX, TINT_SAMPLE_PX);
+        const data = ctx.getImageData(0, 0, TINT_SAMPLE_PX, TINT_SAMPLE_PX).data;
+        let r = 0;
+        let g = 0;
+        let b = 0;
+        let alphaSum = 0;
+        for (let i = 0; i < data.length; i += 4) {
+          const alpha = (data[i + 3] ?? 0) / 255;
+          r += (data[i] ?? 0) * alpha;
+          g += (data[i + 1] ?? 0) * alpha;
+          b += (data[i + 2] ?? 0) * alpha;
+          alphaSum += alpha;
+        }
+        if (alphaSum === 0) return null;
+        const mean = (sum: number): number => Math.round(sum / alphaSum);
+        return `rgb(${mean(r)}, ${mean(g)}, ${mean(b)})`;
+      } catch {
+        return null;
+      }
+    })();
+    tintColorCache.set(file, cached);
+  }
+  return cached;
+}
+
 /**
  * The banner's bottom fade-out's mask (the last pixels' smooth stand into
  *  the page's content) — the mask's stand over both modes (the layer's /
@@ -181,6 +263,8 @@ export {
   COVER_MODE_ORDER,
   COVER_RENDERS_BYTES,
   COVER_TILE_STRIP_HEIGHT_PX,
+  COVER_TINT_VARIABLE,
+  averageColorOfBlob,
   centerBackgroundStyle,
   coverFadeMask,
   coverModeGating,

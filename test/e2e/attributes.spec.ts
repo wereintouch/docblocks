@@ -974,9 +974,9 @@ test("the cover's preset's gallery: the 4-column's grid over the consumer's stor
     await expect(dialog).toBeVisible();
     await expect(grid).toBeVisible();
     await expect(cells).toHaveCount(15);
-    const columns = await a.locator('[data-slot="docblocks/cover-preset-cells"]').evaluate((el) =>
-      getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length
-    );
+    const columns = await a
+      .locator('[data-slot="docblocks/cover-preset-cells"]')
+      .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").filter(Boolean).length);
     expect(columns, "the 4-column's stand").toBe(4);
 
     // The mode's switch's stand (the set's switch over the same grid's
@@ -1044,6 +1044,70 @@ test("the cover's preset's gallery: the 4-column's grid over the consumer's stor
     await upload.click();
     await expect(dialog).toBeVisible();
     await expect(grid).toHaveCount(0);
+  } finally {
+    await close();
+  }
+});
+
+test("the cover's frame's tint: the border's mix over the cover's average + the off's toggle + the consumer's glow", async ({
+  browser,
+}) => {
+  const { a, b, close } = await twoPanes(browser, "doc-attributes-cover-tint");
+  try {
+    await openPanel(a, "a");
+    const upload = panel(a, "a").locator('[data-slot="docblocks/attributes-cover-upload-button"]');
+    const dialog = a.locator('[data-slot="docblocks/cover-upload-dialog"]');
+    const cells = a.locator('[data-slot="docblocks/cover-preset"]');
+
+    // The solid swatch's cover (the first cell — the deterministic's
+    // average's pin: the solid's fill stands its exact's rgb over the
+    // canvas's decode).
+    await upload.click();
+    await expect(dialog).toBeVisible();
+    await cells.first().click();
+    await expect(dialog).toBeHidden();
+    await expect(coverBanner(a, "a")).toBeVisible();
+
+    const card = editorRoot(a, "a").locator("xpath=..");
+    // The default's on: the data attribute + the average's variable over
+    // the card's element (the border's element).
+    await expect(card).toHaveAttribute("data-cover-tint");
+    expect(await card.evaluate((el) => el.style.getPropertyValue("--docblocks-cover-tint-color"))).toBe(
+      "rgb(14, 165, 233)"
+    );
+    const tinted = await card.evaluate((el) => getComputedStyle(el).borderColor);
+    expect(tinted).not.toBe("rgba(0, 0, 0, 0)");
+
+    // The off's toggle (the panel's checkbox over the cover's presence):
+    // the explicit's `false`'s write stands the attribute's removal and
+    // the border's plain's stand.
+    const tint = panel(a, "a").locator('[data-slot="docblocks/attributes-cover-tint"]');
+    await expect(tint).toBeChecked();
+    await tint.click();
+    await expect(tint).not.toBeChecked();
+    expect((await attributesOf(a, "a"))?.coverTint, "the off stands the explicit's false").toBe(false);
+    await expect(card).not.toHaveAttribute("data-cover-tint");
+    const plain = await card.evaluate((el) => getComputedStyle(el).borderColor);
+    expect(plain, "the plain border's stand over the tint's removal").not.toBe(tinted);
+
+    // The theme's flip's stand (the mix over the theme's border token):
+    // the same cover stands the different's border over the light's theme.
+    await tint.click();
+    await expect(card).toHaveAttribute("data-cover-tint");
+    await a.getByTestId("theme-a-light").click();
+    const lightTinted = await card.evaluate((el) => getComputedStyle(el).borderColor);
+    expect(lightTinted, "the theme's flip stands the mix's stand").not.toBe(tinted);
+
+    // The consumer's glow's stand (the hook's data over the consumer's
+    // chrome): the average's variable over the host's element — pane B's
+    // parity over the consumer's storage's fixed's id (the cross-pane's
+    // resolution's stand).
+    const glowOf = (page: Page, client: "a" | "b"): Promise<string> =>
+      page
+        .locator(`[data-testid="doc-${client}"]`)
+        .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--cover-glow"));
+    await expect.poll(glowOf.bind(null, a, "a"), SETTLE).toBe("rgb(14, 165, 233)");
+    await expect.poll(glowOf.bind(null, b, "b"), SETTLE).toBe("rgb(14, 165, 233)");
   } finally {
     await close();
   }
