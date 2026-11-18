@@ -8,6 +8,9 @@ const DEFAULT_SYNC_URL = "ws://localhost:5199/doc-1";
 /** The canvas demo keeps its own room (the deterministic canvas seed must not mix with the default doc-1 room's content). */
 const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
 
+/** The heavy canvas's room (the synthetic grid's stand — the room's isolation stands the relay's own room per demo). */
+const HEAVY_SYNC_URL = "ws://localhost:5199/heavy-demo";
+
 /**
  * Playground page: one sync pane per tab. `?client=a|b` picks the pane's
  * letter (default a); `?syncUrl=` overrides the relay URL (the E2E smoke
@@ -16,7 +19,9 @@ const CANVAS_SYNC_URL = "ws://localhost:5199/canvas-demo";
  * default); `?catalog=1` builds the deterministic v1 catalog document (the visual regression fixture, see catalog.ts) instead of the
  * empty seed; `?canvas=1` seeds the canvas demo (the page + a surface with
  * shapes, a canvas text, and a connector — see canvas-seed.ts) and starts
- * in the canvas view; `?role=viewer` stands the pane's viewer's access
+ * in the canvas view; `?heavy=1` seeds the heavy canvas (the synthetic
+ * grid — the 5000 figures + the 1500 connectors, heavy-seed.ts) over its
+ * own room and starts in the canvas view; `?role=viewer` stands the pane's viewer's access
  * level (the security stand — the pane holds no live document and no
  * relay: the pane renders the room's published snapshot stand read-only,
  * the publish.ts's stand; the absent stand stands the not-published's
@@ -40,8 +45,9 @@ function App() {
   const params = new URLSearchParams(window.location.search);
   const client = params.get("client") === "b" ? "b" : "a";
   const canvas = params.get("canvas") === "1";
+  const heavy = params.get("heavy") === "1";
   const role = params.get("role") === "viewer" ? "viewer" : "editor";
-  const syncUrl = params.get("syncUrl") ?? (canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
+  const syncUrl = params.get("syncUrl") ?? (heavy ? HEAVY_SYNC_URL : canvas ? CANVAS_SYNC_URL : DEFAULT_SYNC_URL);
   const catalog = params.get("catalog") === "1";
   const cycle = params.get("cycle") === "1";
   const ds = params.get("ds") === "1";
@@ -55,6 +61,7 @@ function App() {
       syncUrl={syncUrl}
       catalog={catalog}
       canvas={canvas}
+      heavy={heavy}
       cycle={cycle}
       role={role}
       attrDemo={attrDemo}

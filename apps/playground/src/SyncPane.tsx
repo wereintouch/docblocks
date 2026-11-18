@@ -23,6 +23,7 @@ import { ChaosBar } from "./ChaosBar";
 import { attributeTypePickerDemo, renderAttributeDemo, useDocTagsDemo } from "./attribute-demos";
 import { createCanvasDoc } from "./canvas-seed";
 import { DOC_ID, seedPaneDoc } from "./catalog";
+import { createHeavyDoc } from "./heavy-seed";
 import { blobStore, coverPresets, databaseBridge, insertBlockOf } from "./insert-blocks";
 import type { InsertableType } from "./insert-blocks";
 import { BridgeInspector } from "./inspect/BridgeInspector";
@@ -141,6 +142,7 @@ function SyncPane({
   syncUrl,
   catalog,
   canvas,
+  heavy,
   cycle,
   role,
   attrDemo,
@@ -149,6 +151,7 @@ function SyncPane({
   syncUrl: string;
   catalog: boolean;
   canvas: boolean;
+  heavy: boolean;
   cycle: boolean;
   role: "editor" | "viewer";
   attrDemo: boolean;
@@ -169,7 +172,7 @@ function SyncPane({
   const [wire, setWire] = useState<WireEvent[]>([]);
   const [tab, setTab] = useState<InspectTab>("json");
   /** The view mode (page / canvas): view state only — switching writes nothing to the doc. */
-  const [view, setView] = useState<EditorView>(canvas ? "canvas" : "page");
+  const [view, setView] = useState<EditorView>(canvas || heavy ? "canvas" : "page");
   /** The consumer's document mode: the editor's mode is controlled; the viewer's mode is forced to published (the package's resolution — the harness stands the editor's controlled stand). */
   const [mode, setMode] = useState<EditorMode>("edit");
   /** The published snapshot (the consumer's publish stand: the room's shared localStorage stand, the publish.ts); null over the absent stand. */
@@ -235,7 +238,11 @@ function SyncPane({
     }
     // One seeder per room (the pane doc convention): client a seeds the
     // deterministic canvas doc, client b joins empty.
-    const doc = canvas ? createCanvasDoc(client === "a") : seedPaneDoc(catalog);
+    const doc = heavy
+      ? createHeavyDoc(client === "a")
+      : canvas
+        ? createCanvasDoc(client === "a")
+        : seedPaneDoc(catalog);
     const provider = new WsSyncProvider(syncUrl);
     const mountedAt = Date.now();
     // The pane's master (the sync-embed target): pane a seeds it, pane b
@@ -287,7 +294,7 @@ function SyncPane({
       }
     };
     let unsubscribeSettle: (() => void) | null = null;
-    if (client === "a" && !catalog && !canvas) {
+    if (client === "a" && !catalog && !canvas && !heavy) {
       unsubscribeSettle = provider.onUpdate(finishStarter);
       settleTimer = window.setTimeout(finishStarter, 1000);
     }
@@ -360,7 +367,7 @@ function SyncPane({
       setWire([]);
       setRuntime(null);
     };
-  }, [syncUrl, catalog, canvas, cycle, masterDocId, client, role]);
+  }, [syncUrl, catalog, canvas, heavy, cycle, masterDocId, client, role]);
 
   useBlockLabels(docAreaRef, blocks, currentId, client);
 
