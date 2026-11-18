@@ -92,9 +92,11 @@ function renderRunsInto(runs: TextRun[], container: HTMLElement, resolveMentionL
     }
     let node: Node = document.createTextNode(run.text);
     // The link's href is gated over the public contract (the remote input
-    // is not validated — the unsafe scheme stands the plain text).
+    // is not validated — the unsafe scheme stands the plain text). The
+    // `rel`'s stand (the editor's click's open stands `noopener,noreferrer`
+    // over the window.open's call, the native open's parity over it).
     if (run.marks.link !== undefined && isSafeLinkHref(run.marks.link.href))
-      node = wrap(node, "a", { href: run.marks.link.href, class: LINK_CLASS });
+      node = wrap(node, "a", { href: run.marks.link.href, rel: "noopener noreferrer", class: LINK_CLASS });
     if (run.marks.bold === true) node = wrap(node, "strong");
     if (run.marks.italic === true) node = wrap(node, "em");
     if (run.marks.strike === true) node = wrap(node, "s");

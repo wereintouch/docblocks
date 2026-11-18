@@ -63,7 +63,11 @@ function renderMarked(run: TextRun, resolveMentionLabel?: MentionLabelResolver):
   const linkHref = linkHrefOf(run);
   if (linkHref !== undefined)
     node = (
-      <a href={linkHref} className={LINK_CLASS}>
+      // The rel's stand (the security's parity over the consumer's
+      // middle-click / the modified-click's native open — the editor's
+      // own click's open stands `noopener,noreferrer` over the
+      // window.open's call).
+      <a href={linkHref} rel="noopener noreferrer" className={LINK_CLASS}>
         {node}
       </a>
     );

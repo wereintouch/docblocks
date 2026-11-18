@@ -22,6 +22,7 @@ import { PageSurfaceProvider, usePageSurfaceDispatch } from "./editing/page-surf
 import type { PageSurfaceHandlersMap } from "./editing/page-surface";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
 import { useEditing } from "./editing/use-editing";
+import { useLinkOpen } from "./editing/use-link-open";
 import { useEditorContext } from "./editor-provider";
 import { MotionEnumOptionsEditor } from "./motion/MotionEnumOptionsEditor";
 import { RowList } from "./motion/RowList";
@@ -110,6 +111,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
     [doc, rootBlockId, rootChildren]
   );
   const { rootRef, onKeyDown, onCopy, onPointerDown: onCrossDragPointerDown } = useEditing();
+  const linkOpen = useLinkOpen();
   const slash = useSlashMenu(rootRef);
   const mention = useMentionMenu(rootRef);
   const mentionCard = useMentionCard(rootRef);
@@ -199,6 +201,8 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           )}
           onKeyDown={onKeyDown}
           onCopy={onCopy}
+          onMouseDown={linkOpen.onMouseDown}
+          onClick={linkOpen.onClick}
           onPointerDown={onCrossDragPointerDown}
         >
           <style>{HANDLE_GRAB_STYLE}</style>
