@@ -249,3 +249,44 @@ describe("the zIndex reconciliation (insert / move / remove)", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 });
+
+describe("the bulk stand (the large surface's quadratic guard)", () => {
+  it("a tail append over the large surface stands no mirror rewrite (the wire update stays bounded)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    doc.transact(() => {
+      for (let i = 0; i < 500; i += 1) {
+        doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      }
+    });
+    // The dense's stand over the bulk (the 1..500 mirror).
+    expect(zIndexesOf(doc, surface)).toEqual(Array.from({ length: 500 }, (_, i) => i + 1));
+    // The wire delta's baseline (the state vector's stand — the full state
+    // stands the `encodeUpdate`'s no-argument form).
+    const baseline = Y.encodeStateVector(doc.raw);
+    // The tail's append: the unchanged siblings' mirror stands no write
+    // (the yjs's equal-value set's allocation stand — the bulk insert's
+    // quadratic's guard). The delta carries the new block + the order
+    // slot + the new element's index only.
+    const added = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    expect(zIndexesOf(doc, surface)).toEqual(Array.from({ length: 501 }, (_, i) => i + 1));
+    const delta = Y.encodeStateAsUpdate(doc.raw, baseline);
+    expect(delta.length).toBeLessThan(4096);
+    expect(zOf(doc, added)).toBe(501);
+  });
+
+  it("the derived read stands the in-flight order (the mid-transaction's parity)", () => {
+    const doc = newDoc();
+    const { surface, ids } = surfaceWith(doc, ["rect", "rect"]);
+    // The mid-transaction read (the cache's invalidation over the
+    // beforeTransaction): the in-flight append stands its position.
+    let mid: unknown;
+    doc.transact(() => {
+      const third = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+      mid = (doc.getBlock(third) as { attrs?: { zIndex?: number } } | null)?.attrs?.zIndex;
+    });
+    expect(mid).toBe(3);
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    expect(ids.length).toBe(2);
+  });
+});
