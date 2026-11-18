@@ -12,7 +12,7 @@ import type { Block, BlockId, BlockType, CanvasRef, OpaqueBlock } from "docblock
 import { assertNever } from "../../../shared/utils";
 import { CANVAS_SUB_TYPES, DEFAULT_CANVAS_ITEM_SIZE, DEFAULT_PAGE_SIZE, PORT_NORMAL } from "../constants";
 import type { Box, CanvasPort, EndpointPoint, Ports } from "../models";
-import { edgeAnchor } from "./connector";
+import { edgeAnchor } from "./route";
 
 function isCanvasSubType(type: BlockType): boolean {
   return CANVAS_SUB_TYPES.includes(type);

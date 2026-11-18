@@ -1,5 +1,6 @@
-export { connectorHandlePoints, connectorMidpoint, connectorPath, connectorPathPoints, edgeAnchor } from "./connector";
-export type { ConnectorPreviews } from "./connector";
+export { connectorHandlePoints, connectorMidpoint } from "./connector-preview";
+export type { ConnectorPreviews } from "./connector-preview";
+export { connectorPathPoints } from "./connector";
 export { frameDotBackground, frameWindowOffset } from "./frame-window";
 export {
   boxContains,
@@ -15,3 +16,4 @@ export {
   portsOf,
   surfaceChromeKey,
 } from "./geometry";
+export { connectorPath, edgeAnchor } from "./route";
