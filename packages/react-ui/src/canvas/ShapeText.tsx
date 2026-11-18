@@ -5,9 +5,11 @@ import type { BlockId } from "docblocks-core";
 
 import { SHAPE_FONT_STACKS, SHAPE_TEXT_DEFAULT_SIZE, textStyleOf } from "../canvas";
 import { useEditorContext } from "../editor-provider";
+import { useDarkTheme } from "../shared/dark-theme";
 import { useCanvasTextEdit } from "./canvas-text-edit-context";
 import type { ShapeBlockView } from "./geometry";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./geometry";
+import { contrastTextOf } from "./shape-fill";
 
 /** The shape's narrowed block view (the attrs stand). */
 /** The shape's text padding (the figure's edge inset): the text wraps at
@@ -25,18 +27,24 @@ const SHAPE_TEXT_PADDING: Record<string, { x: number; y: number }> = {
 
 /** The style attrs' inline mapping (the data, not theme — like the
  * canvas-text's font attrs): the weight x the slant of the `textStyle`,
- * the default's stand (the editor's sans, 16px, the center alignment). */
-function shapeTextStyle(block: ShapeBlockView, w: number, h: number): CSSProperties {
+ * the default's stand (the editor's sans, 16px, the center alignment).
+ * The color's resolution: the explicit `textColor` stands (the data's
+ * stand); otherwise the contrast over the effective fill (the dark's
+ * computed's stand) — the black / white over the better WCAG's; the
+ * non-hex's / the absent's fill stands the theme's foreground's
+ * inheritance (the `undefined`'s stand). */
+function shapeTextStyle(block: ShapeBlockView, w: number, h: number, isDark: boolean): CSSProperties {
   const attrs = block.attrs;
   const variant = attrs?.variant ?? "rect";
   const padding = SHAPE_TEXT_PADDING[variant] ?? { x: 8, y: 8 };
   const pxX = typeof padding.x === "number" && padding.x < 1 ? w * padding.x : padding.x;
   const pxY = typeof padding.y === "number" && padding.y < 1 ? h * padding.y : padding.y;
   const textStyle = textStyleOf(attrs?.textStyle);
+  const textColor = attrs?.textColor ?? contrastTextOf(attrs?.fill, isDark) ?? undefined;
   return {
     fontFamily: attrs?.fontFamily !== undefined ? (SHAPE_FONT_STACKS[attrs.fontFamily] ?? attrs.fontFamily) : undefined,
     fontSize: attrs?.fontSize ?? SHAPE_TEXT_DEFAULT_SIZE,
-    color: attrs?.textColor,
+    color: textColor,
     fontWeight: textStyle.fontWeight,
     fontStyle: textStyle.fontStyle,
     textAlign: attrs?.textAlign ?? "center",
@@ -77,6 +85,9 @@ function ShapeText({ id, block, box }: { id: BlockId; block: ShapeBlockView; box
     event.stopPropagation();
   };
   const text = block.attrs?.text ?? "";
+  // The figure's fill's themes' stand (the render-time's transform — the
+  // text's contrast's resolution over the effective fill).
+  const isDark = useDarkTheme();
   // The effective box (the resize preview's live box when in flight; the
   // committed geometry otherwise): the padding recomputes from it, so the
   // text overlay stands the figure's live edges (the preview's parity).
@@ -154,7 +165,7 @@ function ShapeText({ id, block, box }: { id: BlockId; block: ShapeBlockView; box
       // keeps the entry's presses out of the canvas sessions.
       data-slot="docblocks/shape-text-target"
       className="absolute inset-0 flex items-center"
-      style={shapeTextStyle(block, w, h)}
+      style={shapeTextStyle(block, w, h, isDark)}
     >
       {content}
     </div>
