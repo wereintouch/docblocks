@@ -12,6 +12,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import { ShapeToolbar } from "../src/canvas";
 import { EditorProvider } from "../src/editor-provider";
+import { pressBlock } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -50,36 +51,34 @@ function renderCanvas(doc: TestDoc, palette: readonly string[] = TEST_PALETTE) {
       <Editor view="canvas" formatPalette={palette} />
     </EditorProvider>
   );
-  const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
+  const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   return { ...utils, view };
 }
 
 const toolbar = () => screen.queryByRole("toolbar", { name: "Shape options" });
 
-/** Click-select the block (the pointerdown on its canvas-item wrapper). */
-function selectBlock(container: HTMLElement, id: string): void {
-  const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
-  if (wrapper === null) throw new Error(`the canvas item ${id} is missing`);
-  fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10 });
-  fireEvent.pointerUp(wrapper);
+/** Click-select the block (the press over the block's own zone — the
+ * resolver's answer over the geometry). */
+function selectBlock(view: HTMLElement, doc: TestDoc, id: string): void {
+  pressBlock(view, doc, id);
 }
 
 describe("the render conditions", () => {
   it("stands the toolbar for a single shape selection", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
+    const { view } = renderCanvas(doc);
     expect(toolbar()).toBeNull();
 
-    selectBlock(container, shape);
+    selectBlock(view, doc, shape);
     expect(toolbar()).toBeTruthy();
   });
 
   it("hides the toolbar for the non-shape blocks (the canvas-text selection)", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
+    const { view } = renderCanvas(doc);
 
-    selectBlock(container, text);
+    selectBlock(view, doc, text);
     expect(toolbar()).toBeNull();
   });
 
@@ -88,10 +87,12 @@ describe("the render conditions", () => {
     const { container, view } = renderCanvas(doc);
     const second = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
 
-    // The marquee over the empty canvas (both items' jsdom boxes stand at
-    // the origin): a crossing drag selects the group.
-    fireEvent.pointerDown(view, { clientX: -5, clientY: -5 });
-    fireEvent.pointerMove(view, { clientX: 5, clientY: 5, buttons: 1 });
+    // The marquee over the empty canvas: the press stands clear of the
+    // seeded figures' zones (the shapes' outline bands, the text's box),
+    // the crossing drag stands over the origin (the jsdom items' 0x0
+    // boxes stand there) and selects the group.
+    fireEvent.pointerDown(view, { clientX: -80, clientY: -70 });
+    fireEvent.pointerMove(view, { clientX: 80, clientY: 70, buttons: 1 });
     fireEvent.pointerUp(view);
 
     expect(toolbar()).toBeNull();
@@ -110,9 +111,9 @@ describe("the render conditions", () => {
 
   it("hides the toolbar while a tool is active (the click-to-place intent)", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
+    const { view } = renderCanvas(doc);
 
-    selectBlock(container, shape);
+    selectBlock(view, doc, shape);
     expect(toolbar()).toBeTruthy();
     // The shape tools are picked through the dock's shapes menu.
     fireEvent.pointerDown(screen.getByLabelText("Shapes"));
@@ -123,8 +124,8 @@ describe("the render conditions", () => {
 
 it("a portaled palette press starts no canvas session (the DOM-containment guard)", () => {
   const { doc, shape } = seededDoc();
-  const { container } = renderCanvas(doc);
-  selectBlock(container, shape);
+  const { view } = renderCanvas(doc);
+  selectBlock(view, doc, shape);
   expect(toolbar()).toBeTruthy();
 
   fireEvent.click(screen.getByLabelText("Shape fill color"));
@@ -144,8 +145,8 @@ it("a portaled palette press starts no canvas session (the DOM-containment guard
 
 it("a Backspace on the portaled hex input never deletes the selection (the root key guard)", () => {
   const { doc, shape } = seededDoc();
-  const { container } = renderCanvas(doc);
-  selectBlock(container, shape);
+  const { view } = renderCanvas(doc);
+  selectBlock(view, doc, shape);
 
   fireEvent.click(screen.getByLabelText("Shape fill color"));
   const input = screen.getByLabelText("Shape fill color hex value");
@@ -161,8 +162,8 @@ it("a Backspace on the portaled hex input never deletes the selection (the root 
 
 it("a Backspace on the portaled palette content never deletes the selection (the container key guard)", () => {
   const { doc, shape } = seededDoc();
-  const { container } = renderCanvas(doc);
-  selectBlock(container, shape);
+  const { view } = renderCanvas(doc);
+  selectBlock(view, doc, shape);
 
   fireEvent.click(screen.getByLabelText("Shape fill color"));
   const palette = document.querySelector("[data-slot='docblocks/shape-fill-palette']");
@@ -181,8 +182,8 @@ it("a Backspace on the portaled palette content never deletes the selection (the
 
 it("the sections are mutually exclusive (the other palette closes)", () => {
   const { doc, shape } = seededDoc();
-  const { container } = renderCanvas(doc);
-  selectBlock(container, shape);
+  const { view } = renderCanvas(doc);
+  selectBlock(view, doc, shape);
 
   // The non-modal popover does not close on an outside click: the fill
   // palette stands open until the toolbar's own state closes it. The
@@ -203,8 +204,8 @@ it("the sections are mutually exclusive (the other palette closes)", () => {
 describe("the applies", () => {
   it("applies the fill swatch in one undo step (the svg fill stands)", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
     const before = doc.toJSON();
 
     // The fill section: the swatch stands directly in the open palette
@@ -222,8 +223,8 @@ describe("the applies", () => {
 
   it("applies the stroke swatch", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
 
     fireEvent.click(screen.getByLabelText("Shape stroke color"));
     fireEvent.click(screen.getByLabelText("stroke color 2"));
@@ -233,8 +234,8 @@ describe("the applies", () => {
 
   it("applies the none entry (the literal 'none' value)", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
     doc.updateBlock(shape, { fill: "#111111" });
 
     fireEvent.click(screen.getByLabelText("Shape fill color"));
@@ -245,8 +246,8 @@ describe("the applies", () => {
 
   it("applies the custom hex on Enter (3 and 6 digits; the invalid draft is ignored)", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
 
     fireEvent.click(screen.getByLabelText("Shape fill color"));
     const input = screen.getByLabelText("Shape fill color hex value") as HTMLInputElement;
@@ -290,8 +291,8 @@ describe("the shape type picker", () => {
 
   it("stands the six variants (the current one checked) and switches the type", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
     expect(toolbar()).toBeTruthy();
 
     // The radix dropdown trigger toggles on pointerdown.
@@ -328,8 +329,8 @@ describe("the shape type picker", () => {
 
   it("the re-pick of the current variant writes nothing", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
     const before = doc.toJSON();
 
     fireEvent.pointerDown(screen.getByLabelText("Shape type"));
@@ -343,8 +344,8 @@ describe("the border's controls (the width selector + the style menu)", () => {
 
   it("stands the selector on the current width's dot (the absent stand is the default 2 px = the second dot)", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
     expect(selector()?.getAttribute("aria-valuenow")).toBe("1");
 
     act(() => {
@@ -355,8 +356,8 @@ describe("the border's controls (the width selector + the style menu)", () => {
 
   it("applies the width's dots (one updateBlock per apply, one undo step)", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
 
     const slider = selector();
     if (slider === null) throw new Error("the selector is missing");
@@ -376,8 +377,8 @@ describe("the border's controls (the width selector + the style menu)", () => {
 
   it("the style menu applies the solid / the dashed / the no-border (one updateBlock each)", () => {
     const { doc, shape } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
 
     const styleOf = (id: string) => {
       const block = doc.getBlock(id);
@@ -420,8 +421,8 @@ describe("the text color's reset (the cross over the swatches)", () => {
   it("stands the cross after the swatches; the pick removes the textColor attr (one undo step)", () => {
     const { doc, shape } = textedDoc();
     doc.updateBlock(shape, { textColor: "#123456" });
-    const { container } = renderCanvas(doc);
-    selectBlock(container, shape);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, shape);
 
     // The text section: the cross stands over the row's tail (the
     // after-all-the-colors' position) and its active stand is the set
@@ -464,11 +465,11 @@ describe("the text color's reset (the cross over the swatches)", () => {
 
   it("stands the cross inert when no color stands (the active stand is off; the pick is a no-op)", () => {
     const { doc, shape } = textedDoc();
-    const { container } = renderCanvas(doc);
+    const { view } = renderCanvas(doc);
     // The render stands the tail's paragraph (the tail contract) — the
     // attrs' stand is the comparison's unit, not the whole doc.
     const before = doc.toJSON();
-    selectBlock(container, shape);
+    selectBlock(view, doc, shape);
 
     fireEvent.click(screen.getByLabelText("Text color"));
     const none = screen.getByLabelText("Reset color");

@@ -17,6 +17,7 @@ import { Editor } from "../src/Editor";
 import { FrameWindowContent } from "../src/canvas/FrameWindowContent";
 import { DOT_GRID_STEP_PX, frameDotBackground, frameWindowOffset } from "../src/canvas/geometry";
 import { EditorProvider } from "../src/editor-provider";
+import { pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-11-06T00:00:00.000Z";
 
@@ -206,8 +207,8 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
     );
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toBe("The group");
-    // The group's border's press stand (the extraction keeps the border's
-    // slots' stand — the press's target).
+    // The group's border's stand (the extraction keeps the border's
+    // slots' stand — the border's band is the press's zone).
     expect(groupItem.querySelector("[data-slot='docblocks/group-border']")).not.toBeNull();
   });
 
@@ -252,10 +253,12 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
       </EditorProvider>
     );
     const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
-    const wrapper = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`)!;
-    // The selection (the title-less's stand): the menu's trigger stands.
-    fireEvent.pointerDown(wrapper, { clientX: 5, clientY: 5, pointerId: 1 });
-    fireEvent.pointerUp(wrapper, { pointerId: 1 });
+    // The selection (the title-less's stand): the press on the frame's
+    // border band (the frame's interior stands transparent to the
+    // press) — the menu's trigger stands.
+    const p = pressPointOf(doc, frame);
+    fireEvent.pointerDown(view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    fireEvent.pointerUp(view, { pointerId: 1 });
     const seat = () =>
       view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${frame}"]`)!;
     const menu = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");

@@ -424,6 +424,57 @@ function screenAtZoom(center: { x: number; y: number }, x: number, y: number, zo
   return { x: center.x + x * zoom, y: center.y + y * zoom };
 }
 
+/** A canvas block's read stand (the specs' local shape of `docBlocks`). */
+interface HitBlock {
+  type: string;
+  geometry?: { x: number; y: number; w: number; h: number };
+  attrs?: Record<string, unknown>;
+}
+
+/**
+ * The block's press point in the canvas (world) coordinates — the hit
+ * resolver's zone: the box's inset corner over a figure / a canvas-text (clear
+ * of a connector's center-to-center route), the outline's vertex over an
+ * explicitly transparent figure (`fill: "none"` — its interior passes the
+ * press through), the top
+ * edge's midpoint over a container / a frame (the border's band), the line's
+ * midpoint over a connector.
+ */
+function hitPointOf(blocks: Record<string, HitBlock>, id: string): { x: number; y: number } {
+  const block = blocks[id];
+  if (block === undefined) throw new Error(`the canvas block ${id} is missing`);
+  if (block.type === "connector") {
+    const points: { x: number; y: number }[] = [];
+    for (const key of ["start", "end"] as const) {
+      const ref = block.attrs?.[key] as { blockId?: string; x?: number; y?: number } | undefined;
+      if (ref?.x !== undefined && ref.y !== undefined) {
+        points.push({ x: ref.x, y: ref.y });
+        continue;
+      }
+      const target = ref?.blockId !== undefined ? blocks[ref.blockId] : undefined;
+      points.push(pointAt(target));
+    }
+    const [start, end] = points;
+    if (start === undefined || end === undefined) throw new Error("the connector's endpoints are missing");
+    return { x: (start.x + end.x) / 2, y: (start.y + end.y) / 2 };
+  }
+  const box = pointAt(block);
+  const geometry = block.geometry ?? { x: box.x, y: box.y, w: 100, h: 100 };
+  if (block.type === "group" || block.type === "frame") return { x: geometry.x, y: geometry.y - geometry.h / 2 };
+  const fill = block.attrs?.fill;
+  const explicitlyTransparent = fill === "none" || fill === "transparent";
+  if (block.type === "shape" && explicitlyTransparent) return { x: geometry.x - geometry.w / 2, y: geometry.y };
+  // The box's zone: the bottom-left corner's inset (an interior point clear
+  // of the connectors' center-to-center routes, which cross the box's middle).
+  return { x: geometry.x - geometry.w / 2 + geometry.w / 8, y: geometry.y - geometry.h / 2 + (geometry.h * 7) / 8 };
+}
+
+/** The block's centre (the geometry's center anchor; the origin over the
+ * absent geometry). */
+function pointAt(block: HitBlock | undefined): { x: number; y: number } {
+  return { x: block?.geometry?.x ?? 0, y: block?.geometry?.y ?? 0 };
+}
+
 /** The pane's wire log's outbound-update count (the wire log's `] out` entries). */
 async function outCount(page: Page, client: "a" | "b"): Promise<number> {
   const text = await page.getByTestId(`wire-${client}`).innerText();
@@ -647,6 +698,7 @@ export {
   canvasView,
   editorContext,
   grantClipboardPermissions,
+  hitPointOf,
   interceptClipboardWrites,
   insertBlockType,
   openPane,
@@ -662,4 +714,4 @@ export {
   toCanvas,
   twoPanes,
 };
-export type { PaneDoc };
+export type { HitBlock, PaneDoc };

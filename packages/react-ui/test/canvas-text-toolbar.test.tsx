@@ -12,6 +12,7 @@ import { createDoc, validateDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
+import { pressBlock } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -51,28 +52,26 @@ function renderCanvas(doc: TestDoc, palette: readonly string[] = TEST_PALETTE) {
       <Editor view="canvas" formatPalette={palette} />
     </EditorProvider>
   );
-  const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
+  const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   return { ...utils, view };
 }
 
 const toolbar = () => screen.queryByRole("toolbar", { name: "Text options" });
 
-/** Click-select the block (the pointerdown on its canvas-item wrapper). */
-function selectBlock(container: HTMLElement, id: string): void {
-  const wrapper = container.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`);
-  if (wrapper === null) throw new Error(`the canvas item ${id} is missing`);
-  fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10 });
-  fireEvent.pointerUp(wrapper);
+/** Click-select the block (the press over the block's own zone — the
+ * resolver's answer over the geometry). */
+function selectBlock(view: HTMLElement, doc: TestDoc, id: string): void {
+  pressBlock(view, doc, id);
 }
 
 describe("the render conditions", () => {
   it("stands the toolbar for a single canvas-text selection", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
+    const { view } = renderCanvas(doc);
     expect(toolbar()).toBeNull();
 
-    selectBlock(container, text);
+    selectBlock(view, doc, text);
     expect(toolbar()).toBeTruthy();
     // The text controls stand (the shape's parity — the shared stand's
     // slots).
@@ -84,9 +83,9 @@ describe("the render conditions", () => {
   it("hides the toolbar for a shape selection (the shape toolbar's stand)", () => {
     const { doc, surface } = seededDoc();
     const shape = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
-    const { container } = renderCanvas(doc);
+    const { view } = renderCanvas(doc);
 
-    selectBlock(container, shape);
+    selectBlock(view, doc, shape);
     expect(toolbar()).toBeNull();
     expect(screen.queryByRole("toolbar", { name: "Shape options" })).toBeTruthy();
   });
@@ -97,10 +96,12 @@ describe("the render conditions", () => {
     doc.setGeometry(second, { x: 300, y: 0, w: 100, h: 40 });
     const { container, view } = renderCanvas(doc);
 
-    // The marquee over the empty canvas (both items' jsdom boxes stand at
-    // the origin): a crossing drag selects the group.
-    fireEvent.pointerDown(view, { clientX: -5, clientY: -5 });
-    fireEvent.pointerMove(view, { clientX: 5, clientY: 5, buttons: 1 });
+    // The marquee over the empty canvas: the press stands clear of the
+    // seeded figures' zones (the text's box, the shape's outline band),
+    // the crossing drag stands over the origin (the jsdom items' 0x0
+    // boxes stand there) and selects the group.
+    fireEvent.pointerDown(view, { clientX: -120, clientY: -60 });
+    fireEvent.pointerMove(view, { clientX: 120, clientY: 60, buttons: 1 });
     fireEvent.pointerUp(view);
 
     expect(toolbar()).toBeNull();
@@ -112,9 +113,9 @@ describe("the render conditions", () => {
 
   it("hides the toolbar while a tool is active (the click-to-place intent)", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
+    const { view } = renderCanvas(doc);
 
-    selectBlock(container, text);
+    selectBlock(view, doc, text);
     expect(toolbar()).toBeTruthy();
     // The shape tools are picked through the dock's shapes menu.
     fireEvent.pointerDown(screen.getByLabelText("Shapes"));
@@ -126,8 +127,8 @@ describe("the render conditions", () => {
 describe("the applies", () => {
   it("applies the font family in one undo step (the wrapper's stack stands)", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     fireEvent.pointerDown(screen.getByLabelText("Text font family"));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Lora" }));
@@ -139,8 +140,8 @@ describe("the applies", () => {
 
   it("applies the text color swatch in one undo step (the wrapper's color stands)", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     fireEvent.click(screen.getByLabelText("Text color"));
     const swatch = screen.getByLabelText("text color 2");
@@ -154,8 +155,8 @@ describe("the applies", () => {
   it("the reset's cross removes the textColor attr (the no-color's stand)", () => {
     const { doc, text } = seededDoc();
     doc.updateBlock(text, { textColor: "#123456" });
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     // The cross stands over the color's set (the active stand); the pick
     // removes the attr (the no-color's stand — the theme's foreground /
@@ -174,8 +175,8 @@ describe("the applies", () => {
 
   it("the reset's cross stands inert over the unset color (the pick is a no-op)", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     fireEvent.click(screen.getByLabelText("Text color"));
     const none = screen.getByLabelText("Reset color");
@@ -191,8 +192,8 @@ describe("the applies", () => {
 
   it("applies the text style in one undo step", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     fireEvent.pointerDown(screen.getByLabelText("Text style"));
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Semibold Italic" }));
@@ -204,8 +205,8 @@ describe("the applies", () => {
 
   it("applies the font size (the 8–512 clamp; the invalid draft stands off)", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     const input = screen.getByLabelText("Text font size");
     fireEvent.change(input, { target: { value: "999" } });
@@ -225,8 +226,8 @@ describe("the applies", () => {
 
   it("applies the alignment in one undo step", () => {
     const { doc, text } = seededDoc();
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     fireEvent.click(screen.getByLabelText("Align center"));
 
@@ -241,8 +242,8 @@ describe("the applies", () => {
     // two elements' surface).
     const second = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
     doc.setGeometry(second, { x: 300, y: 0, w: 100, h: 40 });
-    const { container } = renderCanvas(doc);
-    selectBlock(container, text);
+    const { view } = renderCanvas(doc);
+    selectBlock(view, doc, text);
 
     // The menu stands (the text's position 0 over the two elements): the
     // backward's stands are disabled, the forward's stand.

@@ -12,6 +12,7 @@ import type { BlockId } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import { ConnectorToolbar } from "../src/canvas";
 import { EditorProvider } from "../src/editor-provider";
+import { pressBlock } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -53,22 +54,18 @@ function renderCanvas(doc: TestDoc) {
       <Editor view="canvas" />
     </EditorProvider>
   );
-  const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
+  const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   return { ...utils, view };
 }
 
 const toolbar = () => screen.queryByRole("toolbar", { name: "Connector options" });
 
-/** Click-select the block (the pointerdown on its canvas-item / hit-path). */
-function selectBlock(container: HTMLElement, id: string, viaHitPath = false): void {
-  const selector = viaHitPath
-    ? `[data-connector-hit="${id}"]`
-    : `[data-slot="docblocks/canvas-item"][data-block-id="${id}"]`;
-  const target = container.querySelector<HTMLElement>(selector);
-  if (target === null) throw new Error(`the ${viaHitPath ? "hit path" : "canvas item"} ${id} is missing`);
-  fireEvent.pointerDown(target, { clientX: 10, clientY: 10, pointerId: 1 });
-  fireEvent.pointerUp(target, { pointerId: 1 });
+/** Click-select the block (the press over the block's own zone — the
+ * resolver's answer over the geometry: the figure's outline band, the
+ * line's stroke band over the route). */
+function selectBlock(view: HTMLElement, doc: TestDoc, id: string): void {
+  pressBlock(view, doc, id);
 }
 
 function variantOf(doc: TestDoc, id: string): string | undefined {
@@ -83,7 +80,7 @@ describe("the render conditions", () => {
     const { view } = renderCanvas(doc);
     expect(toolbar()).toBeNull();
 
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
     expect(toolbar()).toBeTruthy();
     expect(document.querySelector('[data-slot="docblocks/connector-toolbar-straight"]')).not.toBeNull();
     expect(document.querySelector('[data-slot="docblocks/connector-toolbar-orthogonal"]')).not.toBeNull();
@@ -104,7 +101,7 @@ describe("the render conditions", () => {
   it("hides the toolbar for a shape selection (the shape toolbar stands instead)", () => {
     const { doc, shape } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, shape);
+    selectBlock(view as HTMLElement, doc, shape);
     expect(toolbar()).toBeNull();
     expect(screen.queryByRole("toolbar", { name: "Shape options" })).toBeTruthy();
   });
@@ -112,13 +109,13 @@ describe("the render conditions", () => {
   it("hides the toolbar for the multi selection", () => {
     const { doc, connector, shape } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
     expect(toolbar()).toBeTruthy();
 
     // The shape's press moves the selection over (the connectors are
     // click-only selectable — a connector joins no group in v1): the
     // toolbar follows the selection and hides.
-    selectBlock(view as HTMLElement, shape);
+    selectBlock(view as HTMLElement, doc, shape);
     const shapeSel = (view as HTMLElement).querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${shape}"]`
     );
@@ -131,7 +128,7 @@ describe("the applies", () => {
   it("the orthogonal pick applies the variant (one undo step, the doc stays valid)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
 
     fireEvent.click(screen.getByLabelText("Orthogonal line"));
     expect(variantOf(doc, connector)).toBe("orthogonal");
@@ -145,7 +142,7 @@ describe("the applies", () => {
   it("the curved pick applies and the current option stands pressed", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
 
     fireEvent.click(screen.getByLabelText("Curved line"));
     expect(variantOf(doc, connector)).toBe("curved");
@@ -176,7 +173,7 @@ describe("the style applies", () => {
   it("the width's step applies the strokeWidth (one undo step; the no-op stand writes nothing)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
     const slider = document.querySelector('[data-slot="docblocks/figure-border-selector"]');
     if (slider === null) throw new Error("the width selector is missing");
 
@@ -197,7 +194,7 @@ describe("the style applies", () => {
   it("the end arrowhead's pick applies the figure (the arrow's default pick is the no-op stand)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
 
     // The default (absent) stands the arrow: the arrow pick writes
     // nothing.
@@ -224,7 +221,7 @@ describe("the style applies", () => {
   it("the start arrowhead's pick applies its own figure (the none default is the no-op stand)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
 
     // The absent stand (no start marker) stands the none: the none pick
     // writes nothing (independent of the end's figure).
@@ -252,7 +249,7 @@ describe("the style applies", () => {
   it("the two arrowhead menus stand the start before the end", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
     const start = document.querySelector('[data-slot="docblocks/connector-toolbar-arrow-start"]');
     const end = document.querySelector('[data-slot="docblocks/connector-toolbar-arrow-end"]');
     if (start === null || end === null) throw new Error("the arrowhead menus are missing");
@@ -263,7 +260,7 @@ describe("the style applies", () => {
   it("the stroke style's pick applies the strokeStyle (the solid default; the no-op stand writes nothing)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
 
     // The two style options stand (the solid / the dashed).
     expect(document.querySelector('[data-slot="docblocks/connector-toolbar-solid"]')).not.toBeNull();
@@ -305,7 +302,7 @@ describe("the style applies", () => {
   it("the palette's pick applies the strokeColor (the data color; the none stand is the theme token)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
 
     // The hex commit: one updateBlock in one transact.
     fireEvent.click(screen.getByLabelText("Line color"));
@@ -327,7 +324,7 @@ describe("the style applies", () => {
   it("stands no label input (the label's edit is the line's double-click)", () => {
     const { doc, connector } = seededDoc();
     const { view } = renderCanvas(doc);
-    selectBlock(view as HTMLElement, connector, true);
+    selectBlock(view as HTMLElement, doc, connector);
     expect(toolbar()).toBeTruthy();
     // The toolbar's label control stands gone (the inline edit stands
     // over the line instead — the canvas-connector-label's pins).

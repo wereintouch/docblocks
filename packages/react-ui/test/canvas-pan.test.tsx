@@ -11,6 +11,7 @@ import { createDoc } from "docblocks-core";
 
 import { Editor } from "../src/Editor";
 import { EditorProvider } from "../src/editor-provider";
+import { pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -132,8 +133,9 @@ describe("the stale session drop (the lost release)", () => {
   it("drops the in-flight move session (the release after the drop writes nothing)", () => {
     const r = renderCanvas();
     const wrapper = r.wrapperOf(r.shape);
-    fireEvent.pointerDown(wrapper, { clientX: 100, clientY: 100, buttons: 1, pointerId: 2 });
-    fireEvent.pointerMove(r.view, { clientX: 150, clientY: 100, buttons: 1, pointerId: 2 });
+    const p = pressPointOf(r.doc, r.shape);
+    fireEvent.pointerDown(r.view, { clientX: p.x, clientY: p.y, buttons: 1, pointerId: 2 });
+    fireEvent.pointerMove(r.view, { clientX: p.x + 50, clientY: p.y, buttons: 1, pointerId: 2 });
     expect(wrapper.style.transform).toContain("translate(50px,");
     const before = JSON.stringify(r.json());
     // The lost release: the button-less move drops the session (the

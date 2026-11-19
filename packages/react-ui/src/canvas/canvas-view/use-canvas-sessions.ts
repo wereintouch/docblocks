@@ -5,21 +5,21 @@
  * drop. The handlers stand on the shared context (the refs + the deps +
  * the stand helpers) — the press's branches over the tools / the items,
  * the release's commits, and the double-click's entries stand in their
- * own modules (one gesture phase, one file). The editing-surface guard is
- * passed in (the keyboard hook shares it). */
+ * own modules (one gesture phase, one file). The block-selection step stands
+ * the hit resolver (the geometry's answer, not the DOM's paint order). The
+ * editing-surface guard is passed in (the keyboard hook shares it). */
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
 import { placeDragBox, screenToCanvas, snapAnySurfaceEdge } from "../../canvas";
 import { createCanvasSessionContext } from "./canvas-session-context";
 import type { CanvasSessionContext, CanvasSessionDeps } from "./canvas-session-context";
 import { chipDoubleClick, createContentDoubleClick } from "./canvas-session-dblclick";
+import { surfacePress } from "./canvas-session-press-hit";
 import {
   chipPress,
-  connectorHitPress,
   containerInteriorPress,
   editingSurfacePress,
   handlePress,
-  itemPress,
   marqueePress,
   pageCardPress,
 } from "./canvas-session-press-items";
@@ -61,8 +61,7 @@ function onPointerDownOf(ctx: CanvasSessionContext, event: ReactPointerEvent<HTM
   if (panPress(ctx, event)) return;
   if (editingSurfacePress(ctx, event)) return;
   if (handlePress(ctx, event)) return;
-  if (connectorHitPress(ctx, event)) return;
-  if (itemPress(ctx, event)) return;
+  if (surfacePress(ctx, event)) return;
   if (pageCardPress(ctx, event)) return;
   if (containerInteriorPress(ctx, event, point)) return;
   // The container's EMPTY-interior press stood nothing: the marquee.

@@ -9,6 +9,7 @@ import { createDoc } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import type { BlockRendererMap } from "../src/blocks/renderers";
 import { EditorProvider } from "../src/editor-provider";
+import { pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -285,7 +286,8 @@ describe("canvas scene", () => {
     // per-line svg references by the url fragment).
     expect(line.getAttribute("marker-end")).toBe("url(#docblocks-conn-arrow-c0001)");
     expect(document.querySelector('[data-slot="docblocks/connector-defs"] marker')).not.toBeNull();
-    // The hit path (the wide transparent stroke the line clicks on).
+    // The hit path (the wide transparent stroke over the line's band —
+    // the press's zone reads the line's geometry).
     expect(document.querySelector(`[data-connector-hit="${IDS.connector}"]`)).not.toBeNull();
 
     // The label's chip (the HTML overlay — outside the SVG layer; the
@@ -405,12 +407,13 @@ describe("canvas scene", () => {
   });
 
   it("stands the selected stroke on the selected connector", () => {
-    renderScene({ view: "canvas" });
-    // The click on the hit path selects the connector (no move session —
-    // the connectors carry no geometry).
-    const hit = document.querySelector<SVGPathElement>(`[data-connector-hit="${IDS.connector}"]`)!;
-    fireEvent.pointerDown(hit, { clientX: 10, clientY: 10, pointerId: 1 });
-    fireEvent.pointerUp(hit, { pointerId: 1 });
+    const doc = renderScene({ view: "canvas" });
+    const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
+    // The press over the line's band selects the connector (no move
+    // session — the connectors carry no geometry).
+    const p = pressPointOf(doc, IDS.connector);
+    fireEvent.pointerDown(view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    fireEvent.pointerUp(view, { pointerId: 1 });
     const line = document.querySelector<SVGPathElement>(`[data-connector-id="${IDS.connector}"]`)!;
     expect(line.getAttribute("data-selected")).toBe("true");
     expect(line.style.stroke).toBe("var(--docblocks-canvas-selected-stroke)");
@@ -441,7 +444,14 @@ describe("canvas: the connector's style attrs", () => {
         },
         { parent: surface }
       );
-      doc.insertBlock("connector", { start: { blockId: a }, end: { blockId: b } }, { parent: surface });
+      // The waypoint bends the plain line off the styled one's (the
+      // press's zone is per line — the coincident lines stand the
+      // topmost's zone only).
+      doc.insertBlock(
+        "connector",
+        { start: { blockId: a }, end: { blockId: b }, points: [[0, -40]] },
+        { parent: surface }
+      );
     });
   }
 
@@ -475,10 +485,15 @@ describe("canvas: the connector's style attrs", () => {
   });
 
   it("the selected line stands the accent (the data color hides under the selection, the width's bump)", () => {
-    renderScene({ view: "canvas", seed: seedStyledScene });
-    const hit = document.querySelector<SVGPathElement>("[data-connector-hit]")!;
-    fireEvent.pointerDown(hit, { clientX: 10, clientY: 10, pointerId: 1 });
-    fireEvent.pointerUp(hit, { pointerId: 1 });
+    const doc = renderScene({ view: "canvas", seed: seedStyledScene });
+    const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
+    // The press over the styled line's band (the plain line's waypoint
+    // keeps its line clear of the press's point).
+    const surfaceId = doc.getChildren(doc.meta.id)[0]!;
+    const styledId = doc.getChildren(surfaceId).find((id) => doc.getBlock(id)?.type === "connector")!;
+    const p = pressPointOf(doc, styledId);
+    fireEvent.pointerDown(view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    fireEvent.pointerUp(view, { pointerId: 1 });
     const line = document.querySelector<SVGPathElement>("[data-connector-id]")!;
     expect(line.getAttribute("data-selected")).toBe("true");
     expect(line.style.stroke).toBe("var(--docblocks-canvas-selected-stroke)");
@@ -554,18 +569,20 @@ describe("canvas: frame (the viewport window)", () => {
   });
 
   it("stands the selection's outline over the window (the ring's switch to the selection's color)", () => {
-    renderScene({ view: "canvas" });
+    const doc = renderScene({ view: "canvas" });
+    const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
     const wrapper = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]`
     )!;
     const box = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-boundary']")!;
     expect(wrapper.hasAttribute("data-selected")).toBe(false);
     expect(box.style.outline).toBe("");
-    // The press selects the frame (the window's content is pointer-
-    // transparent — the press stands the frame's wrapper's generic item's
-    // branch: select + the move session).
-    fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, pointerId: 1 });
-    fireEvent.pointerUp(wrapper, { pointerId: 1 });
+    // The press on the frame's border band selects the frame (the
+    // window's interior stands transparent to the press): select + the
+    // move session.
+    const p = pressPointOf(doc, IDS.frame);
+    fireEvent.pointerDown(view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    fireEvent.pointerUp(view, { pointerId: 1 });
     expect(wrapper.getAttribute("data-selected")).toBe("true");
     // The ring stands the selection's color (the wrapper's outline stands
     // the shared selection's stand).
@@ -617,13 +634,13 @@ describe("canvas: frame (the viewport window)", () => {
 
   it("stands the set-title menu on the selection over the title-less frame (the commit's one updateBlock)", () => {
     const doc = renderScene({ view: "canvas" });
-    const wrapper = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]`
-    )!;
-    // The selection (the title-less stand): the menu's trigger stands at
-    // the title's seat over the screen layer.
-    fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, pointerId: 1 });
-    fireEvent.pointerUp(wrapper, { pointerId: 1 });
+    const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
+    // The selection (the title-less stand): the press on the frame's
+    // border band, the menu's trigger stands at the title's seat over
+    // the screen layer.
+    const p = pressPointOf(doc, IDS.frame);
+    fireEvent.pointerDown(view, { button: 0, clientX: p.x, clientY: p.y, pointerId: 1 });
+    fireEvent.pointerUp(view, { pointerId: 1 });
     const seat = () =>
       document.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"]`)!;
     const menu = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");

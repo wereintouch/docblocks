@@ -14,6 +14,7 @@ import type { BlockId } from "docblocks-core";
 import { screenToCanvas } from "../../canvas";
 import { focusCaretInElement } from "../../editing/block-commands";
 import type { CanvasSessionContext } from "./canvas-session-context";
+import { pressHitAt } from "./hit-stack";
 
 /** The container's / the frame's TITLE chip (the inline edit's dblclick's target). */
 const TITLE_CHIP_SELECTOR = "[data-slot='docblocks/group-title'], [data-slot='docblocks/frame-title']";
@@ -136,14 +137,14 @@ function createContentDoubleClick(ctx: CanvasSessionContext): (event: ReactMouse
       }
       return;
     }
-    // The line's double-click stands the label's edit (the hit path is
-    // the target's element; a capture-retargeted event — the target IS
-    // the container — falls to the point's element, the hit test through
-    // the world's transform).
-    const fromHit = event.target instanceof Element ? event.target.closest<SVGElement>("[data-connector-hit]") : null;
-    if (fromHit !== null) {
-      const id = fromHit.getAttribute("data-connector-hit");
-      if (id !== null) ctx.viewport.setConnectorLabelEditing(id);
+    // The line's double-click stands the label's edit: the press resolver's
+    // top candidate (the line's stroke band along its rendered route, the
+    // paint order's stand — a figure over the line takes its own entries
+    // first). One geometry stands the press and the label's entry alike.
+    const labelWorld = screenToCanvas(ctx.centerRelativePoint(event), ctx.viewport.zoom, ctx.viewport.pan);
+    const labelCandidate = pressHitAt(ctx.doc, labelWorld, ctx.viewport.zoom);
+    if (labelCandidate !== null && labelCandidate.type === "connector") {
+      ctx.viewport.setConnectorLabelEditing(labelCandidate.id);
       return;
     }
     // The container's / the frame's TITLE inline edit (the chip's

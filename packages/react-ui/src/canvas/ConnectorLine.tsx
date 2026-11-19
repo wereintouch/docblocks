@@ -29,7 +29,8 @@ import { useEditorContext } from "../editor-provider";
 import { useBlock } from "../hooks";
 import { useDarkTheme } from "../shared/dark-theme";
 import { useBlockContext } from "../shared/providers/block-context";
-import { HIT_BOX_PAD_PX, HIT_STROKE_WIDTH } from "./connector-constants";
+import { HIT_STROKE_WIDTH } from "./canvas-view/canvas-hit-config";
+import { HIT_BOX_PAD_PX } from "./connector-constants";
 import { connectorLineOf, hitBoxOf } from "./connector-line";
 import { useLineSession } from "./viewport";
 
@@ -117,10 +118,11 @@ function ConnectorLine({ id, interactive = true }: { id: BlockId; interactive?: 
           }}
         >
           <g transform={`translate(${HIT_BOX_PAD_PX - hitBox.x}, ${HIT_BOX_PAD_PX - hitBox.y})`}>
-            {/* The hit path: the wide invisible stroke the line clicks on
-                (the click's read stands the `data-connector-hit`'s
-                attribute over the event's target — the box's seat is the
-                webkit's hit-test's stand, not a behavior's change). */}
+            {/* The hit path: the wide invisible stroke over the line (the
+                pointer's cursor affordance; the press itself resolves the
+                line's band from the geometry — the attribute marks the
+                element for the DOM reads that exclude the line's wrapper).
+                The box's seat is the webkit's hit-test's stand. */}
             <path
               data-connector-hit={id}
               d={content.hitD}

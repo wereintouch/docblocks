@@ -12,6 +12,7 @@ import { createDoc } from "docblocks-core";
 import { Editor } from "../src/Editor";
 import type { BlockRendererProps } from "../src/blocks/renderers";
 import { EditorProvider } from "../src/editor-provider";
+import { dragTo, pressBlock, pressPointOf } from "./canvas-press";
 
 const CREATED_AT = "2026-10-10T00:00:00.000Z";
 
@@ -42,7 +43,7 @@ function setup() {
       <Editor view="canvas" />
     </EditorProvider>
   );
-  const view = utils.container.querySelector('[data-slot="docblocks/canvas-view"]');
+  const view = utils.container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
   if (view === null) throw new Error("the canvas view is missing");
   const wrapperA = utils.container.querySelector<HTMLElement>(
     `[data-slot="docblocks/canvas-item"][data-block-id="${a}"]`
@@ -56,16 +57,17 @@ describe("the canvas re-render contract", () => {
   afterEach(cleanup);
 
   it("stands the sibling items and the miniature on the move session's moves", () => {
-    const { page, a, b, c, seen, view, wrapperA } = setup();
+    const { doc, page, a, b, c, seen, view } = setup();
     const beforeA = seen[`shape:${a}`] ?? 0;
     const beforeB = seen[`shape:${b}`] ?? 0;
     const beforeC = seen[`shape:${c}`] ?? 0;
     const beforePage = seen[`page:${page}`] ?? 0;
 
+    const p = pressPointOf(doc, a);
     act(() => {
-      fireEvent.pointerDown(wrapperA, { clientX: 100, clientY: 100 });
-      fireEvent.pointerMove(view, { clientX: 130, clientY: 120, buttons: 1 });
-      fireEvent.pointerMove(view, { clientX: 160, clientY: 140, buttons: 1 });
+      fireEvent.pointerDown(view, { clientX: p.x, clientY: p.y });
+      dragTo(view, { x: p.x + 30, y: p.y + 20 }, 1);
+      dragTo(view, { x: p.x + 60, y: p.y + 40 }, 1);
     });
 
     // The moved item's preview stands (a re-render per move).
@@ -120,7 +122,7 @@ describe("the canvas re-render contract", () => {
   });
 
   it("stands the unselected items on a click-select (the tint stands the two items only)", () => {
-    const { page, a, b, c, seen, utils, wrapperA } = setup();
+    const { doc, page, a, b, c, seen, view, utils } = setup();
     const wrapperB = utils.container.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${b}"]`
     );
@@ -131,8 +133,7 @@ describe("the canvas re-render contract", () => {
     const beforePage = seen[`page:${page}`] ?? 0;
 
     act(() => {
-      fireEvent.pointerDown(wrapperA, { clientX: 100, clientY: 100 });
-      fireEvent.pointerUp(wrapperA);
+      pressBlock(view, doc, a);
     });
 
     // The selected item stands its tint (a re-render); the rest stand.
@@ -142,8 +143,7 @@ describe("the canvas re-render contract", () => {
     expect(seen[`page:${page}`]).toBe(beforePage);
 
     act(() => {
-      fireEvent.pointerDown(wrapperB, { clientX: 50, clientY: 50 });
-      fireEvent.pointerUp(wrapperB);
+      pressBlock(view, doc, b);
     });
 
     // The new selection stands; the old one drops its tint; the rest stand.
