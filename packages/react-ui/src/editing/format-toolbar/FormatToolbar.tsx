@@ -12,70 +12,32 @@
  *
  * Controls (shared/ui primitives): the five toggle marks (bold, monospace
  * = the exclusive code mark, italic, underline, strikethrough) and the
- * three text alignments as ghost icon buttons; the alignment is a block
- * attr applied with updateBlock (set-only: updateBlock never removes
- * attrs, so "left" is how the default is restored). The list-type menu
- * (single-block paragraph/heading/list-item targets only) is a non-modal
- * dropdown — a radio group that turns the block into a bullet/numbered/
- * to-do list (a list-item swap is a `list` attr update; any other target
- * is a changeBlockType) or into a paragraph (the flat model: a list
- * item's derived segment re-attaches to the paragraph as its nested
- * content — nothing is lost). The highlight control is a non-modal
- * popover with a target switch (the text `color` mark vs the background
- * `highlight` mark) and a color palette (the shared palette's eight
- * swatches, overridable through the editor's `formatPalette` prop) plus a
- * clear entry. The popovers are portaled to the document body (radix) and
- * — like the bar — suppress the default mousedown so the editor's text
- * selection stays alive while a swatch or option is picked; outside
- * dismiss (pointer and focus) is suppressed the same way the bar is not
- * dismissed by its own buttons (the selection state owns the visibility).
- * A cross-block range applies the mark actions over the range's per-block
- * segments (the align per chain block) and hides the list-type menu. A
- * mark button is active when every run of the range carries the mark; a
- * swatch is active when the whole range is uniformly marked with that
- * value (a highlight without a value counts as the empty value). Every
- * action is doc command(s) inside one transaction (one undo step, one
- * wire update). */
+ * three text alignments as ghost icon buttons, the list-type menu (the
+ * single-block targets only — the `FormatListMenu`), and the color palette
+ * (the text's `color` vs the background's `highlight` — the
+ * `FormatPalette`). The actions stand in the actions' module (one doc
+ * command's set inside one transaction — one undo step, one wire
+ * update). The portaled popovers — like the bar — suppress the default
+ * mousedown so the editor's text selection stays alive while a swatch or
+ * option is picked.
+ */
 import { useTranslation } from "react-i18next";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import type { Block, TextAlign } from "docblocks-core";
+import type { Block } from "docblocks-core";
 
 import { useEditorContext } from "../../editor-provider";
 import { useBlock, useSelection } from "../../hooks";
 import { Button } from "../../shared/ui/Button";
-import { ColorChip } from "../../shared/ui/ColorChip";
-import { ColorSwatches } from "../../shared/ui/ColorSwatches";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
-  DropdownMenuTrigger,
-} from "../../shared/ui/DropdownMenu";
-import { Popover, PopoverContent, PopoverTrigger } from "../../shared/ui/Popover";
 import { Separator } from "../../shared/ui/Separator";
 import { cn } from "../../shared/ui/cn";
-import { Baseline, Menu as MenuIcon } from "../../shared/ui/icons";
 import { clamp, preventDefault } from "../../shared/utils";
-import { restoreSelectionIn } from "../block-commands";
-import {
-  TOOLBAR_BLOCK_TYPES,
-  alignOfBlock,
-  applyAlignRange,
-  applyMarkRange,
-  applyValueMarkRange,
-  clearMarkRange,
-  crossRangeEligible,
-  crossRangeOf,
-  rangeMarkAction,
-  uniformAlignOfRange,
-  uniformMarkValue,
-  uniformMarkValueRange,
-} from "../format-range";
-import { type FormatMark, markToggleAction } from "../keyboard";
-import { ACTIVE_ITEM_CLASS, LIST_MENU_OPTIONS, MENU_SIDE_OFFSET_PX, TOOLBAR_ALIGNS, TOOLBAR_MARKS } from "./constants";
+import { TOOLBAR_BLOCK_TYPES, crossRangeEligible, crossRangeOf } from "../format-range";
+import { FormatListMenu } from "./FormatListMenu";
+import { FormatPalette } from "./FormatPalette";
+import { ACTIVE_ITEM_CLASS, TOOLBAR_ALIGNS, TOOLBAR_MARKS } from "./constants";
+import { createFormatToolbarActions } from "./format-toolbar-actions";
 import type { FormatToolbarProps, PaletteTarget, ToolbarRange } from "./models";
 
 function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
@@ -149,141 +111,15 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
   const single = block as Block;
   const cross = range.kind === "cross";
 
-  /** Toggle a mark over the target (one undo step, one wire update). */
-  const onToggleMark = (mark: FormatMark): void => {
-    if (range.kind === "cross") {
-      if (rangeMarkAction(doc, range.cross, mark) === "unset") clearMarkRange(doc, range.cross, mark);
-      else applyMarkRange(doc, range.cross, mark);
-      return;
-    }
-    const action = markToggleAction(doc, range.blockId, range.from, range.to, mark);
-    doc.transact(() => {
-      if (action === "unset") doc.unsetMark(range.blockId, range.from, range.to, mark);
-      else doc.setMark(range.blockId, range.from, range.to, { type: mark });
-    });
-  };
-
-  /** Apply an alignment (set-only; the current one is a visible no-op). */
-  const onAlign = (align: TextAlign): void => {
-    if (range.kind === "cross") {
-      if (uniformAlignOfRange(doc, range.cross) === align) return;
-      applyAlignRange(doc, range.cross, align);
-      return;
-    }
-    if (alignOfBlock(single) === align) return;
-    doc.transact(() => {
-      doc.updateBlock(range.blockId, { align });
-    });
-  };
-
-  /** Apply the palette target's mark with the value (or clear it). The
-   *  pick's stand: the palette's close (the apply's commit / the no-op's
-   *  confirm — the picker stands no hanging). */
-  const onPaletteValue = (value: string | null): void => {
-    setPaletteOpen(false);
-    if (range.kind === "cross") {
-      const current = uniformMarkValueRange(doc, range.cross, target);
-      if (current === value) return;
-      if (value === null) clearMarkRange(doc, range.cross, target);
-      else applyValueMarkRange(doc, range.cross, target, value);
-      return;
-    }
-    const current = uniformMarkValue(single, range.from, range.to, target);
-    if (current === value) return;
-    doc.transact(() => {
-      if (value === null) doc.unsetMark(range.blockId, range.from, range.to, target);
-      else if (target === "color") doc.setMark(range.blockId, range.from, range.to, { type: "color", value });
-      else doc.setMark(range.blockId, range.from, range.to, { type: "highlight", value });
-    });
-  };
-
-  /**
-   * The list-type menu action (single-block targets only): a swap inside a
-   * list is a `list` attr update; any other target is a type change (the
-   * target's required attrs come from the option). "Text" stands for a
-   * list item with a derived segment (the flat model: the segment
-   * re-attaches to the paragraph as its nested content — nothing is lost,
-   * the indent stands).
-   */
-  const onListOption = (option: (typeof LIST_MENU_OPTIONS)[number]["option"]): void => {
-    setListMenuOpen(false);
-    if (range.kind !== "single") return;
-    // A list-type swap or a type change remounts the block's subtree (the
-    // wrapper tag swaps), so the DOM selection dies with it: the gesture's
-    // range is re-seated on the rebuilt block (the content stands, so the
-    // offsets remain valid).
-    const seat: { from: number; to: number } = { from: range.from, to: range.to };
-    // The gesture's own inner element: the motion view's exit clone keeps
-    // this node connected while the remount adds the survivor, so the
-    // re-seat must not mistake the clone for the target.
-    const exclude =
-      rootRef.current?.querySelector<HTMLElement>(
-        `[data-block-id="${CSS.escape(range.blockId)}"][data-slot="docblocks/block-content"]`
-      ) ?? null;
-    if (option === "paragraph") {
-      // A task's `checked` is dropped by the type change (the check state
-      // is not carried into plain text).
-      if (single.type !== "paragraph") doc.transact(() => doc.changeBlockType(range.blockId, "paragraph"));
-      restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
-      return;
-    }
-    if (option === "quote") {
-      // A task's `checked` is a type-specific attr: the type change drops
-      // it (the check state is not carried into a non-list type).
-      if (single.type !== "quote") doc.transact(() => doc.changeBlockType(range.blockId, "quote"));
-      restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
-      return;
-    }
-    const currentList = single.type === "list-item" ? single.attrs.list : null;
-    if (currentList === option) return;
-    // A task converted away from the task kind loses its checked state
-    // (back to the unchecked default — converting back yields a fresh
-    // unchecked item). No mark is synthesized: the checked state renders
-    // the block's composition at 30% opacity, never a strike.
-    const isCheckedTask = single.type === "list-item" && single.attrs.list === "task" && single.attrs.checked === true;
-    doc.transact(() => {
-      if (single.type === "list-item") {
-        if (isCheckedTask) {
-          doc.updateBlock(range.blockId, { list: option, checked: false });
-        } else {
-          doc.updateBlock(range.blockId, { list: option });
-        }
-      } else {
-        doc.changeBlockType(range.blockId, "list-item", { list: option });
-      }
-    });
-    restoreSelectionIn(doc, range.blockId, seat.from, seat.to, rootRef.current ?? document, exclude);
-  };
-
-  // The callout's controls (the type preset / the background / the icon)
-  // stand the block's own management menu (the clickable marker-zone icon —
-  // the CalloutBlockMenu): the toolbar for a callout's text range is the
-  // shared text marks + the alignment only.
-
-  const markActive = (mark: FormatMark): boolean =>
-    range.kind === "cross"
-      ? rangeMarkAction(doc, range.cross, mark) === "unset"
-      : markToggleAction(doc, range.blockId, range.from, range.to, mark) === "unset";
-
-  const alignActive = (align: TextAlign): boolean =>
-    range.kind === "cross" ? uniformAlignOfRange(doc, range.cross) === align : alignOfBlock(single) === align;
-
-  const paletteActive = (value: string | null): boolean =>
-    range.kind === "cross"
-      ? uniformMarkValueRange(doc, range.cross, target) === value
-      : uniformMarkValue(single, range.from, range.to, target) === value;
-
-  // The palette's current uniform value (a hex, null when no mark stands,
-  // or "mixed"): the selected swatch's seat. "mixed" matches no swatch.
-  const currentMarkValue =
-    range.kind === "cross"
-      ? uniformMarkValueRange(doc, range.cross, target)
-      : uniformMarkValue(single, range.from, range.to, target);
-
-  // The trigger's chip preview (the shared language — the canvas's stand):
-  // the uniform hex fills the chip; the absent mark and the mixed range
-  // stand the X (the no-uniform-color's stand).
-  const chipValue = currentMarkValue !== null && currentMarkValue !== "mixed" ? currentMarkValue : null;
+  const actions = createFormatToolbarActions({
+    doc,
+    range,
+    single,
+    target,
+    rootRef,
+    onPaletteClose: () => setPaletteOpen(false),
+    onListMenuClose: () => setListMenuOpen(false),
+  });
 
   // The list-type radio state (single-block eligible targets only — the
   // menu renders for paragraph, heading, and list-item blocks; the
@@ -297,11 +133,10 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           ? "quote"
           : "";
 
-  const toggleMarkAt = (mark: Parameters<typeof onToggleMark>[0]) => () => onToggleMark(mark);
-  const alignAt = (align: Parameters<typeof onAlign>[0]) => () => onAlign(align);
-  const listOptionAt = (option: Parameters<typeof onListOption>[0]) => () => onListOption(option);
-  const selectTarget = (target: Parameters<typeof setTarget>[0]) => () => setTarget(target);
-  const nonePaletteValue = () => onPaletteValue(null);
+  // The callout's controls (the type preset / the background / the icon)
+  // stand the block's own management menu (the clickable marker-zone icon —
+  // the CalloutBlockMenu): the toolbar for a callout's text range is the
+  // shared text marks + the alignment only.
 
   return (
     <div
@@ -326,9 +161,9 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           data-mark={mark}
           title={t(title)}
           aria-label={t(title)}
-          aria-pressed={markActive(mark)}
-          className={cn(markActive(mark) && ACTIVE_ITEM_CLASS)}
-          onClick={toggleMarkAt(mark)}
+          aria-pressed={actions.markActive(mark)}
+          className={cn(actions.markActive(mark) && ACTIVE_ITEM_CLASS)}
+          onClick={() => actions.onToggleMark(mark)}
         >
           <Icon className="size-4" />
         </Button>
@@ -342,9 +177,9 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           data-align-btn={align}
           title={t(title)}
           aria-label={t(title)}
-          aria-pressed={alignActive(align)}
-          className={cn(alignActive(align) && ACTIVE_ITEM_CLASS)}
-          onClick={alignAt(align)}
+          aria-pressed={actions.alignActive(align)}
+          className={cn(actions.alignActive(align) && ACTIVE_ITEM_CLASS)}
+          onClick={() => actions.onAlign(align)}
         >
           <Icon className="size-4" />
         </Button>
@@ -356,116 +191,26 @@ function FormatToolbar({ rootRef, palette }: FormatToolbarProps) {
           single.type === "list-item") && (
           <>
             <Separator orientation="vertical" className="h-5" />
-            <DropdownMenu modal={false} open={listMenuOpen} onOpenChange={setListMenuOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  title={t("formatToolbar.listType")}
-                  aria-label={t("formatToolbar.listType")}
-                  className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
-                >
-                  <MenuIcon className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              {/* The portaled content keeps the bar's mousedown guard: a
-                default mousedown would blur the editable and kill the
-                selection the gesture is about to re-seat. Outside dismiss
-                (pointer and focus) is suppressed — the editor owns the
-                focus, and the selection state owns the visibility. */}
-              <DropdownMenuContent
-                align="start"
-                sideOffset={MENU_SIDE_OFFSET_PX}
-                data-slot="docblocks/format-list-menu"
-                onMouseDown={preventDefault}
-                onPointerDownOutside={preventDefault}
-                onFocusOutside={preventDefault}
-              >
-                <DropdownMenuRadioGroup value={listValue}>
-                  {LIST_MENU_OPTIONS.map(({ option, label, icon: Icon }) => {
-                    const disabled = false;
-                    return (
-                      <DropdownMenuRadioItem
-                        key={option}
-                        value={option}
-                        data-list-option={option}
-                        disabled={disabled}
-                        title={t(label)}
-                        onSelect={listOptionAt(option)}
-                      >
-                        <Icon className="size-4" />
-                        {t(label)}
-                      </DropdownMenuRadioItem>
-                    );
-                  })}
-                </DropdownMenuRadioGroup>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <FormatListMenu
+              open={listMenuOpen}
+              onOpenChange={setListMenuOpen}
+              value={listValue}
+              onOption={actions.onListOption}
+            />
           </>
         )}
       <Separator orientation="vertical" className="h-5" />
-      <Popover modal={false} open={paletteOpen} onOpenChange={setPaletteOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            data-target={target}
-            title={t("formatToolbar.color.trigger")}
-            aria-label={t("formatToolbar.color.trigger")}
-            className="data-[state=open]:bg-accent data-[state=open]:text-accent-foreground"
-          >
-            <span className="flex items-center gap-1">
-              <Baseline className="size-4" />
-              <ColorChip value={chipValue} />
-            </span>
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          sideOffset={MENU_SIDE_OFFSET_PX}
-          data-slot="docblocks/format-palette"
-          aria-label={t("formatToolbar.color.trigger")}
-          className="w-auto p-2"
-          onMouseDown={preventDefault}
-          onPointerDownOutside={preventDefault}
-          onFocusOutside={preventDefault}
-        >
-          <div role="group" aria-label={t("formatToolbar.color.targetGroupAria")} className="flex gap-1">
-            {(["highlight", "color"] as const).map((option) => (
-              <Button
-                key={option}
-                variant="ghost"
-                size="sm"
-                data-target-btn={option}
-                aria-pressed={target === option}
-                aria-label={
-                  option === "highlight" ? t("formatToolbar.color.highlightAria") : t("formatToolbar.color.textAria")
-                }
-                title={
-                  option === "highlight" ? t("formatToolbar.color.highlightAria") : t("formatToolbar.color.textAria")
-                }
-                className={cn("h-7 flex-1 text-xs", target === option && ACTIVE_ITEM_CLASS)}
-                onClick={selectTarget(option)}
-              >
-                {option === "highlight" ? t("formatToolbar.color.highlightLabel") : t("formatToolbar.color.textLabel")}
-              </Button>
-            ))}
-          </div>
-          <ColorSwatches
-            colors={palette}
-            current={currentMarkValue}
-            onSelect={onPaletteValue}
-            label={target === "highlight" ? t("formatToolbar.palette.highlight") : t("formatToolbar.palette.text")}
-            allowNone
-            noneActive={paletteActive(null)}
-            onSelectNone={nonePaletteValue}
-            // The text's palette's reset's stand: the cross's button over
-            // the all colors (the elements' palettes keep the
-            // transparent's "no color" swatch).
-            noneAsCross
-          />
-        </PopoverContent>
-      </Popover>
+      <FormatPalette
+        open={paletteOpen}
+        onOpenChange={setPaletteOpen}
+        target={target}
+        onTargetChange={setTarget}
+        onValue={actions.onPaletteValue}
+        palette={palette}
+        paletteActive={actions.paletteActive}
+        currentMarkValue={actions.currentMarkValue}
+        chipValue={actions.chipValue}
+      />
     </div>
   );
 }
