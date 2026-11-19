@@ -16,7 +16,7 @@ import type { KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import type { BlockId } from "docblocks-core";
 
-import { firstSurface } from "../../canvas";
+import { autoMembership, firstSurface } from "../../canvas";
 import { focusCaretIn } from "../../editing/block-commands";
 import { editorRootOf } from "../../editing/dom-offset";
 import { useEditorContext } from "../../editor-provider";
@@ -83,6 +83,8 @@ function CanvasTextGhost({
           h: size.h,
         });
         doc.insertText(id, 0, text);
+        // The centre inside a container joins it (the same transaction).
+        autoMembership(doc, id);
       });
     } catch {
       // A rejected placement (a validator rejection): the ghost stands

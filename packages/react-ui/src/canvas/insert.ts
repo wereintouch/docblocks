@@ -1,6 +1,7 @@
 import type { BlockId, Doc, ShapeAttrs } from "docblocks-core";
 import { InvalidOperationError } from "docblocks-core";
 
+import { autoMembership } from "./membership";
 import type { CanvasPoint, PenStroke } from "./viewport";
 
 /** The shape's variant (the dock's shape tools; the pen reuses the rect variant — its points win in the render). */
@@ -36,6 +37,9 @@ function placeShape(doc: Doc, variant: ShapeVariant, point: CanvasPoint, size: {
   doc.transact(() => {
     id = doc.insertBlock("shape", { variant } satisfies ShapeAttrs, { parent: surface });
     doc.setGeometry(id, { x: point.x, y: point.y, w: size.w, h: size.h });
+    // The centre inside a container joins it (the same transaction — one
+    // undo step).
+    autoMembership(doc, id);
   });
   return id!;
 }
@@ -49,6 +53,7 @@ function placeCanvasText(doc: Doc, point: CanvasPoint, size: { w: number; h: num
   doc.transact(() => {
     id = doc.insertBlock("canvas-text", undefined, { parent: surface });
     doc.setGeometry(id, { x: point.x, y: point.y, w: size.w, h: size.h });
+    autoMembership(doc, id);
   });
   return id!;
 }
@@ -111,6 +116,7 @@ function placePenStroke(doc: Doc, stroke: PenStroke): BlockId {
   doc.transact(() => {
     id = doc.insertBlock("shape", { variant: "rect", points: stroke.points } satisfies ShapeAttrs, { parent: surface });
     doc.setGeometry(id, stroke.geometry);
+    autoMembership(doc, id);
   });
   return id!;
 }

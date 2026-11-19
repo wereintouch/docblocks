@@ -11,6 +11,7 @@ export type { CanvasClipboard } from "./clipboard";
 export { ConnectorToolbar } from "./ConnectorToolbar";
 export { canvasContentBox, fitView } from "./fit";
 export { dissolveGroup, findParentSurface, firstSurface, makeGroup } from "./insert";
+export { autoMembership } from "./membership";
 export { NUDGE_KEYS, nudgeDelta, nudgeGate, nudgeSelection } from "./nudge";
 export { ShapeToolbar, CanvasTextToolbar, ShapeTextControls } from "./shape-toolbar";
 export {

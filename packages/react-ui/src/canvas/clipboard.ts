@@ -27,6 +27,7 @@ import type {
 
 import { DEFAULT_CANVAS_ITEM_SIZE, endpointBoxOf, endpointPointOf, portOfNormal } from "./geometry";
 import { findParentSurface } from "./insert";
+import { autoMembership } from "./membership";
 import type { CanvasPoint } from "./viewport";
 
 /** The one copied canvas item (the deep data; the ids stand the originals). */
@@ -231,6 +232,27 @@ function pasteCanvasItems(
         }
         idMap.set(originalId, id);
         if (topSet.has(originalId)) newTopIds.push(id);
+      }
+      // The auto-membership's candidates: the pasted shapes / texts that
+      // stand outside the pasted groups (the fragment's own containers are
+      // never the external homes — their membership stands as pasted).
+      const pastedGroups = new Set<BlockId>();
+      const nested = new Set<BlockId>();
+      for (const { id: originalId, item } of order) {
+        if (item.type !== "group") continue;
+        const newId = idMap.get(originalId);
+        if (newId !== undefined) pastedGroups.add(newId);
+        for (const memberId of item.attrs.members) {
+          const mapped = idMap.get(memberId);
+          if (mapped !== undefined) nested.add(mapped);
+        }
+      }
+      for (const [originalId, newId] of idMap) {
+        const item = byId.get(originalId);
+        if (item === undefined) continue;
+        if (item.type !== "shape" && item.type !== "canvas-text") continue;
+        if (nested.has(newId)) continue;
+        autoMembership(doc, newId, pastedGroups);
       }
     });
   } catch {
