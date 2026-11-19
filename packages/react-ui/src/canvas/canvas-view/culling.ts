@@ -25,7 +25,9 @@ import { effectiveGeometry, endpointBoxOf } from "../geometry";
 import type { CanvasViewportState, ScreenRect } from "../viewport";
 import { rectsIntersect } from "../viewport";
 
-/** The culling's margin (canvas px, over the visible rect's edge). */
+/** The culling's margin (SCREEN px, over the visible rect's edge — the
+ * 1/zoom's world's conversion stands in `visibleWorldRectOf`: the band's
+ * on-screen's width stands the zoom's verbatim). */
 const CULL_MARGIN_PX = 300;
 
 /** The culling's fallback size (canvas px) over the unknown container
@@ -67,7 +69,9 @@ function useContainerSize(ref: RefObject<HTMLElement | null>): { width: number; 
  * The visible world rect (canvas coords, center-anchor): the container's
  * screen rect (center-relative) mapped through the zoom / pan (the world
  * carries `transform: translate(pan) scale(zoom)` over the center, so
- * `canvas = (screen - pan) / zoom`), expanded over the margin. `null`
+ * `canvas = (screen - pan) / zoom`), expanded over the margin (the
+ * SCREEN px's stand — the 1/zoom's world's conversion over the zoom's
+ * flip: the band's on-screen's width stands the zoom's verbatim). `null`
  * stands no cull (the caller's stand over the explicit no-cull).
  */
 function visibleWorldRectOf(
@@ -77,10 +81,11 @@ function visibleWorldRectOf(
   margin: number
 ): ScreenRect | null {
   if (size.width <= 0 || size.height <= 0) return null;
-  const left = (-size.width / 2 - pan.x) / zoom - margin;
-  const top = (-size.height / 2 - pan.y) / zoom - margin;
-  const right = (size.width / 2 - pan.x) / zoom + margin;
-  const bottom = (size.height / 2 - pan.y) / zoom + margin;
+  const worldMargin = margin / zoom;
+  const left = (-size.width / 2 - pan.x) / zoom - worldMargin;
+  const top = (-size.height / 2 - pan.y) / zoom - worldMargin;
+  const right = (size.width / 2 - pan.x) / zoom + worldMargin;
+  const bottom = (size.height / 2 - pan.y) / zoom + worldMargin;
   return { left, top, width: right - left, height: bottom - top };
 }
 

@@ -40,6 +40,17 @@ describe("visibleWorldRectOf", () => {
     });
   });
 
+  it("expands over the margin's SCREEN px's stand (the 1/zoom's world's conversion)", () => {
+    // zoom 0.5, the 300 screen-px margin's 600 world-px stand: the
+    // screen's left edge (-500) / 0.5 = -1000 - 600 = -1600.
+    expect(visibleWorldRectOf(0.5, { x: 0, y: 0 }, { width: 1000, height: 800 }, 300)).toEqual({
+      left: -1600,
+      top: -1400,
+      width: 3200,
+      height: 2800,
+    });
+  });
+
   it("stands null over the unknown container size (no cull)", () => {
     expect(visibleWorldRectOf(1, { x: 0, y: 0 }, { width: 0, height: 800 }, 100)).toBeNull();
   });
@@ -106,7 +117,7 @@ describe("computeCulling", () => {
     expect(set.has("line")).toBe(true);
   });
 
-  it("expands over the margin constant (the 300 canvas px stand)", () => {
+  it("expands over the margin constant (the 300 SCREEN px stand)", () => {
     // the item's box's edge at 600 (the box's center 550 + 50): the
     // visible's edge at 600 — the box touches the edge, kept.
     const set = computeCulling(visible, [{ id: "s", children: ["near"] }], { near: shape("near", 550, 0) }, new Set());
