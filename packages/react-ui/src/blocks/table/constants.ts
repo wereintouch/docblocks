@@ -36,6 +36,10 @@ const RESIZE_KEY_STEP_PX = 8;
 const ADD_BUTTON_CLASSES =
   "pointer-events-none opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100";
 
+/** The table element's selector (the live DOM read — the commit and the
+ * hover math, the row metrics' measurement). */
+const TABLE_ELEMENT_QUERY = 'table[data-slot="docblocks/table"]';
+
 const DRAG_TRANSITION = "transform 120ms ease-out";
 const HANDLE_DRAG_TRANSITION = "left 120ms ease-out, top 120ms ease-out";
 
@@ -51,6 +55,7 @@ export {
   HANDLE_ZONE,
   MIN_COLUMN_WIDTH,
   RESIZE_KEY_STEP_PX,
+  TABLE_ELEMENT_QUERY,
   DRAG_TRANSITION,
   HANDLE_DRAG_TRANSITION,
 };

@@ -5,7 +5,8 @@
  * wire update; a concurrent structural change invalidates the drop — the
  * stale guard, the handle's contract — no command, the rows resync), and
  * the cancel. A non-drag press stands the click path (the chip's onClick
- * adds one) — the drag's release suppresses the capture's click. The
+ * adds one) — the drag's release suppresses the capture's click (the
+ * insert's click-guard stands here). The
  * preview's state stands in the view (the chips' ghost / dimmed rows /
  * columns). */
 import type { PointerEvent as ReactPointerEvent, RefObject } from "react";
@@ -143,7 +144,27 @@ function useTableAddChips({
     }
   };
 
+  // The add-chip's press (the drag-out stand's guard): the chip's drag
+  // commits the add over its release; a plain press stands the one-row /
+  // one-column add (the drag's click-stand suppresses it).
+  const insertTableColumn = () => {
+    if (addDragClickRef.current) {
+      addDragClickRef.current = false;
+      return;
+    }
+    doc.insertTableColumn(id);
+  };
+  const insertTableRow = () => {
+    if (addDragClickRef.current) {
+      addDragClickRef.current = false;
+      return;
+    }
+    doc.insertTableRow(id);
+  };
+
   return {
+    insertTableColumn,
+    insertTableRow,
     onAddChipPointerDown,
     onAddChipPointerMove,
     onAddChipPointerUp,
