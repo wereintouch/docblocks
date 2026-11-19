@@ -178,6 +178,29 @@ interface EndpointPreview {
   snap: EndpointSnap | null;
 }
 
+/** The drill-down's session: the click point (the container space) the
+ * radius stands around, the moment of the last cycling click, the camera the
+ * session stood under (any camera change drops it), and the pointer type
+ * (the touch's wider radius). */
+interface CycleSession {
+  anchor: ScreenPoint;
+  at: number;
+  zoom: number;
+  panX: number;
+  panY: number;
+  pointerType: string;
+}
+
+/** The drill-down's transient indicator: the click point, the candidate's
+ * position in the stack (1-based) and the stack's size. */
+interface CycleIndicator {
+  point: ScreenPoint;
+  index: number;
+  count: number;
+  /** The stand's identity (a fresh value re-arms the fade). */
+  nonce: number;
+}
+
 /**
  * The canvas viewport's view state (zoom / pan / the pointer mode / the
  * active placement tool / the pending connector endpoint / the in-flight
@@ -255,6 +278,16 @@ interface CanvasViewportState {
    * it over the selection's absence; the Enter selects it). View state —
    * not the doc's data, not the selection. */
   kbFocusId: string | null;
+  /** The drill-down's session (the Alt press / the plain repeat click over
+   *  the same spot); null outside it. */
+  cycle: CycleSession | null;
+  /** The drill-down's transient `i / N` indicator; null outside its fade. */
+  cycleIndicator: CycleIndicator | null;
+  /** Sets the drill-down's session (null drops it — the camera's / the
+   *  tool's / the drag's stands drop it). */
+  setCycle: (cycle: CycleSession | null) => void;
+  /** Stands the `i / N` indicator (null hides it). */
+  setCycleIndicator: (indicator: CycleIndicator | null) => void;
   /** Opens / closes the shape's inline text edit (the double-click, the
    * toolbar's add-text button, the edit's blur / Escape close). */
   setShapeTextEditing: (id: string | null) => void;
@@ -364,6 +397,8 @@ export type {
   CanvasPoint,
   CanvasTool,
   CanvasViewportState,
+  CycleIndicator,
+  CycleSession,
   DropIndicator,
   EndpointDrag,
   EndpointPreview,

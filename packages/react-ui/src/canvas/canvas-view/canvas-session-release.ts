@@ -9,6 +9,7 @@ import type { BlockId } from "docblocks-core";
 
 import { MOVE_THRESHOLD_PX, marqueeRect, penStroke, placeDragBox, rectsIntersect, screenToCanvas } from "../../canvas";
 import type { CanvasSessionContext } from "./canvas-session-context";
+import { applyPendingCycleStep } from "./canvas-session-press-hit";
 
 interface CanvasReleaseHandlers {
   onPointerUp: (event: ReactPointerEvent<HTMLDivElement>) => void;
@@ -37,6 +38,7 @@ function createReleaseHandlers(ctx: CanvasSessionContext): CanvasReleaseHandlers
       return;
     }
     ctx.sessionRef.current = null;
+    ctx.cycleStepRef.current = null;
     ctx.viewport.setPlacePreview(null);
     ctx.viewport.cancelMove();
     ctx.viewport.cancelResize();
@@ -52,6 +54,9 @@ function createReleaseHandlers(ctx: CanvasSessionContext): CanvasReleaseHandlers
     // or the free point; one updateBlock) or the no-op (a press-release
     // under the threshold).
     if (ctx.viewport.connectorEndpoint !== null) {
+      // The endpoint's drag owns the gesture: the item press's pending
+      // drill-down step stands off (a later release must not apply it).
+      ctx.cycleStepRef.current = null;
       ctx.viewport.endConnectorEndpoint(event.clientX, event.clientY);
       return;
     }
@@ -84,11 +89,17 @@ function createReleaseHandlers(ctx: CanvasSessionContext): CanvasReleaseHandlers
         }
       }
       ctx.connectorPressClientRef.current = null;
+      ctx.cycleStepRef.current = null;
       return;
     }
 
+    // The plain repeat press's step stands over a click only: a drag's
+    // preview (the item's / the resize's) commits the move instead.
+    const dragged = ctx.viewport.movePreview !== null || ctx.viewport.resizePreview !== null;
     ctx.viewport.endMove();
     ctx.viewport.endResize();
+    if (dragged) ctx.cycleStepRef.current = null;
+    else applyPendingCycleStep(ctx);
     const session = ctx.sessionRef.current;
     if (session === null) return;
     ctx.sessionRef.current = null;

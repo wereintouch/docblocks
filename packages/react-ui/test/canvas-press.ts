@@ -61,9 +61,17 @@ function pressPointOf(doc: Doc, id: string): PressPoint {
   return { x: box.x - box.w / 2 + box.w / 8, y: box.y - box.h / 2 + (box.h * 7) / 8 };
 }
 
+interface PressOptions {
+  shiftKey?: boolean;
+  altKey?: boolean;
+  pointerId?: number;
+  pointerType?: string;
+  detail?: number;
+}
+
 /** The press's client point over the view's origin (the jsdom's container
  * rect stands at the origin, so the client point is the world point). */
-function pressAt(view: Element, point: PressPoint, options: { shiftKey?: boolean; pointerId?: number } = {}): void {
+function pressAt(view: Element, point: PressPoint, options: PressOptions = {}): void {
   const pointerId = options.pointerId ?? 1;
   fireEvent.pointerDown(view, {
     button: 0,
@@ -71,17 +79,15 @@ function pressAt(view: Element, point: PressPoint, options: { shiftKey?: boolean
     clientY: point.y,
     pointerId,
     shiftKey: options.shiftKey ?? false,
+    altKey: options.altKey ?? false,
+    pointerType: options.pointerType ?? "mouse",
+    detail: options.detail ?? 1,
   });
   fireEvent.pointerUp(view, { pointerId });
 }
 
 /** The plain press on the block (the press over the block's own zone). */
-function pressBlock(
-  view: Element,
-  doc: Doc,
-  id: string,
-  options: { shiftKey?: boolean; pointerId?: number } = {}
-): PressPoint {
+function pressBlock(view: Element, doc: Doc, id: string, options: PressOptions = {}): PressPoint {
   const point = pressPointOf(doc, id);
   pressAt(view, point, options);
   return point;
@@ -93,4 +99,4 @@ function dragTo(view: Element, to: PressPoint, pointerId = 1): void {
 }
 
 export { dragTo, explicitlyTransparent, pressAt, pressBlock, pressPointOf };
-export type { PressPoint };
+export type { PressOptions, PressPoint };

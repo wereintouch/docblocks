@@ -13,6 +13,7 @@ import type { BlockId } from "docblocks-core";
 
 import { screenToCanvas } from "../../canvas";
 import { focusCaretInElement } from "../../editing/block-commands";
+import { CYCLE_DOUBLE_TAP_MS, CYCLE_RADIUS_TOUCH_PX } from "./canvas-hit-config";
 import type { CanvasSessionContext } from "./canvas-session-context";
 import { pressHitAt } from "./hit-stack";
 
@@ -58,6 +59,21 @@ function createContentDoubleClick(ctx: CanvasSessionContext): (event: ReactMouse
     // stand (the ghost's text's, the canvas-text's edit's, the shape's
     // text's, the label's) stands off.
     if (ctx.viewMode) return;
+    // The Alt press belongs to the drill-down: it never enters an inline
+    // edit (a fast Alt+double-click would open the editor inside the cycle's
+    // session).
+    if (event.altKey) return;
+    // The touch tap's repeat steps the drill-down: the touch's double-tap
+    // (the browser's own reading of two quick taps) stands no inline edit
+    // right after a step — the stepped candidate would be clobbered by the
+    // entered editor's caret. The mouse's double-click keeps its entries
+    // (the step's indicator stands there too, but the pointer gates it).
+    const touchStep = ctx.viewport.cycleIndicator;
+    if (touchStep !== null && ctx.viewport.cycle?.pointerType === "touch") {
+      const point = ctx.centerRelativePoint(event);
+      const near = Math.hypot(point.x - touchStep.point.x, point.y - touchStep.point.y) <= CYCLE_RADIUS_TOUCH_PX;
+      if (near && Date.now() - touchStep.nonce <= CYCLE_DOUBLE_TAP_MS) return;
+    }
     // The ghost text block's entry (the double-click on the EMPTY canvas —
     // the default mode with no active tool): the focused contenteditable
     // stands at the point (the world's space — the ghost's component's

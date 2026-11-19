@@ -110,6 +110,10 @@ function createShapeSessions(store: CanvasViewportStore, doc: Doc) {
     );
     if (delta === null) return;
     session.dragging = true;
+    // A drag drops the drill-down's session (the press was a move, not a
+    // step): the next press over the spot stands a fresh plain select.
+    store.getState().setCycle(null);
+    store.getState().setCycleIndicator(null);
     // The session carries the delta (the render state is the preview
     // only — the release commit reads the session, not the closure).
     session.dx = delta.x;
@@ -247,6 +251,8 @@ function createShapeSessions(store: CanvasViewportStore, doc: Doc) {
     );
     if (delta === null) return;
     session.dragging = true;
+    store.getState().setCycle(null);
+    store.getState().setCycleIndicator(null);
     // The session carries the box (the release commit reads the session,
     // not the render state).
     session.box = resizeBox(session.snapshot, session.handle, delta.x, delta.y, shift, session.memberUnion);

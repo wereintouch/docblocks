@@ -10,6 +10,16 @@ type ShapeTool = Extract<CanvasTool, "rect" | "rounded" | "ellipse" | "diamond" 
  * the frame's box is its own free geometry, like the shapes). */
 type PlaceTool = ShapeTool | "container" | "frame";
 
+/** The plain repeat press's pending step (the drill-down's stack and the
+ * target's index): the release applies it over a click (no drag) — a drag
+ * stands the move instead. */
+interface PendingCycleStep {
+  ids: string[];
+  index: number;
+  point: { x: number; y: number };
+  pointerType: string;
+}
+
 /** The in-flight canvas pointer session (the primary button only). */
 type CanvasPointerSession =
   | { kind: "pan"; startClientX: number; startClientY: number; startPanX: number; startPanY: number }
@@ -24,4 +34,4 @@ type CanvasPointerSession =
       lastPoint: CanvasPoint;
     };
 
-export type { CanvasPointerSession, PlaceTool, ShapeTool };
+export type { CanvasPointerSession, PendingCycleStep, PlaceTool, ShapeTool };

@@ -25,6 +25,8 @@ import type {
   DropIndicator,
   EndpointDrag,
   EndpointPreview,
+  CycleIndicator,
+  CycleSession,
   EndpointSnap,
   MarqueeState,
   MovePreview,
@@ -74,6 +76,10 @@ interface CanvasViewportStoreState {
   canvasTextEditing: string | null;
   connectorLabelEditing: string | null;
   kbFocusId: string | null;
+  cycle: CycleSession | null;
+  cycleIndicator: CycleIndicator | null;
+  setCycle: (cycle: CycleSession | null) => void;
+  setCycleIndicator: (indicator: CycleIndicator | null) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: ScreenPoint) => void;
   setMode: (mode: CanvasMode) => void;
@@ -137,10 +143,16 @@ function createViewportStore(initial: { zoom: number; pan: ScreenPoint }) {
     canvasTextEditing: null,
     connectorLabelEditing: null,
     kbFocusId: null,
-    setZoom: (zoom) => set({ zoom }),
-    setPan: (pan) => set({ pan }),
+    cycle: null,
+    cycleIndicator: null,
+    setCycle: (cycle) => set({ cycle }),
+    setCycleIndicator: (cycleIndicator) => set({ cycleIndicator }),
+    // The camera's / the tool's moves drop the drill-down's session (another
+    // stack stands under the point) and its indicator.
+    setZoom: (zoom) => set({ zoom, cycle: null, cycleIndicator: null }),
+    setPan: (pan) => set({ pan, cycle: null, cycleIndicator: null }),
     setMode: (mode) => set({ mode }),
-    setActiveTool: (activeTool) => set({ activeTool }),
+    setActiveTool: (activeTool) => set({ activeTool, cycle: null, cycleIndicator: null }),
     setMarquee: (marquee) => set({ marquee }),
     setPenPoints: (penPoints) => set({ penPoints }),
     setMovePreview: (movePreview) => set({ movePreview }),

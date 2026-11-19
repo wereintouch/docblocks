@@ -16,7 +16,7 @@ import { useBlock } from "../../hooks";
 import { CanvasTextEditProvider } from "../canvas-text-edit-context";
 import { CanvasSurface } from "./CanvasSurface";
 import { useCanvasCulling } from "./culling";
-import type { CanvasPointerSession } from "./models";
+import type { CanvasPointerSession, PendingCycleStep } from "./models";
 import { useCanvasFit } from "./use-canvas-fit";
 import { useCanvasKeys } from "./use-canvas-keys";
 import { useCanvasSessions } from "./use-canvas-sessions";
@@ -66,6 +66,9 @@ function CanvasView() {
   // — the world position stands the conversion at the paste's own
   // zoom / pan, the viewport center over no pointer).
   const lastPointerRef = useRef<{ x: number; y: number } | null>(null);
+  // The plain repeat press's pending drill-down step (the release applies it
+  // over a click; a drag stands the move instead).
+  const cycleStepRef = useRef<PendingCycleStep | null>(null);
   const [spacePan, setSpacePan] = useState(false);
   // The wheel listener's live viewport (the latest render's state and
   // callbacks): the native listener subscribes once on mount — re-running
@@ -130,6 +133,7 @@ function CanvasView() {
     lastPointerRef,
     cardPressRef,
     connectorPressClientRef,
+    cycleStepRef,
     viewport,
     spacePan,
     blocks,

@@ -14,7 +14,7 @@ import type { CanvasViewportState, CanvasViewportStore } from "../../canvas";
 import type { SelectionRef } from "../../editor-provider";
 import { effectiveGeometry, portsOf } from "../geometry";
 import { PORT_PICK_RADIUS_PX } from "./constants";
-import type { CanvasPointerSession } from "./models";
+import type { CanvasPointerSession, PendingCycleStep } from "./models";
 
 interface CanvasSessionDeps {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -22,6 +22,9 @@ interface CanvasSessionDeps {
   lastPointerRef: RefObject<{ x: number; y: number } | null>;
   cardPressRef: RefObject<boolean>;
   connectorPressClientRef: RefObject<{ x: number; y: number } | null>;
+  /** The plain repeat press's pending step (the release's apply — the drag
+   *  stands the move instead). */
+  cycleStepRef: RefObject<PendingCycleStep | null>;
   viewport: CanvasViewportState & { store: CanvasViewportStore };
   spacePan: boolean;
   blocks: Record<BlockId, Block>;

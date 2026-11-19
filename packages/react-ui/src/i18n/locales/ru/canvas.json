@@ -105,5 +105,9 @@
     "containerTitle": "Заголовок контейнера",
     "frameTitle": "Заголовок фрейма"
   },
-  "colorHex": "{label} — HEX-значение"
+  "colorHex": "{label} — HEX-значение",
+  "cycle": {
+    "indicator": "{index} / {count}",
+    "indicatorLabel": "{index} из {count}"
+  }
 }

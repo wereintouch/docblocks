@@ -22,6 +22,7 @@ import {
 } from "../../canvas";
 import { cn } from "../../shared/ui/cn";
 import type { CanvasViewportState } from "../viewport";
+import { CanvasCycleIndicator } from "./CanvasCycleIndicator";
 import { CanvasSelectionOverlay } from "./CanvasSelectionOverlay";
 import { CanvasTitleChips } from "./CanvasTitleChips";
 import { ZoomControls } from "./ZoomControls";
@@ -254,6 +255,7 @@ function CanvasScreenChrome({
         />
       )}
       <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={onResetZoom} onFit={onFit} />
+      <CanvasCycleIndicator />
       <CanvasTitleChips
         surfaces={surfaces}
         blocks={blocks}
