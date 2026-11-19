@@ -90,9 +90,9 @@ describe("the Alt press (the positional drill-down)", () => {
     const far = r.doc.insertBlock("shape", { variant: "rect", fill: "#fff" }, { parent: surface });
     r.doc.setGeometry(far, { x: 0, y: 500, w: 80, h: 60 });
     act(() => {
-      // A fresh render stands the new block's subscribe (the model stays
-      // the same doc).
-      r.doc;
+      // The store's change flush (the new block lands in the document map
+      // before the press).
+      r.doc.getBlock(far);
     });
     pressAt(r.view, { x: 0, y: 500 }, { shiftKey: true });
     pressAt(r.view, SHARED_POINT, { shiftKey: true });

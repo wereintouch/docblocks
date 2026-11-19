@@ -12,21 +12,18 @@ import type { BlockId, Doc } from "docblocks-core";
 
 import {
   NUDGE_KEYS,
-  copyCanvasItems,
   dissolveGroup,
-  findParentSurface,
-  firstSurface,
   makeGroup,
   nudgeDelta,
   nudgeGate,
   nudgeSelection,
-  pasteCanvasItems,
   placeDragBox,
-  screenToCanvas,
 } from "../../canvas";
 import type { CanvasViewportState } from "../../canvas";
 import type { SelectionRef } from "../../editor-provider";
 import type { EditorStore } from "../../state";
+import { handleCanvasClipboard } from "./canvas-keys-clipboard";
+import { handleCanvasEscape } from "./canvas-keys-escape";
 import type { CanvasPointerSession } from "./models";
 import { isShapeTool } from "./utils";
 
@@ -140,55 +137,8 @@ function useCanvasKeys({
       }
       return;
     }
-    // The canvas clipboard's hotkeys:
-    // Ctrl/Cmd+C copies the selection's canvas items (the selection
-    // stands — the copy clears nothing), Ctrl/Cmd+V pastes at the pointer
-    // (the selection seats on the pasted; the snapshot stands the
-    // undo/redo's selection contract). The app-level hotkeys win over the
-    // editing surfaces (the isEditingSurface guard above keeps the
-    // text's own copy / paste).
-    if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey) {
-      const modKey = event.key.toLowerCase();
-      if (modKey === "c") {
-        const sel = selection.view?.get();
-        if (sel?.kind !== "blocks" || sel.ids.length === 0) return;
-        const clipboard = copyCanvasItems(doc, sel.ids);
-        if (clipboard === null) return; // the non-copiable selection stands nothing
-        event.preventDefault();
-        event.stopPropagation();
-        store.getState().setCanvasClipboard(clipboard);
-        return;
-      }
-      if (modKey === "v") {
-        const clipboard = store.getState().canvasClipboard;
-        if (clipboard === null) return;
-        const sel = selection.view?.get();
-        event.preventDefault();
-        event.stopPropagation();
-        // The paste's target surface: the selection's first item's
-        // surface, the doc's first surface over no canvas selection (the
-        // paste stands the canvas even over the page's selection). The
-        // surface-less stand creates the surface in its own transact (a
-        // reachable only when every surface was removed between the copy
-        // and the paste — the copy implies a surface stood).
-        const surface = sel?.kind === "blocks" && sel.ids.length > 0 ? findParentSurface(doc, sel.ids[0]!) : null;
-        const target = surface !== null ? surface : firstSurface(doc);
-        // The pointer's world position (the last pointer's stand over the
-        // paste's own zoom / pan; the viewport center over no pointer).
-        const pointer = lastPointerRef.current ?? { x: 0, y: 0 };
-        const center = screenToCanvas(pointer, viewport.zoom, viewport.pan);
-        const pasted = pasteCanvasItems(doc, clipboard, target, center);
-        if (pasted !== null && pasted.length > 0) {
-          // The paste seats the selection on the pasted : the core's SelectionView restores the selection
-          // over the undo / redo (each captured edit snapshots the selection
-          // it started from — the paste's undo stands the previous
-          // selection back, the redo re-seats the pasted).
-          selection.view?.set({ kind: "blocks", ids: pasted, anchorId: pasted[0]! });
-          containerRef.current?.focus();
-        }
-        return;
-      }
-    }
+    // The canvas clipboard's hotkeys (the copy / the paste at the pointer).
+    if (handleCanvasClipboard({ viewport, selection, doc, store, containerRef, lastPointerRef }, event)) return;
     // The arrow-key nudge: over the
     // canvas's blocks selection and no in-flight gesture — each press is
     // a real move (one setGeometry per item in one transact: one undo
@@ -277,41 +227,12 @@ function useCanvasKeys({
       event.stopPropagation();
       return;
     }
-    if (
-      event.key === "Escape" &&
-      (viewport.activeTool !== null || viewport.pendingConnector !== null || viewport.pendingFree !== null)
-    ) {
-      // The canvas tools' cancel (the page's Escape clears the selection —
-      // the tool cancels first, the selection stands).
-      event.stopPropagation();
-      viewport.setActiveTool(null);
-      viewport.setPendingStand(null);
-      viewport.setPenPoints([]);
-      viewport.setPlacePreview(null);
-      viewport.setConnectorPreview(null);
-      sessionRef.current = null;
-      return;
-    }
-    if (event.key === "Escape" && viewport.movePreview !== null) {
-      // The in-flight move's cancel: the preview is dropped, nothing is
-      // written, the selection stands.
-      event.stopPropagation();
-      viewport.cancelMove();
-      return;
-    }
-    if (event.key === "Escape" && viewport.connectorEndpoint !== null) {
-      // The in-flight endpoint drag's cancel (the same contract as the
-      // move's: the preview is dropped, nothing is written).
-      event.stopPropagation();
-      viewport.cancelConnectorEndpoint();
-      return;
-    }
-    if (event.key === "Escape" && viewport.resizePreview !== null) {
-      // The in-flight resize's cancel (the same contract as the
-      // move's: the preview is dropped, nothing is written).
-      event.stopPropagation();
-      viewport.cancelResize();
-      return;
+    if (event.key === "Escape") {
+      const stand = handleCanvasEscape({ viewport, selection, doc, sessionRef });
+      if (stand !== null) {
+        if (stand === "prevent") event.preventDefault();
+        event.stopPropagation();
+      }
     }
   };
 

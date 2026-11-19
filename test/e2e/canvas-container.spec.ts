@@ -7,7 +7,7 @@
 // selection (the figures stand z-above), and the delete (the members stand).
 import { type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, canvasCenter, canvasView, screenAt, screenAtZoom, toCanvas, twoPanes } from "./helpers";
+import { SETTLE, canvasCenter, canvasView, outCount, screenAt, screenAtZoom, toCanvas, twoPanes } from "./helpers";
 
 const dock = (page: Page, client: "a" | "b") => canvasView(page, client).getByRole("toolbar", { name: "Canvas tools" });
 
@@ -977,6 +977,35 @@ test.describe("the canvas container (the reworked group)", () => {
       const blocksB = await docBlocks(b, "b");
       expect(blocksB[inside]?.type).toBe("shape");
       expect(blocksB[outside]?.type).toBe("shape");
+    } finally {
+      await close();
+    }
+  });
+
+  test("the Escape drills up: the member's container stands selected, nothing is written", async ({ browser }) => {
+    const { a, close } = await twoPanes(browser, "container-esc-parent");
+    try {
+      await toCanvas(a, "a");
+      const { group, inside } = await seedScene(a, "a");
+      await expect.poll(async () => (await docBlocks(a, "a"))[group] !== undefined, SETTLE).toBe(true);
+      const center = await canvasCenter(a, "a");
+      const blocks = await docBlocks(a, "a");
+      const memberPoint = screenAt(center, blocks[inside]!.geometry!.x, blocks[inside]!.geometry!.y);
+      // Select the member (the press's own zone), then Escape: the container
+      // stands selected — a local view state's step (the wire stands).
+      await a.mouse.click(memberPoint.x, memberPoint.y);
+      const groupItem = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${group}"]`);
+      const memberItem = canvasView(a, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${inside}"]`);
+      expect(await memberItem.getAttribute("data-selected")).not.toBeNull();
+      const outs = await outCount(a, "a");
+      await a.keyboard.press("Escape");
+      expect(await groupItem.getAttribute("data-selected")).not.toBeNull();
+      expect(await memberItem.getAttribute("data-selected")).toBeNull();
+      // No wire update stands from the Escape (one more Escape over the
+      // container's own stands the clear — still no write).
+      await a.keyboard.press("Escape");
+      expect(await groupItem.getAttribute("data-selected")).toBeNull();
+      expect(await outCount(a, "a")).toBe(outs);
     } finally {
       await close();
     }
