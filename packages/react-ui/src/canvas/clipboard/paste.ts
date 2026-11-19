@@ -1,121 +1,18 @@
-/**
- * The canvas clipboard: the deep copy of
- * the copied canvas items and the paste. The clipboard is the view state
- * per editor (not doc data, no wire); the paste seats the copy's union
- * center at the pointer (the mouse's world position), remaps the ids (the
- * container's membership and the connector's endpoints — the internal
- * refs stand the copy's ids, the external ones stand the free points at
- * the offset position with the frozen side), and commits in ONE transact
- * (one undo step, one wire update — the paste's Ctrl/Cmd+Z drops the whole
- * copy). The copy is autonomous (not tied to the original); the frame is
- * excluded from the copy (the frame's rework stands the copy out).
- *
- * The pure functions stand on the plain `Doc` reader — the unit layer is
- * testable without the React.
+/** The canvas clipboard's paste: the copy lands at the pointer (the mouse's
+ * world position) over the target surface, the ids remap (the container's
+ * membership and the connector's endpoints — the internal refs stand the
+ * copy's ids, the external ones stand the free points at the offset position
+ * with the frozen side), and the commit is ONE transact (one undo step, one
+ * wire update): the auto-membership and the inserts stand or fall together.
  */
-import type {
-  Block,
-  BlockContent,
-  BlockId,
-  CanvasRef,
-  CanvasTextAttrs,
-  ConnectorAttrs,
-  Doc,
-  Geometry,
-  ShapeAttrs,
-} from "docblocks-core";
+import type { Block, BlockId, CanvasRef, ConnectorAttrs, Doc } from "docblocks-core";
 
-import { DEFAULT_CANVAS_ITEM_SIZE, endpointBoxOf, endpointPointOf, portOfNormal } from "./geometry";
-import { findParentSurface } from "./insert";
-import { autoMembership } from "./membership";
-import type { CanvasPoint } from "./viewport";
-
-/** The one copied canvas item (the deep data; the ids stand the originals). */
-type ClipboardItem =
-  | { type: "shape"; attrs?: ShapeAttrs; geometry?: Geometry }
-  | { type: "connector"; attrs: ConnectorAttrs; geometry?: Geometry }
-  | { type: "canvas-text"; attrs?: CanvasTextAttrs; content?: BlockContent; geometry?: Geometry }
-  // The group's attrs stand the inline shape (the core's GroupAttrs is not
-  // exported) — the members are the surface's sibling refs, the title the
-  // container's label.
-  | { type: "group"; attrs: { members: BlockId[]; title?: string }; geometry?: Geometry };
-
-/** The deep copy of the copied canvas items (the ids stand the originals). */
-interface CanvasClipboard {
-  /** The copied items with the original ids (top-level + the containers' transitive members). */
-  entries: { id: BlockId; item: ClipboardItem }[];
-  /** The top-level ids (the selection order) — the paste's selection stand. */
-  ids: BlockId[];
-}
-
-/** The default item box (the copy's union stand over the absent geometry — the shared default size). */
-const DEFAULT_ITEM = { x: 0, y: 0, w: DEFAULT_CANVAS_ITEM_SIZE, h: DEFAULT_CANVAS_ITEM_SIZE };
-
-/**
- * The deep copy of the given block's data (the attrs / the text / the
- * geometry — the plain JSON clone: the copy never aliases the doc's
- * snapshot, and the original's later edits stand the copy out).
- */
-function cloneItem(block: Block): ClipboardItem | null {
-  if (block.type !== "shape" && block.type !== "connector" && block.type !== "canvas-text" && block.type !== "group") {
-    return null;
-  }
-  // The attrs / the content stand plain JSON (the plainness contract) —
-  // the JSON clone is the deep copy (the original's later edits stand
-  // the copy out).
-  const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
-  const geometry = block.geometry === undefined ? undefined : { ...block.geometry };
-  if (block.type === "shape") {
-    return { type: "shape", attrs: block.attrs === undefined ? undefined : clone(block.attrs), geometry };
-  }
-  if (block.type === "connector") {
-    if (block.attrs === undefined) return null;
-    return { type: "connector", attrs: clone(block.attrs), geometry };
-  }
-  if (block.type === "canvas-text") {
-    return {
-      type: "canvas-text",
-      attrs: block.attrs === undefined ? undefined : clone(block.attrs),
-      content: block.content === undefined ? undefined : clone(block.content),
-      geometry,
-    };
-  }
-  // The group
-  if (block.attrs === undefined) return null;
-  return { type: "group", attrs: clone(block.attrs), geometry };
-}
-
-/**
- * The copy snapshot over the selection ids: every copiable id stands its
- * deep data; a container's transitive members ride the copy (the
- * membership remaps at the paste — the copy is the whole container, not
- * the marker); a frame and the page block (the root's miniature) stand
- * the copy out. Returns `null` when no copiable item stands (the empty
- * copy).
- */
-function copyCanvasItems(doc: Doc, ids: readonly BlockId[]): CanvasClipboard | null {
-  const items = new Map<BlockId, ClipboardItem>();
-  const topLevel: BlockId[] = [];
-  const visit = (id: BlockId, top: boolean): void => {
-    if (items.has(id)) return;
-    const block = doc.getBlock(id);
-    if (block === null) return;
-    if (block.type === "frame") return; // the frame stands the copy out
-    const item = cloneItem(block);
-    if (item === null) return;
-    items.set(id, item);
-    if (top) topLevel.push(id);
-    if (item.type === "group") {
-      // The transitive membership (a nested container's members ride the
-      // outer's copy — the members stand the copy out of the selection's
-      // stand: the container's outline takes over).
-      for (const memberId of item.attrs.members) visit(memberId, false);
-    }
-  };
-  for (const id of ids) visit(id, true);
-  if (items.size === 0) return null;
-  return { entries: [...items.entries()].map(([id, item]) => ({ id, item })), ids: topLevel };
-}
+import { endpointBoxOf, endpointPointOf, portOfNormal } from "../geometry";
+import { findParentSurface } from "../insert";
+import { autoMembership } from "../membership";
+import type { CanvasPoint } from "../viewport";
+import { DEFAULT_ITEM } from "./constants";
+import type { CanvasClipboard, ClipboardItem } from "./models";
 
 /**
  * The paste: the copy's items land into the target surface (the append
@@ -377,5 +274,4 @@ function remapEndpoint(
   return { ...ref };
 }
 
-export { copyCanvasItems, pasteCanvasItems };
-export type { CanvasClipboard, ClipboardItem };
+export { pasteCanvasItems };
