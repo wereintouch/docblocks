@@ -534,7 +534,8 @@
     "c0053": {
       "type": "frame",
       "attrs": {
-        "title": "Frame A"
+        "title": "Frame A",
+        "zIndex": 1
       },
       "geometry": {
         "x": 120,
@@ -546,7 +547,8 @@
     "c0054": {
       "type": "frame",
       "attrs": {
-        "title": "Frame B"
+        "title": "Frame B",
+        "zIndex": 2
       },
       "geometry": {
         "x": 320,
@@ -560,7 +562,7 @@
       "attrs": {
         "fill": "rgba(9, 105, 218, 0.2)",
         "variant": "rect",
-        "zIndex": 1
+        "zIndex": 3
       },
       "geometry": {
         "x": -120,
@@ -573,7 +575,7 @@
       "type": "shape",
       "attrs": {
         "variant": "ellipse",
-        "zIndex": 2
+        "zIndex": 4
       },
       "geometry": {
         "x": 40,
@@ -586,7 +588,7 @@
       "type": "shape",
       "attrs": {
         "variant": "diamond",
-        "zIndex": 3
+        "zIndex": 5
       },
       "geometry": {
         "x": 160,
@@ -604,7 +606,7 @@
         "textAlign": "center",
         "textStyle": "semibold",
         "variant": "rounded",
-        "zIndex": 4
+        "zIndex": 6
       },
       "geometry": {
         "x": 60,
@@ -618,7 +620,7 @@
       "attrs": {
         "textColor": "#b45309",
         "textStyle": "semibold",
-        "zIndex": 5
+        "zIndex": 7
       },
       "geometry": {
         "x": 140,
@@ -643,7 +645,7 @@
         "start": {
           "blockId": "c0053"
         },
-        "zIndex": 6
+        "zIndex": 8
       }
     },
     "c0061": {
