@@ -468,7 +468,11 @@ test("the image, embed and sync-embed read the zone-3 tokens", async ({ page }) 
   await page.evaluate(() => window.__catalogDoc?.updateBlock("c0032", { mermaidMode: "preview" }));
   const mermaid = doc.locator('[data-slot="docblocks/mermaid"]');
   await expect(mermaid.locator("svg")).toHaveCount(1);
-  expect((await styleProps(mermaid, "margin-top"))["margin-top"]).toBe("8px");
+  // The block's spacing stands on the preview's viewport wrapper (the
+  // diagram's own slot sits inside it).
+  const viewport = doc.locator('[data-slot="docblocks/mermaid-viewport"]');
+  await expect(viewport).toHaveCount(1);
+  expect((await styleProps(viewport, "margin-top"))["margin-top"]).toBe("8px");
 });
 
 test("the canvas surfaces read the zone-4 tokens", async ({ page }) => {
