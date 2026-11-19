@@ -20,11 +20,11 @@ import type { CSSProperties, ReactNode } from "react";
 import type { Block, BlockId, ConnectorBlock } from "docblocks-core";
 
 import { Link } from "../shared/ui/icons";
+import { minScreenStrokeOf } from "./canvas-stroke";
 import { SURFACE_BG } from "./canvas-view/constants";
 import { CONNECT_COLOR, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "./connector-constants";
 import { connectorLineGeometryOf } from "./connector-line-geometry";
 import { arrowDefId, connectorStrokeWidthOf, effectiveConnectorStrokeOf } from "./connector-utils";
-import { minScreenStrokeOf } from "./canvas-stroke";
 import type { CanvasSession } from "./viewport";
 
 function connectorLineOf(

@@ -26,7 +26,9 @@ async function seedCullScene(page: Page): Promise<void> {
 /** The doc's shapes' count (the seed's stand — the DOM's count stands
  * the culling's viewport). */
 const shapesCount = (page: Page) =>
-  page.evaluate(() => Object.values(window.__paneDocs?.a?.toJSON().blocks ?? {}).filter((b) => b.type === "shape").length);
+  page.evaluate(
+    () => Object.values(window.__paneDocs?.a?.toJSON().blocks ?? {}).filter((b) => b.type === "shape").length
+  );
 
 /** The cull scene's connector: the near (the center) + the far shape
  * (the off-viewport over the 300px margin's band) over the line between

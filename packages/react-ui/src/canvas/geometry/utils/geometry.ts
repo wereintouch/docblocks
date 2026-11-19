@@ -113,7 +113,6 @@ function effectiveGeometry(block: Block): { x: number; y: number; w: number; h: 
   return { x: 0, y: 0, w: size.w, h: size.h };
 }
 
-
 /**
  * The connector endpoint's box in the surface coordinate space, resolved
  * WITHIN the surface's children by blockId ONLY (v1 — the cross-doc

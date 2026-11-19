@@ -54,7 +54,7 @@ test("the min-screen stroke's stand (the 1/zoom's compensation over the zoom's <
 
     // The zoom's 100%: the data's verbatim (the connector's 1px default,
     // the shape's 2px default).
-    await expect(view.locator('[data-connector-id]').first()).toHaveCSS("stroke-width", "1px");
+    await expect(view.locator("[data-connector-id]").first()).toHaveCSS("stroke-width", "1px");
     await expect(view.locator('[data-slot="docblocks/shape"] > g').first()).toHaveCSS("stroke-width", "2px");
 
     // The zoom out's steps (the 10% grid: 100% → 25% over the 8 steps):
@@ -62,14 +62,14 @@ test("the min-screen stroke's stand (the 1/zoom's compensation over the zoom's <
     const zoomOut = view.getByRole("button", { name: "Zoom out" });
     for (let i = 0; i < 8; i += 1) await zoomOut.click();
     await expect(view.getByRole("button", { name: "Reset zoom" })).toHaveText("25%");
-    await expect(view.locator('[data-connector-id]').first()).toHaveCSS("stroke-width", "4px");
+    await expect(view.locator("[data-connector-id]").first()).toHaveCSS("stroke-width", "4px");
     await expect(view.locator('[data-slot="docblocks/shape"] > g').first()).toHaveCSS("stroke-width", "4px");
 
     // The zoom's reset (the 25% → 100%): the data's verbatim's return
     // (the compensation's stand off).
     await view.getByRole("button", { name: "Reset zoom" }).click();
     await expect(view.getByRole("button", { name: "Reset zoom" })).toHaveText("100%");
-    await expect(view.locator('[data-connector-id]').first()).toHaveCSS("stroke-width", "1px");
+    await expect(view.locator("[data-connector-id]").first()).toHaveCSS("stroke-width", "1px");
     await expect(view.locator('[data-slot="docblocks/shape"] > g').first()).toHaveCSS("stroke-width", "2px");
   } finally {
     await context.close();

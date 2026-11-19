@@ -52,8 +52,8 @@ async function seedWideScene(page: Page): Promise<void> {
   // over the fit's minimum zoom — the viewport's culling stands them no
   // DOM of their own).
   await toCanvas(page, "a");
-  const shapes = await page.evaluate(() =>
-    Object.values(window.__paneDocs?.a?.toJSON().blocks ?? {}).filter((b) => b.type === "shape").length
+  const shapes = await page.evaluate(
+    () => Object.values(window.__paneDocs?.a?.toJSON().blocks ?? {}).filter((b) => b.type === "shape").length
   );
   expect(shapes).toBe(2);
 }

@@ -65,10 +65,15 @@ function useCanvasFit(
     const rect = container.getBoundingClientRect();
     const content = canvasContentBox(doc);
     if (content === null) return;
-    const visible = visibleWorldRectOf(storedViewport.zoom, storedViewport.pan, {
-      width: rect.width,
-      height: rect.height,
-    }, 0);
+    const visible = visibleWorldRectOf(
+      storedViewport.zoom,
+      storedViewport.pan,
+      {
+        width: rect.width,
+        height: rect.height,
+      },
+      0
+    );
     if (visible === null) return;
     const contentRect = {
       left: content.x - content.w / 2,
