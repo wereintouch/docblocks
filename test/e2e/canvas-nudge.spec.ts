@@ -192,6 +192,8 @@ test.describe("the canvas arrow-key nudge", () => {
       await toCanvas(a, "a");
       await toCanvas(b, "b");
       const { a: aId } = await seedScene(a, "a");
+      // The seed reaches the peer before the reads (the wire's settle).
+      await expect.poll(async () => (await blocks(b, "b"))[aId]?.geometry, SETTLE).toBeTruthy();
       const pA = await worldPoint(a, "a", -300, 0);
       // The click stands the selection + the container's focus (the
       // hotkey's context).
