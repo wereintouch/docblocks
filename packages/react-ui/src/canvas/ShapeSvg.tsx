@@ -4,6 +4,7 @@ import type { BlockId } from "docblocks-core";
 
 import { useDarkTheme } from "../shared/dark-theme";
 import { effectiveColorOf } from "./canvas-color";
+import { minScreenStrokeOf } from "./canvas-stroke";
 import type { ShapeBlockView } from "./geometry";
 import { DEFAULT_CANVAS_ITEM_SIZE } from "./geometry";
 
@@ -126,6 +127,11 @@ function ShapeSvg({ id, block, box }: { id: BlockId; block: ShapeBlockView; box?
         fill={fill}
         strokeDasharray={dash}
         strokeLinecap={strokeStyle === "dot" ? "round" : undefined}
+        // The min-screen stroke's stand (the 1/zoom's compensation — the
+        // world's inverse-zoom's variable's read; the attribute stands the
+        // data's width, the style's `max()` compensates the render; the
+        // figure's geometry's math stands the data's width).
+        style={{ strokeWidth: minScreenStrokeOf(strokeWidth) }}
       >
         {figure}
       </g>

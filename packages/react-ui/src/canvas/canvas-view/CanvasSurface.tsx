@@ -178,10 +178,18 @@ function CanvasSurface({
           // contract allows the selection).
           (viewport.moveSession || viewport.resizeSession || viewport.connectorEndpoint !== null) && "select-none"
         )}
-        style={{
-          transform: `translate(${viewport.pan.x}px, ${viewport.pan.y}px) scale(${viewport.zoom})`,
-          transformOrigin: "center",
-        }}
+        style={
+          {
+            transform: `translate(${viewport.pan.x}px, ${viewport.pan.y}px) scale(${viewport.zoom})`,
+            transformOrigin: "center",
+            // The inverse zoom (the min-screen stroke's stand — the 1/zoom's
+            // compensation over the world-space strokes: the line / the
+            // shape's border's `max()` reads it over the zoom's flip
+            // natively, the no per-item re-render's stand). The cast: the
+            // CSSProperties' type stands no `--*` keys.
+            "--docblocks-canvas-inv-zoom": 1 / viewport.zoom,
+          } as CSSProperties
+        }
       >
         <ScrollArea
           data-slot="docblocks/page-card"

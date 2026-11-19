@@ -24,6 +24,7 @@ import { SURFACE_BG } from "./canvas-view/constants";
 import { CONNECT_COLOR, SNAP_BADGE_LIFT, SNAP_BADGE_RADIUS } from "./connector-constants";
 import { connectorLineGeometryOf } from "./connector-line-geometry";
 import { arrowDefId, connectorStrokeWidthOf, effectiveConnectorStrokeOf } from "./connector-utils";
+import { minScreenStrokeOf } from "./canvas-stroke";
 import type { CanvasSession } from "./viewport";
 
 function connectorLineOf(
@@ -116,8 +117,12 @@ function connectorLineOf(
     ) : null;
 
   // The stroke goes through the STYLE (the CSS variable: a presentation
-  // attribute cannot carry var()).
-  const pathStyle: CSSProperties = { stroke: stroke };
+  // attribute cannot carry var()) + the min-screen stroke's stand (the
+  // 1/zoom's compensation — the world's inverse-zoom's variable's read).
+  const pathStyle: CSSProperties = {
+    stroke: stroke,
+    strokeWidth: minScreenStrokeOf(strokeWidth),
+  };
 
   return {
     content: (
