@@ -12,8 +12,9 @@ import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent }
 import { placeDragBox, screenToCanvas, snapAnySurfaceEdge } from "../../canvas";
 import { createCanvasSessionContext } from "./canvas-session-context";
 import type { CanvasSessionContext, CanvasSessionDeps } from "./canvas-session-context";
-import { createContentDoubleClick } from "./canvas-session-dblclick";
+import { chipDoubleClick, createContentDoubleClick } from "./canvas-session-dblclick";
 import {
+  chipPress,
   connectorHitPress,
   containerInteriorPress,
   editingSurfacePress,
@@ -172,6 +173,8 @@ function useCanvasSessions(deps: CanvasSessionDeps) {
       clientY: number
     ) => beginEndpointDrag(ctx, connectorId, which, pointerId, clientX, clientY),
     onContentDoubleClick,
+    onChipPress: (id: string, event: ReactPointerEvent<HTMLDivElement>) => chipPress(ctx, event, id),
+    onChipDoubleClick: (id: string, event: ReactMouseEvent<HTMLDivElement>) => chipDoubleClick(ctx, id, event),
   };
 }
 

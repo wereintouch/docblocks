@@ -9,6 +9,8 @@
  * world's transform, the target's element as the fallback). */
 import type { MouseEvent as ReactMouseEvent } from "react";
 
+import type { BlockId } from "docblocks-core";
+
 import { screenToCanvas } from "../../canvas";
 import { focusCaretInElement } from "../../editing/block-commands";
 import type { CanvasSessionContext } from "./canvas-session-context";
@@ -23,6 +25,30 @@ function pointElementOf(event: ReactMouseEvent<HTMLDivElement>): Element | null 
       ? document.elementFromPoint(event.clientX, event.clientY)
       : null) ?? (event.target instanceof Element ? event.target : null)
   );
+}
+
+/** The title chip's double-click: the title's inline edit (the chip's own
+ * target — the chip stands in the screen layer outside the box, so the
+ * container's double-click handler never sees it). Only the chip itself
+ * enters the edit: the inline edit's input and the set-title menu keep
+ * their native double-click (the word selection). The edit needs a title
+ * (the empty title stands no editor); the read-only stand keeps the chip
+ * inert. The event never reaches the container's entries (the ghost text,
+ * the inline edits) — the chip stands outside the item's wrapper. */
+function chipDoubleClick(ctx: CanvasSessionContext, id: BlockId, event: ReactMouseEvent<HTMLDivElement>): void {
+  // The inline edit's input keeps its native double-click (the word
+  // selection): the press's pointer capture retargets the chip's own
+  // double-click to the seat, so the input is the only stand that needs
+  // the default.
+  const onEditInput = event.target instanceof Element && event.target.closest("input") !== null;
+  event.stopPropagation();
+  if (onEditInput) return;
+  event.preventDefault();
+  if (ctx.viewMode) return;
+  const block = ctx.doc.getBlock(id);
+  if (block === null || (block.type !== "group" && block.type !== "frame")) return;
+  if ((block.attrs?.title ?? "") === "") return;
+  ctx.viewport.setShapeTextEditing(id);
 }
 
 function createContentDoubleClick(ctx: CanvasSessionContext): (event: ReactMouseEvent<HTMLDivElement>) => void {
@@ -133,8 +159,13 @@ function createContentDoubleClick(ctx: CanvasSessionContext): (event: ReactMouse
       titleChip = element instanceof Element ? element.closest<HTMLElement>(TITLE_CHIP_SELECTOR) : null;
     }
     if (titleChip !== null) {
+      // The chip carries its own block id (the screen layer's chip stands
+      // outside the item's wrapper; the in-item copies keep standing
+      // inside it).
       const itemId =
-        titleChip.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ?? null;
+        titleChip.getAttribute("data-block-id") ??
+        titleChip.closest<HTMLElement>("[data-slot='docblocks/canvas-item']")?.getAttribute("data-block-id") ??
+        null;
       if (itemId !== null) ctx.viewport.setShapeTextEditing(itemId);
       return;
     }
@@ -172,4 +203,4 @@ function createContentDoubleClick(ctx: CanvasSessionContext): (event: ReactMouse
   };
 }
 
-export { createContentDoubleClick };
+export { chipDoubleClick, createContentDoubleClick };

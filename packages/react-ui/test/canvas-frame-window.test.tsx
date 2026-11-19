@@ -200,8 +200,10 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
     const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
     const groupItem = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${group}"]`)!;
     // The group's chip stands the group's slots (the extraction keeps the
-    // slots' stand — the container's parity).
-    const chip = groupItem.querySelector<HTMLElement>("[data-slot='docblocks/group-title']");
+    // slots' stand — the container's parity) over the screen layer's seat.
+    const chip = view.querySelector<HTMLElement>(
+      `[data-slot="docblocks/canvas-title-chip"][data-block-id="${group}"] [data-slot='docblocks/group-title']`
+    );
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toBe("The group");
     // The group's border's press stand (the extraction keeps the border's
@@ -220,14 +222,16 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
       </EditorProvider>
     );
     const view = container.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]')!;
-    const frameItem = view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`)!;
-    const chip = frameItem.querySelector<HTMLElement>("[data-slot='docblocks/frame-title']");
+    // The chip stands over the screen layer's seat on the frame's box.
+    const seat = () =>
+      view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${frame}"]`)!;
+    const chip = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title']");
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toBe("The frame");
     // The chip's double-click opens the edit (the aria's "Frame title"
     // stand).
     fireEvent.dblClick(chip!);
-    const edit = frameItem.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-edit']");
+    const edit = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-edit']");
     expect(edit).not.toBeNull();
     expect(edit!.getAttribute("aria-label")).toBe("Frame title");
     // The commit (the blur's one updateBlock).
@@ -252,15 +256,17 @@ describe("the shared title chip (the group's parity + the frame's slots)", () =>
     // The selection (the title-less's stand): the menu's trigger stands.
     fireEvent.pointerDown(wrapper, { clientX: 5, clientY: 5, pointerId: 1 });
     fireEvent.pointerUp(wrapper, { pointerId: 1 });
-    const menu = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");
+    const seat = () =>
+      view.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${frame}"]`)!;
+    const menu = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");
     expect(menu).not.toBeNull();
     // The commit (the Enter's one updateBlock — the chip's stand).
     fireEvent.click(menu!);
-    const input = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu-input']")!;
+    const input = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu-input']")!;
     fireEvent.change(input, { target: { value: "Menu stand" } });
     fireEvent.keyDown(input, { key: "Enter" });
     const block = doc.getBlock(frame);
     expect(block?.type === "frame" && block.attrs?.title).toBe("Menu stand");
-    expect(wrapper.querySelector("[data-slot='docblocks/frame-title']")!.textContent).toBe("Menu stand");
+    expect(seat().querySelector("[data-slot='docblocks/frame-title']")!.textContent).toBe("Menu stand");
   });
 });

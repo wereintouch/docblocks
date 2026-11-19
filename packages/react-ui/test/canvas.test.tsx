@@ -577,18 +577,21 @@ describe("canvas: frame (the viewport window)", () => {
 
   it("stands the title chip (the chip's stand, the empty's removed stand)", () => {
     const doc = renderScene({ view: "canvas" });
-    const frame = document.querySelector<HTMLElement>(`[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"]`)!;
-    expect(frame.querySelector("[data-slot='docblocks/frame-title']")).toBeNull(); // the absent's off
+    // The chip stands over the screen layer, seated on the frame's own box
+    // (the occlusion-free stand — not inside the item's wrapper).
+    const seat = () =>
+      document.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"]`);
+    expect(seat()?.querySelector("[data-slot='docblocks/frame-title']") ?? null).toBeNull(); // the absent's off
     act(() => {
       doc.updateBlock(IDS.frame, { title: "My frame" });
     });
-    const chip = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-title']");
+    const chip = seat()?.querySelector<HTMLElement>("[data-slot='docblocks/frame-title']") ?? null;
     expect(chip).not.toBeNull();
     expect(chip!.textContent).toBe("My frame");
     act(() => {
       doc.updateBlock(IDS.frame, { title: "" });
     });
-    expect(frame.querySelector("[data-slot='docblocks/frame-title']")).toBeNull(); // the empty's off
+    expect(seat()?.querySelector("[data-slot='docblocks/frame-title']") ?? null).toBeNull(); // the empty's off
   });
 
   it("enters the title's inline edit on the chip's double-click and commits on the blur (one updateBlock)", () => {
@@ -597,7 +600,7 @@ describe("canvas: frame (the viewport window)", () => {
       doc.updateBlock(IDS.frame, { title: "First" });
     });
     const chip = document.querySelector<HTMLElement>(
-      `[data-slot="docblocks/frame"][data-block-id="${IDS.frame}"] [data-slot='docblocks/frame-title']`
+      `[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"] [data-slot='docblocks/frame-title']`
     )!;
     fireEvent.dblClick(chip);
     const edit = document.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-edit']")!;
@@ -617,23 +620,24 @@ describe("canvas: frame (the viewport window)", () => {
     const wrapper = document.querySelector<HTMLElement>(
       `[data-slot="docblocks/canvas-item"][data-block-id="${IDS.frame}"]`
     )!;
-    const frame = wrapper.querySelector<HTMLElement>("[data-slot='docblocks/frame']")!;
     // The selection (the title-less stand): the menu's trigger stands at
-    // the title's seat.
+    // the title's seat over the screen layer.
     fireEvent.pointerDown(wrapper, { clientX: 10, clientY: 10, pointerId: 1 });
     fireEvent.pointerUp(wrapper, { pointerId: 1 });
-    const menu = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");
+    const seat = () =>
+      document.querySelector<HTMLElement>(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${IDS.frame}"]`)!;
+    const menu = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu']");
     expect(menu).not.toBeNull();
     expect(menu!.getAttribute("aria-label")).toBe("Set frame title");
     fireEvent.click(menu!);
-    const input = frame.querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu-input']")!;
+    const input = seat().querySelector<HTMLElement>("[data-slot='docblocks/frame-title-menu-input']")!;
     expect(input).not.toBeNull();
     fireEvent.change(input, { target: { value: "Seated" } });
     fireEvent.keyDown(input, { key: "Enter" });
     const block = doc.getBlock(IDS.frame);
     expect(block?.type === "frame" && block.attrs?.title).toBe("Seated");
     // The menu closes, the chip stands over the title's commit.
-    expect(frame.querySelector("[data-slot='docblocks/frame-title']")!.textContent).toBe("Seated");
+    expect(seat().querySelector("[data-slot='docblocks/frame-title']")!.textContent).toBe("Seated");
   });
 });
 

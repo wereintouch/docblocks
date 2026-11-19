@@ -18,7 +18,21 @@ import { BORDER_HIT_PX } from "./canvas-view/canvas-hit-config";
 
 type GROUP_BLOCK_VIEW = Extract<Block, { type: "group" }>;
 
-function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_VIEW; selected: boolean }) {
+function GroupBlock({
+  id,
+  block,
+  selected,
+  chipMode,
+}: {
+  id: BlockId;
+  block: GROUP_BLOCK_VIEW;
+  selected: boolean;
+  /** The in-item chip's stand: `"hidden"` over the canvas view (the chip
+   *  stands in the screen layer — the occlusion-free stand), `"inert"`
+   *  over the page frame's window mirror (the chip renders, the pointer
+   *  stands off); absent stands the interactive in-item chip. */
+  chipMode?: "inert" | "hidden";
+}) {
   const { t } = useTranslation("canvas");
   const title = block.attrs?.title ?? "";
 
@@ -94,14 +108,17 @@ function GroupBlock({ id, block, selected }: { id: BlockId; block: GROUP_BLOCK_V
           width: BORDER_HIT_PX,
         }}
       />
-      <CanvasTitleChip
-        id={id}
-        title={title}
-        selected={selected}
-        slot="group"
-        ariaLabel={t("titleChip.containerTitle")}
-        restBorderColor="var(--docblocks-table-border-color)"
-      />
+      {chipMode !== "hidden" && (
+        <CanvasTitleChip
+          id={id}
+          title={title}
+          selected={selected}
+          slot="group"
+          ariaLabel={t("titleChip.containerTitle")}
+          restBorderColor="var(--docblocks-table-border-color)"
+          interactive={chipMode !== "inert"}
+        />
+      )}
     </div>
   );
 }

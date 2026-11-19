@@ -20,6 +20,19 @@ async function insertType(page: Page, client: "a" | "b", type: string): Promise<
 const canvas = (page: Page, client: "a" | "b") =>
   canvasView(page, client).locator('[data-slot="docblocks/canvas-world"]');
 
+/** The frame's / the container's chip text over the screen layer (the chips
+ * stand outside the item wrappers — the occlusion-free layer seats them on
+ * the block's own box). */
+async function chipText(page: Page, id: string): Promise<string> {
+  return page.evaluate(
+    ({ id }) =>
+      document.querySelector(
+        `[data-slot="docblocks/canvas-title-chip"][data-block-id="${id}"] [data-slot="docblocks/frame-title"]`
+      )?.textContent ?? "",
+    { id }
+  );
+}
+
 /** The DIRECT canvas-item wrappers' block ids in DOM order (the z-order — the window's copies stand inside the frame's item and stand excluded). */
 async function canvasItemOrder(page: Page, client: "a" | "b"): Promise<string[]> {
   return page.evaluate(
@@ -129,25 +142,15 @@ test("inserting a canvas in A renders the scene in both panes (the shapes, the f
           ).length
       );
       await expect.poll(async () => directShapes, SETTLE).toBe(4);
-      // The frames' titles stand (the chip over the window box — the
-      // DIRECT items' chips; the window's copies' chips stand inside the
-      // other frame's item).
+      // The frames' titles stand (the chips over the screen layer, each
+      // seated on its own block's box; the window's copies' chips stand
+      // inside the other frame's item).
       const frameA = await childByStand(pane, client, { type: "frame", title: "Frame A" });
       const frameB = await childByStand(pane, client, { type: "frame", title: "Frame B" });
       expect(frameA).not.toBeNull();
       expect(frameB).not.toBeNull();
-      await expect
-        .poll(
-          async () => (await directItemStand(pane, client, frameA as string)).text?.includes("Frame A") ?? false,
-          SETTLE
-        )
-        .toBe(true);
-      await expect
-        .poll(
-          async () => (await directItemStand(pane, client, frameB as string)).text?.includes("Frame B") ?? false,
-          SETTLE
-        )
-        .toBe(true);
+      await expect.poll(async () => (await chipText(pane, frameA as string)).includes("Frame A"), SETTLE).toBe(true);
+      await expect.poll(async () => (await chipText(pane, frameB as string)).includes("Frame B"), SETTLE).toBe(true);
       // The originals stand (the note's direct wrapper over the layer —
       // the frame is a region marker, no content copy).
       const note = await childByStand(pane, client, { type: "canvas-text" });

@@ -25,7 +25,19 @@ import { useBlockContext } from "../shared/providers/block-context";
 import { CanvasTitleChip } from "./CanvasTitleChip";
 import { BORDER_HIT_PX } from "./canvas-view/canvas-hit-config";
 
-function FrameBlock({ id, selected = false }: { id: BlockId; selected?: boolean }) {
+function FrameBlock({
+  id,
+  selected = false,
+  chipMode,
+}: {
+  id: BlockId;
+  selected?: boolean;
+  /** The in-item chip's stand: `"hidden"` over the canvas view (the chip
+   *  stands in the screen layer — the occlusion-free stand), `"inert"`
+   *  over the page frame's window mirror (the chip renders, the pointer
+   *  stands off); absent stands the interactive in-item chip. */
+  chipMode?: "inert" | "hidden";
+}) {
   const { t } = useTranslation("canvas");
   const { parentType } = useBlockContext();
   const block = useBlock(id);
@@ -112,14 +124,17 @@ function FrameBlock({ id, selected = false }: { id: BlockId; selected?: boolean 
           width: BORDER_HIT_PX,
         }}
       />
-      <CanvasTitleChip
-        id={id}
-        title={block.attrs?.title ?? ""}
-        selected={selected}
-        slot="frame"
-        ariaLabel={t("titleChip.frameTitle")}
-        restBorderColor="var(--docblocks-canvas-group-border-color)"
-      />
+      {chipMode !== "hidden" && (
+        <CanvasTitleChip
+          id={id}
+          title={block.attrs?.title ?? ""}
+          selected={selected}
+          slot="frame"
+          ariaLabel={t("titleChip.frameTitle")}
+          restBorderColor="var(--docblocks-canvas-group-border-color)"
+          interactive={chipMode !== "inert"}
+        />
+      )}
     </div>
   );
 }

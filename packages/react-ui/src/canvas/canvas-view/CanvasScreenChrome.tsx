@@ -8,9 +8,9 @@
  * stand keeps the zoom's gestures, the placement's tools stand off). The
  * world-space previews (the place / the connector's pending / the pen's
  * stroke, the ghost) stand inside the world — CanvasOverlays. */
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 
-import type { Block, BlockId } from "docblocks-core";
+import type { Block, BlockId, Selection } from "docblocks-core";
 
 import {
   CanvasDock,
@@ -23,6 +23,7 @@ import {
 import { cn } from "../../shared/ui/cn";
 import type { CanvasViewportState } from "../viewport";
 import { CanvasSelectionOverlay } from "./CanvasSelectionOverlay";
+import { CanvasTitleChips } from "./CanvasTitleChips";
 import { ZoomControls } from "./ZoomControls";
 import {
   CONNECTOR_HANDLE_HIT_RADIUS_PX,
@@ -48,16 +49,26 @@ type Targets = Pick<
 function CanvasScreenChrome({
   viewport,
   blocks,
+  surfaces,
+  culling,
+  selection,
   viewMode,
   targets,
+  onChipPress,
+  onChipDoubleClick,
   onEndpointPointerDown,
   onResetZoom,
   onFit,
 }: {
   viewport: CanvasViewportState;
   blocks: Record<BlockId, Block>;
+  surfaces: { id: BlockId; children: BlockId[] }[];
+  culling: Set<BlockId> | null;
+  selection: Selection | null;
   viewMode: boolean;
   targets: Targets;
+  onChipPress: (id: BlockId, event: ReactPointerEvent<HTMLDivElement>) => void;
+  onChipDoubleClick: (id: BlockId, event: ReactMouseEvent<HTMLDivElement>) => void;
   onEndpointPointerDown: (which: "start" | "end") => (event: ReactPointerEvent<SVGCircleElement>) => void;
   onResetZoom: () => void;
   onFit: () => void;
@@ -243,6 +254,16 @@ function CanvasScreenChrome({
         />
       )}
       <ZoomControls zoom={viewport.zoom} onStep={viewport.stepZoom} onReset={onResetZoom} onFit={onFit} />
+      <CanvasTitleChips
+        surfaces={surfaces}
+        blocks={blocks}
+        visibleIds={culling}
+        selection={selection}
+        viewport={viewport}
+        viewMode={viewMode}
+        onChipPress={onChipPress}
+        onChipDoubleClick={onChipDoubleClick}
+      />
       {/* The read-only stand (view / published): the dock's placement's
         tools' stand is off — the view's gestures keep (the wheel's
         zoom / pan, the zoom's controls' fit / step / reset). */}

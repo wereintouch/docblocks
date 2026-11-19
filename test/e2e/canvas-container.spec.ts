@@ -397,7 +397,9 @@ test.describe("the canvas container (the reworked group)", () => {
     }
   });
 
-  test("the title's chip stands the standard font size (the world-px stand, the zoom's scale)", async ({ browser }) => {
+  test("the title's chip stands the standard font size over the screen layer (no world-scale amplification)", async ({
+    browser,
+  }) => {
     const { a, b, close } = await twoPanes(browser, "container-title-font");
     try {
       await toCanvas(a, "a");
@@ -420,8 +422,8 @@ test.describe("the canvas container (the reworked group)", () => {
       const chip = a.locator("[data-slot='docblocks/group-title']");
       await expect(chip).toHaveCount(1);
       // The chip stands the STANDARD font size (the editor's
-      // --docblocks-font-size, not the former hardcoded 11px) — the world-px
-      // stand at zoom 100%.
+      // --docblocks-font-size, not the former hardcoded 11px) — the screen
+      // px stand at zoom 100%.
       const fontPx = await chip.evaluate((el) => getComputedStyle(el).fontSize);
       const tokenPx = await a.evaluate(
         () =>
@@ -447,20 +449,27 @@ test.describe("the canvas container (the reworked group)", () => {
       await edit.fill("quarter report");
       await edit.press("Enter");
       await expect.poll(async () => (await docBlocks(b, "b"))[group]?.attrs?.title, SETTLE).toBe("quarter report");
-      // The world-scale regression: at zoom 200% the chip scales with the
-      // container (the world layer's transform — the px stands the world's).
+      // The screen stand: at zoom 200% the chip keeps its on-screen size
+      // (the chip rides the seat's screen box — the world's scale does not
+      // amplify it); the seat itself doubles over the zoom.
       const h100 = (await chip.boundingBox())!.height;
       const zoom = a.getByRole("toolbar", { name: "Canvas zoom" });
       for (let i = 0; i < 10; i += 1) await zoom.getByLabel("Zoom in").click();
       expect(await zoom.getByLabel("Reset zoom").textContent()).toBe("200%");
       const h200 = (await chip.boundingBox())!.height;
-      expect(h200 / h100).toBeCloseTo(2, 1);
+      expect(h200).toBeCloseTo(h100, 1);
+      expect(await chip.evaluate((el) => getComputedStyle(el).fontSize)).toBe(fontPx);
+      const seat200 = await a
+        .locator(`[data-slot="docblocks/canvas-title-chip"][data-block-id="${group}"]`)
+        .evaluate((el) => ({ width: getComputedStyle(el).width, height: getComputedStyle(el).height }));
+      expect(seat200.width).toBe("480px");
+      expect(seat200.height).toBe("320px");
     } finally {
       await close();
     }
   });
 
-  test("the title's chip stands above the box's top frame (the 16 px left, the 4 px gap off the border line — the world's stand over the zoom)", async ({
+  test("the title's chip stands above the box's top frame (the 16 px left, the 4 px gap off the border line — the screen stand over the zoom)", async ({
     browser,
   }) => {
     const { a, b, close } = await twoPanes(browser, "container-title-above");
@@ -511,13 +520,14 @@ test.describe("the canvas container (the reworked group)", () => {
       await edit.fill("above two");
       await edit.press("Enter");
       await expect.poll(async () => (await docBlocks(b, "b"))[group]?.attrs?.title, SETTLE).toBe("above two");
-      // The world-scale regression: at zoom 50% the seat scales (the
-      // world layer's transform — the offsets stand the world's).
+      // The screen stand over the zoom: the chip's 16 px left offset and
+      // 4 px gap stand in SCREEN px (the seat's screen box is the world box
+      // scaled; the chip's offsets do not scale with it) — at zoom 50% the
+      // box's top-left corner stands at (−12·zoom, 0) from the center.
       const zoom = await zoomOut(a, "a", 50);
-      const seat50 = screenAtZoom(center, 4, -4, zoom);
       const box50 = (await a.locator("[data-slot='docblocks/group-title']").boundingBox())!;
-      expect(box50.x).toBeCloseTo(seat50.x, 1);
-      expect(box50.y + box50.height).toBeCloseTo(seat50.y, 1);
+      expect(box50.x).toBeCloseTo(center.x - 12 * zoom + 16, 1);
+      expect(box50.y + box50.height).toBeCloseTo(center.y - 4, 1);
     } finally {
       await close();
     }

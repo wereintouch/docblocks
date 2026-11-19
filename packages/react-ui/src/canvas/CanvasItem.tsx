@@ -123,9 +123,9 @@ const CanvasItem = memo(
         ) : block.type === "canvas-text" ? (
           <TextBlock id={id} block={block} tag="div" />
         ) : block.type === "frame" ? (
-          <FrameBlock id={id} selected={selected} />
+          <FrameBlock id={id} selected={selected} chipMode={interactive ? "hidden" : "inert"} />
         ) : block.type === "group" ? (
-          <GroupBlock id={id} block={block} selected={selected} />
+          <GroupBlock id={id} block={block} selected={selected} chipMode={interactive ? "hidden" : "inert"} />
         ) : block.type === "connector" ? (
           <ConnectorLine id={id} interactive={interactive} />
         ) : null;

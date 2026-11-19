@@ -202,6 +202,36 @@ function containerInteriorPress(
   return true;
 }
 
+/** The title chip's press (the screen layer's chip — the container / frame
+ * title's own target, outside the box so the item's DOM press never sees
+ * it): the item's press contract — the shift toggles the additive
+ * selection without a move, a press over a block among the current
+ * multi-selection keeps the whole selection (the unit is what moves),
+ * otherwise the chip's block stands alone; the move session begins, the
+ * focus parks on the container, and the pointer capture stands (the
+ * release commits the move). The press is swallowed: the branches below
+ * the item's (the container's interior) must not stand a second
+ * selection. */
+function chipPress(ctx: CanvasSessionContext, event: ReactPointerEvent<HTMLDivElement>, id: BlockId): boolean {
+  event.stopPropagation();
+  if (event.button !== 0) return false;
+  // The read-only stand (view / published): the chip is inert.
+  if (ctx.viewMode) return false;
+  event.preventDefault();
+  if (event.shiftKey) {
+    ctx.containerRef.current?.focus();
+    if (ctx.selection.view !== null) toggleCanvasSelection(ctx.selection.view, id);
+    return true;
+  }
+  const sel = ctx.selection.view?.get();
+  const ids = sel?.kind === "blocks" && sel.ids.includes(id) ? sel.ids : [id];
+  ctx.selection.view?.set({ kind: "blocks", ids, anchorId: id });
+  ctx.containerRef.current?.focus();
+  ctx.viewport.beginMove(ids, event.clientX, event.clientY);
+  event.currentTarget.setPointerCapture?.(event.pointerId);
+  return true;
+}
+
 /** The marquee's fallback (the press stood nothing else): the additive press (the shift down) extends the selection's union. */
 function marqueePress(
   ctx: CanvasSessionContext,
@@ -214,6 +244,7 @@ function marqueePress(
 }
 
 export {
+  chipPress,
   connectorHitPress,
   containerInteriorPress,
   editingSurfacePress,

@@ -122,6 +122,8 @@ function CanvasView() {
     dropCanvasSessions,
     beginEndpointDrag,
     onContentDoubleClick,
+    onChipPress,
+    onChipDoubleClick,
   } = useCanvasSessions({
     containerRef,
     sessionRef,
@@ -191,6 +193,8 @@ function CanvasView() {
             onLostPointerCapture: dropCanvasSessions,
             onMouseDown,
             onDoubleClick: onContentDoubleClick,
+            onChipPress,
+            onChipDoubleClick,
             onKeyDown,
             onKeyUp,
           }}

@@ -79,6 +79,8 @@ function CanvasSurface({
     onLostPointerCapture: () => void;
     onMouseDown: (event: ReactMouseEvent<HTMLDivElement>) => void;
     onDoubleClick: (event: ReactMouseEvent<HTMLDivElement>) => void;
+    onChipPress: (id: BlockId, event: ReactPointerEvent<HTMLDivElement>) => void;
+    onChipDoubleClick: (id: BlockId, event: ReactMouseEvent<HTMLDivElement>) => void;
     onKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
     onKeyUp: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
   };
@@ -257,7 +259,12 @@ function CanvasSurface({
       <CanvasScreenChrome
         viewport={viewport}
         blocks={blocks}
+        surfaces={surfaces}
+        culling={culling}
+        selection={storeSelection}
         viewMode={viewMode}
+        onChipPress={handlers.onChipPress}
+        onChipDoubleClick={handlers.onChipDoubleClick}
         targets={{
           multiSelectionBox,
           handleTarget,
