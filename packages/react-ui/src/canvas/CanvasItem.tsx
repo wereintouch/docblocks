@@ -139,8 +139,12 @@ const CanvasItem = memo(
     // svg root, the hit path re-enables the stroke): the wrapper is a
     // box standing at the origin — it must not catch pointers (the press
     // falls through to the item below / the empty canvas) and carries no
-    // geometry to move.
-    if (block.type === "connector" || block.type === "group") style.pointerEvents = "none";
+    // geometry to move. The group's / the frame's interior stands
+    // pointer-transparent too (the members / the figures under the box
+    // stand their own press): the press targets stand in the renderer's
+    // pointer-events: auto strips over the none's wrapper (the border's
+    // hit band + the title chip).
+    if (block.type === "connector" || block.type === "group" || block.type === "frame") style.pointerEvents = "none";
     // The move preview stands the wrapper offset from its committed
     // position (the release commit writes the geometry; the preview is
     // pure view state); the resize box stands the same way (the live box

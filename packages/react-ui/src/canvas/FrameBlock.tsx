@@ -8,8 +8,10 @@
  * transparent box (the canvas frame is a region marker, not a window), and
  * the content's mirror (the surface's children clipped to the frame's
  * region) stands on the page-frame block's side (FramePageBlock). The
- * frame's title chip (the container's idiom) stands over the shared
- * CanvasTitleChip.
+ * interior is pointer-transparent (the figures under the box stand their
+ * own press); the border's wide hit band and the title chip are the frame's
+ * press targets (they select the frame + start the move, the container's
+ * idiom). The frame's title chip stands over the shared CanvasTitleChip.
  */
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +23,7 @@ import { PlaceholderBlock } from "../blocks/PlaceholderBlock";
 import { useBlock } from "../hooks";
 import { useBlockContext } from "../shared/providers/block-context";
 import { CanvasTitleChip } from "./CanvasTitleChip";
+import { BORDER_HIT_PX } from "./canvas-view/canvas-hit-config";
 
 function FrameBlock({ id, selected = false }: { id: BlockId; selected?: boolean }) {
   const { t } = useTranslation("canvas");
@@ -44,12 +47,70 @@ function FrameBlock({ id, selected = false }: { id: BlockId; selected?: boolean 
     outline: selected ? `var(--docblocks-canvas-selection-border-width) solid ${selectedColor}` : undefined,
     outlineOffset: 1,
   };
+  // The border's wide hit band's half (px): each of the four strips stands
+  // the edge straddled (the half in, the half out).
+  const HIT_HALF = BORDER_HIT_PX / 2;
   return (
-    <div data-slot="docblocks/frame" data-block-id={id} className="h-full w-full">
+    <div data-slot="docblocks/frame" data-block-id={id} className="pointer-events-none h-full w-full">
+      {/* The visual border (the 1px ring + the selected outline):
+          pointer-TRANSPARENT — the interior stands the figures' press (a
+          full-box hit band would shield the figures under the frame). */}
       <div
         data-slot="docblocks/frame-boundary"
         className="absolute inset-0 rounded-(--docblocks-radius)"
         style={boxStyle}
+      />
+      {/* The border's wide hit bands (the press target — the ring ONLY, the
+          interior stays pointer-transparent so the figures under the frame
+          stand their own press): four transparent strips, each straddling
+          one edge. */}
+      <div
+        data-slot="docblocks/frame-border"
+        style={{
+          pointerEvents: "auto",
+          cursor: "default",
+          position: "absolute",
+          left: -HIT_HALF,
+          right: -HIT_HALF,
+          top: -HIT_HALF,
+          height: BORDER_HIT_PX,
+        }}
+      />
+      <div
+        data-slot="docblocks/frame-border"
+        style={{
+          pointerEvents: "auto",
+          cursor: "default",
+          position: "absolute",
+          left: -HIT_HALF,
+          right: -HIT_HALF,
+          bottom: -HIT_HALF,
+          height: BORDER_HIT_PX,
+        }}
+      />
+      <div
+        data-slot="docblocks/frame-border"
+        style={{
+          pointerEvents: "auto",
+          cursor: "default",
+          position: "absolute",
+          top: -HIT_HALF,
+          bottom: -HIT_HALF,
+          left: -HIT_HALF,
+          width: BORDER_HIT_PX,
+        }}
+      />
+      <div
+        data-slot="docblocks/frame-border"
+        style={{
+          pointerEvents: "auto",
+          cursor: "default",
+          position: "absolute",
+          top: -HIT_HALF,
+          bottom: -HIT_HALF,
+          right: -HIT_HALF,
+          width: BORDER_HIT_PX,
+        }}
       />
       <CanvasTitleChip
         id={id}

@@ -343,11 +343,12 @@ test("the frame's arrange toolbar: the frame's z-order over the wire (the view-b
     // view-back's pin over the DOM).
     expect(await paintOrder(a, "a")).toEqual([a1, frame, b1]);
 
-    // The frame's selection over the box's center press (the transparent
-    // boundary's region's stand).
+    // The frame's selection over the border's top edge (the interior's
+    // pointer-transparent stand — the interior's press stands the figure /
+    // the page card's press).
     const frameWrapper = a.locator(`[data-slot="docblocks/canvas-item"][data-block-id="${frame}"]`);
     const box = (await frameWrapper.boundingBox())!;
-    await a.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await a.mouse.click(box.x + box.width / 2, box.y + 1);
     expect(await frameWrapper.getAttribute("data-selected"), "the frame's selection").not.toBeNull();
 
     // The unified's toolbar stands over the frame (the parity over the
