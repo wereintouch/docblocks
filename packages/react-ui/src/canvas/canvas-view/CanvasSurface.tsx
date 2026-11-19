@@ -7,7 +7,6 @@
  * session's hooks + the target's reads; this component is the paint. */
 import { useTranslation } from "react-i18next";
 
-import { useMemo } from "react";
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
@@ -126,17 +125,12 @@ function CanvasSurface({
     beginEndpointDrag(connectorToolbarTarget.id, which, event.pointerId, event.clientX, event.clientY);
   };
   // The viewport's culling (the off-viewport items' stand — no DOM of
-  // their own): the surfaces' children filtered over the visible set
-  // (the referentially stable stand over the unchanged set — the
-  // SurfaceLayer's memo holds over the pan's re-renders). `null` = no
-  // cull (the unknown container size's stand).
-  const visibleSurfaces = useMemo(
-    () =>
-      culling === null
-        ? surfaces
-        : surfaces.map(({ id, children }) => ({ id, children: children.filter((childId) => culling.has(childId)) })),
-    [surfaces, culling]
-  );
+  // their own) stands the SurfaceLayer's `visibleIds` (the rendered
+  // wrappers' stand only): the SurfaceLayer's siblings' context keeps the
+  // surface's FULL children — the connector's endpoint's resolution stands
+  // the off-viewport blocks (the line's drop over the culled endpoint's
+  // regression's fix). `null` = no cull (the unknown container size's
+  // stand).
   return (
     <div
       data-slot="docblocks/canvas-view"
@@ -204,15 +198,23 @@ function CanvasSurface({
             <BlockGroups ids={pageChildren} />
           </BlockContext.Provider>
         </ScrollArea>
-        {visibleSurfaces.map(({ id, children }) => (
-          <SurfaceLayer key={id} id={id} children={children} pendingConnector={viewport.pendingConnector} />
+        {surfaces.map(({ id, children }) => (
+          <SurfaceLayer
+            key={id}
+            id={id}
+            children={children}
+            visibleIds={culling}
+            pendingConnector={viewport.pendingConnector}
+          />
         ))}
         {/* The connector label chips (the shared chip's display stand):
           every labeled connector's midpoint — the opaque theme
           background over the line's own frame (the chip stands always,
-          not only in the edit). The
+          not only in the edit). The chips stand over the FULL children
+          (the mid's structural's stand — the culling's thinning must not
+          drop the mid's read). The
           editing one stands off (its edit chip stands it). */}
-        {visibleSurfaces.map(({ id, children }) => (
+        {surfaces.map(({ id, children }) => (
           <ConnectorLabelChips
             key={`label-chips-${id}`}
             children={children}

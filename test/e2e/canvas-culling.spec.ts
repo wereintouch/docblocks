@@ -28,6 +28,29 @@ async function seedCullScene(page: Page): Promise<void> {
 const shapesCount = (page: Page) =>
   page.evaluate(() => Object.values(window.__paneDocs?.a?.toJSON().blocks ?? {}).filter((b) => b.type === "shape").length);
 
+/** The cull scene's connector: the near (the center) + the far shape
+ * (the off-viewport over the 300px margin's band) over the line between
+ * them (the line's cull box is the endpoints' boxes' union — the line
+ * stands mounted while either endpoint stands over the margin's band).
+ * Returns the line's id (the DOM's stand over the wrapper's data-block-
+ * id). */
+async function seedFarConnector(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const doc = window.__paneDocs?.a;
+    if (doc === null || doc === undefined) throw new Error("the pane's doc is not mounted");
+    let line = "";
+    doc.transact(() => {
+      const surface = doc.insertBlock("surface");
+      const near = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+      doc.setGeometry(near, { x: 0, y: 0, w: 100, h: 80 });
+      const far = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+      doc.setGeometry(far, { x: 5000, y: 0, w: 100, h: 80 });
+      line = doc.insertBlock("connector", { start: { blockId: near }, end: { blockId: far } }, { parent: surface });
+    });
+    return line;
+  });
+}
+
 /** The viewport's stored stand (the zoom's 100% / no pan): the entry's
  * fit stands off (the wide scene's fit zooms out over the content's
  * union — the culling's stand needs the 100% zoom's viewport). The
@@ -85,6 +108,44 @@ test.describe("the canvas view's viewport culling", () => {
       await expect(items).toHaveCount(1);
       const farAfter = await items.first().getAttribute("data-block-id");
       expect(farAfter).not.toBe(nearBefore);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("the line over the off-viewport endpoint stands drawn (the endpoint's resolution stands the full children, not the keep set)", async ({
+    browser,
+  }) => {
+    const context = await editorContext(browser);
+    const page = await context.newPage();
+    const room = `canvas-culling-${Math.random().toString(36).slice(2, 8)}`;
+    try {
+      await openPane(page, "a", room);
+      const line = await seedFarConnector(page);
+      await pinViewport(page);
+      await switchPaneView(page, "a", "canvas");
+
+      // The near shape + the line stand (the far shape over the margin's
+      // band stands culled — the line's cull box is the endpoints' union).
+      const items = canvasView(page, "a").locator('[data-slot="docblocks/canvas-item"]');
+      await expect(items).toHaveCount(2);
+      const lineItem = canvasView(page, "a").locator(`[data-slot="docblocks/canvas-item"][data-block-id="${line}"]`);
+      // The line stands DRAWN while its far endpoint stands culled (the
+      // endpoint's resolution stands the surface's full children — the
+      // culling's keep set must not thin the siblings' context).
+      await expect(lineItem).not.toHaveAttribute("data-missing");
+      await expect(canvasView(page, "a").locator(`[data-connector-id="${line}"]`)).toHaveCount(1);
+      const d = await canvasView(page, "a").locator(`[data-connector-id="${line}"]`).getAttribute("d");
+      expect(d ?? "").toMatch(/^M /);
+
+      // The pan's bring-in (the 4500px drag to the left at the 100%
+      // zoom): the far shape enters (its mount) and the near shape
+      // leaves (its unmount) — the line stands drawn over the now-culled
+      // near endpoint.
+      await panBy(page, -4500);
+      await expect(items).toHaveCount(2);
+      await expect(lineItem).not.toHaveAttribute("data-missing");
+      await expect(canvasView(page, "a").locator(`[data-connector-id="${line}"]`)).toHaveCount(1);
     } finally {
       await context.close();
     }

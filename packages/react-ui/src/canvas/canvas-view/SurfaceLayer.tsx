@@ -18,7 +18,12 @@
  *  store's narrow slices themselves (the per-item / per-line preview
  *  stand), so a pointermove over the drag re-renders the moved items and
  *  the touched lines only — the layer (and its resting children) stands
- *  their memo. */
+ *  their memo.
+ *
+ *  The culling's keep set (`visibleIds`) thins the RENDERED wrappers only:
+ *  the siblings' context stands the surface's FULL children list — the
+ *  connector's endpoint resolution must not depend on the viewport (the
+ *  off-viewport endpoint's line stands drawn over its visible spans). */
 import { useStore } from "zustand";
 
 import { type ReactNode, useMemo } from "react";
@@ -40,8 +45,11 @@ function SurfaceLayer({
   pendingConnector,
   inert = false,
   excludedIds,
+  visibleIds,
 }: {
   id: BlockId;
+  /** The surface's full children — the siblings' context's list (the
+   *  connector's endpoint's resolution's stand). */
   children: BlockId[];
   pendingConnector: string | null;
   /** The inert stand (the frame window's copy): the whole layer stands
@@ -55,16 +63,29 @@ function SurfaceLayer({
    *  siblings' context keeps them (the endpoint's resolution stands the
    *  full list). */
   excludedIds?: readonly BlockId[];
+  /** The culling's keep set (the viewport's stand): the children out of
+   *  it stand no DOM of their own. The siblings' context keeps the full
+   *  list (the culling is the render's stand, not the structure's stand —
+   *  the line's endpoint's resolution stands the off-viewport blocks
+   *  over the committed geometry). `null` = no cull. */
+  visibleIds?: Set<BlockId> | null;
 }) {
   const contextValue = useBlockContextValue(id, children, "surface");
-  // The layer's rendered children (the excluded's stand off — the window's
-  // cycle guard); the siblings' context keeps the full list (the endpoint
-  // resolution's stand). The DOM order is the children's order (the
-  // explicit zIndex's mirror — the paint order over every canvas type, the
-  // frame included: the frame stands a first-class z-order element).
+  // The layer's rendered children: the culling's keep set's stand off (the
+  // off-viewport items' DOM's stand), then the excluded's stand off (the
+  // window's cycle guard). The siblings' context keeps the full list over
+  // every stand (the endpoint's resolution's stand — the culling must not
+  // thin it: the line's drop over the off-viewport endpoint's regression).
+  // The DOM order is the children's order (the explicit zIndex's mirror —
+  // the paint order over every canvas type, the frame included: the frame
+  // stands a first-class z-order element).
   const rendered = useMemo(() => {
-    return excludedIds !== undefined ? children.filter((childId) => !excludedIds.includes(childId)) : children;
-  }, [children, excludedIds]);
+    const kept =
+      visibleIds !== null && visibleIds !== undefined
+        ? children.filter((childId) => visibleIds.has(childId))
+        : children;
+    return excludedIds !== undefined ? kept.filter((childId) => !excludedIds.includes(childId)) : kept;
+  }, [children, visibleIds, excludedIds]);
   // The ports' visibility (the connector's tool / the endpoint's drag):
   // the point boolean — the layer re-renders only on the tool's press /
   // release (the pointermove stands the owning surface's dots only).
