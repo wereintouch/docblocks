@@ -59,22 +59,12 @@ function SurfaceLayer({
   const contextValue = useBlockContextValue(id, children, "surface");
   // The layer's rendered children (the excluded's stand off — the window's
   // cycle guard); the siblings' context keeps the full list (the endpoint
-  // resolution's stand). The frame stands the view BACK: it is a window
-  // into the surface's content, not a figure — it renders behind every
-  // other item (the stable sort keeps the frames' own order and the
-  // figures' z-order within their runs). The data's zIndex keeps its slot
-  // (the arrangement's contract); the render's pin stands the window's
-  // parity (the figures always stand over the window's border).
-  const { store } = useEditorContext();
+  // resolution's stand). The DOM order is the children's order (the
+  // explicit zIndex's mirror — the paint order over every canvas type, the
+  // frame included: the frame stands a first-class z-order element).
   const rendered = useMemo(() => {
-    const ordered = excludedIds !== undefined ? children.filter((childId) => !excludedIds.includes(childId)) : children;
-    const blocks = store.getState().blocks;
-    return [...ordered].sort((a, b) => {
-      const aFrame = blocks[a]?.type === "frame" ? 1 : 0;
-      const bFrame = blocks[b]?.type === "frame" ? 1 : 0;
-      return bFrame - aFrame;
-    });
-  }, [children, excludedIds, store]);
+    return excludedIds !== undefined ? children.filter((childId) => !excludedIds.includes(childId)) : children;
+  }, [children, excludedIds]);
   // The ports' visibility (the connector's tool / the endpoint's drag):
   // the point boolean — the layer re-renders only on the tool's press /
   // release (the pointermove stands the owning surface's dots only).

@@ -75,6 +75,11 @@
     "borderNone": "Без рамки",
     "arrange": "Упорядочить фигуру"
   },
+  "arrange": {
+    "toolbar": "Упорядочить",
+    "container": "Упорядочить контейнер",
+    "frame": "Упорядочить фрейм"
+  },
   "zorder": {
     "title": "Порядок (z-order)",
     "bringForward": "Выше",

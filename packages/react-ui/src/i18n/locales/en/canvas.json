@@ -75,6 +75,11 @@
     "borderNone": "No border",
     "arrange": "Arrange shape"
   },
+  "arrange": {
+    "toolbar": "Arrange",
+    "container": "Arrange container",
+    "frame": "Arrange frame"
+  },
   "zorder": {
     "title": "Arrange (z-order)",
     "bringForward": "Bring forward",

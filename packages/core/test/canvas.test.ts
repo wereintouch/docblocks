@@ -422,19 +422,20 @@ describe("structure (commands)", () => {
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 
-  it("the frame is a viewport window: the context attrs, the geometry, no children, no zIndex", () => {
+  it("the frame is a viewport window: the context attrs, the geometry, no children, the zIndex's parity", () => {
     const doc = newDoc();
     const surface = doc.insertBlock("surface");
     const frame = doc.insertBlock("frame", { title: "Camera" }, { parent: surface });
     doc.setGeometry(frame, { x: -80, y: -40, w: 320, h: 240 });
 
-    // The canvas frame: the title label + the geometry; no children (the
-    // window content is the surface's own) and no z-order index (the paint
-    // position is the surface's children order).
+    // The canvas frame: the title label + the geometry + the z-order's
+    // index (the first-class's parity over the canvas elements — the
+    // paint position's mirror); no children (the window content is the
+    // surface's own).
     expect(doc.getChildren(frame)).toEqual([]);
     expect(doc.getBlock(frame)).toEqual({
       type: "frame",
-      attrs: { title: "Camera" },
+      attrs: { title: "Camera", zIndex: 1 },
       geometry: { x: -80, y: -40, w: 320, h: 240 },
     });
 

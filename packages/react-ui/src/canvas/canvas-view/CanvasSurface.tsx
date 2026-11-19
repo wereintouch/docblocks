@@ -40,6 +40,7 @@ type Targets = Pick<
   | "multiSelectionBox"
   | "shapeToolbarTarget"
   | "textToolbarTarget"
+  | "arrangeToolbarTarget"
   | "connectorToolbarTarget"
   | "connectorLabelTarget"
   | "selectedConnectorHandles"
@@ -103,6 +104,7 @@ function CanvasSurface({
     multiSelectionBox,
     shapeToolbarTarget,
     textToolbarTarget,
+    arrangeToolbarTarget,
     connectorToolbarTarget,
     connectorLabelTarget,
     selectedConnectorHandles,
@@ -254,6 +256,7 @@ function CanvasSurface({
           selectedConnectorHandles,
           shapeToolbarTarget,
           textToolbarTarget,
+          arrangeToolbarTarget,
         }}
         onEndpointPointerDown={onEndpointPointerDown}
         onResetZoom={onResetZoom}

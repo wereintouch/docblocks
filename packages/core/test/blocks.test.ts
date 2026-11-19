@@ -101,8 +101,8 @@ describe("insertBlock", () => {
       type: "connector",
       attrs: { start: { blockId: surface }, end: { blockId: shape }, zIndex: 2 },
     });
-    expect(doc.getBlock(frame)).toEqual({ type: "frame" });
-    expect(doc.getBlock(canvasText)).toEqual({ type: "canvas-text", attrs: { zIndex: 3 } });
+    expect(doc.getBlock(frame)).toEqual({ type: "frame", attrs: { zIndex: 3 } });
+    expect(doc.getBlock(canvasText)).toEqual({ type: "canvas-text", attrs: { zIndex: 4 } });
     expect(validateDoc(doc.toJSON())).toEqual([]);
   });
 

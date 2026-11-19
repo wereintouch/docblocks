@@ -21,6 +21,7 @@ export {
   textStyleOf,
 } from "./text-fonts";
 export { zPositionOf } from "./ZOrderMenu";
+export { ZOrderToolbar } from "./ZOrderToolbar";
 export {
   MOVE_THRESHOLD_PX,
   canvasToScreen,

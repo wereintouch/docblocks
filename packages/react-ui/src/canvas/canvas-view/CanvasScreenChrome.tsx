@@ -12,7 +12,14 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 
 import type { Block, BlockId } from "docblocks-core";
 
-import { CanvasDock, CanvasTextToolbar, ConnectorToolbar, ShapeToolbar, canvasToScreen } from "../../canvas";
+import {
+  CanvasDock,
+  CanvasTextToolbar,
+  ConnectorToolbar,
+  ShapeToolbar,
+  ZOrderToolbar,
+  canvasToScreen,
+} from "../../canvas";
 import { cn } from "../../shared/ui/cn";
 import type { CanvasViewportState } from "../viewport";
 import { CanvasSelectionOverlay } from "./CanvasSelectionOverlay";
@@ -35,6 +42,7 @@ type Targets = Pick<
   | "selectedConnectorHandles"
   | "shapeToolbarTarget"
   | "textToolbarTarget"
+  | "arrangeToolbarTarget"
 >;
 
 function CanvasScreenChrome({
@@ -62,6 +70,7 @@ function CanvasScreenChrome({
     selectedConnectorHandles,
     shapeToolbarTarget,
     textToolbarTarget,
+    arrangeToolbarTarget,
   } = targets;
   // The toolbar's top edge: the box top edge over the on-screen offset
   // (the box's screen-space half height over the zoom, the token's gap).
@@ -212,6 +221,21 @@ function CanvasScreenChrome({
           fontSize={textToolbarTarget.fontSize}
           textAlign={textToolbarTarget.textAlign}
           zStand={textToolbarTarget.zStand}
+          style={{
+            left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
+            top: `calc(50% + ${toolbarTop(displayBox)}px)`,
+          }}
+        />
+      )}
+      {arrangeToolbarTarget !== null && displayBox !== null && (
+        // The container's z-order toolbar (the single `group` / `frame`
+        // selection): the unified's arrange's stand over the shapes (the
+        // same position over the box's top edge; the menu is the bar's
+        // whole content).
+        <ZOrderToolbar
+          id={arrangeToolbarTarget.id}
+          kind={arrangeToolbarTarget.kind}
+          zStand={arrangeToolbarTarget.zStand}
           style={{
             left: `calc(50% + ${canvasToScreen({ x: displayBox.x, y: displayBox.y }, viewport.zoom, viewport.pan).x}px)`,
             top: `calc(50% + ${toolbarTop(displayBox)}px)`,

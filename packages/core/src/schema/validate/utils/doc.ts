@@ -156,12 +156,13 @@ function validateAttributeOrder(doc: Record<string, unknown>, lenient: boolean, 
 
 /**
  * The surface's explicit z-order invariant: the canvas elements
- * (shape / connector / canvas-text / group) carry a `zIndex` attr that is the
- * element's position among the surface's canvas elements (dense 1..N, the
- * children order's mirror — 1 = bottom). The invariant is all-or-nothing per
- * surface: if any canvas element carries a `zIndex`, all of them must, and the
- * set must be the dense 1..N sequence. A surface with no `zIndex` at all is
- * the legacy form (the lenient reader derives it from the children position).
+ * (shape / connector / canvas-text / group / frame) carry a `zIndex` attr
+ * that is the element's position among the surface's canvas elements (dense
+ * 1..N, the children order's mirror — 1 = bottom). The invariant is
+ * all-or-nothing per surface: if any canvas element carries a `zIndex`, all
+ * of them must, and the set must be the dense 1..N sequence. A surface with
+ * no `zIndex` at all is the legacy form (the lenient reader derives it from
+ * the children position).
  */
 function validateSurfaceZOrder(blocks: Record<string, unknown>, errors: ValidationError[]): void {
   for (const [, block] of Object.entries(blocks)) {

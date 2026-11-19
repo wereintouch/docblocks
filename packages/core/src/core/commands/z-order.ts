@@ -1,10 +1,10 @@
 /**
  * The canvas z-order command: setZOrder. The canvas elements (shape /
- * connector / canvas-text / group) of a surface carry an explicit `zIndex`
- * (dense 1..N, the children order's mirror — 1 = bottom). This command
- * reorders the surface's canvas elements (forward / back / to front / to
- * back) and rewrites the `zIndex` (dense, in the new order) in one
- * transaction — one undo step, one wire update.
+ * connector / canvas-text / group / frame) of a surface carry an explicit
+ * `zIndex` (dense 1..N, the children order's mirror — 1 = bottom). This
+ * command reorders the surface's canvas elements (forward / back / to
+ * front / to back) and rewrites the `zIndex` (dense, in the new order) in
+ * one transaction — one undo step, one wire update.
  *
  * The page blocks on the canvas (if any) do not carry a `zIndex`; they keep
  * their children-array position (the z-order is the children order).

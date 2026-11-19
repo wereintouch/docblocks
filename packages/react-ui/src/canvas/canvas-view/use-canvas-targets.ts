@@ -141,6 +141,26 @@ function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, root
     };
   })();
 
+  // The z-order toolbar's target (the container / the frame's unified's
+  // stand): a single `group` / `frame` selection — the shape toolbar's
+  // session's guards (no active tool, no in-flight session). The group /
+  // frame carry no style attrs of their own, so the target stands the
+  // z-order's stand only (the arrange menu's full's content).
+  const arrangeToolbarTarget = (() => {
+    if (handleTarget === null || viewport.activeTool !== null) return null;
+    if (viewport.movePreview !== null || viewport.resizePreview !== null) return null;
+    const block = blocks[handleTarget.id];
+    if (block === undefined || (block.type !== "group" && block.type !== "frame")) return null;
+    const surface = surfaces.find((entry) => entry.children.includes(handleTarget.id));
+    if (surface === undefined) return null;
+    const zStand = zPositionOf(surface.children, blocks, handleTarget.id);
+    if (zStand === null) return null;
+    // The menu's own guard's parity: a lone canvas element (count < 2)
+    // stands no reorder stand — the empty pill's stand off.
+    if (zStand.count < 2) return null;
+    return { id: handleTarget.id, kind: block.type, zStand };
+  })();
+
   // The connector type toolbar's target: a single `connector` selection
   // whose endpoints resolve within the surface (the toolbar seats at the
   // line's midpoint; absent for the multi selection, an active tool, or
@@ -262,6 +282,7 @@ function useCanvasTargets({ rootChildren, blocks, storeSelection, viewport, root
     multiSelectionBox,
     shapeToolbarTarget,
     textToolbarTarget,
+    arrangeToolbarTarget,
     connectorToolbarTarget,
     connectorLabelTarget,
     selectedConnectorHandles,

@@ -171,16 +171,16 @@ describe("canvas scene", () => {
     const view = document.querySelector<HTMLElement>('[data-slot="docblocks/canvas-view"]');
     expect(view).not.toBeNull();
     expect(view!.className).not.toContain("focus-visible:ring");
-    // The frame stands the view back (the window's parity — it renders
-    // behind every other item; the z-order's data slot keeps its role for
-    // the figures).
+    // The paint order is the children's order over every canvas type (the
+    // frame stands its data's slot — the middle's place, no view-back's
+    // pin).
     expect(canvasItemIds()).toEqual([
-      IDS.frame,
       IDS.rect,
       IDS.ellipse,
       IDS.text,
       IDS.connector,
       IDS.brokenConnector,
+      IDS.frame,
       IDS.docIdConnector,
       IDS.pointsConnector,
     ]);
@@ -193,14 +193,14 @@ describe("canvas scene", () => {
     act(() => {
       doc.moveBlock(IDS.rect, IDS.surface, 8);
     });
-    // The frame's view-back stand: it stands first (behind the figures),
-    // the figures' z-order within their run.
+    // The DOM order stands the children's order (the rect's move to the
+    // tail, the rest's parity — the frame over its slot).
     expect(canvasItemIds()).toEqual([
-      IDS.frame,
       IDS.ellipse,
       IDS.text,
       IDS.connector,
       IDS.brokenConnector,
+      IDS.frame,
       IDS.docIdConnector,
       IDS.pointsConnector,
       IDS.rect,

@@ -7,9 +7,9 @@ import { validateDoc } from "../src/schema";
 
 /**
  * The canvas z-order command (setZOrder) + the dense zIndex invariant. The
- * canvas elements (shape / connector / canvas-text / group) of a surface
- * carry an explicit `zIndex` (dense 1..N, the children order's mirror —
- * 1 = bottom). The command reorders the surface's canvas elements
+ * canvas elements (shape / connector / canvas-text / group / frame) of a
+ * surface carry an explicit `zIndex` (dense 1..N, the children order's
+ * mirror — 1 = bottom). The command reorders the surface's canvas elements
  * (forward / back / toFront / toBack) and rewrites the `zIndex` (dense, in
  * the new order) in one transaction.
  */
@@ -247,6 +247,39 @@ describe("the zIndex reconciliation (insert / move / remove)", () => {
     expect(doc.getChildren(surface)).toEqual([a, b, group]);
     expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
     expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("a frame stands in the same index (the setZOrder over the region marker)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    const a = doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+    const b = doc.insertBlock("shape", { variant: "ellipse" }, { parent: surface });
+    // a=1, frame=2, b=3 (the frame's slot over the children's order).
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    doc.setZOrder(frame, "toFront"); // the frame's move to the top: a=1, b=2, frame=3.
+    expect(doc.getChildren(surface)).toEqual([a, b, frame]);
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    expect(zOf(doc, frame)).toBe(3);
+    doc.setZOrder(frame, "toBack"); // the frame's move to the bottom: frame=1, a=2, b=3.
+    expect(doc.getChildren(surface)).toEqual([frame, a, b]);
+    expect(zIndexesOf(doc, surface)).toEqual([1, 2, 3]);
+    expect(validateDoc(doc.toJSON())).toEqual([]);
+  });
+
+  it("a new frame takes max + 1 (on top, the elements' parity)", () => {
+    const doc = newDoc();
+    const surface = doc.insertBlock("surface");
+    doc.insertBlock("shape", { variant: "rect" }, { parent: surface });
+    const frame = doc.insertBlock("frame", undefined, { parent: surface });
+    expect(zOf(doc, frame)).toBe(2);
+  });
+
+  it("a page-frame block stands no z-order (the root context's stand)", () => {
+    const doc = newDoc();
+    doc.insertBlock("surface");
+    const pageFrame = doc.insertBlock("frame", { frameId: "f-1" });
+    expect(() => doc.setZOrder(pageFrame, "forward")).toThrow(InvalidOperationError);
   });
 });
 

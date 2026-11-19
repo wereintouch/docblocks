@@ -19,8 +19,9 @@ const CANVAS_BLOCK_SPECS: Pick<
     // Z-ORDER semantics: for a surface the children order is the Z-ORDER
     // (paint order), not the reading order — the only such case in the
     // schema (every other container's children order is the reading order).
-    // The canvas elements (shape / connector / canvas-text / group) carry an
-    // explicit `zIndex` attr (dense 1..N, unique) that mirrors this order;
+    // The canvas elements (shape / connector / canvas-text / group /
+    // frame) carry an explicit `zIndex` attr (dense 1..N, unique) that
+    // mirrors this order;
     // a moveBlock within the surface's children is a z-order change.
   },
   shape: {
@@ -120,9 +121,8 @@ const CANVAS_BLOCK_SPECS: Pick<
     },
   },
   // The frame: a viewport window into its own surface's content — no
-  // children, no content, no z-order index (the paint position is the
-  // surface's children order). Two contexts, one type: the surface child
-  // is the canvas frame (the optional `title` label, `frameId` is
+  // children, no content. Two contexts, one type: the surface child is
+  // the canvas frame (the optional `title` label, `frameId` is
   // forbidden), the root child is the page-frame block (the required
   // `frameId` weak reference to a canvas frame, `title` is forbidden) —
   // the context presence rules stand in the strict validator (they are
@@ -134,6 +134,9 @@ const CANVAS_BLOCK_SPECS: Pick<
     attrs: {
       title: { kind: "string" },
       frameId: { kind: "string", nonEmpty: true },
+      // The explicit z-order index (dense 1..N over the surface's canvas
+      // elements; the order's mirror — the paint order, 1 = bottom).
+      zIndex: { kind: "number", positive: true, integer: true },
     },
   },
   "canvas-text": {
