@@ -16,12 +16,12 @@ import {
 } from "./blocks";
 import type { FlatNode } from "./blocks";
 import { EnumOptionsMotionSlot } from "./database";
+import { useEditing } from "./editing/editor-root";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { MentionMenuContext, useMentionCard, useMentionMenu } from "./editing/mention";
 import { PageSurfaceProvider, usePageSurfaceDispatch } from "./editing/page-surface";
 import type { PageSurfaceHandlersMap } from "./editing/page-surface";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
-import { useEditing } from "./editing/use-editing";
 import { useLinkOpen } from "./editing/use-link-open";
 import { useEditorContext } from "./editor-provider";
 import { MotionEnumOptionsEditor } from "./motion/MotionEnumOptionsEditor";
@@ -68,7 +68,7 @@ interface EditorProps {
  * palette.
  */
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
-  const { doc, store, rootBlockId, viewMode, mode } = useEditorContext();
+  const { doc, store, rootBlockId, viewMode, mode, mentionInteractions } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   // The frame's tint's read (the cover's presence + the off's stand — the
   // absent's / the `true`'s stand is the on's default): the data attribute
@@ -194,6 +194,10 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           data-view={view}
           data-mode={mode}
           data-readonly={viewMode ? "true" : undefined}
+          // The mention chip's interactive stand (the consumer's mention
+          // interactions): the hover's cursor + the neutral's background
+          // key on the root (the chip's own markup stays the run's).
+          data-mention-interactive={mentionInteractions !== null ? "true" : undefined}
           tabIndex={-1}
           className={cn(
             "relative min-h-0 flex-1 selection:bg-(--docblocks-selection-background)",

@@ -151,6 +151,38 @@ function MermaidViewport({ id, block, children }: { id: BlockId; block: CodeBloc
     };
   };
 
+  /**
+   * The geometry's re-clamp: the mount's wrapper / layer boxes are not
+   * final (the page's layout settles post-mount) and the diagram's svg
+   * lands AFTER the mount (mermaid renders async) — the mount's adopt /
+   * persist stand over the loading skeleton's box, so without this stand
+   * a diagram that fits the settled box keeps the unclamped view (its
+   * left edge at the wrapper's left edge — the large diagram's
+   * top-left-corner stand). The observer re-clamps over the settled
+   * boxes whenever they change (the svg's appearance, the consumer's
+   * re-layout); the canonical's persist's no-op keeps the re-clamp off
+   * the wire (the centered stand IS the identity's canonical).
+   */
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    const layer = layerRef.current;
+    if (wrapper === null || layer === null) return;
+    // The environment without the observer (jsdom — no layout): the unit
+    // tests drive the geometry explicitly.
+    if (typeof ResizeObserver === "undefined") return;
+    const reClamp = () => {
+      const current = viewRef.current;
+      const clamped = clampView(current);
+      if (clamped.scale === current.scale && clamped.x === current.x && clamped.y === current.y) return;
+      setView(clamped);
+    };
+    const observer = new ResizeObserver(reClamp);
+    observer.observe(wrapper);
+    observer.observe(layer);
+    return () => observer.disconnect();
+    // The observer reads the live state over the refs (the mount's stand).
+  }, []);
+
   // The wheel: `ctrl`/`cmd` zooms at the cursor, a plain wheel pans
   // vertically (content opposite to the delta). A non-passive listener so
   // the default (the page scroll) is suppressed only when the view

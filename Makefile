@@ -153,11 +153,7 @@ publish: ## The npm's publish (the version's bump + the build + the npm's publis
 		git add $$bumped/package.json $$bumped/CHANGELOG.md .changeset; \
 		vers=$$(for p in $$bumped; do node -p "require('./$$p/package.json').version"; done); \
 		joined=$$(printf '%s\n' "$$vers" | awk 'NR>1 { printf " and " } { printf "%s", $$0 }'); \
-		if [ "$$(printf '%s\n' "$$vers" | wc -l | tr -d ' ')" -eq 1 ]; then \
-			git commit -m "chore(release): the $$joined version over the consumed changesets"; \
-		else \
-			git commit -m "chore(release): $$joined over the consumed changesets"; \
-		fi; \
+		git commit -m "chore(release): $$joined"; \
 	fi
 
 ## Dev and cleanup

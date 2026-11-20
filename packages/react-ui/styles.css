@@ -83,8 +83,10 @@
   --docblocks-inline-code-background: var(--muted, rgba(175, 184, 193, 0.2));
 
   /* The mention chip (an atomic, display-only inline run): the
-     brand-colored label. */
+     brand-colored label; the interactive chip's hover stands the light
+     neutral's background. */
   --docblocks-mention-color: var(--primary, #0969da);
+  --docblocks-mention-hover-background: var(--muted, rgba(175, 184, 193, 0.2));
 
   /* Callout borders / backgrounds per variant (info/danger follow the
      standard inputs; warning is package-owned — the standard set has no
@@ -308,6 +310,7 @@
   --docblocks-selection-background: rgba(56, 139, 253, 0.4);
   --docblocks-inline-code-background: var(--muted, rgba(110, 118, 129, 0.4));
   --docblocks-mention-color: var(--primary, #58a6ff);
+  --docblocks-mention-hover-background: var(--muted, rgba(110, 118, 129, 0.4));
 
   --docblocks-code-background: var(--muted, rgba(110, 118, 129, 0.35));
   --docblocks-code-token-keyword: #ff7b72;
@@ -616,6 +619,24 @@
   color: var(--docblocks-mention-color, var(--primary, #0969da));
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+/* The interactive chip (the consumer's mention interactions stand over the
+   editor root): the link's cursor and the light neutral's hover
+   background — the rounded 3px rect with the 2px's letters' offset (the
+   inline padding, present over the interactive stand only so the hover
+   stands no layout jump) and the 120ms fade. The chip stays an inline run
+   (no box of its own): the padding stands the horizontal's aura only, the
+   row keeps its plain-text height. */
+[data-slot="docblocks/editor"][data-mention-interactive] [data-slot="docblocks/mention"] {
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background-color 120ms ease;
+}
+
+[data-slot="docblocks/editor"][data-mention-interactive] [data-slot="docblocks/mention"]:hover {
+  background-color: var(--docblocks-mention-hover-background);
 }
 
 [data-slot="docblocks/mention"] svg {

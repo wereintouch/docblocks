@@ -466,3 +466,71 @@ test("the preview's viewport: the height's resize + the pan/zoom over the persis
     await close();
   }
 });
+
+test("the tall diagram centers over the page load (no gesture, nothing persisted)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "mermaid-load-center");
+  try {
+    // A tall chain with short labels: the natural svg's width sits well
+    // under the page column's width, so the settled stand's centering
+    // offset is visible (the large diagram's stand — taller than the
+    // viewport's box's height).
+    const text = [
+      "graph TD",
+      ...Array.from({ length: 14 }, (_, i) => `  N${i}[Step ${i}] --> N${i + 1}[Step ${i + 1}]`),
+    ].join("\n");
+    await a.evaluate((diagram) => {
+      const doc = window.__paneDocs?.a;
+      if (doc === null || doc === undefined) return;
+      const blockId = doc.insertBlock("code", { language: "mermaid" });
+      doc.insertText(blockId, 0, diagram);
+    }, text);
+    await switchToPreview(a, "a");
+    const viewport = mermaidBlock(a, "a").locator('[data-slot="docblocks/mermaid-viewport"]');
+    await expect(viewport.locator('[data-slot="docblocks/mermaid-diagram"] svg')).toBeVisible();
+
+    // The load-time stand: the view clamps over the settled geometry (the
+    // svg's async appearance + the layout's settle) — the diagram centers
+    // over the wrapper's box with no gesture and no scroll. The offset is
+    // read from the boxes themselves (the transform's expected value).
+    await expect
+      .poll(
+        async () =>
+          viewport.evaluate((el) => {
+            const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
+            const svg = layer?.querySelector<SVGSVGElement>("svg") ?? null;
+            if (layer === null || svg === null) return { ok: false, expectedX: 0 };
+            const wrap = el.getBoundingClientRect();
+            const w = svg.clientWidth || layer.clientWidth;
+            const h = svg.clientHeight || layer.clientHeight;
+            const expectedX = w < wrap.width ? (wrap.width - w) / 2 : 0;
+            const expectedY = h < wrap.height ? (wrap.height - h) / 2 : 0;
+            const matrix = new DOMMatrix(getComputedStyle(layer).transform);
+            const ok =
+              Math.abs(matrix.a - 1) < 0.001 &&
+              Math.abs(matrix.e - expectedX) <= 2 &&
+              Math.abs(matrix.f - expectedY) <= 2;
+            return { ok, expectedX };
+          }),
+        { timeout: SETTLE.timeout }
+      )
+      .toEqual({ ok: true, expectedX: expect.any(Number) });
+    // The centering is a real offset (the narrow diagram in the wide
+    // column) — not a vacuous 0.
+    const centered = await viewport.evaluate((el) => {
+      const layer = el.querySelector<HTMLElement>('[data-slot="docblocks/mermaid-viewport-layer"]');
+      const svg = layer?.querySelector<SVGSVGElement>("svg") ?? null;
+      if (layer === null || svg === null) return null;
+      const wrap = el.getBoundingClientRect();
+      const w = svg.clientWidth || layer.clientWidth;
+      return { offset: new DOMMatrix(getComputedStyle(layer).transform).e, expected: (wrap.width - w) / 2 };
+    });
+    expect(centered?.expected ?? 0, "the narrow diagram's centering's stand").toBeGreaterThan(20);
+    expect(centered?.offset ?? 0).toBeGreaterThan(20);
+    // The canonical's persist's no-op: the load-time stand writes nothing
+    // (the attrs keep the identity — the null idiom).
+    const attrs = await mermaidAttrs(a, "a");
+    expect(attrs).toMatchObject({ zoom: null, panX: null, panY: null });
+  } finally {
+    await close();
+  }
+});
