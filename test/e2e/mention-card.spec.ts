@@ -88,3 +88,51 @@ test("the chip's click stands the consumer's stand (the delivery, no package car
 
   await close();
 });
+
+test("the chip's hover stands the link's cursor and the neutral's highlight (the fade)", async ({ browser }) => {
+  const { a, close } = await twoPanes(browser, "mention-card-hover-style");
+  const blockId = await insertBlockType(a, "a", "paragraph");
+  await standChip(a, "a", blockId);
+  const chip = editorOf(a, "a").locator('[data-slot="docblocks/mention"]');
+  await expect.poll(async () => chip.count(), SETTLE).toBe(1);
+  // The root's interactive stand (the consumer's mention interactions).
+  await expect(editorOf(a, "a")).toHaveAttribute("data-mention-interactive", "true");
+
+  // The rest's stand: the link's cursor, the rounded rect's offset, the
+  // fade's transition — and no background before the hover.
+  const rest = await chip.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return {
+      cursor: style.cursor,
+      radius: style.borderRadius,
+      paddingLeft: style.paddingLeft,
+      paddingRight: style.paddingRight,
+      transitionProperty: style.transitionProperty,
+      transitionDuration: style.transitionDuration,
+      background: style.backgroundColor,
+    };
+  });
+  expect(rest.cursor).toBe("pointer");
+  expect(rest.radius).toBe("3px");
+  expect(rest.paddingLeft).toBe("2px");
+  expect(rest.paddingRight).toBe("2px");
+  expect(rest.transitionProperty).toBe("background-color");
+  expect(rest.transitionDuration).toBe("0.12s");
+  const transparent = /rgba\(0, 0, 0, 0\)|transparent/.test(rest.background);
+  expect(transparent, `the rest's background (${rest.background})`).toBe(true);
+
+  // The hover: the neutral's background over the fade (the transition's
+  // settle's poll).
+  await chip.hover();
+  await expect
+    .poll(
+      async () =>
+        chip.evaluate((el) => {
+          const bg = getComputedStyle(el).backgroundColor;
+          return /rgba\(0, 0, 0, 0\)|transparent/.test(bg) ? "" : bg;
+        }),
+      { timeout: SETTLE.timeout }
+    )
+    .not.toBe("");
+  await close();
+});

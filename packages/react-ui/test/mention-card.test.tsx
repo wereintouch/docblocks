@@ -272,3 +272,28 @@ describe("the mention card's lifecycle", () => {
     expect(document.querySelector(CARD_HOST)).not.toBeNull();
   });
 });
+
+describe("the chip's interactive stand (the hover's styling hook)", () => {
+  afterEach(cleanup);
+
+  it("marks the editor root interactive over the consumer's interactions", () => {
+    renderChipWith({ renderCard: () => null });
+    expect(document.querySelector(EDITOR_ROOT)?.getAttribute("data-mention-interactive")).toBe("true");
+    expect(document.querySelector(CHIP_SELECTOR), "the chip stands over the mark").not.toBeNull();
+    cleanup();
+
+    // Without the interactions the chip is inert: no interactive stand (no
+    // link's cursor, no hover's background over the root's key).
+    const doc = createDoc({ id: "doc-2", createdAt: CREATED_AT });
+    const blockId = doc.insertBlock("paragraph");
+    doc.insertText(blockId, 0, "Hello Jane");
+    doc.setMark(blockId, 6, 10, { type: "mention", kind: "user", id: "u1" });
+    render(
+      <EditorProvider doc={doc}>
+        <Editor />
+      </EditorProvider>
+    );
+    expect(document.querySelector(EDITOR_ROOT)?.hasAttribute("data-mention-interactive")).toBe(false);
+    expect(document.querySelector(CHIP_SELECTOR), "the inert chip stands").not.toBeNull();
+  });
+});
