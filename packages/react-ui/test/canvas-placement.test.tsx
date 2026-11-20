@@ -13,7 +13,14 @@ import { CanvasDock } from "../src/canvas/CanvasDock";
 import { SHAPE_TOOLS } from "../src/canvas/canvas-view/constants";
 import { PLACE_TOOLS } from "../src/canvas/canvas-view/constants";
 import { isPlaceTool, isShapeTool } from "../src/canvas/canvas-view/utils";
-import { placeCanvasText, placeConnector, placeFrame, placePenStroke, placeShape } from "../src/canvas/insert";
+import {
+  DEFAULT_SHAPE_FILL,
+  placeCanvasText,
+  placeConnector,
+  placeFrame,
+  placePenStroke,
+  placeShape,
+} from "../src/canvas/insert";
 import type { CanvasViewportState } from "../src/canvas/viewport";
 import { useCanvasViewport } from "../src/canvas/viewport";
 import { placeDragBox } from "../src/canvas/viewport/utils";
@@ -35,7 +42,7 @@ describe("placeShape", () => {
     const block = doc.getBlock(id);
     const shape = block?.type === "shape" ? block : null;
     expect(shape).not.toBeNull();
-    expect(shape?.attrs).toEqual({ variant: "ellipse", zIndex: 1 });
+    expect(shape?.attrs).toEqual({ variant: "ellipse", fill: DEFAULT_SHAPE_FILL, zIndex: 1 });
     expect(shape?.geometry).toEqual({ x: 12, y: -8, w: 100, h: 80 });
     // The target: the (created) first surface — the only root child (a
     // fresh doc has no page blocks: the starter paragraph is the consumer's).

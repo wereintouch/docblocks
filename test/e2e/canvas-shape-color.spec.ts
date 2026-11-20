@@ -1,7 +1,9 @@
 // The shape's color toolbar (the single `shape` selection): the fill and
 // the stroke applies (the palette swatch, the none entry, the custom hex)
 // reach the doc on both panes (one updateBlock per apply) and the svg's
-// paint attributes stand; the multi selection hides the toolbar.
+// paint attributes stand; the multi selection hides the toolbar. The
+// dock's placed shape carries the neutral default fill (the data's hex,
+// the svg's fill attribute present over the theme's effective value).
 import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, canvasCenter, canvasView, seedShape, toCanvas, twoPanes } from "./helpers";
@@ -33,6 +35,25 @@ async function shapeAttrs(
 async function selectShape(page: Page, client: "a" | "b"): Promise<void> {
   const center = await canvasCenter(page, client);
   await page.mouse.click(center.x, center.y);
+}
+
+/** The doc's shapes' fills (in the blocks' order — the placement's read). */
+async function shapeFills(page: Page, client: "a" | "b"): Promise<(string | undefined)[]> {
+  return page.evaluate(
+    ({ client }) => {
+      const docs = window.__paneDocs;
+      const doc = (client === "a" ? docs?.a : docs?.b) ?? null;
+      if (doc === null) return [];
+      const json = doc.toJSON();
+      const fills: (string | undefined)[] = [];
+      for (const block of Object.values(json.blocks)) {
+        const entry = block as { type: string; attrs?: { fill?: unknown } };
+        if (entry.type === "shape") fills.push(typeof entry.attrs?.fill === "string" ? entry.attrs.fill : undefined);
+      }
+      return fills;
+    },
+    { client }
+  );
 }
 
 const toolbar = (page: Page, client: "a" | "b") =>
@@ -110,6 +131,35 @@ test.describe("the shape color toolbar", () => {
         "fill",
         "none"
       );
+    } finally {
+      await close();
+    }
+  });
+
+  test("the dock's placed shape stands the neutral default fill (the data's hex over the wire; the svg's body)", async ({
+    browser,
+  }) => {
+    const { a, b, close } = await twoPanes(browser, "cvs-color-default-fill");
+    try {
+      await toCanvas(a, "a");
+      await toCanvas(b, "b");
+
+      // Place a rectangle via the dock's shape tool (the default tool).
+      const center = await canvasCenter(a, "a");
+      const shapes = canvasView(a, "a").getByRole("toolbar", { name: "Canvas tools" }).getByLabel("Shapes");
+      await shapes.click();
+      await a.locator('[data-slot="docblocks/canvas-shapes-menu"]').getByLabel("Rectangle", { exact: true }).click();
+      await a.mouse.click(center.x - 200, center.y - 100);
+
+      // The data holds the neutral default hex (the source value — the
+      // theme's transform applies at render) over both panes (the wire's
+      // parity).
+      await expect.poll(() => shapeFills(a, "a"), SETTLE).toEqual(["#e9ecef"]);
+      await expect.poll(() => shapeFills(b, "b"), SETTLE).toEqual(["#e9ecef"]);
+
+      // The svg's fill attribute is a hex value (not `none`) over the
+      // default figure.
+      await expect(a.locator('[data-slot="docblocks/shape"] g').first()).toHaveAttribute("fill", /^#[0-9a-f]{6}$/i);
     } finally {
       await close();
     }
