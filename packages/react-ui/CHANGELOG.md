@@ -1,5 +1,165 @@
 # docblocks-react-ui
 
+## 0.13.0
+
+### Minor Changes
+
+- 8c597ab: The canvas's created and pasted figures join their container: a shape or a
+  canvas-text whose centre stands inside a container's box becomes a member of
+  the top-most such container in the same transaction as the insert — one undo
+  step — and leaves every earlier owner, so a figure never stands in two
+  containers. The dock's placement tools, the ghost text block's entry, the pen
+  stroke, and the paste path stand it; the container, the frame and the
+  connector never join automatically, and a pasted fragment's own members keep
+  the fragment's membership (only the fragment's top-level figures join the
+  target container).
+- 916a2a4: The canvas's drill-down reaches the objects covered by another one: the Alt
+  press steps the stack of the objects under the point (from its top, wrapping)
+  and the plain repeat press steps the same way over a click — a drag still
+  moves the pressed object. The session is positional (the stack is recomputed at
+  each press, the clicks near the previous point step on), a camera or tool move
+  drops it, and a transient `i / N` chip at the click point names the selected
+  candidate's position (the touch tap steps over the wider radius). The Alt
+  press suppresses the double-click's inline entries, and on touch the inline
+  edit's entry stands off right after a step.
+- c5d44f6: The canvas's Escape drills up: a single selected member stands its parent
+  container selected — the top-most owner by the paint order, the innermost over
+  a tie — one level per press, a local view state's step (no write, no wire
+  update). The active states cancel first: an in-flight tool, session or
+  drill-down step stands off, and only the clean state walks the containers.
+- b8e3dc9: The canvas's frame stands a first-class z-order element: the `frame` type
+  joins the surface's canvas elements' z-order (the explicit `zIndex` over
+  the frame's registry spec, the `setZOrder`'s reorder over the frames, the
+  dense mirror's normalization / the strict validation's parity), and the
+  frame's render's view-back's pin stands off — the paint order is the
+  surface's children's order over every canvas type (the frame stands its
+  data's slot; the legacy documents' frames stand their existing slots — no
+  migration). The selection's toolbar stands unified over the canvas's types:
+  the single `group` (the container) / the single `frame` selection renders
+  the standard arrange's toolbar (the z-order's menu — the bring-forward /
+  to-front / send-backward / to-back's picks, one `setZOrder` each, the edge
+  states disabled) — the same mechanism over the shapes (the container and
+  the frame carry no style attrs of their own, so the menu is the toolbar's
+  whole content). The strict validator's all-or-nothing invariant now spans
+  the frame (the load's path is unchanged — the snapshot's normalization
+  runs before the validation; a pre-upgrade snapshot validated directly
+  stands the frame's index's gap over the strict's read).
+- ddf1773: The canvas's block press stands on one hit resolver over the geometry instead
+  of the DOM's paint order. The press zones are the shape's box (a figure set to
+  no fill stands its outline's band, an invisible figure its box), the
+  canvas-text's box, the container's and the frame's border band — their
+  interiors pass the press through — and the connector's stroke band along the
+  rendered route (the straight / orthogonal / curved variants over the resolved
+  endpoints, the same geometry the label's inline edit reads). The tolerance is
+  screen px, so the bands keep their on-screen reach at any zoom, and the
+  drill-down's candidate stack follows the paint order with a member lifted above
+  every container that lists it.
+- d8e22ce: The canvas container / frame title chips stand over the screen layer above
+  the world's paint order: a filled figure painted over the box — the chip's
+  own seat above the box's top edge included — no longer takes the chip's
+  press, so the covered container and the frame stay selectable and movable
+  by their chips. The chip keeps its on-screen size at any zoom (the seat is
+  the live box's screen projection: it rides the in-flight move / resize
+  preview and the camera) and renders only over the viewport's culled-in
+  items; the read-only modes render it inert. The chip's press keeps the
+  item's contract (the shift toggle, the multi-selection's group drag, the
+  focus park, the pointer capture), and its double-click enters the title's
+  inline edit through the chip's own block identity.
+- bd6a97a: The consumer-owned description contract (the `docDescription` provider
+  prop): the description stands out of the document's data — the
+  consumer's store is the source (the document never stores or syncs it),
+  and the panel's `description` row displays the passed value and reports
+  the user's edit over the `onEdit` callback (the panel's inline editor's
+  commit — the entered string verbatim; the empty string stands the
+  removal's stand — the consumer clears its store over the callback; the
+  row's removal's affordance stands over the non-empty's value and commits
+  the empty string's stand). Without
+  `onEdit` the row stands display-only (over the edit mode too). Over the
+  prop's presence the row stands out of the `renderAttribute`'s reach
+  (the consumer's value is the source). Without the prop the row keeps the
+  built-in stand (the value over the doc's `attributes.description`
+  record); the legacy's stored `attributes.description` stands inert over
+  the prop's presence (the migration's read over `doc.meta.attributes`),
+  and the frontmatter's import keeps writing it (the data's stand — the
+  panel is decoupled).
+- 2c001eb: The canvas shape tools' dock placement creates shapes with the neutral
+  default fill (`#e9ecef`): a new figure has a modest body (the
+  Miro/Figma look) instead of a stroke-only figure, and the fill palette
+  is the override (the explicit "none" entry keeps the stroke-only
+  annotation frame). The pen's stroke (the `points` path) is created
+  without a fill (its path renders the stroke only); the hit model is
+  unchanged (an absent fill is a normal figure, the explicit "none"
+  keeps the outline zone). Existing documents are untouched (no
+  migration — the default applies to the placement only), and the dark
+  theme applies the hex's dark neutral value at render (the data keeps
+  the source hex).
+- 531a656: The view mode's text stands selectable and copyable: the read-only live
+  document keeps the native selection over the page (the editing surfaces
+  stay off — no caret, no write), and the editor's copy payload serves it —
+  the same to-html/to-text serialization as the edit mode's (the marks, the
+  `@label` mentions, the cross-block ranges). The published stand keeps the
+  selection's ban: no range, no copy (the reader's stand on the rendered
+  page only). The editor root carries the resolved mode over the new
+  `data-mode` structural hook (`data-readonly` stays for both read-only
+  stands); the canvas world keeps the no-select stand over the view mode
+  (the native range would fight the pan's drag).
+  
+  A native table block now copies as a spreadsheet's grid: the html flavor
+  carries a real `<table>` (the rows and the columns in the table's own
+  order, a cell's line breaks as `<br>`) and the plain flavor the TSV — the
+  pasted cells land in a spreadsheet's grid instead of a column of lines.
+  The table's covered cells stand the copy's unit (a partially covered
+  endpoint cell is included whole), the block's own selection (the row's
+  gutter press) copies the whole grid, and the table pieces stand in place
+  over a cross-block range (the surrounding blocks keep their lines).
+
+### Patch Changes
+
+- 803c2be: The canvas view's culling no longer thins the surface's siblings' block
+  context: the off-viewport items' keep set stands the rendered wrappers
+  only, and the connector's endpoint resolution stands the surface's full
+  children over their committed geometry. A connector whose endpoint block
+  is off-viewport (out of the culling's margin's band) stood dropped
+  (`data-missing`, the line's no render) with the label chip orphaned —
+  the line now stands drawn over its visible spans (the line's own cull
+  box over its endpoints' boxes' union still decides its mount), and the
+  label chip's midpoint's read stands the full list (no culling-induced
+  drop).
+- 9b16229: The canvas culling's margin stands the screen px over every zoom (the
+  1/zoom's world's conversion in the visible world rect's math): the
+  band's on-screen width stands constant (300 px), so the off-viewport
+  items pop in over the pan's edge at a constant on-screen distance
+  instead of shrinking over the zoom (the 75px stand over the 25% fit).
+  The tradeoff: the band stands wider over the world at the low zooms —
+  the heavy canvas's mounted DOM grows over the zoom-out (the culling's
+  performance stand's documented cost).
+- a8a7bdc: The canvas frame's interior stands pointer-transparent: a press inside the
+  frame's box reaches the figure under it (the page miniature over the empty
+  region), so the region marker no longer shields the figures it covers. The
+  frame keeps its own press targets — the boundary's border's hit band and
+  the title chip — which select the frame and start its move, the container's
+  idiom's parity.
+- 754a210: The canvas's world-space strokes stand the min-screen stand: the
+  connector's line and the shape's border read the data's width over the
+  1/zoom's compensation (the CSS `max()` over the world's inverse-zoom's
+  variable), so they stand at least 1 screen-px wide over the zoom's < 1
+  (the dark data color's sub-pixel thinning's fix — the dark line over the
+  dark canvas no longer falls below the visibility threshold at the fit's
+  zoom). The zoom's >= 1 stands the data's verbatim (the line's
+  thickening's parity), and the data's stand stands the `stroke-width`
+  attribute (the render's compensation is the style). The stand resolves
+  natively over the zoom's flip (the no per-item re-render's stand).
+- 2f51dfa: The canvas view's entry stands the fit over the stale stored viewport:
+  the restored zoom / pan's rect over the content's box — the empty's
+  intersection (the off-document's pan's stand: the storage's drift over
+  the content's / the container's size's change) stands the fit (the fit
+  button's stand), the partial's intersection stands the restore (the
+  zoomed-in's stand — the visible's rect over the content's box — is
+  kept). The empty canvas's stand (no content) stands the restore (the
+  fit's no-op's parity).
+- Updated dependencies [b8e3dc9]
+  - docblocks-core@0.6.0
+
 ## 0.12.0
 
 ### Minor Changes
