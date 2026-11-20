@@ -16,12 +16,12 @@ import {
 } from "./blocks";
 import type { FlatNode } from "./blocks";
 import { EnumOptionsMotionSlot } from "./database";
+import { useEditing } from "./editing/editor-root";
 import { FORMAT_PALETTE, useFormatToolbar } from "./editing/format-toolbar";
 import { MentionMenuContext, useMentionCard, useMentionMenu } from "./editing/mention";
 import { PageSurfaceProvider, usePageSurfaceDispatch } from "./editing/page-surface";
 import type { PageSurfaceHandlersMap } from "./editing/page-surface";
 import { SlashMenuContext, useSlashMenu } from "./editing/slash";
-import { useEditing } from "./editing/use-editing";
 import { useLinkOpen } from "./editing/use-link-open";
 import { useEditorContext } from "./editor-provider";
 import { MotionEnumOptionsEditor } from "./motion/MotionEnumOptionsEditor";
