@@ -6,7 +6,7 @@
 // stand (`view-mode.spec.ts` pins it).
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { SETTLE, editorContext, openPane } from "./helpers";
+import { editorContext, openPane } from "./helpers";
 
 /** Switch the pane's mode to the view's mode and pin the read-only's stand. */
 async function toViewMode(page: Page): Promise<void> {
