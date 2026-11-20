@@ -72,6 +72,25 @@ test("the chip's click stands the consumer's stand (the delivery, no package car
   const chip = editorOf(a, "a").locator('[data-slot="docblocks/mention"]');
   await expect.poll(async () => chip.count(), SETTLE).toBe(1);
 
+  // The press's stand (the cross drag's island guard): the chip is a
+  // non-editable island, so the click starts no caret session — the text
+  // editable takes no focus and the scroll port does not move to the
+  // chip's line. The tall page stands the scroll's stand (the content
+  // grows so the port can scroll).
+  await a.evaluate(() => {
+    const doc = window.__paneDocs?.a ?? null;
+    if (doc === null) return;
+    doc.transact(() => {
+      for (let i = 0; i < 30; i += 1) doc.insertBlock("paragraph");
+    });
+  });
+  await chip.scrollIntoViewIfNeeded();
+  const pressBefore = await a.evaluate(() => ({
+    scrollY: window.scrollY,
+    innerFocused:
+      document.activeElement !== null &&
+      document.activeElement.closest?.('[data-slot="docblocks/block-content"]') !== null,
+  }));
   // The click: the package delivers the target to the consumer (the demo's
   // stand — the banner + the window's hook) and opens nothing of its own.
   await chip.click();
@@ -85,6 +104,14 @@ test("the chip's click stands the consumer's stand (the delivery, no package car
   // consumer's resolution, never the mark's field).
   expect(target).toEqual({ kind: "user", id: "u1" });
   await expect(a.locator('[data-slot="docblocks/mention-card"]')).toHaveCount(0);
+  const pressAfter = await a.evaluate(() => ({
+    scrollY: window.scrollY,
+    innerFocused:
+      document.activeElement !== null &&
+      document.activeElement.closest?.('[data-slot="docblocks/block-content"]') !== null,
+  }));
+  expect(pressAfter.scrollY, "the click's scroll's stand (no jump to the chip's line)").toBe(pressBefore.scrollY);
+  expect(pressAfter.innerFocused, "the chip's click takes no caret seat in the text editable").toBe(false);
 
   await close();
 });

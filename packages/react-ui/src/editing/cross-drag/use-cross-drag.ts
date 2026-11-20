@@ -52,6 +52,15 @@ function useCrossDrag(rootRef: RefObject<HTMLElement | null>, doc: Doc, readOnly
       // first-click select). The miniature's text selection is the
       // browser's native gesture (the second press keeps the plain press).
       if (target.closest('[data-slot="docblocks/page-card"]') !== null) return;
+      // The press over a non-editable island's own surface (the mention
+      // chip, an image's figure, the table's chrome): the island owns the
+      // press — a caret session would seat the selection on the chip's
+      // line and pull the scroll port there (the click's point stands
+      // elsewhere). A self-contained editable inside the island (a table
+      // cell's inner, the activation layer) keeps its session.
+      const island = target.closest('[contenteditable="false"]');
+      const editable = target.closest('[contenteditable="true"]');
+      if (island !== null && (editable === null || !island.contains(editable))) return;
       const inner = target.closest<HTMLElement>('[data-slot="docblocks/block-content"]');
       if (inner === null) return;
       const anchor = positionAtPoint(doc, root, event.clientX, event.clientY);
