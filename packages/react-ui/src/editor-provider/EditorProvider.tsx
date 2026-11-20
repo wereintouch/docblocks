@@ -67,6 +67,7 @@ function EditorProviderStand({
   renderAttribute,
   attributeTypePicker,
   docTags,
+  docDescription,
   coverPresets,
   children,
 }: EditorProviderProps & { doc: Doc }) {
@@ -326,6 +327,7 @@ function EditorProviderStand({
       renderAttribute: renderAttribute ?? parent?.renderAttribute ?? null,
       attributeTypePicker: attributeTypePicker ?? parent?.attributeTypePicker ?? null,
       docTags: docTags ?? parent?.docTags ?? null,
+      docDescription: docDescription ?? parent?.docDescription ?? null,
       coverPresets: coverPresets ?? parent?.coverPresets ?? null,
       embedSandbox: embedSandbox ?? parent?.embedSandbox ?? defaultEmbedSandbox,
       rootBlockId: rootId,
@@ -358,6 +360,7 @@ function EditorProviderStand({
     renderAttribute,
     attributeTypePicker,
     docTags,
+    docDescription,
     coverPresets,
   ]);
 

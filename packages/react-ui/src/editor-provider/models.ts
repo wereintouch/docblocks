@@ -144,6 +144,34 @@ interface DocTags {
 }
 
 /**
+ * The consumer-owned description contract (the `docDescription` provider
+ * prop): the description is NEVER document data — the consumer's store is
+ * the source (the document never stores or syncs it), and the panel's
+ * `description` row displays the passed value and reports the user's edit
+ * over `onEdit` (over the consumer-owned data there are no document events:
+ * no wire, no undo). The inline editor's commit passes the entered string
+ * verbatim — the empty string stands the removal's stand (the consumer
+ * clears its store over the callback). Without the prop the row keeps the
+ * built-in stand (the value over the doc's `attributes.description`
+ * record); the legacy's stored `attributes.description` data stands inert
+ * over the prop's presence (the consumer's migration's read over
+ * `doc.meta.attributes`).
+ */
+interface DocDescription {
+  /** The document's description (the consumer's store's read; `null` = none). */
+  value: string | null;
+  /**
+   * The edit's commit (the panel's inline editor's Enter / blur — the
+   * entered string verbatim; the empty string stands the removal's stand):
+   * the consumer persists the value over its own store and passes the
+   * updated stand back over `value`. Without it the row stands
+   * display-only (the edit's and the removal's affordances stand absent,
+   * over the edit mode too).
+   */
+  onEdit?: (value: string) => void;
+}
+
+/**
  * The consumer's cover preset gallery (the `coverPresets` provider prop):
  * the ready-made cover's file ids (the consumer's own blob store's ids) per
  * placement mode. The upload modal renders the current mode's ids over
@@ -259,6 +287,8 @@ interface EditorContextValue {
   attributeTypePicker: AttributeTypePicker | null;
   /** The consumer's tags contract (the `docTags` prop); null stands the display-only stand (the `notSet` over the row). */
   docTags: DocTags | null;
+  /** The consumer's description contract (the `docDescription` prop); null stands the built-in stand (the value over the doc's record). */
+  docDescription: DocDescription | null;
   /** The consumer's cover preset gallery (the `coverPresets` prop); null stands the built-in's stand (the preset's grid stands absent). */
   coverPresets: CoverPresetSets | null;
   /** The effective embed sandbox policy (the consumer's, or the safe default) — always present. */
@@ -415,6 +445,24 @@ interface EditorProviderProps {
    */
   docTags?: DocTags;
   /**
+   * Optional consumer-owned description contract (the document-attributes
+   * panel's `description` row): the description is never document data
+   * (the consumer's store is the source — the document never stores or
+   * syncs it). The panel displays the passed value and reports the user's
+   * edit over the `onEdit` callback (the panel's inline editor's commit —
+   * the entered string verbatim; the empty string stands the removal's
+   * stand — the consumer clears its store over the callback; the row's
+   * removal's affordance stands over the non-empty's value and commits the
+   * empty string's stand; without it the row stands display-only, over the
+   * edit mode too). Over the prop's
+   * presence the row stands out of the `renderAttribute`'s reach (the
+   * consumer's value is the source). Like the other customization values,
+   * the value is read per render into the provider context: pass a stable
+   * reference (a memoized object). A nested provider that supplies none
+   * inherits the enclosing one.
+   */
+  docDescription?: DocDescription;
+  /**
    * Optional cover preset gallery (the document-attributes panel's cover row,
    * the upload modal's stand): the consumer's ready-made cover's file ids
    * (the consumer's blob store's ids — the same ids the store's `get`
@@ -438,7 +486,9 @@ interface EditorProviderProps {
    * zone (a preset key — `description` / `createdBy` / `cover` /
    * `status` / `publishedAt` — or a custom key; the `tags` row is the
    * consumer-owned stand over the `docTags`'s prop and stands out of
-   * this renderer's reach). The renderer receives the
+   * this renderer's reach; the `description` row stands out of it over
+   * the `docDescription`'s prop's presence — the consumer's value is the
+   * source over the stand). The renderer receives the
    * key, the current value, the commit / removal entries, and the
    * read-only stand; `null` (or the absent stand) selects the built-in
    * editor for that key. The row's label (the key's display name) is the
@@ -507,6 +557,7 @@ export type {
   AttributeTypePicker,
   AttributeTypePickerProps,
   CoverPresetSets,
+  DocDescription,
   DocTag,
   DocTags,
   EditorContextValue,

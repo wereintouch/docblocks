@@ -2,13 +2,15 @@
 // own document metadata — the markdown frontmatter's stand): the
 // collapsed-by-default stand (the session state — no doc write over the
 // toggle), the system rows (id / created / the live last updated), the
-// preset editors (description / the tags' consumer-owned chips (the
-// `docTags`'s contract — the document's no-write's stand); the status
-// stands display-only — the consumer's data) + the system rows (the locale's
-// committing one `setAttribute` each and syncing over the wire to the
-// second pane, the custom attributes (add / edit / remove), and the
-// view-mode's display-only stand. The panel stands over the page's shared
-// editable (a non-editable island), so the canvas view never renders it.
+// preset editors (the description's built-in / the consumer-owned stand
+// (the `docDescription`'s contract — the document's no-write's stand) / the
+// tags' consumer-owned chips (the `docTags`'s contract — the document's
+// no-write's stand); the status stands display-only — the consumer's data)
+// + the system rows (the locale's committing one `setAttribute` each and
+// syncing over the wire to the second pane, the custom attributes
+// (add / edit / remove), and the view-mode's display-only stand. The panel
+// stands over the page's shared editable (a non-editable island), so the
+// canvas view never renders it.
 import { type Page, expect, test } from "@playwright/test";
 
 import { SETTLE, switchPaneView, toCanvas, twoPanes } from "./helpers";
@@ -134,6 +136,42 @@ test("the tags' consumer contract: the chips over the passed list, the add's cli
     // The document's stand: the tags are never document data (the record
     // stands no `tags` — the consumer's store is the source).
     await expect.poll(() => attributesOf(a, "a").then((m) => m?.tags), SETTLE).toBeUndefined();
+  } finally {
+    await close();
+  }
+});
+
+test("the description's consumer contract: the value over the passed read, the edit's report over the callback (the document's no-write's stand)", async ({
+  browser,
+}) => {
+  const { a, close } = await twoPanes(browser, "doc-attributes-description-consumer", { attrDemo: true });
+  try {
+    await openPanel(a, "a");
+    const zone = panel(a, "a").locator('[data-slot="docblocks/attributes-description"]');
+    // The consumer's store's display (the demo's seed over the pane's state
+    // — the document's record stands no `description`'s entry).
+    await expect(zone).toHaveText("The consumer's description");
+    // The edit's flow: the display's click opens the inline input; the
+    // commit reports over the consumer's callback (the prop's round-trip —
+    // the package writes nothing to the document).
+    await zone.click();
+    const input = panel(a, "a").locator('[data-slot="docblocks/attributes-description-edit"]');
+    await input.fill("The edited consumer's description");
+    await input.press("Enter");
+    await expect.poll(() => zone.textContent(), SETTLE).toContain("The edited consumer's description");
+    // The row's removal's affordance (the consumer's clear's stand — the
+    // empty's commit's report over the callback):
+    // the notSet's placeholder over the cleared store.
+    await panel(a, "a")
+      .locator(
+        '[data-slot="docblocks/attribute-row"][data-attribute-key="description"] [data-slot="docblocks/attribute-row-remove"]'
+      )
+      .click();
+    await expect.poll(() => zone.textContent(), SETTLE).toContain("Not set");
+    // The document's stand: the description is never document data over the
+    // prop's presence (the record stands no `description` — the consumer's
+    // store is the source).
+    await expect.poll(() => attributesOf(a, "a").then((m) => m?.description), SETTLE).toBeUndefined();
   } finally {
     await close();
   }

@@ -13,7 +13,11 @@
  * keys, the system rows); the `tags` row is the consumer-owned stand (the
  * `docTags`'s prop: the chips over the passed list + the add affordance's
  * click over the consumer's own creation's UI + the chip's removal/click
- * events — the tags are never document data); `renderAttribute` replaces a row's value zone over its key; the
+ * events — the tags are never document data), and the `description` row
+ * stands the same stand over the `docDescription`'s prop (the value over
+ * the passed read + the edit's report over `onEdit` — the description is
+ * never document data, the built-in's stand over the prop's absence);
+ * `renderAttribute` replaces a row's value zone over its key; the
  * custom-attribute add's entry stands over the list's tail (the button —
  * the popover's type pick + the name's draft + the commit; the row's
  * creation over the type's initial form), and `attributeTypePicker`
@@ -72,7 +76,8 @@ import {
  *  over the editor's subtree only). */
 function AttributesPanel() {
   const { t, i18n } = useTranslation("editor");
-  const { store, doc, viewMode, hiddenAttributes, renderAttribute, attributeTypePicker, docTags } = useEditorContext();
+  const { store, doc, viewMode, hiddenAttributes, renderAttribute, attributeTypePicker, docTags, docDescription } =
+    useEditorContext();
   const meta = useStore(store, (state) => state.meta);
   // The per-change stamp: the live `lastUpdatedAt` row re-renders over
   // every store write (the `meta` slice is replaced only over the
@@ -101,6 +106,13 @@ function AttributesPanel() {
   // stand is the tile — the stored vocabulary is the "center"'s single
   // entry).
   const coverMode: CoverMode = coverModeOf(value("coverMode"));
+
+  // The description's consumer-owned read (the `docDescription`'s prop —
+  // the document never stores or syncs it; over the prop's presence the
+  // stored `attributes.description` stands inert). The edit affordance's
+  // gate: the edit mode + the consumer's `onEdit` entry.
+  const consumerDescriptionValue = docDescription !== null ? (docDescription.value ?? "") : "";
+  const descriptionEditable = docDescription !== null && docDescription.onEdit !== undefined && !viewMode;
 
   const set = (key: string, v: DocAttributeValue): void => {
     try {
@@ -414,7 +426,7 @@ function AttributesPanel() {
             </AttributeRow>
           )}
 
-          {hidden.has("description") ? null : (
+          {hidden.has("description") ? null : docDescription === null ? (
             <AttributeRow
               key="description"
               attributeKey="description"
@@ -444,6 +456,52 @@ function AttributesPanel() {
                       else set("description", next);
                     }
                   )
+              )}
+            </AttributeRow>
+          ) : (
+            // The description's consumer-owned stand (the `docDescription`'s
+            // prop — the document never stores or syncs it — the consumer's
+            // store is the source, the panel's edit reports over `onEdit`:
+            // no doc write, no wire, no undo). The row stands out of the
+            // `renderAttribute`'s reach (like the `tags`'s row); the legacy's
+            // stored `attributes.description` stands inert (the consumer's
+            // migration's read over `doc.meta.attributes`).
+            <AttributeRow
+              key="description"
+              attributeKey="description"
+              label={t("attributes.description")}
+              removable={descriptionEditable && consumerDescriptionValue !== ""}
+              onRemove={() => docDescription.onEdit?.("")}
+              removeAria={t("attributes.removeAria", { name: t("attributes.description") })}
+            >
+              {descriptionEditable && editingKey === "description" ? (
+                inlineEdit(
+                  "description",
+                  "docblocks/attributes-description-edit",
+                  t("attributes.editAria", { name: t("attributes.description") }),
+                  consumerDescriptionValue,
+                  (next) => {
+                    setEditingKey(null);
+                    docDescription.onEdit?.(next);
+                  }
+                )
+              ) : descriptionEditable ? (
+                <button
+                  type="button"
+                  data-slot="docblocks/attributes-description"
+                  aria-label={t("attributes.editAria", { name: t("attributes.description") })}
+                  className="w-full truncate rounded-md px-1.5 py-1 text-left text-sm hover:bg-muted/50"
+                  onClick={() => setEditingKey("description")}
+                >
+                  {consumerDescriptionValue !== "" ? consumerDescriptionValue : notSet}
+                </button>
+              ) : (
+                // The display-only's stand (the read-only's mode or the
+                // absent `onEdit`): the plain value (the no dead edit's
+                // affordance over the row's zone).
+                <span data-slot="docblocks/attributes-description" className="block truncate px-1.5 py-1 text-sm">
+                  {consumerDescriptionValue !== "" ? consumerDescriptionValue : notSet}
+                </span>
               )}
             </AttributeRow>
           )}

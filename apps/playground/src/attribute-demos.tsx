@@ -5,8 +5,17 @@
 // catalog) and the `attributeTypePicker` (the consumer's own type picker
 // over the built-in's sliding-pill's stand). The `docTags` demo stands the
 // consumer's tag store's stand (the per-pane's state over the `prompt`'s
-// harness creation — the package never writes the tags to the document).
-import type { AttributeTypePickerProps, DocTag, DocTags, RenderAttributeProps } from "docblocks-react-ui";
+// harness creation — the package never writes the tags to the document),
+// and the `docDescription` demo stands the consumer's description store's
+// stand (the per-pane's state over the edit's report — the package never
+// writes the description to the document).
+import type {
+  AttributeTypePickerProps,
+  DocDescription,
+  DocTag,
+  DocTags,
+  RenderAttributeProps,
+} from "docblocks-react-ui";
 
 import { useMemo, useState } from "react";
 
@@ -157,3 +166,27 @@ function useDocTagsDemo(enabled: boolean): DocTags | undefined {
 }
 
 export { useDocTagsDemo };
+
+/** The demo's seed description (the consumer's store's stand). */
+const DEMO_DESCRIPTION = "The consumer's description";
+
+/** The consumer's `docDescription` demo (the per-pane's store's stand: the
+ *  value over the pane's state, the commit over the edit's report (the
+ *  empty's clear's stand) — the harness's stand over the consumer's own DB /
+ *  the document list's display; the package never writes the description to
+ *  the document). */
+function useDocDescriptionDemo(enabled: boolean): DocDescription | undefined {
+  const [value, setValue] = useState<string | null>(DEMO_DESCRIPTION);
+  return useMemo<DocDescription | undefined>(() => {
+    if (!enabled) return undefined;
+    return {
+      value,
+      onEdit: (next: string) => {
+        setValue(next === "" ? null : next);
+        console.log(`[docblocks] description edit: ${next === "" ? "(cleared)" : next}`);
+      },
+    };
+  }, [enabled, value]);
+}
+
+export { useDocDescriptionDemo };

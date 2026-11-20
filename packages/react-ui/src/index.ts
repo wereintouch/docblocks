@@ -14,6 +14,7 @@ export type {
   AttributeTypePicker,
   AttributeTypePickerProps,
   CoverPresetSets,
+  DocDescription,
   DocTag,
   DocTags,
   EditorContextValue,
