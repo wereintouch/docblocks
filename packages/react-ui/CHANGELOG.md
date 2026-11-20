@@ -1,5 +1,45 @@
 # docblocks-react-ui
 
+## 0.14.0
+
+### Minor Changes
+
+- cdb165c: The mention chip's hover stands the link's affordance when the consumer
+  supplies `mentionInteractions`: the pointer cursor and a light neutral
+  background over the chip's rounded rect (3px radius, a 2px offset from
+  the letters) with a 120ms fade. The editor root marks the interactive
+  stand over `data-mention-interactive`, so a chip without the interactions
+  stays inert (no cursor, no highlight) and the consumer's own CSS can key
+  on the same hook. The chip carries the padding over the interactive stand
+  only, so the hover stands no layout jump; the row keeps its plain-text
+  height and the read-only modes keep the same hover (the observing
+  gesture's parity). The hover background reads the new
+  `--docblocks-mention-hover-background` token (the standard `--muted`'s
+  mapping, light and dark fallbacks).
+
+### Patch Changes
+
+- 1872604: The diagram preview's viewport re-clamps over the settled geometry: a
+  ResizeObserver over the wrapper and the transform layer stands the
+  diagram's centering when the boxes change after the mount — the page's
+  layout settles post-mount, and the mermaid svg lands asynchronously, so
+  the mount-time clamp measured the loading skeleton's box and left the
+  view unclamped (a diagram narrower than the column stood against the
+  wrapper's left edge; a tall one kept the same stand until an unrelated
+  change re-ran the clamp). The re-clamp stands the canonical view, so
+  nothing lands on the wire on load (the identity's attrs stay the null
+  idiom); the gestures, the fit, the reset, and the persisted view's
+  restore are unchanged. A tall diagram now stands centered from the first
+  settled frame, with no gesture or scroll.
+- c6a123b: The text surfaces carry the long word's break themselves
+  (`overflow-wrap: break-word`): the editable region gets the browser's
+  editing default, and the read-only modes inherit nothing of it, so a long
+  word in a fixed-width table cell wrapped in the edit mode and spilled
+  across the cell's edge onto the neighbor over the view and published
+  modes. The break now stands on the text block's inner, the cell's own
+  content layer, and the cell's activation layer — the same wrap in every
+  mode. User content only: the chrome is untouched.
+
 ## 0.13.0
 
 ### Minor Changes
