@@ -1,5 +1,46 @@
 # docblocks-react-ui
 
+## 0.15.0
+
+### Minor Changes
+
+- a8559ae: The inline meta editors (the header's title, the attributes panel's rows,
+  the key's rename) follow the incoming value while the field stands: a
+  pristine field reseeds over a value change from the reader (the document's
+  write, a peer's edit, the consumer's own state) with the caret kept in
+  place, and a typed draft stands over it — the user's text is never
+  clobbered mid-edit. The commit and the Escape's cancel are unchanged.
+- fb2eef9: The diagram preview's load-time view is the FIT: over the settled geometry
+  (the svg's async render, the page's post-mount layout) a diagram without a
+  persisted view stands whole in the frame, centered, scaled down only —
+  never up. The persisted zoom / pan is the explicit gesture's state only:
+  it is restored on reload and written back to the document on the wheel,
+  the drag-pan, the toolbar's zoom / fit / reset presses, and it is never
+  written by the load default, the peer's adopt, or the geometry's
+  re-computation. A wrapper resize re-fits the diagram while no explicit
+  view stands (and re-clamps the pan once it does).
+
+### Patch Changes
+
+- 5020597: Grouping the selected canvas figures leaves their earlier containers: the
+  engine used to add the members to the new group while the old group kept
+  them, so a figure stood in two containers and both markers moved it. The
+  new group's creation and the leave are one transaction (one undo step, one
+  wire update); an earlier group left without members stands in place (the
+  empty container is a legal marker).
+- fb02998: The cover tint's border stands the plain border until the cover's average
+  color resolves: the tint variable lands only once the blob's read and the
+  image's decode settle, and an undefined variable inside the color mix
+  invalidated the whole border-color — the dark theme flashed its near-white
+  text color as the frame's border over that window.
+- 6d5ab1c: A press over a non-editable island inside the text (the mention chip, an
+  image figure, the table's chrome) starts no cross-drag caret session: the
+  session used to seat the selection on the island's line and focus the
+  editable with it, which pulled the scroll port to the chip and left the
+  caret away from the pressed point. A self-contained editable inside the
+  island (a table cell's inner, the empty cell's activation layer) keeps its
+  session.
+
 ## 0.14.0
 
 ### Minor Changes
