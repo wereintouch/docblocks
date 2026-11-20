@@ -1116,6 +1116,35 @@ test("the cover's frame's tint: the border's mix over the cover's average + the 
     const tinted = await card.evaluate((el) => getComputedStyle(el).borderColor);
     expect(tinted).not.toBe("rgba(0, 0, 0, 0)");
 
+    // The window before the average color lands (the blob's read + the
+    // image's decode): the attribute stands while the tint variable is
+    // still absent — the border falls back to the plain border, never to
+    // the text color (an undefined variable inside the mix would
+    // invalidate the whole border-color and flash the dark theme's
+    // near-white text color).
+    const pending = await card.evaluate((el) => {
+      // The computed colors land in different serializations (the mix's
+      // srgb vs the token's oklch), so the stand is read off the alpha
+      // (the border's translucent's stand) and the text-color's
+      // difference (the invalid-var's flash resolves to `currentcolor`).
+      const alphaOf = (value: string): number => {
+        const match = /\/\s*([\d.]+)\s*\)$/.exec(value);
+        return match === null ? 1 : Number(match[1]);
+      };
+      const textColor = getComputedStyle(el).color;
+      el.style.removeProperty("--docblocks-cover-tint-color");
+      const noTintColor = getComputedStyle(el).borderColor;
+      const noTintAlpha = alphaOf(noTintColor);
+      el.removeAttribute("data-cover-tint");
+      const plainAlpha = alphaOf(getComputedStyle(el).borderColor);
+      el.setAttribute("data-cover-tint", "");
+      return { textColor, noTintColor, noTintAlpha, plainAlpha };
+    });
+    expect(pending.noTintColor, "the pending window never flashes the text color").not.toBe(pending.textColor);
+    expect(pending.noTintAlpha, "the pending window's border keeps the border's translucent's stand").toBe(
+      pending.plainAlpha
+    );
+
     // The off's toggle (the panel's checkbox over the cover's presence):
     // the explicit's `false`'s write stands the attribute's removal and
     // the border's plain's stand.
