@@ -129,7 +129,12 @@ function innerClassOf({
 }: Pick<TextBlockClassArgs, "block" | "doneTask" | "highlightableCode" | "codeWrap">): string {
   const align = alignOf(block);
   return cn(
-    "m-0 whitespace-pre-wrap outline-none",
+    // The long word's break (`overflow-wrap: break-word`): the read-only
+    // modes stand the same wrap the editable region carries by the
+    // browser's own editing default (a fixed-width cell's long word would
+    // otherwise overflow onto the neighbor) — the model is the wrap, not
+    // a window-dependent UA value.
+    "m-0 wrap-break-word whitespace-pre-wrap outline-none",
     doneTask && "opacity-30",
     block.type === "code" && "font-(family-name:--docblocks-mono-font-family)",
     // The highlight layer stands the visible ink: the inner's text goes

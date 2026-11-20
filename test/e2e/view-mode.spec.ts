@@ -231,3 +231,82 @@ test("the table's and the cell's read-only stands over the view's modes", async 
     await context.close();
   }
 });
+
+test("the cell's long word wraps over the view's mode (the editable's wrap's parity)", async ({
+  browser,
+}: {
+  browser: Browser;
+}) => {
+  const context = await editorContext(browser);
+  const page = await context.newPage();
+  await openPane(page, "a", "vm-table-wrap");
+  try {
+    // The seed: a two-column table with a fixed column width; the first
+    // cell carries a word wider than the cell's content box (the fixed
+    // layout keeps the columns at the width — the word must break inside
+    // the cell, not spill onto the neighbor).
+    const longWord = "Supercalifragilisticexpialidociouslongword";
+    await page.evaluate((word) => {
+      const doc = window.__paneDocs?.a ?? null;
+      if (doc === null) throw new Error("the pane's doc is not mounted");
+      doc.transact(() => {
+        for (const child of doc.getChildren(doc.toJSON().id)) doc.removeBlock(child);
+        const tableId = doc.insertBlock("table", { cols: 2, columnWidths: [120, 120] });
+        const rowId = doc.insertBlock("table-row", undefined, { parent: tableId });
+        for (let col = 0; col < 2; col += 1) {
+          const cellId = doc.insertBlock("table-cell", undefined, { parent: rowId });
+          const paragraph = doc.insertBlock("paragraph", undefined, { parent: cellId });
+          doc.insertText(paragraph, 0, col === 0 ? word : "neighbor");
+        }
+      });
+    }, longWord);
+    const cellInners = page.locator('td[data-slot="docblocks/table-cell"] [data-slot="docblocks/block-content"]');
+    await expect(cellInners.first()).toBeVisible(SETTLE);
+
+    /** The first cell's overflow + the neighbor's overlap (the measurement's stand). */
+    const measure = async () =>
+      page.evaluate(() => {
+        const inners = Array.from(
+          document.querySelectorAll<HTMLElement>(
+            'td[data-slot="docblocks/table-cell"] [data-slot="docblocks/block-content"]'
+          )
+        );
+        const first = inners[0];
+        const second = inners[1];
+        if (first === undefined || second === undefined) return null;
+        return {
+          overflowWrap: getComputedStyle(first).overflowWrap,
+          overflow: first.scrollWidth - first.clientWidth,
+          // The neighbor's box vs the first cell's right edge (the spill's
+          // stand: a word over the neighbor's box crosses into it).
+          gap: second.getBoundingClientRect().left - first.getBoundingClientRect().right,
+        };
+      });
+    // The edit's mode: the word breaks inside the cell (the browser's
+    // editing default over the shared editable).
+    await expect.poll(measure, { timeout: SETTLE.timeout }).toEqual({
+      overflowWrap: "break-word",
+      overflow: 0,
+      gap: expect.any(Number),
+    });
+    const editStand = await measure();
+    expect(editStand?.gap ?? 0, "the edit's mode's no-spill's stand").toBeGreaterThanOrEqual(0);
+
+    await toViewMode(page);
+    // The view's mode: the same wrap — the word breaks inside the cell (the
+    // class's own overflow-wrap, not the UA's editing default) and the
+    // neighbor's box stands clear of the cell's text.
+    await expect.poll(measure, { timeout: SETTLE.timeout }).toEqual({
+      overflowWrap: "break-word",
+      overflow: 0,
+      gap: expect.any(Number),
+    });
+    const viewStand = await measure();
+    expect(viewStand?.gap ?? 0, "the view's mode's no-spill's stand").toBeGreaterThanOrEqual(0);
+    // The word stands wrapped (multiple lines), not clipped into one
+    // overflowing line.
+    expect((await cellInners.first().boundingBox())?.width ?? 0).toBeLessThanOrEqual(120);
+  } finally {
+    await context.close();
+  }
+});
