@@ -156,7 +156,7 @@ publish: ## The npm's publish (the version's bump + the build + the npm's publis
 		if [ "$$(printf '%s\n' "$$vers" | wc -l | tr -d ' ')" -eq 1 ]; then \
 			git commit -m "chore(release): the $$joined version over the consumed changesets"; \
 		else \
-			git commit -m "chore(release): the $$joined versions over the consumed changesets"; \
+			git commit -m "chore(release): $$joined over the consumed changesets"; \
 		fi; \
 	fi
 
