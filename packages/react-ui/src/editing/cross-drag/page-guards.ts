@@ -57,14 +57,15 @@ function usePageMousedownGuard(rootRef: RefObject<HTMLElement | null>, readOnly:
       // frame, the header's chrome): the native selection's gesture
       // stands no — over the shared editable the user-select none loses.
       if (island === null && editable instanceof HTMLElement && isPageSurfaceInner(editable)) return; // the page's text inner: the session's guard stands
+      // The island's own surface (the mention's chip, the figure's
+      // chrome): the island owns the press. The default's suppression
+      // drops the browser's focus's move over the shared editable and the
+      // scroll's pull to the press's point; no focus stands planted over
+      // the press either — a parked root's focus scrolls the port over
+      // the press (the press's point moves under the pointer, the
+      // island's own click stands lost) and the island is never a
+      // caret's seat.
       event.preventDefault();
-      // The focus's park (the keys' reach): the suppressed default dropped
-      // the browser's focus move; a focus standing outside the editor
-      // would leave the keys landing on nothing (the detached's button
-      // over the menu's close). The editor root takes it (a non-editable
-      // focus does not touch the selection).
-      const a = document.activeElement;
-      if (a === null || !root.contains(a)) root.focus();
     };
     window.addEventListener("mousedown", guard, true);
     return () => window.removeEventListener("mousedown", guard, true);
