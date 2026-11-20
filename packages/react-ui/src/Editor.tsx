@@ -68,7 +68,7 @@ interface EditorProps {
  * palette.
  */
 function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) {
-  const { doc, store, rootBlockId, viewMode } = useEditorContext();
+  const { doc, store, rootBlockId, viewMode, mode } = useEditorContext();
   const rootChildren = useStore(store, (state) => state.rootChildren);
   // The frame's tint's read (the cover's presence + the off's stand — the
   // absent's / the `true`'s stand is the on's default): the data attribute
@@ -192,6 +192,7 @@ function Editor({ view = "page", formatPalette = FORMAT_PALETTE }: EditorProps) 
           data-slot="docblocks/editor"
           data-docblocks-motion=""
           data-view={view}
+          data-mode={mode}
           data-readonly={viewMode ? "true" : undefined}
           tabIndex={-1}
           className={cn(

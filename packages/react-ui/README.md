@@ -201,6 +201,15 @@ document data, never on the wire):
   off); the read-only gestures keep (scroll, the embed pan / zoom, the
   canvas wheel zoom / pan). Consecutive empty text blocks render as one
   over the read-only modes (the document data is untouched).
+- Copy: the `view` mode's text stands selectable and copyable (the
+  editor's payload keeps the marks, the mentions, and the cross-block
+  ranges); a native table block copies as a spreadsheet's grid (the
+  `text/html` flavor is a real `<table>`, the `text/plain` one the TSV —
+  the block's own selection copies the whole table). The `published`
+  mode stands no selection and no copy (the reader gets the rendered page
+  only). The editor root carries the resolved mode over the `data-mode`
+  attribute (the styling hook; `data-readonly` marks both read-only
+  modes).
 - Publishing is a consumer action: snapshot the doc state (`doc.encode()`
   or `doc.toJSON()`), persist it where the reader loads it from, and
   hydrate it (`loadDoc` / `fromJSON`) — for the `editor`'s `published`

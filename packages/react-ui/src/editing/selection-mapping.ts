@@ -75,8 +75,20 @@ function writerAnchorHintFor(root: ParentNode, range: Range): WriterAnchorHint |
  * The engine fills the cross-block `blocks` chain on `set` — the mapping
  * never computes it. Offsets of boundary endpoints come from the doc
  * (getTextLength), not a DOM text walk.
+ *
+ * `readOnly` counts the view mode's inners (the non-editable block
+ * content) as text blocks too: the read-only stand keeps no caret and no
+ * live selection view, but its native range is still a range over the
+ * document's text — the copy's read maps it (and the contenteditable
+ * requirement stands over the edit's mode).
  */
-function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc: Doc): CoreSelection {
+function mapDomSelection(
+  root: HTMLElement,
+  domSelection: Selection | null,
+  doc: Doc,
+  options: { readOnly?: boolean } = {}
+): CoreSelection {
+  const readOnly = options.readOnly === true;
   if (domSelection === null || domSelection.rangeCount === 0) return { kind: "none" };
   const { anchorNode, anchorOffset, focusNode, focusOffset } = domSelection;
   if (anchorNode === null || focusNode === null) return { kind: "none" };
@@ -98,8 +110,8 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
   if (inDatabaseBlock(anchorNode) || inDatabaseBlock(focusNode)) return { kind: "none" };
 
   const range = domSelection.getRangeAt(0);
-  const anchorBlock = textBlockOf(anchorNode, root);
-  const focusBlock = textBlockOf(focusNode, root);
+  const anchorBlock = textBlockOf(anchorNode, root, readOnly);
+  const focusBlock = textBlockOf(focusNode, root, readOnly);
   // A selection outside a text-editable inside the canvas view maps to
   // none: the canvas manages its own selection (the explicit press), and
   // the engine's focus move over a canvas item (the mousedown's default
@@ -130,18 +142,18 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
     const first: Endpoint = {
       node: range.startContainer,
       offset: range.startOffset,
-      textBlock: textBlockOf(range.startContainer, root),
+      textBlock: textBlockOf(range.startContainer, root, readOnly),
     };
     const last: Endpoint = {
       node: range.endContainer,
       offset: range.endOffset,
-      textBlock: textBlockOf(range.endContainer, root),
+      textBlock: textBlockOf(range.endContainer, root, readOnly),
     };
-    if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range)) {
+    if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range, readOnly)) {
       return mapBlocksSelection(root, domSelection, anchorBlock);
     }
-    const from = resolveEndpoint(doc, root, first, "first");
-    const to = resolveEndpoint(doc, root, last, "last");
+    const from = resolveEndpoint(doc, root, first, "first", readOnly);
+    const to = resolveEndpoint(doc, root, last, "last", readOnly);
     if (from === null || to === null) return mapBlocksSelection(root, domSelection, anchorBlock);
     if (from.blockId === to.blockId && from.offset === to.offset) {
       return { kind: "text", from, to: null };
@@ -184,12 +196,12 @@ function mapDomSelection(root: HTMLElement, domSelection: Selection | null, doc:
 
   // A pure non-text selection (the range touches no text block) keeps the
   // blocks-kind mapping.
-  if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range)) {
+  if (first.textBlock === null && last.textBlock === null && !rangeTouchesTextBlock(root, range, readOnly)) {
     return mapBlocksSelection(root, domSelection, anchorBlock);
   }
 
-  const from = resolveEndpoint(doc, root, first, "first");
-  const to = resolveEndpoint(doc, root, last, "last");
+  const from = resolveEndpoint(doc, root, first, "first", readOnly);
+  const to = resolveEndpoint(doc, root, last, "last", readOnly);
   if (from === null || to === null) return mapBlocksSelection(root, domSelection, anchorBlock);
 
   // Degenerate resolution (both endpoints land on one point): a caret.
@@ -266,7 +278,8 @@ function resolveEndpoint(
   doc: Doc,
   root: HTMLElement,
   endpoint: Endpoint,
-  role: "first" | "last"
+  role: "first" | "last",
+  readOnly = false
 ): { blockId: BlockId; offset: number } | null {
   if (endpoint.textBlock !== null) {
     return {
@@ -274,7 +287,7 @@ function resolveEndpoint(
       offset: caretOffsetIn(endpoint.textBlock, endpoint.node, endpoint.offset),
     };
   }
-  const blocks = textBlockElementsIn(root);
+  const blocks = textBlockElementsIn(root, readOnly);
   if (role === "first") {
     const preceding = nearestBefore(endpoint.node, blocks);
     if (preceding !== null) return { blockId: blockIdOf(preceding), offset: doc.getTextLength(blockIdOf(preceding)) };
@@ -312,9 +325,9 @@ function mapBlocksSelection(
   return { kind: "blocks", ids, anchorId: ids.includes(anchorId) ? anchorId : ids[0]! };
 }
 
-/** Whether the range intersects a text-editable block of the editor. */
-function rangeTouchesTextBlock(root: HTMLElement, range: Range): boolean {
-  for (const element of textBlockElementsIn(root)) {
+/** Whether the range intersects a text block of the editor. */
+function rangeTouchesTextBlock(root: HTMLElement, range: Range, readOnly = false): boolean {
+  for (const element of textBlockElementsIn(root, readOnly)) {
     if (range.intersectsNode(element)) return true;
   }
   return false;
@@ -328,18 +341,22 @@ function rangeTouchesTextBlock(root: HTMLElement, range: Range): boolean {
  * consider them (compare the `ownScopeOf` endpoint guard in
  * `mapDomSelection`).
  */
-function textBlockElementsIn(root: HTMLElement): HTMLElement[] {
+function textBlockElementsIn(root: HTMLElement, readOnly = false): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>("[data-block-id]")).filter(
-    (element) => isTextBlockElement(element) && ownScopeOf(element, root)
+    (element) => isTextBlockElement(element, readOnly) && ownScopeOf(element, root)
   );
 }
 
 /**
- * Whether the element is a text-editable block (the inner contenteditable
- * [data-block-id] element).
+ * Whether the element is a text block (the inner contenteditable
+ * [data-block-id] element). Over the read-only stand the inner is
+ * non-editable (the view mode's copy stands the sole reader): its block
+ * content element counts too.
  */
-function isTextBlockElement(element: HTMLElement): boolean {
-  return element.dataset.blockId !== undefined && element.getAttribute("contenteditable") === "true";
+function isTextBlockElement(element: HTMLElement, readOnly = false): boolean {
+  if (element.dataset.blockId === undefined) return false;
+  if (element.getAttribute("contenteditable") === "true") return true;
+  return readOnly && element.getAttribute("data-slot") === "docblocks/block-content";
 }
 
 /** The nearest text-editable block strictly before the node in reading order. */
@@ -375,10 +392,10 @@ function ownScopeOf(node: Node, root: HTMLElement): boolean {
  * contains the node; null when the node is in a non-text block or outside
  * the editor root.
  */
-function textBlockOf(node: Node, root: HTMLElement): HTMLElement | null {
+function textBlockOf(node: Node, root: HTMLElement, readOnly = false): HTMLElement | null {
   let current: Node | null = node;
   while (current !== null && current !== root) {
-    if (current instanceof HTMLElement && isTextBlockElement(current)) return current;
+    if (current instanceof HTMLElement && isTextBlockElement(current, readOnly)) return current;
     current = current.parentNode;
   }
   return null;

@@ -130,8 +130,14 @@ function positionAtPoint(doc: Doc, root: HTMLElement, x: number, y: number): Dra
  * stand). The browser's native caret's seat stands the press; a double
  * press over the focused frame stands the same stand over the detail's
  * check.
+ *
+ * The read-only stand (`readOnly`): no session starts and the page
+ * flow's mousedown guard / the triple press's stand stand off — the view
+ * mode's native range IS the copy's affordance (the browser's selection
+ * gesture must own the presses; the guard's default's suppression would
+ * kill it).
  */
-function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
+function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc, readOnly = false) {
   const sessionRef = useRef<CrossDragSession | null>(null);
 
   // The window listeners are stable for the hook's lifetime (they read
@@ -296,6 +302,7 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
   // page's text inners stand the session's own guard (the single press's
   // suppression, the multi-click's native word/line's select).
   useEffect(() => {
+    if (readOnly) return;
     const guard = (event: MouseEvent) => {
       const root = rootRef.current;
       if (root === null || event.button !== 0) return;
@@ -339,11 +346,12 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
     };
     window.addEventListener("mousedown", guard, true);
     return () => window.removeEventListener("mousedown", guard, true);
-  }, [rootRef]);
+  }, [rootRef, readOnly]);
 
   // A session that outlives its pointer (the window closed over a
   // captured pointer) is torn down with the effect's cleanup.
   useEffect(() => {
+    if (readOnly) return;
     const triple = (event: MouseEvent) => {
       const root = rootRef.current;
       if (root === null || event.button !== 0 || event.detail < 3) return;
@@ -378,7 +386,7 @@ function useCrossDrag(rootRef: { current: HTMLElement | null }, doc: Doc) {
       window.removeEventListener("pointercancel", handlers.end);
       window.removeEventListener("mousedown", handlers.mousedown, true);
     };
-  }, []);
+  }, [doc, readOnly]);
 
   return { onPointerDown };
 }

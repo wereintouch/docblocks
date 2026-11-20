@@ -254,7 +254,7 @@ interface PresenceConfig {
 /** The consumer's user access level: the available document modes. "viewer" is locked to the published's view (the current state is never rendered); "editor" (the default) may edit and view. Session state — not document data, never on the wire. */
 type AccessLevel = "viewer" | "editor";
 
-/** The document's mode (consumer-controlled view state, like the page/canvas `view`): "edit" (the default) is the live document editable; "view" is the live document read-only (the current state, still syncing); "published" is the `publishedDoc`'s snapshot read-only (static). */
+/** The document's mode (consumer-controlled view state, like the page/canvas `view`): "edit" (the default) is the live document editable; "view" is the live document read-only (the current state, still syncing) with its text selectable and copyable; "published" is the `publishedDoc`'s snapshot read-only (static) with no selection and no copy. */
 type EditorMode = "edit" | "view" | "published";
 
 /** Per-instance editor context: the store, the doc, the selection handle, and the customization values. */

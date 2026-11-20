@@ -13,7 +13,7 @@ import {
   reseatHistorySelection,
   segmentRange,
 } from "./block-commands";
-import { crossRangeClipboardContent, segmentOf } from "./cross-copy";
+import { clipboardContentOf, segmentOf } from "./cross-copy";
 import { locatePosition } from "./dom-offset";
 import { containerCaretNeedsReseat, reseatContainerCaret } from "./page-surface";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
@@ -80,7 +80,7 @@ interface EditingHandle {
  * Document-level wiring owned by the editor root: `selectionchange` maps
  * the DOM selection to the core Selection view, the mod+z / mod+shift+z /
  * mod+y hotkeys drive doc.undo()/doc.redo(), and the copy event carries
- * the cross-range payload (the keydown and copy listeners live on the
+ * the selection's payload (the keydown and copy listeners live on the
  * root, so they never fire outside the editor).
  *
  * The selection view is read at event time through the stable context
@@ -89,13 +89,14 @@ interface EditingHandle {
  * so a render-time value would be a stale null.
  */
 function useEditing(): EditingHandle {
-  const { doc, rootBlockId, selection: selectionRef, viewMode } = useEditorContext();
+  const { doc, rootBlockId, selection: selectionRef, viewMode, mode } = useEditorContext();
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const crossDrag = useCrossDrag(rootRef, doc);
+  const crossDrag = useCrossDrag(rootRef, doc, viewMode);
 
   useEffect(() => {
-    // The read-only stand (view / published): the DOM selection stands no
-    // stand (the user-select's none) — the mapping is skipped.
+    // The read-only stand (view / published): the selection view stands no
+    // stand there (the mapping's editing path is off — the view's mode's
+    // native range is mapped at copy time instead).
     if (viewMode) return;
     const onSelectionChange = () => {
       const root = rootRef.current;
@@ -390,9 +391,10 @@ function useEditing(): EditingHandle {
   };
 
   const onCopy = (event: ClipboardEvent<HTMLDivElement>) => {
-    // The read-only stand (view / published): the cross-range's copy is
-    // off (the selection stands no stand there).
-    if (viewMode) return;
+    // The published stand: the reader's copy is off (the selection's
+    // gesture stands no stand over it at all). The view's mode keeps the
+    // copy — the read-only live document is readable, not writable.
+    if (mode === "published") return;
     // A copy from a nested editor (a sync-embed) bubbles up to this root;
     // that editor's own copy handler owns its payload.
     const root = rootRef.current;
@@ -403,9 +405,11 @@ function useEditing(): EditingHandle {
     if (nearest !== null && nearest !== root) return;
     // The browser cannot copy a selection across a contenteditable
     // boundary: a cross-block range is serialized from the doc (the
-    // covered segment of each chain block); same-block copies keep the
-    // default copy.
-    const selection = view.get();
+    // covered segment of each chain block). The edit's mode reads the live
+    // selection view (the mapping owns it); the view's mode maps the DOM
+    // selection at copy time — the read-only stand keeps no live view (the
+    // browser's native range is the only selection there).
+    const selection = viewMode ? mapDomSelection(root, window.getSelection(), doc, { readOnly: true }) : view.get();
     // A same-block text range that includes a mention: serialize the segment
     // (the mention copies as `@label`, not the chip's bare label). A segment
     // without a mention keeps the default copy (the native fidelity).
@@ -437,7 +441,7 @@ function useEditing(): EditingHandle {
         }
       }
     }
-    const payload = crossRangeClipboardContent(doc, selection);
+    const payload = clipboardContentOf(doc, selection);
     if (payload === null) return;
     event.preventDefault();
     event.clipboardData.setData("text/plain", payload.text);

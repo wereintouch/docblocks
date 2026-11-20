@@ -56,7 +56,7 @@
  * docblocks/format-palette),
  * plus the per-block elements;
  * + `data-block-type` / `data-list` / `data-depth` / `data-variant` / `data-checked`
- * / `data-kind` / `data-selected` / `data-state` / `data-doc-id` / `data-readonly`.
+ * / `data-kind` / `data-selected` / `data-state` / `data-doc-id` / `data-mode` / `data-readonly`.
  */
 
 /*
@@ -379,12 +379,29 @@
 
 /*
  * The read-only stand (view / published modes): the editor's content is
- * read-only — the text selection stands no stand (the native range's
- * gesture is an editing's affordance). The caret is already impossible
- * (the inners stand contenteditable="false"), this keeps the
- * selection's gesture off over the whole content.
+ * read-only — the inners stand contenteditable="false" (the caret's
+ * editing's affordance is impossible).
+ *
+ * The PUBLISHED stand also blocks the text selection: the reader's copy
+ * stands no stand (the published state is readable over the rendered page
+ * only — no range, no copy). The VIEW stand keeps
+ * the native selection (the live document is read-only but copyable: the
+ * text is the reader's to quote, and the editor's copy payload serves it
+ * — see use-editing). The `data-readonly` over the standalone's read-only
+ * grid (no `data-mode` — the consumer's own surfaces) keeps the no-select
+ * stand.
  */
-[data-slot="docblocks/editor"][data-readonly="true"] {
+[data-slot="docblocks/editor"][data-readonly="true"]:not([data-mode="view"]) {
+  user-select: none;
+}
+
+/*
+ * The view's mode over the canvas: the page's text stands selectable, the
+ * canvas's world keeps the read-only's no-select stand — the native range
+ * would fight the pan's drag (the observing gesture) and the world's text
+ * is not an editing surface.
+ */
+[data-slot="docblocks/editor"][data-mode="view"] [data-slot="docblocks/canvas-world"] {
   user-select: none;
 }
 
