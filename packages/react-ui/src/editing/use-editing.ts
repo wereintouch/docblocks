@@ -17,7 +17,7 @@ import { clipboardContentOf, segmentOf } from "./cross-copy";
 import { locatePosition } from "./dom-offset";
 import { containerCaretNeedsReseat, reseatContainerCaret } from "./page-surface";
 import { domSelectionInEditable, mapDomSelection, selectionsEqual } from "./selection-mapping";
-import { useCrossDrag } from "./use-cross-drag";
+import { useCrossDrag } from "./cross-drag";
 
 /**
  * The history reseat's window over the undo/redo (the remount's transient
